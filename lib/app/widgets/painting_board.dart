@@ -233,10 +233,7 @@ class PaintingBoardState extends State<PaintingBoard> {
       return;
     }
     final double currentScale = _viewport.scale;
-    final double clamped = targetScale.clamp(
-      CanvasViewport.minScale,
-      CanvasViewport.maxScale,
-    );
+    final double clamped = _viewport.clampScale(targetScale);
     if ((clamped - currentScale).abs() < 0.0005) {
       return;
     }
