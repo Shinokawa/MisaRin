@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 
 class HandToolButton extends StatelessWidget {
   const HandToolButton({
@@ -23,33 +24,36 @@ class HandToolButton extends StatelessWidget {
         ? const Color(0xFF005A9E)
         : const Color(0xFF323130);
 
-    return GestureDetector(
-      onTap: onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 1.5),
-          boxShadow: isSelected
-              ? const [
-                  BoxShadow(
-                    color: Color(0x330078D4),
-                    blurRadius: 9,
-                    offset: Offset(0, 4),
-                  ),
-                ]
-              : const [
-                  BoxShadow(
-                    color: Color(0x10000000),
-                    blurRadius: 6,
-                    offset: Offset(0, 3),
-                  ),
-                ],
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor, width: 1.5),
+            boxShadow: isSelected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x330078D4),
+                      blurRadius: 9,
+                      offset: Offset(0, 4),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x10000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+          ),
+          child: Icon(FluentIcons.handwriting, color: iconColor, size: 20),
         ),
-        child: Icon(FluentIcons.handwriting, color: iconColor, size: 20),
       ),
     );
   }

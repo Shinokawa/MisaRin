@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 
 class UndoToolButton extends StatelessWidget {
   const UndoToolButton({
@@ -22,27 +23,30 @@ class UndoToolButton extends StatelessWidget {
         ? const Color(0xFF0B5A09)
         : const Color(0xFF8AA08A);
 
-    return GestureDetector(
-      onTap: enabled ? onPressed : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 1.5),
-          boxShadow: enabled
-              ? const [
-                  BoxShadow(
-                    color: Color(0x260F7A0B),
-                    blurRadius: 7,
-                    offset: Offset(0, 3),
-                  ),
-                ]
-              : const [],
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: enabled ? onPressed : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor, width: 1.5),
+            boxShadow: enabled
+                ? const [
+                    BoxShadow(
+                      color: Color(0x260F7A0B),
+                      blurRadius: 7,
+                      offset: Offset(0, 3),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: Icon(FluentIcons.undo, color: iconColor, size: 20),
         ),
-        child: Icon(FluentIcons.undo, color: iconColor, size: 20),
       ),
     );
   }

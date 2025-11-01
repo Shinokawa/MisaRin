@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../canvas/canvas_tools.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
@@ -28,11 +29,15 @@ class CanvasToolbar extends StatelessWidget {
   final bool canRedo;
   final VoidCallback onExit;
 
-  static const TooltipThemeData _rightTooltipStyle =
-      TooltipThemeData(preferBelow: false, verticalOffset: 24);
+  static const TooltipThemeData _rightTooltipStyle = TooltipThemeData(
+    preferBelow: false,
+    verticalOffset: 24,
+    waitDuration: Duration.zero,
+  );
 
   static String _tooltipMessage(String base, ToolbarAction action) {
-    final shortcutLabel = ToolbarShortcuts.of(action).tooltipLabel;
+    final shortcutLabel =
+        ToolbarShortcuts.labelForPlatform(action, defaultTargetPlatform);
     if (shortcutLabel.isEmpty) {
       return base;
     }
