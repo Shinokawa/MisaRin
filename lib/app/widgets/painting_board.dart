@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
+import '../../canvas/canvas_camera.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/stroke_painter.dart';
@@ -38,7 +39,7 @@ class PaintingBoardState extends State<PaintingBoard> {
   bool _isDraggingBoard = false;
   bool _isDirty = false;
 
-  Offset _boardOffset = Offset.zero;
+  final CanvasCamera _camera = CanvasCamera();
   Size _workspaceSize = Size.zero;
   Offset _layoutBaseOffset = Offset.zero;
 
@@ -69,7 +70,7 @@ class PaintingBoardState extends State<PaintingBoard> {
   }
 
   Rect get _boardRect {
-    final Offset position = _layoutBaseOffset + _boardOffset;
+    final Offset position = _layoutBaseOffset + _camera.offset;
     return Rect.fromLTWH(
       position.dx,
       position.dy,
@@ -80,19 +81,7 @@ class PaintingBoardState extends State<PaintingBoard> {
 
   Offset _toBoardLocal(Offset workspacePosition) {
     final Rect boardRect = _boardRect;
-    double localX = workspacePosition.dx - boardRect.left;
-    double localY = workspacePosition.dy - boardRect.top;
-    if (localX < 0) {
-      localX = 0;
-    } else if (localX > widget.settings.width) {
-      localX = widget.settings.width;
-    }
-    if (localY < 0) {
-      localY = 0;
-    } else if (localY > widget.settings.height) {
-      localY = widget.settings.height;
-    }
-    return Offset(localX, localY);
+    return workspacePosition - boardRect.topLeft;
   }
 
   bool _isPrimaryPointer(PointerEvent event) {
@@ -166,7 +155,7 @@ class PaintingBoardState extends State<PaintingBoard> {
       return;
     }
     setState(() {
-      _boardOffset += delta;
+      _camera.translate(delta);
     });
   }
 
@@ -203,13 +192,8 @@ class PaintingBoardState extends State<PaintingBoard> {
       return;
     }
     if (_isDrawing && _activeTool == CanvasTool.pen) {
-      final Rect boardRect = _boardRect;
-      final bool insideBoard = boardRect.contains(event.localPosition);
       final Offset boardLocal = _toBoardLocal(event.localPosition);
       _appendPoint(boardLocal);
-      if (!insideBoard) {
-        _finishStroke();
-      }
     } else if (_isDraggingBoard && _activeTool == CanvasTool.hand) {
       _updateDragBoard(event.delta);
     }
@@ -307,11 +291,13 @@ class PaintingBoardState extends State<PaintingBoard> {
                                 width: 1,
                               ),
                             ),
-                            child: CustomPaint(
-                              painter: StrokePainter(
-                                strokes: strokes,
-                                backgroundColor:
-                                    widget.settings.backgroundColor,
+                            child: ClipRect(
+                              child: CustomPaint(
+                                painter: StrokePainter(
+                                  strokes: strokes,
+                                  backgroundColor:
+                                      widget.settings.backgroundColor,
+                                ),
                               ),
                             ),
                           ),
