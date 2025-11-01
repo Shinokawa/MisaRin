@@ -8,6 +8,7 @@ import '../../canvas/canvas_tools.dart';
 import '../../canvas/stroke_painter.dart';
 import '../../canvas/stroke_store.dart';
 import 'canvas_toolbar.dart';
+import '../shortcuts/toolbar_shortcuts.dart';
 
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
@@ -98,7 +99,7 @@ class PaintingBoardState extends State<PaintingBoard> {
     _toolButtonPadding,
     _toolButtonPadding,
     _toolbarButtonSize,
-    _toolbarButtonSize * 4 + _toolbarSpacing * 3,
+    _toolbarButtonSize * 5 + _toolbarSpacing * 4,
   );
 
   bool _isInsideToolArea(Offset workspacePosition) {
@@ -334,10 +335,32 @@ class PaintingBoardState extends State<PaintingBoard> {
     }
   }
 
+  void _handleRedo() {
+    final bool redone = _store.redo();
+    if (!redone) {
+      return;
+    }
+    setState(() {});
+    _markDirty();
+  }
+
   @override
   Widget build(BuildContext context) {
     final strokes = _store.strokes;
-    final bool canUndo = strokes.isNotEmpty;
+    final bool canUndo = _store.canUndo;
+    final bool canRedo = _store.canRedo;
+    final Map<LogicalKeySet, Intent> shortcutBindings = {
+      for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
+        key: const UndoIntent(),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
+        key: const RedoIntent(),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.penTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.pen),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.handTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.hand),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
+        key: const ExitBoardIntent(),
+    };
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -350,17 +373,30 @@ class PaintingBoardState extends State<PaintingBoard> {
         final Rect boardRect = _boardRect;
 
         return Shortcuts(
-          shortcuts: <LogicalKeySet, Intent>{
-            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyZ):
-                const UndoIntent(),
-            LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ):
-                const UndoIntent(),
-          },
+          shortcuts: shortcutBindings,
           child: Actions(
             actions: <Type, Action<Intent>>{
               UndoIntent: CallbackAction<UndoIntent>(
                 onInvoke: (intent) {
                   _handleUndo();
+                  return null;
+                },
+              ),
+              RedoIntent: CallbackAction<RedoIntent>(
+                onInvoke: (intent) {
+                  _handleRedo();
+                  return null;
+                },
+              ),
+              SelectToolIntent: CallbackAction<SelectToolIntent>(
+                onInvoke: (intent) {
+                  _setActiveTool(intent.tool);
+                  return null;
+                },
+              ),
+              ExitBoardIntent: CallbackAction<ExitBoardIntent>(
+                onInvoke: (intent) {
+                  widget.onRequestExit();
                   return null;
                 },
               ),
@@ -417,7 +453,9 @@ class PaintingBoardState extends State<PaintingBoard> {
                             activeTool: _activeTool,
                             onToolSelected: _setActiveTool,
                             onUndo: _handleUndo,
+                            onRedo: _handleRedo,
                             canUndo: canUndo,
+                            canRedo: canRedo,
                             onExit: widget.onRequestExit,
                           ),
                         ),
@@ -436,4 +474,18 @@ class PaintingBoardState extends State<PaintingBoard> {
 
 class UndoIntent extends Intent {
   const UndoIntent();
+}
+
+class RedoIntent extends Intent {
+  const RedoIntent();
+}
+
+class SelectToolIntent extends Intent {
+  const SelectToolIntent(this.tool);
+
+  final CanvasTool tool;
+}
+
+class ExitBoardIntent extends Intent {
+  const ExitBoardIntent();
 }
