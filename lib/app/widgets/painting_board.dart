@@ -32,7 +32,6 @@ class PaintingBoardState extends State<PaintingBoard> {
   static const double _toolButtonPadding = 16;
   static const double _toolbarButtonSize = 48;
   static const double _toolbarSpacing = 9;
-  static const Color _workspaceColor = Color(0xFFE5E5E5);
 
   final StrokeStore _store = StrokeStore();
   final FocusNode _focusNode = FocusNode();
@@ -373,6 +372,11 @@ class PaintingBoardState extends State<PaintingBoard> {
         key: const ExitBoardIntent(),
     };
 
+    final theme = FluentTheme.of(context);
+    final bool isDark = theme.brightness.isDark;
+    final Color workspaceColor =
+        isDark ? const Color(0xFF1B1B1F) : const Color(0xFFE5E5E5);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         _workspaceSize = constraints.biggest;
@@ -428,7 +432,7 @@ class PaintingBoardState extends State<PaintingBoard> {
                   onPointerCancel: _handlePointerCancel,
                   onPointerSignal: _handlePointerSignal,
                   child: Container(
-                    color: _workspaceColor,
+                    color: workspaceColor,
                     child: Stack(
                       children: [
                         Positioned(
@@ -440,7 +444,9 @@ class PaintingBoardState extends State<PaintingBoard> {
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 border: Border.all(
-                                  color: const Color(0x33000000),
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.12)
+                                      : const Color(0x33000000),
                                   width: 1,
                                 ),
                               ),

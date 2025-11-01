@@ -13,15 +13,20 @@ class UndoToolButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final bool isDark = theme.brightness.isDark;
     final Color borderColor = enabled
-        ? const Color(0xFF0F7A0B)
-        : const Color(0xFFC6D7C6);
+        ? (isDark ? const Color(0xFF4AA553) : const Color(0xFF0F7A0B))
+        : (isDark ? const Color(0xFF2E3C30) : const Color(0xFFC6D7C6));
     final Color backgroundColor = enabled
-        ? const Color(0xFFEAF7EA)
-        : const Color(0xFFF2F7F2);
+        ? (isDark ? const Color(0xFF17331B) : const Color(0xFFEAF7EA))
+        : (isDark ? const Color(0xFF1F2721) : const Color(0xFFF2F7F2));
     final Color iconColor = enabled
-        ? const Color(0xFF0B5A09)
-        : const Color(0xFF8AA08A);
+        ? (isDark ? const Color(0xFF90F09D) : const Color(0xFF0B5A09))
+        : (isDark ? const Color(0xFF5F7262) : const Color(0xFF8AA08A));
+    final Color shadowColor = enabled
+        ? (isDark ? const Color(0x664AA553) : const Color(0x260F7A0B))
+        : Colors.transparent;
 
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -35,15 +40,14 @@ class UndoToolButton extends StatelessWidget {
             color: backgroundColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: borderColor, width: 1.5),
-            boxShadow: enabled
-                ? const [
-                    BoxShadow(
-                      color: Color(0x260F7A0B),
-                      blurRadius: 7,
-                      offset: Offset(0, 3),
-                    ),
-                  ]
-                : const [],
+            boxShadow: [
+              if (enabled)
+                BoxShadow(
+                  color: shadowColor,
+                  blurRadius: 7,
+                  offset: const Offset(0, 3),
+                ),
+            ],
           ),
           child: Icon(FluentIcons.undo, color: iconColor, size: 20),
         ),

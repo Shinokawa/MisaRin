@@ -14,12 +14,17 @@ class PenToolButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final bool isDark = theme.brightness.isDark;
+    final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
     final Color borderColor = isSelected
-        ? const Color(0xFF0078D4)
-        : const Color(0xFFD6D6D6);
-    final Color backgroundColor = theme.brightness.isDark
-        ? const Color(0xFF1F1F1F)
-        : const Color(0xFFFFFFFF);
+        ? accent
+        : (isDark ? const Color(0xFF373737) : const Color(0xFFD6D6D6));
+    final Color backgroundColor = isSelected
+        ? (isDark ? const Color(0xFF262626) : const Color(0xFFFAFAFA))
+        : (isDark ? const Color(0xFF1B1B1F) : const Color(0xFFFFFFFF));
+    final Color shadowColor = isSelected
+        ? accent.withOpacity(isDark ? 0.45 : 0.28)
+        : (isDark ? Colors.black.withOpacity(0.45) : Colors.black);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -33,21 +38,13 @@ class PenToolButton extends StatelessWidget {
             color: backgroundColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: borderColor, width: 1.5),
-            boxShadow: isSelected
-                ? const [
-                    BoxShadow(
-                      color: Color(0x330078D4),
-                      blurRadius: 9,
-                      offset: Offset(0, 4),
-                    ),
-                  ]
-                : const [
-                    BoxShadow(
-                      color: Color(0x10000000),
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
+            boxShadow: [
+              BoxShadow(
+                color: shadowColor,
+                blurRadius: isSelected ? 9 : 6,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: const _PenGraphic(),
         ),
