@@ -13,14 +13,14 @@ class UndoToolButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color borderColor = enabled
-        ? const Color(0xFF0078D4)
-        : const Color(0xFFD6D6D6);
+        ? const Color(0xFF0F7A0B)
+        : const Color(0xFFC6D7C6);
     final Color backgroundColor = enabled
-        ? const Color(0xFFE5F1FB)
-        : const Color(0xFFF4F4F4);
+        ? const Color(0xFFEAF7EA)
+        : const Color(0xFFF2F7F2);
     final Color iconColor = enabled
-        ? const Color(0xFF003A6D)
-        : const Color(0xFF7A7A7A);
+        ? const Color(0xFF0B5A09)
+        : const Color(0xFF8AA08A);
 
     return GestureDetector(
       onTap: enabled ? onPressed : null,
@@ -35,7 +35,7 @@ class UndoToolButton extends StatelessWidget {
           boxShadow: enabled
               ? const [
                   BoxShadow(
-                    color: Color(0x260078D4),
+                    color: Color(0x260F7A0B),
                     blurRadius: 5,
                     offset: Offset(0, 2),
                   ),
