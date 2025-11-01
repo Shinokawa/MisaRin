@@ -3,6 +3,29 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../../canvas/canvas_settings.dart';
 import 'misarin_dialog.dart';
 
+class _CanvasPreset {
+  const _CanvasPreset({
+    required this.width,
+    required this.height,
+    this.note,
+  });
+
+  final int width;
+  final int height;
+  final String? note;
+
+  String get displayLabel {
+    if (note == null || note!.isEmpty) {
+      return '$width × $height';
+    }
+    return '$width × $height（$note）';
+  }
+
+  bool matches(double width, double height) {
+    return width.round() == this.width && height.round() == this.height;
+  }
+}
+
 Future<CanvasSettings?> showCanvasSettingsDialog(
   BuildContext context, {
   CanvasSettings? initialSettings,
@@ -25,10 +48,25 @@ class _CanvasSettingsDialog extends StatefulWidget {
 }
 
 class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
+  static const List<_CanvasPreset> _presets = [
+    _CanvasPreset(width: 1280, height: 720, note: '横向'),
+    _CanvasPreset(width: 720, height: 1280, note: '纵向'),
+    _CanvasPreset(width: 1920, height: 1080, note: '横向'),
+    _CanvasPreset(width: 1080, height: 1920, note: '纵向'),
+    _CanvasPreset(width: 2560, height: 1440, note: '横向'),
+    _CanvasPreset(width: 1440, height: 2560, note: '纵向'),
+    _CanvasPreset(width: 3840, height: 2160, note: '横向'),
+    _CanvasPreset(width: 2160, height: 3840, note: '纵向'),
+    _CanvasPreset(width: 256, height: 256, note: '正方形'),
+    _CanvasPreset(width: 512, height: 512, note: '正方形'),
+    _CanvasPreset(width: 1024, height: 1024, note: '正方形'),
+  ];
   late final TextEditingController _widthController;
   late final TextEditingController _heightController;
   late Color _selectedColor;
+  _CanvasPreset? _selectedPreset;
   String? _errorMessage;
+  bool _isUpdatingPreset = false;
 
   @override
   void initState() {
@@ -39,11 +77,19 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     _heightController = TextEditingController(
       text: widget.initialSettings.height.toStringAsFixed(0),
     );
+    _widthController.addListener(_handleDimensionChanged);
+    _heightController.addListener(_handleDimensionChanged);
     _selectedColor = widget.initialSettings.backgroundColor;
+    _selectedPreset = _matchPreset(
+      widget.initialSettings.width,
+      widget.initialSettings.height,
+    );
   }
 
   @override
   void dispose() {
+    _widthController.removeListener(_handleDimensionChanged);
+    _heightController.removeListener(_handleDimensionChanged);
     _widthController.dispose();
     _heightController.dispose();
     super.dispose();
@@ -77,6 +123,22 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          InfoLabel(
+            label: '选择预设',
+            child: ComboBox<_CanvasPreset?>(
+              isExpanded: true,
+              value: _selectedPreset,
+              items: [
+                const ComboBoxItem<_CanvasPreset?>(
+                  value: null,
+                  child: Text('自定义'),
+                ),
+                ..._buildPresetItems(),
+              ],
+              onChanged: _handlePresetChanged,
+            ),
+          ),
+          const SizedBox(height: 12),
           InfoLabel(
             label: '画布宽度 (像素)',
             child: TextBox(
@@ -133,5 +195,56 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         FilledButton(onPressed: _handleSubmit, child: const Text('创建')),
       ],
     );
+  }
+
+  List<ComboBoxItem<_CanvasPreset?>> _buildPresetItems() {
+    return _presets
+        .map(
+          (preset) => ComboBoxItem<_CanvasPreset?>(
+            value: preset,
+            child: Text(preset.displayLabel),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void _handlePresetChanged(_CanvasPreset? preset) {
+    if (preset == null) {
+      setState(() => _selectedPreset = null);
+      return;
+    }
+    setState(() => _selectedPreset = preset);
+    _isUpdatingPreset = true;
+    _widthController.text = preset.width.toString();
+    _heightController.text = preset.height.toString();
+    _isUpdatingPreset = false;
+  }
+
+  void _handleDimensionChanged() {
+    if (_isUpdatingPreset) {
+      return;
+    }
+    final double? width = double.tryParse(_widthController.text);
+    final double? height = double.tryParse(_heightController.text);
+    if (width == null || height == null) {
+      if (_selectedPreset != null) {
+        setState(() => _selectedPreset = null);
+      }
+      return;
+    }
+    final _CanvasPreset? matched = _matchPreset(width, height);
+    if (matched == _selectedPreset) {
+      return;
+    }
+    setState(() => _selectedPreset = matched);
+  }
+
+  _CanvasPreset? _matchPreset(double width, double height) {
+    for (final preset in _presets) {
+      if (preset.matches(width, height)) {
+        return preset;
+      }
+    }
+    return null;
   }
 }
