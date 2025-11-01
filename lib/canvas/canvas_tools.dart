@@ -1,0 +1,1 @@
+enum CanvasTool { pen, hand }

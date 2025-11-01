@@ -38,4 +38,10 @@ class StrokeStore {
     _strokes.clear();
     _currentStroke = null;
   }
+
+  List<List<Offset>> snapshot() {
+    return _strokes
+        .map((stroke) => List<Offset>.from(stroke, growable: false))
+        .toList(growable: false);
+  }
 }

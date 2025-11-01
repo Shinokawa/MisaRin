@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-class PenToolButton extends StatelessWidget {
-  const PenToolButton({
+class HandToolButton extends StatelessWidget {
+  const HandToolButton({
     super.key,
     required this.isSelected,
     required this.onPressed,
@@ -19,6 +19,9 @@ class PenToolButton extends StatelessWidget {
     final Color backgroundColor = theme.brightness.isDark
         ? const Color(0xFF1F1F1F)
         : const Color(0xFFFFFFFF);
+    final Color iconColor = isSelected
+        ? const Color(0xFF005A9E)
+        : const Color(0xFF323130);
 
     return GestureDetector(
       onTap: onPressed,
@@ -46,46 +49,7 @@ class PenToolButton extends StatelessWidget {
                   ),
                 ],
         ),
-        child: const _PenGraphic(),
-      ),
-    );
-  }
-}
-
-class _PenGraphic extends StatelessWidget {
-  const _PenGraphic();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Transform.rotate(
-        angle: -0.5,
-        child: SizedBox(
-          height: 34,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: Colors.black, width: 1.5),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  width: 10,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        child: Icon(FluentIcons.handwriting, color: iconColor, size: 28),
       ),
     );
   }

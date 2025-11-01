@@ -2,33 +2,39 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
+import '../../canvas/canvas_settings.dart';
+import '../../canvas/canvas_tools.dart';
 import '../../canvas/stroke_painter.dart';
 import '../../canvas/stroke_store.dart';
-import 'pen_tool_button.dart';
-import 'undo_tool_button.dart';
+import 'canvas_toolbar.dart';
 
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
     super.key,
-    required this.isPenActive,
-    required this.onPenChanged,
+    required this.settings,
+    required this.onRequestExit,
+    this.onDirtyChanged,
   });
 
-  final bool isPenActive;
-  final ValueChanged<bool> onPenChanged;
+  final CanvasSettings settings;
+  final VoidCallback onRequestExit;
+  final ValueChanged<bool>? onDirtyChanged;
 
   @override
-  State<PaintingBoard> createState() => _PaintingBoardState();
+  State<PaintingBoard> createState() => PaintingBoardState();
 }
 
-class _PaintingBoardState extends State<PaintingBoard> {
-  static const double _toolButtonSize = 64;
+class PaintingBoardState extends State<PaintingBoard> {
   static const double _toolButtonPadding = 16;
-  static const double _toolSpacing = 12;
 
   final StrokeStore _store = StrokeStore();
   final FocusNode _focusNode = FocusNode();
+  CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
+  bool _isDragging = false;
+  bool _isDirty = false;
+  Offset _lastPointerPosition = Offset.zero;
+  Offset _viewportOffset = Offset.zero;
 
   @override
   void dispose() {
@@ -36,55 +42,159 @@ class _PaintingBoardState extends State<PaintingBoard> {
     super.dispose();
   }
 
-  bool _canDraw(PointerEvent event) {
-    if (!widget.isPenActive) {
-      return false;
+  CanvasTool get activeTool => _activeTool;
+  bool get hasContent => _store.strokes.isNotEmpty;
+  bool get isDirty => _isDirty;
+  Offset get viewportOffset => _viewportOffset;
+
+  List<List<Offset>> snapshotStrokes() => _store.snapshot();
+
+  void clear() {
+    _store.clear();
+    _viewportOffset = Offset.zero;
+    _emitClean();
+    setState(() {});
+  }
+
+  void _setActiveTool(CanvasTool tool) {
+    if (_activeTool == tool) {
+      return;
     }
-    final bool isPrimaryMouseClick =
-        event.kind == PointerDeviceKind.mouse &&
+    setState(() => _activeTool = tool);
+  }
+
+  void markSaved() {
+    if (!_isDirty) {
+      return;
+    }
+    _isDirty = false;
+    widget.onDirtyChanged?.call(false);
+  }
+
+  void _markDirty() {
+    if (_isDirty) {
+      return;
+    }
+    _isDirty = true;
+    widget.onDirtyChanged?.call(true);
+  }
+
+  void _emitClean() {
+    if (!_isDirty) {
+      return;
+    }
+    _isDirty = false;
+    widget.onDirtyChanged?.call(false);
+  }
+
+  bool _isPrimaryPointer(PointerEvent event) {
+    return event.kind == PointerDeviceKind.mouse &&
         (event.buttons & kPrimaryMouseButton) != 0;
-    return isPrimaryMouseClick;
   }
 
   bool _isInsideToolArea(Offset position) {
+    const double buttonSize = 64;
+    const double toolSpacing = 12;
     final bool withinHorizontal =
         position.dx >= _toolButtonPadding &&
-        position.dx <= _toolButtonPadding + _toolButtonSize;
-    final double toolHeight = _toolButtonSize * 2 + _toolSpacing;
+        position.dx <= _toolButtonPadding + buttonSize;
+    final double toolHeight = buttonSize * 4 + toolSpacing * 3;
     final bool withinVertical =
         position.dy >= _toolButtonPadding &&
         position.dy <= _toolButtonPadding + toolHeight;
     return withinHorizontal && withinVertical;
   }
 
-  void _startStroke(PointerDownEvent event) {
-    if (!_canDraw(event) || _isInsideToolArea(event.localPosition)) {
+  Offset _toScene(Offset local) => local - _viewportOffset;
+
+  void _beginDrawing(PointerDownEvent event) {
+    if (!_isPrimaryPointer(event) || _isInsideToolArea(event.localPosition)) {
+      return;
+    }
+    _focusNode.requestFocus();
+    final Offset scenePosition = _toScene(event.localPosition);
+    setState(() {
+      _isDrawing = true;
+      _store.startStroke(scenePosition);
+    });
+    _markDirty();
+  }
+
+  void _continueDrawing(PointerMoveEvent event) {
+    if (!_isDrawing || !_isPrimaryPointer(event)) {
+      return;
+    }
+    final Offset scenePosition = _toScene(event.localPosition);
+    setState(() => _store.appendPoint(scenePosition));
+  }
+
+  void _finishDrawing() {
+    if (!_isDrawing) {
+      return;
+    }
+    _store.finishStroke();
+    setState(() => _isDrawing = false);
+  }
+
+  void _beginDrag(PointerDownEvent event) {
+    if (!_isPrimaryPointer(event) || _isInsideToolArea(event.localPosition)) {
       return;
     }
     _focusNode.requestFocus();
     setState(() {
-      _isDrawing = true;
-      _store.startStroke(event.localPosition);
+      _isDragging = true;
+      _lastPointerPosition = event.localPosition;
     });
   }
 
-  void _appendPoint(PointerMoveEvent event) {
-    if (!_isDrawing || !_canDraw(event)) {
+  void _updateDrag(PointerMoveEvent event) {
+    if (!_isDragging || !_isPrimaryPointer(event)) {
       return;
     }
     setState(() {
-      _store.appendPoint(event.localPosition);
+      final Offset delta = event.localPosition - _lastPointerPosition;
+      _viewportOffset += delta;
+      _lastPointerPosition = event.localPosition;
     });
   }
 
-  void _finishStroke() {
-    if (!_isDrawing) {
+  void _finishDrag() {
+    if (!_isDragging) {
       return;
     }
-    setState(() {
-      _isDrawing = false;
-      _store.finishStroke();
-    });
+    setState(() => _isDragging = false);
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (_activeTool == CanvasTool.pen) {
+      _beginDrawing(event);
+    } else {
+      _beginDrag(event);
+    }
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (_activeTool == CanvasTool.pen) {
+      _continueDrawing(event);
+    } else {
+      _updateDrag(event);
+    }
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (_activeTool == CanvasTool.pen) {
+      _finishDrawing();
+    } else {
+      _finishDrag();
+    }
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (_activeTool == CanvasTool.pen) {
+      _finishDrawing();
+    } else {
+      _finishDrag();
+    }
   }
 
   void _handleUndo() {
@@ -96,78 +206,74 @@ class _PaintingBoardState extends State<PaintingBoard> {
       _isDrawing = false;
     }
     setState(() {});
+    if (_store.strokes.isEmpty) {
+      _emitClean();
+    } else {
+      _markDirty();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
     final strokes = _store.strokes;
     final bool canUndo = strokes.isNotEmpty;
 
     return Card(
       padding: EdgeInsets.zero,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 900, maxHeight: 600),
-        child: AspectRatio(
-          aspectRatio: 16 / 10,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: ColoredBox(
-              color: theme.resources.cardBackgroundFillColorDefault,
-              child: Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: _startStroke,
-                onPointerMove: _appendPoint,
-                onPointerUp: (event) => _finishStroke(),
-                onPointerCancel: (event) => _finishStroke(),
-                child: Shortcuts(
-                  shortcuts: <LogicalKeySet, Intent>{
-                    LogicalKeySet(
-                      LogicalKeyboardKey.control,
-                      LogicalKeyboardKey.keyZ,
-                    ): const UndoIntent(),
-                    LogicalKeySet(
-                      LogicalKeyboardKey.meta,
-                      LogicalKeyboardKey.keyZ,
-                    ): const UndoIntent(),
-                  },
-                  child: Actions(
-                    actions: <Type, Action<Intent>>{
-                      UndoIntent: CallbackAction<UndoIntent>(
-                        onInvoke: (intent) {
-                          _handleUndo();
-                          return null;
-                        },
-                      ),
+      child: SizedBox(
+        width: widget.settings.width,
+        height: widget.settings.height,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: _handlePointerDown,
+            onPointerMove: _handlePointerMove,
+            onPointerUp: _handlePointerUp,
+            onPointerCancel: _handlePointerCancel,
+            child: Shortcuts(
+              shortcuts: <LogicalKeySet, Intent>{
+                LogicalKeySet(
+                  LogicalKeyboardKey.control,
+                  LogicalKeyboardKey.keyZ,
+                ): const UndoIntent(),
+                LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ):
+                    const UndoIntent(),
+              },
+              child: Actions(
+                actions: <Type, Action<Intent>>{
+                  UndoIntent: CallbackAction<UndoIntent>(
+                    onInvoke: (intent) {
+                      _handleUndo();
+                      return null;
                     },
-                    child: Focus(
-                      focusNode: _focusNode,
-                      autofocus: true,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CustomPaint(painter: StrokePainter(strokes: strokes)),
-                          Positioned(
-                            top: _toolButtonPadding,
-                            left: _toolButtonPadding,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                PenToolButton(
-                                  isSelected: widget.isPenActive,
-                                  onChanged: widget.onPenChanged,
-                                ),
-                                const SizedBox(height: _toolSpacing),
-                                UndoToolButton(
-                                  enabled: canUndo,
-                                  onPressed: _handleUndo,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                  ),
+                },
+                child: Focus(
+                  focusNode: _focusNode,
+                  autofocus: true,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CustomPaint(
+                        painter: StrokePainter(
+                          strokes: strokes,
+                          backgroundColor: widget.settings.backgroundColor,
+                          viewportOffset: _viewportOffset,
+                        ),
                       ),
-                    ),
+                      Positioned(
+                        top: _toolButtonPadding,
+                        left: _toolButtonPadding,
+                        child: CanvasToolbar(
+                          activeTool: _activeTool,
+                          onToolSelected: _setActiveTool,
+                          onUndo: _handleUndo,
+                          canUndo: canUndo,
+                          onExit: widget.onRequestExit,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
