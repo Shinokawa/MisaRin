@@ -2,7 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
-import '../../canvas/canvas_camera.dart';
+import '../../canvas/canvas_viewport.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/stroke_painter.dart';
@@ -38,10 +38,19 @@ class PaintingBoardState extends State<PaintingBoard> {
   bool _isDrawing = false;
   bool _isDraggingBoard = false;
   bool _isDirty = false;
+  bool _isScalingGesture = false;
+  double _scaleGestureInitialScale = 1.0;
 
-  final CanvasCamera _camera = CanvasCamera();
+  final CanvasViewport _viewport = CanvasViewport();
   Size _workspaceSize = Size.zero;
   Offset _layoutBaseOffset = Offset.zero;
+
+  Size get _canvasSize => widget.settings.size;
+
+  Size get _scaledBoardSize => Size(
+    _canvasSize.width * _viewport.scale,
+    _canvasSize.height * _viewport.scale,
+  );
 
   @override
   void dispose() {
@@ -70,18 +79,14 @@ class PaintingBoardState extends State<PaintingBoard> {
   }
 
   Rect get _boardRect {
-    final Offset position = _layoutBaseOffset + _camera.offset;
-    return Rect.fromLTWH(
-      position.dx,
-      position.dy,
-      widget.settings.width,
-      widget.settings.height,
-    );
+    final Offset position = _layoutBaseOffset + _viewport.offset;
+    final Size size = _scaledBoardSize;
+    return Rect.fromLTWH(position.dx, position.dy, size.width, size.height);
   }
 
   Offset _toBoardLocal(Offset workspacePosition) {
     final Rect boardRect = _boardRect;
-    return workspacePosition - boardRect.topLeft;
+    return (workspacePosition - boardRect.topLeft) / _viewport.scale;
   }
 
   bool _isPrimaryPointer(PointerEvent event) {
@@ -155,7 +160,7 @@ class PaintingBoardState extends State<PaintingBoard> {
       return;
     }
     setState(() {
-      _camera.translate(delta);
+      _viewport.translate(delta);
     });
   }
 
@@ -168,6 +173,9 @@ class PaintingBoardState extends State<PaintingBoard> {
 
   void _handlePointerDown(PointerDownEvent event) {
     if (!_isPrimaryPointer(event)) {
+      return;
+    }
+    if (_isScalingGesture) {
       return;
     }
     final Offset pointer = event.localPosition;
@@ -189,6 +197,9 @@ class PaintingBoardState extends State<PaintingBoard> {
 
   void _handlePointerMove(PointerMoveEvent event) {
     if (!_isPrimaryPointer(event)) {
+      return;
+    }
+    if (_isScalingGesture) {
       return;
     }
     if (_isDrawing && _activeTool == CanvasTool.pen) {
@@ -217,6 +228,104 @@ class PaintingBoardState extends State<PaintingBoard> {
     }
   }
 
+  void _applyZoom(double targetScale, Offset workspaceFocalPoint) {
+    if (_workspaceSize.isEmpty) {
+      return;
+    }
+    final double currentScale = _viewport.scale;
+    final double clamped = targetScale.clamp(
+      CanvasViewport.minScale,
+      CanvasViewport.maxScale,
+    );
+    if ((clamped - currentScale).abs() < 0.0005) {
+      return;
+    }
+    final Size currentScaledSize = Size(
+      _canvasSize.width * currentScale,
+      _canvasSize.height * currentScale,
+    );
+    final Offset currentBase = Offset(
+      (_workspaceSize.width - currentScaledSize.width) / 2,
+      (_workspaceSize.height - currentScaledSize.height) / 2,
+    );
+    final Offset currentOrigin = currentBase + _viewport.offset;
+    final Offset boardLocal =
+        (workspaceFocalPoint - currentOrigin) / currentScale;
+
+    final Size newScaledSize = Size(
+      _canvasSize.width * clamped,
+      _canvasSize.height * clamped,
+    );
+    final Offset newBase = Offset(
+      (_workspaceSize.width - newScaledSize.width) / 2,
+      (_workspaceSize.height - newScaledSize.height) / 2,
+    );
+    final Offset newOrigin = workspaceFocalPoint - boardLocal * clamped;
+    final Offset newOffset = newOrigin - newBase;
+
+    setState(() {
+      _viewport.setScale(clamped);
+      _viewport.setOffset(newOffset);
+    });
+  }
+
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) {
+      return;
+    }
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null) {
+      return;
+    }
+    final double scrollDelta = event.scrollDelta.dy;
+    if (scrollDelta == 0) {
+      return;
+    }
+    final Offset focalPoint = box.globalToLocal(event.position);
+    const double sensitivity = 0.0015;
+    final double targetScale =
+        _viewport.scale * (1 - scrollDelta * sensitivity);
+    _applyZoom(targetScale, focalPoint);
+  }
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null) {
+      return;
+    }
+    final bool shouldScale =
+        details.pointerCount == 0 || details.pointerCount > 1;
+    _isScalingGesture = shouldScale;
+    if (!shouldScale) {
+      return;
+    }
+    _scaleGestureInitialScale = _viewport.scale;
+    final Offset focalPoint = box.globalToLocal(details.focalPoint);
+    _applyZoom(_viewport.scale, focalPoint);
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    if (!_isScalingGesture) {
+      return;
+    }
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null) {
+      return;
+    }
+    final Offset focalPoint = box.globalToLocal(details.focalPoint);
+    final double targetScale = _scaleGestureInitialScale * details.scale;
+    _applyZoom(targetScale, focalPoint);
+    if (details.pointerCount == 0 || details.pointerCount > 1) {
+      setState(() {
+        _viewport.translate(details.focalPointDelta);
+      });
+    }
+  }
+
+  void _handleScaleEnd(ScaleEndDetails details) {
+    _isScalingGesture = false;
+  }
+
   void _handleUndo() {
     final bool undone = _store.undo();
     if (!undone) {
@@ -241,80 +350,94 @@ class PaintingBoardState extends State<PaintingBoard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         _workspaceSize = constraints.biggest;
+        final Size scaledSize = _scaledBoardSize;
         _layoutBaseOffset = Offset(
-          (_workspaceSize.width - widget.settings.width) / 2,
-          (_workspaceSize.height - widget.settings.height) / 2,
+          (_workspaceSize.width - scaledSize.width) / 2,
+          (_workspaceSize.height - scaledSize.height) / 2,
         );
         final Rect boardRect = _boardRect;
 
-        return Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: _handlePointerDown,
-          onPointerMove: _handlePointerMove,
-          onPointerUp: _handlePointerUp,
-          onPointerCancel: _handlePointerCancel,
-          child: Shortcuts(
-            shortcuts: <LogicalKeySet, Intent>{
-              LogicalKeySet(
-                LogicalKeyboardKey.control,
-                LogicalKeyboardKey.keyZ,
-              ): const UndoIntent(),
-              LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ):
-                  const UndoIntent(),
+        return Shortcuts(
+          shortcuts: <LogicalKeySet, Intent>{
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyZ):
+                const UndoIntent(),
+            LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ):
+                const UndoIntent(),
+          },
+          child: Actions(
+            actions: <Type, Action<Intent>>{
+              UndoIntent: CallbackAction<UndoIntent>(
+                onInvoke: (intent) {
+                  _handleUndo();
+                  return null;
+                },
+              ),
             },
-            child: Actions(
-              actions: <Type, Action<Intent>>{
-                UndoIntent: CallbackAction<UndoIntent>(
-                  onInvoke: (intent) {
-                    _handleUndo();
-                    return null;
-                  },
-                ),
-              },
-              child: Focus(
-                focusNode: _focusNode,
-                autofocus: true,
-                child: Container(
-                  color: _workspaceColor,
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        left: boardRect.left,
-                        top: boardRect.top,
-                        child: SizedBox(
-                          width: widget.settings.width,
-                          height: widget.settings.height,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: const Color(0x33000000),
-                                width: 1,
+            child: Focus(
+              focusNode: _focusNode,
+              autofocus: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onScaleStart: _handleScaleStart,
+                onScaleUpdate: _handleScaleUpdate,
+                onScaleEnd: _handleScaleEnd,
+                child: Listener(
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: _handlePointerDown,
+                  onPointerMove: _handlePointerMove,
+                  onPointerUp: _handlePointerUp,
+                  onPointerCancel: _handlePointerCancel,
+                  onPointerSignal: _handlePointerSignal,
+                  child: Container(
+                    color: _workspaceColor,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: boardRect.left,
+                          top: boardRect.top,
+                          child: SizedBox(
+                            width: _scaledBoardSize.width,
+                            height: _scaledBoardSize.height,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0x33000000),
+                                  width: 1,
+                                ),
                               ),
-                            ),
-                            child: ClipRect(
-                              child: CustomPaint(
-                                painter: StrokePainter(
-                                  strokes: strokes,
-                                  backgroundColor:
-                                      widget.settings.backgroundColor,
+                              child: ClipRect(
+                                child: Transform.scale(
+                                  alignment: Alignment.topLeft,
+                                  scale: _viewport.scale,
+                                  child: SizedBox(
+                                    width: _canvasSize.width,
+                                    height: _canvasSize.height,
+                                    child: CustomPaint(
+                                      painter: StrokePainter(
+                                        strokes: strokes,
+                                        backgroundColor:
+                                            widget.settings.backgroundColor,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      Positioned(
-                        left: _toolButtonPadding,
-                        top: _toolButtonPadding,
-                        child: CanvasToolbar(
-                          activeTool: _activeTool,
-                          onToolSelected: _setActiveTool,
-                          onUndo: _handleUndo,
-                          canUndo: canUndo,
-                          onExit: widget.onRequestExit,
+                        Positioned(
+                          left: _toolButtonPadding,
+                          top: _toolButtonPadding,
+                          child: CanvasToolbar(
+                            activeTool: _activeTool,
+                            onToolSelected: _setActiveTool,
+                            onUndo: _handleUndo,
+                            canUndo: canUndo,
+                            onExit: widget.onRequestExit,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
