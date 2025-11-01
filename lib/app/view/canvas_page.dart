@@ -1,4 +1,6 @@
-import 'package:file_selector/file_selector.dart' as fs;
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../canvas/canvas_exporter.dart';
@@ -85,19 +87,18 @@ class _CanvasPageState extends State<CanvasPage> {
       _showInfoBar('画布尚未准备好，无法保存。', severity: InfoBarSeverity.error);
       return false;
     }
-    final fs.FileSaveLocation? saveLocation = await fs.getSaveLocation(
-      acceptedTypeGroups: const [
-        fs.XTypeGroup(label: 'PNG 图片', extensions: ['png']),
-      ],
-      suggestedName: 'misa_rin_${DateTime.now().millisecondsSinceEpoch}.png',
+    final String? outputPath = await FilePicker.platform.saveFile(
+      dialogTitle: '保存画布为 PNG',
+      fileName: 'misa_rin_${DateTime.now().millisecondsSinceEpoch}.png',
+      type: FileType.custom,
+      allowedExtensions: const ['png'],
     );
-    if (saveLocation == null) {
+    if (outputPath == null) {
       return false;
     }
-    final String savePath = saveLocation.path;
-    final String normalizedPath = savePath.toLowerCase().endsWith('.png')
-        ? savePath
-        : '$savePath.png';
+    final String normalizedPath = outputPath.toLowerCase().endsWith('.png')
+        ? outputPath
+        : '$outputPath.png';
 
     try {
       setState(() => _isSaving = true);
@@ -105,13 +106,8 @@ class _CanvasPageState extends State<CanvasPage> {
         settings: widget.settings,
         strokes: board.snapshotStrokes(),
       );
-      final String fileName = normalizedPath.split(RegExp(r'[\\/]')).last;
-      final fs.XFile file = fs.XFile.fromData(
-        bytes,
-        mimeType: 'image/png',
-        name: fileName,
-      );
-      await file.saveTo(normalizedPath);
+      final file = File(normalizedPath);
+      await file.writeAsBytes(bytes, flush: true);
       board.markSaved();
       _showInfoBar('已保存到 $normalizedPath', severity: InfoBarSeverity.success);
       return true;

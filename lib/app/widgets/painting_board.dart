@@ -78,6 +78,23 @@ class PaintingBoardState extends State<PaintingBoard> {
     );
   }
 
+  Offset _toBoardLocal(Offset workspacePosition) {
+    final Rect boardRect = _boardRect;
+    double localX = workspacePosition.dx - boardRect.left;
+    double localY = workspacePosition.dy - boardRect.top;
+    if (localX < 0) {
+      localX = 0;
+    } else if (localX > widget.settings.width) {
+      localX = widget.settings.width;
+    }
+    if (localY < 0) {
+      localY = 0;
+    } else if (localY > widget.settings.height) {
+      localY = widget.settings.height;
+    }
+    return Offset(localX, localY);
+  }
+
   bool _isPrimaryPointer(PointerEvent event) {
     return event.kind == PointerDeviceKind.mouse &&
         (event.buttons & kPrimaryMouseButton) != 0;
@@ -172,7 +189,7 @@ class PaintingBoardState extends State<PaintingBoard> {
     if (!boardRect.contains(pointer)) {
       return;
     }
-    final Offset boardLocal = pointer - boardRect.topLeft;
+    final Offset boardLocal = _toBoardLocal(pointer);
     if (_activeTool == CanvasTool.pen) {
       _focusNode.requestFocus();
       _startStroke(boardLocal);
@@ -186,8 +203,13 @@ class PaintingBoardState extends State<PaintingBoard> {
       return;
     }
     if (_isDrawing && _activeTool == CanvasTool.pen) {
-      final Offset boardLocal = event.localPosition - _boardRect.topLeft;
+      final Rect boardRect = _boardRect;
+      final bool insideBoard = boardRect.contains(event.localPosition);
+      final Offset boardLocal = _toBoardLocal(event.localPosition);
       _appendPoint(boardLocal);
+      if (!insideBoard) {
+        _finishStroke();
+      }
     } else if (_isDraggingBoard && _activeTool == CanvasTool.hand) {
       _updateDragBoard(event.delta);
     }
@@ -275,19 +297,21 @@ class PaintingBoardState extends State<PaintingBoard> {
                       Positioned(
                         left: boardRect.left,
                         top: boardRect.top,
-                        child: Card(
-                          padding: EdgeInsets.zero,
-                          child: SizedBox(
-                            width: widget.settings.width,
-                            height: widget.settings.height,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: CustomPaint(
-                                painter: StrokePainter(
-                                  strokes: strokes,
-                                  backgroundColor:
-                                      widget.settings.backgroundColor,
-                                ),
+                        child: SizedBox(
+                          width: widget.settings.width,
+                          height: widget.settings.height,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: const Color(0x33000000),
+                                width: 1,
+                              ),
+                            ),
+                            child: CustomPaint(
+                              painter: StrokePainter(
+                                strokes: strokes,
+                                backgroundColor:
+                                    widget.settings.backgroundColor,
                               ),
                             ),
                           ),
