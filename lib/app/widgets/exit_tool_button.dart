@@ -10,21 +10,21 @@ class ExitToolButton extends StatelessWidget {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        width: 32,
-        height: 32,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: const Color(0xFFFDE7E9),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFD13438), width: 1),
+          border: Border.all(color: const Color(0xFFD13438), width: 1.5),
           boxShadow: const [
             BoxShadow(
               color: Color(0x1AD13438),
-              blurRadius: 6,
-              offset: Offset(0, 3),
+              blurRadius: 9,
+              offset: Offset(0, 4),
             ),
           ],
         ),
-        child: const Icon(FluentIcons.back, color: Color(0xFF8A1414), size: 14),
+        child: const Icon(FluentIcons.back, color: Color(0xFF8A1414), size: 20),
       ),
     );
   }

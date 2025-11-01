@@ -51,7 +51,7 @@ class CanvasToolbar extends StatelessWidget {
           useMousePosition: false,
           child: ExitToolButton(onPressed: onExit),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 9),
         Tooltip(
           message: _tooltipMessage('画笔工具', ToolbarAction.penTool),
           displayHorizontally: true,
@@ -62,7 +62,7 @@ class CanvasToolbar extends StatelessWidget {
             onPressed: () => onToolSelected(CanvasTool.pen),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 9),
         Tooltip(
           message: _tooltipMessage('拖拽画布', ToolbarAction.handTool),
           displayHorizontally: true,
@@ -73,7 +73,7 @@ class CanvasToolbar extends StatelessWidget {
             onPressed: () => onToolSelected(CanvasTool.hand),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 9),
         Tooltip(
           message: _tooltipMessage('撤销', ToolbarAction.undo),
           displayHorizontally: true,
@@ -81,7 +81,7 @@ class CanvasToolbar extends StatelessWidget {
           useMousePosition: false,
           child: UndoToolButton(enabled: canUndo, onPressed: onUndo),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 9),
         Tooltip(
           message: _tooltipMessage('恢复', ToolbarAction.redo),
           displayHorizontally: true,

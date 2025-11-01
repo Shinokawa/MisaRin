@@ -28,8 +28,8 @@ class PaintingBoard extends StatefulWidget {
 
 class PaintingBoardState extends State<PaintingBoard> {
   static const double _toolButtonPadding = 16;
-  static const double _toolbarButtonSize = 32;
-  static const double _toolbarSpacing = 6;
+  static const double _toolbarButtonSize = 48;
+  static const double _toolbarSpacing = 9;
   static const Color _workspaceColor = Color(0xFFE5E5E5);
 
   final StrokeStore _store = StrokeStore();

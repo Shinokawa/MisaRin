@@ -24,25 +24,25 @@ class PenToolButton extends StatelessWidget {
       onTap: onPressed,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 32,
-        height: 32,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 1),
+          border: Border.all(color: borderColor, width: 1.5),
           boxShadow: isSelected
               ? const [
                   BoxShadow(
                     color: Color(0x330078D4),
-                    blurRadius: 6,
-                    offset: Offset(0, 3),
+                    blurRadius: 9,
+                    offset: Offset(0, 4),
                   ),
                 ]
               : const [
                   BoxShadow(
                     color: Color(0x10000000),
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
                   ),
                 ],
         ),
@@ -61,25 +61,25 @@ class _PenGraphic extends StatelessWidget {
       child: Transform.rotate(
         angle: -0.5,
         child: SizedBox(
-          height: 17,
+          height: 26,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 5,
-                height: 5,
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(1),
-                  border: Border.all(color: Colors.black, width: 0.75),
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(color: Colors.black, width: 1.2),
                 ),
               ),
               Expanded(
                 child: Container(
-                  width: 5,
+                  width: 8,
                   decoration: BoxDecoration(
                     color: Colors.black,
-                    borderRadius: BorderRadius.circular(1),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),

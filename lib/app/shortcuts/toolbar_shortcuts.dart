@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 enum ToolbarAction {
   exit,
@@ -21,34 +22,34 @@ class ShortcutInfo {
 class ToolbarShortcuts {
   const ToolbarShortcuts._();
 
-  static const Map<ToolbarAction, ShortcutInfo> _shortcuts = {
+  static final Map<ToolbarAction, ShortcutInfo> _shortcuts = {
     ToolbarAction.exit: ShortcutInfo(
-      shortcuts: [
+      shortcuts: <LogicalKeySet>[
         LogicalKeySet(LogicalKeyboardKey.escape),
       ],
       tooltipLabel: 'Esc',
     ),
     ToolbarAction.penTool: ShortcutInfo(
-      shortcuts: [
+      shortcuts: <LogicalKeySet>[
         LogicalKeySet(LogicalKeyboardKey.keyB),
       ],
       tooltipLabel: 'B',
     ),
     ToolbarAction.handTool: ShortcutInfo(
-      shortcuts: [
+      shortcuts: <LogicalKeySet>[
         LogicalKeySet(LogicalKeyboardKey.keyH),
       ],
       tooltipLabel: 'H',
     ),
     ToolbarAction.undo: ShortcutInfo(
-      shortcuts: [
+      shortcuts: <LogicalKeySet>[
         LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyZ),
         LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ),
       ],
       tooltipLabel: 'Ctrl+Z / Cmd+Z',
     ),
     ToolbarAction.redo: ShortcutInfo(
-      shortcuts: [
+      shortcuts: <LogicalKeySet>[
         LogicalKeySet(
           LogicalKeyboardKey.control,
           LogicalKeyboardKey.shift,

@@ -26,23 +26,23 @@ class RedoToolButton extends StatelessWidget {
       onTap: enabled ? onPressed : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
-        width: 32,
-        height: 32,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 1),
+          border: Border.all(color: borderColor, width: 1.5),
           boxShadow: enabled
               ? const [
                   BoxShadow(
                     color: Color(0x260B6BAA),
-                    blurRadius: 5,
-                    offset: Offset(0, 2),
+                    blurRadius: 7,
+                    offset: Offset(0, 3),
                   ),
                 ]
               : const [],
         ),
-        child: Icon(FluentIcons.redo, color: iconColor, size: 14),
+        child: Icon(FluentIcons.redo, color: iconColor, size: 20),
       ),
     );
   }
