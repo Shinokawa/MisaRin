@@ -1,8 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 
 import '../../canvas/stroke_painter.dart';
+import '../../canvas/stroke_store.dart';
 import 'pen_tool_button.dart';
+import 'undo_tool_button.dart';
 
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
@@ -19,11 +22,19 @@ class PaintingBoard extends StatefulWidget {
 }
 
 class _PaintingBoardState extends State<PaintingBoard> {
-  static const double _penButtonSize = 64;
-  static const double _penButtonPadding = 16;
+  static const double _toolButtonSize = 64;
+  static const double _toolButtonPadding = 16;
+  static const double _toolSpacing = 12;
 
-  final List<List<Offset>> _strokes = <List<Offset>>[];
+  final StrokeStore _store = StrokeStore();
+  final FocusNode _focusNode = FocusNode();
   bool _isDrawing = false;
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   bool _canDraw(PointerEvent event) {
     if (!widget.isPenActive) {
@@ -35,23 +46,25 @@ class _PaintingBoardState extends State<PaintingBoard> {
     return isPrimaryMouseClick;
   }
 
-  bool _isInsidePenButtonArea(Offset position) {
+  bool _isInsideToolArea(Offset position) {
     final bool withinHorizontal =
-        position.dx >= _penButtonPadding &&
-        position.dx <= _penButtonPadding + _penButtonSize;
+        position.dx >= _toolButtonPadding &&
+        position.dx <= _toolButtonPadding + _toolButtonSize;
+    final double toolHeight = _toolButtonSize * 2 + _toolSpacing;
     final bool withinVertical =
-        position.dy >= _penButtonPadding &&
-        position.dy <= _penButtonPadding + _penButtonSize;
+        position.dy >= _toolButtonPadding &&
+        position.dy <= _toolButtonPadding + toolHeight;
     return withinHorizontal && withinVertical;
   }
 
   void _startStroke(PointerDownEvent event) {
-    if (!_canDraw(event) || _isInsidePenButtonArea(event.localPosition)) {
+    if (!_canDraw(event) || _isInsideToolArea(event.localPosition)) {
       return;
     }
+    _focusNode.requestFocus();
     setState(() {
       _isDrawing = true;
-      _strokes.add(<Offset>[event.localPosition]);
+      _store.startStroke(event.localPosition);
     });
   }
 
@@ -60,7 +73,7 @@ class _PaintingBoardState extends State<PaintingBoard> {
       return;
     }
     setState(() {
-      _strokes.last.add(event.localPosition);
+      _store.appendPoint(event.localPosition);
     });
   }
 
@@ -70,12 +83,27 @@ class _PaintingBoardState extends State<PaintingBoard> {
     }
     setState(() {
       _isDrawing = false;
+      _store.finishStroke();
     });
+  }
+
+  void _handleUndo() {
+    final bool undone = _store.undo();
+    if (!undone) {
+      return;
+    }
+    if (_isDrawing) {
+      _isDrawing = false;
+    }
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final strokes = _store.strokes;
+    final bool canUndo = strokes.isNotEmpty;
+
     return Card(
       padding: EdgeInsets.zero,
       child: ConstrainedBox(
@@ -92,19 +120,55 @@ class _PaintingBoardState extends State<PaintingBoard> {
                 onPointerMove: _appendPoint,
                 onPointerUp: (event) => _finishStroke(),
                 onPointerCancel: (event) => _finishStroke(),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CustomPaint(painter: StrokePainter(strokes: _strokes)),
-                    Positioned(
-                      top: _penButtonPadding,
-                      left: _penButtonPadding,
-                      child: PenToolButton(
-                        isSelected: widget.isPenActive,
-                        onChanged: widget.onPenChanged,
+                child: Shortcuts(
+                  shortcuts: <LogicalKeySet, Intent>{
+                    LogicalKeySet(
+                      LogicalKeyboardKey.control,
+                      LogicalKeyboardKey.keyZ,
+                    ): const UndoIntent(),
+                    LogicalKeySet(
+                      LogicalKeyboardKey.meta,
+                      LogicalKeyboardKey.keyZ,
+                    ): const UndoIntent(),
+                  },
+                  child: Actions(
+                    actions: <Type, Action<Intent>>{
+                      UndoIntent: CallbackAction<UndoIntent>(
+                        onInvoke: (intent) {
+                          _handleUndo();
+                          return null;
+                        },
+                      ),
+                    },
+                    child: Focus(
+                      focusNode: _focusNode,
+                      autofocus: true,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CustomPaint(painter: StrokePainter(strokes: strokes)),
+                          Positioned(
+                            top: _toolButtonPadding,
+                            left: _toolButtonPadding,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                PenToolButton(
+                                  isSelected: widget.isPenActive,
+                                  onChanged: widget.onPenChanged,
+                                ),
+                                const SizedBox(height: _toolSpacing),
+                                UndoToolButton(
+                                  enabled: canUndo,
+                                  onPressed: _handleUndo,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -113,4 +177,8 @@ class _PaintingBoardState extends State<PaintingBoard> {
       ),
     );
   }
+}
+
+class UndoIntent extends Intent {
+  const UndoIntent();
 }
