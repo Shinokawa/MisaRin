@@ -26,15 +26,21 @@ class PaintingBoard extends StatefulWidget {
 
 class PaintingBoardState extends State<PaintingBoard> {
   static const double _toolButtonPadding = 16;
+  static const double _toolbarButtonSize = 64;
+  static const double _toolbarSpacing = 12;
+  static const Color _workspaceColor = Color(0xFFE5E5E5);
 
   final StrokeStore _store = StrokeStore();
   final FocusNode _focusNode = FocusNode();
+
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
-  bool _isDragging = false;
+  bool _isDraggingBoard = false;
   bool _isDirty = false;
-  Offset _lastPointerPosition = Offset.zero;
-  Offset _viewportOffset = Offset.zero;
+
+  Offset _boardOffset = Offset.zero;
+  Size _workspaceSize = Size.zero;
+  Offset _layoutBaseOffset = Offset.zero;
 
   @override
   void dispose() {
@@ -45,22 +51,13 @@ class PaintingBoardState extends State<PaintingBoard> {
   CanvasTool get activeTool => _activeTool;
   bool get hasContent => _store.strokes.isNotEmpty;
   bool get isDirty => _isDirty;
-  Offset get viewportOffset => _viewportOffset;
 
   List<List<Offset>> snapshotStrokes() => _store.snapshot();
 
   void clear() {
     _store.clear();
-    _viewportOffset = Offset.zero;
     _emitClean();
     setState(() {});
-  }
-
-  void _setActiveTool(CanvasTool tool) {
-    if (_activeTool == tool) {
-      return;
-    }
-    setState(() => _activeTool = tool);
   }
 
   void markSaved() {
@@ -69,6 +66,39 @@ class PaintingBoardState extends State<PaintingBoard> {
     }
     _isDirty = false;
     widget.onDirtyChanged?.call(false);
+  }
+
+  Rect get _boardRect {
+    final Offset position = _layoutBaseOffset + _boardOffset;
+    return Rect.fromLTWH(
+      position.dx,
+      position.dy,
+      widget.settings.width,
+      widget.settings.height,
+    );
+  }
+
+  bool _isPrimaryPointer(PointerEvent event) {
+    return event.kind == PointerDeviceKind.mouse &&
+        (event.buttons & kPrimaryMouseButton) != 0;
+  }
+
+  Rect get _toolbarRect => Rect.fromLTWH(
+    _toolButtonPadding,
+    _toolButtonPadding,
+    _toolbarButtonSize,
+    _toolbarButtonSize * 4 + _toolbarSpacing * 3,
+  );
+
+  bool _isInsideToolArea(Offset workspacePosition) {
+    return _toolbarRect.contains(workspacePosition);
+  }
+
+  void _setActiveTool(CanvasTool tool) {
+    if (_activeTool == tool) {
+      return;
+    }
+    setState(() => _activeTool = tool);
   }
 
   void _markDirty() {
@@ -87,48 +117,22 @@ class PaintingBoardState extends State<PaintingBoard> {
     widget.onDirtyChanged?.call(false);
   }
 
-  bool _isPrimaryPointer(PointerEvent event) {
-    return event.kind == PointerDeviceKind.mouse &&
-        (event.buttons & kPrimaryMouseButton) != 0;
-  }
-
-  bool _isInsideToolArea(Offset position) {
-    const double buttonSize = 64;
-    const double toolSpacing = 12;
-    final bool withinHorizontal =
-        position.dx >= _toolButtonPadding &&
-        position.dx <= _toolButtonPadding + buttonSize;
-    final double toolHeight = buttonSize * 4 + toolSpacing * 3;
-    final bool withinVertical =
-        position.dy >= _toolButtonPadding &&
-        position.dy <= _toolButtonPadding + toolHeight;
-    return withinHorizontal && withinVertical;
-  }
-
-  Offset _toScene(Offset local) => local - _viewportOffset;
-
-  void _beginDrawing(PointerDownEvent event) {
-    if (!_isPrimaryPointer(event) || _isInsideToolArea(event.localPosition)) {
-      return;
-    }
-    _focusNode.requestFocus();
-    final Offset scenePosition = _toScene(event.localPosition);
+  void _startStroke(Offset position) {
     setState(() {
       _isDrawing = true;
-      _store.startStroke(scenePosition);
+      _store.startStroke(position);
     });
     _markDirty();
   }
 
-  void _continueDrawing(PointerMoveEvent event) {
-    if (!_isDrawing || !_isPrimaryPointer(event)) {
+  void _appendPoint(Offset position) {
+    if (!_isDrawing) {
       return;
     }
-    final Offset scenePosition = _toScene(event.localPosition);
-    setState(() => _store.appendPoint(scenePosition));
+    setState(() => _store.appendPoint(position));
   }
 
-  void _finishDrawing() {
+  void _finishStroke() {
     if (!_isDrawing) {
       return;
     }
@@ -136,64 +140,74 @@ class PaintingBoardState extends State<PaintingBoard> {
     setState(() => _isDrawing = false);
   }
 
-  void _beginDrag(PointerDownEvent event) {
-    if (!_isPrimaryPointer(event) || _isInsideToolArea(event.localPosition)) {
-      return;
-    }
-    _focusNode.requestFocus();
-    setState(() {
-      _isDragging = true;
-      _lastPointerPosition = event.localPosition;
-    });
+  void _beginDragBoard() {
+    setState(() => _isDraggingBoard = true);
   }
 
-  void _updateDrag(PointerMoveEvent event) {
-    if (!_isDragging || !_isPrimaryPointer(event)) {
+  void _updateDragBoard(Offset delta) {
+    if (!_isDraggingBoard) {
       return;
     }
     setState(() {
-      final Offset delta = event.localPosition - _lastPointerPosition;
-      _viewportOffset += delta;
-      _lastPointerPosition = event.localPosition;
+      _boardOffset += delta;
     });
   }
 
-  void _finishDrag() {
-    if (!_isDragging) {
+  void _finishDragBoard() {
+    if (!_isDraggingBoard) {
       return;
     }
-    setState(() => _isDragging = false);
+    setState(() => _isDraggingBoard = false);
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    if (!_isPrimaryPointer(event)) {
+      return;
+    }
+    final Offset pointer = event.localPosition;
+    if (_isInsideToolArea(pointer)) {
+      return;
+    }
+    final Rect boardRect = _boardRect;
+    if (!boardRect.contains(pointer)) {
+      return;
+    }
+    final Offset boardLocal = pointer - boardRect.topLeft;
     if (_activeTool == CanvasTool.pen) {
-      _beginDrawing(event);
+      _focusNode.requestFocus();
+      _startStroke(boardLocal);
     } else {
-      _beginDrag(event);
+      _beginDragBoard();
     }
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
-    if (_activeTool == CanvasTool.pen) {
-      _continueDrawing(event);
-    } else {
-      _updateDrag(event);
+    if (!_isPrimaryPointer(event)) {
+      return;
+    }
+    if (_isDrawing && _activeTool == CanvasTool.pen) {
+      final Offset boardLocal = event.localPosition - _boardRect.topLeft;
+      _appendPoint(boardLocal);
+    } else if (_isDraggingBoard && _activeTool == CanvasTool.hand) {
+      _updateDragBoard(event.delta);
     }
   }
 
   void _handlePointerUp(PointerUpEvent event) {
-    if (_activeTool == CanvasTool.pen) {
-      _finishDrawing();
-    } else {
-      _finishDrag();
+    if (_isDrawing && _activeTool == CanvasTool.pen) {
+      _finishStroke();
+    }
+    if (_isDraggingBoard && _activeTool == CanvasTool.hand) {
+      _finishDragBoard();
     }
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
-    if (_activeTool == CanvasTool.pen) {
-      _finishDrawing();
-    } else {
-      _finishDrag();
+    if (_isDrawing && _activeTool == CanvasTool.pen) {
+      _finishStroke();
+    }
+    if (_isDraggingBoard && _activeTool == CanvasTool.hand) {
+      _finishDragBoard();
     }
   }
 
@@ -218,53 +232,70 @@ class PaintingBoardState extends State<PaintingBoard> {
     final strokes = _store.strokes;
     final bool canUndo = strokes.isNotEmpty;
 
-    return Card(
-      padding: EdgeInsets.zero,
-      child: SizedBox(
-        width: widget.settings.width,
-        height: widget.settings.height,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Listener(
-            behavior: HitTestBehavior.opaque,
-            onPointerDown: _handlePointerDown,
-            onPointerMove: _handlePointerMove,
-            onPointerUp: _handlePointerUp,
-            onPointerCancel: _handlePointerCancel,
-            child: Shortcuts(
-              shortcuts: <LogicalKeySet, Intent>{
-                LogicalKeySet(
-                  LogicalKeyboardKey.control,
-                  LogicalKeyboardKey.keyZ,
-                ): const UndoIntent(),
-                LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ):
-                    const UndoIntent(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _workspaceSize = constraints.biggest;
+        _layoutBaseOffset = Offset(
+          (_workspaceSize.width - widget.settings.width) / 2,
+          (_workspaceSize.height - widget.settings.height) / 2,
+        );
+        final Rect boardRect = _boardRect;
+
+        return Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: _handlePointerDown,
+          onPointerMove: _handlePointerMove,
+          onPointerUp: _handlePointerUp,
+          onPointerCancel: _handlePointerCancel,
+          child: Shortcuts(
+            shortcuts: <LogicalKeySet, Intent>{
+              LogicalKeySet(
+                LogicalKeyboardKey.control,
+                LogicalKeyboardKey.keyZ,
+              ): const UndoIntent(),
+              LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ):
+                  const UndoIntent(),
+            },
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                UndoIntent: CallbackAction<UndoIntent>(
+                  onInvoke: (intent) {
+                    _handleUndo();
+                    return null;
+                  },
+                ),
               },
-              child: Actions(
-                actions: <Type, Action<Intent>>{
-                  UndoIntent: CallbackAction<UndoIntent>(
-                    onInvoke: (intent) {
-                      _handleUndo();
-                      return null;
-                    },
-                  ),
-                },
-                child: Focus(
-                  focusNode: _focusNode,
-                  autofocus: true,
+              child: Focus(
+                focusNode: _focusNode,
+                autofocus: true,
+                child: Container(
+                  color: _workspaceColor,
                   child: Stack(
-                    fit: StackFit.expand,
                     children: [
-                      CustomPaint(
-                        painter: StrokePainter(
-                          strokes: strokes,
-                          backgroundColor: widget.settings.backgroundColor,
-                          viewportOffset: _viewportOffset,
+                      Positioned(
+                        left: boardRect.left,
+                        top: boardRect.top,
+                        child: Card(
+                          padding: EdgeInsets.zero,
+                          child: SizedBox(
+                            width: widget.settings.width,
+                            height: widget.settings.height,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: CustomPaint(
+                                painter: StrokePainter(
+                                  strokes: strokes,
+                                  backgroundColor:
+                                      widget.settings.backgroundColor,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       Positioned(
-                        top: _toolButtonPadding,
                         left: _toolButtonPadding,
+                        top: _toolButtonPadding,
                         child: CanvasToolbar(
                           activeTool: _activeTool,
                           onToolSelected: _setActiveTool,
@@ -279,8 +310,8 @@ class PaintingBoardState extends State<PaintingBoard> {
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

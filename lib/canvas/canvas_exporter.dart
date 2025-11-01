@@ -8,14 +8,12 @@ class CanvasExporter {
   Future<Uint8List> exportToPng({
     required CanvasSettings settings,
     required List<List<ui.Offset>> strokes,
-    required ui.Offset viewportOffset,
   }) async {
     final ui.PictureRecorder recorder = ui.PictureRecorder();
     final ui.Canvas canvas = ui.Canvas(recorder);
     final StrokePainter painter = StrokePainter(
       strokes: strokes,
       backgroundColor: settings.backgroundColor,
-      viewportOffset: viewportOffset,
     );
 
     painter.paint(canvas, settings.size);

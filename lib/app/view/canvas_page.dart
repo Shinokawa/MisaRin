@@ -104,7 +104,6 @@ class _CanvasPageState extends State<CanvasPage> {
       final bytes = await _exporter.exportToPng(
         settings: widget.settings,
         strokes: board.snapshotStrokes(),
-        viewportOffset: board.viewportOffset,
       );
       final String fileName = normalizedPath.split(RegExp(r'[\\/]')).last;
       final fs.XFile file = fs.XFile.fromData(

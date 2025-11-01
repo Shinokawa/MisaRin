@@ -6,14 +6,12 @@ class StrokePainter extends CustomPainter {
   const StrokePainter({
     required this.strokes,
     required this.backgroundColor,
-    required this.viewportOffset,
     this.strokeColor = const Color(0xFF000000),
     this.strokeWidth = 3,
   });
 
   final List<List<Offset>> strokes;
   final Color backgroundColor;
-  final Offset viewportOffset;
   final Color strokeColor;
   final double strokeWidth;
 
@@ -21,9 +19,6 @@ class StrokePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final Paint background = Paint()..color = backgroundColor;
     canvas.drawRect(Offset.zero & size, background);
-
-    canvas.save();
-    canvas.translate(viewportOffset.dx, viewportOffset.dy);
 
     final Paint strokePaint = Paint()
       ..color = strokeColor
@@ -42,7 +37,6 @@ class StrokePainter extends CustomPainter {
         canvas.drawLine(stroke[index], stroke[index + 1], strokePaint);
       }
     }
-    canvas.restore();
   }
 
   @override
