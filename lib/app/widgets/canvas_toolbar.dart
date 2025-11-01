@@ -22,24 +22,51 @@ class CanvasToolbar extends StatelessWidget {
   final bool canUndo;
   final VoidCallback onExit;
 
+  static const TooltipThemeData _rightTooltipStyle =
+      TooltipThemeData(preferBelow: false, verticalOffset: 24);
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ExitToolButton(onPressed: onExit),
-        const SizedBox(height: 12),
-        PenToolButton(
-          isSelected: activeTool == CanvasTool.pen,
-          onPressed: () => onToolSelected(CanvasTool.pen),
+        Tooltip(
+          message: '退出',
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: ExitToolButton(onPressed: onExit),
         ),
-        const SizedBox(height: 12),
-        HandToolButton(
-          isSelected: activeTool == CanvasTool.hand,
-          onPressed: () => onToolSelected(CanvasTool.hand),
+        const SizedBox(height: 6),
+        Tooltip(
+          message: '画笔工具',
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: PenToolButton(
+            isSelected: activeTool == CanvasTool.pen,
+            onPressed: () => onToolSelected(CanvasTool.pen),
+          ),
         ),
-        const SizedBox(height: 12),
-        UndoToolButton(enabled: canUndo, onPressed: onUndo),
+        const SizedBox(height: 6),
+        Tooltip(
+          message: '拖拽画布',
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: HandToolButton(
+            isSelected: activeTool == CanvasTool.hand,
+            onPressed: () => onToolSelected(CanvasTool.hand),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Tooltip(
+          message: '撤销',
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: UndoToolButton(enabled: canUndo, onPressed: onUndo),
+        ),
       ],
     );
   }

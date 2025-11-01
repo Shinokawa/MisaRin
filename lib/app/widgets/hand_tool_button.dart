@@ -27,29 +27,29 @@ class HandToolButton extends StatelessWidget {
       onTap: onPressed,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 64,
-        height: 64,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 2),
+          border: Border.all(color: borderColor, width: 1),
           boxShadow: isSelected
               ? const [
                   BoxShadow(
                     color: Color(0x330078D4),
-                    blurRadius: 12,
-                    offset: Offset(0, 6),
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
                   ),
                 ]
               : const [
                   BoxShadow(
                     color: Color(0x10000000),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
                   ),
                 ],
         ),
-        child: Icon(FluentIcons.handwriting, color: iconColor, size: 28),
+        child: Icon(FluentIcons.handwriting, color: iconColor, size: 14),
       ),
     );
   }

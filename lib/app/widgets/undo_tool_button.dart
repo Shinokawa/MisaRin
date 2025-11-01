@@ -26,23 +26,23 @@ class UndoToolButton extends StatelessWidget {
       onTap: enabled ? onPressed : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
-        width: 64,
-        height: 64,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 2),
+          border: Border.all(color: borderColor, width: 1),
           boxShadow: enabled
               ? const [
                   BoxShadow(
                     color: Color(0x260078D4),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
+                    blurRadius: 5,
+                    offset: Offset(0, 2),
                   ),
                 ]
               : const [],
         ),
-        child: Icon(FluentIcons.undo, color: iconColor, size: 28),
+        child: Icon(FluentIcons.undo, color: iconColor, size: 14),
       ),
     );
   }
