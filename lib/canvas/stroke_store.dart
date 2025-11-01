@@ -52,6 +52,14 @@ class StrokeStore {
     _undone.clear();
   }
 
+  void loadFromSnapshot(List<List<Offset>> strokes) {
+    _strokes
+      ..clear()
+      ..addAll(strokes.map((stroke) => List<Offset>.from(stroke)));
+    _currentStroke = null;
+    _undone.clear();
+  }
+
   List<List<Offset>> snapshot() {
     return _strokes
         .map((stroke) => List<Offset>.from(stroke, growable: false))

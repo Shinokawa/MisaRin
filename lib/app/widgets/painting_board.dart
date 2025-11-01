@@ -16,11 +16,13 @@ class PaintingBoard extends StatefulWidget {
     required this.settings,
     required this.onRequestExit,
     this.onDirtyChanged,
+    this.initialStrokes,
   });
 
   final CanvasSettings settings;
   final VoidCallback onRequestExit;
   final ValueChanged<bool>? onDirtyChanged;
+  final List<List<Offset>>? initialStrokes;
 
   @override
   State<PaintingBoard> createState() => PaintingBoardState();
@@ -52,6 +54,15 @@ class PaintingBoardState extends State<PaintingBoard> {
     _canvasSize.width * _viewport.scale,
     _canvasSize.height * _viewport.scale,
   );
+
+  @override
+  void initState() {
+    super.initState();
+    final List<List<Offset>>? strokes = widget.initialStrokes;
+    if (strokes != null && strokes.isNotEmpty) {
+      _store.loadFromSnapshot(strokes);
+    }
+  }
 
   @override
   void dispose() {

@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
+import 'app/menu/macos_menu_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,5 +27,11 @@ Future<void> main() async {
     });
   }
 
-  runApp(const MisarinApp());
+  const app = MisarinApp();
+
+  if (!kIsWeb && Platform.isMacOS) {
+    runApp(const MacosMenuShell(child: app));
+  } else {
+    runApp(app);
+  }
 }

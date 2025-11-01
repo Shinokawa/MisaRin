@@ -1,16 +1,18 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../canvas/canvas_exporter.dart';
-import '../../canvas/canvas_settings.dart';
+import '../project/project_document.dart';
+import '../project/project_repository.dart';
 import '../widgets/painting_board.dart';
 
 class CanvasPage extends StatefulWidget {
-  const CanvasPage({super.key, required this.settings});
+  const CanvasPage({super.key, required this.document});
 
-  final CanvasSettings settings;
+  final ProjectDocument document;
 
   @override
   State<CanvasPage> createState() => _CanvasPageState();
@@ -20,8 +22,13 @@ class _CanvasPageState extends State<CanvasPage> {
   final GlobalKey<PaintingBoardState> _boardKey =
       GlobalKey<PaintingBoardState>();
   final CanvasExporter _exporter = CanvasExporter();
+  final ProjectRepository _repository = ProjectRepository.instance;
+
+  late ProjectDocument _document;
   bool _hasUnsavedChanges = false;
   bool _isSaving = false;
+  bool _isAutoSaving = false;
+  Timer? _autoSaveTimer;
 
   void _handleDirtyChanged(bool dirty) {
     if (_hasUnsavedChanges == dirty) {
@@ -30,8 +37,83 @@ class _CanvasPageState extends State<CanvasPage> {
     setState(() => _hasUnsavedChanges = dirty);
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _document = widget.document;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureInitialSave();
+    });
+    _autoSaveTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      _saveProject();
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _ensureInitialSave() async {
+    if (!mounted) {
+      return;
+    }
+    if (_document.path != null) {
+      return;
+    }
+    await _saveProject(force: true);
+  }
+
+  Future<bool> _saveProject({bool force = false}) async {
+    if (!mounted) {
+      return false;
+    }
+    if (_isAutoSaving) {
+      return false;
+    }
+    final PaintingBoardState? board = _boardKey.currentState;
+    if (board == null) {
+      return false;
+    }
+    final bool shouldPersist =
+        force || _document.path == null || _hasUnsavedChanges;
+    if (!shouldPersist) {
+      return false;
+    }
+    setState(() => _isAutoSaving = true);
+    try {
+      final strokes = board.snapshotStrokes();
+      final preview = await _exporter.exportToPng(
+        settings: _document.settings,
+        strokes: strokes,
+        maxDimension: 256,
+      );
+      final ProjectDocument updated = _document.copyWith(
+        strokes: strokes,
+        previewBytes: preview,
+      );
+      final ProjectDocument saved = await _repository.saveDocument(updated);
+      if (!mounted) {
+        return true;
+      }
+      setState(() {
+        _document = saved;
+        _isAutoSaving = false;
+      });
+      board.markSaved();
+      return true;
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isAutoSaving = false);
+        _showInfoBar('保存项目失败：$error', severity: InfoBarSeverity.error);
+      }
+      return false;
+    }
+  }
+
   Future<void> _handleExitRequest() async {
-    if (_isSaving) {
+    if (_isSaving || _isAutoSaving) {
       return;
     }
     if (!_hasUnsavedChanges) {
@@ -44,6 +126,7 @@ class _CanvasPageState extends State<CanvasPage> {
     }
     switch (action) {
       case _ExitAction.save:
+        await _saveProject(force: true);
         final bool saved = await _saveCanvas();
         if (saved) {
           await _closePage();
@@ -103,7 +186,7 @@ class _CanvasPageState extends State<CanvasPage> {
     try {
       setState(() => _isSaving = true);
       final bytes = await _exporter.exportToPng(
-        settings: widget.settings,
+        settings: _document.settings,
         strokes: board.snapshotStrokes(),
       );
       final file = File(normalizedPath);
@@ -161,9 +244,10 @@ class _CanvasPageState extends State<CanvasPage> {
           child: Center(
             child: PaintingBoard(
               key: _boardKey,
-              settings: widget.settings,
+              settings: _document.settings,
               onRequestExit: _handleExitRequest,
               onDirtyChanged: _handleDirtyChanged,
+              initialStrokes: _document.strokes,
             ),
           ),
         ),
