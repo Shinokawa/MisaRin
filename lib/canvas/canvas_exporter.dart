@@ -14,6 +14,7 @@ class CanvasExporter {
     final StrokePainter painter = StrokePainter(
       strokes: strokes,
       backgroundColor: settings.backgroundColor,
+      scale: 1.0,
     );
 
     painter.paint(canvas, settings.size);

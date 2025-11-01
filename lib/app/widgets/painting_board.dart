@@ -315,11 +315,6 @@ class PaintingBoardState extends State<PaintingBoard> {
     final Offset focalPoint = box.globalToLocal(details.focalPoint);
     final double targetScale = _scaleGestureInitialScale * details.scale;
     _applyZoom(targetScale, focalPoint);
-    if (details.pointerCount == 0 || details.pointerCount > 1) {
-      setState(() {
-        _viewport.translate(details.focalPointDelta);
-      });
-    }
   }
 
   void _handleScaleEnd(ScaleEndDetails details) {
@@ -406,19 +401,12 @@ class PaintingBoardState extends State<PaintingBoard> {
                                 ),
                               ),
                               child: ClipRect(
-                                child: Transform.scale(
-                                  alignment: Alignment.topLeft,
-                                  scale: _viewport.scale,
-                                  child: SizedBox(
-                                    width: _canvasSize.width,
-                                    height: _canvasSize.height,
-                                    child: CustomPaint(
-                                      painter: StrokePainter(
-                                        strokes: strokes,
-                                        backgroundColor:
-                                            widget.settings.backgroundColor,
-                                      ),
-                                    ),
+                                child: CustomPaint(
+                                  painter: StrokePainter(
+                                    strokes: strokes,
+                                    backgroundColor:
+                                        widget.settings.backgroundColor,
+                                    scale: _viewport.scale,
                                   ),
                                 ),
                               ),
