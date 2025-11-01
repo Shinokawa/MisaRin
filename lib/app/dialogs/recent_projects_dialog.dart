@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
+import 'misarin_dialog.dart';
 
 Future<ProjectSummary?> showRecentProjectsDialog(BuildContext context) {
   return showDialog<ProjectSummary>(
@@ -31,86 +32,84 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    return ContentDialog(
+    return MisarinDialog(
       title: const Text('最近打开'),
-      constraints: const BoxConstraints(maxWidth: 520),
-      content: SizedBox(
-        width: 480,
-        child: FutureBuilder<List<ProjectSummary>>(
-          future: _projectsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: ProgressRing());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('加载最近项目失败：${snapshot.error}'));
-            }
-            final data = snapshot.data ?? const <ProjectSummary>[];
-            if (data.isEmpty) {
-              return const Center(child: Text('暂无最近打开的项目'));
-            }
-            return ListView.separated(
-              shrinkWrap: true,
-              itemBuilder: (context, index) {
-                final summary = data[index];
-                return HoverButton(
-                  onPressed: () => Navigator.of(context).pop(summary),
-                  builder: (context, states) {
-                    final bool hovering = states.isHovered;
-                    final Color background = hovering
-                        ? theme.resources.subtleFillColorSecondary
-                        : theme.cardColor;
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: background,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color:
-                              theme.resources.controlStrongStrokeColorDefault,
-                          width: 0.6,
-                        ),
+      content: FutureBuilder<List<ProjectSummary>>(
+        future: _projectsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: ProgressRing());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('加载最近项目失败：${snapshot.error}'));
+          }
+          final data = snapshot.data ?? const <ProjectSummary>[];
+          if (data.isEmpty) {
+            return const Center(child: Text('暂无最近打开的项目'));
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            itemBuilder: (context, index) {
+              final summary = data[index];
+              return HoverButton(
+                onPressed: () => Navigator.of(context).pop(summary),
+                builder: (context, states) {
+                  final bool hovering = states.isHovered;
+                  final Color background = hovering
+                      ? theme.resources.subtleFillColorSecondary
+                      : theme.cardColor;
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: background,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color:
+                            theme.resources.controlStrongStrokeColorDefault,
+                        width: 0.6,
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _PreviewThumbnail(bytes: summary.previewBytes),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  summary.name,
-                                  style: theme.typography.subtitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  '最后打开：${_formatDate(summary.lastOpened)}',
-                                  style: theme.typography.caption,
-                                ),
-                                Text(
-                                  '画布尺寸：${summary.settings.width.toInt()} x ${summary.settings.height.toInt()}',
-                                  style: theme.typography.caption,
-                                ),
-                              ],
-                            ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _PreviewThumbnail(bytes: summary.previewBytes),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                summary.name,
+                                style: theme.typography.subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '最后打开：${_formatDate(summary.lastOpened)}',
+                                style: theme.typography.caption,
+                              ),
+                              Text(
+                                '画布尺寸：${summary.settings.width.toInt()} x ${summary.settings.height.toInt()}',
+                                style: theme.typography.caption,
+                              ),
+                            ],
                           ),
-                          const Icon(FluentIcons.open_file, size: 18),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemCount: data.length,
-            );
-          },
-        ),
+                        ),
+                        const Icon(FluentIcons.open_file, size: 18),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemCount: data.length,
+          );
+        },
       ),
+      contentWidth: 480,
+      maxWidth: 560,
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),

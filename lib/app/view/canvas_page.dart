@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../canvas/canvas_exporter.dart';
+import '../dialogs/misarin_dialog.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../widgets/painting_board.dart';
@@ -143,9 +144,11 @@ class _CanvasPageState extends State<CanvasPage> {
   Future<_ExitAction?> _showExitDialog() {
     return showDialog<_ExitAction>(
       context: context,
-      builder: (context) => ContentDialog(
+      builder: (context) => MisarinDialog(
         title: const Text('返回主页面'),
         content: const Text('是否在返回前保存当前画布？'),
+        contentWidth: 360,
+        maxWidth: 480,
         actions: [
           Button(
             onPressed: () => Navigator.of(context).pop(_ExitAction.cancel),

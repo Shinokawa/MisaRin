@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../canvas/canvas_settings.dart';
+import 'misarin_dialog.dart';
 
 Future<CanvasSettings?> showCanvasSettingsDialog(
   BuildContext context, {
@@ -70,7 +71,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return ContentDialog(
+    return MisarinDialog(
       title: const Text('新建画布设置'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -122,6 +123,8 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
           ],
         ],
       ),
+      contentWidth: 420,
+      maxWidth: 520,
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),
