@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 typedef MenuAsyncAction = FutureOr<void> Function();
@@ -45,6 +46,7 @@ class MenuActionDispatcher extends ChangeNotifier {
 
   final LinkedHashMap<Object, MenuActionHandler> _handlers =
       LinkedHashMap<Object, MenuActionHandler>();
+  bool _notifyScheduled = false;
 
   MenuActionHandler get current => _handlers.isEmpty
       ? const MenuActionHandler.empty()
@@ -52,14 +54,30 @@ class MenuActionDispatcher extends ChangeNotifier {
 
   void register(Object token, MenuActionHandler handler) {
     _handlers[token] = handler;
-    notifyListeners();
+    _scheduleNotify();
   }
 
   void unregister(Object token) {
     final removed = _handlers.remove(token);
     if (removed != null) {
-      notifyListeners();
+      _scheduleNotify();
     }
+  }
+
+  void _scheduleNotify() {
+    final binding = WidgetsBinding.instance;
+    if (binding == null) {
+      notifyListeners();
+      return;
+    }
+    if (_notifyScheduled) {
+      return;
+    }
+    _notifyScheduled = true;
+    binding.addPostFrameCallback((_) {
+      _notifyScheduled = false;
+      notifyListeners();
+    });
   }
 }
 

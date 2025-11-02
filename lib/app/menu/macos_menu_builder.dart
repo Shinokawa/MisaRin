@@ -127,10 +127,6 @@ class MacosMenuBuilder {
                 meta: true,
               ),
             ),
-            PlatformMenuItem(
-              label: '在 Bridge 中浏览…',
-              onSelected: _placeholder('文件 > 在 Bridge 中浏览…', log),
-            ),
           ],
         ),
         PlatformMenuItemGroup(
