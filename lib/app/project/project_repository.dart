@@ -50,6 +50,23 @@ class ProjectRepository {
     return resolved;
   }
 
+  Future<ProjectDocument> saveDocumentAs(
+    ProjectDocument document,
+    String absolutePath,
+  ) async {
+    await _ensureProjectDirectory();
+    final File file = File(absolutePath);
+    await file.parent.create(recursive: true);
+    final ProjectDocument resolved = document.copyWith(
+      path: absolutePath,
+      updatedAt: DateTime.now(),
+    );
+    final Uint8List binary = ProjectBinaryCodec.encode(resolved);
+    await file.writeAsBytes(binary, flush: true);
+    await _recentIndex?.touch(absolutePath);
+    return resolved;
+  }
+
   Future<ProjectDocument> loadDocument(String path) async {
     await _ensureProjectDirectory();
     final File file = File(path);

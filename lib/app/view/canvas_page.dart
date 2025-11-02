@@ -89,7 +89,7 @@ class CanvasPageState extends State<CanvasPage> {
     await _saveProject(force: true);
   }
 
-  Future<bool> _saveProject({bool force = false}) async {
+  Future<bool> _saveProject({bool force = false, bool showMessage = false}) async {
     if (!mounted) {
       return false;
     }
@@ -103,6 +103,10 @@ class CanvasPageState extends State<CanvasPage> {
     final bool shouldPersist =
         force || _document.path == null || _hasUnsavedChanges;
     if (!shouldPersist) {
+      if (showMessage) {
+        final String location = _document.path ?? '默认项目目录';
+        _showInfoBar('没有需要保存的更改（当前路径：$location）');
+      }
       return false;
     }
     setState(() => _isAutoSaving = true);
@@ -128,10 +132,72 @@ class CanvasPageState extends State<CanvasPage> {
       _workspace.updateDocument(saved);
       _workspace.markDirty(saved.id, false);
       board.markSaved();
+      if (showMessage) {
+        final String location = saved.path ?? '默认项目目录';
+        _showInfoBar('项目已保存到 $location', severity: InfoBarSeverity.success);
+      }
       return true;
     } catch (error) {
       if (mounted) {
         setState(() => _isAutoSaving = false);
+        _showInfoBar('保存项目失败：$error', severity: InfoBarSeverity.error);
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _saveProjectAs() async {
+    if (!mounted || _isSaving || _isAutoSaving) {
+      return false;
+    }
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null) {
+      _showInfoBar('画布尚未准备好，无法保存。', severity: InfoBarSeverity.error);
+      return false;
+    }
+
+    final String? selectedPath = await FilePicker.platform.saveFile(
+      dialogTitle: '另存为项目文件',
+      fileName: '${_document.name}.rin',
+      type: FileType.custom,
+      allowedExtensions: const ['rin'],
+    );
+    if (selectedPath == null) {
+      return false;
+    }
+    final String normalizedPath =
+        selectedPath.toLowerCase().endsWith('.rin') ? selectedPath : '$selectedPath.rin';
+
+    setState(() => _isSaving = true);
+    try {
+      final layers = board.snapshotLayers();
+      final preview = await _exporter.exportToPng(
+        settings: _document.settings,
+        layers: layers,
+        maxDimension: 256,
+      );
+      final ProjectDocument updated = _document.copyWith(
+        layers: layers,
+        previewBytes: preview,
+        path: normalizedPath,
+      );
+      final ProjectDocument saved =
+          await _repository.saveDocumentAs(updated, normalizedPath);
+      if (!mounted) {
+        return true;
+      }
+      setState(() {
+        _document = saved;
+        _isSaving = false;
+      });
+      _workspace.updateDocument(saved);
+      _workspace.markDirty(saved.id, false);
+      board.markSaved();
+      _showInfoBar('项目已保存到 $normalizedPath', severity: InfoBarSeverity.success);
+      return true;
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isSaving = false);
         _showInfoBar('保存项目失败：$error', severity: InfoBarSeverity.error);
       }
       return false;
@@ -199,7 +265,9 @@ class CanvasPageState extends State<CanvasPage> {
     }
     switch (action) {
       case _ExitAction.save:
-        final bool projectSaved = await _saveProject(force: true);
+        final bool projectSaved = _document.path == null
+            ? await _saveProjectAs()
+            : await _saveProject(force: true);
         if (!projectSaved) {
           return false;
         }
@@ -369,7 +437,11 @@ class CanvasPageState extends State<CanvasPage> {
       preferences: () => AppMenuActions.openSettings(context),
       about: () => AppMenuActions.showAbout(context),
       save: () async {
-        await _saveProject(force: true);
+        if (_document.path == null) {
+          await _saveProjectAs();
+        } else {
+          await _saveProject(force: true, showMessage: true);
+        }
       },
       undo: () {
         final board = _activeBoard;
