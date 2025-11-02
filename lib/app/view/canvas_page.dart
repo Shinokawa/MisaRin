@@ -204,6 +204,45 @@ class CanvasPageState extends State<CanvasPage> {
     }
   }
 
+  Future<bool> _exportProjectAsPng() async {
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null) {
+      _showInfoBar('画布尚未准备好，无法导出。', severity: InfoBarSeverity.error);
+      return false;
+    }
+
+    final String? outputPath = await FilePicker.platform.saveFile(
+      dialogTitle: '导出 PNG 文件',
+      fileName: '${_document.name}.png',
+      type: FileType.custom,
+      allowedExtensions: const ['png'],
+    );
+    if (outputPath == null) {
+      return false;
+    }
+    final String normalizedPath =
+        outputPath.toLowerCase().endsWith('.png') ? outputPath : '$outputPath.png';
+
+    try {
+      setState(() => _isSaving = true);
+      final bytes = await _exporter.exportToPng(
+        settings: _document.settings,
+        layers: board.snapshotLayers(),
+      );
+      final file = File(normalizedPath);
+      await file.writeAsBytes(bytes, flush: true);
+      _showInfoBar('已导出到 $normalizedPath', severity: InfoBarSeverity.success);
+      return true;
+    } catch (error) {
+      _showInfoBar('导出失败：$error', severity: InfoBarSeverity.error);
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
   Future<void> _handleExitRequest() async {
     final bool canLeave = await _ensureCanLeave(
       dialogTitle: '返回主页面',
@@ -443,6 +482,9 @@ class CanvasPageState extends State<CanvasPage> {
           await _saveProject(force: true, showMessage: true);
         }
       },
+      saveAs: () async {
+        await _saveProjectAs();
+      },
       undo: () {
         final board = _activeBoard;
         board?.undo();
@@ -458,6 +500,9 @@ class CanvasPageState extends State<CanvasPage> {
       zoomOut: () {
         final board = _activeBoard;
         board?.zoomOut();
+      },
+      export: () async {
+        await _exportProjectAsPng();
       },
     );
 

@@ -140,12 +140,18 @@ class MacosMenuBuilder {
             ),
             PlatformMenuItem(
               label: '另存为…',
-              onSelected: _placeholder('文件 > 另存为…', log),
+              onSelected:
+                  _wrap(handler.saveAs) ?? _placeholder('文件 > 另存为…', log),
               shortcut: const SingleActivator(
                 LogicalKeyboardKey.keyS,
                 meta: true,
                 shift: true,
               ),
+            ),
+            PlatformMenuItem(
+              label: '导出…',
+              onSelected:
+                  _wrap(handler.export) ?? _placeholder('文件 > 导出…', log),
             ),
           ],
         ),

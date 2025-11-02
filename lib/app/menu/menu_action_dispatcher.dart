@@ -11,6 +11,8 @@ class MenuActionHandler {
     this.preferences,
     this.about,
     this.save,
+    this.saveAs,
+    this.export,
     this.undo,
     this.redo,
     this.zoomIn,
@@ -22,6 +24,8 @@ class MenuActionHandler {
       preferences = null,
       about = null,
       save = null,
+      saveAs = null,
+      export = null,
       undo = null,
       redo = null,
       zoomIn = null,
@@ -31,6 +35,8 @@ class MenuActionHandler {
   final MenuAsyncAction? preferences;
   final MenuAsyncAction? about;
   final MenuAsyncAction? save;
+  final MenuAsyncAction? saveAs;
+  final MenuAsyncAction? export;
   final MenuAsyncAction? undo;
   final MenuAsyncAction? redo;
   final MenuAsyncAction? zoomIn;
