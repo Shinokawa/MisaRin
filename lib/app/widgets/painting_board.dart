@@ -1188,6 +1188,10 @@ class PaintingBoardState extends State<PaintingBoard> {
         );
         final Rect boardRect = _boardRect;
 
+        final MouseCursor workspaceCursor = _activeTool == CanvasTool.hand
+            ? SystemMouseCursors.move
+            : SystemMouseCursors.basic;
+
         return Shortcuts(
           shortcuts: shortcutBindings,
           child: Actions(
@@ -1225,17 +1229,19 @@ class PaintingBoardState extends State<PaintingBoard> {
                 onScaleStart: _handleScaleStart,
                 onScaleUpdate: _handleScaleUpdate,
                 onScaleEnd: _handleScaleEnd,
-                child: Listener(
-                  behavior: HitTestBehavior.opaque,
-                  onPointerDown: _handlePointerDown,
-                  onPointerMove: _handlePointerMove,
-                  onPointerUp: _handlePointerUp,
-                  onPointerCancel: _handlePointerCancel,
-                  onPointerSignal: _handlePointerSignal,
-                  child: Container(
-                    color: workspaceColor,
-                    child: Stack(
-                      children: [
+                child: MouseRegion(
+                  cursor: workspaceCursor,
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: _handlePointerDown,
+                    onPointerMove: _handlePointerMove,
+                    onPointerUp: _handlePointerUp,
+                    onPointerCancel: _handlePointerCancel,
+                    onPointerSignal: _handlePointerSignal,
+                    child: Container(
+                      color: workspaceColor,
+                      child: Stack(
+                        children: [
                         Positioned(
                           left: boardRect.left,
                           top: boardRect.top,
@@ -1301,6 +1307,7 @@ class PaintingBoardState extends State<PaintingBoard> {
                 ),
               ),
             ),
+          ),
           ),
         );
       },
