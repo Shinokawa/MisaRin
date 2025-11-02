@@ -41,7 +41,6 @@ class ProjectDocument {
     String name = '未命名项目',
   }) {
     final DateTime now = DateTime.now();
-    final String backgroundId = generateLayerId();
     return ProjectDocument(
       id: _generateProjectId(),
       name: name,
@@ -49,14 +48,10 @@ class ProjectDocument {
       createdAt: now,
       updatedAt: now,
       layers: <CanvasLayerData>[
-        CanvasLayerData.color(
-          id: backgroundId,
-          name: '背景',
-          color: settings.backgroundColor,
-        ),
-        CanvasLayerData.strokes(
+        CanvasLayerData(
           id: generateLayerId(),
           name: '图层 1',
+          fillColor: settings.backgroundColor,
         ),
       ],
     );

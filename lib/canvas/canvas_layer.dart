@@ -3,8 +3,6 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
-enum CanvasLayerType { color, strokes }
-
 @immutable
 class CanvasStroke {
   CanvasStroke({
@@ -61,70 +59,39 @@ class CanvasStroke {
 
 @immutable
 class CanvasLayerData {
-  const CanvasLayerData._({
+  CanvasLayerData({
     required this.id,
     required this.name,
-    required this.type,
-    required this.visible,
-    this.color,
-    required this.strokes,
-  });
-
-  factory CanvasLayerData.color({
-    required String id,
-    required String name,
-    required Color color,
-    bool visible = true,
-  }) {
-    return CanvasLayerData._(
-      id: id,
-      name: name,
-      type: CanvasLayerType.color,
-      visible: visible,
-      color: color,
-      strokes: const <CanvasStroke>[],
-    );
-  }
-
-  factory CanvasLayerData.strokes({
-    required String id,
-    required String name,
-    bool visible = true,
+    this.visible = true,
+    Color? fillColor,
     List<CanvasStroke> strokes = const <CanvasStroke>[],
-  }) {
-    return CanvasLayerData._(
-      id: id,
-      name: name,
-      type: CanvasLayerType.strokes,
-      visible: visible,
-      color: null,
-      strokes: _cloneStrokes(strokes),
-    );
-  }
+  })  : fillColor = fillColor,
+        strokes = List<CanvasStroke>.unmodifiable(
+          strokes.map((stroke) => stroke.clone()),
+        );
 
   final String id;
   final String name;
-  final CanvasLayerType type;
   final bool visible;
-  final Color? color;
+  final Color? fillColor;
   final List<CanvasStroke> strokes;
+
+  bool get hasFill => fillColor != null;
 
   CanvasLayerData copyWith({
     String? id,
     String? name,
     bool? visible,
-    Color? color,
+    Color? fillColor,
+    bool clearFill = false,
     List<CanvasStroke>? strokes,
   }) {
-    return CanvasLayerData._(
+    return CanvasLayerData(
       id: id ?? this.id,
       name: name ?? this.name,
-      type: type,
       visible: visible ?? this.visible,
-      color: type == CanvasLayerType.color ? (color ?? this.color) : null,
-      strokes: type == CanvasLayerType.strokes
-          ? _cloneStrokes(strokes ?? this.strokes)
-          : const <CanvasStroke>[],
+      fillColor: clearFill ? null : (fillColor ?? this.fillColor),
+      strokes: strokes ?? this.strokes,
     );
   }
 
@@ -132,42 +99,33 @@ class CanvasLayerData {
     return <String, dynamic>{
       'id': id,
       'name': name,
-      'type': type.name,
       'visible': visible,
-      if (color != null) 'color': _encodeColor(color!),
-      if (type == CanvasLayerType.strokes)
-        'strokes': strokes.map((stroke) => stroke.toJson()).toList(growable: false),
+      'type': 'strokes',
+      if (fillColor != null) 'fillColor': _encodeColor(fillColor!),
+      'strokes': strokes.map((stroke) => stroke.toJson()).toList(growable: false),
     };
   }
 
   static CanvasLayerData fromJson(Map<String, dynamic> json) {
-    final CanvasLayerType type = CanvasLayerType.values.firstWhere(
-      (value) => value.name == json['type'],
-      orElse: () => CanvasLayerType.strokes,
-    );
-    switch (type) {
-      case CanvasLayerType.color:
-        return CanvasLayerData.color(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          color: Color(json['color'] as int),
-          visible: json['visible'] as bool? ?? true,
-        );
-      case CanvasLayerType.strokes:
-        final List<dynamic> rawStrokes = json['strokes'] as List<dynamic>? ?? const <dynamic>[];
-        return CanvasLayerData.strokes(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          visible: json['visible'] as bool? ?? true,
-          strokes: rawStrokes
-              .map((dynamic entry) => CanvasStroke.fromJson(entry as Map<String, dynamic>))
-              .toList(growable: false),
-        );
-    }
-  }
+    final List<dynamic> rawStrokes = json['strokes'] as List<dynamic>? ?? const <dynamic>[];
+    final List<CanvasStroke> strokes = rawStrokes
+        .map((dynamic entry) => CanvasStroke.fromJson(entry as Map<String, dynamic>))
+        .toList(growable: false);
 
-  static List<CanvasStroke> _cloneStrokes(List<CanvasStroke> strokes) {
-    return List<CanvasStroke>.unmodifiable(strokes.map((stroke) => stroke.clone()));
+    Color? fill;
+    if (json.containsKey('fillColor')) {
+      fill = Color(json['fillColor'] as int);
+    } else if (json['type'] == 'color' && json.containsKey('color')) {
+      fill = Color(json['color'] as int);
+    }
+
+    return CanvasLayerData(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      visible: json['visible'] as bool? ?? true,
+      fillColor: fill,
+      strokes: strokes,
+    );
   }
 }
 

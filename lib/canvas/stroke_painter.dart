@@ -32,24 +32,22 @@ class StrokePictureCache {
       if (!layer.visible) {
         continue;
       }
-      switch (layer.type) {
-        case CanvasLayerType.color:
-          final ui.Color fillColor = layer.color ?? const ui.Color(0x00000000);
-          cacheCanvas.drawRect(bounds, ui.Paint()..color = fillColor);
-          break;
-        case CanvasLayerType.strokes:
-          for (final CanvasStroke stroke in layer.strokes) {
-            _drawStroke(
-              cacheCanvas,
-              stroke.points,
-              ui.Paint()
-                ..color = stroke.color
-                ..strokeWidth = stroke.width
-                ..strokeCap = ui.StrokeCap.round
-                ..style = ui.PaintingStyle.stroke,
-            );
-          }
-          break;
+      if (layer.fillColor != null) {
+        cacheCanvas.drawRect(
+          bounds,
+          ui.Paint()..color = layer.fillColor!,
+        );
+      }
+      for (final CanvasStroke stroke in layer.strokes) {
+        _drawStroke(
+          cacheCanvas,
+          stroke.points,
+          ui.Paint()
+            ..color = stroke.color
+            ..strokeWidth = stroke.width
+            ..strokeCap = ui.StrokeCap.round
+            ..style = ui.PaintingStyle.stroke,
+        );
       }
     }
 

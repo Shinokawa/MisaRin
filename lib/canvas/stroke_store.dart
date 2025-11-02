@@ -28,29 +28,13 @@ class StrokeStore {
   bool get canUndo => _currentStroke != null || _history.isNotEmpty;
   bool get canRedo => _redo.isNotEmpty;
 
-  bool get hasStrokes {
-    for (final _Layer layer in _layers) {
-      if (layer.type == CanvasLayerType.strokes && layer.strokes.isNotEmpty) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool get hasStrokes =>
+      _layers.any((layer) => layer.strokes.isNotEmpty);
 
-  bool get hasVisibleContent {
-    for (final _Layer layer in _layers) {
-      if (!layer.visible) {
-        continue;
-      }
-      if (layer.type == CanvasLayerType.color) {
-        return true;
-      }
-      if (layer.strokes.isNotEmpty) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool get hasVisibleContent => _layers.any(
+        (layer) =>
+            layer.visible && (layer.fillColor != null || layer.strokes.isNotEmpty),
+      );
 
   void initialize(List<CanvasLayerData> initialLayers) {
     _layers
@@ -60,7 +44,7 @@ class StrokeStore {
     _redo.clear();
     _currentStroke = null;
     _currentStrokeLayerId = null;
-    _activeLayerId = _firstDrawableLayerId();
+    _activeLayerId = _topLayerId();
     if (_activeLayerId == null) {
       _createDefaultStrokeLayer();
     }
@@ -68,9 +52,6 @@ class StrokeStore {
 
   List<CanvasLayerData> committedLayers() {
     return List<CanvasLayerData>.unmodifiable(_layers.map((layer) {
-      if (layer.type != CanvasLayerType.strokes) {
-        return layer.snapshot();
-      }
       final List<CanvasStroke> committed = <CanvasStroke>[];
       for (final CanvasStroke stroke in layer.strokes) {
         if (identical(stroke, _currentStroke)) {
@@ -78,10 +59,11 @@ class StrokeStore {
         }
         committed.add(stroke.clone());
       }
-      return CanvasLayerData.strokes(
+      return CanvasLayerData(
         id: layer.id,
         name: layer.name,
         visible: layer.visible,
+        fillColor: layer.fillColor,
         strokes: committed,
       );
     }));
@@ -99,9 +81,7 @@ class StrokeStore {
 
   void clear() {
     for (final _Layer layer in _layers) {
-      if (layer.type == CanvasLayerType.strokes) {
-        layer.strokes.clear();
-      }
+      layer.strokes.clear();
     }
     _history.clear();
     _redo.clear();
@@ -111,34 +91,23 @@ class StrokeStore {
 
   bool setActiveLayer(String id) {
     final _Layer? layer = _layerById(id);
-    if (layer == null || layer.type != CanvasLayerType.strokes) {
+    if (layer == null) {
       return false;
     }
     _activeLayerId = id;
     return true;
   }
 
-  CanvasLayerData addStrokeLayer({String? name, bool activate = true}) {
+  CanvasLayerData addLayer({
+    String? name,
+    bool activate = true,
+    Color? fillColor,
+    String? aboveLayerId,
+  }) {
     final _Layer layer = _Layer.stroke(
       id: generateLayerId(),
       name: name ?? _generateLayerName(),
-    );
-    _layers.add(layer);
-    if (activate) {
-      _activeLayerId = layer.id;
-    }
-    return layer.snapshot();
-  }
-
-  CanvasLayerData addColorLayer({
-    String? name,
-    Color color = const Color(0xFFFFFFFF),
-    String? aboveLayerId,
-  }) {
-    final _Layer layer = _Layer.color(
-      id: generateLayerId(),
-      name: name ?? '颜色填充',
-      color: color,
+      fillColor: fillColor,
     );
     if (aboveLayerId != null) {
       final int index = _layers.indexWhere((element) => element.id == aboveLayerId);
@@ -149,6 +118,9 @@ class StrokeStore {
       }
     } else {
       _layers.add(layer);
+    }
+    if (activate) {
+      _activeLayerId = layer.id;
     }
     return layer.snapshot();
   }
@@ -161,13 +133,9 @@ class StrokeStore {
     if (index < 0) {
       return false;
     }
-    final _Layer layer = _layers[index];
-    if (layer.type == CanvasLayerType.color) {
-      return false;
-    }
     _layers.removeAt(index);
     if (_activeLayerId == id) {
-      _activeLayerId = _firstDrawableLayerId();
+      _activeLayerId = _topLayerId();
       _currentStroke = null;
       _currentStrokeLayerId = null;
     }
@@ -183,12 +151,21 @@ class StrokeStore {
     return true;
   }
 
-  bool updateColorLayer(String id, Color color) {
+  bool setLayerFillColor(String id, Color color) {
     final _Layer? layer = _layerById(id);
-    if (layer == null || layer.type != CanvasLayerType.color) {
+    if (layer == null) {
       return false;
     }
-    layer.color = color;
+    layer.fillColor = color;
+    return true;
+  }
+
+  bool clearLayerFillColor(String id) {
+    final _Layer? layer = _layerById(id);
+    if (layer == null) {
+      return false;
+    }
+    layer.fillColor = null;
     return true;
   }
 
@@ -271,16 +248,12 @@ class StrokeStore {
     return true;
   }
 
-  String _generateLayerName() {
-    final int count =
-        _layers.where((layer) => layer.type == CanvasLayerType.strokes).length + 1;
-    return '图层 $count';
-  }
+  String _generateLayerName() => '图层 ${_layers.length + 1}';
 
   _Layer _ensureActiveStrokeLayer() {
     if (_activeLayerId != null) {
       final _Layer? layer = _layerById(_activeLayerId!);
-      if (layer != null && layer.type == CanvasLayerType.strokes) {
+      if (layer != null) {
         return layer;
       }
     }
@@ -298,14 +271,7 @@ class StrokeStore {
     return layer;
   }
 
-  String? _firstDrawableLayerId() {
-    for (final _Layer layer in _layers) {
-      if (layer.type == CanvasLayerType.strokes) {
-        return layer.id;
-      }
-    }
-    return null;
-  }
+  String? _topLayerId() => _layers.isEmpty ? null : _layers.last.id;
 
   _Layer? _layerById(String id) {
     for (final _Layer layer in _layers) {
@@ -322,57 +288,30 @@ class _Layer {
     required this.id,
     required this.name,
     this.visible = true,
-  })  : type = CanvasLayerType.strokes,
-        color = null,
-        strokes = <CanvasStroke>[];
-
-  _Layer.color({
-    required this.id,
-    required this.name,
-    required this.color,
-    this.visible = true,
-  })  : type = CanvasLayerType.color,
-        strokes = <CanvasStroke>[];
+    this.fillColor,
+  }) : strokes = <CanvasStroke>[];
 
   factory _Layer.fromData(CanvasLayerData data) {
-    switch (data.type) {
-      case CanvasLayerType.color:
-        return _Layer.color(
-          id: data.id,
-          name: data.name,
-          color: data.color ?? const Color(0xFFFFFFFF),
-          visible: data.visible,
-        );
-      case CanvasLayerType.strokes:
-        return _Layer.stroke(
-          id: data.id,
-          name: data.name,
-          visible: data.visible,
-        )
-          ..strokes.addAll(data.strokes.map((stroke) => stroke.clone()));
-    }
+    return _Layer.stroke(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      fillColor: data.fillColor,
+    )..strokes.addAll(data.strokes.map((stroke) => stroke.clone()));
   }
 
   final String id;
   String name;
-  final CanvasLayerType type;
   bool visible;
-  Color? color;
+  Color? fillColor;
   final List<CanvasStroke> strokes;
 
   CanvasLayerData snapshot() {
-    if (type == CanvasLayerType.color) {
-      return CanvasLayerData.color(
-        id: id,
-        name: name,
-        color: color ?? const Color(0xFFFFFFFF),
-        visible: visible,
-      );
-    }
-    return CanvasLayerData.strokes(
+    return CanvasLayerData(
       id: id,
       name: name,
       visible: visible,
+      fillColor: fillColor,
       strokes: strokes.map((stroke) => stroke.clone()).toList(growable: false),
     );
   }

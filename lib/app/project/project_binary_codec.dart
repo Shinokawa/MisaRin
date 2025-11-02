@@ -181,24 +181,25 @@ class ProjectBinaryCodec {
   }) {
     final String backgroundId = generateLayerId();
     return <CanvasLayerData>[
-      CanvasLayerData.color(
+      CanvasLayerData(
         id: backgroundId,
-        name: '背景',
-        color: settings.backgroundColor,
-      ),
-      CanvasLayerData.strokes(
-        id: generateLayerId(),
         name: '图层 1',
-        strokes: strokes
-            .map(
-              (points) => CanvasStroke(
-                color: const Color(0xFF000000),
-                width: 3,
-                points: List<Offset>.from(points),
-              ),
-            )
-            .toList(growable: false),
+        fillColor: settings.backgroundColor,
       ),
+      if (strokes.isNotEmpty)
+        CanvasLayerData(
+          id: generateLayerId(),
+          name: '图层 2',
+          strokes: strokes
+              .map(
+                (points) => CanvasStroke(
+                  color: const Color(0xFF000000),
+                  width: 3,
+                  points: List<Offset>.from(points),
+                ),
+              )
+              .toList(growable: false),
+        ),
     ];
   }
 

@@ -57,7 +57,6 @@ class PaintingBoardState extends State<PaintingBoard> {
   final CanvasViewport _viewport = CanvasViewport();
   Size _workspaceSize = Size.zero;
   Offset _layoutBaseOffset = Offset.zero;
-  String? _backgroundLayerId;
   final ScrollController _layerScrollController = ScrollController();
   Color _primaryColor = const Color(0xFF000000);
   late HSVColor _primaryHsv;
@@ -72,44 +71,15 @@ class PaintingBoardState extends State<PaintingBoard> {
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
     if (provided != null && provided.isNotEmpty) {
-      final List<CanvasLayerData> layers = List<CanvasLayerData>.from(provided);
-      _backgroundLayerId = _extractBackgroundLayerId(layers);
-      if (_backgroundLayerId == null) {
-        final String backgroundId = generateLayerId();
-        layers.insert(
-          0,
-          CanvasLayerData.color(
-            id: backgroundId,
-            name: '背景',
-            color: widget.settings.backgroundColor,
-          ),
-        );
-        _backgroundLayerId = backgroundId;
-      }
-      return layers;
+      return List<CanvasLayerData>.from(provided);
     }
-    final String backgroundId = generateLayerId();
-    _backgroundLayerId = backgroundId;
     return <CanvasLayerData>[
-      CanvasLayerData.color(
-        id: backgroundId,
-        name: '背景',
-        color: widget.settings.backgroundColor,
-      ),
-      CanvasLayerData.strokes(
+      CanvasLayerData(
         id: generateLayerId(),
         name: '图层 1',
+        fillColor: widget.settings.backgroundColor,
       ),
     ];
-  }
-
-  String? _extractBackgroundLayerId(List<CanvasLayerData> layers) {
-    for (final CanvasLayerData layer in layers) {
-      if (layer.type == CanvasLayerType.color) {
-        return layer.id;
-      }
-    }
-    return null;
   }
 
   List<CanvasLayerData> get _layers => _store.layers;
@@ -125,16 +95,12 @@ class PaintingBoardState extends State<PaintingBoard> {
     return null;
   }
 
-  Color get _currentBackgroundColor {
-    final String? backgroundId = _backgroundLayerId;
-    if (backgroundId == null) {
+  Color get _backgroundPreviewColor {
+    if (_layers.isEmpty) {
       return widget.settings.backgroundColor;
     }
-    final CanvasLayerData? layer = _layerById(backgroundId);
-    if (layer == null || layer.color == null) {
-      return widget.settings.backgroundColor;
-    }
-    return layer.color!;
+    final CanvasLayerData baseLayer = _layers.first;
+    return baseLayer.fillColor ?? widget.settings.backgroundColor;
   }
 
   void _handleLayerVisibilityChanged(String id, bool visible) {
@@ -143,7 +109,7 @@ class PaintingBoardState extends State<PaintingBoard> {
     }
     if (!visible && _store.activeLayerId == id) {
       for (final CanvasLayerData layer in _layers.reversed) {
-        if (layer.type == CanvasLayerType.strokes && layer.visible) {
+        if (layer.visible) {
           _store.setActiveLayer(layer.id);
           break;
         }
@@ -163,7 +129,7 @@ class PaintingBoardState extends State<PaintingBoard> {
   }
 
   void _handleAddLayer() {
-    _store.addStrokeLayer();
+    _store.addLayer();
     _syncStrokeCache();
     setState(() {
       _bumpCurrentStrokeVersion();
@@ -171,16 +137,16 @@ class PaintingBoardState extends State<PaintingBoard> {
     _markDirty();
   }
 
-  Future<void> _handleEditColorLayer(String id) async {
+  Future<void> _handleEditLayerFill(String id) async {
     final CanvasLayerData? layer = _layerById(id);
-    if (layer == null || layer.type != CanvasLayerType.color) {
+    if (layer == null) {
       return;
     }
     await _pickColor(
-      title: '调整图层颜色',
-      initialColor: layer.color ?? _currentBackgroundColor,
+      title: '调整图层填充',
+      initialColor: layer.fillColor ?? _primaryColor,
       onSelected: (color) {
-        if (_store.updateColorLayer(id, color)) {
+        if (_store.setLayerFillColor(id, color)) {
           _syncStrokeCache();
           setState(() {
             _bumpCurrentStrokeVersion();
@@ -188,6 +154,17 @@ class PaintingBoardState extends State<PaintingBoard> {
           _markDirty();
         }
       },
+      onCleared: layer.fillColor == null
+          ? null
+          : () {
+              if (_store.clearLayerFillColor(id)) {
+                _syncStrokeCache();
+                setState(() {
+                  _bumpCurrentStrokeVersion();
+                });
+                _markDirty();
+              }
+            },
     );
   }
 
@@ -195,6 +172,7 @@ class PaintingBoardState extends State<PaintingBoard> {
     required String title,
     required Color initialColor,
     required ValueChanged<Color> onSelected,
+    VoidCallback? onCleared,
   }) async {
     Color previewColor = initialColor;
     final Color? result = await showDialog<Color>(
@@ -220,6 +198,14 @@ class PaintingBoardState extends State<PaintingBoard> {
             },
           ),
           actions: [
+            if (onCleared != null)
+              Button(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  onCleared();
+                },
+                child: const Text('清除填充'),
+              ),
             Button(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('取消'),
@@ -240,16 +226,25 @@ class PaintingBoardState extends State<PaintingBoard> {
   void _applyPaintBucket(Offset position) {
     final CanvasLayerData? active = _store.activeLayer;
     bool applied = false;
-    if (active != null && active.type == CanvasLayerType.color) {
-      applied = _store.updateColorLayer(active.id, _primaryColor);
-    } else if (_backgroundLayerId != null &&
-        _store.updateColorLayer(_backgroundLayerId!, _primaryColor)) {
-      applied = true;
-    } else {
-      _store.addColorLayer(
-        color: _primaryColor,
+    if (active != null) {
+      applied = _store.setLayerFillColor(active.id, _primaryColor);
+    }
+    if (!applied) {
+      for (final CanvasLayerData layer in _layers.reversed) {
+        if (!layer.visible) {
+          continue;
+        }
+        applied = _store.setLayerFillColor(layer.id, _primaryColor);
+        if (applied) {
+          break;
+        }
+      }
+    }
+    if (!applied) {
+      _store.addLayer(
+        name: '填充',
+        fillColor: _primaryColor,
         aboveLayerId: active?.id,
-        name: '填充色',
       );
       applied = true;
     }
@@ -331,7 +326,7 @@ class PaintingBoardState extends State<PaintingBoard> {
         Color.lerp(borderColor, Colors.transparent, 0.35)!;
     final Color textColor = theme.typography.caption?.color ??
         (theme.brightness.isDark ? Colors.white : const Color(0xFF323130));
-    final Color backgroundColor = _currentBackgroundColor;
+    final Color backgroundColor = _backgroundPreviewColor;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -548,8 +543,6 @@ class PaintingBoardState extends State<PaintingBoard> {
               itemBuilder: (context, index) {
                 final CanvasLayerData layer = orderedLayers[index];
                 final bool isActive = layer.id == activeLayerId;
-                final bool isSelectable =
-                    layer.type == CanvasLayerType.strokes;
                 final double contentOpacity = layer.visible ? 1.0 : 0.45;
                 final Color background = isActive
                     ? theme.resources.subtleFillColorSecondary
@@ -565,12 +558,13 @@ class PaintingBoardState extends State<PaintingBoard> {
                       _handleLayerVisibilityChanged(layer.id, value),
                 );
 
-                final Widget? colorSwatch = layer.type == CanvasLayerType.color
+                final Color? fillColor = layer.fillColor;
+                final Widget? fillSwatch = fillColor != null
                     ? Container(
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(
-                          color: layer.color ?? _currentBackgroundColor,
+                          color: fillColor,
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
                             color: theme.resources.controlStrokeColorDefault,
@@ -579,18 +573,14 @@ class PaintingBoardState extends State<PaintingBoard> {
                       )
                     : null;
 
-                final Widget? editColorButton = layer.type == CanvasLayerType.color
-                    ? IconButton(
-                        icon: const Icon(FluentIcons.color, size: 16),
-                        onPressed: () => _handleEditColorLayer(layer.id),
-                      )
-                    : null;
+                final Widget editFillButton = IconButton(
+                  icon: const Icon(FluentIcons.color, size: 16),
+                  onPressed: () => _handleEditLayerFill(layer.id),
+                );
 
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: isSelectable
-                      ? () => _handleLayerSelected(layer.id)
-                      : null,
+                  onTap: () => _handleLayerSelected(layer.id),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(
@@ -611,8 +601,8 @@ class PaintingBoardState extends State<PaintingBoard> {
                             opacity: contentOpacity,
                             child: Row(
                               children: [
-                                if (colorSwatch != null) ...[
-                                  colorSwatch,
+                                if (fillSwatch != null) ...[
+                                  fillSwatch,
                                   const SizedBox(width: 8),
                                 ],
                                 Expanded(
@@ -628,7 +618,7 @@ class PaintingBoardState extends State<PaintingBoard> {
                             ),
                           ),
                         ),
-                        if (editColorButton != null) editColorButton,
+                        editFillButton,
                       ],
                     ),
                   ),
@@ -696,11 +686,14 @@ class PaintingBoardState extends State<PaintingBoard> {
     final bool backgroundChanged =
         widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
     if (sizeChanged || backgroundChanged) {
-      if (backgroundChanged && _backgroundLayerId != null) {
-        _store.updateColorLayer(
-          _backgroundLayerId!,
-          widget.settings.backgroundColor,
-        );
+      if (backgroundChanged && _layers.isNotEmpty) {
+        final CanvasLayerData baseLayer = _layers.first;
+        if (baseLayer.fillColor == oldWidget.settings.backgroundColor) {
+          _store.setLayerFillColor(
+            baseLayer.id,
+            widget.settings.backgroundColor,
+          );
+        }
       }
       _syncStrokeCache();
       setState(() {
