@@ -6,6 +6,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../canvas/canvas_exporter.dart';
 import '../dialogs/misarin_dialog.dart';
+import '../menu/menu_action_dispatcher.dart';
+import '../menu/menu_app_actions.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../widgets/painting_board.dart';
@@ -239,18 +241,47 @@ class _CanvasPageState extends State<CanvasPage> {
 
   @override
   Widget build(BuildContext context) {
-    return NavigationView(
-      content: ScaffoldPage(
-        padding: EdgeInsets.zero,
-        content: Container(
-          color: FluentTheme.of(context).micaBackgroundColor,
-          child: Center(
-            child: PaintingBoard(
-              key: _boardKey,
-              settings: _document.settings,
-              onRequestExit: _handleExitRequest,
-              onDirtyChanged: _handleDirtyChanged,
-              initialStrokes: _document.strokes,
+    final handler = MenuActionHandler(
+      newProject: () => AppMenuActions.createProject(context),
+      preferences: () => AppMenuActions.openSettings(context),
+      about: () => AppMenuActions.showAbout(context),
+      save: () async {
+        await _saveProject(force: true);
+        await _saveCanvas();
+      },
+      undo: () {
+        final board = _boardKey.currentState;
+        board?.undo();
+      },
+      redo: () {
+        final board = _boardKey.currentState;
+        board?.redo();
+      },
+      zoomIn: () {
+        final board = _boardKey.currentState;
+        board?.zoomIn();
+      },
+      zoomOut: () {
+        final board = _boardKey.currentState;
+        board?.zoomOut();
+      },
+    );
+
+    return MenuActionBinding(
+      handler: handler,
+      child: NavigationView(
+        content: ScaffoldPage(
+          padding: EdgeInsets.zero,
+          content: Container(
+            color: FluentTheme.of(context).micaBackgroundColor,
+            child: Center(
+              child: PaintingBoard(
+                key: _boardKey,
+                settings: _document.settings,
+                onRequestExit: _handleExitRequest,
+                onDirtyChanged: _handleDirtyChanged,
+                initialStrokes: _document.strokes,
+              ),
             ),
           ),
         ),

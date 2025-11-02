@@ -32,6 +32,7 @@ class PaintingBoardState extends State<PaintingBoard> {
   static const double _toolButtonPadding = 16;
   static const double _toolbarButtonSize = 48;
   static const double _toolbarSpacing = 9;
+  static const double _zoomStep = 1.1;
 
   final StrokeStore _store = StrokeStore();
   final FocusNode _focusNode = FocusNode();
@@ -72,6 +73,8 @@ class PaintingBoardState extends State<PaintingBoard> {
   CanvasTool get activeTool => _activeTool;
   bool get hasContent => _store.strokes.isNotEmpty;
   bool get isDirty => _isDirty;
+  bool get canUndo => _store.canUndo;
+  bool get canRedo => _store.canRedo;
 
   List<List<Offset>> snapshotStrokes() => _store.snapshot();
 
@@ -330,9 +333,17 @@ class PaintingBoardState extends State<PaintingBoard> {
   }
 
   void _handleUndo() {
+    undo();
+  }
+
+  void _handleRedo() {
+    redo();
+  }
+
+  bool undo() {
     final bool undone = _store.undo();
     if (!undone) {
-      return;
+      return false;
     }
     if (_isDrawing) {
       _isDrawing = false;
@@ -343,15 +354,41 @@ class PaintingBoardState extends State<PaintingBoard> {
     } else {
       _markDirty();
     }
+    return true;
   }
 
-  void _handleRedo() {
+  bool redo() {
     final bool redone = _store.redo();
     if (!redone) {
-      return;
+      return false;
     }
     setState(() {});
     _markDirty();
+    return true;
+  }
+
+  bool zoomIn() {
+    return _zoomByFactor(_zoomStep);
+  }
+
+  bool zoomOut() {
+    return _zoomByFactor(1 / _zoomStep);
+  }
+
+  bool _zoomByFactor(double factor) {
+    if (_workspaceSize.isEmpty) {
+      final RenderBox? box = context.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) {
+        return false;
+      }
+      _workspaceSize = box.size;
+    }
+    final Offset focalPoint = Offset(
+      _workspaceSize.width / 2,
+      _workspaceSize.height / 2,
+    );
+    _applyZoom(_viewport.scale * factor, focalPoint);
+    return true;
   }
 
   @override
@@ -374,8 +411,9 @@ class PaintingBoardState extends State<PaintingBoard> {
 
     final theme = FluentTheme.of(context);
     final bool isDark = theme.brightness.isDark;
-    final Color workspaceColor =
-        isDark ? const Color(0xFF1B1B1F) : const Color(0xFFE5E5E5);
+    final Color workspaceColor = isDark
+        ? const Color(0xFF1B1B1F)
+        : const Color(0xFFE5E5E5);
 
     return LayoutBuilder(
       builder: (context, constraints) {

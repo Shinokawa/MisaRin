@@ -22,6 +22,9 @@ class PenToolButton extends StatelessWidget {
     final Color backgroundColor = isSelected
         ? (isDark ? const Color(0xFF262626) : const Color(0xFFFAFAFA))
         : (isDark ? const Color(0xFF1B1B1F) : const Color(0xFFFFFFFF));
+    final Color iconColor = isSelected
+        ? accent
+        : (isDark ? const Color(0xFFE1E1E7) : const Color(0xFF323130));
     final Color shadowColor = isSelected
         ? accent.withOpacity(isDark ? 0.45 : 0.28)
         : (isDark ? Colors.black.withOpacity(0.45) : Colors.black);
@@ -46,46 +49,7 @@ class PenToolButton extends StatelessWidget {
               ),
             ],
           ),
-          child: const _PenGraphic(),
-        ),
-      ),
-    );
-  }
-}
-
-class _PenGraphic extends StatelessWidget {
-  const _PenGraphic();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Transform.rotate(
-        angle: -0.5,
-        child: SizedBox(
-          height: 26,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: Colors.black, width: 1.2),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  width: 8,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: Icon(FluentIcons.edit, color: iconColor, size: 20),
         ),
       ),
     );

@@ -1,26 +1,40 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+
+import 'menu_action_dispatcher.dart';
 
 typedef MenuLogger = void Function(String entry);
 
 class MacosMenuBuilder {
   const MacosMenuBuilder._();
 
-  static List<PlatformMenu> build({MenuLogger? onLog}) {
+  static List<PlatformMenu> build(
+    MenuActionHandler handler, {
+    MenuLogger? onLog,
+  }) {
     final log = onLog ?? _defaultLogger;
     return <PlatformMenu>[
-      _applicationMenu(log),
-      _fileMenu(log),
-      _editMenu(log),
+      _applicationMenu(handler, log),
+      _fileMenu(handler, log),
+      _editMenu(handler, log),
       _imageMenu(log),
       _layerMenu(log),
       _selectMenu(log),
       _filterMenu(log),
-      _viewMenu(log),
+      _viewMenu(handler, log),
       _windowMenu(log),
       _helpMenu(log),
     ];
+  }
+
+  static VoidCallback? _wrap(MenuAsyncAction? action) {
+    if (action == null) {
+      return null;
+    }
+    return () => unawaited(Future.sync(action));
   }
 
   static VoidCallback _placeholder(String label, MenuLogger log) {
@@ -31,23 +45,36 @@ class MacosMenuBuilder {
     debugPrint(entry);
   }
 
-  static PlatformMenu _applicationMenu(MenuLogger log) {
+  static PlatformMenu _applicationMenu(
+    MenuActionHandler handler,
+    MenuLogger log,
+  ) {
     return PlatformMenu(
       label: 'Misa Rin',
       menus: <PlatformMenuItem>[
-        const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.about),
+        PlatformMenuItem(
+          label: '关于 Misa Rin',
+          onSelected:
+              _wrap(handler.about) ?? _placeholder('应用 > 关于 Misa Rin', log),
+        ),
         PlatformMenuItemGroup(
           members: <PlatformMenuItem>[
             PlatformMenuItem(
               label: '偏好设置…',
-              onSelected: _placeholder('偏好设置…', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.comma, meta: true),
+              onSelected:
+                  _wrap(handler.preferences) ?? _placeholder('偏好设置…', log),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.comma,
+                meta: true,
+              ),
             ),
           ],
         ),
         PlatformMenuItemGroup(
           members: const <PlatformMenuItem>[
-            PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.servicesSubmenu),
+            PlatformProvidedMenuItem(
+              type: PlatformProvidedMenuItemType.servicesSubmenu,
+            ),
           ],
         ),
         PlatformMenuItemGroup(
@@ -55,10 +82,17 @@ class MacosMenuBuilder {
             PlatformMenuItem(
               label: '隐藏 Misa Rin',
               onSelected: _placeholder('隐藏 Misa Rin', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyH, meta: true),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyH,
+                meta: true,
+              ),
             ),
-            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.hideOtherApplications),
-            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.showAllApplications),
+            const PlatformProvidedMenuItem(
+              type: PlatformProvidedMenuItemType.hideOtherApplications,
+            ),
+            const PlatformProvidedMenuItem(
+              type: PlatformProvidedMenuItemType.showAllApplications,
+            ),
           ],
         ),
         PlatformMenuItemGroup(
@@ -70,7 +104,7 @@ class MacosMenuBuilder {
     );
   }
 
-  static PlatformMenu _fileMenu(MenuLogger log) {
+  static PlatformMenu _fileMenu(MenuActionHandler handler, MenuLogger log) {
     return PlatformMenu(
       label: '文件',
       menus: <PlatformMenuItem>[
@@ -78,13 +112,20 @@ class MacosMenuBuilder {
           members: <PlatformMenuItem>[
             PlatformMenuItem(
               label: '新建…',
-              onSelected: _placeholder('文件 > 新建…', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyN, meta: true),
+              onSelected:
+                  _wrap(handler.newProject) ?? _placeholder('文件 > 新建…', log),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyN,
+                meta: true,
+              ),
             ),
             PlatformMenuItem(
               label: '打开…',
               onSelected: _placeholder('文件 > 打开…', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyO, meta: true),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyO,
+                meta: true,
+              ),
             ),
             PlatformMenuItem(
               label: '在 Bridge 中浏览…',
@@ -96,13 +137,20 @@ class MacosMenuBuilder {
           members: <PlatformMenuItem>[
             PlatformMenuItem(
               label: '保存',
-              onSelected: _placeholder('文件 > 保存', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyS, meta: true),
+              onSelected: _wrap(handler.save) ?? _placeholder('文件 > 保存', log),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyS,
+                meta: true,
+              ),
             ),
             PlatformMenuItem(
               label: '另存为…',
               onSelected: _placeholder('文件 > 另存为…', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyS, meta: true, shift: true),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyS,
+                meta: true,
+                shift: true,
+              ),
             ),
           ],
         ),
@@ -111,7 +159,10 @@ class MacosMenuBuilder {
             PlatformMenuItem(
               label: '关闭',
               onSelected: _placeholder('文件 > 关闭', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyW, meta: true),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyW,
+                meta: true,
+              ),
             ),
           ],
         ),
@@ -119,7 +170,7 @@ class MacosMenuBuilder {
     );
   }
 
-  static PlatformMenu _editMenu(MenuLogger log) {
+  static PlatformMenu _editMenu(MenuActionHandler handler, MenuLogger log) {
     return PlatformMenu(
       label: '编辑',
       menus: <PlatformMenuItem>[
@@ -127,13 +178,20 @@ class MacosMenuBuilder {
           members: <PlatformMenuItem>[
             PlatformMenuItem(
               label: '撤销',
-              onSelected: _placeholder('编辑 > 撤销', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, meta: true),
+              onSelected: _wrap(handler.undo) ?? _placeholder('编辑 > 撤销', log),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyZ,
+                meta: true,
+              ),
             ),
             PlatformMenuItem(
-              label: '重做',
-              onSelected: _placeholder('编辑 > 重做', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true),
+              label: '恢复',
+              onSelected: _wrap(handler.redo) ?? _placeholder('编辑 > 恢复', log),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyZ,
+                meta: true,
+                shift: true,
+              ),
             ),
           ],
         ),
@@ -142,17 +200,26 @@ class MacosMenuBuilder {
             PlatformMenuItem(
               label: '剪切',
               onSelected: _placeholder('编辑 > 剪切', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyX, meta: true),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyX,
+                meta: true,
+              ),
             ),
             PlatformMenuItem(
               label: '复制',
               onSelected: _placeholder('编辑 > 复制', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyC, meta: true),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyC,
+                meta: true,
+              ),
             ),
             PlatformMenuItem(
               label: '粘贴',
               onSelected: _placeholder('编辑 > 粘贴', log),
-              shortcut: const SingleActivator(LogicalKeyboardKey.keyV, meta: true),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyV,
+                meta: true,
+              ),
             ),
           ],
         ),
@@ -184,7 +251,11 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '新建 > 图层…',
           onSelected: _placeholder('图层 > 新建 > 图层…', log),
-          shortcut: const SingleActivator(LogicalKeyboardKey.keyN, meta: true, shift: true),
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyN,
+            meta: true,
+            shift: true,
+          ),
         ),
         PlatformMenuItem(
           label: '复制图层…',
@@ -228,24 +299,27 @@ class MacosMenuBuilder {
     );
   }
 
-  static PlatformMenu _viewMenu(MenuLogger log) {
+  static PlatformMenu _viewMenu(MenuActionHandler handler, MenuLogger log) {
     return PlatformMenu(
       label: '视图',
       menus: <PlatformMenuItem>[
         PlatformMenuItem(
           label: '放大',
-          onSelected: _placeholder('视图 > 放大', log),
+          onSelected: _wrap(handler.zoomIn) ?? _placeholder('视图 > 放大', log),
           shortcut: const SingleActivator(LogicalKeyboardKey.equal, meta: true),
         ),
         PlatformMenuItem(
           label: '缩小',
-          onSelected: _placeholder('视图 > 缩小', log),
+          onSelected: _wrap(handler.zoomOut) ?? _placeholder('视图 > 缩小', log),
           shortcut: const SingleActivator(LogicalKeyboardKey.minus, meta: true),
         ),
         PlatformMenuItem(
           label: '适合屏幕',
           onSelected: _placeholder('视图 > 适合屏幕', log),
-          shortcut: const SingleActivator(LogicalKeyboardKey.digit0, meta: true),
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.digit0,
+            meta: true,
+          ),
         ),
       ],
     );
@@ -255,19 +329,22 @@ class MacosMenuBuilder {
     return PlatformMenu(
       label: '窗口',
       menus: <PlatformMenuItem>[
-        PlatformMenuItem(
-          label: '排列',
-          onSelected: _placeholder('窗口 > 排列', log),
-        ),
+        PlatformMenuItem(label: '排列', onSelected: _placeholder('窗口 > 排列', log)),
         PlatformMenuItem(
           label: '工作区',
           onSelected: _placeholder('窗口 > 工作区', log),
         ),
         PlatformMenuItemGroup(
           members: const <PlatformMenuItem>[
-            PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.minimizeWindow),
-            PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.zoomWindow),
-            PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.arrangeWindowsInFront),
+            PlatformProvidedMenuItem(
+              type: PlatformProvidedMenuItemType.minimizeWindow,
+            ),
+            PlatformProvidedMenuItem(
+              type: PlatformProvidedMenuItemType.zoomWindow,
+            ),
+            PlatformProvidedMenuItem(
+              type: PlatformProvidedMenuItemType.arrangeWindowsInFront,
+            ),
           ],
         ),
       ],

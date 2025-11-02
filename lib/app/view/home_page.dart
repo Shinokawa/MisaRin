@@ -1,37 +1,17 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-import '../../canvas/canvas_settings.dart';
-import '../dialogs/about_dialog.dart';
-import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/recent_projects_dialog.dart';
-import '../dialogs/settings_dialog.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import 'canvas_page.dart';
+import '../menu/menu_action_dispatcher.dart';
+import '../menu/menu_app_actions.dart';
 
 class MisarinHomePage extends StatelessWidget {
   const MisarinHomePage({super.key});
 
   Future<void> _handleCreateProject(BuildContext context) async {
-    final CanvasSettings? settings = await showCanvasSettingsDialog(context);
-    if (settings == null || !context.mounted) {
-      return;
-    }
-    try {
-      final ProjectDocument document = await ProjectRepository.instance
-          .createDocumentFromSettings(settings);
-      if (!context.mounted) {
-        return;
-      }
-      await Navigator.of(
-        context,
-      ).push(FluentPageRoute(builder: (_) => CanvasPage(document: document)));
-    } catch (error) {
-      if (!context.mounted) {
-        return;
-      }
-      _showInfoBar(context, '创建项目失败：$error', severity: InfoBarSeverity.error);
-    }
+    await AppMenuActions.createProject(context);
   }
 
   Future<void> _handleOpenRecent(BuildContext context) async {
@@ -57,11 +37,11 @@ class MisarinHomePage extends StatelessWidget {
   }
 
   Future<void> _handleOpenSettings(BuildContext context) async {
-    await showSettingsDialog(context);
+    await AppMenuActions.openSettings(context);
   }
 
   Future<void> _handleOpenAbout(BuildContext context) async {
-    await showAboutMisarinDialog(context);
+    await AppMenuActions.showAbout(context);
   }
 
   void _showInfoBar(
@@ -85,43 +65,51 @@ class MisarinHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    return NavigationView(
-      content: ScaffoldPage(
-        padding: EdgeInsets.zero,
-        content: Container(
-          color: theme.micaBackgroundColor,
-          child: Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: Align(
-                  alignment: Alignment.center,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 360),
-                    child: _buildSidebar(context),
+    final handler = MenuActionHandler(
+      newProject: () => AppMenuActions.createProject(context),
+      preferences: () => AppMenuActions.openSettings(context),
+      about: () => AppMenuActions.showAbout(context),
+    );
+    return MenuActionBinding(
+      handler: handler,
+      child: NavigationView(
+        content: ScaffoldPage(
+          padding: EdgeInsets.zero,
+          content: Container(
+            color: theme.micaBackgroundColor,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: _buildSidebar(context),
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-                flex: 3,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 48,
-                    vertical: 48,
-                  ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.resources.subtleFillColorTertiary,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: theme.resources.controlStrokeColorDefault,
-                        width: 1,
+                Expanded(
+                  flex: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 48,
+                      vertical: 48,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.resources.subtleFillColorTertiary,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: theme.resources.controlStrokeColorDefault,
+                          width: 1,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
