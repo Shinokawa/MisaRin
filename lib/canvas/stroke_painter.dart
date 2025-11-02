@@ -18,8 +18,6 @@ class StrokePictureCache {
 
   void sync({
     required List<CanvasLayerData> layers,
-    required ui.Color strokeColor,
-    required double strokeWidth,
     bool showCheckerboard = true,
   }) {
     final ui.PictureRecorder recorder = ui.PictureRecorder();
@@ -29,12 +27,6 @@ class StrokePictureCache {
     if (showCheckerboard) {
       _drawCheckerboard(cacheCanvas, bounds);
     }
-
-    final ui.Paint strokePaint = ui.Paint()
-      ..color = strokeColor
-      ..strokeWidth = strokeWidth
-      ..strokeCap = ui.StrokeCap.round
-      ..style = ui.PaintingStyle.stroke;
 
     for (final CanvasLayerData layer in layers) {
       if (!layer.visible) {
@@ -46,8 +38,16 @@ class StrokePictureCache {
           cacheCanvas.drawRect(bounds, ui.Paint()..color = fillColor);
           break;
         case CanvasLayerType.strokes:
-          for (final List<ui.Offset> stroke in layer.strokes) {
-            _drawStroke(cacheCanvas, stroke, strokePaint);
+          for (final CanvasStroke stroke in layer.strokes) {
+            _drawStroke(
+              cacheCanvas,
+              stroke.points,
+              ui.Paint()
+                ..color = stroke.color
+                ..strokeWidth = stroke.width
+                ..strokeCap = ui.StrokeCap.round
+                ..style = ui.PaintingStyle.stroke,
+            );
           }
           break;
       }
@@ -125,17 +125,13 @@ class StrokePainter extends CustomPainter {
     required this.currentStroke,
     required this.currentStrokeVersion,
     this.scale = 1.0,
-    this.strokeColor = const ui.Color(0xFF000000),
-    this.strokeWidth = 3,
   });
 
   final StrokePictureCache cache;
   final int cacheVersion;
-  final List<ui.Offset>? currentStroke;
+  final CanvasStroke? currentStroke;
   final int currentStrokeVersion;
   final double scale;
-  final ui.Color strokeColor;
-  final double strokeWidth;
 
   @override
   void paint(Canvas canvas, ui.Size size) {
@@ -148,18 +144,18 @@ class StrokePainter extends CustomPainter {
 
     cache.paint(canvas);
 
-    final List<ui.Offset>? stroke = currentStroke;
-    if (stroke != null && stroke.isNotEmpty) {
+    final CanvasStroke? stroke = currentStroke;
+    if (stroke != null && stroke.points.isNotEmpty) {
       final ui.Paint strokePaint = ui.Paint()
-        ..color = strokeColor
-        ..strokeWidth = strokeWidth
+        ..color = stroke.color
+        ..strokeWidth = stroke.width
         ..strokeCap = ui.StrokeCap.round
         ..style = ui.PaintingStyle.stroke;
-      if (stroke.length == 1) {
-        canvas.drawPoints(ui.PointMode.points, stroke, strokePaint);
+      if (stroke.points.length == 1) {
+        canvas.drawPoints(ui.PointMode.points, stroke.points, strokePaint);
       } else {
-        for (int index = 0; index < stroke.length - 1; index++) {
-          canvas.drawLine(stroke[index], stroke[index + 1], strokePaint);
+        for (int index = 0; index < stroke.points.length - 1; index++) {
+          canvas.drawLine(stroke.points[index], stroke.points[index + 1], strokePaint);
         }
       }
     }
@@ -171,8 +167,6 @@ class StrokePainter extends CustomPainter {
   bool shouldRepaint(covariant StrokePainter oldDelegate) {
     return cacheVersion != oldDelegate.cacheVersion ||
         currentStrokeVersion != oldDelegate.currentStrokeVersion ||
-        scale != oldDelegate.scale ||
-        strokeColor != oldDelegate.strokeColor ||
-        strokeWidth != oldDelegate.strokeWidth;
+        scale != oldDelegate.scale;
   }
 }

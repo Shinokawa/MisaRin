@@ -1,1 +1,1 @@
-enum CanvasTool { pen, hand }
+enum CanvasTool { pen, bucket, hand }

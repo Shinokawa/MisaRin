@@ -5,6 +5,7 @@ import '../../canvas/canvas_tools.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import 'exit_tool_button.dart';
 import 'hand_tool_button.dart';
+import 'bucket_tool_button.dart';
 import 'pen_tool_button.dart';
 import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
@@ -65,6 +66,17 @@ class CanvasToolbar extends StatelessWidget {
           child: PenToolButton(
             isSelected: activeTool == CanvasTool.pen,
             onPressed: () => onToolSelected(CanvasTool.pen),
+          ),
+        ),
+        const SizedBox(height: 9),
+        Tooltip(
+          message: _tooltipMessage('油漆桶', ToolbarAction.bucketTool),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: BucketToolButton(
+            isSelected: activeTool == CanvasTool.bucket,
+            onPressed: () => onToolSelected(CanvasTool.bucket),
           ),
         ),
         const SizedBox(height: 9),

@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-enum ToolbarAction { exit, penTool, handTool, undo, redo }
+enum ToolbarAction { exit, penTool, bucketTool, handTool, undo, redo }
 
 class ShortcutInfo {
   const ShortcutInfo({
@@ -29,6 +29,10 @@ class ToolbarShortcuts {
     ToolbarAction.exit: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.escape)],
       primaryLabel: 'Esc',
+    ),
+    ToolbarAction.bucketTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyG)],
+      primaryLabel: 'G',
     ),
     ToolbarAction.penTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyB)],

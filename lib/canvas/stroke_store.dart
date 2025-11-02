@@ -7,7 +7,7 @@ class StrokeStore {
   final List<_StrokeOperation> _history = <_StrokeOperation>[];
   final List<_StrokeOperation> _redo = <_StrokeOperation>[];
 
-  List<Offset>? _currentStroke;
+  CanvasStroke? _currentStroke;
   String? _currentStrokeLayerId;
   String? _activeLayerId;
 
@@ -15,15 +15,16 @@ class StrokeStore {
       List<CanvasLayerData>.unmodifiable(_layers.map((layer) => layer.snapshot()));
 
   CanvasLayerData? get activeLayer {
-    if (_activeLayerId == null) {
+    final String? id = _activeLayerId;
+    if (id == null) {
       return null;
     }
-    return _layerById(_activeLayerId!)?.snapshot();
+    return _layerById(id)?.snapshot();
   }
 
   String? get activeLayerId => _activeLayerId;
 
-  List<Offset>? get currentStroke => _currentStroke;
+  CanvasStroke? get currentStroke => _currentStroke;
   bool get canUndo => _currentStroke != null || _history.isNotEmpty;
   bool get canRedo => _redo.isNotEmpty;
 
@@ -70,12 +71,12 @@ class StrokeStore {
       if (layer.type != CanvasLayerType.strokes) {
         return layer.snapshot();
       }
-      final List<List<Offset>> committed = <List<Offset>>[];
-      final int limit = layer.id == _currentStrokeLayerId && _currentStroke != null
-          ? layer.strokes.length - 1
-          : layer.strokes.length;
-      for (int i = 0; i < limit; i++) {
-        committed.add(List<Offset>.from(layer.strokes[i]));
+      final List<CanvasStroke> committed = <CanvasStroke>[];
+      for (final CanvasStroke stroke in layer.strokes) {
+        if (identical(stroke, _currentStroke)) {
+          continue;
+        }
+        committed.add(stroke.clone());
       }
       return CanvasLayerData.strokes(
         id: layer.id,
@@ -129,6 +130,29 @@ class StrokeStore {
     return layer.snapshot();
   }
 
+  CanvasLayerData addColorLayer({
+    String? name,
+    Color color = const Color(0xFFFFFFFF),
+    String? aboveLayerId,
+  }) {
+    final _Layer layer = _Layer.color(
+      id: generateLayerId(),
+      name: name ?? '颜色填充',
+      color: color,
+    );
+    if (aboveLayerId != null) {
+      final int index = _layers.indexWhere((element) => element.id == aboveLayerId);
+      if (index >= 0) {
+        _layers.insert(index + 1, layer);
+      } else {
+        _layers.add(layer);
+      }
+    } else {
+      _layers.add(layer);
+    }
+    return layer.snapshot();
+  }
+
   bool removeLayer(String id) {
     if (_layers.length <= 1) {
       return false;
@@ -168,35 +192,39 @@ class StrokeStore {
     return true;
   }
 
-  void startStroke(Offset point) {
+  void startStroke(
+    Offset point, {
+    required Color color,
+    required double width,
+  }) {
     final _Layer layer = _ensureActiveStrokeLayer();
     _redo.clear();
-    final List<Offset> stroke = <Offset>[point];
+    final CanvasStroke stroke = CanvasStroke(color: color, width: width, points: <Offset>[point]);
     layer.strokes.add(stroke);
     _currentStroke = stroke;
     _currentStrokeLayerId = layer.id;
   }
 
   void appendPoint(Offset point) {
-    final List<Offset>? stroke = _currentStroke;
+    final CanvasStroke? stroke = _currentStroke;
     if (stroke == null) {
       return;
     }
-    stroke.add(point);
+    stroke.points.add(point);
   }
 
   void finishStroke() {
     if (_currentStroke == null || _currentStrokeLayerId == null) {
       return;
     }
-    if (_currentStroke!.isEmpty) {
+    if (_currentStroke!.points.isEmpty) {
       final _Layer? layer = _layerById(_currentStrokeLayerId!);
-      layer?.strokes.removeLast();
+      layer?.strokes.remove(_currentStroke);
     } else {
       _history.add(
         _StrokeOperation(
           layerId: _currentStrokeLayerId!,
-          stroke: List<Offset>.from(_currentStroke!),
+          stroke: _currentStroke!,
         ),
       );
     }
@@ -210,13 +238,8 @@ class StrokeStore {
       if (layer == null || layer.strokes.isEmpty) {
         return false;
       }
-      final List<Offset> stroke = layer.strokes.removeLast();
-      _redo.add(
-        _StrokeOperation(
-          layerId: layer.id,
-          stroke: List<Offset>.from(stroke),
-        ),
-      );
+      final CanvasStroke stroke = layer.strokes.removeLast();
+      _redo.add(_StrokeOperation(layerId: layer.id, stroke: stroke));
       _currentStroke = null;
       _currentStrokeLayerId = null;
       return true;
@@ -243,7 +266,7 @@ class StrokeStore {
     if (layer == null) {
       return false;
     }
-    layer.strokes.add(List<Offset>.from(operation.stroke));
+    layer.strokes.add(operation.stroke.clone());
     _history.add(operation.copy());
     return true;
   }
@@ -301,7 +324,7 @@ class _Layer {
     this.visible = true,
   })  : type = CanvasLayerType.strokes,
         color = null,
-        strokes = <List<Offset>>[];
+        strokes = <CanvasStroke>[];
 
   _Layer.color({
     required this.id,
@@ -309,7 +332,7 @@ class _Layer {
     required this.color,
     this.visible = true,
   })  : type = CanvasLayerType.color,
-        strokes = <List<Offset>>[];
+        strokes = <CanvasStroke>[];
 
   factory _Layer.fromData(CanvasLayerData data) {
     switch (data.type) {
@@ -326,9 +349,7 @@ class _Layer {
           name: data.name,
           visible: data.visible,
         )
-          ..strokes.addAll(data.strokes
-              .map((stroke) => List<Offset>.from(stroke))
-              .toList(growable: true));
+          ..strokes.addAll(data.strokes.map((stroke) => stroke.clone()));
     }
   }
 
@@ -337,7 +358,7 @@ class _Layer {
   final CanvasLayerType type;
   bool visible;
   Color? color;
-  final List<List<Offset>> strokes;
+  final List<CanvasStroke> strokes;
 
   CanvasLayerData snapshot() {
     if (type == CanvasLayerType.color) {
@@ -352,19 +373,19 @@ class _Layer {
       id: id,
       name: name,
       visible: visible,
-      strokes: strokes,
+      strokes: strokes.map((stroke) => stroke.clone()).toList(growable: false),
     );
   }
 }
 
 class _StrokeOperation {
-  _StrokeOperation({required this.layerId, required List<Offset> stroke})
-      : stroke = List<Offset>.from(stroke);
+  _StrokeOperation({required this.layerId, required CanvasStroke stroke})
+      : stroke = stroke.clone();
 
   final String layerId;
-  final List<Offset> stroke;
+  final CanvasStroke stroke;
 
   _StrokeOperation copy() {
-    return _StrokeOperation(layerId: layerId, stroke: stroke);
+    return _StrokeOperation(layerId: layerId, stroke: stroke.clone());
   }
 }

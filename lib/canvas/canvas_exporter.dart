@@ -11,8 +11,6 @@ class CanvasExporter {
     required List<CanvasLayerData> layers,
     int? maxDimension,
   }) async {
-    const ui.Color strokeColor = ui.Color(0xFF000000);
-    const double strokeWidth = 3;
     final ui.PictureRecorder recorder = ui.PictureRecorder();
     final ui.Canvas canvas = ui.Canvas(recorder);
     final double baseWidth = settings.width;
@@ -35,8 +33,6 @@ class CanvasExporter {
         StrokePictureCache(logicalSize: ui.Size(baseWidth, baseHeight));
     cache.sync(
       layers: layers,
-      strokeColor: strokeColor,
-      strokeWidth: strokeWidth,
       showCheckerboard: false,
     );
     final StrokePainter painter = StrokePainter(
@@ -45,8 +41,6 @@ class CanvasExporter {
       currentStroke: null,
       currentStrokeVersion: 0,
       scale: scale,
-      strokeColor: strokeColor,
-      strokeWidth: strokeWidth,
     );
 
     painter.paint(canvas, ui.Size(outputWidth, outputHeight));

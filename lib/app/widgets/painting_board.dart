@@ -9,6 +9,7 @@ import '../../canvas/stroke_painter.dart';
 import '../../canvas/stroke_store.dart';
 import 'canvas_toolbar.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
+import 'layer_visibility_button.dart';
 
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
@@ -34,11 +35,12 @@ class PaintingBoardState extends State<PaintingBoard> {
   static const double _toolbarSpacing = 9;
   static const double _zoomStep = 1.1;
   static const double _strokeWidth = 3;
-  static const Color _strokeColor = Color(0xFF000000);
   static const double _sidePanelWidth = 240;
   static const double _colorPanelHeight = 168;
   static const double _layersPanelHeight = 288;
   static const double _sidePanelSpacing = 12;
+  static const double _colorIndicatorSize = 56;
+  static const double _colorIndicatorBorder = 3;
 
   final StrokeStore _store = StrokeStore();
   final FocusNode _focusNode = FocusNode();
@@ -56,6 +58,8 @@ class PaintingBoardState extends State<PaintingBoard> {
   Size _workspaceSize = Size.zero;
   Offset _layoutBaseOffset = Offset.zero;
   String? _backgroundLayerId;
+  final ScrollController _layerScrollController = ScrollController();
+  Color _primaryColor = const Color(0xFF000000);
 
   Size get _canvasSize => widget.settings.size;
 
@@ -166,29 +170,47 @@ class PaintingBoardState extends State<PaintingBoard> {
     _markDirty();
   }
 
-  void _handleBackgroundColorChanged(Color color) {
-    final String? backgroundId = _backgroundLayerId;
-    if (backgroundId == null) {
+  Future<void> _handleEditColorLayer(String id) async {
+    final CanvasLayerData? layer = _layerById(id);
+    if (layer == null || layer.type != CanvasLayerType.color) {
       return;
     }
-    if (!_store.updateColorLayer(backgroundId, color)) {
-      return;
-    }
-    _syncStrokeCache();
-    setState(() {
-      _bumpCurrentStrokeVersion();
-    });
-    _markDirty();
+    await _pickColor(
+      title: '调整图层颜色',
+      initialColor: layer.color ?? _currentBackgroundColor,
+      onSelected: (color) {
+        if (_store.updateColorLayer(id, color)) {
+          _syncStrokeCache();
+          setState(() {
+            _bumpCurrentStrokeVersion();
+          });
+          _markDirty();
+        }
+      },
+    );
   }
 
-  Future<void> _showBackgroundColorPicker() async {
-    final Color startColor = _currentBackgroundColor;
-    Color previewColor = startColor;
+  Future<void> _showPrimaryColorPicker() async {
+    await _pickColor(
+      title: '选择当前颜色',
+      initialColor: _primaryColor,
+      onSelected: (color) {
+        setState(() => _primaryColor = color);
+      },
+    );
+  }
+
+  Future<void> _pickColor({
+    required String title,
+    required Color initialColor,
+    required ValueChanged<Color> onSelected,
+  }) async {
+    Color previewColor = initialColor;
     final Color? result = await showDialog<Color>(
       context: context,
       builder: (context) {
         return ContentDialog(
-          title: const Text('取色'),
+          title: Text(title),
           content: StatefulBuilder(
             builder: (context, setState) {
               return SizedBox(
@@ -220,8 +242,35 @@ class PaintingBoardState extends State<PaintingBoard> {
       },
     );
     if (result != null) {
-      _handleBackgroundColorChanged(result);
+      onSelected(result);
     }
+  }
+
+  void _applyPaintBucket(Offset position) {
+    final CanvasLayerData? active = _store.activeLayer;
+    bool applied = false;
+    if (active != null && active.type == CanvasLayerType.color) {
+      applied = _store.updateColorLayer(active.id, _primaryColor);
+    } else if (_backgroundLayerId != null &&
+        _store.updateColorLayer(_backgroundLayerId!, _primaryColor)) {
+      applied = true;
+    } else {
+      _store.addColorLayer(
+        color: _primaryColor,
+        aboveLayerId: active?.id,
+        name: '填充色',
+      );
+      applied = true;
+    }
+
+    if (!applied) {
+      return;
+    }
+    _syncStrokeCache();
+    setState(() {
+      _bumpCurrentStrokeVersion();
+    });
+    _markDirty();
   }
 
   String _formatColorHex(Color color) {
@@ -262,10 +311,11 @@ class PaintingBoardState extends State<PaintingBoard> {
   }
 
   Widget _buildColorPanelContent(FluentThemeData theme) {
-    final Color color = _currentBackgroundColor;
     final Color borderColor = theme.resources.controlStrokeColorDefault;
     final Color previewBorder =
-        Color.lerp(borderColor, Colors.transparent, 0.4)!;
+        Color.lerp(borderColor, Colors.transparent, 0.35)!;
+    final Color textColor = theme.typography.caption?.color ??
+        (theme.brightness.isDark ? Colors.white : const Color(0xFF323130));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -273,24 +323,24 @@ class PaintingBoardState extends State<PaintingBoard> {
           height: 72,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: previewBorder),
-            color: color,
+            border: Border.all(color: previewBorder, width: 2),
+            color: _primaryColor,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          _formatColorHex(color),
-          style: theme.typography.caption,
+          '当前颜色 ${_formatColorHex(_primaryColor)}',
+          style: theme.typography.caption?.copyWith(color: textColor),
         ),
         const SizedBox(height: 12),
         FilledButton(
-          onPressed: _showBackgroundColorPicker,
+          onPressed: _showPrimaryColorPicker,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
               Icon(FluentIcons.color),
               SizedBox(width: 8),
-              Text('选择颜色'),
+              Text('调整前景色'),
             ],
           ),
         ),
@@ -310,7 +360,10 @@ class PaintingBoardState extends State<PaintingBoard> {
         SizedBox(
           height: listHeight,
           child: Scrollbar(
+            controller: _layerScrollController,
             child: ListView.separated(
+              controller: _layerScrollController,
+              primary: false,
               padding: EdgeInsets.zero,
               itemCount: orderedLayers.length,
               separatorBuilder: (context, index) => const SizedBox(height: 8),
@@ -319,7 +372,7 @@ class PaintingBoardState extends State<PaintingBoard> {
                 final bool isActive = layer.id == activeLayerId;
                 final bool isSelectable =
                     layer.type == CanvasLayerType.strokes;
-                final double opacity = layer.visible ? 1.0 : 0.5;
+                final double contentOpacity = layer.visible ? 1.0 : 0.45;
                 final Color background = isActive
                     ? theme.resources.subtleFillColorSecondary
                     : theme.resources.subtleFillColorTransparent;
@@ -327,6 +380,34 @@ class PaintingBoardState extends State<PaintingBoard> {
                     theme.resources.controlStrokeColorSecondary;
                 final Color tileBorder =
                     Color.lerp(borderColor, Colors.transparent, 0.6)!;
+
+                final Widget visibilityButton = LayerVisibilityButton(
+                  visible: layer.visible,
+                  onChanged: (value) =>
+                      _handleLayerVisibilityChanged(layer.id, value),
+                );
+
+                final Widget? colorSwatch = layer.type == CanvasLayerType.color
+                    ? Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: layer.color ?? _currentBackgroundColor,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: theme.resources.controlStrokeColorDefault,
+                          ),
+                        ),
+                      )
+                    : null;
+
+                final Widget? editColorButton = layer.type == CanvasLayerType.color
+                    ? IconButton(
+                        icon: const Icon(FluentIcons.color, size: 16),
+                        onPressed: () => _handleEditColorLayer(layer.id),
+                      )
+                    : null;
+
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: isSelectable
@@ -345,30 +426,31 @@ class PaintingBoardState extends State<PaintingBoard> {
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          layer.type == CanvasLayerType.color
-                              ? FluentIcons.background_color
-                              : FluentIcons.edit_style,
-                          size: 18,
-                        ),
+                        visibilityButton,
                         const SizedBox(width: 8),
                         Expanded(
                           child: Opacity(
-                            opacity: opacity,
-                            child: Text(
-                              layer.name,
-                              style: isActive
-                                  ? theme.typography.bodyStrong
-                                  : theme.typography.body,
-                              overflow: TextOverflow.ellipsis,
+                            opacity: contentOpacity,
+                            child: Row(
+                              children: [
+                                if (colorSwatch != null) ...[
+                                  colorSwatch,
+                                  const SizedBox(width: 8),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    layer.name,
+                                    style: isActive
+                                        ? theme.typography.bodyStrong
+                                        : theme.typography.body,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        ToggleSwitch(
-                          checked: layer.visible,
-                          onChanged: (value) =>
-                              _handleLayerVisibilityChanged(layer.id, value),
-                        ),
+                        if (editColorButton != null) editColorButton,
                       ],
                     ),
                   ),
@@ -393,6 +475,25 @@ class PaintingBoardState extends State<PaintingBoard> {
     );
   }
 
+  Widget _buildColorIndicator(FluentThemeData theme) {
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    return Tooltip(
+      message: '当前颜色 ${_formatColorHex(_primaryColor)}\n单击更改颜色',
+      child: GestureDetector(
+        onTap: _showPrimaryColorPicker,
+        child: Container(
+          width: _colorIndicatorSize,
+          height: _colorIndicatorSize,
+          decoration: BoxDecoration(
+            color: _primaryColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: borderColor, width: _colorIndicatorBorder),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -407,6 +508,7 @@ class PaintingBoardState extends State<PaintingBoard> {
   @override
   void dispose() {
     _strokeCache.dispose();
+    _layerScrollController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -481,8 +583,19 @@ class PaintingBoardState extends State<PaintingBoard> {
     _toolButtonPadding,
     _toolButtonPadding,
     _toolbarButtonSize,
-    _toolbarButtonSize * 5 + _toolbarSpacing * 4,
+    _toolbarButtonSize * 6 + _toolbarSpacing * 5,
   );
+
+  Rect get _colorIndicatorRect {
+    final double top = (_workspaceSize.height - _toolButtonPadding - _colorIndicatorSize)
+        .clamp(0.0, double.infinity);
+    return Rect.fromLTWH(
+      _toolButtonPadding,
+      top,
+      _colorIndicatorSize,
+      _colorIndicatorSize,
+    );
+  }
 
   Rect get _rightPanelRect {
     final double left =
@@ -503,7 +616,8 @@ class PaintingBoardState extends State<PaintingBoard> {
 
   bool _isInsideToolArea(Offset workspacePosition) {
     return _toolbarRect.contains(workspacePosition) ||
-        _rightPanelRect.contains(workspacePosition);
+        _rightPanelRect.contains(workspacePosition) ||
+        _colorIndicatorRect.contains(workspacePosition);
   }
 
   void _setActiveTool(CanvasTool tool) {
@@ -537,15 +651,17 @@ class PaintingBoardState extends State<PaintingBoard> {
     _strokeCache.updateLogicalSize(_canvasSize);
     _strokeCache.sync(
       layers: _store.committedLayers(),
-      strokeColor: _strokeColor,
-      strokeWidth: _strokeWidth,
     );
   }
 
   void _startStroke(Offset position) {
     setState(() {
       _isDrawing = true;
-      _store.startStroke(position);
+      _store.startStroke(
+        position,
+        color: _primaryColor,
+        width: _strokeWidth,
+      );
       _bumpCurrentStrokeVersion();
     });
     _markDirty();
@@ -612,6 +728,9 @@ class PaintingBoardState extends State<PaintingBoard> {
     if (_activeTool == CanvasTool.pen) {
       _focusNode.requestFocus();
       _startStroke(boardLocal);
+    } else if (_activeTool == CanvasTool.bucket) {
+      _focusNode.requestFocus();
+      _applyPaintBucket(boardLocal);
     } else {
       _beginDragBoard();
     }
@@ -814,6 +933,8 @@ class PaintingBoardState extends State<PaintingBoard> {
         key: const RedoIntent(),
       for (final key in ToolbarShortcuts.of(ToolbarAction.penTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.pen),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.bucket),
       for (final key in ToolbarShortcuts.of(ToolbarAction.handTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.hand),
       for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
@@ -913,8 +1034,6 @@ class PaintingBoardState extends State<PaintingBoard> {
                                       currentStrokeVersion:
                                           _currentStrokeVersion,
                                       scale: _viewport.scale,
-                                      strokeColor: _strokeColor,
-                                      strokeWidth: _strokeWidth,
                                     ),
                                   ),
                                 ),
@@ -934,6 +1053,11 @@ class PaintingBoardState extends State<PaintingBoard> {
                             canRedo: canRedo,
                             onExit: widget.onRequestExit,
                           ),
+                        ),
+                        Positioned(
+                          left: _toolButtonPadding,
+                          bottom: _toolButtonPadding,
+                          child: _buildColorIndicator(theme),
                         ),
                         Positioned(
                           right: _toolButtonPadding,

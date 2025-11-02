@@ -6,6 +6,60 @@ import 'package:flutter/foundation.dart';
 enum CanvasLayerType { color, strokes }
 
 @immutable
+class CanvasStroke {
+  CanvasStroke({
+    required this.color,
+    required this.width,
+    List<Offset>? points,
+  }) : points = points ?? <Offset>[];
+
+  final Color color;
+  final double width;
+  final List<Offset> points;
+
+  CanvasStroke copyWith({
+    Color? color,
+    double? width,
+    List<Offset>? points,
+  }) {
+    return CanvasStroke(
+      color: color ?? this.color,
+      width: width ?? this.width,
+      points: points != null ? List<Offset>.from(points) : List<Offset>.from(this.points),
+    );
+  }
+
+  CanvasStroke clone() => copyWith();
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'color': _encodeColor(color),
+      'width': width,
+      'points': points
+          .map((point) => <String, double>{'x': point.dx, 'y': point.dy})
+          .toList(growable: false),
+    };
+  }
+
+  factory CanvasStroke.fromJson(Map<String, dynamic> json) {
+    final List<dynamic> rawPoints = json['points'] as List<dynamic>? ?? const <dynamic>[];
+    return CanvasStroke(
+      color: Color(json['color'] as int),
+      width: (json['width'] as num).toDouble(),
+      points: rawPoints
+          .map((dynamic entry) {
+            final Map<String, dynamic> map = entry as Map<String, dynamic>;
+            return Offset(
+              (map['x'] as num).toDouble(),
+              (map['y'] as num).toDouble(),
+            );
+          })
+          .toList(growable: true),
+    );
+  }
+}
+
+@immutable
 class CanvasLayerData {
   const CanvasLayerData._({
     required this.id,
@@ -28,7 +82,7 @@ class CanvasLayerData {
       type: CanvasLayerType.color,
       visible: visible,
       color: color,
-      strokes: const <List<Offset>>[],
+      strokes: const <CanvasStroke>[],
     );
   }
 
@@ -36,7 +90,7 @@ class CanvasLayerData {
     required String id,
     required String name,
     bool visible = true,
-    List<List<Offset>> strokes = const <List<Offset>>[],
+    List<CanvasStroke> strokes = const <CanvasStroke>[],
   }) {
     return CanvasLayerData._(
       id: id,
@@ -53,14 +107,14 @@ class CanvasLayerData {
   final CanvasLayerType type;
   final bool visible;
   final Color? color;
-  final List<List<Offset>> strokes;
+  final List<CanvasStroke> strokes;
 
   CanvasLayerData copyWith({
     String? id,
     String? name,
     bool? visible,
     Color? color,
-    List<List<Offset>>? strokes,
+    List<CanvasStroke>? strokes,
   }) {
     return CanvasLayerData._(
       id: id ?? this.id,
@@ -70,7 +124,7 @@ class CanvasLayerData {
       color: type == CanvasLayerType.color ? (color ?? this.color) : null,
       strokes: type == CanvasLayerType.strokes
           ? _cloneStrokes(strokes ?? this.strokes)
-          : const <List<Offset>>[],
+          : const <CanvasStroke>[],
     );
   }
 
@@ -82,14 +136,7 @@ class CanvasLayerData {
       'visible': visible,
       if (color != null) 'color': _encodeColor(color!),
       if (type == CanvasLayerType.strokes)
-        'strokes': strokes
-            .map((stroke) => stroke
-                .map((point) => <String, double>{
-                      'x': point.dx,
-                      'y': point.dy,
-                    })
-                .toList(growable: false))
-            .toList(growable: false),
+        'strokes': strokes.map((stroke) => stroke.toJson()).toList(growable: false),
     };
   }
 
@@ -107,34 +154,20 @@ class CanvasLayerData {
           visible: json['visible'] as bool? ?? true,
         );
       case CanvasLayerType.strokes:
-        final List<dynamic> rawStrokes =
-            (json['strokes'] as List<dynamic>? ?? const <dynamic>[]);
+        final List<dynamic> rawStrokes = json['strokes'] as List<dynamic>? ?? const <dynamic>[];
         return CanvasLayerData.strokes(
           id: json['id'] as String,
           name: json['name'] as String,
           visible: json['visible'] as bool? ?? true,
           strokes: rawStrokes
-              .map((stroke) => (stroke as List<dynamic>)
-                  .map((point) {
-                    final Map<String, dynamic> map =
-                        point as Map<String, dynamic>;
-                    return Offset(
-                      (map['x'] as num).toDouble(),
-                      (map['y'] as num).toDouble(),
-                    );
-                  })
-                  .toList(growable: false))
+              .map((dynamic entry) => CanvasStroke.fromJson(entry as Map<String, dynamic>))
               .toList(growable: false),
         );
     }
   }
 
-  static List<List<Offset>> _cloneStrokes(List<List<Offset>> strokes) {
-    return List<List<Offset>>.unmodifiable(
-      strokes
-          .map((stroke) =>
-              List<Offset>.unmodifiable(List<Offset>.from(stroke))),
-    );
+  static List<CanvasStroke> _cloneStrokes(List<CanvasStroke> strokes) {
+    return List<CanvasStroke>.unmodifiable(strokes.map((stroke) => stroke.clone()));
   }
 }
 

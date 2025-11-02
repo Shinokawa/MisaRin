@@ -189,7 +189,15 @@ class ProjectBinaryCodec {
       CanvasLayerData.strokes(
         id: generateLayerId(),
         name: '图层 1',
-        strokes: strokes,
+        strokes: strokes
+            .map(
+              (points) => CanvasStroke(
+                color: const Color(0xFF000000),
+                width: 3,
+                points: List<Offset>.from(points),
+              ),
+            )
+            .toList(growable: false),
       ),
     ];
   }
