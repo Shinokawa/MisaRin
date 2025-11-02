@@ -1,6 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-import '../../canvas/canvas_settings.dart';
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
@@ -12,13 +11,13 @@ class AppMenuActions {
   const AppMenuActions._();
 
   static Future<void> createProject(BuildContext context) async {
-    final CanvasSettings? settings = await showCanvasSettingsDialog(context);
-    if (settings == null || !context.mounted) {
+    final NewProjectConfig? config = await showCanvasSettingsDialog(context);
+    if (config == null || !context.mounted) {
       return;
     }
     try {
       final ProjectDocument document = await ProjectRepository.instance
-          .createDocumentFromSettings(settings);
+          .createDocumentFromSettings(config.settings, name: config.name);
       if (!context.mounted) {
         return;
       }

@@ -26,8 +26,8 @@ class CanvasSettings {
   }
 
   static const CanvasSettings defaults = CanvasSettings(
-    width: 900,
-    height: 600,
+    width: 1920,
+    height: 1080,
     backgroundColor: Color(0xFFFFFFFF),
   );
 }

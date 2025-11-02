@@ -39,6 +39,30 @@ class CanvasPageState extends State<CanvasPage> {
 
   PaintingBoardState? get _activeBoard => _boardFor(_document.id);
 
+  String _timestamp() {
+    final DateTime now = DateTime.now();
+    return '${now.year}${now.month.toString().padLeft(2, '0')}'
+        '${now.day.toString().padLeft(2, '0')}_'
+        '${now.hour.toString().padLeft(2, '0')}'
+        '${now.minute.toString().padLeft(2, '0')}'
+        '${now.second.toString().padLeft(2, '0')}';
+  }
+
+  String _sanitizeFileName(String input) {
+    final sanitized = input.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    return sanitized.isEmpty ? '未命名项目' : sanitized;
+  }
+
+  String _suggestedFileName(String extension) {
+    final String trimmedName = _document.name.trim();
+    final bool isUntitled =
+        trimmedName.isEmpty || trimmedName == '未命名项目';
+    final String baseName = isUntitled
+        ? '未命名项目_${_timestamp()}'
+        : _sanitizeFileName(trimmedName);
+    return '$baseName.$extension';
+  }
+
   GlobalKey<PaintingBoardState> _ensureBoardKey(String id) {
     return _boardKeys.putIfAbsent(id, () => GlobalKey<PaintingBoardState>());
   }
@@ -158,7 +182,7 @@ class CanvasPageState extends State<CanvasPage> {
 
     final String? selectedPath = await FilePicker.platform.saveFile(
       dialogTitle: '另存为项目文件',
-      fileName: '${_document.name}.rin',
+      fileName: _suggestedFileName('rin'),
       type: FileType.custom,
       allowedExtensions: const ['rin'],
     );
@@ -213,7 +237,7 @@ class CanvasPageState extends State<CanvasPage> {
 
     final String? outputPath = await FilePicker.platform.saveFile(
       dialogTitle: '导出 PNG 文件',
-      fileName: '${_document.name}.png',
+      fileName: _suggestedFileName('png'),
       type: FileType.custom,
       allowedExtensions: const ['png'],
     );

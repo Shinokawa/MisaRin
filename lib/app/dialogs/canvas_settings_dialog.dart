@@ -3,6 +3,16 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../../canvas/canvas_settings.dart';
 import 'misarin_dialog.dart';
 
+class NewProjectConfig {
+  const NewProjectConfig({
+    required this.name,
+    required this.settings,
+  });
+
+  final String name;
+  final CanvasSettings settings;
+}
+
 class _CanvasPreset {
   const _CanvasPreset({
     required this.width,
@@ -26,11 +36,11 @@ class _CanvasPreset {
   }
 }
 
-Future<CanvasSettings?> showCanvasSettingsDialog(
+Future<NewProjectConfig?> showCanvasSettingsDialog(
   BuildContext context, {
   CanvasSettings? initialSettings,
 }) {
-  return showDialog<CanvasSettings>(
+  return showDialog<NewProjectConfig>(
     context: context,
     builder: (_) => _CanvasSettingsDialog(
       initialSettings: initialSettings ?? CanvasSettings.defaults,
@@ -63,6 +73,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
   ];
   late final TextEditingController _widthController;
   late final TextEditingController _heightController;
+  late final TextEditingController _nameController;
   late Color _selectedColor;
   _CanvasPreset? _selectedPreset;
   String? _errorMessage;
@@ -77,6 +88,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     _heightController = TextEditingController(
       text: widget.initialSettings.height.toStringAsFixed(0),
     );
+    _nameController = TextEditingController(text: '未命名项目');
     _widthController.addListener(_handleDimensionChanged);
     _heightController.addListener(_handleDimensionChanged);
     _selectedColor = widget.initialSettings.backgroundColor;
@@ -92,6 +104,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     _heightController.removeListener(_handleDimensionChanged);
     _widthController.dispose();
     _heightController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -106,11 +119,16 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
       setState(() => _errorMessage = '宽度与高度必须大于 0');
       return;
     }
+    final String rawName = _nameController.text.trim();
+    final String resolvedName = rawName.isEmpty ? '未命名项目' : rawName;
     Navigator.of(context).pop(
-      CanvasSettings(
-        width: width,
-        height: height,
-        backgroundColor: _selectedColor,
+      NewProjectConfig(
+        name: resolvedName,
+        settings: CanvasSettings(
+          width: width,
+          height: height,
+          backgroundColor: _selectedColor,
+        ),
       ),
     );
   }
@@ -123,6 +141,14 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          InfoLabel(
+            label: '项目名称',
+            child: TextBox(
+              controller: _nameController,
+              placeholder: '未命名项目',
+            ),
+          ),
+          const SizedBox(height: 12),
           InfoLabel(
             label: '选择预设',
             child: ComboBox<_CanvasPreset?>(

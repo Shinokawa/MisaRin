@@ -152,6 +152,11 @@ class MacosMenuBuilder {
               label: '导出…',
               onSelected:
                   _wrap(handler.export) ?? _placeholder('文件 > 导出…', log),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyE,
+                meta: true,
+                shift: true,
+              ),
             ),
           ],
         ),
