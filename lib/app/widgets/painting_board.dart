@@ -1325,7 +1325,12 @@ class _PanelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final BorderRadius borderRadius = BorderRadius.circular(20);
-    final Color backgroundColor = theme.cardColor;
+    final Color fallbackColor =
+        theme.brightness.isDark ? const Color(0xFF1F1F1F) : Colors.white;
+    Color backgroundColor = theme.cardColor;
+    if (backgroundColor.alpha != 0xFF) {
+      backgroundColor = fallbackColor;
+    }
     return SizedBox(
       width: width,
       child: DecoratedBox(
