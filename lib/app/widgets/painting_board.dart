@@ -60,6 +60,7 @@ class PaintingBoardState extends State<PaintingBoard> {
   String? _backgroundLayerId;
   final ScrollController _layerScrollController = ScrollController();
   Color _primaryColor = const Color(0xFF000000);
+  late HSVColor _primaryHsv;
 
   Size get _canvasSize => widget.settings.size;
 
@@ -266,20 +267,23 @@ class PaintingBoardState extends State<PaintingBoard> {
   void _updatePrimaryFromSquare(Offset position, double size) {
     final double x = position.dx.clamp(0.0, size);
     final double y = position.dy.clamp(0.0, size);
-    final HSVColor hsv = HSVColor.fromColor(_primaryColor);
-    final HSVColor updated = hsv
-        .withSaturation((x / size).clamp(0.0, 1.0))
-        .withValue((1 - y / size).clamp(0.0, 1.0));
+    final double saturation = (x / size).clamp(0.0, 1.0);
+    final double value = (1 - y / size).clamp(0.0, 1.0);
+    final HSVColor updated = _primaryHsv
+        .withSaturation(saturation)
+        .withValue(value);
     setState(() {
+      _primaryHsv = updated;
       _primaryColor = updated.toColor();
     });
   }
 
   void _updatePrimaryHue(double dy, double height) {
     final double y = dy.clamp(0.0, height);
-    final HSVColor hsv = HSVColor.fromColor(_primaryColor);
-    final HSVColor updated = hsv.withHue((y / height).clamp(0.0, 1.0) * 360.0);
+    final double hue = (y / height).clamp(0.0, 1.0) * 360.0;
+    final HSVColor updated = _primaryHsv.withHue(hue);
     setState(() {
+      _primaryHsv = updated;
       _primaryColor = updated.toColor();
     });
   }
@@ -339,7 +343,7 @@ class PaintingBoardState extends State<PaintingBoard> {
           sliderWidth = 0;
         }
 
-        final HSVColor hsv = HSVColor.fromColor(_primaryColor);
+        final HSVColor hsv = _primaryHsv;
 
         Widget buildSwatchSquare(Color color) {
           const double swatchSize = 48;
@@ -668,6 +672,7 @@ class PaintingBoardState extends State<PaintingBoard> {
   @override
   void initState() {
     super.initState();
+    _primaryHsv = HSVColor.fromColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();
     _strokeCache = StrokePictureCache(
       logicalSize: _canvasSize,
@@ -1280,21 +1285,29 @@ class _PanelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
+    final BorderRadius borderRadius = BorderRadius.circular(20);
+    final Color backgroundColor = theme.cardColor;
     return SizedBox(
       width: width,
-      child: Card(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: theme.typography.subtitle,
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: borderRadius,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: theme.typography.subtitle,
+              ),
+              const SizedBox(height: 14),
+              child,
+            ],
+          ),
         ),
       ),
     );
