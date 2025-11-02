@@ -140,6 +140,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                 padding: EdgeInsets.zero,
                 buildDefaultDragHandles: false,
                 dragStartBehavior: DragStartBehavior.down,
+                proxyDecorator: (child, index, animation) => child,
                 itemCount: orderedLayers.length,
                 onReorder: _handleLayerReorder,
                 itemBuilder: (context, index) {
