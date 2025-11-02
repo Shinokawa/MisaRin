@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
@@ -27,6 +28,39 @@ class AppMenuActions {
         return;
       }
       _showInfoBar(context, '创建项目失败：$error', severity: InfoBarSeverity.error);
+    }
+  }
+
+  static Future<void> openProjectFromDisk(BuildContext context) async {
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      dialogTitle: '打开项目',
+      type: FileType.custom,
+      allowedExtensions: const ['rin'],
+    );
+    final String? path = result?.files.singleOrNull?.path;
+    if (path == null || !context.mounted) {
+      return;
+    }
+    try {
+      final ProjectDocument document =
+          await ProjectRepository.instance.loadDocument(path);
+      if (!context.mounted) {
+        return;
+      }
+      await _showProject(context, document);
+      if (!context.mounted) {
+        return;
+      }
+      _showInfoBar(
+        context,
+        '已打开项目：${document.name}',
+        severity: InfoBarSeverity.success,
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      _showInfoBar(context, '打开项目失败：$error', severity: InfoBarSeverity.error);
     }
   }
 

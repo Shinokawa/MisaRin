@@ -8,6 +8,7 @@ typedef MenuAsyncAction = FutureOr<void> Function();
 class MenuActionHandler {
   const MenuActionHandler({
     this.newProject,
+    this.open,
     this.preferences,
     this.about,
     this.save,
@@ -21,6 +22,7 @@ class MenuActionHandler {
 
   const MenuActionHandler.empty()
     : newProject = null,
+      open = null,
       preferences = null,
       about = null,
       save = null,
@@ -32,6 +34,7 @@ class MenuActionHandler {
       zoomOut = null;
 
   final MenuAsyncAction? newProject;
+  final MenuAsyncAction? open;
   final MenuAsyncAction? preferences;
   final MenuAsyncAction? about;
   final MenuAsyncAction? save;

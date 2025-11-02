@@ -120,7 +120,8 @@ class MacosMenuBuilder {
             ),
             PlatformMenuItem(
               label: '打开…',
-              onSelected: _placeholder('文件 > 打开…', log),
+              onSelected:
+                  _wrap(handler.open) ?? _placeholder('文件 > 打开…', log),
               shortcut: const SingleActivator(
                 LogicalKeyboardKey.keyO,
                 meta: true,

@@ -497,6 +497,7 @@ class CanvasPageState extends State<CanvasPage> {
   Widget build(BuildContext context) {
     final handler = MenuActionHandler(
       newProject: () => AppMenuActions.createProject(context),
+      open: () => AppMenuActions.openProjectFromDisk(context),
       preferences: () => AppMenuActions.openSettings(context),
       about: () => AppMenuActions.showAbout(context),
       save: () async {
