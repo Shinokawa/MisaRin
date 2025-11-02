@@ -183,10 +183,6 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
     final Color previewBorder =
         Color.lerp(borderColor, Colors.transparent, 0.35)!;
-    final Color textColor = theme.typography.caption?.color ??
-        (theme.brightness.isDark ? Colors.white : const Color(0xFF323130));
-    final Color backgroundColor = _backgroundPreviewColor;
-
     return LayoutBuilder(
       builder: (context, constraints) {
         double sliderWidth = 24;
@@ -309,50 +305,29 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           );
         }
 
-        Widget buildRecentColorsSection() {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '最近使用',
-                style: theme.typography.caption?.copyWith(color: textColor),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _recentColors
-                    .map<Widget>(
-                      (color) => _RecentColorSwatch(
-                        color: color,
-                        selected: color.value == _primaryColor.value,
-                        borderColor: previewBorder,
-                        onTap: () => _selectRecentColor(color),
-                      ),
-                    )
-                    .toList(growable: false),
-              ),
-            ],
+        Widget buildRecentColors() {
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _recentColors
+                .map<Widget>(
+                  (color) => _RecentColorSwatch(
+                    color: color,
+                    selected: color.value == _primaryColor.value,
+                    borderColor: previewBorder,
+                    onTap: () => _selectRecentColor(color),
+                  ),
+                )
+                .toList(growable: false),
           );
         }
-
-        final Widget recentSection = buildRecentColorsSection();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '当前颜色 ${_formatColorHex(_primaryColor)}',
-              style: theme.typography.caption?.copyWith(color: textColor),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '画布底色 ${_formatColorHex(backgroundColor)}',
-              style: theme.typography.caption?.copyWith(color: textColor),
-            ),
             if (_recentColors.isNotEmpty) ...[
               const SizedBox(height: 12),
-              recentSection,
+              buildRecentColors(),
             ],
             const SizedBox(height: 16),
             Row(
