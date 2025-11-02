@@ -10,7 +10,9 @@ import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
+import '../widgets/canvas_title_bar.dart';
 import '../widgets/painting_board.dart';
+import '../workspace/canvas_workspace_controller.dart';
 
 class CanvasPage extends StatefulWidget {
   const CanvasPage({super.key, required this.document});
@@ -18,14 +20,16 @@ class CanvasPage extends StatefulWidget {
   final ProjectDocument document;
 
   @override
-  State<CanvasPage> createState() => _CanvasPageState();
+  State<CanvasPage> createState() => CanvasPageState();
 }
 
-class _CanvasPageState extends State<CanvasPage> {
+class CanvasPageState extends State<CanvasPage> {
   final GlobalKey<PaintingBoardState> _boardKey =
       GlobalKey<PaintingBoardState>();
   final CanvasExporter _exporter = CanvasExporter();
   final ProjectRepository _repository = ProjectRepository.instance;
+  final CanvasWorkspaceController _workspace =
+      CanvasWorkspaceController.instance;
 
   late ProjectDocument _document;
   bool _hasUnsavedChanges = false;
@@ -38,12 +42,15 @@ class _CanvasPageState extends State<CanvasPage> {
       return;
     }
     setState(() => _hasUnsavedChanges = dirty);
+    _workspace.markDirty(_document.id, dirty);
   }
 
   @override
   void initState() {
     super.initState();
     _document = widget.document;
+    _workspace.open(_document, activate: true);
+    _workspace.markDirty(_document.id, false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureInitialSave();
     });
@@ -104,6 +111,8 @@ class _CanvasPageState extends State<CanvasPage> {
         _document = saved;
         _isAutoSaving = false;
       });
+      _workspace.updateDocument(saved);
+      _workspace.markDirty(saved.id, false);
       board.markSaved();
       return true;
     } catch (error) {
@@ -116,39 +125,26 @@ class _CanvasPageState extends State<CanvasPage> {
   }
 
   Future<void> _handleExitRequest() async {
-    if (_isSaving || _isAutoSaving) {
+    final bool canLeave = await _ensureCanLeave(
+      dialogTitle: '返回主页面',
+      dialogContent: '是否在返回前保存当前画布？',
+      includeCanvasExport: true,
+    );
+    if (!canLeave) {
       return;
     }
-    if (!_hasUnsavedChanges) {
-      await _closePage();
-      return;
-    }
-    final _ExitAction? action = await _showExitDialog();
-    if (!mounted || action == null) {
-      return;
-    }
-    switch (action) {
-      case _ExitAction.save:
-        await _saveProject(force: true);
-        final bool saved = await _saveCanvas();
-        if (saved) {
-          await _closePage();
-        }
-        break;
-      case _ExitAction.discard:
-        await _closePage();
-        break;
-      case _ExitAction.cancel:
-        break;
-    }
+    await _closePage();
   }
 
-  Future<_ExitAction?> _showExitDialog() {
+  Future<_ExitAction?> _showExitDialog({
+    String title = '返回主页面',
+    String content = '是否在返回前保存当前画布？',
+  }) {
     return showDialog<_ExitAction>(
       context: context,
       builder: (context) => MisarinDialog(
-        title: const Text('返回主页面'),
-        content: const Text('是否在返回前保存当前画布？'),
+        title: Text(title),
+        content: Text(content),
         contentWidth: 360,
         maxWidth: 480,
         actions: [
@@ -167,6 +163,46 @@ class _CanvasPageState extends State<CanvasPage> {
         ],
       ),
     );
+  }
+
+  Future<bool> _ensureCanLeave({
+    required String dialogTitle,
+    required String dialogContent,
+    required bool includeCanvasExport,
+  }) async {
+    if (_isSaving || _isAutoSaving) {
+      return false;
+    }
+    if (!_hasUnsavedChanges) {
+      return true;
+    }
+    final _ExitAction? action = await _showExitDialog(
+      title: dialogTitle,
+      content: dialogContent,
+    );
+    if (!mounted || action == null) {
+      return false;
+    }
+    switch (action) {
+      case _ExitAction.save:
+        final bool projectSaved = await _saveProject(force: true);
+        if (!projectSaved) {
+          return false;
+        }
+        if (includeCanvasExport) {
+          final bool exported = await _saveCanvas();
+          if (!exported) {
+            return false;
+          }
+        }
+        _workspace.markDirty(_document.id, false);
+        return true;
+      case _ExitAction.discard:
+        _workspace.markDirty(_document.id, false);
+        return true;
+      case _ExitAction.cancel:
+        return false;
+    }
   }
 
   Future<bool> _saveCanvas() async {
@@ -197,6 +233,7 @@ class _CanvasPageState extends State<CanvasPage> {
       final file = File(normalizedPath);
       await file.writeAsBytes(bytes, flush: true);
       board.markSaved();
+      _workspace.markDirty(_document.id, false);
       _showInfoBar('已保存到 $normalizedPath', severity: InfoBarSeverity.success);
       return true;
     } catch (error) {
@@ -233,10 +270,96 @@ class _CanvasPageState extends State<CanvasPage> {
     if (!mounted) {
       return;
     }
+    _workspace.remove(_document.id);
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();
     }
+  }
+
+  Future<void> openDocument(ProjectDocument document) async {
+    if (document.id == _document.id) {
+      _workspace.setActive(document.id);
+      return;
+    }
+    final bool canLeave = await _ensureCanLeave(
+      dialogTitle: '切换画布',
+      dialogContent: '是否在切换前保存当前画布？',
+      includeCanvasExport: false,
+    );
+    if (!canLeave) {
+      _workspace.setActive(_document.id);
+      return;
+    }
+    if (_workspace.entryById(document.id) == null) {
+      _workspace.open(document, activate: false);
+    } else {
+      _workspace.updateDocument(document);
+    }
+    _workspace.setActive(document.id);
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement(
+      FluentPageRoute(builder: (_) => CanvasPage(document: document)),
+    );
+  }
+
+  Future<void> _handleTabSelected(String id) async {
+    if (id == _document.id) {
+      _workspace.setActive(id);
+      return;
+    }
+    final CanvasWorkspaceEntry? entry = _workspace.entryById(id);
+    if (entry == null) {
+      return;
+    }
+    final bool canLeave = await _ensureCanLeave(
+      dialogTitle: '切换画布',
+      dialogContent: '是否在切换前保存当前画布？',
+      includeCanvasExport: false,
+    );
+    if (!canLeave) {
+      _workspace.setActive(_document.id);
+      return;
+    }
+    _workspace.setActive(id);
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement(
+      FluentPageRoute(builder: (_) => CanvasPage(document: entry.document)),
+    );
+  }
+
+  Future<void> _handleTabClosed(String id) async {
+    if (id != _document.id) {
+      _workspace.remove(id);
+      return;
+    }
+    final CanvasWorkspaceEntry? neighbor = _workspace.neighborFor(id);
+    final bool canLeave = await _ensureCanLeave(
+      dialogTitle: '关闭画布',
+      dialogContent: '是否在关闭前保存当前画布？',
+      includeCanvasExport: true,
+    );
+    if (!canLeave) {
+      _workspace.setActive(_document.id);
+      return;
+    }
+    if (neighbor != null) {
+      final String nextId = neighbor.id;
+      final ProjectDocument nextDocument = neighbor.document;
+      _workspace.remove(id, activateAfter: nextId);
+      if (!mounted) {
+        return;
+      }
+      await Navigator.of(context).pushReplacement(
+        FluentPageRoute(builder: (_) => CanvasPage(document: nextDocument)),
+      );
+      return;
+    }
+    await _closePage();
   }
 
   @override
@@ -247,7 +370,6 @@ class _CanvasPageState extends State<CanvasPage> {
       about: () => AppMenuActions.showAbout(context),
       save: () async {
         await _saveProject(force: true);
-        await _saveCanvas();
       },
       undo: () {
         final board = _boardKey.currentState;
@@ -272,17 +394,28 @@ class _CanvasPageState extends State<CanvasPage> {
       child: NavigationView(
         content: ScaffoldPage(
           padding: EdgeInsets.zero,
-          content: Container(
-            color: FluentTheme.of(context).micaBackgroundColor,
-            child: Center(
-              child: PaintingBoard(
-                key: _boardKey,
-                settings: _document.settings,
-                onRequestExit: _handleExitRequest,
-                onDirtyChanged: _handleDirtyChanged,
-                initialStrokes: _document.strokes,
+          content: Column(
+            children: [
+              CanvasTitleBar(
+                onSelectTab: _handleTabSelected,
+                onCloseTab: _handleTabClosed,
+                onCreateTab: () => AppMenuActions.createProject(context),
               ),
-            ),
+              Expanded(
+                child: Container(
+                  color: FluentTheme.of(context).micaBackgroundColor,
+                  child: Center(
+                    child: PaintingBoard(
+                      key: _boardKey,
+                      settings: _document.settings,
+                      onRequestExit: _handleExitRequest,
+                      onDirtyChanged: _handleDirtyChanged,
+                      initialStrokes: _document.strokes,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

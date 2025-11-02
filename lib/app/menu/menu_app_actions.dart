@@ -22,9 +22,7 @@ class AppMenuActions {
       if (!context.mounted) {
         return;
       }
-      await Navigator.of(
-        context,
-      ).push(FluentPageRoute(builder: (_) => CanvasPage(document: document)));
+      await _showProject(context, document);
     } catch (error) {
       if (!context.mounted) {
         return;
@@ -39,6 +37,31 @@ class AppMenuActions {
 
   static Future<void> showAbout(BuildContext context) async {
     await showAboutMisarinDialog(context);
+  }
+
+  static Future<void> openProject(
+    BuildContext context,
+    ProjectDocument document,
+  ) async {
+    await _showProject(context, document);
+  }
+
+  static Future<void> _showProject(
+    BuildContext context,
+    ProjectDocument document,
+  ) async {
+    final CanvasPageState? canvasState = context
+        .findAncestorStateOfType<CanvasPageState>();
+    if (canvasState != null) {
+      await canvasState.openDocument(document);
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
+    await Navigator.of(
+      context,
+    ).push(FluentPageRoute(builder: (_) => CanvasPage(document: document)));
   }
 
   static void _showInfoBar(

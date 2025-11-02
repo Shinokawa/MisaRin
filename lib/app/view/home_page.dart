@@ -3,7 +3,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 import '../dialogs/recent_projects_dialog.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
-import 'canvas_page.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
 
@@ -25,9 +24,7 @@ class MisarinHomePage extends StatelessWidget {
       if (!context.mounted) {
         return;
       }
-      await Navigator.of(
-        context,
-      ).push(FluentPageRoute(builder: (_) => CanvasPage(document: document)));
+      await AppMenuActions.openProject(context, document);
     } catch (error) {
       if (!context.mounted) {
         return;

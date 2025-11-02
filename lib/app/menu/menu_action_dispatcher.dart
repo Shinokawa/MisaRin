@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 typedef MenuAsyncAction = FutureOr<void> Function();
@@ -65,11 +63,7 @@ class MenuActionDispatcher extends ChangeNotifier {
   }
 
   void _scheduleNotify() {
-    final binding = WidgetsBinding.instance;
-    if (binding == null) {
-      notifyListeners();
-      return;
-    }
+    final WidgetsBinding binding = WidgetsBinding.instance;
     if (_notifyScheduled) {
       return;
     }

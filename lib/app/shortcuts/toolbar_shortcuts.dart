@@ -1,14 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-enum ToolbarAction {
-  exit,
-  penTool,
-  handTool,
-  undo,
-  redo,
-}
+enum ToolbarAction { exit, penTool, handTool, undo, redo }
 
 class ShortcutInfo {
   const ShortcutInfo({
@@ -34,21 +27,15 @@ class ToolbarShortcuts {
 
   static final Map<ToolbarAction, ShortcutInfo> _shortcuts = {
     ToolbarAction.exit: ShortcutInfo(
-      shortcuts: <LogicalKeySet>[
-        LogicalKeySet(LogicalKeyboardKey.escape),
-      ],
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.escape)],
       primaryLabel: 'Esc',
     ),
     ToolbarAction.penTool: ShortcutInfo(
-      shortcuts: <LogicalKeySet>[
-        LogicalKeySet(LogicalKeyboardKey.keyB),
-      ],
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyB)],
       primaryLabel: 'B',
     ),
     ToolbarAction.handTool: ShortcutInfo(
-      shortcuts: <LogicalKeySet>[
-        LogicalKeySet(LogicalKeyboardKey.keyH),
-      ],
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyH)],
       primaryLabel: 'H',
     ),
     ToolbarAction.undo: ShortcutInfo(
@@ -81,7 +68,10 @@ class ToolbarShortcuts {
     return _shortcuts[action]!;
   }
 
-  static String labelForPlatform(ToolbarAction action, TargetPlatform platform) {
+  static String labelForPlatform(
+    ToolbarAction action,
+    TargetPlatform platform,
+  ) {
     return of(action).labelForPlatform(platform);
   }
 }
