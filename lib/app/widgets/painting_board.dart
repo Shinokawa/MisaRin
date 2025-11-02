@@ -60,6 +60,8 @@ class PaintingBoardState extends State<PaintingBoard> {
   final ScrollController _layerScrollController = ScrollController();
   Color _primaryColor = const Color(0xFF000000);
   late HSVColor _primaryHsv;
+  static const int _recentColorCapacity = 5;
+  final List<Color> _recentColors = <Color>[];
 
   Size get _canvasSize => widget.settings.size;
 
@@ -267,20 +269,59 @@ class PaintingBoardState extends State<PaintingBoard> {
     final HSVColor updated = _primaryHsv
         .withSaturation(saturation)
         .withValue(value);
-    setState(() {
-      _primaryHsv = updated;
-      _primaryColor = updated.toColor();
-    });
+    _applyPrimaryHsv(updated);
   }
 
   void _updatePrimaryHue(double dy, double height) {
     final double y = dy.clamp(0.0, height);
     final double hue = (y / height).clamp(0.0, 1.0) * 360.0;
     final HSVColor updated = _primaryHsv.withHue(hue);
+    _applyPrimaryHsv(updated);
+  }
+
+  void _applyPrimaryHsv(HSVColor hsv, {bool remember = false}) {
     setState(() {
-      _primaryHsv = updated;
-      _primaryColor = updated.toColor();
+      _primaryHsv = hsv;
+      _primaryColor = hsv.toColor();
+      if (remember) {
+        _rememberColor(_primaryColor);
+      }
     });
+  }
+
+  void _setPrimaryColor(Color color, {bool remember = true}) {
+    setState(() {
+      _primaryColor = color;
+      _primaryHsv = HSVColor.fromColor(color);
+      if (remember) {
+        _rememberColor(color);
+      }
+    });
+  }
+
+  void _rememberCurrentPrimary() {
+    if (_recentColors.isNotEmpty &&
+        _recentColors.first.value == _primaryColor.value) {
+      return;
+    }
+    setState(() {
+      _rememberColor(_primaryColor);
+    });
+  }
+
+  void _rememberColor(Color color) {
+    _recentColors.removeWhere((c) => c.value == color.value);
+    _recentColors.insert(0, color);
+    if (_recentColors.length > _recentColorCapacity) {
+      _recentColors.removeRange(
+        _recentColorCapacity,
+        _recentColors.length,
+      );
+    }
+  }
+
+  void _selectRecentColor(Color color) {
+    _setPrimaryColor(color);
   }
 
   String _formatColorHex(Color color) {
@@ -340,49 +381,15 @@ class PaintingBoardState extends State<PaintingBoard> {
 
         final HSVColor hsv = _primaryHsv;
 
-        Widget buildSwatchSquare(Color color) {
-          const double swatchSize = 48;
-          return Container(
-            width: swatchSize,
-            height: swatchSize,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: previewBorder, width: 2),
-              color: color,
-            ),
-          );
-        }
-
-        Widget buildForegroundBackgroundPreview() {
-          const double offset = 14;
-          const double totalSize = 48 + offset;
-          return SizedBox(
-            width: totalSize,
-            height: totalSize,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: offset,
-                  top: offset,
-                  child: buildSwatchSquare(backgroundColor),
-                ),
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  child: buildSwatchSquare(_primaryColor),
-                ),
-              ],
-            ),
-          );
-        }
-
         Widget buildColorSquare(double size) {
           return GestureDetector(
             onPanDown: (details) =>
                 _updatePrimaryFromSquare(details.localPosition, size),
             onPanUpdate: (details) =>
                 _updatePrimaryFromSquare(details.localPosition, size),
+            onPanEnd: (_) => _rememberCurrentPrimary(),
+            onPanCancel: _rememberCurrentPrimary,
+            onTapUp: (_) => _rememberCurrentPrimary(),
             child: SizedBox(
               width: size,
               height: size,
@@ -452,6 +459,9 @@ class PaintingBoardState extends State<PaintingBoard> {
                 _updatePrimaryHue(details.localPosition.dy, height),
             onPanUpdate: (details) =>
                 _updatePrimaryHue(details.localPosition.dy, height),
+            onPanEnd: (_) => _rememberCurrentPrimary(),
+            onPanCancel: _rememberCurrentPrimary,
+            onTapUp: (_) => _rememberCurrentPrimary(),
             child: SizedBox(
               width: sliderWidth,
               height: height,
@@ -482,20 +492,54 @@ class PaintingBoardState extends State<PaintingBoard> {
           );
         }
 
+        Widget buildRecentColorsSection() {
+          if (_recentColors.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '最近颜色',
+                style: theme.typography.caption?.copyWith(color: textColor),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _recentColors
+                    .map(
+                      (color) => _RecentColorSwatch(
+                        color: color,
+                        selected: color.value == _primaryColor.value,
+                        borderColor: previewBorder,
+                        onTap: () => _selectRecentColor(color),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
+          );
+        }
+
+        final Widget recentSection = buildRecentColorsSection();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            buildForegroundBackgroundPreview(),
-            const SizedBox(height: 8),
             Text(
-              '前景色 ${_formatColorHex(_primaryColor)}',
+              '当前颜色 ${_formatColorHex(_primaryColor)}',
               style: theme.typography.caption?.copyWith(color: textColor),
             ),
             const SizedBox(height: 4),
             Text(
-              '背景色 ${_formatColorHex(backgroundColor)}',
+              '画布底色 ${_formatColorHex(backgroundColor)}',
               style: theme.typography.caption?.copyWith(color: textColor),
             ),
+            if (_recentColors.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              recentSection,
+            ],
             const SizedBox(height: 16),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -663,6 +707,8 @@ class PaintingBoardState extends State<PaintingBoard> {
   void initState() {
     super.initState();
     _primaryHsv = HSVColor.fromColor(_primaryColor);
+    _rememberColor(widget.settings.backgroundColor);
+    _rememberColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();
     _strokeCache = StrokePictureCache(
       logicalSize: _canvasSize,
@@ -1344,6 +1390,51 @@ class _HueSliderHandle extends StatelessWidget {
           width: 2,
         ),
         color: Colors.white,
+      ),
+    );
+  }
+}
+
+class _RecentColorSwatch extends StatelessWidget {
+  const _RecentColorSwatch({
+    required this.color,
+    required this.selected,
+    required this.borderColor,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool selected;
+  final Color borderColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final Color highlight = theme.accentColor.defaultBrushFor(theme.brightness);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: color,
+          border: Border.all(
+            color: selected ? highlight : borderColor,
+            width: selected ? 2 : 1.5,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
       ),
     );
   }
