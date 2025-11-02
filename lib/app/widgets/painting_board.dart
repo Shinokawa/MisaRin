@@ -324,6 +324,14 @@ class PaintingBoardState extends State<PaintingBoard> {
     _setPrimaryColor(color);
   }
 
+  Future<void> _handleEditPrimaryColor() async {
+    await _pickColor(
+      title: '调整当前颜色',
+      initialColor: _primaryColor,
+      onSelected: (color) => _setPrimaryColor(color),
+    );
+  }
+
   String _formatColorHex(Color color) {
     final int a = (color.a * 255.0).round().clamp(0, 255);
     final int r = (color.r * 255.0).round().clamp(0, 255);
@@ -691,13 +699,16 @@ class PaintingBoardState extends State<PaintingBoard> {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
     return Tooltip(
       message: '当前颜色 ${_formatColorHex(_primaryColor)}',
-      child: Container(
-        width: _colorIndicatorSize,
-        height: _colorIndicatorSize,
-        decoration: BoxDecoration(
-          color: _primaryColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: borderColor, width: _colorIndicatorBorder),
+      child: GestureDetector(
+        onTap: _handleEditPrimaryColor,
+        child: Container(
+          width: _colorIndicatorSize,
+          height: _colorIndicatorSize,
+          decoration: BoxDecoration(
+            color: _primaryColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: borderColor, width: _colorIndicatorBorder),
+          ),
         ),
       ),
     );
