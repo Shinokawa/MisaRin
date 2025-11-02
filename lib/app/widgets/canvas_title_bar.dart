@@ -1,6 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:window_manager/window_manager.dart';
-
 import '../workspace/canvas_workspace_controller.dart';
 import 'window_drag_area.dart';
 
@@ -47,13 +46,34 @@ class CanvasTitleBar extends StatelessWidget {
                 if (entries.isEmpty) {
                   return const SizedBox.shrink();
                 }
-                return WindowDragArea(
-                  child: _WorkspaceTabStrip(
-                    entries: entries,
-                    activeId: activeId,
-                    onSelectTab: onSelectTab,
-                    onCloseTab: onCloseTab,
-                  ),
+                return Row(
+                  children: [
+                    Flexible(
+                      child: _WorkspaceTabStrip(
+                        entries: entries,
+                        activeId: activeId,
+                        onSelectTab: onSelectTab,
+                        onCloseTab: onCloseTab,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final double height = constraints.hasBoundedHeight
+                              ? constraints.maxHeight
+                              : 32;
+                          return WindowDragArea(
+                            canDragAtPosition: (_) => true,
+                            child: SizedBox(
+                              width: constraints.maxWidth,
+                              height: height,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -94,6 +114,7 @@ class _WorkspaceTabStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.centerLeft,
+      widthFactor: 1,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(

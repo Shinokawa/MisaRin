@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -10,11 +11,13 @@ class WindowDragArea extends StatefulWidget {
     required this.child,
     this.enableDoubleClickToMaximize = true,
     this.doubleClickInterval = const Duration(milliseconds: 250),
+    this.canDragAtPosition,
   });
 
   final Widget child;
   final bool enableDoubleClickToMaximize;
   final Duration doubleClickInterval;
+  final bool Function(Offset localPosition)? canDragAtPosition;
 
   @override
   State<WindowDragArea> createState() => _WindowDragAreaState();
@@ -40,6 +43,24 @@ class _WindowDragAreaState extends State<WindowDragArea> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    if (event.kind != PointerDeviceKind.mouse ||
+        (event.buttons & kPrimaryMouseButton) == 0) {
+      _pointerDownPosition = null;
+      _dragStarted = false;
+      return;
+    }
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null) {
+      _pointerDownPosition = null;
+      return;
+    }
+    final Offset localPosition = box.globalToLocal(event.position);
+    if (widget.canDragAtPosition != null &&
+        !widget.canDragAtPosition!(localPosition)) {
+      _pointerDownPosition = null;
+      _dragStarted = false;
+      return;
+    }
     _pointerDownPosition = event.position;
     _dragStarted = false;
 

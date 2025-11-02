@@ -27,7 +27,7 @@ class PenToolButton extends StatelessWidget {
         : (isDark ? const Color(0xFFE1E1E7) : const Color(0xFF323130));
     final Color shadowColor = isSelected
         ? accent.withOpacity(isDark ? 0.45 : 0.28)
-        : (isDark ? Colors.black.withOpacity(0.45) : Colors.black);
+        : Colors.transparent;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -42,11 +42,12 @@ class PenToolButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: borderColor, width: 1.5),
             boxShadow: [
-              BoxShadow(
-                color: shadowColor,
-                blurRadius: isSelected ? 9 : 6,
-                offset: const Offset(0, 4),
-              ),
+              if (isSelected)
+                BoxShadow(
+                  color: shadowColor,
+                  blurRadius: 9,
+                  offset: const Offset(0, 4),
+                ),
             ],
           ),
           child: Icon(FluentIcons.edit, color: iconColor, size: 20),
