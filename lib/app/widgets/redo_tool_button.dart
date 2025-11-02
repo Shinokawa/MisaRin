@@ -1,5 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/services.dart';
 
 class RedoToolButton extends StatelessWidget {
   const RedoToolButton({
@@ -25,7 +24,11 @@ class RedoToolButton extends StatelessWidget {
         ? (isDark ? const Color(0xFF9CD0FF) : const Color(0xFF004E8C))
         : (isDark ? const Color(0xFF5F6E7D) : const Color(0xFF7F8FA0));
     final Color shadowColor = enabled
-        ? (isDark ? const Color(0x663C8AD1) : const Color(0x260B6BAA))
+        ? Color.lerp(
+            Colors.transparent,
+            isDark ? const Color(0xFF3C8AD1) : const Color(0xFF0B6BAA),
+            isDark ? 0.4 : 0.2,
+          )!
         : Colors.transparent;
 
     return MouseRegion(

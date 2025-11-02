@@ -1,13 +1,14 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'canvas_layer.dart';
 import 'canvas_settings.dart';
 import 'stroke_painter.dart';
 
 class CanvasExporter {
   Future<Uint8List> exportToPng({
     required CanvasSettings settings,
-    required List<List<ui.Offset>> strokes,
+    required List<CanvasLayerData> layers,
     int? maxDimension,
   }) async {
     const ui.Color strokeColor = ui.Color(0xFF000000);
@@ -30,15 +31,13 @@ class CanvasExporter {
     }
     final double outputWidth = (baseWidth * scale).clamp(1, double.infinity);
     final double outputHeight = (baseHeight * scale).clamp(1, double.infinity);
-    final StrokePictureCache cache = StrokePictureCache(
-      logicalSize: ui.Size(baseWidth, baseHeight),
-      backgroundColor: settings.backgroundColor,
-    );
+    final StrokePictureCache cache =
+        StrokePictureCache(logicalSize: ui.Size(baseWidth, baseHeight));
     cache.sync(
-      strokes: strokes,
-      backgroundColor: settings.backgroundColor,
+      layers: layers,
       strokeColor: strokeColor,
       strokeWidth: strokeWidth,
+      showCheckerboard: false,
     );
     final StrokePainter painter = StrokePainter(
       cache: cache,

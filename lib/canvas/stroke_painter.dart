@@ -2,36 +2,33 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
 
+import 'canvas_layer.dart';
+
 class StrokePictureCache {
   StrokePictureCache({
     required ui.Size logicalSize,
-    required ui.Color backgroundColor,
-  })  : _logicalSize = logicalSize,
-        _backgroundColor = backgroundColor;
+  }) : _logicalSize = logicalSize;
 
   ui.Picture? _picture;
   ui.Size _logicalSize;
-  ui.Color _backgroundColor;
   int _version = 0;
 
   int get version => _version;
   ui.Size get logicalSize => _logicalSize;
 
   void sync({
-    required Iterable<List<ui.Offset>> strokes,
-    required ui.Color backgroundColor,
+    required List<CanvasLayerData> layers,
     required ui.Color strokeColor,
     required double strokeWidth,
+    bool showCheckerboard = true,
   }) {
-    final Iterator<List<ui.Offset>> iterator = strokes.iterator;
-    if (!iterator.moveNext()) {
-      _setEmpty(backgroundColor: backgroundColor);
-      return;
-    }
     final ui.PictureRecorder recorder = ui.PictureRecorder();
     final ui.Canvas cacheCanvas = ui.Canvas(recorder);
     final ui.Rect bounds = ui.Offset.zero & _logicalSize;
-    cacheCanvas.drawRect(bounds, ui.Paint()..color = backgroundColor);
+
+    if (showCheckerboard) {
+      _drawCheckerboard(cacheCanvas, bounds);
+    }
 
     final ui.Paint strokePaint = ui.Paint()
       ..color = strokeColor
@@ -39,13 +36,25 @@ class StrokePictureCache {
       ..strokeCap = ui.StrokeCap.round
       ..style = ui.PaintingStyle.stroke;
 
-    do {
-      _drawStroke(cacheCanvas, iterator.current, strokePaint);
-    } while (iterator.moveNext());
+    for (final CanvasLayerData layer in layers) {
+      if (!layer.visible) {
+        continue;
+      }
+      switch (layer.type) {
+        case CanvasLayerType.color:
+          final ui.Color fillColor = layer.color ?? const ui.Color(0x00000000);
+          cacheCanvas.drawRect(bounds, ui.Paint()..color = fillColor);
+          break;
+        case CanvasLayerType.strokes:
+          for (final List<ui.Offset> stroke in layer.strokes) {
+            _drawStroke(cacheCanvas, stroke, strokePaint);
+          }
+          break;
+      }
+    }
 
     _picture?.dispose();
     _picture = recorder.endRecording();
-    _backgroundColor = backgroundColor;
     _version++;
   }
 
@@ -63,25 +72,12 @@ class StrokePictureCache {
       return;
     }
     final ui.Rect bounds = ui.Offset.zero & _logicalSize;
-    canvas.drawRect(bounds, ui.Paint()..color = _backgroundColor);
+    _drawCheckerboard(canvas, bounds);
   }
 
   void dispose() {
     _picture?.dispose();
     _picture = null;
-  }
-
-  void _setEmpty({required ui.Color backgroundColor}) {
-    final bool shouldInvalidate =
-        _picture != null || _backgroundColor != backgroundColor;
-    if (_picture != null) {
-      _picture!.dispose();
-      _picture = null;
-    }
-    _backgroundColor = backgroundColor;
-    if (shouldInvalidate) {
-      _version++;
-    }
   }
 
   void _drawStroke(ui.Canvas canvas, List<ui.Offset> stroke, ui.Paint paint) {
@@ -94,6 +90,30 @@ class StrokePictureCache {
     }
     for (int index = 0; index < stroke.length - 1; index++) {
       canvas.drawLine(stroke[index], stroke[index + 1], paint);
+    }
+  }
+
+  void _drawCheckerboard(ui.Canvas canvas, ui.Rect bounds) {
+    const double tileSize = 24;
+    const ui.Color light = ui.Color(0xFFEFEFEF);
+    const ui.Color dark = ui.Color(0xFFD0D0D0);
+    final ui.Paint lightPaint = ui.Paint()..color = light;
+    final ui.Paint darkPaint = ui.Paint()..color = dark;
+    final int horizontalTiles = (bounds.width / tileSize).ceil();
+    final int verticalTiles = (bounds.height / tileSize).ceil();
+    for (int y = 0; y < verticalTiles; y++) {
+      for (int x = 0; x < horizontalTiles; x++) {
+        final bool isDark = (x + y) % 2 == 0;
+        final double left = bounds.left + x * tileSize;
+        final double top = bounds.top + y * tileSize;
+        final double right = (left + tileSize).clamp(bounds.left, bounds.right);
+        final double bottom =
+            (top + tileSize).clamp(bounds.top, bounds.bottom);
+        canvas.drawRect(
+          ui.Rect.fromLTRB(left, top, right, bottom),
+          isDark ? darkPaint : lightPaint,
+        );
+      }
     }
   }
 }

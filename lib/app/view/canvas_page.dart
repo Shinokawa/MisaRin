@@ -107,14 +107,14 @@ class CanvasPageState extends State<CanvasPage> {
     }
     setState(() => _isAutoSaving = true);
     try {
-      final strokes = board.snapshotStrokes();
+      final layers = board.snapshotLayers();
       final preview = await _exporter.exportToPng(
         settings: _document.settings,
-        strokes: strokes,
+        layers: layers,
         maxDimension: 256,
       );
       final ProjectDocument updated = _document.copyWith(
-        strokes: strokes,
+        layers: layers,
         previewBytes: preview,
       );
       final ProjectDocument saved = await _repository.saveDocument(updated);
@@ -242,7 +242,7 @@ class CanvasPageState extends State<CanvasPage> {
       setState(() => _isSaving = true);
       final bytes = await _exporter.exportToPng(
         settings: _document.settings,
-        strokes: board.snapshotStrokes(),
+        layers: board.snapshotLayers(),
       );
       final file = File(normalizedPath);
       await file.writeAsBytes(bytes, flush: true);
@@ -358,7 +358,7 @@ class CanvasPageState extends State<CanvasPage> {
       settings: entry.document.settings,
       onRequestExit: _handleExitRequest,
       onDirtyChanged: (dirty) => _handleDirtyChanged(entry.id, dirty),
-      initialStrokes: entry.document.strokes,
+      initialLayers: entry.document.layers,
     );
   }
 

@@ -1,5 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/services.dart';
 
 class UndoToolButton extends StatelessWidget {
   const UndoToolButton({
@@ -25,7 +24,11 @@ class UndoToolButton extends StatelessWidget {
         ? (isDark ? const Color(0xFF90F09D) : const Color(0xFF0B5A09))
         : (isDark ? const Color(0xFF5F7262) : const Color(0xFF8AA08A));
     final Color shadowColor = enabled
-        ? (isDark ? const Color(0x664AA553) : const Color(0x260F7A0B))
+        ? Color.lerp(
+            Colors.transparent,
+            isDark ? const Color(0xFF4AA553) : const Color(0xFF0F7A0B),
+            isDark ? 0.4 : 0.2,
+          )!
         : Colors.transparent;
 
     return MouseRegion(

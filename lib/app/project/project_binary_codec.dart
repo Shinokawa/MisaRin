@@ -2,12 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import 'project_document.dart';
 
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
-  static const int _version = 1;
+  static const int _version = 2;
 
   static Uint8List encode(ProjectDocument document) {
     final BytesBuilder builder = BytesBuilder();
@@ -32,9 +33,11 @@ class ProjectBinaryCodec {
     builder.add(_writeUint32(metadataBytes.length));
     builder.add(metadataBytes);
 
-    final Uint8List strokeBytes = _encodeStrokes(document.strokes);
-    builder.add(_writeUint32(strokeBytes.length));
-    builder.add(strokeBytes);
+    final Uint8List layerBytes = Uint8List.fromList(
+      utf8.encode(jsonEncode(_encodeLayers(document.layers))),
+    );
+    builder.add(_writeUint32(layerBytes.length));
+    builder.add(layerBytes);
 
     final Uint8List preview = document.previewBytes ?? Uint8List(0);
     builder.add(_writeUint32(preview.length));
@@ -49,7 +52,7 @@ class ProjectBinaryCodec {
     final _ByteReader reader = _ByteReader(bytes);
     reader.expectMagic(_magic);
     final int version = reader.readByte();
-    if (version != _version) {
+    if (version != 1 && version != _version) {
       throw UnsupportedError('不支持的项目文件版本：$version');
     }
 
@@ -58,10 +61,20 @@ class ProjectBinaryCodec {
         jsonDecode(utf8.decode(reader.readBytes(metadataLength)))
             as Map<String, dynamic>;
 
-    final int strokesLength = reader.readUint32();
-    final List<List<Offset>> strokes = _decodeStrokes(
-      reader.readBytes(strokesLength),
-    );
+    late final List<CanvasLayerData> layers;
+    if (version == 1) {
+      final int strokesLength = reader.readUint32();
+      final List<List<Offset>> strokes = _decodeStrokes(
+        reader.readBytes(strokesLength),
+      );
+      layers = _legacyLayers(
+        settings: _parseSettings(metadata['settings'] as Map<String, dynamic>),
+        strokes: strokes,
+      );
+    } else {
+      final int layersLength = reader.readUint32();
+      layers = _decodeLayers(reader.readBytes(layersLength));
+    }
     final int previewLength = reader.readUint32();
     final Uint8List? preview = previewLength == 0
         ? null
@@ -73,7 +86,7 @@ class ProjectBinaryCodec {
       createdAt: DateTime.parse(metadata['createdAt'] as String),
       updatedAt: DateTime.parse(metadata['updatedAt'] as String),
       settings: _parseSettings(metadata['settings'] as Map<String, dynamic>),
-      strokes: strokes,
+      layers: layers,
       previewBytes: preview,
       path: path,
     );
@@ -87,7 +100,7 @@ class ProjectBinaryCodec {
     final _ByteReader reader = _ByteReader(bytes);
     reader.expectMagic(_magic);
     final int version = reader.readByte();
-    if (version != _version) {
+    if (version != 1 && version != _version) {
       throw UnsupportedError('不支持的项目文件版本：$version');
     }
 
@@ -96,8 +109,13 @@ class ProjectBinaryCodec {
         jsonDecode(utf8.decode(reader.readBytes(metadataLength)))
             as Map<String, dynamic>;
 
-    final int strokesLength = reader.readUint32();
-    reader.skip(strokesLength);
+    if (version == 1) {
+      final int strokesLength = reader.readUint32();
+      reader.skip(strokesLength);
+    } else {
+      final int layersLength = reader.readUint32();
+      reader.skip(layersLength);
+    }
 
     final int previewLength = reader.readUint32();
     final Uint8List? preview = previewLength == 0
@@ -124,19 +142,6 @@ class ProjectBinaryCodec {
     );
   }
 
-  static Uint8List _encodeStrokes(List<List<Offset>> strokes) {
-    final BytesBuilder builder = BytesBuilder();
-    builder.add(_writeUint32(strokes.length));
-    for (final List<Offset> stroke in strokes) {
-      builder.add(_writeUint32(stroke.length));
-      for (final Offset point in stroke) {
-        builder.add(_writeFloat32(point.dx));
-        builder.add(_writeFloat32(point.dy));
-      }
-    }
-    return builder.toBytes();
-  }
-
   static List<List<Offset>> _decodeStrokes(Uint8List bytes) {
     final _ByteReader reader = _ByteReader(bytes);
     final int strokeCount = reader.readUint32();
@@ -154,15 +159,44 @@ class ProjectBinaryCodec {
     return strokes;
   }
 
+  static List<Map<String, dynamic>> _encodeLayers(
+    List<CanvasLayerData> layers,
+  ) {
+    return layers.map((layer) => layer.toJson()).toList(growable: false);
+  }
+
+  static List<CanvasLayerData> _decodeLayers(Uint8List bytes) {
+    final List<dynamic> jsonList =
+        jsonDecode(utf8.decode(bytes)) as List<dynamic>;
+    return jsonList
+        .map((dynamic entry) => CanvasLayerData.fromJson(
+              entry as Map<String, dynamic>,
+            ))
+        .toList(growable: false);
+  }
+
+  static List<CanvasLayerData> _legacyLayers({
+    required CanvasSettings settings,
+    required List<List<Offset>> strokes,
+  }) {
+    final String backgroundId = generateLayerId();
+    return <CanvasLayerData>[
+      CanvasLayerData.color(
+        id: backgroundId,
+        name: '背景',
+        color: settings.backgroundColor,
+      ),
+      CanvasLayerData.strokes(
+        id: generateLayerId(),
+        name: '图层 1',
+        strokes: strokes,
+      ),
+    ];
+  }
+
   static Uint8List _writeUint32(int value) {
     final ByteData data = ByteData(4);
     data.setUint32(0, value, Endian.big);
-    return data.buffer.asUint8List();
-  }
-
-  static Uint8List _writeFloat32(double value) {
-    final ByteData data = ByteData(4);
-    data.setFloat32(0, value, Endian.big);
     return data.buffer.asUint8List();
   }
 

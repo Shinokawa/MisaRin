@@ -1,14 +1,8 @@
 import 'dart:math';
 import 'dart:typed_data';
-import 'dart:ui';
 
+import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
-
-List<List<Offset>> _cloneStrokePoints(List<List<Offset>> strokes) {
-  return strokes
-      .map((stroke) => List<Offset>.from(stroke, growable: false))
-      .toList(growable: false);
-}
 
 Uint8List? _clonePreview(Uint8List? bytes) {
   if (bytes == null) {
@@ -23,6 +17,12 @@ String _generateProjectId() {
   return '${timestamp.toRadixString(16)}-${randomBits.toRadixString(16)}';
 }
 
+List<CanvasLayerData> _cloneLayers(List<CanvasLayerData> layers) {
+  return List<CanvasLayerData>.unmodifiable(
+    layers.map((layer) => layer.copyWith()),
+  );
+}
+
 class ProjectDocument {
   ProjectDocument({
     required this.id,
@@ -30,10 +30,10 @@ class ProjectDocument {
     required this.settings,
     required this.createdAt,
     required this.updatedAt,
-    required List<List<Offset>> strokes,
+    required List<CanvasLayerData> layers,
     Uint8List? previewBytes,
     this.path,
-  }) : strokes = _cloneStrokePoints(strokes),
+  }) : layers = _cloneLayers(layers),
        previewBytes = _clonePreview(previewBytes);
 
   factory ProjectDocument.newProject({
@@ -41,13 +41,24 @@ class ProjectDocument {
     String name = '未命名项目',
   }) {
     final DateTime now = DateTime.now();
+    final String backgroundId = generateLayerId();
     return ProjectDocument(
       id: _generateProjectId(),
       name: name,
       settings: settings,
       createdAt: now,
       updatedAt: now,
-      strokes: const <List<Offset>>[],
+      layers: <CanvasLayerData>[
+        CanvasLayerData.color(
+          id: backgroundId,
+          name: '背景',
+          color: settings.backgroundColor,
+        ),
+        CanvasLayerData.strokes(
+          id: generateLayerId(),
+          name: '图层 1',
+        ),
+      ],
     );
   }
 
@@ -56,7 +67,7 @@ class ProjectDocument {
   final CanvasSettings settings;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final List<List<Offset>> strokes;
+  final List<CanvasLayerData> layers;
   final Uint8List? previewBytes;
   final String? path;
 
@@ -66,7 +77,7 @@ class ProjectDocument {
     CanvasSettings? settings,
     DateTime? createdAt,
     DateTime? updatedAt,
-    List<List<Offset>>? strokes,
+    List<CanvasLayerData>? layers,
     Uint8List? previewBytes,
     String? path,
   }) {
@@ -76,7 +87,7 @@ class ProjectDocument {
       settings: settings ?? this.settings,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      strokes: strokes == null ? this.strokes : _cloneStrokePoints(strokes),
+      layers: layers == null ? this.layers : _cloneLayers(layers),
       previewBytes: previewBytes ?? this.previewBytes,
       path: path ?? this.path,
     );

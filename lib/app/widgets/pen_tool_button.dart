@@ -1,5 +1,4 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/services.dart';
 
 class PenToolButton extends StatelessWidget {
   const PenToolButton({
@@ -26,7 +25,11 @@ class PenToolButton extends StatelessWidget {
         ? accent
         : (isDark ? const Color(0xFFE1E1E7) : const Color(0xFF323130));
     final Color shadowColor = isSelected
-        ? accent.withOpacity(isDark ? 0.45 : 0.28)
+        ? Color.lerp(
+            Colors.transparent,
+            accent,
+            isDark ? 0.45 : 0.28,
+          )!
         : Colors.transparent;
 
     return MouseRegion(
