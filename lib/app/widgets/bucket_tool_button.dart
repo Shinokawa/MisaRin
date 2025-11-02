@@ -54,7 +54,7 @@ class BucketToolButton extends StatelessWidget {
             ],
           ),
           child: Icon(
-            isSelected ? FluentIcons.bucket_color_fill : FluentIcons.bucket_color,
+            FluentIcons.bucket_color,
             color: iconColor,
             size: 20,
           ),

@@ -190,16 +190,6 @@ class PaintingBoardState extends State<PaintingBoard> {
     );
   }
 
-  Future<void> _showPrimaryColorPicker() async {
-    await _pickColor(
-      title: '选择当前颜色',
-      initialColor: _primaryColor,
-      onSelected: (color) {
-        setState(() => _primaryColor = color);
-      },
-    );
-  }
-
   Future<void> _pickColor({
     required String title,
     required Color initialColor,
@@ -273,6 +263,27 @@ class PaintingBoardState extends State<PaintingBoard> {
     _markDirty();
   }
 
+  void _updatePrimaryFromSquare(Offset position, double size) {
+    final double x = position.dx.clamp(0.0, size);
+    final double y = position.dy.clamp(0.0, size);
+    final HSVColor hsv = HSVColor.fromColor(_primaryColor);
+    final HSVColor updated = hsv
+        .withSaturation((x / size).clamp(0.0, 1.0))
+        .withValue((1 - y / size).clamp(0.0, 1.0));
+    setState(() {
+      _primaryColor = updated.toColor();
+    });
+  }
+
+  void _updatePrimaryHue(double dy, double height) {
+    final double y = dy.clamp(0.0, height);
+    final HSVColor hsv = HSVColor.fromColor(_primaryColor);
+    final HSVColor updated = hsv.withHue((y / height).clamp(0.0, 1.0) * 360.0);
+    setState(() {
+      _primaryColor = updated.toColor();
+    });
+  }
+
   String _formatColorHex(Color color) {
     final int a = (color.a * 255.0).round().clamp(0, 255);
     final int r = (color.r * 255.0).round().clamp(0, 255);
@@ -316,35 +327,198 @@ class PaintingBoardState extends State<PaintingBoard> {
         Color.lerp(borderColor, Colors.transparent, 0.35)!;
     final Color textColor = theme.typography.caption?.color ??
         (theme.brightness.isDark ? Colors.white : const Color(0xFF323130));
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          height: 72,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: previewBorder, width: 2),
-            color: _primaryColor,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '当前颜色 ${_formatColorHex(_primaryColor)}',
-          style: theme.typography.caption?.copyWith(color: textColor),
-        ),
-        const SizedBox(height: 12),
-        FilledButton(
-          onPressed: _showPrimaryColorPicker,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Icon(FluentIcons.color),
-              SizedBox(width: 8),
-              Text('调整前景色'),
-            ],
-          ),
-        ),
-      ],
+    final Color backgroundColor = _currentBackgroundColor;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double sliderWidth = 24;
+        const double spacing = 12;
+        double squareSize = constraints.maxWidth - sliderWidth - spacing;
+        if (squareSize <= 0) {
+          squareSize = constraints.maxWidth;
+          sliderWidth = 0;
+        }
+
+        final HSVColor hsv = HSVColor.fromColor(_primaryColor);
+
+        Widget buildSwatchSquare(Color color) {
+          const double swatchSize = 48;
+          return Container(
+            width: swatchSize,
+            height: swatchSize,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: previewBorder, width: 2),
+              color: color,
+            ),
+          );
+        }
+
+        Widget buildForegroundBackgroundPreview() {
+          const double offset = 14;
+          const double totalSize = 48 + offset;
+          return SizedBox(
+            width: totalSize,
+            height: totalSize,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: offset,
+                  top: offset,
+                  child: buildSwatchSquare(backgroundColor),
+                ),
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  child: buildSwatchSquare(_primaryColor),
+                ),
+              ],
+            ),
+          );
+        }
+
+        Widget buildColorSquare(double size) {
+          return GestureDetector(
+            onPanDown: (details) =>
+                _updatePrimaryFromSquare(details.localPosition, size),
+            onPanUpdate: (details) =>
+                _updatePrimaryFromSquare(details.localPosition, size),
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.white,
+                                  HSVColor.fromAHSV(1, hsv.hue, 1, 1).toColor(),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0x00FFFFFF),
+                                  Color(0xFF000000),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    left: (hsv.saturation.clamp(0.0, 1.0)) * size - 8,
+                    top: ((1 - hsv.value.clamp(0.0, 1.0)) * size) - 8,
+                    child: _ColorPickerHandle(color: hsv.toColor()),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        Widget buildHueSlider(double height) {
+          const List<Color> hueColors = [
+            Color(0xFFFF0000),
+            Color(0xFFFF00FF),
+            Color(0xFF0000FF),
+            Color(0xFF00FFFF),
+            Color(0xFF00FF00),
+            Color(0xFFFFFF00),
+            Color(0xFFFF0000),
+          ];
+          final double handleY =
+              (hsv.hue.clamp(0.0, 360.0) / 360.0) * height;
+          return GestureDetector(
+            onPanDown: (details) =>
+                _updatePrimaryHue(details.localPosition.dy, height),
+            onPanUpdate: (details) =>
+                _updatePrimaryHue(details.localPosition.dy, height),
+            child: SizedBox(
+              width: sliderWidth,
+              height: height,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: hueColors,
+                        ),
+                      ),
+                      child: SizedBox.expand(),
+                    ),
+                  ),
+                  Positioned(
+                    top: handleY.clamp(0.0, height) - 8,
+                    left: -4,
+                    child: const _HueSliderHandle(),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildForegroundBackgroundPreview(),
+            const SizedBox(height: 8),
+            Text(
+              '前景色 ${_formatColorHex(_primaryColor)}',
+              style: theme.typography.caption?.copyWith(color: textColor),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '背景色 ${_formatColorHex(backgroundColor)}',
+              style: theme.typography.caption?.copyWith(color: textColor),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: squareSize,
+                  height: squareSize,
+                  child: buildColorSquare(squareSize),
+                ),
+                if (sliderWidth > 0) ...[
+                  const SizedBox(width: spacing),
+                  SizedBox(
+                    width: sliderWidth,
+                    height: squareSize,
+                    child: buildHueSlider(squareSize),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -478,17 +652,14 @@ class PaintingBoardState extends State<PaintingBoard> {
   Widget _buildColorIndicator(FluentThemeData theme) {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
     return Tooltip(
-      message: '当前颜色 ${_formatColorHex(_primaryColor)}\n单击更改颜色',
-      child: GestureDetector(
-        onTap: _showPrimaryColorPicker,
-        child: Container(
-          width: _colorIndicatorSize,
-          height: _colorIndicatorSize,
-          decoration: BoxDecoration(
-            color: _primaryColor,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: borderColor, width: _colorIndicatorBorder),
-          ),
+      message: '当前颜色 ${_formatColorHex(_primaryColor)}',
+      child: Container(
+        width: _colorIndicatorSize,
+        height: _colorIndicatorSize,
+        decoration: BoxDecoration(
+          color: _primaryColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor, width: _colorIndicatorBorder),
         ),
       ),
     );
@@ -1125,6 +1296,48 @@ class _PanelCard extends StatelessWidget {
             child,
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ColorPickerHandle extends StatelessWidget {
+  const _ColorPickerHandle({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.black.withOpacity(0.8),
+          width: 2,
+        ),
+        color: color,
+      ),
+    );
+  }
+}
+
+class _HueSliderHandle extends StatelessWidget {
+  const _HueSliderHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 32,
+      height: 16,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.black.withOpacity(0.7),
+          width: 2,
+        ),
+        color: Colors.white,
       ),
     );
   }
