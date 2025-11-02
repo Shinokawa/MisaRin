@@ -23,11 +23,13 @@ class _PanelCard extends StatelessWidget {
     required this.width,
     required this.title,
     required this.child,
+    this.expand = false,
   });
 
   final double width;
   final String title;
   final Widget child;
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -50,14 +52,17 @@ class _PanelCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             children: [
               Text(
                 title,
                 style: theme.typography.subtitle,
               ),
               const SizedBox(height: 14),
-              child,
+              if (expand)
+                Expanded(child: child)
+              else
+                child,
             ],
           ),
         ),

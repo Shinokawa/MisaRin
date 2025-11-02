@@ -101,13 +101,10 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     final List<CanvasLayerData> orderedLayers =
         _layers.reversed.toList(growable: false);
     final String? activeLayerId = _activeLayerId;
-    final double listHeight =
-        (_layersPanelHeight - 64).clamp(120.0, 320.0).toDouble();
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       children: [
-        SizedBox(
-          height: listHeight,
+        Expanded(
           child: Scrollbar(
             controller: _layerScrollController,
             child: ListView.separated(

@@ -1,28 +1,6 @@
 part of 'painting_board.dart';
 
 mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
-  Widget _buildRightPanel(FluentThemeData theme) {
-    return SizedBox(
-      width: _sidePanelWidth,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _PanelCard(
-            width: _sidePanelWidth,
-            title: '取色',
-            child: _buildColorPanelContent(theme),
-          ),
-          const SizedBox(height: _sidePanelSpacing),
-          _PanelCard(
-            width: _sidePanelWidth,
-            title: '图层管理',
-            child: _buildLayerPanelContent(theme),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool canUndo = _store.canUndo;
@@ -169,7 +147,29 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                           Positioned(
                             right: _toolButtonPadding,
                             top: _toolButtonPadding,
-                            child: _buildRightPanel(theme),
+                            bottom: _toolButtonPadding,
+                            child: SizedBox(
+                              width: _sidePanelWidth,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _PanelCard(
+                                    width: _sidePanelWidth,
+                                    title: '取色',
+                                    child: _buildColorPanelContent(theme),
+                                  ),
+                                  const SizedBox(height: _sidePanelSpacing),
+                                  Expanded(
+                                    child: _PanelCard(
+                                      width: _sidePanelWidth,
+                                      title: '图层管理',
+                                      expand: true,
+                                      child: _buildLayerPanelContent(theme),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),

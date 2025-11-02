@@ -34,26 +34,23 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     );
   }
 
-  Rect get _rightPanelRect {
+  Rect get _rightSidebarRect {
     final double left =
         (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding)
             .clamp(0.0, double.infinity)
             .toDouble();
-    final double totalHeight = (_colorPanelHeight + _sidePanelSpacing +
-            _layersPanelHeight)
-        .clamp(0.0, _workspaceSize.height)
-        .toDouble();
     return Rect.fromLTWH(
       left,
       _toolButtonPadding,
       _sidePanelWidth,
-      totalHeight,
+      (_workspaceSize.height - 2 * _toolButtonPadding)
+          .clamp(0.0, double.infinity),
     );
   }
 
   bool _isInsideToolArea(Offset workspacePosition) {
     return _toolbarRect.contains(workspacePosition) ||
-        _rightPanelRect.contains(workspacePosition) ||
+        _rightSidebarRect.contains(workspacePosition) ||
         _colorIndicatorRect.contains(workspacePosition);
   }
 
