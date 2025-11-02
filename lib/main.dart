@@ -15,12 +15,12 @@ Future<void> main() async {
 
     const windowOptions = WindowOptions(
       titleBarStyle: TitleBarStyle.hidden,
+      windowButtonVisibility: true,
       backgroundColor: Color(0x00000000),
       skipTaskbar: false,
     );
 
     await windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await windowManager.setAsFrameless();
       await windowManager.maximize();
       await windowManager.show();
       await windowManager.focus();

@@ -1,4 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:window_manager/window_manager.dart';
 import '../workspace/canvas_workspace_controller.dart';
 import 'window_drag_area.dart';
@@ -22,6 +24,8 @@ class CanvasTitleBar extends StatelessWidget {
     final theme = FluentTheme.of(context);
     final CanvasWorkspaceController controller =
         CanvasWorkspaceController.instance;
+    final bool showNativeMacButtons =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
     return Container(
       padding: const EdgeInsets.only(left: 12, right: 12, top: 6, bottom: 6),
       decoration: BoxDecoration(
@@ -35,8 +39,13 @@ class CanvasTitleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const _MacWindowControls(),
-          const SizedBox(width: 12),
+          if (showNativeMacButtons)
+            const SizedBox(width: 72)
+          else ...[
+            const _MacWindowControls(),
+            const SizedBox(width: 12),
+          ],
+          if (showNativeMacButtons) const SizedBox(width: 12),
           Expanded(
             child: AnimatedBuilder(
               animation: controller,
