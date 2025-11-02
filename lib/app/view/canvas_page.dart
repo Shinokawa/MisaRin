@@ -293,28 +293,11 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   Future<void> openDocument(ProjectDocument document) async {
-    if (document.id == _document.id) {
-      _workspace.setActive(document.id);
-      return;
-    }
-    final bool canLeave = await _ensureCanLeave(
-      dialogTitle: '切换画布',
-      dialogContent: '是否在切换前保存当前画布？',
-      includeCanvasExport: false,
-    );
-    if (!canLeave) {
-      _workspace.setActive(_document.id);
-      return;
-    }
-    if (_workspace.entryById(document.id) == null) {
-      _workspace.open(document, activate: true);
-    } else {
-      _workspace.setActive(document.id);
-    }
+    _workspace.open(document, activate: true);
     _switchToEntry(_workspace.entryById(document.id));
   }
 
-  Future<void> _handleTabSelected(String id) async {
+  void _handleTabSelected(String id) {
     if (id == _document.id) {
       _workspace.setActive(id);
       return;
@@ -324,7 +307,7 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
     _workspace.setActive(id);
-    _switchToEntry(_workspace.entryById(id));
+    _switchToEntry(entry);
   }
 
   Future<void> _handleTabClosed(String id) async {
@@ -370,9 +353,8 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   Widget _buildBoard(CanvasWorkspaceEntry entry) {
-    final GlobalKey<PaintingBoardState> key = _ensureBoardKey(entry.id);
     return PaintingBoard(
-      key: key,
+      key: _ensureBoardKey(entry.id),
       settings: entry.document.settings,
       onRequestExit: _handleExitRequest,
       onDirtyChanged: (dirty) => _handleDirtyChanged(entry.id, dirty),

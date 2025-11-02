@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../workspace/canvas_workspace_controller.dart';
+import 'window_drag_area.dart';
 
 typedef CanvasTabCallback = void Function(String id);
 
@@ -46,7 +47,7 @@ class CanvasTitleBar extends StatelessWidget {
                 if (entries.isEmpty) {
                   return const SizedBox.shrink();
                 }
-                return DragToMoveArea(
+                return WindowDragArea(
                   child: _WorkspaceTabStrip(
                     entries: entries,
                     activeId: activeId,
