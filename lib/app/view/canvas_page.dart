@@ -24,8 +24,8 @@ class CanvasPage extends StatefulWidget {
 }
 
 class CanvasPageState extends State<CanvasPage> {
-  final GlobalKey<PaintingBoardState> _boardKey =
-      GlobalKey<PaintingBoardState>();
+  final Map<String, GlobalKey<PaintingBoardState>> _boardKeys =
+      <String, GlobalKey<PaintingBoardState>>{};
   final CanvasExporter _exporter = CanvasExporter();
   final ProjectRepository _repository = ProjectRepository.instance;
   final CanvasWorkspaceController _workspace =
@@ -37,12 +37,25 @@ class CanvasPageState extends State<CanvasPage> {
   bool _isAutoSaving = false;
   Timer? _autoSaveTimer;
 
-  void _handleDirtyChanged(bool dirty) {
-    if (_hasUnsavedChanges == dirty) {
-      return;
+  PaintingBoardState? get _activeBoard => _boardFor(_document.id);
+
+  GlobalKey<PaintingBoardState> _ensureBoardKey(String id) {
+    return _boardKeys.putIfAbsent(id, () => GlobalKey<PaintingBoardState>());
+  }
+
+  PaintingBoardState? _boardFor(String id) {
+    return _boardKeys[id]?.currentState;
+  }
+
+  void _removeBoardKey(String id) {
+    _boardKeys.remove(id);
+  }
+
+  void _handleDirtyChanged(String id, bool dirty) {
+    if (id == _document.id && _hasUnsavedChanges != dirty) {
+      setState(() => _hasUnsavedChanges = dirty);
     }
-    setState(() => _hasUnsavedChanges = dirty);
-    _workspace.markDirty(_document.id, dirty);
+    _workspace.markDirty(id, dirty);
   }
 
   @override
@@ -51,6 +64,7 @@ class CanvasPageState extends State<CanvasPage> {
     _document = widget.document;
     _workspace.open(_document, activate: true);
     _workspace.markDirty(_document.id, false);
+    _ensureBoardKey(_document.id);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureInitialSave();
     });
@@ -82,7 +96,7 @@ class CanvasPageState extends State<CanvasPage> {
     if (_isAutoSaving) {
       return false;
     }
-    final PaintingBoardState? board = _boardKey.currentState;
+    final PaintingBoardState? board = _activeBoard;
     if (board == null) {
       return false;
     }
@@ -206,7 +220,7 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   Future<bool> _saveCanvas() async {
-    final PaintingBoardState? board = _boardKey.currentState;
+    final PaintingBoardState? board = _activeBoard;
     if (board == null) {
       _showInfoBar('画布尚未准备好，无法保存。', severity: InfoBarSeverity.error);
       return false;
@@ -270,6 +284,7 @@ class CanvasPageState extends State<CanvasPage> {
     if (!mounted) {
       return;
     }
+    _removeBoardKey(_document.id);
     _workspace.remove(_document.id);
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
@@ -292,17 +307,11 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
     if (_workspace.entryById(document.id) == null) {
-      _workspace.open(document, activate: false);
+      _workspace.open(document, activate: true);
     } else {
-      _workspace.updateDocument(document);
+      _workspace.setActive(document.id);
     }
-    _workspace.setActive(document.id);
-    if (!mounted) {
-      return;
-    }
-    await Navigator.of(context).pushReplacement(
-      FluentPageRoute(builder: (_) => CanvasPage(document: document)),
-    );
+    _switchToEntry(_workspace.entryById(document.id));
   }
 
   Future<void> _handleTabSelected(String id) async {
@@ -314,52 +323,61 @@ class CanvasPageState extends State<CanvasPage> {
     if (entry == null) {
       return;
     }
-    final bool canLeave = await _ensureCanLeave(
-      dialogTitle: '切换画布',
-      dialogContent: '是否在切换前保存当前画布？',
-      includeCanvasExport: false,
-    );
-    if (!canLeave) {
-      _workspace.setActive(_document.id);
-      return;
-    }
     _workspace.setActive(id);
-    if (!mounted) {
-      return;
-    }
-    await Navigator.of(context).pushReplacement(
-      FluentPageRoute(builder: (_) => CanvasPage(document: entry.document)),
-    );
+    _switchToEntry(_workspace.entryById(id));
   }
 
   Future<void> _handleTabClosed(String id) async {
     if (id != _document.id) {
+      _removeBoardKey(id);
       _workspace.remove(id);
       return;
     }
     final CanvasWorkspaceEntry? neighbor = _workspace.neighborFor(id);
-    final bool canLeave = await _ensureCanLeave(
-      dialogTitle: '关闭画布',
-      dialogContent: '是否在关闭前保存当前画布？',
-      includeCanvasExport: true,
-    );
-    if (!canLeave) {
-      _workspace.setActive(_document.id);
-      return;
+    if (_hasUnsavedChanges) {
+      final bool canLeave = await _ensureCanLeave(
+        dialogTitle: '关闭画布',
+        dialogContent: '是否在关闭前保存当前画布？',
+        includeCanvasExport: true,
+      );
+      if (!canLeave) {
+        _workspace.setActive(_document.id);
+        return;
+      }
     }
     if (neighbor != null) {
       final String nextId = neighbor.id;
-      final ProjectDocument nextDocument = neighbor.document;
       _workspace.remove(id, activateAfter: nextId);
-      if (!mounted) {
-        return;
-      }
-      await Navigator.of(context).pushReplacement(
-        FluentPageRoute(builder: (_) => CanvasPage(document: nextDocument)),
-      );
+      _removeBoardKey(id);
+      _switchToEntry(_workspace.entryById(nextId));
       return;
     }
+    _removeBoardKey(id);
     await _closePage();
+  }
+
+  void _switchToEntry(CanvasWorkspaceEntry? entry) {
+    if (entry == null) {
+      return;
+    }
+    _ensureBoardKey(entry.id);
+    setState(() {
+      _document = entry.document;
+      _hasUnsavedChanges = entry.isDirty;
+      _isSaving = false;
+      _isAutoSaving = false;
+    });
+  }
+
+  Widget _buildBoard(CanvasWorkspaceEntry entry) {
+    final GlobalKey<PaintingBoardState> key = _ensureBoardKey(entry.id);
+    return PaintingBoard(
+      key: key,
+      settings: entry.document.settings,
+      onRequestExit: _handleExitRequest,
+      onDirtyChanged: (dirty) => _handleDirtyChanged(entry.id, dirty),
+      initialStrokes: entry.document.strokes,
+    );
   }
 
   @override
@@ -372,19 +390,19 @@ class CanvasPageState extends State<CanvasPage> {
         await _saveProject(force: true);
       },
       undo: () {
-        final board = _boardKey.currentState;
+        final board = _activeBoard;
         board?.undo();
       },
       redo: () {
-        final board = _boardKey.currentState;
+        final board = _activeBoard;
         board?.redo();
       },
       zoomIn: () {
-        final board = _boardKey.currentState;
+        final board = _activeBoard;
         board?.zoomIn();
       },
       zoomOut: () {
-        final board = _boardKey.currentState;
+        final board = _activeBoard;
         board?.zoomOut();
       },
     );
@@ -404,14 +422,31 @@ class CanvasPageState extends State<CanvasPage> {
               Expanded(
                 child: Container(
                   color: FluentTheme.of(context).micaBackgroundColor,
-                  child: Center(
-                    child: PaintingBoard(
-                      key: _boardKey,
-                      settings: _document.settings,
-                      onRequestExit: _handleExitRequest,
-                      onDirtyChanged: _handleDirtyChanged,
-                      initialStrokes: _document.strokes,
-                    ),
+                  child: AnimatedBuilder(
+                    animation: _workspace,
+                    builder: (context, _) {
+                      final List<CanvasWorkspaceEntry> entries =
+                          _workspace.entries;
+                      if (entries.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      final int activeIndex =
+                          entries.indexWhere((entry) => entry.id == _document.id);
+                      if (activeIndex < 0) {
+                        return const SizedBox.shrink();
+                      }
+                      return IndexedStack(
+                        index: activeIndex,
+                        alignment: Alignment.center,
+                        children: [
+                          for (final CanvasWorkspaceEntry entry in entries)
+                            Align(
+                              alignment: Alignment.center,
+                              child: _buildBoard(entry),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),

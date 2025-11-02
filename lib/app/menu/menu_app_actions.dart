@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../canvas/canvas_settings.dart';
 import '../dialogs/about_dialog.dart';
@@ -59,9 +60,13 @@ class AppMenuActions {
     if (!context.mounted) {
       return;
     }
-    await Navigator.of(
-      context,
-    ).push(FluentPageRoute(builder: (_) => CanvasPage(document: document)));
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (_, __, ___) => CanvasPage(document: document),
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+      ),
+    );
   }
 
   static void _showInfoBar(

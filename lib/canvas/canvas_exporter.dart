@@ -10,6 +10,8 @@ class CanvasExporter {
     required List<List<ui.Offset>> strokes,
     int? maxDimension,
   }) async {
+    const ui.Color strokeColor = ui.Color(0xFF000000);
+    const double strokeWidth = 3;
     final ui.PictureRecorder recorder = ui.PictureRecorder();
     final ui.Canvas canvas = ui.Canvas(recorder);
     final double baseWidth = settings.width;
@@ -28,10 +30,24 @@ class CanvasExporter {
     }
     final double outputWidth = (baseWidth * scale).clamp(1, double.infinity);
     final double outputHeight = (baseHeight * scale).clamp(1, double.infinity);
-    final StrokePainter painter = StrokePainter(
+    final StrokePictureCache cache = StrokePictureCache(
+      logicalSize: ui.Size(baseWidth, baseHeight),
+      backgroundColor: settings.backgroundColor,
+    );
+    cache.sync(
       strokes: strokes,
       backgroundColor: settings.backgroundColor,
+      strokeColor: strokeColor,
+      strokeWidth: strokeWidth,
+    );
+    final StrokePainter painter = StrokePainter(
+      cache: cache,
+      cacheVersion: cache.version,
+      currentStroke: null,
+      currentStrokeVersion: 0,
       scale: scale,
+      strokeColor: strokeColor,
+      strokeWidth: strokeWidth,
     );
 
     painter.paint(canvas, ui.Size(outputWidth, outputHeight));
@@ -40,6 +56,7 @@ class CanvasExporter {
       outputWidth.round(),
       outputHeight.round(),
     );
+    cache.dispose();
     final ByteData? byteData = await image.toByteData(
       format: ui.ImageByteFormat.png,
     );

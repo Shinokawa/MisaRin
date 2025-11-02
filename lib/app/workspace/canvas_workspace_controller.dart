@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../project/project_document.dart';
 
@@ -29,6 +30,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
 
   final List<CanvasWorkspaceEntry> _entries = <CanvasWorkspaceEntry>[];
   String? _activeId;
+  bool _notifyScheduled = false;
 
   UnmodifiableListView<CanvasWorkspaceEntry> get entries =>
       UnmodifiableListView<CanvasWorkspaceEntry>(_entries);
@@ -54,7 +56,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (activate) {
       _activeId = document.id;
     }
-    notifyListeners();
+    _scheduleNotify();
   }
 
   void updateDocument(ProjectDocument document) {
@@ -70,7 +72,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
       return;
     }
     _entries[index].isDirty = isDirty;
-    notifyListeners();
+    _scheduleNotify();
   }
 
   void setActive(String id) {
@@ -79,7 +81,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
     }
     if (_entries.any((entry) => entry.id == id)) {
       _activeId = id;
-      notifyListeners();
+      _scheduleNotify();
     }
   }
 
@@ -112,12 +114,24 @@ class CanvasWorkspaceController extends ChangeNotifier {
     } else if (_activeId == id) {
       _activeId = _entries.isNotEmpty ? _entries.last.id : null;
     }
-    notifyListeners();
+    _scheduleNotify();
   }
 
   void reset() {
     _entries.clear();
     _activeId = null;
-    notifyListeners();
+    _scheduleNotify();
+  }
+
+  void _scheduleNotify() {
+    final WidgetsBinding binding = WidgetsBinding.instance;
+    if (_notifyScheduled) {
+      return;
+    }
+    _notifyScheduled = true;
+    binding.addPostFrameCallback((_) {
+      _notifyScheduled = false;
+      notifyListeners();
+    });
   }
 }

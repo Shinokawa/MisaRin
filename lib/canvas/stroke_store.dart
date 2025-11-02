@@ -6,8 +6,18 @@ class StrokeStore {
   final List<List<Offset>> _undone = <List<Offset>>[];
 
   List<List<Offset>> get strokes => List<List<Offset>>.unmodifiable(_strokes);
+  List<Offset>? get currentStroke => _currentStroke;
   bool get canUndo => _strokes.isNotEmpty;
   bool get canRedo => _undone.isNotEmpty;
+
+  Iterable<List<Offset>> committedStrokes() sync* {
+    final int length = _strokes.length;
+    final bool hasCurrent = _currentStroke != null;
+    final int limit = hasCurrent ? (length - 1).clamp(0, length) : length;
+    for (int index = 0; index < limit; index++) {
+      yield _strokes[index];
+    }
+  }
 
   void startStroke(Offset point) {
     _undone.clear();

@@ -33,9 +33,12 @@ class PaintingBoardState extends State<PaintingBoard> {
   static const double _toolbarButtonSize = 48;
   static const double _toolbarSpacing = 9;
   static const double _zoomStep = 1.1;
+  static const double _strokeWidth = 3;
+  static const Color _strokeColor = Color(0xFF000000);
 
   final StrokeStore _store = StrokeStore();
   final FocusNode _focusNode = FocusNode();
+  late final StrokePictureCache _strokeCache;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -43,6 +46,7 @@ class PaintingBoardState extends State<PaintingBoard> {
   bool _isDirty = false;
   bool _isScalingGesture = false;
   double _scaleGestureInitialScale = 1.0;
+  int _currentStrokeVersion = 0;
 
   final CanvasViewport _viewport = CanvasViewport();
   Size _workspaceSize = Size.zero;
@@ -58,16 +62,41 @@ class PaintingBoardState extends State<PaintingBoard> {
   @override
   void initState() {
     super.initState();
+    _strokeCache = StrokePictureCache(
+      logicalSize: _canvasSize,
+      backgroundColor: widget.settings.backgroundColor,
+    );
     final List<List<Offset>>? strokes = widget.initialStrokes;
     if (strokes != null && strokes.isNotEmpty) {
       _store.loadFromSnapshot(strokes);
     }
+    _syncStrokeCache();
   }
 
   @override
   void dispose() {
+    _strokeCache.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant PaintingBoard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
+    final bool backgroundChanged =
+        widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
+    if (sizeChanged || backgroundChanged) {
+      _syncStrokeCache();
+      setState(() {
+        if (sizeChanged) {
+          _viewport.reset();
+          _workspaceSize = Size.zero;
+          _layoutBaseOffset = Offset.zero;
+        }
+        _bumpCurrentStrokeVersion();
+      });
+    }
   }
 
   CanvasTool get activeTool => _activeTool;
@@ -81,7 +110,10 @@ class PaintingBoardState extends State<PaintingBoard> {
   void clear() {
     _store.clear();
     _emitClean();
-    setState(() {});
+    _syncStrokeCache();
+    setState(() {
+      _bumpCurrentStrokeVersion();
+    });
   }
 
   void markSaved() {
@@ -142,10 +174,25 @@ class PaintingBoardState extends State<PaintingBoard> {
     widget.onDirtyChanged?.call(false);
   }
 
+  void _bumpCurrentStrokeVersion() {
+    _currentStrokeVersion++;
+  }
+
+  void _syncStrokeCache() {
+    _strokeCache.updateLogicalSize(_canvasSize);
+    _strokeCache.sync(
+      strokes: _store.committedStrokes(),
+      backgroundColor: widget.settings.backgroundColor,
+      strokeColor: _strokeColor,
+      strokeWidth: _strokeWidth,
+    );
+  }
+
   void _startStroke(Offset position) {
     setState(() {
       _isDrawing = true;
       _store.startStroke(position);
+      _bumpCurrentStrokeVersion();
     });
     _markDirty();
   }
@@ -154,7 +201,10 @@ class PaintingBoardState extends State<PaintingBoard> {
     if (!_isDrawing) {
       return;
     }
-    setState(() => _store.appendPoint(position));
+    setState(() {
+      _store.appendPoint(position);
+      _bumpCurrentStrokeVersion();
+    });
   }
 
   void _finishStroke() {
@@ -162,7 +212,11 @@ class PaintingBoardState extends State<PaintingBoard> {
       return;
     }
     _store.finishStroke();
-    setState(() => _isDrawing = false);
+    _syncStrokeCache();
+    setState(() {
+      _isDrawing = false;
+      _bumpCurrentStrokeVersion();
+    });
   }
 
   void _beginDragBoard() {
@@ -345,10 +399,11 @@ class PaintingBoardState extends State<PaintingBoard> {
     if (!undone) {
       return false;
     }
-    if (_isDrawing) {
+    _syncStrokeCache();
+    setState(() {
       _isDrawing = false;
-    }
-    setState(() {});
+      _bumpCurrentStrokeVersion();
+    });
     if (_store.strokes.isEmpty) {
       _emitClean();
     } else {
@@ -362,7 +417,10 @@ class PaintingBoardState extends State<PaintingBoard> {
     if (!redone) {
       return false;
     }
-    setState(() {});
+    _syncStrokeCache();
+    setState(() {
+      _bumpCurrentStrokeVersion();
+    });
     _markDirty();
     return true;
   }
@@ -393,7 +451,6 @@ class PaintingBoardState extends State<PaintingBoard> {
 
   @override
   Widget build(BuildContext context) {
-    final strokes = _store.strokes;
     final bool canUndo = _store.canUndo;
     final bool canRedo = _store.canRedo;
     final Map<LogicalKeySet, Intent> shortcutBindings = {
@@ -489,12 +546,18 @@ class PaintingBoardState extends State<PaintingBoard> {
                                 ),
                               ),
                               child: ClipRect(
-                                child: CustomPaint(
-                                  painter: StrokePainter(
-                                    strokes: strokes,
-                                    backgroundColor:
-                                        widget.settings.backgroundColor,
-                                    scale: _viewport.scale,
+                                child: RepaintBoundary(
+                                  child: CustomPaint(
+                                    painter: StrokePainter(
+                                      cache: _strokeCache,
+                                      cacheVersion: _strokeCache.version,
+                                      currentStroke: _store.currentStroke,
+                                      currentStrokeVersion:
+                                          _currentStrokeVersion,
+                                      scale: _viewport.scale,
+                                      strokeColor: _strokeColor,
+                                      strokeWidth: _strokeWidth,
+                                    ),
                                   ),
                                 ),
                               ),
