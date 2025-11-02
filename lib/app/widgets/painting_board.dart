@@ -179,6 +179,7 @@ class PaintingBoardState extends State<PaintingBoard> {
     Color previewColor = initialColor;
     final Color? result = await showDialog<Color>(
       context: context,
+      barrierDismissible: true,
       builder: (context) {
         return ContentDialog(
           title: Text(title),
@@ -699,15 +700,19 @@ class PaintingBoardState extends State<PaintingBoard> {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
     return Tooltip(
       message: '当前颜色 ${_formatColorHex(_primaryColor)}',
-      child: GestureDetector(
-        onTap: _handleEditPrimaryColor,
-        child: Container(
-          width: _colorIndicatorSize,
-          height: _colorIndicatorSize,
-          decoration: BoxDecoration(
-            color: _primaryColor,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: borderColor, width: _colorIndicatorBorder),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: _handleEditPrimaryColor,
+          child: Container(
+            width: _colorIndicatorSize,
+            height: _colorIndicatorSize,
+            decoration: BoxDecoration(
+              color: _primaryColor,
+              borderRadius: BorderRadius.circular(10),
+              border:
+                  Border.all(color: borderColor, width: _colorIndicatorBorder),
+            ),
           ),
         ),
       ),
@@ -1428,28 +1433,31 @@ class _RecentColorSwatch extends StatelessWidget {
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final Color highlight = theme.accentColor.defaultBrushFor(theme.brightness);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: color,
-          border: Border.all(
-            color: selected ? highlight : borderColor,
-            width: selected ? 2 : 1.5,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: color,
+            border: Border.all(
+              color: selected ? highlight : borderColor,
+              width: selected ? 2 : 1.5,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
         ),
       ),
     );

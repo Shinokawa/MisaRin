@@ -9,6 +9,7 @@ import 'misarin_dialog.dart';
 Future<ProjectSummary?> showRecentProjectsDialog(BuildContext context) {
   return showDialog<ProjectSummary>(
     context: context,
+    barrierDismissible: true,
     builder: (_) => const _RecentProjectsDialog(),
   );
 }

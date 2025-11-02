@@ -42,6 +42,7 @@ Future<NewProjectConfig?> showCanvasSettingsDialog(
 }) {
   return showDialog<NewProjectConfig>(
     context: context,
+    barrierDismissible: true,
     builder: (_) => _CanvasSettingsDialog(
       initialSettings: initialSettings ?? CanvasSettings.defaults,
     ),

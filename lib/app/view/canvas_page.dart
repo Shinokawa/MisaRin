@@ -285,6 +285,7 @@ class CanvasPageState extends State<CanvasPage> {
   }) {
     return showDialog<_ExitAction>(
       context: context,
+      barrierDismissible: true,
       builder: (context) => MisarinDialog(
         title: Text(title),
         content: Text(content),
