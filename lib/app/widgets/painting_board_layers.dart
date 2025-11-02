@@ -97,6 +97,29 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     );
   }
 
+  void _handleLayerReorder(int oldIndex, int newIndex) {
+    final int length = _layers.length;
+    if (length <= 1) {
+      return;
+    }
+    int targetIndex = newIndex;
+    if (targetIndex > oldIndex) {
+      targetIndex -= 1;
+    }
+    final int actualOldIndex = length - 1 - oldIndex;
+    final int actualNewIndex = length - 1 - targetIndex;
+    if (actualOldIndex == actualNewIndex) {
+      return;
+    }
+    if (_store.reorderLayer(actualOldIndex, actualNewIndex)) {
+      _syncStrokeCache();
+      setState(() {
+        _bumpCurrentStrokeVersion();
+      });
+      _markDirty();
+    }
+  }
+
   Widget _buildLayerPanelContent(FluentThemeData theme) {
     final List<CanvasLayerData> orderedLayers =
         _layers.reversed.toList(growable: false);
@@ -107,13 +130,19 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
         Expanded(
           child: Scrollbar(
             controller: _layerScrollController,
-            child: ListView.separated(
-              controller: _layerScrollController,
-              primary: false,
-              padding: EdgeInsets.zero,
-              itemCount: orderedLayers.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
+            child: Localizations.override(
+              context: context,
+              delegates: const [
+                GlobalMaterialLocalizations.delegate,
+              ],
+              child: material.ReorderableListView.builder(
+                scrollController: _layerScrollController,
+                padding: EdgeInsets.zero,
+                buildDefaultDragHandles: false,
+                dragStartBehavior: DragStartBehavior.down,
+                itemCount: orderedLayers.length,
+                onReorder: _handleLayerReorder,
+                itemBuilder: (context, index) {
                 final CanvasLayerData layer = orderedLayers[index];
                 final bool isActive = layer.id == activeLayerId;
                 final double contentOpacity = layer.visible ? 1.0 : 0.45;
@@ -151,52 +180,62 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                   onPressed: () => _handleEditLayerFill(layer.id),
                 );
 
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => _handleLayerSelected(layer.id),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                return material.ReorderableDragStartListener(
+                  key: ValueKey(layer.id),
+                  index: index,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index == orderedLayers.length - 1 ? 0 : 8,
                     ),
-                    decoration: BoxDecoration(
-                      color: background,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: tileBorder),
-                    ),
-                    child: Row(
-                      children: [
-                        visibilityButton,
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Opacity(
-                            opacity: contentOpacity,
-                            child: Row(
-                              children: [
-                                if (fillSwatch != null) ...[
-                                  fillSwatch,
-                                  const SizedBox(width: 8),
-                                ],
-                                Expanded(
-                                  child: Text(
-                                    layer.name,
-                                    style: isActive
-                                        ? theme.typography.bodyStrong
-                                        : theme.typography.body,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _handleLayerSelected(layer.id),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
                         ),
-                        editFillButton,
-                      ],
+                        decoration: BoxDecoration(
+                          color: background,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: tileBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            visibilityButton,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Opacity(
+                                opacity: contentOpacity,
+                                child: Row(
+                                  children: [
+                                    if (fillSwatch != null) ...[
+                                      fillSwatch,
+                                      const SizedBox(width: 8),
+                                    ],
+                                    Expanded(
+                                      child: Text(
+                                        layer.name,
+                                        style: isActive
+                                            ? theme.typography.bodyStrong
+                                            : theme.typography.body,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            editFillButton,
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 );
               },
+              ),
             ),
           ),
         ),

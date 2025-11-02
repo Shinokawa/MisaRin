@@ -1,5 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart' as material
+    show ReorderableDragStartListener, ReorderableListView;
+import 'package:flutter_localizations/flutter_localizations.dart'
+    show GlobalMaterialLocalizations;
 
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_viewport.dart';

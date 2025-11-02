@@ -142,6 +142,21 @@ class StrokeStore {
     return true;
   }
 
+  bool reorderLayer(int fromIndex, int toIndex) {
+    if (fromIndex < 0 || fromIndex >= _layers.length) {
+      return false;
+    }
+    if (toIndex < 0 || toIndex >= _layers.length) {
+      return false;
+    }
+    if (fromIndex == toIndex) {
+      return true;
+    }
+    final _Layer layer = _layers.removeAt(fromIndex);
+    _layers.insert(toIndex, layer);
+    return true;
+  }
+
   bool updateLayerVisibility(String id, bool visible) {
     final _Layer? layer = _layerById(id);
     if (layer == null) {
