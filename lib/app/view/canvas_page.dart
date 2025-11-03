@@ -250,11 +250,9 @@ class CanvasPageState extends State<CanvasPage> {
     if (options == null) {
       return false;
     }
-    final String extension = options.format == CanvasExportFormat.png
-        ? 'png'
-        : 'svg';
+    const String extension = 'png';
     final String? outputPath = await FilePicker.platform.saveFile(
-      dialogTitle: '导出 ${extension.toUpperCase()} 文件',
+      dialogTitle: '导出 PNG 文件',
       fileName: _suggestedFileName(extension),
       type: FileType.custom,
       allowedExtensions: <String>[extension],
@@ -269,23 +267,15 @@ class CanvasPageState extends State<CanvasPage> {
 
     try {
       setState(() => _isSaving = true);
-      late Uint8List bytes;
       final layers = board.snapshotLayers();
-      if (options.format == CanvasExportFormat.png) {
-        bytes = await _exporter.exportToPng(
-          settings: _document.settings,
-          layers: layers,
-          outputSize: ui.Size(
-            options.width.toDouble(),
-            options.height.toDouble(),
-          ),
-        );
-      } else {
-        bytes = await _exporter.exportToSvg(
-          settings: _document.settings,
-          layers: layers,
-        );
-      }
+      final Uint8List bytes = await _exporter.exportToPng(
+        settings: _document.settings,
+        layers: layers,
+        outputSize: ui.Size(
+          options.width.toDouble(),
+          options.height.toDouble(),
+        ),
+      );
       final file = File(normalizedPath);
       await file.writeAsBytes(bytes, flush: true);
       _showInfoBar('已导出到 $normalizedPath', severity: InfoBarSeverity.success);
