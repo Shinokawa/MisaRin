@@ -42,13 +42,14 @@ class StrokePictureCache {
         _drawFillRegion(cacheCanvas, region);
       }
       for (final CanvasStroke stroke in layer.strokes) {
-        _drawStroke(
+        _drawStrokePath(
           cacheCanvas,
-          stroke.points,
+          stroke,
           ui.Paint()
             ..color = stroke.color
             ..strokeWidth = stroke.width
             ..strokeCap = ui.StrokeCap.round
+            ..strokeJoin = ui.StrokeJoin.round
             ..style = ui.PaintingStyle.stroke,
         );
       }
@@ -81,19 +82,6 @@ class StrokePictureCache {
     _picture = null;
   }
 
-  void _drawStroke(ui.Canvas canvas, List<ui.Offset> stroke, ui.Paint paint) {
-    if (stroke.isEmpty) {
-      return;
-    }
-    if (stroke.length == 1) {
-      canvas.drawPoints(ui.PointMode.points, stroke, paint);
-      return;
-    }
-    for (int index = 0; index < stroke.length - 1; index++) {
-      canvas.drawLine(stroke[index], stroke[index + 1], paint);
-    }
-  }
-
   void _drawFillRegion(ui.Canvas canvas, CanvasFillRegion region) {
     if (region.spans.isEmpty) {
       return;
@@ -101,7 +89,7 @@ class StrokePictureCache {
     final ui.Paint paint = ui.Paint()
       ..color = region.color
       ..style = ui.PaintingStyle.fill
-      ..isAntiAlias = false; // 避免油漆桶填充呈现半透明条纹
+      ..isAntiAlias = true;
     final double originX = region.origin.dx;
     final double originY = region.origin.dy;
     for (final CanvasFillSpan span in region.spans) {
@@ -172,14 +160,9 @@ class StrokePainter extends CustomPainter {
         ..color = stroke.color
         ..strokeWidth = stroke.width
         ..strokeCap = ui.StrokeCap.round
+        ..strokeJoin = ui.StrokeJoin.round
         ..style = ui.PaintingStyle.stroke;
-      if (stroke.points.length == 1) {
-        canvas.drawPoints(ui.PointMode.points, stroke.points, strokePaint);
-      } else {
-        for (int index = 0; index < stroke.points.length - 1; index++) {
-          canvas.drawLine(stroke.points[index], stroke.points[index + 1], strokePaint);
-        }
-      }
+      _drawStrokePath(canvas, stroke, strokePaint);
     }
 
     canvas.restore();
@@ -191,4 +174,24 @@ class StrokePainter extends CustomPainter {
         currentStrokeVersion != oldDelegate.currentStrokeVersion ||
         scale != oldDelegate.scale;
   }
+}
+
+void _drawStrokePath(ui.Canvas canvas, CanvasStroke stroke, ui.Paint paint) {
+  final List<ui.Offset> points = stroke.points;
+  if (points.isEmpty) {
+    return;
+  }
+  if (points.length == 1) {
+    final ui.Offset point = points.first;
+    final double radius = stroke.width / 2;
+    if (radius > 0) {
+      final ui.Paint dotPaint = ui.Paint()
+        ..color = stroke.color
+        ..style = ui.PaintingStyle.fill
+        ..isAntiAlias = true;
+      canvas.drawCircle(point, radius, dotPaint);
+    }
+    return;
+  }
+  canvas.drawPath(stroke.toPath(), paint);
 }

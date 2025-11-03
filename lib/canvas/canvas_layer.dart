@@ -15,6 +15,19 @@ class CanvasStroke {
   final double width;
   final List<Offset> points;
 
+  Path toPath() {
+    final Path path = Path();
+    if (points.isEmpty) {
+      return path;
+    }
+    path.moveTo(points.first.dx, points.first.dy);
+    for (int index = 1; index < points.length; index++) {
+      final Offset point = points[index];
+      path.lineTo(point.dx, point.dy);
+    }
+    return path;
+  }
+
   CanvasStroke copyWith({
     Color? color,
     double? width,

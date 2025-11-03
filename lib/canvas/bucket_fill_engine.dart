@@ -98,6 +98,8 @@ class BucketFillEngine {
       return null;
     }
 
+    _expandMask(mask: mask, width: width, height: height, radius: 1);
+
     final CanvasFillRegion region = _maskToRegion(
       mask: mask,
       width: width,
@@ -202,14 +204,18 @@ class BucketFillEngine {
       ..color = stroke.color
       ..strokeWidth = stroke.width
       ..strokeCap = ui.StrokeCap.round
+      ..strokeJoin = ui.StrokeJoin.round
       ..style = ui.PaintingStyle.stroke;
     if (stroke.points.length == 1) {
-      canvas.drawPoints(ui.PointMode.points, stroke.points, paint);
+      final ui.Offset point = stroke.points.first;
+      final ui.Paint dotPaint = ui.Paint()
+        ..color = stroke.color
+        ..style = ui.PaintingStyle.fill
+        ..isAntiAlias = true;
+      canvas.drawCircle(point, stroke.width / 2, dotPaint);
       return;
     }
-    for (int index = 0; index < stroke.points.length - 1; index++) {
-      canvas.drawLine(stroke.points[index], stroke.points[index + 1], paint);
-    }
+    canvas.drawPath(stroke.toPath(), paint);
   }
 
   void _drawFillRegion(ui.Canvas canvas, CanvasFillRegion region) {
@@ -219,7 +225,7 @@ class BucketFillEngine {
     final ui.Paint paint = ui.Paint()
       ..color = region.color
       ..style = ui.PaintingStyle.fill
-      ..isAntiAlias = false; // 避免逐行绘制时出现半透明条纹
+      ..isAntiAlias = true;
     final double originX = region.origin.dx;
     final double originY = region.origin.dy;
     for (final CanvasFillSpan span in region.spans) {
@@ -334,6 +340,43 @@ class BucketFillEngine {
       height: maxY - minY + 1,
       spans: spans,
     );
+  }
+
+  void _expandMask({
+    required Uint8List mask,
+    required int width,
+    required int height,
+    int radius = 1,
+  }) {
+    if (radius <= 0) {
+      return;
+    }
+    final Uint8List expanded = Uint8List.fromList(mask);
+    for (int y = 0; y < height; y++) {
+      final int rowStart = y * width;
+      for (int x = 0; x < width; x++) {
+        if (mask[rowStart + x] != 1) {
+          continue;
+        }
+        for (int dy = -radius; dy <= radius; dy++) {
+          final int ny = y + dy;
+          if (ny < 0 || ny >= height) {
+            continue;
+          }
+          final int neighborRow = ny * width;
+          for (int dx = -radius; dx <= radius; dx++) {
+            final int nx = x + dx;
+            if (nx < 0 || nx >= width) {
+              continue;
+            }
+            expanded[neighborRow + nx] = 1;
+          }
+        }
+      }
+    }
+    for (int i = 0; i < expanded.length; i++) {
+      mask[i] = expanded[i];
+    }
   }
 
   double _distanceToSegmentSquared(ui.Offset p, ui.Offset v, ui.Offset w) {
