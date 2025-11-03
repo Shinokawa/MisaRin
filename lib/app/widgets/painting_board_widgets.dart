@@ -50,6 +50,11 @@ class _PanelCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: borderRadius,
+          border: Border.all(
+            color: theme.brightness.isDark
+                ? Colors.white.withOpacity(0.12)
+                : Colors.black.withOpacity(0.08),
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
@@ -83,13 +88,11 @@ class _ToolSettingsCard extends StatefulWidget {
   const _ToolSettingsCard({
     required this.activeTool,
     required this.penStrokeWidth,
-    required this.previewColor,
     required this.onPenStrokeWidthChanged,
   });
 
   final CanvasTool activeTool;
   final double penStrokeWidth;
-  final Color previewColor;
   final ValueChanged<double> onPenStrokeWidthChanged;
 
   static const double _minPenStrokeWidth = 1;
@@ -183,13 +186,8 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Text('px', style: theme.typography.caption),
-          const SizedBox(width: 12),
-          _BrushPreview(
-            strokeWidth: widget.penStrokeWidth,
-            color: widget.previewColor,
-          ),
         ],
       );
     } else {
@@ -211,6 +209,11 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: borderRadius,
+          border: Border.all(
+            color: theme.brightness.isDark
+                ? Colors.white.withOpacity(0.12)
+                : Colors.black.withOpacity(0.08),
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -259,39 +262,5 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
 
   static String _formatValue(double value) {
     return value.round().toString();
-  }
-}
-
-class _BrushPreview extends StatelessWidget {
-  const _BrushPreview({
-    required this.strokeWidth,
-    required this.color,
-  });
-
-  final double strokeWidth;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final double clampedDiameter = strokeWidth.clamp(4.0, 32.0);
-    final FluentThemeData theme = FluentTheme.of(context);
-    final Color borderColor = theme.brightness.isDark
-        ? Colors.white.withOpacity(0.3)
-        : Colors.black.withOpacity(0.1);
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: Center(
-        child: Container(
-          width: clampedDiameter,
-          height: clampedDiameter,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 1),
-          ),
-        ),
-      ),
-    );
   }
 }
