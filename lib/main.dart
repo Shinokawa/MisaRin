@@ -6,9 +6,12 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'app/menu/macos_menu_shell.dart';
+import 'app/preferences/app_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await AppPreferences.load();
 
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     await windowManager.ensureInitialized();

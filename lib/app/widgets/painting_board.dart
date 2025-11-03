@@ -21,6 +21,7 @@ import '../../canvas/stroke_painter.dart';
 import '../../canvas/stroke_store.dart';
 import 'canvas_toolbar.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
+import '../preferences/app_preferences.dart';
 import 'layer_visibility_button.dart';
 
 part 'painting_board_layers.dart';
@@ -239,6 +240,9 @@ class PaintingBoardState extends _PaintingBoardBase
   @override
   void initState() {
     super.initState();
+    final AppPreferences prefs = AppPreferences.instance;
+    _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
+    _bucketContiguous = prefs.bucketContiguous;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);

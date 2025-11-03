@@ -82,6 +82,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       return;
     }
     setState(() => _bucketSampleAllLayers = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketSampleAllLayers = value;
+    unawaited(AppPreferences.save());
   }
 
   void _updateBucketContiguous(bool value) {
@@ -89,6 +92,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       return;
     }
     setState(() => _bucketContiguous = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketContiguous = value;
+    unawaited(AppPreferences.save());
   }
 
   void _startStroke(Offset position) {
