@@ -90,17 +90,7 @@ class StrokePictureCache {
       ..color = region.color
       ..style = ui.PaintingStyle.fill
       ..isAntiAlias = true;
-    final double originX = region.origin.dx;
-    final double originY = region.origin.dy;
-    for (final CanvasFillSpan span in region.spans) {
-      final double left = originX + span.start;
-      final double top = originY + span.dy;
-      final double width = (span.end - span.start + 1).toDouble();
-      canvas.drawRect(
-        ui.Rect.fromLTWH(left, top, width, 1),
-        paint,
-      );
-    }
+    canvas.drawPath(region.toPath(), paint);
   }
 
   void _drawCheckerboard(ui.Canvas canvas, ui.Rect bounds) {

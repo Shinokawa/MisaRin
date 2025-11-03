@@ -129,6 +129,21 @@ class CanvasFillRegion {
   final int height;
   final List<CanvasFillSpan> spans;
 
+  Path toPath() {
+    final Path path = Path();
+    for (final CanvasFillSpan span in spans) {
+      path.addRect(
+        Rect.fromLTWH(
+          origin.dx + span.start,
+          origin.dy + span.dy,
+          (span.end - span.start + 1).toDouble(),
+          1.0,
+        ),
+      );
+    }
+    return path;
+  }
+
   CanvasFillRegion copyWith({
     Color? color,
     Offset? origin,
