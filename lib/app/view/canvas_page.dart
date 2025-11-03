@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../canvas/canvas_exporter.dart';
+import '../dialogs/export_dialog.dart';
 import '../dialogs/misarin_dialog.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
@@ -55,8 +58,7 @@ class CanvasPageState extends State<CanvasPage> {
 
   String _suggestedFileName(String extension) {
     final String trimmedName = _document.name.trim();
-    final bool isUntitled =
-        trimmedName.isEmpty || trimmedName == '未命名项目';
+    final bool isUntitled = trimmedName.isEmpty || trimmedName == '未命名项目';
     final String baseName = isUntitled
         ? '未命名项目_${_timestamp()}'
         : _sanitizeFileName(trimmedName);
@@ -113,7 +115,10 @@ class CanvasPageState extends State<CanvasPage> {
     await _saveProject(force: true);
   }
 
-  Future<bool> _saveProject({bool force = false, bool showMessage = false}) async {
+  Future<bool> _saveProject({
+    bool force = false,
+    bool showMessage = false,
+  }) async {
     if (!mounted) {
       return false;
     }
@@ -189,8 +194,9 @@ class CanvasPageState extends State<CanvasPage> {
     if (selectedPath == null) {
       return false;
     }
-    final String normalizedPath =
-        selectedPath.toLowerCase().endsWith('.rin') ? selectedPath : '$selectedPath.rin';
+    final String normalizedPath = selectedPath.toLowerCase().endsWith('.rin')
+        ? selectedPath
+        : '$selectedPath.rin';
 
     setState(() => _isSaving = true);
     try {
@@ -205,8 +211,10 @@ class CanvasPageState extends State<CanvasPage> {
         previewBytes: preview,
         path: normalizedPath,
       );
-      final ProjectDocument saved =
-          await _repository.saveDocumentAs(updated, normalizedPath);
+      final ProjectDocument saved = await _repository.saveDocumentAs(
+        updated,
+        normalizedPath,
+      );
       if (!mounted) {
         return true;
       }
@@ -228,31 +236,56 @@ class CanvasPageState extends State<CanvasPage> {
     }
   }
 
-  Future<bool> _exportProjectAsPng() async {
+  Future<bool> _exportProject() async {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
       _showInfoBar('画布尚未准备好，无法导出。', severity: InfoBarSeverity.error);
       return false;
     }
 
+    final CanvasExportOptions? options = await showCanvasExportDialog(
+      context: context,
+      settings: _document.settings,
+    );
+    if (options == null) {
+      return false;
+    }
+    final String extension = options.format == CanvasExportFormat.png
+        ? 'png'
+        : 'svg';
     final String? outputPath = await FilePicker.platform.saveFile(
-      dialogTitle: '导出 PNG 文件',
-      fileName: _suggestedFileName('png'),
+      dialogTitle: '导出 ${extension.toUpperCase()} 文件',
+      fileName: _suggestedFileName(extension),
       type: FileType.custom,
-      allowedExtensions: const ['png'],
+      allowedExtensions: <String>[extension],
     );
     if (outputPath == null) {
       return false;
     }
     final String normalizedPath =
-        outputPath.toLowerCase().endsWith('.png') ? outputPath : '$outputPath.png';
+        outputPath.toLowerCase().endsWith('.$extension')
+        ? outputPath
+        : '$outputPath.$extension';
 
     try {
       setState(() => _isSaving = true);
-      final bytes = await _exporter.exportToPng(
-        settings: _document.settings,
-        layers: board.snapshotLayers(),
-      );
+      late Uint8List bytes;
+      final layers = board.snapshotLayers();
+      if (options.format == CanvasExportFormat.png) {
+        bytes = await _exporter.exportToPng(
+          settings: _document.settings,
+          layers: layers,
+          outputSize: ui.Size(
+            options.width.toDouble(),
+            options.height.toDouble(),
+          ),
+        );
+      } else {
+        bytes = await _exporter.exportToSvg(
+          settings: _document.settings,
+          layers: layers,
+        );
+      }
       final file = File(normalizedPath);
       await file.writeAsBytes(bytes, flush: true);
       _showInfoBar('已导出到 $normalizedPath', severity: InfoBarSeverity.success);
@@ -528,7 +561,7 @@ class CanvasPageState extends State<CanvasPage> {
         board?.zoomOut();
       },
       export: () async {
-        await _exportProjectAsPng();
+        await _exportProject();
       },
     );
 
@@ -555,8 +588,9 @@ class CanvasPageState extends State<CanvasPage> {
                       if (entries.isEmpty) {
                         return const SizedBox.shrink();
                       }
-                      final int activeIndex =
-                          entries.indexWhere((entry) => entry.id == _document.id);
+                      final int activeIndex = entries.indexWhere(
+                        (entry) => entry.id == _document.id,
+                      );
                       if (activeIndex < 0) {
                         return const SizedBox.shrink();
                       }
