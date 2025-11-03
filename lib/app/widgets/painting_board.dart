@@ -47,7 +47,6 @@ const double _colorIndicatorSize = 56;
 const double _colorIndicatorBorder = 3;
 const int _recentColorCapacity = 5;
 const double _initialViewportScaleFactor = 0.8;
-const int _historyLimit = 30;
 
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
@@ -93,6 +92,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
   final List<_CanvasHistoryEntry> _redoStack = <_CanvasHistoryEntry>[];
   bool _historyLocked = false;
+  int _historyLimit = AppPreferences.instance.historyLimit;
 
   Size get _canvasSize => widget.settings.size;
 
@@ -246,17 +246,17 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _undoStack.clear();
     _redoStack.clear();
     _historyLocked = false;
+    _historyLimit = AppPreferences.instance.historyLimit;
   }
 
   void _pushUndoSnapshot() {
+    _refreshHistoryLimit();
     if (_historyLocked) {
       return;
     }
     final _CanvasHistoryEntry entry = _createHistoryEntry();
     _undoStack.add(entry);
-    if (_undoStack.length > _historyLimit) {
-      _undoStack.removeAt(0);
-    }
+    _trimHistoryStacks();
     _redoStack.clear();
   }
 
@@ -282,6 +282,24 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     setState(() {});
     _focusNode.requestFocus();
     _markDirty();
+  }
+
+  void _refreshHistoryLimit() {
+    final int nextLimit = AppPreferences.instance.historyLimit;
+    if (_historyLimit == nextLimit) {
+      return;
+    }
+    _historyLimit = nextLimit;
+    _trimHistoryStacks();
+  }
+
+  void _trimHistoryStacks() {
+    while (_undoStack.length > _historyLimit) {
+      _undoStack.removeAt(0);
+    }
+    while (_redoStack.length > _historyLimit) {
+      _redoStack.removeAt(0);
+    }
   }
 
   void _initializeViewportIfNeeded() {

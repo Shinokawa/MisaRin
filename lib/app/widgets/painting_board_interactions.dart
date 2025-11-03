@@ -294,27 +294,25 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   bool undo() {
+    _refreshHistoryLimit();
     if (_undoStack.isEmpty) {
       return false;
     }
     final _CanvasHistoryEntry previous = _undoStack.removeLast();
     _redoStack.add(_createHistoryEntry());
-    if (_redoStack.length > _historyLimit) {
-      _redoStack.removeAt(0);
-    }
+    _trimHistoryStacks();
     _applyHistoryEntry(previous);
     return true;
   }
 
   bool redo() {
+    _refreshHistoryLimit();
     if (_redoStack.isEmpty) {
       return false;
     }
     final _CanvasHistoryEntry next = _redoStack.removeLast();
     _undoStack.add(_createHistoryEntry());
-    if (_undoStack.length > _historyLimit) {
-      _undoStack.removeAt(0);
-    }
+    _trimHistoryStacks();
     _applyHistoryEntry(next);
     return true;
   }

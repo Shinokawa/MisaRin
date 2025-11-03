@@ -3,6 +3,7 @@ part of 'painting_board.dart';
 mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
   @override
   Widget build(BuildContext context) {
+    _refreshHistoryLimit();
     final bool canUndo = this.canUndo;
     final bool canRedo = this.canRedo;
     final Map<LogicalKeySet, Intent> shortcutBindings = {
