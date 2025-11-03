@@ -46,7 +46,6 @@ const double _sidePanelSpacing = 12;
 const double _colorIndicatorSize = 56;
 const double _colorIndicatorBorder = 3;
 const int _recentColorCapacity = 5;
-const double _initialViewportScaleFactor = 0.8;
 
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
@@ -260,19 +259,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       return;
     }
 
-    final double widthScale = workspaceSize.width / canvasSize.width;
-    final double heightScale = workspaceSize.height / canvasSize.height;
-    final double baseScale = widthScale < heightScale
-        ? widthScale
-        : heightScale;
-    double targetScale = baseScale * _initialViewportScaleFactor;
-    if (!targetScale.isFinite || targetScale <= 0) {
-      targetScale = baseScale.isFinite && baseScale > 0 ? baseScale : 1.0;
-    }
-
-    if (targetScale > baseScale && baseScale.isFinite && baseScale > 0) {
-      targetScale = baseScale;
-    }
+    const double initialScale = 1.0;
+    final double targetScale =
+        initialScale.isFinite && initialScale > 0 ? initialScale : 1.0;
 
     _viewport.setScale(targetScale);
     _viewport.setOffset(Offset.zero);
