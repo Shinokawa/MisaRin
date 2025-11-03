@@ -28,13 +28,13 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        _workspaceSize = constraints.biggest;
+        final Size candidate = constraints.biggest;
+        if (candidate.width.isFinite && candidate.height.isFinite) {
+          _workspaceSize = candidate;
+        }
+        _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
-        final Size scaledSize = _scaledBoardSize;
-        _layoutBaseOffset = Offset(
-          (_workspaceSize.width - scaledSize.width) / 2,
-          (_workspaceSize.height - scaledSize.height) / 2,
-        );
+        _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
         final Rect boardRect = _boardRect;
 
         final MouseCursor workspaceCursor = _activeTool == CanvasTool.hand

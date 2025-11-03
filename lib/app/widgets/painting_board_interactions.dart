@@ -216,26 +216,12 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if ((clamped - currentScale).abs() < 0.0005) {
       return;
     }
-    final Size currentScaledSize = Size(
-      _canvasSize.width * currentScale,
-      _canvasSize.height * currentScale,
-    );
-    final Offset currentBase = Offset(
-      (_workspaceSize.width - currentScaledSize.width) / 2,
-      (_workspaceSize.height - currentScaledSize.height) / 2,
-    );
+    final Offset currentBase = _baseOffsetForScale(currentScale);
     final Offset currentOrigin = currentBase + _viewport.offset;
     final Offset boardLocal =
         (workspaceFocalPoint - currentOrigin) / currentScale;
 
-    final Size newScaledSize = Size(
-      _canvasSize.width * clamped,
-      _canvasSize.height * clamped,
-    );
-    final Offset newBase = Offset(
-      (_workspaceSize.width - newScaledSize.width) / 2,
-      (_workspaceSize.height - newScaledSize.height) / 2,
-    );
+    final Offset newBase = _baseOffsetForScale(clamped);
     final Offset newOrigin = workspaceFocalPoint - boardLocal * clamped;
     final Offset newOffset = newOrigin - newBase;
 
@@ -329,10 +315,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       }
       _workspaceSize = box.size;
     }
-    final Offset focalPoint = Offset(
-      _workspaceSize.width / 2,
-      _workspaceSize.height / 2,
-    );
+    final Offset focalPoint = _boardRect.center;
     _applyZoom(_viewport.scale * factor, focalPoint);
     return true;
   }

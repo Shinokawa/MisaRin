@@ -11,7 +11,8 @@ import 'package:flutter/material.dart'
 import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInputFormatter, TextInputType,
         TextEditingValue, TextSelection;
-import 'package:flutter/widgets.dart' show FocusNode, TextEditingController;
+import 'package:flutter/rendering.dart' show RenderBox;
+import 'package:flutter/widgets.dart' show FocusNode, TextEditingController, WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 
@@ -83,6 +84,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _viewportInitialized = false;
   Size _workspaceSize = Size.zero;
   Offset _layoutBaseOffset = Offset.zero;
+  bool _workspaceMeasurementScheduled = false;
   final ScrollController _layerScrollController = ScrollController();
   Color _primaryColor = const Color(0xFF000000);
   late HSVColor _primaryHsv;
@@ -94,6 +96,62 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _canvasSize.width * _viewport.scale,
     _canvasSize.height * _viewport.scale,
   );
+
+  Offset _baseOffsetForScale(double scale) {
+    final Size workspace = _workspaceSize;
+    if (workspace.width <= 0 ||
+        workspace.height <= 0 ||
+        !workspace.width.isFinite ||
+        !workspace.height.isFinite) {
+      return Offset.zero;
+    }
+
+    final double scaledWidth = _canvasSize.width * scale;
+    final double scaledHeight = _canvasSize.height * scale;
+
+    final double rawLeft = (workspace.width - scaledWidth) / 2;
+    final double rawTop = (workspace.height - scaledHeight) / 2;
+
+    final double left = rawLeft.isFinite ? rawLeft : 0.0;
+    final double top = rawTop.isFinite ? rawTop : 0.0;
+
+    return Offset(left, top);
+  }
+
+  void _scheduleWorkspaceMeasurement(BuildContext context) {
+    if (_workspaceMeasurementScheduled) {
+      return;
+    }
+    _workspaceMeasurementScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _workspaceMeasurementScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      final RenderBox? box = context.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) {
+        return;
+      }
+      final Size size = box.size;
+      if (size.width <= 0 ||
+          size.height <= 0 ||
+          !size.width.isFinite ||
+          !size.height.isFinite) {
+        return;
+      }
+      final bool widthChanged = (size.width - _workspaceSize.width).abs() > 0.5;
+      final bool heightChanged = (size.height - _workspaceSize.height).abs() > 0.5;
+      if (!widthChanged && !heightChanged) {
+        return;
+      }
+      setState(() {
+        _workspaceSize = size;
+        if (!_viewportInitialized) {
+          // 仍需初始化视口，下一帧会根据新尺寸完成初始化
+        }
+      });
+    });
+  }
 
   Rect get _boardRect {
     final Offset position = _layoutBaseOffset + _viewport.offset;
