@@ -31,6 +31,7 @@ const double _sidePanelSpacing = 12;
 const double _colorIndicatorSize = 56;
 const double _colorIndicatorBorder = 3;
 const int _recentColorCapacity = 5;
+const double _initialViewportScaleFactor = 0.8;
 
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
@@ -64,6 +65,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   int _currentStrokeVersion = 0;
 
   final CanvasViewport _viewport = CanvasViewport();
+  bool _viewportInitialized = false;
   Size _workspaceSize = Size.zero;
   Offset _layoutBaseOffset = Offset.zero;
   final ScrollController _layerScrollController = ScrollController();
@@ -166,6 +168,46 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       layers: _store.committedLayers(),
     );
   }
+
+  void _initializeViewportIfNeeded() {
+    if (_viewportInitialized) {
+      return;
+    }
+
+    final Size workspaceSize = _workspaceSize;
+    if (workspaceSize.width <= 0 ||
+        workspaceSize.height <= 0 ||
+        !workspaceSize.width.isFinite ||
+        !workspaceSize.height.isFinite) {
+      return;
+    }
+
+    final Size canvasSize = _canvasSize;
+    if (canvasSize.width <= 0 ||
+        canvasSize.height <= 0 ||
+        !canvasSize.width.isFinite ||
+        !canvasSize.height.isFinite) {
+      _viewportInitialized = true;
+      return;
+    }
+
+    final double widthScale = workspaceSize.width / canvasSize.width;
+    final double heightScale = workspaceSize.height / canvasSize.height;
+    final double baseScale = widthScale < heightScale ? widthScale : heightScale;
+    double targetScale =
+        baseScale * _initialViewportScaleFactor;
+    if (!targetScale.isFinite || targetScale <= 0) {
+      targetScale = baseScale.isFinite && baseScale > 0 ? baseScale : 1.0;
+    }
+
+    if (targetScale > baseScale && baseScale.isFinite && baseScale > 0) {
+      targetScale = baseScale;
+    }
+
+    _viewport.setScale(targetScale);
+    _viewport.setOffset(Offset.zero);
+    _viewportInitialized = true;
+  }
 }
 
 class PaintingBoardState extends _PaintingBoardBase
@@ -218,6 +260,7 @@ class PaintingBoardState extends _PaintingBoardBase
           _viewport.reset();
           _workspaceSize = Size.zero;
           _layoutBaseOffset = Offset.zero;
+          _viewportInitialized = false;
         }
         _bumpCurrentStrokeVersion();
       });

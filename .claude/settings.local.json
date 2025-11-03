@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(flutter clean:*)",
+      "Bash(flutter pub get:*)",
+      "Read(//Library/Afolder/FlutterProject/**)",
+      "Bash(plutil:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

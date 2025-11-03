@@ -29,6 +29,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
     return LayoutBuilder(
       builder: (context, constraints) {
         _workspaceSize = constraints.biggest;
+        _initializeViewportIfNeeded();
         final Size scaledSize = _scaledBoardSize;
         _layoutBaseOffset = Offset(
           (_workspaceSize.width - scaledSize.width) / 2,
