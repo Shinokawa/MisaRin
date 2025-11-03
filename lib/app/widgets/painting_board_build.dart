@@ -123,12 +123,16 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                           if (image == null) {
                                             return const SizedBox.shrink();
                                           }
-                                          return SizedBox.expand(
-                                            child: RawImage(
-                                              image: image,
-                                              filterQuality:
-                                                  FilterQuality.none,
-                                            ),
+                                          return Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              const _CheckboardBackground(),
+                                              RawImage(
+                                                image: image,
+                                                filterQuality:
+                                                    FilterQuality.none,
+                                              ),
+                                            ],
                                           );
                                         },
                                       ),

@@ -228,7 +228,8 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     Color? baseColor;
     if (sampleAllLayers) {
-      baseColor = _colorAtComposite(position);
+      _floodFillAcrossLayers(x, y, color, contiguous);
+      return;
     } else {
       baseColor = _colorAtSurface(_activeSurface, x, y);
     }
@@ -501,6 +502,150 @@ class BitmapCanvasController extends ChangeNotifier {
       }
     }
     return BitmapSurface.decodeColor(color ?? 0);
+  }
+
+  void _floodFillAcrossLayers(
+    int startX,
+    int startY,
+    Color color,
+    bool contiguous,
+  ) {
+    _updateComposite(
+      requiresFullSurface: true,
+      region: null,
+    );
+    final Uint32List? compositePixels = _compositePixels;
+    if (compositePixels == null || compositePixels.isEmpty) {
+      return;
+    }
+    final int index = startY * _width + startX;
+    if (index < 0 || index >= compositePixels.length) {
+      return;
+    }
+    final int target = compositePixels[index];
+    final int replacement = BitmapSurface.encodeColor(color);
+    final Uint32List surfacePixels = _activeSurface.pixels;
+
+    if (!contiguous) {
+      int minX = _width;
+      int minY = _height;
+      int maxX = -1;
+      int maxY = -1;
+      bool changed = false;
+      for (int i = 0; i < compositePixels.length; i++) {
+        if (compositePixels[i] != target) {
+          continue;
+        }
+        if (surfacePixels[i] == replacement) {
+          continue;
+        }
+        surfacePixels[i] = replacement;
+        changed = true;
+        final int px = i % _width;
+        final int py = i ~/ _width;
+        if (px < minX) {
+          minX = px;
+        }
+        if (py < minY) {
+          minY = py;
+        }
+        if (px > maxX) {
+          maxX = px;
+        }
+        if (py > maxY) {
+          maxY = py;
+        }
+      }
+      if (changed) {
+        _markDirty(
+          region: Rect.fromLTRB(
+            minX.toDouble(),
+            minY.toDouble(),
+            (maxX + 1).toDouble(),
+            (maxY + 1).toDouble(),
+          ),
+        );
+      }
+      return;
+    }
+
+    final Uint8List visited = Uint8List(compositePixels.length);
+    final List<int> stack = <int>[index];
+    visited[index] = 1;
+    int minX = startX;
+    int maxX = startX;
+    int minY = startY;
+    int maxY = startY;
+    bool changed = false;
+
+    while (stack.isNotEmpty) {
+      final int current = stack.removeLast();
+      if (compositePixels[current] != target) {
+        continue;
+      }
+      if (surfacePixels[current] != replacement) {
+        surfacePixels[current] = replacement;
+        changed = true;
+      }
+      final int cx = current % _width;
+      final int cy = current ~/ _width;
+      if (cx < minX) {
+        minX = cx;
+      }
+      if (cx > maxX) {
+        maxX = cx;
+      }
+      if (cy < minY) {
+        minY = cy;
+      }
+      if (cy > maxY) {
+        maxY = cy;
+      }
+
+      // left
+      if (cx > 0) {
+        final int leftIndex = current - 1;
+        if (visited[leftIndex] == 0 && compositePixels[leftIndex] == target) {
+          visited[leftIndex] = 1;
+          stack.add(leftIndex);
+        }
+      }
+      // right
+      if (cx < _width - 1) {
+        final int rightIndex = current + 1;
+        if (visited[rightIndex] == 0 && compositePixels[rightIndex] == target) {
+          visited[rightIndex] = 1;
+          stack.add(rightIndex);
+        }
+      }
+      // up
+      if (cy > 0) {
+        final int upIndex = current - _width;
+        if (visited[upIndex] == 0 && compositePixels[upIndex] == target) {
+          visited[upIndex] = 1;
+          stack.add(upIndex);
+        }
+      }
+      // down
+      if (cy < _height - 1) {
+        final int downIndex = current + _width;
+        if (visited[downIndex] == 0 && compositePixels[downIndex] == target) {
+          visited[downIndex] = 1;
+          stack.add(downIndex);
+        }
+      }
+    }
+
+    if (changed) {
+      _markDirty(
+        region: Rect.fromLTRB(
+          minX.toDouble(),
+          minY.toDouble(),
+          (maxX + 1).toDouble(),
+          (maxY + 1).toDouble(),
+        ),
+      );
+    }
   }
 
   Color _colorAtSurface(BitmapSurface surface, int x, int y) {

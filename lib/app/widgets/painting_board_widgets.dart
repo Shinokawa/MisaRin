@@ -18,6 +18,75 @@ class ExitBoardIntent extends Intent {
   const ExitBoardIntent();
 }
 
+class _CheckboardBackground extends StatelessWidget {
+  const _CheckboardBackground({
+    this.cellSize = 16.0,
+    this.lightColor = const Color(0xFFF9F9F9),
+    this.darkColor = const ui.Color.fromARGB(255, 211, 211, 211),
+  });
+
+  final double cellSize;
+  final Color lightColor;
+  final Color darkColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _CheckboardPainter(
+        cellSize: cellSize,
+        lightColor: lightColor,
+        darkColor: darkColor,
+      ),
+    );
+  }
+}
+
+class _CheckboardPainter extends CustomPainter {
+  const _CheckboardPainter({
+    required this.cellSize,
+    required this.lightColor,
+    required this.darkColor,
+  });
+
+  final double cellSize;
+  final Color lightColor;
+  final Color darkColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint lightPaint = Paint()
+      ..color = lightColor
+      ..isAntiAlias = false;
+    final Paint darkPaint = Paint()
+      ..color = darkColor
+      ..isAntiAlias = false;
+    final double step = cellSize <= 0 ? 12.0 : cellSize;
+    final int horizontalCount = (size.width / step).ceil();
+    final int verticalCount = (size.height / step).ceil();
+
+    for (int y = 0; y < verticalCount; y++) {
+      final bool oddRow = y.isOdd;
+      for (int x = 0; x < horizontalCount; x++) {
+        final bool useDark = oddRow ? x.isEven : x.isOdd;
+        final Rect rect = Rect.fromLTWH(
+          x * step,
+          y * step,
+          step,
+          step,
+        );
+        canvas.drawRect(rect, useDark ? darkPaint : lightPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CheckboardPainter oldDelegate) {
+    return oldDelegate.cellSize != cellSize ||
+        oldDelegate.lightColor != lightColor ||
+        oldDelegate.darkColor != darkColor;
+  }
+}
+
 class _PanelCard extends StatelessWidget {
   const _PanelCard({
     required this.width,

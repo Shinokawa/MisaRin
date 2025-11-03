@@ -116,6 +116,7 @@ class ProjectRepository {
     await for (final StoredProjectInfo info in streamStoredProjects()) {
       items.add(info);
     }
+    items.sort((a, b) => b.lastModified.compareTo(a.lastModified));
     return items;
   }
 

@@ -69,7 +69,14 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
           return;
         }
         setState(() {
-          _projects.add(info);
+          final int insertIndex = _projects.indexWhere(
+            (existing) => existing.lastModified.isBefore(info.lastModified),
+          );
+          if (insertIndex < 0) {
+            _projects.add(info);
+          } else {
+            _projects.insert(insertIndex, info);
+          }
           if (_selectAll) {
             _selected.add(info.path);
           }
@@ -98,7 +105,7 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
 
   void _toggleSelectAll(bool value) {
     setState(() {
-      _selectAll = value && _projects.isNotEmpty;
+      _selectAll = value;
       _selected.clear();
       if (_selectAll) {
         _selected.addAll(_projects.map((p) => p.path));

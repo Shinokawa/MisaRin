@@ -293,8 +293,7 @@ class CanvasPageState extends State<CanvasPage> {
   Future<void> _handleExitRequest() async {
     final bool canLeave = await _ensureCanLeave(
       dialogTitle: '返回主页面',
-      dialogContent: '是否在返回前保存当前画布？',
-      includeCanvasExport: true,
+      dialogContent: '是否在返回前保存当前项目？',
     );
     if (!canLeave) {
       return;
@@ -304,7 +303,7 @@ class CanvasPageState extends State<CanvasPage> {
 
   Future<_ExitAction?> _showExitDialog({
     String title = '返回主页面',
-    String content = '是否在返回前保存当前画布？',
+    String content = '是否在返回前保存当前项目？',
   }) {
     return showDialog<_ExitAction>(
       context: context,
@@ -335,7 +334,6 @@ class CanvasPageState extends State<CanvasPage> {
   Future<bool> _ensureCanLeave({
     required String dialogTitle,
     required String dialogContent,
-    required bool includeCanvasExport,
   }) async {
     if (_isSaving || _isAutoSaving) {
       return false;
@@ -358,12 +356,6 @@ class CanvasPageState extends State<CanvasPage> {
         if (!projectSaved) {
           return false;
         }
-        if (includeCanvasExport) {
-          final bool exported = await _saveCanvas();
-          if (!exported) {
-            return false;
-          }
-        }
         _workspace.markDirty(_document.id, false);
         return true;
       case _ExitAction.discard:
@@ -371,47 +363,6 @@ class CanvasPageState extends State<CanvasPage> {
         return true;
       case _ExitAction.cancel:
         return false;
-    }
-  }
-
-  Future<bool> _saveCanvas() async {
-    final PaintingBoardState? board = _activeBoard;
-    if (board == null) {
-      _showInfoBar('画布尚未准备好，无法保存。', severity: InfoBarSeverity.error);
-      return false;
-    }
-    final String? outputPath = await FilePicker.platform.saveFile(
-      dialogTitle: '保存画布为 PNG',
-      fileName: 'misa_rin_${DateTime.now().millisecondsSinceEpoch}.png',
-      type: FileType.custom,
-      allowedExtensions: const ['png'],
-    );
-    if (outputPath == null) {
-      return false;
-    }
-    final String normalizedPath = outputPath.toLowerCase().endsWith('.png')
-        ? outputPath
-        : '$outputPath.png';
-
-    try {
-      setState(() => _isSaving = true);
-      final bytes = await _exporter.exportToPng(
-        settings: _document.settings,
-        layers: board.snapshotLayers(),
-      );
-      final file = File(normalizedPath);
-      await file.writeAsBytes(bytes, flush: true);
-      board.markSaved();
-      _workspace.markDirty(_document.id, false);
-      _showInfoBar('已保存到 $normalizedPath', severity: InfoBarSeverity.success);
-      return true;
-    } catch (error) {
-      _showInfoBar('保存失败：$error', severity: InfoBarSeverity.error);
-      return false;
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
     }
   }
 
@@ -475,8 +426,7 @@ class CanvasPageState extends State<CanvasPage> {
     if (_hasUnsavedChanges) {
       final bool canLeave = await _ensureCanLeave(
         dialogTitle: '关闭画布',
-        dialogContent: '是否在关闭前保存当前画布？',
-        includeCanvasExport: true,
+        dialogContent: '是否在关闭前保存当前项目？',
       );
       if (!canLeave) {
         _workspace.setActive(_document.id);
