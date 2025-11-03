@@ -164,16 +164,35 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                     child: _PanelCard(
                                       width: _sidePanelWidth,
                                       title: '图层管理',
-                                      trailing: Button(
-                                        onPressed: _handleAddLayer,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: const [
-                                            Icon(FluentIcons.add, size: 14),
-                                            SizedBox(width: 6),
-                                            Text('新增图层'),
-                                          ],
-                                        ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(FluentIcons.undo),
+                                            onPressed: _store.canUndo
+                                                ? _handleUndo
+                                                : null,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          IconButton(
+                                            icon: const Icon(FluentIcons.redo),
+                                            onPressed: _store.canRedo
+                                                ? _handleRedo
+                                                : null,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Button(
+                                            onPressed: _handleAddLayer,
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: const [
+                                                Icon(FluentIcons.add, size: 14),
+                                                SizedBox(width: 6),
+                                                Text('新增图层'),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       expand: true,
                                       child: _buildLayerPanelContent(theme),
