@@ -207,7 +207,6 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           Expanded(
             child: _BucketOptionTile(
               title: '跨图层',
-              subtitle: '同时参考所有可见图层',
               value: widget.bucketSampleAllLayers,
               onChanged: widget.onBucketSampleAllLayersChanged,
             ),
@@ -216,7 +215,6 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           Expanded(
             child: _BucketOptionTile(
               title: '连续',
-              subtitle: '仅填充相连区域',
               value: widget.bucketContiguous,
               onChanged: widget.onBucketContiguousChanged,
             ),
@@ -307,55 +305,39 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
 class _BucketOptionTile extends StatelessWidget {
   const _BucketOptionTile({
     required this.title,
-    required this.subtitle,
     required this.value,
     required this.onChanged,
   });
 
   final String title;
-  final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final bool isDark = theme.brightness.isDark;
-    Color background = theme.cardColor;
-    if (background.alpha != 0xFF) {
-      background = isDark ? const Color(0xFF1F1F1F) : Colors.white;
-    }
-    final Color borderColor =
-        isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title, style: theme.typography.bodyStrong),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: theme.typography.caption,
-                ),
-              ],
+    return SizedBox(
+      height: _toolSettingsCardHeight,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            fit: FlexFit.loose,
+            child: Text(
+              title,
+              style: theme.typography.bodyStrong,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            ToggleSwitch(
-              checked: value,
-              onChanged: onChanged,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          ToggleSwitch(
+            checked: value,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }
