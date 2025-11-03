@@ -119,16 +119,11 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                         if (image == null) {
                                           return const SizedBox.shrink();
                                         }
-                                        return Transform.scale(
-                                          scale: _viewport.scale,
-                                          alignment: Alignment.topLeft,
-                                          child: SizedBox(
-                                            width: _canvasSize.width,
-                                            height: _canvasSize.height,
-                                            child: RawImage(
-                                              image: image,
-                                              filterQuality: FilterQuality.none,
-                                            ),
+                                        return SizedBox.expand(
+                                          child: RawImage(
+                                            image: image,
+                                            filterQuality:
+                                                FilterQuality.none,
                                           ),
                                         );
                                       },
