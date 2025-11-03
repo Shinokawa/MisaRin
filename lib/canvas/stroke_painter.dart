@@ -100,7 +100,8 @@ class StrokePictureCache {
     }
     final ui.Paint paint = ui.Paint()
       ..color = region.color
-      ..style = ui.PaintingStyle.fill;
+      ..style = ui.PaintingStyle.fill
+      ..isAntiAlias = false; // 避免油漆桶填充呈现半透明条纹
     final double originX = region.origin.dx;
     final double originY = region.origin.dy;
     for (final CanvasFillSpan span in region.spans) {
