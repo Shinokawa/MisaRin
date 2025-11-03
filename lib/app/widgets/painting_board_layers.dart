@@ -109,6 +109,14 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
       growable: false,
     );
     final String? activeLayerId = _activeLayerId;
+    final Color fallbackCardColor = theme.brightness.isDark
+        ? const Color(0xFF1F1F1F)
+        : Colors.white;
+    Color tileBaseColor = theme.cardColor;
+    if (tileBaseColor.alpha != 0xFF) {
+      tileBaseColor = fallbackCardColor;
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -132,8 +140,11 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                   final bool isActive = layer.id == activeLayerId;
                   final double contentOpacity = layer.visible ? 1.0 : 0.45;
                   final Color background = isActive
-                      ? theme.resources.subtleFillColorSecondary
-                      : theme.resources.subtleFillColorTransparent;
+                      ? Color.alphaBlend(
+                          theme.resources.subtleFillColorSecondary,
+                          tileBaseColor,
+                        )
+                      : tileBaseColor;
                   final Color borderColor =
                       theme.resources.controlStrokeColorSecondary;
                   final Color tileBorder = Color.lerp(
