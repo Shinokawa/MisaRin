@@ -58,54 +58,13 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   Future<void> _applyPaintBucket(Offset position) async {
-    final CanvasLayerData? active = _store.activeLayer;
-    if (active == null) {
-      return;
-    }
-    final BucketFillEngine engine = BucketFillEngine(
-      canvasSize: _canvasSize,
-      layers: _store.layers,
-      targetLayer: active,
-    );
-    final BucketFillOutcome? outcome = await engine.compute(
-      position: position,
-      sampleAllLayers: _bucketSampleAllLayers,
+    _controller.floodFill(
+      position,
+      color: _primaryColor,
       contiguous: _bucketContiguous,
-      fillColor: _primaryColor,
+      sampleAllLayers: _bucketSampleAllLayers,
     );
-    if (outcome == null) {
-      return;
-    }
-
-    bool mutated = false;
-    if (outcome.appliesStrokeRecolor) {
-      if (_store.recolorStrokes(
-        layerId: active.id,
-        indices: outcome.recoloredStrokeIndices,
-        color: _primaryColor,
-      )) {
-        mutated = true;
-      }
-    }
-
-    final CanvasFillRegion? region = outcome.region;
-    if (region != null && region.spans.isNotEmpty) {
-      if (_store.addFillRegion(
-        layerId: active.id,
-        region: region,
-      )) {
-        mutated = true;
-      }
-    }
-
-    if (!mutated) {
-      return;
-    }
-
-    _syncStrokeCache();
-    setState(() {
-      _bumpCurrentStrokeVersion();
-    });
+    setState(() {});
     _markDirty();
   }
 

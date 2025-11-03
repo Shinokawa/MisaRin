@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -207,13 +209,19 @@ class CanvasLayerData {
     Color? fillColor,
     List<CanvasStroke> strokes = const <CanvasStroke>[],
     List<CanvasFillRegion> fills = const <CanvasFillRegion>[],
+    Uint8List? bitmap,
+    int? bitmapWidth,
+    int? bitmapHeight,
   })  : fillColor = fillColor,
         strokes = List<CanvasStroke>.unmodifiable(
           strokes.map((stroke) => stroke.clone()),
         ),
         fills = List<CanvasFillRegion>.unmodifiable(
           fills.map((fill) => fill.clone()),
-        );
+        ),
+        bitmap = bitmap != null ? Uint8List.fromList(bitmap) : null,
+        bitmapWidth = bitmap != null ? bitmapWidth : null,
+        bitmapHeight = bitmap != null ? bitmapHeight : null;
 
   final String id;
   final String name;
@@ -221,8 +229,12 @@ class CanvasLayerData {
   final Color? fillColor;
   final List<CanvasStroke> strokes;
   final List<CanvasFillRegion> fills;
+  final Uint8List? bitmap;
+  final int? bitmapWidth;
+  final int? bitmapHeight;
 
   bool get hasFill => fillColor != null;
+  bool get hasBitmap => bitmap != null && bitmapWidth != null && bitmapHeight != null;
 
   CanvasLayerData copyWith({
     String? id,
@@ -232,7 +244,29 @@ class CanvasLayerData {
     bool clearFill = false,
     List<CanvasStroke>? strokes,
     List<CanvasFillRegion>? fills,
+    Uint8List? bitmap,
+    int? bitmapWidth,
+    int? bitmapHeight,
+    bool clearBitmap = false,
   }) {
+    final Uint8List? resolvedBitmap;
+    if (clearBitmap) {
+      resolvedBitmap = null;
+    } else if (bitmap != null) {
+      resolvedBitmap = Uint8List.fromList(bitmap);
+    } else {
+      resolvedBitmap = this.bitmap != null ? Uint8List.fromList(this.bitmap!) : null;
+    }
+    final int? resolvedWidth;
+    final int? resolvedHeight;
+    if (resolvedBitmap == null) {
+      resolvedWidth = null;
+      resolvedHeight = null;
+    } else {
+      resolvedWidth = bitmapWidth ?? this.bitmapWidth;
+      resolvedHeight = bitmapHeight ?? this.bitmapHeight;
+    }
+
     return CanvasLayerData(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -240,6 +274,9 @@ class CanvasLayerData {
       fillColor: clearFill ? null : (fillColor ?? this.fillColor),
       strokes: strokes ?? this.strokes,
       fills: fills ?? this.fills,
+      bitmap: resolvedBitmap,
+      bitmapWidth: resolvedWidth,
+      bitmapHeight: resolvedHeight,
     );
   }
 
@@ -253,6 +290,12 @@ class CanvasLayerData {
       'strokes': strokes.map((stroke) => stroke.toJson()).toList(growable: false),
       if (fills.isNotEmpty)
         'fills': fills.map((fill) => fill.toJson()).toList(growable: false),
+      if (hasBitmap)
+        'bitmap': <String, dynamic>{
+          'width': bitmapWidth,
+          'height': bitmapHeight,
+          'pixels': base64Encode(bitmap!),
+        },
     };
   }
 
@@ -275,6 +318,25 @@ class CanvasLayerData {
       fill = Color(json['color'] as int);
     }
 
+    Uint8List? bitmap;
+    int? bitmapWidth;
+    int? bitmapHeight;
+    final Object? rawBitmap = json['bitmap'];
+    if (rawBitmap is Map<String, dynamic>) {
+      final String? encoded = rawBitmap['pixels'] as String?;
+      if (encoded != null) {
+        try {
+          bitmap = Uint8List.fromList(base64Decode(encoded));
+          bitmapWidth = rawBitmap['width'] as int?;
+          bitmapHeight = rawBitmap['height'] as int?;
+        } catch (_) {
+          bitmap = null;
+          bitmapWidth = null;
+          bitmapHeight = null;
+        }
+      }
+    }
+
     return CanvasLayerData(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -282,6 +344,9 @@ class CanvasLayerData {
       fillColor: fill,
       strokes: strokes,
       fills: fills,
+      bitmap: bitmap,
+      bitmapWidth: bitmapWidth,
+      bitmapHeight: bitmapHeight,
     );
   }
 }

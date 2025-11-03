@@ -3,8 +3,8 @@ part of 'painting_board.dart';
 mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
   @override
   Widget build(BuildContext context) {
-    final bool canUndo = _store.canUndo;
-    final bool canRedo = _store.canRedo;
+    const bool canUndo = false;
+    const bool canRedo = false;
     final Map<LogicalKeySet, Intent> shortcutBindings = {
       for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
         key: const UndoIntent(),
@@ -112,15 +112,26 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                 ),
                                 child: ClipRect(
                                   child: RepaintBoundary(
-                                    child: CustomPaint(
-                                      painter: StrokePainter(
-                                        cache: _strokeCache,
-                                        cacheVersion: _strokeCache.version,
-                                        currentStroke: _store.currentStroke,
-                                        currentStrokeVersion:
-                                            _currentStrokeVersion,
-                                        scale: _viewport.scale,
-                                      ),
+                                    child: AnimatedBuilder(
+                                      animation: _controller,
+                                      builder: (context, _) {
+                                        final ui.Image? image = _controller.image;
+                                        if (image == null) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return Transform.scale(
+                                          scale: _viewport.scale,
+                                          alignment: Alignment.topLeft,
+                                          child: SizedBox(
+                                            width: _canvasSize.width,
+                                            height: _canvasSize.height,
+                                            child: RawImage(
+                                              image: image,
+                                              filterQuality: FilterQuality.none,
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),

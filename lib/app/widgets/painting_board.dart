@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:collection';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
@@ -12,13 +15,12 @@ import 'package:flutter/widgets.dart' show FocusNode, TextEditingController;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 
-import '../../canvas/bucket_fill_engine.dart';
+import '../../bitmap_canvas/bitmap_canvas.dart';
+import '../../bitmap_canvas/controller.dart';
 import '../../canvas/canvas_layer.dart';
-import '../../canvas/canvas_viewport.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_tools.dart';
-import '../../canvas/stroke_painter.dart';
-import '../../canvas/stroke_store.dart';
+import '../../canvas/canvas_viewport.dart';
 import 'canvas_toolbar.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../preferences/app_preferences.dart';
@@ -64,9 +66,8 @@ class PaintingBoard extends StatefulWidget {
 }
 
 abstract class _PaintingBoardBase extends State<PaintingBoard> {
-  final StrokeStore _store = StrokeStore();
+  late BitmapCanvasController _controller;
   final FocusNode _focusNode = FocusNode();
-  late final StrokePictureCache _strokeCache;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -74,7 +75,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isDirty = false;
   bool _isScalingGesture = false;
   double _scaleGestureInitialScale = 1.0;
-  int _currentStrokeVersion = 0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
@@ -107,13 +107,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   }
 
   CanvasTool get activeTool => _activeTool;
-  bool get hasContent => _store.hasStrokes;
+  bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
-  bool get canUndo => _store.canUndo;
-  bool get canRedo => _store.canRedo;
+  bool get canUndo => false;
+  bool get canRedo => false;
 
-  List<CanvasLayerData> get _layers => _store.layers;
-  String? get _activeLayerId => _store.activeLayerId;
+  UnmodifiableListView<BitmapLayerState> get _layers => _controller.layers;
+  String? get _activeLayerId => _controller.activeLayerId;
   Color get _backgroundPreviewColor;
 
   List<CanvasLayerData> _buildInitialLayers();
@@ -154,7 +154,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Widget _buildColorPanelContent(FluentThemeData theme);
   Widget _buildColorIndicator(FluentThemeData theme);
 
-  List<CanvasLayerData> snapshotLayers() => _store.snapshotLayers();
+  List<CanvasLayerData> snapshotLayers() => _controller.snapshotLayers();
 
   void markSaved() {
     if (!_isDirty) {
@@ -178,15 +178,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     }
     _isDirty = false;
     widget.onDirtyChanged?.call(false);
-  }
-
-  void _bumpCurrentStrokeVersion() {
-    _currentStrokeVersion++;
-  }
-
-  void _syncStrokeCache() {
-    _strokeCache.updateLogicalSize(_canvasSize);
-    _strokeCache.sync(layers: _store.committedLayers());
   }
 
   void _initializeViewportIfNeeded() {
@@ -247,14 +238,19 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();
-    _strokeCache = StrokePictureCache(logicalSize: _canvasSize);
-    _store.initialize(layers);
-    _syncStrokeCache();
+    _controller = BitmapCanvasController(
+      width: widget.settings.width.round(),
+      height: widget.settings.height.round(),
+      backgroundColor: widget.settings.backgroundColor,
+      initialLayers: layers,
+    );
+    _controller.addListener(_handleControllerChanged);
   }
 
   @override
   void dispose() {
-    _strokeCache.dispose();
+    _controller.removeListener(_handleControllerChanged);
+    unawaited(_controller.disposeController());
     _layerScrollController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -267,16 +263,15 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool backgroundChanged =
         widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
     if (sizeChanged || backgroundChanged) {
-      if (backgroundChanged && _layers.isNotEmpty) {
-        final CanvasLayerData baseLayer = _layers.first;
-        if (baseLayer.fillColor == oldWidget.settings.backgroundColor) {
-          _store.setLayerFillColor(
-            baseLayer.id,
-            widget.settings.backgroundColor,
-          );
-        }
-      }
-      _syncStrokeCache();
+      _controller.removeListener(_handleControllerChanged);
+      unawaited(_controller.disposeController());
+      _controller = BitmapCanvasController(
+        width: widget.settings.width.round(),
+        height: widget.settings.height.round(),
+        backgroundColor: widget.settings.backgroundColor,
+        initialLayers: _buildInitialLayers(),
+      );
+      _controller.addListener(_handleControllerChanged);
       setState(() {
         if (sizeChanged) {
           _viewport.reset();
@@ -284,8 +279,11 @@ class PaintingBoardState extends _PaintingBoardBase
           _layoutBaseOffset = Offset.zero;
           _viewportInitialized = false;
         }
-        _bumpCurrentStrokeVersion();
       });
     }
+  }
+
+  void _handleControllerChanged() {
+    setState(() {});
   }
 }

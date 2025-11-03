@@ -2,11 +2,10 @@ part of 'painting_board.dart';
 
 mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   void clear() {
-    _store.clear();
+    _controller.clear();
     _emitClean();
-    _syncStrokeCache();
     setState(() {
-      _bumpCurrentStrokeVersion();
+      // No-op placeholder for repaint
     });
   }
 
@@ -100,12 +99,11 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   void _startStroke(Offset position) {
     setState(() {
       _isDrawing = true;
-      _store.startStroke(
+      _controller.beginStroke(
         position,
         color: _primaryColor,
-        width: _penStrokeWidth,
+        radius: _penStrokeWidth / 2,
       );
-      _bumpCurrentStrokeVersion();
     });
     _markDirty();
   }
@@ -115,8 +113,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       return;
     }
     setState(() {
-      _store.appendPoint(position);
-      _bumpCurrentStrokeVersion();
+      _controller.extendStroke(position);
     });
   }
 
@@ -124,11 +121,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (!_isDrawing) {
       return;
     }
-    _store.finishStroke();
-    _syncStrokeCache();
+    _controller.endStroke();
     setState(() {
       _isDrawing = false;
-      _bumpCurrentStrokeVersion();
     });
   }
 
@@ -311,34 +306,11 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   bool undo() {
-    final bool undone = _store.undo();
-    if (!undone) {
-      return false;
-    }
-    _syncStrokeCache();
-    setState(() {
-      _isDrawing = false;
-      _bumpCurrentStrokeVersion();
-    });
-    if (!_store.hasStrokes) {
-      _emitClean();
-    } else {
-      _markDirty();
-    }
-    return true;
+    return false;
   }
 
   bool redo() {
-    final bool redone = _store.redo();
-    if (!redone) {
-      return false;
-    }
-    _syncStrokeCache();
-    setState(() {
-      _bumpCurrentStrokeVersion();
-    });
-    _markDirty();
-    return true;
+    return false;
   }
 
   bool zoomIn() {

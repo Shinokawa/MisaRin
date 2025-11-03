@@ -6,63 +6,51 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     if (provided != null && provided.isNotEmpty) {
       return List<CanvasLayerData>.from(provided);
     }
+    final int width = widget.settings.width.round();
+    final int height = widget.settings.height.round();
+    final Color background = widget.settings.backgroundColor;
     return <CanvasLayerData>[
       CanvasLayerData(
         id: generateLayerId(),
-        name: '图层 1',
-        fillColor: widget.settings.backgroundColor,
+        name: '背景',
+        fillColor: background,
+      ),
+      CanvasLayerData(
+        id: generateLayerId(),
+        name: '图层 2',
+        bitmap: Uint8List(width * height * 4),
+        bitmapWidth: width,
+        bitmapHeight: height,
       ),
     ];
-  }
-
-  CanvasLayerData? _layerById(String id) {
-    for (final CanvasLayerData layer in _layers) {
-      if (layer.id == id) {
-        return layer;
-      }
-    }
-    return null;
   }
 
   Color get _backgroundPreviewColor {
     if (_layers.isEmpty) {
       return widget.settings.backgroundColor;
     }
-    final CanvasLayerData baseLayer = _layers.first;
-    return baseLayer.fillColor ?? widget.settings.backgroundColor;
+    final BitmapLayerState baseLayer = _layers.first;
+    final Uint32List pixels = baseLayer.surface.pixels;
+    if (pixels.isNotEmpty && (pixels[0] >> 24) != 0) {
+      return BitmapSurface.decodeColor(pixels[0]);
+    }
+    return widget.settings.backgroundColor;
   }
 
   void _handleLayerVisibilityChanged(String id, bool visible) {
-    if (!_store.updateLayerVisibility(id, visible)) {
-      return;
-    }
-    if (!visible && _store.activeLayerId == id) {
-      for (final CanvasLayerData layer in _layers.reversed) {
-        if (layer.visible) {
-          _store.setActiveLayer(layer.id);
-          break;
-        }
-      }
-    }
-    _syncStrokeCache();
-    setState(() {
-      _bumpCurrentStrokeVersion();
-    });
+    _controller.updateLayerVisibility(id, visible);
+    setState(() {});
     _markDirty();
   }
 
   void _handleLayerSelected(String id) {
-    if (_store.setActiveLayer(id)) {
-      setState(() {});
-    }
+    _controller.setActiveLayer(id);
+    setState(() {});
   }
 
   void _handleAddLayer() {
-    _store.addLayer();
-    _syncStrokeCache();
-    setState(() {
-      _bumpCurrentStrokeVersion();
-    });
+    _controller.addLayer();
+    setState(() {});
     _markDirty();
   }
 
@@ -70,14 +58,8 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     if (_layers.length <= 1) {
       return;
     }
-    final bool removed = _store.removeLayer(id);
-    if (!removed) {
-      return;
-    }
-    _syncStrokeCache();
-    setState(() {
-      _bumpCurrentStrokeVersion();
-    });
+    _controller.removeLayer(id);
+    setState(() {});
     _markDirty();
   }
 
@@ -95,19 +77,14 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     if (actualOldIndex == actualNewIndex) {
       return;
     }
-    if (_store.reorderLayer(actualOldIndex, actualNewIndex)) {
-      _syncStrokeCache();
-      setState(() {
-        _bumpCurrentStrokeVersion();
-      });
-      _markDirty();
-    }
+    _controller.reorderLayer(actualOldIndex, actualNewIndex);
+    setState(() {});
+    _markDirty();
   }
 
   Widget _buildLayerPanelContent(FluentThemeData theme) {
-    final List<CanvasLayerData> orderedLayers = _layers.reversed.toList(
-      growable: false,
-    );
+    final List<BitmapLayerState> orderedLayers =
+        _layers.toList(growable: false).reversed.toList(growable: false);
     final String? activeLayerId = _activeLayerId;
     final Color fallbackCardColor = theme.brightness.isDark
         ? const Color(0xFF1F1F1F)
@@ -136,7 +113,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                 itemCount: orderedLayers.length,
                 onReorder: _handleLayerReorder,
                 itemBuilder: (context, index) {
-                  final CanvasLayerData layer = orderedLayers[index];
+                  final BitmapLayerState layer = orderedLayers[index];
                   final bool isActive = layer.id == activeLayerId;
                   final double contentOpacity = layer.visible ? 1.0 : 0.45;
                   final Color background = isActive

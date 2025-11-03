@@ -174,7 +174,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
                   child: TextFormBox(
                     controller: _widthController,
                     placeholder: '宽度（像素）',
-                    inputFormatters: const <TextInputFormatter>[
+                    inputFormatters: <TextInputFormatter>[
                       FilteringTextInputFormatter.digitsOnly,
                     ],
                   ),
@@ -187,7 +187,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
                   child: TextFormBox(
                     controller: _heightController,
                     placeholder: '高度（像素）',
-                    inputFormatters: const <TextInputFormatter>[
+                    inputFormatters: <TextInputFormatter>[
                       FilteringTextInputFormatter.digitsOnly,
                     ],
                   ),
