@@ -1,19 +1,26 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/widgets.dart' show GlobalKey;
 
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
 import 'misarin_dialog.dart';
 
 Future<void> showSettingsDialog(BuildContext context) {
+  final GlobalKey<_SettingsDialogContentState> contentKey =
+      GlobalKey<_SettingsDialogContentState>();
   return showMisarinDialog<void>(
     context: context,
     title: const Text('设置'),
-    content: const _SettingsDialogContent(),
+    content: _SettingsDialogContent(key: contentKey),
     contentWidth: 420,
     maxWidth: 520,
     actions: [
+      Button(
+        onPressed: () => contentKey.currentState?.resetToDefaults(),
+        child: const Text('恢复默认'),
+      ),
       Button(
         onPressed: () => Navigator.of(context).pop(),
         child: const Text('好的'),
@@ -23,7 +30,7 @@ Future<void> showSettingsDialog(BuildContext context) {
 }
 
 class _SettingsDialogContent extends StatefulWidget {
-  const _SettingsDialogContent();
+  const _SettingsDialogContent({super.key});
 
   @override
   State<_SettingsDialogContent> createState() => _SettingsDialogContentState();
@@ -74,6 +81,11 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                 return;
               }
               controller.onThemeModeChanged(mode);
+              final AppPreferences prefs = AppPreferences.instance;
+              if (prefs.themeMode != mode) {
+                prefs.themeMode = mode;
+                unawaited(AppPreferences.save());
+              }
             },
           ),
         ),
@@ -115,5 +127,19 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
       ],
     );
+  }
+
+  void resetToDefaults() {
+    final ThemeController controller = ThemeController.of(context);
+    final AppPreferences prefs = AppPreferences.instance;
+    final int defaultHistory = AppPreferences.defaultHistoryLimit;
+    final ThemeMode defaultTheme = AppPreferences.defaultThemeMode;
+    controller.onThemeModeChanged(defaultTheme);
+    setState(() {
+      _historyLimit = defaultHistory;
+    });
+    prefs.historyLimit = defaultHistory;
+    prefs.themeMode = defaultTheme;
+    unawaited(AppPreferences.save());
   }
 }
