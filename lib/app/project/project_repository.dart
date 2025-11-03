@@ -105,6 +105,47 @@ class ProjectRepository {
     return summaries;
   }
 
+  Future<List<StoredProjectInfo>> listStoredProjects() async {
+    final Directory directory = await _ensureProjectDirectory();
+    final List<StoredProjectInfo> result = <StoredProjectInfo>[];
+    await for (final FileSystemEntity entity
+        in directory.list(recursive: false, followLinks: false)) {
+      if (entity is! File) {
+        continue;
+      }
+      if (p.extension(entity.path).toLowerCase() != '.rin') {
+        continue;
+      }
+      final int size = await entity.length();
+      final DateTime modified = await entity.lastModified();
+      String displayName = p.basename(entity.path);
+      ProjectSummary? summary;
+      try {
+        final Uint8List bytes = await entity.readAsBytes();
+        summary = ProjectBinaryCodec.decodeSummary(
+          bytes,
+          path: entity.path,
+          lastOpened: modified,
+        );
+        displayName = summary.name;
+      } catch (_) {
+        // ignore malformed files, fall back to file name
+      }
+      result.add(
+        StoredProjectInfo(
+          path: entity.path,
+          fileName: p.basename(entity.path),
+          displayName: displayName,
+          fileSize: size,
+          lastModified: modified,
+          summary: summary,
+        ),
+      );
+    }
+    result.sort((a, b) => b.lastModified.compareTo(a.lastModified));
+    return result;
+  }
+
   Future<void> deleteProject(String path) async {
     await _ensureProjectDirectory();
     final File file = File(path);
@@ -149,4 +190,22 @@ class _IndexedEntry {
 
   final String path;
   final DateTime lastOpened;
+}
+
+class StoredProjectInfo {
+  const StoredProjectInfo({
+    required this.path,
+    required this.fileName,
+    required this.displayName,
+    required this.fileSize,
+    required this.lastModified,
+    this.summary,
+  });
+
+  final String path;
+  final String fileName;
+  final String displayName;
+  final int fileSize;
+  final DateTime lastModified;
+  final ProjectSummary? summary;
 }
