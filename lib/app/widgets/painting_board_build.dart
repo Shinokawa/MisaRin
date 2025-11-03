@@ -148,6 +148,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             child: _ToolSettingsCard(
                               activeTool: _activeTool,
                               penStrokeWidth: _penStrokeWidth,
+                              previewColor: _primaryColor,
                               onPenStrokeWidthChanged: _updatePenStrokeWidth,
                             ),
                           ),

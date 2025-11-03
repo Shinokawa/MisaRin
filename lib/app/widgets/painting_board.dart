@@ -3,6 +3,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
     show ReorderableDragStartListener, ReorderableListView;
+import 'package:flutter/services.dart'
+    show FilteringTextInputFormatter, TextInputFormatter, TextInputType,
+        TextEditingValue, TextSelection;
+import 'package:flutter/widgets.dart' show FocusNode, TextEditingController;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 
@@ -26,8 +30,8 @@ const double _toolButtonPadding = 16;
 const double _toolbarButtonSize = 48;
 const double _toolbarSpacing = 9;
 const double _toolSettingsSpacing = 12;
-const double _toolSettingsCardWidth = 240;
-const double _toolSettingsCardHeight = 132;
+const double _toolSettingsCardWidth = 320;
+const double _toolSettingsCardHeight = 80;
 const double _zoomStep = 1.1;
 const double _defaultPenStrokeWidth = 3;
 const double _sidePanelWidth = 240;
