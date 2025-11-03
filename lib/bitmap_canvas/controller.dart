@@ -54,6 +54,11 @@ class BitmapCanvasController extends ChangeNotifier {
   ui.Image? _cachedImage;
   bool _compositeDirty = true;
   bool _refreshScheduled = false;
+  bool _pendingFullSurface = false;
+  Rect? _pendingDirtyRect;
+  bool _compositeInitialized = false;
+  Uint32List? _compositePixels;
+  Uint8List? _compositeRgba;
 
   UnmodifiableListView<BitmapLayerState> get layers =>
       UnmodifiableListView<BitmapLayerState>(_layers);
@@ -201,7 +206,7 @@ class BitmapCanvasController extends ChangeNotifier {
       radius: _currentStrokeRadius,
       color: _currentStrokeColor,
     );
-    _markDirty();
+    _markDirty(region: _dirtyRectForLine(last, position, _currentStrokeRadius));
   }
 
   void endStroke() {
@@ -264,17 +269,56 @@ class BitmapCanvasController extends ChangeNotifier {
     _markDirty();
   }
 
-  BitmapSurface _buildCompositeSurface() {
-    BitmapSurface? base;
-    for (final BitmapLayerState layer in _layers) {
-      if (!layer.visible) {
-        continue;
-      }
-      base ??= BitmapSurface(width: _width, height: _height);
-      _blendSurface(base, layer.surface);
+  void _updateComposite({
+    required bool requiresFullSurface,
+    Rect? region,
+  }) {
+    _ensureCompositeBuffers();
+    final _IntRect area = requiresFullSurface
+        ? _IntRect(0, 0, _width, _height)
+        : _clipRectToSurface(region!);
+    if (area.isEmpty) {
+      return;
     }
-    base ??= BitmapSurface(width: _width, height: _height);
-    return base;
+
+    final Uint32List composite = _compositePixels!;
+    final Uint8List rgba = _compositeRgba!;
+    final List<BitmapLayerState> layers = _layers;
+    final int width = _width;
+
+    for (int y = area.top; y < area.bottom; y++) {
+      final int rowOffset = y * width;
+      for (int x = area.left; x < area.right; x++) {
+        final int index = rowOffset + x;
+        int color = 0;
+        bool initialized = false;
+        for (final BitmapLayerState layer in layers) {
+          if (!layer.visible) {
+            continue;
+          }
+          final int src = layer.surface.pixels[index];
+          if (!initialized) {
+            color = src;
+            initialized = true;
+          } else {
+            color = _blendArgb(color, src);
+          }
+        }
+        if (!initialized) {
+          color = 0;
+        }
+        composite[index] = color;
+        final int rgbaOffset = index * 4;
+        rgba[rgbaOffset] = (color >> 16) & 0xff;
+        rgba[rgbaOffset + 1] = (color >> 8) & 0xff;
+        rgba[rgbaOffset + 2] = color & 0xff;
+        rgba[rgbaOffset + 3] = (color >> 24) & 0xff;
+      }
+    }
+
+    if (requiresFullSurface) {
+      _compositeInitialized = true;
+    }
   }
 
   void _initializeDefaultLayers(Color backgroundColor) {
@@ -347,11 +391,25 @@ class BitmapCanvasController extends ChangeNotifier {
       radius: _currentStrokeRadius,
       color: _currentStrokeColor,
     );
-    _markDirty();
+    _markDirty(region: _dirtyRectForCircle(position, _currentStrokeRadius));
   }
 
-  void _markDirty() {
+  void _markDirty({Rect? region}) {
     _compositeDirty = true;
+    if (region == null || _pendingFullSurface) {
+      _pendingDirtyRect = null;
+      _pendingFullSurface = true;
+    } else if (_pendingDirtyRect == null) {
+      _pendingDirtyRect = region;
+    } else {
+      final Rect current = _pendingDirtyRect!;
+      _pendingDirtyRect = Rect.fromLTRB(
+        math.min(current.left, region.left),
+        math.min(current.top, region.top),
+        math.max(current.right, region.right),
+        math.max(current.bottom, region.bottom),
+      );
+    }
     _scheduleCompositeRefresh();
   }
 
@@ -360,13 +418,24 @@ class BitmapCanvasController extends ChangeNotifier {
       return;
     }
     _refreshScheduled = true;
-    scheduleMicrotask(() async {
+    scheduleMicrotask(() {
       _refreshScheduled = false;
       if (!_compositeDirty) {
         return;
       }
-      final BitmapSurface composite = _buildCompositeSurface();
-      final Uint8List rgba = _surfaceToRgba(composite);
+      final Rect? dirtyRect = _pendingDirtyRect;
+      final bool requiresFullSurface =
+          !_compositeInitialized || _pendingFullSurface || dirtyRect == null;
+
+      _pendingDirtyRect = null;
+      _pendingFullSurface = false;
+
+      _updateComposite(
+        requiresFullSurface: requiresFullSurface,
+        region: requiresFullSurface ? null : dirtyRect,
+      );
+
+      final Uint8List rgba = _compositeRgba ?? Uint8List(_width * _height * 4);
       ui.decodeImageFromPixels(
         rgba,
         _width,
@@ -375,8 +444,11 @@ class BitmapCanvasController extends ChangeNotifier {
         (ui.Image image) {
           _cachedImage?.dispose();
           _cachedImage = image;
-          _compositeDirty = false;
+          _compositeDirty = _pendingFullSurface || _pendingDirtyRect != null;
           notifyListeners();
+          if (_compositeDirty && !_refreshScheduled) {
+            _scheduleCompositeRefresh();
+          }
         },
       );
     });
@@ -409,15 +481,25 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   Color _colorAtComposite(Offset position) {
-    final BitmapSurface composite = _buildCompositeSurface();
     final int x = position.dx.floor();
     final int y = position.dy.floor();
     if (x < 0 || x >= _width || y < 0 || y >= _height) {
       return const Color(0x00000000);
     }
-    return BitmapSurface.decodeColor(
-      composite.pixels[y * _width + x],
-    );
+    final int index = y * _width + x;
+    int? color;
+    for (final BitmapLayerState layer in _layers) {
+      if (!layer.visible) {
+        continue;
+      }
+      final int src = layer.surface.pixels[index];
+      if (color == null) {
+        color = src;
+      } else {
+        color = _blendArgb(color, src);
+      }
+    }
+    return BitmapSurface.decodeColor(color ?? 0);
   }
 
   Color _colorAtSurface(BitmapSurface surface, int x, int y) {
@@ -449,17 +531,99 @@ class BitmapCanvasController extends ChangeNotifier {
     }
   }
 
-  static void _blendSurface(BitmapSurface target, BitmapSurface source) {
-    final Uint32List src = source.pixels;
-    final Uint32List dst = target.pixels;
-    for (int i = 0; i < dst.length; i++) {
-      final int color = src[i];
-      if ((color >> 24) == 0) {
-        continue;
-      }
-      final int x = i % target.width;
-      final int y = i ~/ target.width;
-      target.blendPixel(x, y, BitmapSurface.decodeColor(color));
-    }
+  void _ensureCompositeBuffers() {
+    _compositePixels ??= Uint32List(_width * _height);
+    _compositeRgba ??= Uint8List(_width * _height * 4);
   }
+
+  _IntRect _clipRectToSurface(Rect rect) {
+    final double effectiveLeft = rect.left;
+    final double effectiveTop = rect.top;
+    final double effectiveRight = rect.right;
+    final double effectiveBottom = rect.bottom;
+    final int left = math.max(0, effectiveLeft.floor());
+    final int top = math.max(0, effectiveTop.floor());
+    final int right = math.min(_width, effectiveRight.ceil());
+    final int bottom = math.min(_height, effectiveBottom.ceil());
+    if (left >= right || top >= bottom) {
+      return const _IntRect(0, 0, 0, 0);
+    }
+    return _IntRect(left, top, right, bottom);
+  }
+
+  Rect _dirtyRectForCircle(Offset center, double radius) {
+    final double effectiveRadius = math.max(radius, 0.5);
+    return Rect.fromCircle(center: center, radius: effectiveRadius + 1.5);
+  }
+
+  Rect _dirtyRectForLine(Offset a, Offset b, double radius) {
+    final double inflate = math.max(radius, 0.5) + 1.5;
+    return Rect.fromPoints(a, b).inflate(inflate);
+  }
+
+  static int _blendArgb(int dst, int src) {
+    final int srcA = (src >> 24) & 0xff;
+    if (srcA == 0) {
+      return dst;
+    }
+    if (srcA == 255) {
+      return src;
+    }
+
+    final int dstA = (dst >> 24) & 0xff;
+    final int invSrcA = 255 - srcA;
+    final int outA = srcA + _mul255(dstA, invSrcA);
+    if (outA == 0) {
+      return 0;
+    }
+
+    final int srcR = (src >> 16) & 0xff;
+    final int srcG = (src >> 8) & 0xff;
+    final int srcB = src & 0xff;
+    final int dstR = (dst >> 16) & 0xff;
+    final int dstG = (dst >> 8) & 0xff;
+    final int dstB = dst & 0xff;
+
+    final int srcPremR = _mul255(srcR, srcA);
+    final int srcPremG = _mul255(srcG, srcA);
+    final int srcPremB = _mul255(srcB, srcA);
+    final int dstPremR = _mul255(dstR, dstA);
+    final int dstPremG = _mul255(dstG, dstA);
+    final int dstPremB = _mul255(dstB, dstA);
+
+    final int outPremR = srcPremR + _mul255(dstPremR, invSrcA);
+    final int outPremG = srcPremG + _mul255(dstPremG, invSrcA);
+    final int outPremB = srcPremB + _mul255(dstPremB, invSrcA);
+
+    final int outR = _clampToByte(((outPremR * 255) + (outA >> 1)) ~/ outA);
+    final int outG = _clampToByte(((outPremG * 255) + (outA >> 1)) ~/ outA);
+    final int outB = _clampToByte(((outPremB * 255) + (outA >> 1)) ~/ outA);
+
+    return (outA << 24) | (outR << 16) | (outG << 8) | outB;
+  }
+
+  static int _mul255(int channel, int alpha) {
+    return (channel * alpha + 127) ~/ 255;
+  }
+
+  static int _clampToByte(int value) {
+    if (value <= 0) {
+      return 0;
+    }
+    if (value >= 255) {
+      return 255;
+    }
+    return value;
+  }
+}
+
+class _IntRect {
+  const _IntRect(this.left, this.top, this.right, this.bottom);
+
+  final int left;
+  final int top;
+  final int right;
+  final int bottom;
+
+  bool get isEmpty => left >= right || top >= bottom;
 }
