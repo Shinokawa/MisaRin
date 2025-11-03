@@ -29,12 +29,17 @@ class StrokeStore {
   bool get canUndo => _currentStroke != null || _history.isNotEmpty;
   bool get canRedo => _redo.isNotEmpty;
 
-  bool get hasStrokes => _layers.any((layer) => layer.strokes.isNotEmpty);
+  bool get hasStrokes => _layers.any(
+        (layer) => layer.strokes.isNotEmpty || layer.fills.isNotEmpty,
+      );
 
   bool get hasVisibleContent => _layers.any(
-    (layer) =>
-        layer.visible && (layer.fillColor != null || layer.strokes.isNotEmpty),
-  );
+        (layer) =>
+            layer.visible &&
+            (layer.fillColor != null ||
+                layer.strokes.isNotEmpty ||
+                layer.fills.isNotEmpty),
+      );
 
   void initialize(List<CanvasLayerData> initialLayers) {
     _layers
@@ -66,6 +71,7 @@ class StrokeStore {
           visible: layer.visible,
           fillColor: layer.fillColor,
           strokes: committed,
+          fills: layer.fills.map((fill) => fill.clone()).toList(growable: false),
         );
       }),
     );
@@ -84,6 +90,8 @@ class StrokeStore {
   void clear() {
     for (final _Layer layer in _layers) {
       layer.strokes.clear();
+      layer.fills.clear();
+      layer.fillColor = null;
     }
     _history.clear();
     _redo.clear();
@@ -271,6 +279,62 @@ class StrokeStore {
     return true;
   }
 
+  bool addFillRegion({
+    required String layerId,
+    required CanvasFillRegion region,
+  }) {
+    final _Layer? layer = _layerById(layerId);
+    if (layer == null) {
+      return false;
+    }
+    final int insertIndex = layer.fills.length;
+    layer.fills.add(region.clone());
+    _history.add(
+      _FillRegionAddOperation(
+        layerId: layerId,
+        region: region,
+        index: insertIndex,
+      ),
+    );
+    _redo.clear();
+    return true;
+  }
+
+  bool recolorStrokes({
+    required String layerId,
+    required List<int> indices,
+    required Color color,
+  }) {
+    final _Layer? layer = _layerById(layerId);
+    if (layer == null) {
+      return false;
+    }
+    final List<_StrokeColorChange> changes = <_StrokeColorChange>[];
+    for (final int index in indices) {
+      if (index < 0 || index >= layer.strokes.length) {
+        continue;
+      }
+      final CanvasStroke original = layer.strokes[index];
+      if (original.color == color) {
+        continue;
+      }
+      changes.add(_StrokeColorChange(index: index, previousColor: original.color));
+      layer.strokes[index] = original.copyWith(color: color);
+    }
+    if (changes.isEmpty) {
+      return false;
+    }
+    _history.add(
+      _StrokeRecolorOperation(
+        layerId: layerId,
+        changes: changes,
+        nextColor: color,
+      ),
+    );
+    _redo.clear();
+    return true;
+  }
+
   void startStroke(
     Offset point, {
     required Color color,
@@ -434,7 +498,8 @@ class _Layer {
     required this.name,
     this.visible = true,
     this.fillColor,
-  }) : strokes = <CanvasStroke>[];
+  })  : strokes = <CanvasStroke>[],
+        fills = <CanvasFillRegion>[];
 
   factory _Layer.fromData(CanvasLayerData data) {
     return _Layer.stroke(
@@ -442,7 +507,9 @@ class _Layer {
       name: data.name,
       visible: data.visible,
       fillColor: data.fillColor,
-    )..strokes.addAll(data.strokes.map((stroke) => stroke.clone()));
+    )
+      ..strokes.addAll(data.strokes.map((stroke) => stroke.clone()))
+      ..fills.addAll(data.fills.map((fill) => fill.clone()));
   }
 
   final String id;
@@ -450,6 +517,7 @@ class _Layer {
   bool visible;
   Color? fillColor;
   final List<CanvasStroke> strokes;
+  final List<CanvasFillRegion> fills;
 
   CanvasLayerData snapshot() {
     return CanvasLayerData(
@@ -458,6 +526,7 @@ class _Layer {
       visible: visible,
       fillColor: fillColor,
       strokes: strokes.map((stroke) => stroke.clone()).toList(growable: false),
+      fills: fills.map((fill) => fill.clone()).toList(growable: false),
     );
   }
 }
@@ -701,6 +770,94 @@ class _LayerFillOperation extends _Operation {
       return false;
     }
     layer.fillColor = nextColor;
+    return true;
+  }
+}
+
+class _FillRegionAddOperation extends _Operation {
+  _FillRegionAddOperation({
+    required this.layerId,
+    required CanvasFillRegion region,
+    required this.index,
+  }) : region = region.clone();
+
+  final String layerId;
+  final CanvasFillRegion region;
+  final int index;
+
+  @override
+  bool undo(StrokeStore store) {
+    final _Layer? layer = store._layerById(layerId);
+    if (layer == null || index < 0 || index >= layer.fills.length) {
+      return false;
+    }
+    layer.fills.removeAt(index);
+    return true;
+  }
+
+  @override
+  bool redo(StrokeStore store) {
+    final _Layer? layer = store._layerById(layerId);
+    if (layer == null) {
+      return false;
+    }
+    final int insertIndex = index.clamp(0, layer.fills.length).toInt();
+    layer.fills.insert(insertIndex, region.clone());
+    return true;
+  }
+}
+
+class _StrokeColorChange {
+  const _StrokeColorChange({
+    required this.index,
+    required this.previousColor,
+  });
+
+  final int index;
+  final Color previousColor;
+}
+
+class _StrokeRecolorOperation extends _Operation {
+  _StrokeRecolorOperation({
+    required this.layerId,
+    required List<_StrokeColorChange> changes,
+    required this.nextColor,
+  }) : changes = List<_StrokeColorChange>.unmodifiable(changes);
+
+  final String layerId;
+  final List<_StrokeColorChange> changes;
+  final Color nextColor;
+
+  @override
+  bool undo(StrokeStore store) {
+    final _Layer? layer = store._layerById(layerId);
+    if (layer == null) {
+      return false;
+    }
+    for (final _StrokeColorChange change in changes) {
+      if (change.index < 0 || change.index >= layer.strokes.length) {
+        continue;
+      }
+      final CanvasStroke original = layer.strokes[change.index];
+      layer.strokes[change.index] =
+          original.copyWith(color: change.previousColor);
+    }
+    return true;
+  }
+
+  @override
+  bool redo(StrokeStore store) {
+    final _Layer? layer = store._layerById(layerId);
+    if (layer == null) {
+      return false;
+    }
+    for (final _StrokeColorChange change in changes) {
+      if (change.index < 0 || change.index >= layer.strokes.length) {
+        continue;
+      }
+      final CanvasStroke original = layer.strokes[change.index];
+      layer.strokes[change.index] = original.copyWith(color: nextColor);
+    }
     return true;
   }
 }

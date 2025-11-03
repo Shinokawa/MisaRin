@@ -77,6 +77,20 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     setState(() => _penStrokeWidth = clamped);
   }
 
+  void _updateBucketSampleAllLayers(bool value) {
+    if (_bucketSampleAllLayers == value) {
+      return;
+    }
+    setState(() => _bucketSampleAllLayers = value);
+  }
+
+  void _updateBucketContiguous(bool value) {
+    if (_bucketContiguous == value) {
+      return;
+    }
+    setState(() => _bucketContiguous = value);
+  }
+
   void _startStroke(Offset position) {
     setState(() {
       _isDrawing = true;
@@ -153,7 +167,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       _startStroke(boardLocal);
     } else if (_activeTool == CanvasTool.bucket) {
       _focusNode.requestFocus();
-      _applyPaintBucket(boardLocal);
+      unawaited(_applyPaintBucket(boardLocal));
     } else {
       _beginDragBoard();
     }

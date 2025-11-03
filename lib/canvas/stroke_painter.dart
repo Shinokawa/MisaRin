@@ -38,6 +38,9 @@ class StrokePictureCache {
           ui.Paint()..color = layer.fillColor!,
         );
       }
+      for (final CanvasFillRegion region in layer.fills) {
+        _drawFillRegion(cacheCanvas, region);
+      }
       for (final CanvasStroke stroke in layer.strokes) {
         _drawStroke(
           cacheCanvas,
@@ -88,6 +91,26 @@ class StrokePictureCache {
     }
     for (int index = 0; index < stroke.length - 1; index++) {
       canvas.drawLine(stroke[index], stroke[index + 1], paint);
+    }
+  }
+
+  void _drawFillRegion(ui.Canvas canvas, CanvasFillRegion region) {
+    if (region.spans.isEmpty) {
+      return;
+    }
+    final ui.Paint paint = ui.Paint()
+      ..color = region.color
+      ..style = ui.PaintingStyle.fill;
+    final double originX = region.origin.dx;
+    final double originY = region.origin.dy;
+    for (final CanvasFillSpan span in region.spans) {
+      final double left = originX + span.start;
+      final double top = originY + span.dy;
+      final double width = (span.end - span.start + 1).toDouble();
+      canvas.drawRect(
+        ui.Rect.fromLTWH(left, top, width, 1),
+        paint,
+      );
     }
   }
 

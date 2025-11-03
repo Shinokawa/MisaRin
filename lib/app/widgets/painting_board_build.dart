@@ -149,6 +149,12 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               activeTool: _activeTool,
                               penStrokeWidth: _penStrokeWidth,
                               onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                              bucketSampleAllLayers: _bucketSampleAllLayers,
+                              bucketContiguous: _bucketContiguous,
+                              onBucketSampleAllLayersChanged:
+                                  _updateBucketSampleAllLayers,
+                              onBucketContiguousChanged:
+                                  _updateBucketContiguous,
                             ),
                           ),
                           Positioned(

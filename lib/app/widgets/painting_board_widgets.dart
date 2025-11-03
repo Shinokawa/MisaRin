@@ -89,11 +89,19 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.activeTool,
     required this.penStrokeWidth,
     required this.onPenStrokeWidthChanged,
+    required this.bucketSampleAllLayers,
+    required this.bucketContiguous,
+    required this.onBucketSampleAllLayersChanged,
+    required this.onBucketContiguousChanged,
   });
 
   final CanvasTool activeTool;
   final double penStrokeWidth;
   final ValueChanged<double> onPenStrokeWidthChanged;
+  final bool bucketSampleAllLayers;
+  final bool bucketContiguous;
+  final ValueChanged<bool> onBucketSampleAllLayersChanged;
+  final ValueChanged<bool> onBucketContiguousChanged;
 
   static const double _minPenStrokeWidth = 1;
   static const double _maxPenStrokeWidth = 60;
@@ -193,6 +201,28 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           Text('px', style: theme.typography.caption),
         ],
       );
+    } else if (widget.activeTool == CanvasTool.bucket) {
+      content = Row(
+        children: [
+          Expanded(
+            child: _BucketOptionTile(
+              title: '跨图层',
+              subtitle: '同时参考所有可见图层',
+              value: widget.bucketSampleAllLayers,
+              onChanged: widget.onBucketSampleAllLayersChanged,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _BucketOptionTile(
+              title: '连续',
+              subtitle: '仅填充相连区域',
+              value: widget.bucketContiguous,
+              onChanged: widget.onBucketContiguousChanged,
+            ),
+          ),
+        ],
+      );
     } else {
       content = SizedBox(
         height: 40,
@@ -271,5 +301,62 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
 
   static String _formatValue(double value) {
     return value.round().toString();
+  }
+}
+
+class _BucketOptionTile extends StatelessWidget {
+  const _BucketOptionTile({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final bool isDark = theme.brightness.isDark;
+    Color background = theme.cardColor;
+    if (background.alpha != 0xFF) {
+      background = isDark ? const Color(0xFF1F1F1F) : Colors.white;
+    }
+    final Color borderColor =
+        isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: theme.typography.bodyStrong),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.typography.caption,
+                ),
+              ],
+            ),
+            ToggleSwitch(
+              checked: value,
+              onChanged: onChanged,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

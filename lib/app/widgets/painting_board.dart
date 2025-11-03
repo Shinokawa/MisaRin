@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
@@ -10,6 +12,7 @@ import 'package:flutter/widgets.dart' show FocusNode, TextEditingController;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 
+import '../../canvas/bucket_fill_engine.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/canvas_settings.dart';
@@ -72,6 +75,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _scaleGestureInitialScale = 1.0;
   int _currentStrokeVersion = 0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
+  bool _bucketSampleAllLayers = false;
+  bool _bucketContiguous = true;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -120,7 +125,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   });
 
   void _rememberColor(Color color);
-  void _applyPaintBucket(Offset position);
+  Future<void> _applyPaintBucket(Offset position);
 
   void _setActiveTool(CanvasTool tool);
 
@@ -138,6 +143,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _handleRedo();
 
   void _updatePenStrokeWidth(double value);
+  void _updateBucketSampleAllLayers(bool value);
+  void _updateBucketContiguous(bool value);
 
   void _handleAddLayer();
   void _handleRemoveLayer(String id);

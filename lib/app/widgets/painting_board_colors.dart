@@ -57,35 +57,51 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     }
   }
 
-  void _applyPaintBucket(Offset position) {
+  Future<void> _applyPaintBucket(Offset position) async {
     final CanvasLayerData? active = _store.activeLayer;
-    bool applied = false;
-    if (active != null) {
-      applied = _store.setLayerFillColor(active.id, _primaryColor);
-    }
-    if (!applied) {
-      for (final CanvasLayerData layer in _layers.reversed) {
-        if (!layer.visible) {
-          continue;
-        }
-        applied = _store.setLayerFillColor(layer.id, _primaryColor);
-        if (applied) {
-          break;
-        }
-      }
-    }
-    if (!applied) {
-      _store.addLayer(
-        name: '填充',
-        fillColor: _primaryColor,
-        aboveLayerId: active?.id,
-      );
-      applied = true;
-    }
-
-    if (!applied) {
+    if (active == null) {
       return;
     }
+    final BucketFillEngine engine = BucketFillEngine(
+      canvasSize: _canvasSize,
+      layers: _store.layers,
+      targetLayer: active,
+    );
+    final BucketFillOutcome? outcome = await engine.compute(
+      position: position,
+      sampleAllLayers: _bucketSampleAllLayers,
+      contiguous: _bucketContiguous,
+      fillColor: _primaryColor,
+    );
+    if (outcome == null) {
+      return;
+    }
+
+    bool mutated = false;
+    if (outcome.appliesStrokeRecolor) {
+      if (_store.recolorStrokes(
+        layerId: active.id,
+        indices: outcome.recoloredStrokeIndices,
+        color: _primaryColor,
+      )) {
+        mutated = true;
+      }
+    }
+
+    final CanvasFillRegion? region = outcome.region;
+    if (region != null && region.spans.isNotEmpty) {
+      if (_store.addFillRegion(
+        layerId: active.id,
+        region: region,
+      )) {
+        mutated = true;
+      }
+    }
+
+    if (!mutated) {
+      return;
+    }
+
     _syncStrokeCache();
     setState(() {
       _bumpCurrentStrokeVersion();
