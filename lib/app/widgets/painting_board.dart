@@ -47,6 +47,7 @@ const double _colorIndicatorSize = 56;
 const double _colorIndicatorBorder = 3;
 const int _recentColorCapacity = 5;
 const double _initialViewportScaleFactor = 0.8;
+const int _historyLimit = 30;
 
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
@@ -89,6 +90,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Color _primaryColor = const Color(0xFF000000);
   late HSVColor _primaryHsv;
   final List<Color> _recentColors = <Color>[];
+  final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
+  final List<_CanvasHistoryEntry> _redoStack = <_CanvasHistoryEntry>[];
+  bool _historyLocked = false;
 
   Size get _canvasSize => widget.settings.size;
 
@@ -167,8 +171,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   CanvasTool get activeTool => _activeTool;
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
-  bool get canUndo => false;
-  bool get canRedo => false;
+  bool get canUndo => _undoStack.isNotEmpty;
+  bool get canRedo => _redoStack.isNotEmpty;
 
   UnmodifiableListView<BitmapLayerState> get _layers => _controller.layers;
   String? get _activeLayerId => _controller.activeLayerId;
@@ -238,6 +242,48 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     widget.onDirtyChanged?.call(false);
   }
 
+  void _resetHistory() {
+    _undoStack.clear();
+    _redoStack.clear();
+    _historyLocked = false;
+  }
+
+  void _pushUndoSnapshot() {
+    if (_historyLocked) {
+      return;
+    }
+    final _CanvasHistoryEntry entry = _createHistoryEntry();
+    _undoStack.add(entry);
+    if (_undoStack.length > _historyLimit) {
+      _undoStack.removeAt(0);
+    }
+    _redoStack.clear();
+  }
+
+  _CanvasHistoryEntry _createHistoryEntry() {
+    return _CanvasHistoryEntry(
+      layers: _controller.snapshotLayers(),
+      backgroundColor: _controller.backgroundColor,
+      activeLayerId: _controller.activeLayerId,
+    );
+  }
+
+  void _applyHistoryEntry(_CanvasHistoryEntry entry) {
+    _historyLocked = true;
+    try {
+      _controller.loadLayers(entry.layers, entry.backgroundColor);
+      final String? activeId = entry.activeLayerId;
+      if (activeId != null) {
+        _controller.setActiveLayer(activeId);
+      }
+    } finally {
+      _historyLocked = false;
+    }
+    setState(() {});
+    _focusNode.requestFocus();
+    _markDirty();
+  }
+
   void _initializeViewportIfNeeded() {
     if (_viewportInitialized) {
       return;
@@ -304,6 +350,7 @@ class PaintingBoardState extends _PaintingBoardBase
       initialLayers: layers,
     );
     _controller.addListener(_handleControllerChanged);
+    _resetHistory();
   }
 
   @override
@@ -331,6 +378,7 @@ class PaintingBoardState extends _PaintingBoardBase
         initialLayers: _buildInitialLayers(),
       );
       _controller.addListener(_handleControllerChanged);
+      _resetHistory();
       setState(() {
         if (sizeChanged) {
           _viewport.reset();
@@ -345,4 +393,16 @@ class PaintingBoardState extends _PaintingBoardBase
   void _handleControllerChanged() {
     setState(() {});
   }
+}
+
+class _CanvasHistoryEntry {
+  const _CanvasHistoryEntry({
+    required this.layers,
+    required this.backgroundColor,
+    required this.activeLayerId,
+  });
+
+  final List<CanvasLayerData> layers;
+  final Color backgroundColor;
+  final String? activeLayerId;
 }

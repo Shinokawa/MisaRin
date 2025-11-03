@@ -38,6 +38,17 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
   }
 
   void _handleLayerVisibilityChanged(String id, bool visible) {
+    BitmapLayerState? target;
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id == id) {
+        target = layer;
+        break;
+      }
+    }
+    if (target != null && target.visible == visible) {
+      return;
+    }
+    _pushUndoSnapshot();
     _controller.updateLayerVisibility(id, visible);
     setState(() {});
     _markDirty();
@@ -49,6 +60,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
   }
 
   void _handleAddLayer() {
+    _pushUndoSnapshot();
     _controller.addLayer();
     setState(() {});
     _markDirty();
@@ -58,6 +70,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     if (_layers.length <= 1) {
       return;
     }
+    _pushUndoSnapshot();
     _controller.removeLayer(id);
     setState(() {});
     _markDirty();
@@ -77,6 +90,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     if (actualOldIndex == actualNewIndex) {
       return;
     }
+    _pushUndoSnapshot();
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
     setState(() {});
     _markDirty();

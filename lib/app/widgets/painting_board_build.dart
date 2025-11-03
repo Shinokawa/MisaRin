@@ -3,8 +3,8 @@ part of 'painting_board.dart';
 mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
   @override
   Widget build(BuildContext context) {
-    const bool canUndo = false;
-    const bool canRedo = false;
+    final bool canUndo = this.canUndo;
+    final bool canRedo = this.canRedo;
     final Map<LogicalKeySet, Intent> shortcutBindings = {
       for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
         key: const UndoIntent(),

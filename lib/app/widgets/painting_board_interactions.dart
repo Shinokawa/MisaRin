@@ -2,6 +2,7 @@ part of 'painting_board.dart';
 
 mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   void clear() {
+    _pushUndoSnapshot();
     _controller.clear();
     _emitClean();
     setState(() {
@@ -97,6 +98,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   void _startStroke(Offset position) {
+    _pushUndoSnapshot();
     setState(() {
       _isDrawing = true;
       _controller.beginStroke(
@@ -292,11 +294,29 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   bool undo() {
-    return false;
+    if (_undoStack.isEmpty) {
+      return false;
+    }
+    final _CanvasHistoryEntry previous = _undoStack.removeLast();
+    _redoStack.add(_createHistoryEntry());
+    if (_redoStack.length > _historyLimit) {
+      _redoStack.removeAt(0);
+    }
+    _applyHistoryEntry(previous);
+    return true;
   }
 
   bool redo() {
-    return false;
+    if (_redoStack.isEmpty) {
+      return false;
+    }
+    final _CanvasHistoryEntry next = _redoStack.removeLast();
+    _undoStack.add(_createHistoryEntry());
+    if (_undoStack.length > _historyLimit) {
+      _undoStack.removeAt(0);
+    }
+    _applyHistoryEntry(next);
+    return true;
   }
 
   bool zoomIn() {

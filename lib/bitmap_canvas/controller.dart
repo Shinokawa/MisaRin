@@ -67,6 +67,7 @@ class BitmapCanvasController extends ChangeNotifier {
       _layers.isEmpty ? null : _layers[_activeIndex].id;
 
   ui.Image? get image => _cachedImage;
+  Color get backgroundColor => _backgroundColor;
 
   bool get hasVisibleContent {
     for (int i = 0; i < _layers.length; i++) {

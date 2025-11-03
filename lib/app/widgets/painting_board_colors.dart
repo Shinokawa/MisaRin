@@ -58,6 +58,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   Future<void> _applyPaintBucket(Offset position) async {
+    _pushUndoSnapshot();
     _controller.floodFill(
       position,
       color: _primaryColor,
