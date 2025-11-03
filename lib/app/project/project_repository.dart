@@ -80,9 +80,17 @@ class ProjectRepository {
   }
 
   Future<List<ProjectSummary>> listRecentProjects() async {
-    await _ensureProjectDirectory();
     final List<ProjectSummary> summaries = <ProjectSummary>[];
+    await for (final ProjectSummary summary in streamRecentProjects()) {
+      summaries.add(summary);
+    }
+    return summaries;
+  }
+
+  Stream<ProjectSummary> streamRecentProjects() async* {
+    await _ensureProjectDirectory();
     final List<_IndexedEntry> entries = await _loadIndexEntries();
+    entries.sort((a, b) => b.lastOpened.compareTo(a.lastOpened));
     for (final _IndexedEntry entry in entries) {
       final File file = File(entry.path);
       if (!await file.exists()) {
@@ -96,18 +104,23 @@ class ProjectRepository {
           path: entry.path,
           lastOpened: entry.lastOpened,
         );
-        summaries.add(summary);
+        yield summary;
       } catch (_) {
         // ignore malformed entries
       }
     }
-    summaries.sort((a, b) => b.lastOpened.compareTo(a.lastOpened));
-    return summaries;
   }
 
   Future<List<StoredProjectInfo>> listStoredProjects() async {
+    final List<StoredProjectInfo> items = <StoredProjectInfo>[];
+    await for (final StoredProjectInfo info in streamStoredProjects()) {
+      items.add(info);
+    }
+    return items;
+  }
+
+  Stream<StoredProjectInfo> streamStoredProjects() async* {
     final Directory directory = await _ensureProjectDirectory();
-    final List<StoredProjectInfo> result = <StoredProjectInfo>[];
     await for (final FileSystemEntity entity
         in directory.list(recursive: false, followLinks: false)) {
       if (entity is! File) {
@@ -116,34 +129,31 @@ class ProjectRepository {
       if (p.extension(entity.path).toLowerCase() != '.rin') {
         continue;
       }
-      final int size = await entity.length();
-      final DateTime modified = await entity.lastModified();
-      String displayName = p.basename(entity.path);
+      final File file = entity;
+      final DateTime modified = await file.lastModified();
+      final int size = await file.length();
+      String displayName = p.basename(file.path);
       ProjectSummary? summary;
       try {
-        final Uint8List bytes = await entity.readAsBytes();
+        final Uint8List bytes = await file.readAsBytes();
         summary = ProjectBinaryCodec.decodeSummary(
           bytes,
-          path: entity.path,
+          path: file.path,
           lastOpened: modified,
         );
         displayName = summary.name;
       } catch (_) {
-        // ignore malformed files, fall back to file name
+        // ignore malformed projects, keep fallback name
       }
-      result.add(
-        StoredProjectInfo(
-          path: entity.path,
-          fileName: p.basename(entity.path),
-          displayName: displayName,
-          fileSize: size,
-          lastModified: modified,
-          summary: summary,
-        ),
+      yield StoredProjectInfo(
+        path: file.path,
+        fileName: p.basename(file.path),
+        displayName: displayName,
+        fileSize: size,
+        lastModified: modified,
+        summary: summary,
       );
     }
-    result.sort((a, b) => b.lastModified.compareTo(a.lastModified));
-    return result;
   }
 
   Future<void> deleteProject(String path) async {

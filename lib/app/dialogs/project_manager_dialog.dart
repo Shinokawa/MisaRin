@@ -29,40 +29,91 @@ class _ProjectManagerContent extends StatefulWidget {
 }
 
 class _ProjectManagerContentState extends State<_ProjectManagerContent> {
-  late Future<List<StoredProjectInfo>> _projectsFuture;
+  final List<StoredProjectInfo> _projects = <StoredProjectInfo>[];
   final Set<String> _selected = <String>{};
+
+  StreamSubscription<StoredProjectInfo>? _subscription;
+
   bool _selectAll = false;
   bool _deleting = false;
+  bool _loading = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _projectsFuture = _loadProjects();
+    _subscribe();
   }
 
-  Future<List<StoredProjectInfo>> _loadProjects() {
-    return ProjectRepository.instance.listStoredProjects();
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
-  void _toggleSelectAll(List<StoredProjectInfo> projects, bool value) {
+  void _subscribe() {
+    _subscription?.cancel();
     setState(() {
-      _selectAll = value;
+      _projects.clear();
       _selected.clear();
-      if (value) {
-        _selected.addAll(projects.map((p) => p.path));
+      _selectAll = false;
+      _deleting = false;
+      _loading = true;
+      _errorMessage = null;
+    });
+    final Stream<StoredProjectInfo> stream =
+        ProjectRepository.instance.streamStoredProjects();
+    _subscription = stream.listen(
+      (StoredProjectInfo info) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _projects.add(info);
+          if (_selectAll) {
+            _selected.add(info.path);
+          }
+        });
+      },
+      onError: (Object error) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _errorMessage = '加载失败：$error';
+          _loading = false;
+        });
+      },
+      onDone: () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _loading = false;
+        });
+      },
+      cancelOnError: true,
+    );
+  }
+
+  void _toggleSelectAll(bool value) {
+    setState(() {
+      _selectAll = value && _projects.isNotEmpty;
+      _selected.clear();
+      if (_selectAll) {
+        _selected.addAll(_projects.map((p) => p.path));
       }
     });
   }
 
-  void _toggleSelection(String path, bool value, int totalCount) {
+  void _toggleSelection(String path, bool value) {
     setState(() {
       if (value) {
         _selected.add(path);
       } else {
         _selected.remove(path);
       }
-      _selectAll = totalCount > 0 && _selected.length == totalCount;
+      _selectAll = _projects.isNotEmpty && _selected.length == _projects.length;
     });
   }
 
@@ -82,107 +133,103 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
     } catch (error) {
       _errorMessage = '删除失败：$error';
     }
-    setState(() {
-      _projectsFuture = _loadProjects();
-      _selected.clear();
-      _selectAll = false;
-      _deleting = false;
-    });
+    if (!mounted) {
+      return;
+    }
+    _subscribe();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    return FutureBuilder<List<StoredProjectInfo>>(
-      future: _projectsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 320,
-            child: Center(child: ProgressRing()),
-          );
-        }
-        if (snapshot.hasError) {
-          return SizedBox(
-            height: 320,
-            child: Center(child: Text('加载失败：${snapshot.error}')),
-          );
-        }
-        final List<StoredProjectInfo> projects = snapshot.data ?? <StoredProjectInfo>[];
-        if (projects.isEmpty) {
-          return SizedBox(
-            height: 320,
-            child: Center(
-              child: Text('暂无自动保存的项目', style: theme.typography.bodyLarge),
-            ),
-          );
-        }
-        final bool hasSelection = _selected.isNotEmpty;
-        final int totalSelected = _selected.length;
-        final int totalCount = projects.length;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final bool hasSelection = _selected.isNotEmpty;
+    final int totalSelected = _selected.length;
+    final int totalCount = _projects.length;
+
+    if (_projects.isEmpty) {
+      if (_loading) {
+        return const SizedBox(
+          height: 320,
+          child: Center(child: ProgressRing()),
+        );
+      }
+      return SizedBox(
+        height: 320,
+        child: Center(
+          child: Text(
+            _errorMessage ?? '暂无自动保存的项目',
+            style: theme.typography.bodyLarge,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Checkbox(
-                  checked: _selectAll,
-                  onChanged: (value) => _toggleSelectAll(projects, value ?? false),
-                ),
-                Text('全选', style: theme.typography.bodyStrong),
-                const Spacer(),
-                Tooltip(
-                  message: '删除所选项目',
-                  child: FilledButton(
-                    onPressed: !_deleting && hasSelection ? _deleteSelected : null,
-                    style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.resolveWith(
-                        (states) => states.isDisabled ? null : Colors.red,
-                      ),
-                    ),
-                    child: _deleting
-                        ? const SizedBox(
-                            height: 14,
-                            width: 14,
-                            child: ProgressRing(strokeWidth: 2.0),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(FluentIcons.delete),
-                              const SizedBox(width: 6),
-                              Text('删除所选 ($totalSelected)'),
-                            ],
-                          ),
+            Checkbox(
+              checked: _selectAll,
+              onChanged: (value) => _toggleSelectAll(value ?? false),
+            ),
+            Text('全选', style: theme.typography.bodyStrong),
+            const Spacer(),
+            Tooltip(
+              message: '删除所选项目',
+              child: FilledButton(
+                onPressed: !_deleting && hasSelection ? _deleteSelected : null,
+                style: ButtonStyle(
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.isDisabled ? null : Colors.red,
                   ),
                 ),
-              ],
-            ),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 8),
-              InfoBar(
-                severity: InfoBarSeverity.error,
-                title: Text(_errorMessage!),
-                action: IconButton(
-                  icon: const Icon(FluentIcons.clear),
-                  onPressed: () => setState(() => _errorMessage = null),
-                ),
+                child: _deleting
+                    ? const SizedBox(
+                        height: 14,
+                        width: 14,
+                        child: ProgressRing(strokeWidth: 2.0),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(FluentIcons.delete),
+                          const SizedBox(width: 6),
+                          Text('删除所选 ($totalSelected)'),
+                        ],
+                      ),
               ),
-            ],
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView.separated(
+            ),
+          ],
+        ),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          InfoBar(
+            severity: InfoBarSeverity.error,
+            title: Text(_errorMessage!),
+            action: IconButton(
+              icon: const Icon(FluentIcons.clear),
+              onPressed: () => setState(() => _errorMessage = null),
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Expanded(
+          child: Stack(
+            children: [
+              ListView.separated(
                 itemBuilder: (context, index) {
-                  final StoredProjectInfo info = projects[index];
+                  final StoredProjectInfo info = _projects[index];
                   final bool selected = _selected.contains(info.path);
                   return ListTile.selectable(
+                    key: ValueKey(info.path),
                     leading: Checkbox(
                       checked: selected,
                       onChanged: (value) =>
-                          _toggleSelection(info.path, value ?? false, totalCount),
+                          _toggleSelection(info.path, value ?? false),
                     ),
                     onPressed: () =>
-                        _toggleSelection(info.path, !selected, totalCount),
+                        _toggleSelection(info.path, !selected),
                     title: Text(
                       info.displayName,
                       maxLines: 1,
@@ -203,11 +250,12 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
                           ),
                       ],
                     ),
+                    selected: selected,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     tileColor: WidgetStateProperty.resolveWith(
-                      (states) => states.isHovered
+                      (states) => states.isHovered || selected
                           ? theme.resources.subtleFillColorSecondary
                           : theme.resources.subtleFillColorTertiary,
                     ),
@@ -216,10 +264,16 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemCount: totalCount,
               ),
-            ),
-          ],
-        );
-      },
+              if (_loading)
+                const Positioned(
+                  right: 12,
+                  top: 12,
+                  child: ProgressRing(strokeWidth: 2.5),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

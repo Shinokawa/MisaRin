@@ -25,12 +25,61 @@ class _RecentProjectsDialog extends StatefulWidget {
 }
 
 class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
-  late Future<List<ProjectSummary>> _projectsFuture;
+  final List<ProjectSummary> _projects = <ProjectSummary>[];
+  StreamSubscription<ProjectSummary>? _subscription;
+  bool _loading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _projectsFuture = ProjectRepository.instance.listRecentProjects();
+    _startLoading();
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  void _startLoading() {
+    _subscription?.cancel();
+    _subscription = null;
+    setState(() {
+      _projects.clear();
+      _loading = true;
+      _errorMessage = null;
+    });
+    final Stream<ProjectSummary> stream =
+        ProjectRepository.instance.streamRecentProjects();
+    _subscription = stream.listen(
+      (ProjectSummary summary) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _projects.add(summary);
+        });
+      },
+      onError: (Object error) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _errorMessage = '加载最近项目失败：$error';
+          _loading = false;
+        });
+      },
+      onDone: () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _loading = false;
+        });
+      },
+      cancelOnError: true,
+    );
   }
 
   @override
@@ -38,32 +87,9 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
     final theme = FluentTheme.of(context);
     return MisarinDialog(
       title: const Text('最近打开'),
-      content: FutureBuilder<List<ProjectSummary>>(
-        future: _projectsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: ProgressRing());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('加载最近项目失败：${snapshot.error}'));
-          }
-          final data = snapshot.data ?? const <ProjectSummary>[];
-          if (data.isEmpty) {
-            return const Center(child: Text('暂无最近打开的项目'));
-          }
-          return ListView.separated(
-            shrinkWrap: true,
-            itemBuilder: (context, index) {
-              final summary = data[index];
-              return _RecentProjectTile(
-                summary: summary,
-                onOpen: () => Navigator.of(context).pop(summary),
-              );
-            },
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemCount: data.length,
-          );
-        },
+      content: SizedBox(
+        height: 320,
+        child: _buildContent(context, theme),
       ),
       contentWidth: 480,
       maxWidth: 560,
@@ -72,6 +98,39 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('关闭'),
         ),
+      ],
+    );
+  }
+
+  Widget _buildContent(BuildContext context, FluentThemeData theme) {
+    if (_errorMessage != null && _projects.isEmpty) {
+      return Center(child: Text(_errorMessage!));
+    }
+    if (_projects.isEmpty) {
+      if (_loading) {
+        return const Center(child: ProgressRing());
+      }
+      return const Center(child: Text('暂无最近打开的项目'));
+    }
+    return Stack(
+      children: [
+        ListView.separated(
+          itemBuilder: (context, index) {
+            final ProjectSummary summary = _projects[index];
+            return _RecentProjectTile(
+              summary: summary,
+              onOpen: () => Navigator.of(context).pop(summary),
+            );
+          },
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemCount: _projects.length,
+        ),
+        if (_loading)
+          const Positioned(
+            right: 12,
+            top: 12,
+            child: ProgressRing(strokeWidth: 2.5),
+          ),
       ],
     );
   }
