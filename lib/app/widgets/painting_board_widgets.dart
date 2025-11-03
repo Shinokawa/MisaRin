@@ -24,19 +24,22 @@ class _PanelCard extends StatelessWidget {
     required this.title,
     required this.child,
     this.expand = false,
+    this.trailing,
   });
 
   final double width;
   final String title;
   final Widget child;
   final bool expand;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final BorderRadius borderRadius = BorderRadius.circular(20);
-    final Color fallbackColor =
-        theme.brightness.isDark ? const Color(0xFF1F1F1F) : Colors.white;
+    final Color fallbackColor = theme.brightness.isDark
+        ? const Color(0xFF1F1F1F)
+        : Colors.white;
     Color backgroundColor = theme.cardColor;
     if (backgroundColor.alpha != 0xFF) {
       backgroundColor = fallbackColor;
@@ -54,15 +57,20 @@ class _PanelCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             children: [
-              Text(
-                title,
-                style: theme.typography.subtitle,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(title, style: theme.typography.subtitle),
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 12),
+                    trailing!,
+                  ],
+                ],
               ),
               const SizedBox(height: 14),
-              if (expand)
-                Expanded(child: child)
-              else
-                child,
+              if (expand) Expanded(child: child) else child,
             ],
           ),
         ),

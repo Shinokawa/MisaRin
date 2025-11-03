@@ -102,10 +102,10 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                   border: Border.all(
                                     color: isDark
                                         ? Color.lerp(
-                                              Colors.white,
-                                              Colors.transparent,
-                                              0.88,
-                                            )!
+                                            Colors.white,
+                                            Colors.transparent,
+                                            0.88,
+                                          )!
                                         : const Color(0x33000000),
                                     width: 1,
                                   ),
@@ -164,6 +164,17 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                     child: _PanelCard(
                                       width: _sidePanelWidth,
                                       title: '图层管理',
+                                      trailing: Button(
+                                        onPressed: _handleAddLayer,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: const [
+                                            Icon(FluentIcons.add, size: 14),
+                                            SizedBox(width: 6),
+                                            Text('新增图层'),
+                                          ],
+                                        ),
+                                      ),
                                       expand: true,
                                       child: _buildLayerPanelContent(theme),
                                     ),

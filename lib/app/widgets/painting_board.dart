@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart' as material
+import 'package:flutter/material.dart'
+    as material
     show ReorderableDragStartListener, ReorderableListView;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
@@ -76,9 +77,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Size get _canvasSize => widget.settings.size;
 
   Size get _scaledBoardSize => Size(
-        _canvasSize.width * _viewport.scale,
-        _canvasSize.height * _viewport.scale,
-      );
+    _canvasSize.width * _viewport.scale,
+    _canvasSize.height * _viewport.scale,
+  );
 
   Rect get _boardRect {
     final Offset position = _layoutBaseOffset + _viewport.offset;
@@ -128,6 +129,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _handleUndo();
   void _handleRedo();
 
+  void _handleAddLayer();
+
   Widget _buildLayerPanelContent(FluentThemeData theme);
   Widget _buildColorPanelContent(FluentThemeData theme);
   Widget _buildColorIndicator(FluentThemeData theme);
@@ -164,9 +167,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _syncStrokeCache() {
     _strokeCache.updateLogicalSize(_canvasSize);
-    _strokeCache.sync(
-      layers: _store.committedLayers(),
-    );
+    _strokeCache.sync(layers: _store.committedLayers());
   }
 
   void _initializeViewportIfNeeded() {
@@ -193,9 +194,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
     final double widthScale = workspaceSize.width / canvasSize.width;
     final double heightScale = workspaceSize.height / canvasSize.height;
-    final double baseScale = widthScale < heightScale ? widthScale : heightScale;
-    double targetScale =
-        baseScale * _initialViewportScaleFactor;
+    final double baseScale = widthScale < heightScale
+        ? widthScale
+        : heightScale;
+    double targetScale = baseScale * _initialViewportScaleFactor;
     if (!targetScale.isFinite || targetScale <= 0) {
       targetScale = baseScale.isFinite && baseScale > 0 ? baseScale : 1.0;
     }
@@ -223,9 +225,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();
-    _strokeCache = StrokePictureCache(
-      logicalSize: _canvasSize,
-    );
+    _strokeCache = StrokePictureCache(logicalSize: _canvasSize);
     _store.initialize(layers);
     _syncStrokeCache();
   }

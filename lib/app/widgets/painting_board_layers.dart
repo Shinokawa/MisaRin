@@ -121,8 +121,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
   }
 
   Widget _buildLayerPanelContent(FluentThemeData theme) {
-    final List<CanvasLayerData> orderedLayers =
-        _layers.reversed.toList(growable: false);
+    final List<CanvasLayerData> orderedLayers = _layers.reversed.toList(
+      growable: false,
+    );
     final String? activeLayerId = _activeLayerId;
     return Column(
       mainAxisSize: MainAxisSize.max,
@@ -132,9 +133,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
             controller: _layerScrollController,
             child: Localizations.override(
               context: context,
-              delegates: const [
-                GlobalMaterialLocalizations.delegate,
-              ],
+              delegates: const [GlobalMaterialLocalizations.delegate],
               child: material.ReorderableListView.builder(
                 scrollController: _layerScrollController,
                 padding: EdgeInsets.zero,
@@ -144,112 +143,103 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                 itemCount: orderedLayers.length,
                 onReorder: _handleLayerReorder,
                 itemBuilder: (context, index) {
-                final CanvasLayerData layer = orderedLayers[index];
-                final bool isActive = layer.id == activeLayerId;
-                final double contentOpacity = layer.visible ? 1.0 : 0.45;
-                final Color background = isActive
-                    ? theme.resources.subtleFillColorSecondary
-                    : theme.resources.subtleFillColorTransparent;
-                final Color borderColor =
-                    theme.resources.controlStrokeColorSecondary;
-                final Color tileBorder =
-                    Color.lerp(borderColor, Colors.transparent, 0.6)!;
+                  final CanvasLayerData layer = orderedLayers[index];
+                  final bool isActive = layer.id == activeLayerId;
+                  final double contentOpacity = layer.visible ? 1.0 : 0.45;
+                  final Color background = isActive
+                      ? theme.resources.subtleFillColorSecondary
+                      : theme.resources.subtleFillColorTransparent;
+                  final Color borderColor =
+                      theme.resources.controlStrokeColorSecondary;
+                  final Color tileBorder = Color.lerp(
+                    borderColor,
+                    Colors.transparent,
+                    0.6,
+                  )!;
 
-                final Widget visibilityButton = LayerVisibilityButton(
-                  visible: layer.visible,
-                  onChanged: (value) =>
-                      _handleLayerVisibilityChanged(layer.id, value),
-                );
+                  final Widget visibilityButton = LayerVisibilityButton(
+                    visible: layer.visible,
+                    onChanged: (value) =>
+                        _handleLayerVisibilityChanged(layer.id, value),
+                  );
 
-                final Color? fillColor = layer.fillColor;
-                final Widget? fillSwatch = fillColor != null
-                    ? Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: fillColor,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: theme.resources.controlStrokeColorDefault,
+                  final Color? fillColor = layer.fillColor;
+                  final Widget? fillSwatch = fillColor != null
+                      ? Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: fillColor,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: theme.resources.controlStrokeColorDefault,
+                            ),
                           ),
-                        ),
-                      )
-                    : null;
+                        )
+                      : null;
 
-                final Widget editFillButton = IconButton(
-                  icon: const Icon(FluentIcons.color, size: 16),
-                  onPressed: () => _handleEditLayerFill(layer.id),
-                );
+                  final Widget editFillButton = IconButton(
+                    icon: const Icon(FluentIcons.color, size: 16),
+                    onPressed: () => _handleEditLayerFill(layer.id),
+                  );
 
-                return material.ReorderableDragStartListener(
-                  key: ValueKey(layer.id),
-                  index: index,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index == orderedLayers.length - 1 ? 0 : 8,
-                    ),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => _handleLayerSelected(layer.id),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: background,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: tileBorder),
-                        ),
-                        child: Row(
-                          children: [
-                            visibilityButton,
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Opacity(
-                                opacity: contentOpacity,
-                                child: Row(
-                                  children: [
-                                    if (fillSwatch != null) ...[
-                                      fillSwatch,
-                                      const SizedBox(width: 8),
-                                    ],
-                                    Expanded(
-                                      child: Text(
-                                        layer.name,
-                                        style: isActive
-                                            ? theme.typography.bodyStrong
-                                            : theme.typography.body,
-                                        overflow: TextOverflow.ellipsis,
+                  return material.ReorderableDragStartListener(
+                    key: ValueKey(layer.id),
+                    index: index,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: index == orderedLayers.length - 1 ? 0 : 8,
+                      ),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _handleLayerSelected(layer.id),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: background,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: tileBorder),
+                          ),
+                          child: Row(
+                            children: [
+                              visibilityButton,
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Opacity(
+                                  opacity: contentOpacity,
+                                  child: Row(
+                                    children: [
+                                      if (fillSwatch != null) ...[
+                                        fillSwatch,
+                                        const SizedBox(width: 8),
+                                      ],
+                                      Expanded(
+                                        child: Text(
+                                          layer.name,
+                                          style: isActive
+                                              ? theme.typography.bodyStrong
+                                              : theme.typography.body,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            editFillButton,
-                          ],
+                              editFillButton,
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        FilledButton(
-          onPressed: _handleAddLayer,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Icon(FluentIcons.add),
-              SizedBox(width: 8),
-              Text('新增图层'),
-            ],
           ),
         ),
       ],
