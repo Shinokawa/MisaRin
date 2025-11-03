@@ -25,8 +25,11 @@ part 'painting_board_widgets.dart';
 const double _toolButtonPadding = 16;
 const double _toolbarButtonSize = 48;
 const double _toolbarSpacing = 9;
+const double _toolSettingsSpacing = 12;
+const double _toolSettingsCardWidth = 240;
+const double _toolSettingsCardHeight = 132;
 const double _zoomStep = 1.1;
-const double _strokeWidth = 3;
+const double _defaultPenStrokeWidth = 3;
 const double _sidePanelWidth = 240;
 const double _sidePanelSpacing = 12;
 const double _colorIndicatorSize = 56;
@@ -64,6 +67,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isScalingGesture = false;
   double _scaleGestureInitialScale = 1.0;
   int _currentStrokeVersion = 0;
+  double _penStrokeWidth = _defaultPenStrokeWidth;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -128,6 +132,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _handleUndo();
   void _handleRedo();
+
+  void _updatePenStrokeWidth(double value);
 
   void _handleAddLayer();
   void _handleRemoveLayer(String id);

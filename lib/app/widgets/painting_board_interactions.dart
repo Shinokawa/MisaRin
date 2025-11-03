@@ -22,6 +22,13 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _toolbarButtonSize * 6 + _toolbarSpacing * 5,
       );
 
+  Rect get _toolSettingsRect => Rect.fromLTWH(
+        _toolButtonPadding + _toolbarButtonSize + _toolSettingsSpacing,
+        _toolButtonPadding,
+        _toolSettingsCardWidth,
+        _toolSettingsCardHeight,
+      );
+
   Rect get _colorIndicatorRect {
     final double top =
         (_workspaceSize.height - _toolButtonPadding - _colorIndicatorSize)
@@ -50,6 +57,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
 
   bool _isInsideToolArea(Offset workspacePosition) {
     return _toolbarRect.contains(workspacePosition) ||
+        _toolSettingsRect.contains(workspacePosition) ||
         _rightSidebarRect.contains(workspacePosition) ||
         _colorIndicatorRect.contains(workspacePosition);
   }
@@ -61,13 +69,21 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     setState(() => _activeTool = tool);
   }
 
+  void _updatePenStrokeWidth(double value) {
+    final double clamped = value.clamp(1.0, 60.0);
+    if ((_penStrokeWidth - clamped).abs() < 0.01) {
+      return;
+    }
+    setState(() => _penStrokeWidth = clamped);
+  }
+
   void _startStroke(Offset position) {
     setState(() {
       _isDrawing = true;
       _store.startStroke(
         position,
         color: _primaryColor,
-        width: _strokeWidth,
+        width: _penStrokeWidth,
       );
       _bumpCurrentStrokeVersion();
     });

@@ -141,6 +141,17 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             ),
                           ),
                           Positioned(
+                            left: _toolButtonPadding +
+                                _toolbarButtonSize +
+                                _toolSettingsSpacing,
+                            top: _toolButtonPadding,
+                            child: _ToolSettingsCard(
+                              activeTool: _activeTool,
+                              penStrokeWidth: _penStrokeWidth,
+                              onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                            ),
+                          ),
+                          Positioned(
                             left: _toolButtonPadding,
                             bottom: _toolButtonPadding,
                             child: _buildColorIndicator(theme),
