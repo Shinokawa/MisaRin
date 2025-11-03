@@ -77,7 +77,8 @@ class BitmapSurface {
       drawCircle(center: a, radius: radius, color: color);
       return;
     }
-    final int steps = math.max(1, (distance / (radius.clamp(0.5, radius))).ceil());
+    final double spacing = math.max(0.5, radius * 0.25);
+    final int steps = math.max(1, (distance / spacing).ceil());
     final double stepX = (b.dx - a.dx) / steps;
     final double stepY = (b.dy - a.dy) / steps;
     Offset current = a;
