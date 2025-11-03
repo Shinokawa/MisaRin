@@ -81,37 +81,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     _markDirty();
   }
 
-  Future<void> _handleEditLayerFill(String id) async {
-    final CanvasLayerData? layer = _layerById(id);
-    if (layer == null) {
-      return;
-    }
-    await _pickColor(
-      title: '调整图层填充',
-      initialColor: layer.fillColor ?? _primaryColor,
-      onSelected: (color) {
-        if (_store.setLayerFillColor(id, color)) {
-          _syncStrokeCache();
-          setState(() {
-            _bumpCurrentStrokeVersion();
-          });
-          _markDirty();
-        }
-      },
-      onCleared: layer.fillColor == null
-          ? null
-          : () {
-              if (_store.clearLayerFillColor(id)) {
-                _syncStrokeCache();
-                setState(() {
-                  _bumpCurrentStrokeVersion();
-                });
-                _markDirty();
-              }
-            },
-    );
-  }
-
   void _handleLayerReorder(int oldIndex, int newIndex) {
     final int length = _layers.length;
     if (length <= 1) {
@@ -144,25 +113,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
       mainAxisSize: MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(FluentIcons.undo),
-                onPressed: _store.canUndo ? _handleUndo : null,
-              ),
-              IconButton(
-                icon: const Icon(FluentIcons.redo),
-                onPressed: _store.canRedo ? _handleRedo : null,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
         Expanded(
           child: Scrollbar(
             controller: _layerScrollController,
@@ -196,26 +146,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                     visible: layer.visible,
                     onChanged: (value) =>
                         _handleLayerVisibilityChanged(layer.id, value),
-                  );
-
-                  final Color? fillColor = layer.fillColor;
-                  final Widget? fillSwatch = fillColor != null
-                      ? Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: fillColor,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: theme.resources.controlStrokeColorDefault,
-                            ),
-                          ),
-                        )
-                      : null;
-
-                  final Widget editFillButton = IconButton(
-                    icon: const Icon(FluentIcons.color, size: 16),
-                    onPressed: () => _handleEditLayerFill(layer.id),
                   );
 
                   final bool canDelete = _layers.length > 1;
@@ -256,10 +186,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                   opacity: contentOpacity,
                                   child: Row(
                                     children: [
-                                      if (fillSwatch != null) ...[
-                                        fillSwatch,
-                                        const SizedBox(width: 8),
-                                      ],
                                       Expanded(
                                         child: Text(
                                           layer.name,
@@ -273,8 +199,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                   ),
                                 ),
                               ),
-                              editFillButton,
-                              const SizedBox(width: 4),
                               deleteButton,
                             ],
                           ),
