@@ -66,6 +66,21 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     _markDirty();
   }
 
+  void _handleRemoveLayer(String id) {
+    if (_layers.length <= 1) {
+      return;
+    }
+    final bool removed = _store.removeLayer(id);
+    if (!removed) {
+      return;
+    }
+    _syncStrokeCache();
+    setState(() {
+      _bumpCurrentStrokeVersion();
+    });
+    _markDirty();
+  }
+
   Future<void> _handleEditLayerFill(String id) async {
     final CanvasLayerData? layer = _layerById(id);
     if (layer == null) {
@@ -127,7 +142,27 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     final String? activeLayerId = _activeLayerId;
     return Column(
       mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(FluentIcons.undo),
+                onPressed: _store.canUndo ? _handleUndo : null,
+              ),
+              IconButton(
+                icon: const Icon(FluentIcons.redo),
+                onPressed: _store.canRedo ? _handleRedo : null,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         Expanded(
           child: Scrollbar(
             controller: _layerScrollController,
@@ -183,6 +218,14 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                     onPressed: () => _handleEditLayerFill(layer.id),
                   );
 
+                  final bool canDelete = _layers.length > 1;
+                  final Widget deleteButton = IconButton(
+                    icon: const Icon(FluentIcons.delete),
+                    onPressed: canDelete
+                        ? () => _handleRemoveLayer(layer.id)
+                        : null,
+                  );
+
                   return material.ReorderableDragStartListener(
                     key: ValueKey(layer.id),
                     index: index,
@@ -231,6 +274,8 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                 ),
                               ),
                               editFillButton,
+                              const SizedBox(width: 4),
+                              deleteButton,
                             ],
                           ),
                         ),

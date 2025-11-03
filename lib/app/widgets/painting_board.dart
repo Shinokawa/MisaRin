@@ -130,6 +130,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _handleRedo();
 
   void _handleAddLayer();
+  void _handleRemoveLayer(String id);
 
   Widget _buildLayerPanelContent(FluentThemeData theme);
   Widget _buildColorPanelContent(FluentThemeData theme);
