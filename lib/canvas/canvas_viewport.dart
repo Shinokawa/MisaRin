@@ -6,6 +6,7 @@ class CanvasViewport {
       _offset = offset;
 
   static const double minScale = 0.01;
+  static const double maxScale = 512.0;
 
   double _scale;
   Offset _offset;
@@ -14,10 +15,19 @@ class CanvasViewport {
   Offset get offset => _offset;
 
   double clampScale(double value) {
-    if (value.isNaN || value.isInfinite) {
-      return value.isInfinite && value.isNegative ? minScale : _scale;
+    if (value.isNaN) {
+      return _scale;
     }
-    return value < minScale ? minScale : value;
+    if (value.isInfinite) {
+      return value.isNegative ? minScale : maxScale;
+    }
+    if (value < minScale) {
+      return minScale;
+    }
+    if (value > maxScale) {
+      return maxScale;
+    }
+    return value;
   }
 
   void translate(Offset delta) {
