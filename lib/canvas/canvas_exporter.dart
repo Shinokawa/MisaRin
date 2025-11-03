@@ -143,6 +143,12 @@ class CanvasExporter {
           'stroke-linejoin="round"/>',
         );
       }
+      for (final CanvasFillRegion region in layer.fills) {
+        if (region.spans.isEmpty || region.color.alpha == 0) {
+          continue;
+        }
+        _writeFillRegionSvg(buffer, region);
+      }
     }
 
     buffer.writeln('</svg>');
@@ -176,4 +182,131 @@ class CanvasExporter {
     }
     return trimmed.isEmpty ? '0' : trimmed;
   }
+
+  void _writeFillRegionSvg(StringBuffer buffer, CanvasFillRegion region) {
+    final List<_SvgFillRect> rects = _collapseFillRegion(region);
+    if (rects.isEmpty) {
+      return;
+    }
+    final String fill = _colorToSvg(region.color);
+    for (final _SvgFillRect rect in rects) {
+      buffer.writeln(
+        '<rect x="${_formatDouble(rect.x)}" y="${_formatDouble(rect.y)}" '
+        'width="${_formatDouble(rect.width)}" height="${_formatDouble(rect.height)}" '
+        'fill="$fill"/>',
+      );
+    }
+  }
+
+  List<_SvgFillRect> _collapseFillRegion(CanvasFillRegion region) {
+    if (region.spans.isEmpty) {
+      return const <_SvgFillRect>[];
+    }
+    final Map<int, List<CanvasFillSpan>> rows = <int, List<CanvasFillSpan>>{};
+    for (final CanvasFillSpan span in region.spans) {
+      rows.putIfAbsent(span.dy, () => <CanvasFillSpan>[]).add(span);
+    }
+    final List<int> sortedRows = rows.keys.toList()..sort();
+    final Map<_SpanKey, _RectRun> active = <_SpanKey, _RectRun>{};
+    final List<_RectRun> completed = <_RectRun>[];
+    int? previousDy;
+    for (final int dy in sortedRows) {
+      if (previousDy != null && dy > previousDy + 1) {
+        completed.addAll(active.values);
+        active.clear();
+      }
+      final List<CanvasFillSpan> rowSpans = rows[dy]!
+        ..sort((CanvasFillSpan a, CanvasFillSpan b) => a.start.compareTo(b.start));
+      final Set<_SpanKey> currentKeys = rowSpans
+          .map((CanvasFillSpan span) => _SpanKey(span.start, span.end))
+          .toSet();
+
+      final List<_SpanKey> toRemove = <_SpanKey>[];
+      active.forEach((_SpanKey key, _RectRun run) {
+        if (!currentKeys.contains(key)) {
+          completed.add(run);
+          toRemove.add(key);
+        }
+      });
+      for (final _SpanKey key in toRemove) {
+        active.remove(key);
+      }
+
+      for (final CanvasFillSpan span in rowSpans) {
+        final _SpanKey key = _SpanKey(span.start, span.end);
+        final _RectRun? run = active[key];
+        if (run != null) {
+          run.lastDy = dy;
+        } else {
+          active[key] = _RectRun(
+            start: span.start,
+            end: span.end,
+            originDy: dy,
+            lastDy: dy,
+          );
+        }
+      }
+
+      previousDy = dy;
+    }
+
+    completed.addAll(active.values);
+
+    return completed
+        .map(
+          (_RectRun run) => _SvgFillRect(
+            x: region.origin.dx + run.start,
+            y: region.origin.dy + run.originDy,
+            width: (run.end - run.start + 1).toDouble(),
+            height: (run.lastDy - run.originDy + 1).toDouble(),
+          ),
+        )
+        .toList(growable: false);
+  }
+}
+
+class _SpanKey {
+  const _SpanKey(this.start, this.end);
+
+  final int start;
+  final int end;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    return other is _SpanKey && other.start == start && other.end == end;
+  }
+
+  @override
+  int get hashCode => Object.hash(start, end);
+}
+
+class _RectRun {
+  _RectRun({
+    required this.start,
+    required this.end,
+    required this.originDy,
+    required this.lastDy,
+  });
+
+  final int start;
+  final int end;
+  final int originDy;
+  int lastDy;
+}
+
+class _SvgFillRect {
+  const _SvgFillRect({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
 }

@@ -274,13 +274,13 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
         Widget buildHueSlider(double height) {
           const List<Color> hueColors = [
-            Color(0xFFFF0000),
-            Color(0xFFFF00FF),
-            Color(0xFF0000FF),
-            Color(0xFF00FFFF),
-            Color(0xFF00FF00),
-            Color(0xFFFFFF00),
-            Color(0xFFFF0000),
+            Color(0xFFFF0000), // 0° Red
+            Color(0xFFFFFF00), // 60° Yellow
+            Color(0xFF00FF00), // 120° Green
+            Color(0xFF00FFFF), // 180° Cyan
+            Color(0xFF0000FF), // 240° Blue
+            Color(0xFFFF00FF), // 300° Magenta
+            Color(0xFFFF0000), // 360° Red
           ];
           final double handleY =
               (hsv.hue.clamp(0.0, 360.0) / 360.0) * height;
