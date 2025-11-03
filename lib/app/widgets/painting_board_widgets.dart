@@ -176,14 +176,17 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           const SizedBox(width: 12),
           SizedBox(
             width: 64,
-            child: TextBox(
-              focusNode: _focusNode,
-              controller: _controller,
-              inputFormatters: _digitInputFormatters,
-              keyboardType:
-                  const TextInputType.numberWithOptions(signed: false),
-              onChanged: _handleTextChanged,
-              textAlign: TextAlign.center,
+            child: SizedBox(
+              height: 32,
+              child: TextBox(
+                focusNode: _focusNode,
+                controller: _controller,
+                inputFormatters: _digitInputFormatters,
+                keyboardType:
+                    const TextInputType.numberWithOptions(signed: false),
+                onChanged: _handleTextChanged,
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -215,9 +218,15 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
                 : Colors.black.withOpacity(0.08),
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: content,
+        child: SizedBox(
+          height: _toolSettingsCardHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: content,
+            ),
+          ),
         ),
       ),
     );
