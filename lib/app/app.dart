@@ -39,7 +39,7 @@ class _MisarinAppState extends State<MisarinApp> {
       onThemeModeChanged: _handleThemeModeChanged,
       child: FluentApp(
         debugShowCheckedModeBanner: false,
-        title: 'misa rin',
+        title: 'Misa Rin',
         theme: FluentThemeData(
           brightness: Brightness.light,
           accentColor: Colors.black.toAccentColor(),

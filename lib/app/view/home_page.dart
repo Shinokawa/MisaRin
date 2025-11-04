@@ -175,7 +175,7 @@ class MisarinHomePage extends StatelessWidget {
               context,
               icon: FluentIcons.info,
               label: '关于',
-              description: '了解项目 misa rin',
+              description: '了解项目 Misa Rin',
               onPressed: () => _handleOpenAbout(context),
             ),
           ],
