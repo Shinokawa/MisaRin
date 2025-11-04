@@ -49,6 +49,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
   rename: ^2.1.1
+  flutter_launcher_icons: ^0.13.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -91,3 +92,24 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path_android: "icons/icons-winLinuxAndroidWeb.png"
+  image_path_ios: "icons/icons-macIos.png"
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "icons/icons-winLinuxAndroidWeb.png"
+    background_color: "#ffffff"
+    theme_color: "#0175C2"
+  windows:
+    generate: true
+    image_path: "icons/icons-winLinuxAndroidWeb.png"
+  macos:
+    generate: true
+    image_path: "icons/icons-macIos.png"
+  linux:
+    generate: true
+    image_path: "icons/icons-winLinuxAndroidWeb.png"
