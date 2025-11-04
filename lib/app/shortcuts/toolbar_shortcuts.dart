@@ -1,7 +1,17 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-enum ToolbarAction { exit, penTool, bucketTool, handTool, undo, redo }
+enum ToolbarAction {
+  exit,
+  penTool,
+  bucketTool,
+  magicWandTool,
+  selectionTool,
+  handTool,
+  undo,
+  redo,
+  deselect,
+}
 
 class ShortcutInfo {
   const ShortcutInfo({
@@ -38,6 +48,14 @@ class ToolbarShortcuts {
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyB)],
       primaryLabel: 'B',
     ),
+    ToolbarAction.magicWandTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyW)],
+      primaryLabel: 'W',
+    ),
+    ToolbarAction.selectionTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyM)],
+      primaryLabel: 'M',
+    ),
     ToolbarAction.handTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyH)],
       primaryLabel: 'H',
@@ -65,6 +83,14 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+Shift+Z',
       macLabel: 'Command+Shift+Z',
+    ),
+    ToolbarAction.deselect: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyD),
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyD),
+      ],
+      primaryLabel: 'Ctrl+D',
+      macLabel: 'Command+D',
     ),
   };
 

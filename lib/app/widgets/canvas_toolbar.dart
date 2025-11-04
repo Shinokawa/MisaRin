@@ -6,7 +6,9 @@ import '../shortcuts/toolbar_shortcuts.dart';
 import 'exit_tool_button.dart';
 import 'hand_tool_button.dart';
 import 'bucket_tool_button.dart';
+import 'magic_wand_tool_button.dart';
 import 'pen_tool_button.dart';
+import 'selection_tool_button.dart';
 import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
 
@@ -29,6 +31,8 @@ class CanvasToolbar extends StatelessWidget {
   final bool canUndo;
   final bool canRedo;
   final VoidCallback onExit;
+
+  static const int buttonCount = 8;
 
   static const TooltipThemeData _rightTooltipStyle = TooltipThemeData(
     preferBelow: false,
@@ -77,6 +81,28 @@ class CanvasToolbar extends StatelessWidget {
           child: BucketToolButton(
             isSelected: activeTool == CanvasTool.bucket,
             onPressed: () => onToolSelected(CanvasTool.bucket),
+          ),
+        ),
+        const SizedBox(height: 9),
+        Tooltip(
+          message: _tooltipMessage('魔棒工具', ToolbarAction.magicWandTool),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: MagicWandToolButton(
+            isSelected: activeTool == CanvasTool.magicWand,
+            onPressed: () => onToolSelected(CanvasTool.magicWand),
+          ),
+        ),
+        const SizedBox(height: 9),
+        Tooltip(
+          message: _tooltipMessage('选区工具', ToolbarAction.selectionTool),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: SelectionToolButton(
+            isSelected: activeTool == CanvasTool.selection,
+            onPressed: () => onToolSelected(CanvasTool.selection),
           ),
         ),
         const SizedBox(height: 9),

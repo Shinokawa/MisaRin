@@ -58,6 +58,9 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   Future<void> _applyPaintBucket(Offset position) async {
+    if (!isPointInsideSelection(position)) {
+      return;
+    }
     _pushUndoSnapshot();
     _controller.floodFill(
       position,

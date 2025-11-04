@@ -44,6 +44,7 @@ class BitmapSurface {
     required Offset center,
     required double radius,
     required Color color,
+    Uint8List? mask,
   }) {
     if (radius <= 0) {
       return;
@@ -59,7 +60,9 @@ class BitmapSurface {
       for (int x = minX; x <= maxX; x++) {
         final double dx = x + 0.5 - center.dx;
         if (dx * dx + dy * dy <= radiusSq) {
-          blendPixel(x, y, color);
+          if (mask == null || mask[y * width + x] != 0) {
+            blendPixel(x, y, color);
+          }
         }
       }
     }
@@ -71,6 +74,7 @@ class BitmapSurface {
     required Offset b,
     required double radius,
     required Color color,
+    Uint8List? mask,
   }) {
     final double distance = (b - a).distance;
     if (distance == 0) {
@@ -83,7 +87,7 @@ class BitmapSurface {
     final double stepY = (b.dy - a.dy) / steps;
     Offset current = a;
     for (int i = 0; i <= steps; i++) {
-      drawCircle(center: current, radius: radius, color: color);
+      drawCircle(center: current, radius: radius, color: color, mask: mask);
       current = current.translate(stepX, stepY);
     }
   }
@@ -93,6 +97,7 @@ class BitmapSurface {
     required List<Offset> points,
     required double radius,
     required Color color,
+    Uint8List? mask,
   }) {
     if (points.isEmpty) {
       return;
@@ -102,7 +107,13 @@ class BitmapSurface {
       return;
     }
     for (int i = 0; i < points.length - 1; i++) {
-      drawLine(a: points[i], b: points[i + 1], radius: radius, color: color);
+      drawLine(
+        a: points[i],
+        b: points[i + 1],
+        radius: radius,
+        color: color,
+        mask: mask,
+      );
     }
   }
 
@@ -116,10 +127,14 @@ class BitmapSurface {
     required Color color,
     Color? targetColor,
     bool contiguous = true,
+    Uint8List? mask,
   }) {
     final int sx = start.dx.floor();
     final int sy = start.dy.floor();
     if (!_inBounds(sx, sy)) {
+      return;
+    }
+    if (mask != null && mask[sy * width + sx] == 0) {
       return;
     }
     final int replacement = encodeColor(color);
@@ -132,7 +147,7 @@ class BitmapSurface {
 
     if (!contiguous) {
       for (int i = 0; i < pixels.length; i++) {
-        if (pixels[i] == baseColor) {
+        if (pixels[i] == baseColor && (mask == null || mask[i] != 0)) {
           pixels[i] = replacement;
         }
       }
@@ -150,6 +165,9 @@ class BitmapSurface {
       }
       final int index = y * width + x;
       if (pixels[index] != baseColor) {
+        continue;
+      }
+      if (mask != null && mask[index] == 0) {
         continue;
       }
       pixels[index] = replacement;

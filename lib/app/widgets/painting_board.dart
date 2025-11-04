@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -12,7 +14,9 @@ import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInputFormatter, TextInputType,
         TextEditingValue, TextSelection;
 import 'package:flutter/rendering.dart' show RenderBox;
-import 'package:flutter/widgets.dart' show FocusNode, TextEditingController, WidgetsBinding;
+import 'package:flutter/scheduler.dart' show SingleTickerProviderStateMixin, TickerProvider;
+import 'package:flutter/widgets.dart'
+    show FocusNode, TextEditingController, WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 
@@ -29,6 +33,7 @@ import 'layer_visibility_button.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
+part 'painting_board_selection.dart';
 part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
 part 'painting_board_widgets.dart';
@@ -173,6 +178,12 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool get isDirty => _isDirty;
   bool get canUndo => _undoStack.isNotEmpty;
   bool get canRedo => _redoStack.isNotEmpty;
+  SelectionShape get selectionShape;
+  Path? get selectionPath;
+  Path? get selectionPreviewPath;
+  Path? get magicWandPreviewPath;
+  double get selectionDashPhase;
+  bool isPointInsideSelection(Offset position);
 
   UnmodifiableListView<BitmapLayerState> get _layers => _controller.layers;
   String? get _activeLayerId => _controller.activeLayerId;
@@ -191,11 +202,28 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Future<void> _applyPaintBucket(Offset position);
 
   void _setActiveTool(CanvasTool tool);
+  void _convertMagicWandPreviewToSelection();
+  void _clearMagicWandPreview();
+  void _resetSelectionPreview();
+  void _resetPolygonState();
+  void _handleMagicWandPointerDown(Offset position);
+  void _handleSelectionPointerDown(Offset position, Duration timestamp);
+  void _handleSelectionPointerMove(Offset position);
+  void _handleSelectionPointerUp();
+  void _handleSelectionPointerCancel();
+  void _handleSelectionHover(Offset position);
+  void _clearSelectionHover();
+  void _clearSelection();
+  void _updateSelectionShape(SelectionShape shape);
+  void initializeSelectionTicker(TickerProvider provider);
+  void disposeSelectionTicker();
+  void _updateSelectionAnimation();
 
   void _handlePointerDown(PointerDownEvent event);
   void _handlePointerMove(PointerMoveEvent event);
   void _handlePointerUp(PointerUpEvent event);
   void _handlePointerCancel(PointerCancelEvent event);
+  void _handlePointerHover(PointerHoverEvent event);
   void _handlePointerSignal(PointerSignalEvent event);
 
   void _handleScaleStart(ScaleStartDetails details);
@@ -347,13 +375,16 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
 class PaintingBoardState extends _PaintingBoardBase
     with
+        SingleTickerProviderStateMixin,
         _PaintingBoardLayerMixin,
         _PaintingBoardColorMixin,
+        _PaintingBoardSelectionMixin,
         _PaintingBoardInteractionMixin,
         _PaintingBoardBuildMixin {
   @override
   void initState() {
     super.initState();
+    initializeSelectionTicker(this);
     final AppPreferences prefs = AppPreferences.instance;
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
@@ -373,6 +404,7 @@ class PaintingBoardState extends _PaintingBoardBase
 
   @override
   void dispose() {
+    disposeSelectionTicker();
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
     _layerScrollController.dispose();

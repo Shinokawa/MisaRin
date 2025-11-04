@@ -18,6 +18,10 @@ class ExitBoardIntent extends Intent {
   const ExitBoardIntent();
 }
 
+class DeselectIntent extends Intent {
+  const DeselectIntent();
+}
+
 class _CheckboardBackground extends StatelessWidget {
   const _CheckboardBackground({
     this.cellSize = 16.0,
@@ -162,6 +166,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.bucketContiguous,
     required this.onBucketSampleAllLayersChanged,
     required this.onBucketContiguousChanged,
+    required this.selectionShape,
+    required this.onSelectionShapeChanged,
   });
 
   final CanvasTool activeTool;
@@ -171,6 +177,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final bool bucketContiguous;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
   final ValueChanged<bool> onBucketContiguousChanged;
+  final SelectionShape selectionShape;
+  final ValueChanged<SelectionShape> onSelectionShapeChanged;
 
   static const double _minPenStrokeWidth = 1;
   static const double _maxPenStrokeWidth = 60;
@@ -288,6 +296,46 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               onChanged: widget.onBucketContiguousChanged,
             ),
           ),
+        ],
+      );
+    } else if (widget.activeTool == CanvasTool.selection) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text('选区形状', style: theme.typography.bodyStrong),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ComboBox<SelectionShape>(
+                  value: widget.selectionShape,
+                  items: SelectionShape.values
+                      .map(
+                        (shape) => ComboBoxItem<SelectionShape>(
+                          value: shape,
+                          child: Text(_selectionShapeLabel(shape)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      widget.onSelectionShapeChanged(value);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          if (widget.selectionShape == SelectionShape.polygon)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '提示：单击添加节点，双击或点击起点闭合选区',
+                style: theme.typography.caption,
+              ),
+            ),
         ],
       );
     } else {
@@ -409,5 +457,16 @@ class _BucketOptionTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+String _selectionShapeLabel(SelectionShape shape) {
+  switch (shape) {
+    case SelectionShape.rectangle:
+      return '矩形选区';
+    case SelectionShape.ellipse:
+      return '圆形选区';
+    case SelectionShape.polygon:
+      return '多边形套索';
   }
 }

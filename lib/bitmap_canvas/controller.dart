@@ -59,6 +59,7 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _compositeInitialized = false;
   Uint32List? _compositePixels;
   Uint8List? _compositeRgba;
+  Uint8List? _selectionMask;
 
   UnmodifiableListView<BitmapLayerState> get layers =>
       UnmodifiableListView<BitmapLayerState>(_layers);
@@ -68,6 +69,9 @@ class BitmapCanvasController extends ChangeNotifier {
 
   ui.Image? get image => _cachedImage;
   Color get backgroundColor => _backgroundColor;
+  int get width => _width;
+  int get height => _height;
+  Uint8List? get selectionMask => _selectionMask;
 
   bool get hasVisibleContent {
     for (int i = 0; i < _layers.length; i++) {
@@ -80,6 +84,13 @@ class BitmapCanvasController extends ChangeNotifier {
       }
     }
     return false;
+  }
+
+  void setSelectionMask(Uint8List? mask) {
+    if (mask != null && mask.length != _width * _height) {
+      throw ArgumentError('Selection mask size mismatch');
+    }
+    _selectionMask = mask;
   }
 
   Future<void> disposeController() async {
@@ -187,6 +198,9 @@ class BitmapCanvasController extends ChangeNotifier {
     required Color color,
     required double radius,
   }) {
+    if (_selectionMask != null && !_selectionAllows(position)) {
+      return;
+    }
     _currentStrokePoints
       ..clear()
       ..add(position);
@@ -206,6 +220,7 @@ class BitmapCanvasController extends ChangeNotifier {
       b: position,
       radius: _currentStrokeRadius,
       color: _currentStrokeColor,
+      mask: _selectionMask,
     );
     _markDirty(region: _dirtyRectForLine(last, position, _currentStrokeRadius));
   }
@@ -213,6 +228,30 @@ class BitmapCanvasController extends ChangeNotifier {
   void endStroke() {
     _currentStrokePoints.clear();
     _currentStrokeRadius = 0;
+  }
+
+  bool _selectionAllows(Offset position) {
+    final Uint8List? mask = _selectionMask;
+    if (mask == null) {
+      return true;
+    }
+    final int x = position.dx.floor();
+    final int y = position.dy.floor();
+    if (x < 0 || x >= _width || y < 0 || y >= _height) {
+      return false;
+    }
+    return mask[y * _width + x] != 0;
+  }
+
+  bool _selectionAllowsInt(int x, int y) {
+    final Uint8List? mask = _selectionMask;
+    if (mask == null) {
+      return true;
+    }
+    if (x < 0 || x >= _width || y < 0 || y >= _height) {
+      return false;
+    }
+    return mask[y * _width + x] != 0;
   }
 
   void floodFill(
@@ -224,6 +263,9 @@ class BitmapCanvasController extends ChangeNotifier {
     final int x = position.dx.floor();
     final int y = position.dy.floor();
     if (x < 0 || x >= _width || y < 0 || y >= _height) {
+      return;
+    }
+    if (!_selectionAllowsInt(x, y)) {
       return;
     }
     Color? baseColor;
@@ -238,8 +280,57 @@ class BitmapCanvasController extends ChangeNotifier {
       color: color,
       targetColor: baseColor,
       contiguous: contiguous,
+      mask: _selectionMask,
     );
     _markDirty();
+  }
+
+  Uint8List? computeMagicWandMask(
+    Offset position, {
+    bool sampleAllLayers = true,
+  }) {
+    final int x = position.dx.floor();
+    final int y = position.dy.floor();
+    if (x < 0 || x >= _width || y < 0 || y >= _height) {
+      return null;
+    }
+    final Uint8List mask = Uint8List(_width * _height);
+    if (sampleAllLayers) {
+      _updateComposite(
+        requiresFullSurface: true,
+        region: null,
+      );
+      final Uint32List? composite = _compositePixels;
+      if (composite == null || composite.isEmpty) {
+        return null;
+      }
+      final int target = composite[y * _width + x];
+      final bool filled = _floodFillMask(
+        pixels: composite,
+        targetColor: target,
+        mask: mask,
+        startX: x,
+        startY: y,
+      );
+      if (!filled) {
+        return null;
+      }
+      return mask;
+    }
+
+    final Uint32List pixels = _activeSurface.pixels;
+    final int target = pixels[y * _width + x];
+    final bool filled = _floodFillMask(
+      pixels: pixels,
+      targetColor: target,
+      mask: mask,
+      startX: x,
+      startY: y,
+    );
+    if (!filled) {
+      return null;
+    }
+    return mask;
   }
 
   List<CanvasLayerData> snapshotLayers() {
@@ -392,6 +483,7 @@ class BitmapCanvasController extends ChangeNotifier {
       center: position,
       radius: _currentStrokeRadius,
       color: _currentStrokeColor,
+      mask: _selectionMask,
     );
     _markDirty(region: _dirtyRectForCircle(position, _currentStrokeRadius));
   }
@@ -510,6 +602,9 @@ class BitmapCanvasController extends ChangeNotifier {
     Color color,
     bool contiguous,
   ) {
+    if (!_selectionAllowsInt(startX, startY)) {
+      return;
+    }
     _updateComposite(
       requiresFullSurface: true,
       region: null,
@@ -525,6 +620,7 @@ class BitmapCanvasController extends ChangeNotifier {
     final int target = compositePixels[index];
     final int replacement = BitmapSurface.encodeColor(color);
     final Uint32List surfacePixels = _activeSurface.pixels;
+    final Uint8List? mask = _selectionMask;
 
     if (!contiguous) {
       int minX = _width;
@@ -534,6 +630,9 @@ class BitmapCanvasController extends ChangeNotifier {
       bool changed = false;
       for (int i = 0; i < compositePixels.length; i++) {
         if (compositePixels[i] != target) {
+          continue;
+        }
+        if (mask != null && mask[i] == 0) {
           continue;
         }
         if (surfacePixels[i] == replacement) {
@@ -583,6 +682,9 @@ class BitmapCanvasController extends ChangeNotifier {
       if (compositePixels[current] != target) {
         continue;
       }
+      if (mask != null && mask[current] == 0) {
+        continue;
+      }
       if (surfacePixels[current] != replacement) {
         surfacePixels[current] = replacement;
         changed = true;
@@ -606,32 +708,40 @@ class BitmapCanvasController extends ChangeNotifier {
       if (cx > 0) {
         final int leftIndex = current - 1;
         if (visited[leftIndex] == 0 && compositePixels[leftIndex] == target) {
-          visited[leftIndex] = 1;
-          stack.add(leftIndex);
+          if (mask == null || mask[leftIndex] != 0) {
+            visited[leftIndex] = 1;
+            stack.add(leftIndex);
+          }
         }
       }
       // right
       if (cx < _width - 1) {
         final int rightIndex = current + 1;
         if (visited[rightIndex] == 0 && compositePixels[rightIndex] == target) {
-          visited[rightIndex] = 1;
-          stack.add(rightIndex);
+          if (mask == null || mask[rightIndex] != 0) {
+            visited[rightIndex] = 1;
+            stack.add(rightIndex);
+          }
         }
       }
       // up
       if (cy > 0) {
         final int upIndex = current - _width;
         if (visited[upIndex] == 0 && compositePixels[upIndex] == target) {
-          visited[upIndex] = 1;
-          stack.add(upIndex);
+          if (mask == null || mask[upIndex] != 0) {
+            visited[upIndex] = 1;
+            stack.add(upIndex);
+          }
         }
       }
       // down
       if (cy < _height - 1) {
         final int downIndex = current + _width;
         if (visited[downIndex] == 0 && compositePixels[downIndex] == target) {
-          visited[downIndex] = 1;
-          stack.add(downIndex);
+          if (mask == null || mask[downIndex] != 0) {
+            visited[downIndex] = 1;
+            stack.add(downIndex);
+          }
         }
       }
     }
@@ -680,6 +790,55 @@ class BitmapCanvasController extends ChangeNotifier {
   void _ensureCompositeBuffers() {
     _compositePixels ??= Uint32List(_width * _height);
     _compositeRgba ??= Uint8List(_width * _height * 4);
+  }
+
+  bool _floodFillMask({
+    required Uint32List pixels,
+    required int targetColor,
+    required Uint8List mask,
+    required int startX,
+    required int startY,
+  }) {
+    final int width = _width;
+    final int height = _height;
+    final Queue<int> queue = Queue<int>();
+    final int startIndex = startY * width + startX;
+    mask[startIndex] = 1;
+    queue.add(startIndex);
+    int processed = 0;
+
+    bool shouldInclude(int x, int y) {
+      if (x < 0 || x >= width || y < 0 || y >= height) {
+        return false;
+      }
+      final int index = y * width + x;
+      if (mask[index] != 0) {
+        return false;
+      }
+      return pixels[index] == targetColor;
+    }
+
+    void enqueue(int x, int y) {
+      if (!shouldInclude(x, y)) {
+        return;
+      }
+      final int index = y * width + x;
+      mask[index] = 1;
+      queue.add(index);
+    }
+
+    while (queue.isNotEmpty) {
+      final int index = queue.removeFirst();
+      processed += 1;
+      final int x = index % width;
+      final int y = index ~/ width;
+      enqueue(x + 1, y);
+      enqueue(x - 1, y);
+      enqueue(x, y + 1);
+      enqueue(x, y - 1);
+    }
+
+    return processed > 0;
   }
 
   _IntRect _clipRectToSurface(Rect rect) {

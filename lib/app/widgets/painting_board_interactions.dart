@@ -19,7 +19,8 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _toolButtonPadding,
         _toolButtonPadding,
         _toolbarButtonSize,
-        _toolbarButtonSize * 6 + _toolbarSpacing * 5,
+        _toolbarButtonSize * CanvasToolbar.buttonCount +
+            _toolbarSpacing * (CanvasToolbar.buttonCount - 1),
       );
 
   Rect get _toolSettingsRect => Rect.fromLTWH(
@@ -66,7 +67,20 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (_activeTool == tool) {
       return;
     }
-    setState(() => _activeTool = tool);
+    setState(() {
+      if (_activeTool == CanvasTool.magicWand) {
+        _convertMagicWandPreviewToSelection();
+      }
+      if (tool != CanvasTool.magicWand) {
+        _clearMagicWandPreview();
+      }
+      if (tool != CanvasTool.selection) {
+        _resetSelectionPreview();
+        _resetPolygonState();
+      }
+      _activeTool = tool;
+    });
+    _updateSelectionAnimation();
   }
 
   void _updatePenStrokeWidth(double value) {
@@ -165,14 +179,32 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       return;
     }
     final Offset boardLocal = _toBoardLocal(pointer);
-    if (_activeTool == CanvasTool.pen) {
-      _focusNode.requestFocus();
-      _startStroke(boardLocal);
-    } else if (_activeTool == CanvasTool.bucket) {
-      _focusNode.requestFocus();
-      unawaited(_applyPaintBucket(boardLocal));
-    } else {
-      _beginDragBoard();
+    switch (_activeTool) {
+      case CanvasTool.pen:
+        _focusNode.requestFocus();
+        if (!isPointInsideSelection(boardLocal)) {
+          return;
+        }
+        _startStroke(boardLocal);
+        break;
+      case CanvasTool.bucket:
+        _focusNode.requestFocus();
+        if (!isPointInsideSelection(boardLocal)) {
+          return;
+        }
+        unawaited(_applyPaintBucket(boardLocal));
+        break;
+      case CanvasTool.magicWand:
+        _focusNode.requestFocus();
+        _handleMagicWandPointerDown(boardLocal);
+        break;
+      case CanvasTool.selection:
+        _focusNode.requestFocus();
+        _handleSelectionPointerDown(boardLocal, event.timeStamp);
+        break;
+      case CanvasTool.hand:
+        _beginDragBoard();
+        break;
     }
   }
 
@@ -183,30 +215,81 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (_isScalingGesture) {
       return;
     }
-    if (_isDrawing && _activeTool == CanvasTool.pen) {
-      final Offset boardLocal = _toBoardLocal(event.localPosition);
-      _appendPoint(boardLocal);
-    } else if (_isDraggingBoard && _activeTool == CanvasTool.hand) {
-      _updateDragBoard(event.delta);
+    switch (_activeTool) {
+      case CanvasTool.pen:
+        if (_isDrawing) {
+          final Offset boardLocal = _toBoardLocal(event.localPosition);
+          _appendPoint(boardLocal);
+        }
+        break;
+      case CanvasTool.bucket:
+      case CanvasTool.magicWand:
+        break;
+      case CanvasTool.selection:
+        final Offset boardLocal = _toBoardLocal(event.localPosition);
+        _handleSelectionPointerMove(boardLocal);
+        break;
+      case CanvasTool.hand:
+        if (_isDraggingBoard) {
+          _updateDragBoard(event.delta);
+        }
+        break;
     }
   }
 
   void _handlePointerUp(PointerUpEvent event) {
-    if (_isDrawing && _activeTool == CanvasTool.pen) {
-      _finishStroke();
-    }
-    if (_isDraggingBoard && _activeTool == CanvasTool.hand) {
-      _finishDragBoard();
+    switch (_activeTool) {
+      case CanvasTool.pen:
+        if (_isDrawing) {
+          _finishStroke();
+        }
+        break;
+      case CanvasTool.bucket:
+      case CanvasTool.magicWand:
+        break;
+      case CanvasTool.selection:
+        _handleSelectionPointerUp();
+        break;
+      case CanvasTool.hand:
+        if (_isDraggingBoard) {
+          _finishDragBoard();
+        }
+        break;
     }
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
-    if (_isDrawing && _activeTool == CanvasTool.pen) {
-      _finishStroke();
+    switch (_activeTool) {
+      case CanvasTool.pen:
+        if (_isDrawing) {
+          _finishStroke();
+        }
+        break;
+      case CanvasTool.selection:
+        _handleSelectionPointerCancel();
+        break;
+      case CanvasTool.hand:
+        if (_isDraggingBoard) {
+          _finishDragBoard();
+        }
+        break;
+      case CanvasTool.bucket:
+      case CanvasTool.magicWand:
+        break;
     }
-    if (_isDraggingBoard && _activeTool == CanvasTool.hand) {
-      _finishDragBoard();
+  }
+
+  void _handlePointerHover(PointerHoverEvent event) {
+    if (_activeTool != CanvasTool.selection) {
+      return;
     }
+    final Rect boardRect = _boardRect;
+    if (!boardRect.contains(event.localPosition)) {
+      _clearSelectionHover();
+      return;
+    }
+    final Offset boardLocal = _toBoardLocal(event.localPosition);
+    _handleSelectionHover(boardLocal);
   }
 
   void _applyZoom(double targetScale, Offset workspaceFocalPoint) {

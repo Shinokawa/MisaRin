@@ -15,10 +15,18 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         key: const SelectToolIntent(CanvasTool.pen),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
+      for (final key
+          in ToolbarShortcuts.of(ToolbarAction.magicWandTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.magicWand),
+      for (final key
+          in ToolbarShortcuts.of(ToolbarAction.selectionTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.selection),
       for (final key in ToolbarShortcuts.of(ToolbarAction.handTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.hand),
       for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
         key: const ExitBoardIntent(),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.deselect).shortcuts)
+        key: const DeselectIntent(),
     };
 
     final theme = FluentTheme.of(context);
@@ -70,6 +78,12 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                   return null;
                 },
               ),
+              DeselectIntent: CallbackAction<DeselectIntent>(
+                onInvoke: (intent) {
+                  _clearSelection();
+                  return null;
+                },
+              ),
             },
             child: Focus(
               focusNode: _focusNode,
@@ -88,6 +102,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                     onPointerUp: _handlePointerUp,
                     onPointerCancel: _handlePointerCancel,
                     onPointerSignal: _handlePointerSignal,
+                    onPointerHover: _handlePointerHover,
                     child: Container(
                       color: workspaceColor,
                       child: Stack(
@@ -123,6 +138,12 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                           if (image == null) {
                                             return const SizedBox.shrink();
                                           }
+                                          final bool hasSelectionOverlay =
+                                              selectionPath != null ||
+                                                  selectionPreviewPath !=
+                                                      null ||
+                                                  magicWandPreviewPath !=
+                                                      null;
                                           return Stack(
                                             fit: StackFit.expand,
                                             children: [
@@ -131,6 +152,22 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                                 image: image,
                                                 filterQuality:
                                                     FilterQuality.none,
+                                              ),
+                                              if (hasSelectionOverlay)
+                                                Positioned.fill(
+                                                  child: CustomPaint(
+                                                    painter:
+                                                      _SelectionOverlayPainter(
+                                                    selectionPath:
+                                                        selectionPath,
+                                                    selectionPreviewPath:
+                                                        selectionPreviewPath,
+                                                    magicPreviewPath:
+                                                        magicWandPreviewPath,
+                                                    dashPhase:
+                                                        selectionDashPhase,
+                                                  ),
+                                                ),
                                               ),
                                             ],
                                           );
@@ -160,18 +197,20 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                 _toolbarButtonSize +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
-                            child: _ToolSettingsCard(
-                              activeTool: _activeTool,
-                              penStrokeWidth: _penStrokeWidth,
-                              onPenStrokeWidthChanged: _updatePenStrokeWidth,
-                              bucketSampleAllLayers: _bucketSampleAllLayers,
-                              bucketContiguous: _bucketContiguous,
-                              onBucketSampleAllLayersChanged:
-                                  _updateBucketSampleAllLayers,
-                              onBucketContiguousChanged:
-                                  _updateBucketContiguous,
-                            ),
+                          child: _ToolSettingsCard(
+                            activeTool: _activeTool,
+                            penStrokeWidth: _penStrokeWidth,
+                            onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                            bucketSampleAllLayers: _bucketSampleAllLayers,
+                            bucketContiguous: _bucketContiguous,
+                            onBucketSampleAllLayersChanged:
+                                _updateBucketSampleAllLayers,
+                            onBucketContiguousChanged:
+                                _updateBucketContiguous,
+                            selectionShape: selectionShape,
+                            onSelectionShapeChanged: _updateSelectionShape,
                           ),
+                        ),
                           Positioned(
                             left: _toolButtonPadding,
                             bottom: _toolButtonPadding,
