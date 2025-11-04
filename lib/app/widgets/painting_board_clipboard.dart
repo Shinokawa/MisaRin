@@ -22,6 +22,9 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
   }
 
   bool _copyActiveLayer({required bool clearAfter}) {
+    // 魔棒预览需要先固化为正式选区，否则复制/剪切会忽略选区。
+    _convertMagicWandPreviewToSelection();
+
     final String? activeLayerId = _activeLayerId;
     if (activeLayerId == null) {
       return false;
