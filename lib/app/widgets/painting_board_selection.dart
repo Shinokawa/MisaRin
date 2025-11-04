@@ -622,59 +622,17 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       return null;
     }
     final int height = mask.length ~/ width;
-    final Map<int, List<int>> adjacency = <int, List<int>>{};
+    final Map<int, Set<int>> adjacency = <int, Set<int>>{};
     final Set<int> edges = <int>{};
     bool hasCoverage = false;
 
-    void addEdge(int startX, int startY, int endX, int endY) {
-      final int startKey = _encodeVertex(startX, startY);
-      final int endKey = _encodeVertex(endX, endY);
-      (adjacency[startKey] ??= <int>[]).add(endKey);
-      edges.add(_encodeEdge(startKey, endKey));
-    }
-
-    void removeEdge(int startKey, int endKey) {
-      final List<int>? outs = adjacency[startKey];
-      if (outs != null) {
-        for (int i = 0; i < outs.length; i++) {
-          if (outs[i] == endKey) {
-            final int lastIndex = outs.length - 1;
-            outs[i] = outs[lastIndex];
-            outs.removeLast();
-            break;
-          }
-        }
-        if (outs.isEmpty) {
-          adjacency.remove(startKey);
-        }
+    void addEdge(int startX, int startY, int direction) {
+      final int vertex = _encodeVertex(startX, startY);
+      final Set<int> directions =
+          adjacency.putIfAbsent(vertex, () => <int>{});
+      if (directions.add(direction)) {
+        edges.add(_encodeEdge(vertex, direction));
       }
-      edges.remove(_encodeEdge(startKey, endKey));
-    }
-
-    int? popNextEdge(int startKey, int? previousKey) {
-      final List<int>? outs = adjacency[startKey];
-      if (outs == null || outs.isEmpty) {
-        adjacency.remove(startKey);
-        return null;
-      }
-      int selectedIndex = outs.length - 1;
-      if (previousKey != null && outs.length > 1) {
-        for (int i = 0; i < outs.length; i++) {
-          if (outs[i] != previousKey) {
-            selectedIndex = i;
-            break;
-          }
-        }
-      }
-      final int endKey = outs[selectedIndex];
-      final int lastIndex = outs.length - 1;
-      outs[selectedIndex] = outs[lastIndex];
-      outs.removeLast();
-      if (outs.isEmpty) {
-        adjacency.remove(startKey);
-      }
-      edges.remove(_encodeEdge(startKey, endKey));
-      return endKey;
     }
 
     for (int y = 0; y < height; y++) {
@@ -686,75 +644,157 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
         }
         hasCoverage = true;
         if (y == 0 || mask[index - width] == 0) {
-          addEdge(x, y, x + 1, y);
+          addEdge(x, y, 0); // top edge, moving right
         }
         if (x == width - 1 || mask[index + 1] == 0) {
-          addEdge(x + 1, y, x + 1, y + 1);
+          addEdge(x + 1, y, 1); // right edge, moving down
         }
         if (y == height - 1 || mask[index + width] == 0) {
-          addEdge(x + 1, y + 1, x, y + 1);
+          addEdge(x + 1, y + 1, 2); // bottom edge, moving left
         }
         if (x == 0 || mask[index - 1] == 0) {
-          addEdge(x, y + 1, x, y);
+          addEdge(x, y + 1, 3); // left edge, moving up
         }
       }
     }
 
-    if (!hasCoverage) {
+    if (!hasCoverage || edges.isEmpty) {
       return null;
     }
 
     final Path path = Path()..fillType = PathFillType.evenOdd;
+    bool aborted = false;
+
+    void consumeEdge(int encodedEdge) {
+      if (!edges.remove(encodedEdge)) {
+        return;
+      }
+      final int vertex = _edgeVertex(encodedEdge);
+      final int direction = _edgeDirection(encodedEdge);
+      final Set<int>? options = adjacency[vertex];
+      if (options == null) {
+        return;
+      }
+      options.remove(direction);
+      if (options.isEmpty) {
+        adjacency.remove(vertex);
+      }
+    }
 
     while (edges.isNotEmpty) {
       final int startEdge = edges.first;
-      final int startKey = _edgeStart(startEdge);
-      final int firstNextKey = _edgeEnd(startEdge);
-      removeEdge(startKey, firstNextKey);
+      final int startVertex = _edgeVertex(startEdge);
+      int currentDirection = _edgeDirection(startEdge);
+      consumeEdge(startEdge);
 
       path.moveTo(
-        _vertexX(startKey).toDouble(),
-        _vertexY(startKey).toDouble(),
-      );
-      path.lineTo(
-        _vertexX(firstNextKey).toDouble(),
-        _vertexY(firstNextKey).toDouble(),
+        _vertexX(startVertex).toDouble(),
+        _vertexY(startVertex).toDouble(),
       );
 
-      int previousKey = startKey;
-      int currentKey = firstNextKey;
-      while (currentKey != startKey) {
-        final int? nextKey = popNextEdge(currentKey, previousKey);
-        if (nextKey == null) {
+      int currentVertex = startVertex;
+      int nextX = _vertexX(currentVertex) + _directionDx[currentDirection];
+      int nextY = _vertexY(currentVertex) + _directionDy[currentDirection];
+      path.lineTo(nextX.toDouble(), nextY.toDouble());
+      currentVertex = _encodeVertex(nextX, nextY);
+
+      while (currentVertex != startVertex) {
+        final int? nextDirection = _selectNextDirection(
+          currentVertex,
+          currentDirection,
+          adjacency,
+        );
+        if (nextDirection == null) {
+          aborted = true;
           break;
         }
-        path.lineTo(
-          _vertexX(nextKey).toDouble(),
-          _vertexY(nextKey).toDouble(),
-        );
-        previousKey = currentKey;
-        currentKey = nextKey;
+        currentDirection = nextDirection;
+        final int encodedEdge = _encodeEdge(currentVertex, currentDirection);
+        consumeEdge(encodedEdge);
+        nextX = _vertexX(currentVertex) + _directionDx[currentDirection];
+        nextY = _vertexY(currentVertex) + _directionDy[currentDirection];
+        path.lineTo(nextX.toDouble(), nextY.toDouble());
+        currentVertex = _encodeVertex(nextX, nextY);
+      }
+      if (aborted) {
+        break;
       }
       path.close();
+    }
+
+    if (aborted) {
+      return _pathFromMaskFallback(mask, width);
     }
 
     return path;
   }
 }
 
-int _encodeVertex(int x, int y) => (y << 32) | x;
+const List<int> _directionDx = <int>[1, 0, -1, 0];
+const List<int> _directionDy = <int>[0, 1, 0, -1];
 
-double _vertexX(int key) => (key & 0xFFFFFFFF).toDouble();
+int _encodeVertex(int x, int y) => (y << 32) | (x & 0xFFFFFFFF);
 
-double _vertexY(int key) => (key >> 32).toDouble();
+int _vertexX(int key) => key & 0xFFFFFFFF;
 
-const int _kEdgeMask = 0xFFFFFFFFFFFFFFFF;
+int _vertexY(int key) => key >> 32;
 
-int _encodeEdge(int startKey, int endKey) => (startKey << 64) | endKey;
+int _encodeEdge(int vertex, int direction) => (vertex << 2) | direction;
 
-int _edgeStart(int edgeKey) => edgeKey >> 64;
+int _edgeVertex(int edge) => edge >> 2;
 
-int _edgeEnd(int edgeKey) => edgeKey & _kEdgeMask;
+int _edgeDirection(int edge) => edge & 0x3;
+
+int? _selectNextDirection(
+  int vertex,
+  int previousDirection,
+  Map<int, Set<int>> adjacency,
+) {
+  final Set<int>? options = adjacency[vertex];
+  if (options == null || options.isEmpty) {
+    return null;
+  }
+  for (final int offset in const <int>[1, 0, 3, 2]) {
+    final int candidate = (previousDirection + offset) & 0x3;
+    if (options.contains(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+Path? _pathFromMaskFallback(Uint8List mask, int width) {
+  if (mask.isEmpty) {
+    return null;
+  }
+  final int height = mask.length ~/ width;
+  Path? result;
+  for (int y = 0; y < height; y++) {
+    final int rowOffset = y * width;
+    int x = 0;
+    while (x < width) {
+      if (mask[rowOffset + x] == 0) {
+        x += 1;
+        continue;
+      }
+      final int start = x;
+      while (x < width && mask[rowOffset + x] != 0) {
+        x += 1;
+      }
+      final Rect rect = Rect.fromLTWH(
+        start.toDouble(),
+        y.toDouble(),
+        (x - start).toDouble(),
+        1,
+      );
+      final Path segment = Path()..addRect(rect);
+      result = result == null
+          ? segment
+          : Path.combine(ui.PathOperation.union, result!, segment);
+    }
+  }
+  return result;
+}
 
 class _SelectionOverlayPainter extends CustomPainter {
   const _SelectionOverlayPainter({
