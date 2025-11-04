@@ -16,11 +16,19 @@ class BitmapLayerState {
     required this.name,
     required this.surface,
     this.visible = true,
+    this.opacity = 1.0,
+    this.locked = false,
+    this.clippingMask = false,
+    this.blendMode = CanvasLayerBlendMode.normal,
   });
 
   final String id;
   String name;
   bool visible;
+  double opacity;
+  bool locked;
+  bool clippingMask;
+  CanvasLayerBlendMode blendMode;
   final BitmapSurface surface;
 }
 
@@ -30,9 +38,9 @@ class BitmapCanvasController extends ChangeNotifier {
     required int height,
     required Color backgroundColor,
     List<CanvasLayerData>? initialLayers,
-  })  : _width = width,
-        _height = height,
-        _backgroundColor = backgroundColor {
+  }) : _width = width,
+       _height = height,
+       _backgroundColor = backgroundColor {
     if (initialLayers != null && initialLayers.isNotEmpty) {
       _loadFromCanvasLayers(initialLayers, backgroundColor);
     } else {
@@ -60,6 +68,7 @@ class BitmapCanvasController extends ChangeNotifier {
   Uint32List? _compositePixels;
   Uint8List? _compositeRgba;
   Uint8List? _selectionMask;
+  Uint8List? _clipMaskBuffer;
 
   UnmodifiableListView<BitmapLayerState> get layers =>
       UnmodifiableListView<BitmapLayerState>(_layers);
@@ -119,6 +128,62 @@ class BitmapCanvasController extends ChangeNotifier {
     _markDirty();
   }
 
+  void setLayerOpacity(String id, double opacity) {
+    final int index = _layers.indexWhere((layer) => layer.id == id);
+    if (index < 0) {
+      return;
+    }
+    final double clamped = _clampUnit(opacity);
+    final BitmapLayerState layer = _layers[index];
+    if ((layer.opacity - clamped).abs() < 1e-4) {
+      return;
+    }
+    layer.opacity = clamped;
+    _markDirty();
+    notifyListeners();
+  }
+
+  void setLayerLocked(String id, bool locked) {
+    final int index = _layers.indexWhere((layer) => layer.id == id);
+    if (index < 0) {
+      return;
+    }
+    final BitmapLayerState layer = _layers[index];
+    if (layer.locked == locked) {
+      return;
+    }
+    layer.locked = locked;
+    notifyListeners();
+  }
+
+  void setLayerClippingMask(String id, bool clippingMask) {
+    final int index = _layers.indexWhere((layer) => layer.id == id);
+    if (index < 0) {
+      return;
+    }
+    final BitmapLayerState layer = _layers[index];
+    if (layer.clippingMask == clippingMask) {
+      return;
+    }
+    layer.clippingMask = clippingMask;
+    _markDirty();
+    notifyListeners();
+  }
+
+  void setLayerBlendMode(String id, CanvasLayerBlendMode mode) {
+    final int index = _layers.indexWhere((layer) => layer.id == id);
+    if (index < 0) {
+      return;
+    }
+    final BitmapLayerState layer = _layers[index];
+    if (layer.blendMode == mode) {
+      return;
+    }
+    layer.blendMode = mode;
+    _markDirty();
+    notifyListeners();
+  }
+
   void renameLayer(String id, String name) {
     final int index = _layers.indexWhere((layer) => layer.id == id);
     if (index < 0) {
@@ -136,7 +201,9 @@ class BitmapCanvasController extends ChangeNotifier {
     );
     int insertIndex = _layers.length;
     if (aboveLayerId != null) {
-      final int index = _layers.indexWhere((element) => element.id == aboveLayerId);
+      final int index = _layers.indexWhere(
+        (element) => element.id == aboveLayerId,
+      );
       if (index >= 0) {
         insertIndex = index + 1;
       }
@@ -185,6 +252,9 @@ class BitmapCanvasController extends ChangeNotifier {
   void clear() {
     for (int i = 0; i < _layers.length; i++) {
       final BitmapLayerState layer = _layers[i];
+      if (layer.locked) {
+        continue;
+      }
       if (i == 0) {
         layer.surface.fill(_backgroundColor);
       } else {
@@ -194,10 +264,14 @@ class BitmapCanvasController extends ChangeNotifier {
     _markDirty();
   }
 
-  void beginStroke(Offset position, {
+  void beginStroke(
+    Offset position, {
     required Color color,
     required double radius,
   }) {
+    if (_activeLayer.locked) {
+      return;
+    }
     if (_selectionMask != null && !_selectionAllows(position)) {
       return;
     }
@@ -211,6 +285,9 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void extendStroke(Offset position) {
     if (_currentStrokePoints.isEmpty) {
+      return;
+    }
+    if (_activeLayer.locked) {
       return;
     }
     final Offset last = _currentStrokePoints.last;
@@ -260,6 +337,9 @@ class BitmapCanvasController extends ChangeNotifier {
     bool contiguous = true,
     bool sampleAllLayers = false,
   }) {
+    if (_activeLayer.locked) {
+      return;
+    }
     final int x = position.dx.floor();
     final int y = position.dy.floor();
     if (x < 0 || x >= _width || y < 0 || y >= _height) {
@@ -296,10 +376,7 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     final Uint8List mask = Uint8List(_width * _height);
     if (sampleAllLayers) {
-      _updateComposite(
-        requiresFullSurface: true,
-        region: null,
-      );
+      _updateComposite(requiresFullSurface: true, region: null);
       final Uint32List? composite = _compositePixels;
       if (composite == null || composite.isEmpty) {
         return null;
@@ -346,6 +423,10 @@ class BitmapCanvasController extends ChangeNotifier {
           id: layer.id,
           name: layer.name,
           visible: layer.visible,
+          opacity: layer.opacity,
+          locked: layer.locked,
+          clippingMask: layer.clippingMask,
+          blendMode: layer.blendMode,
           fillColor: i == 0 ? _backgroundColor : null,
           bitmap: bitmap,
           bitmapWidth: bitmap != null ? _width : null,
@@ -358,14 +439,12 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) {
     _layers.clear();
+    _clipMaskBuffer = null;
     _loadFromCanvasLayers(layers, backgroundColor);
     _markDirty();
   }
 
-  void _updateComposite({
-    required bool requiresFullSurface,
-    Rect? region,
-  }) {
+  void _updateComposite({required bool requiresFullSurface, Rect? region}) {
     _ensureCompositeBuffers();
     final _IntRect area = requiresFullSurface
         ? _IntRect(0, 0, _width, _height)
@@ -378,6 +457,8 @@ class BitmapCanvasController extends ChangeNotifier {
     final Uint8List rgba = _compositeRgba!;
     final List<BitmapLayerState> layers = _layers;
     final int width = _width;
+    final Uint8List clipMask = _ensureClipMask();
+    clipMask.fillRange(0, clipMask.length, 0);
 
     for (int y = area.top; y < area.bottom; y++) {
       final int rowOffset = y * width;
@@ -389,17 +470,67 @@ class BitmapCanvasController extends ChangeNotifier {
           if (!layer.visible) {
             continue;
           }
+          final double rawOpacity = layer.opacity;
+          final double layerOpacity = _clampUnit(rawOpacity);
+          if (layerOpacity <= 0) {
+            if (!layer.clippingMask) {
+              clipMask[index] = 0;
+            }
+            continue;
+          }
           final int src = layer.surface.pixels[index];
+          final int srcA = (src >> 24) & 0xff;
+          if (!layer.clippingMask && (srcA == 0)) {
+            clipMask[index] = 0;
+          }
+          if (srcA == 0) {
+            continue;
+          }
+
+          double totalOpacity = layerOpacity;
+          if (layer.clippingMask) {
+            final int maskAlpha = clipMask[index];
+            if (maskAlpha == 0) {
+              continue;
+            }
+            totalOpacity *= maskAlpha / 255.0;
+            if (totalOpacity <= 0) {
+              continue;
+            }
+          }
+
+          int effectiveA = (srcA * totalOpacity).round();
+          if (effectiveA <= 0) {
+            if (!layer.clippingMask) {
+              clipMask[index] = 0;
+            }
+            continue;
+          }
+          effectiveA = effectiveA.clamp(0, 255);
+
+          if (!layer.clippingMask) {
+            clipMask[index] = effectiveA;
+          }
+
+          final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
           if (!initialized) {
-            color = src;
+            color = effectiveColor;
             initialized = true;
           } else {
-            color = _blendArgb(color, src);
+            color = _blendWithMode(color, effectiveColor, layer.blendMode);
           }
         }
+
         if (!initialized) {
-          color = 0;
+          composite[index] = 0;
+          final int rgbaOffset = index * 4;
+          rgba[rgbaOffset] = 0;
+          rgba[rgbaOffset + 1] = 0;
+          rgba[rgbaOffset + 2] = 0;
+          rgba[rgbaOffset + 3] = 0;
+          continue;
         }
+
         composite[index] = color;
         final int rgbaOffset = index * 4;
         rgba[rgbaOffset] = (color >> 16) & 0xff;
@@ -468,6 +599,10 @@ class BitmapCanvasController extends ChangeNotifier {
           id: layer.id,
           name: layer.name,
           visible: layer.visible,
+          opacity: layer.opacity,
+          locked: layer.locked,
+          clippingMask: layer.clippingMask,
+          blendMode: layer.blendMode,
           surface: surface,
         ),
       );
@@ -479,6 +614,9 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   void _drawPoint(Offset position) {
+    if (_activeLayer.locked) {
+      return;
+    }
     _activeSurface.drawCircle(
       center: position,
       radius: _currentStrokeRadius,
@@ -530,21 +668,17 @@ class BitmapCanvasController extends ChangeNotifier {
       );
 
       final Uint8List rgba = _compositeRgba ?? Uint8List(_width * _height * 4);
-      ui.decodeImageFromPixels(
-        rgba,
-        _width,
-        _height,
-        ui.PixelFormat.rgba8888,
-        (ui.Image image) {
-          _cachedImage?.dispose();
-          _cachedImage = image;
-          _compositeDirty = _pendingFullSurface || _pendingDirtyRect != null;
-          notifyListeners();
-          if (_compositeDirty && !_refreshScheduled) {
-            _scheduleCompositeRefresh();
-          }
-        },
-      );
+      ui.decodeImageFromPixels(rgba, _width, _height, ui.PixelFormat.rgba8888, (
+        ui.Image image,
+      ) {
+        _cachedImage?.dispose();
+        _cachedImage = image;
+        _compositeDirty = _pendingFullSurface || _pendingDirtyRect != null;
+        notifyListeners();
+        if (_compositeDirty && !_refreshScheduled) {
+          _scheduleCompositeRefresh();
+        }
+      });
     });
     notifyListeners();
   }
@@ -605,10 +739,7 @@ class BitmapCanvasController extends ChangeNotifier {
     if (!_selectionAllowsInt(startX, startY)) {
       return;
     }
-    _updateComposite(
-      requiresFullSurface: true,
-      region: null,
-    );
+    _updateComposite(requiresFullSurface: true, region: null);
     final Uint32List? compositePixels = _compositePixels;
     if (compositePixels == null || compositePixels.isEmpty) {
       return;
@@ -792,6 +923,20 @@ class BitmapCanvasController extends ChangeNotifier {
     _compositeRgba ??= Uint8List(_width * _height * 4);
   }
 
+  Uint8List _ensureClipMask() {
+    return _clipMaskBuffer ??= Uint8List(_width * _height);
+  }
+
+  static double _clampUnit(double value) {
+    if (value <= 0) {
+      return 0;
+    }
+    if (value >= 1) {
+      return 1;
+    }
+    return value;
+  }
+
   bool _floodFillMask({
     required Uint32List pixels,
     required int targetColor,
@@ -905,6 +1050,47 @@ class BitmapCanvasController extends ChangeNotifier {
     final int outB = _clampToByte(((outPremB * 255) + (outA >> 1)) ~/ outA);
 
     return (outA << 24) | (outR << 16) | (outG << 8) | outB;
+  }
+
+  static int _blendWithMode(int dst, int src, CanvasLayerBlendMode mode) {
+    switch (mode) {
+      case CanvasLayerBlendMode.normal:
+        return _blendArgb(dst, src);
+      case CanvasLayerBlendMode.multiply:
+        return _blendMultiply(dst, src);
+    }
+  }
+
+  static int _blendMultiply(int dst, int src) {
+    final int srcA = (src >> 24) & 0xff;
+    if (srcA == 0) {
+      return dst;
+    }
+
+    final int dstA = (dst >> 24) & 0xff;
+    final double sa = srcA / 255.0;
+    final double da = dstA / 255.0;
+    final double outA = sa + da * (1 - sa);
+
+    final int srcR = (src >> 16) & 0xff;
+    final int srcG = (src >> 8) & 0xff;
+    final int srcB = src & 0xff;
+    final int dstR = (dst >> 16) & 0xff;
+    final int dstG = (dst >> 8) & 0xff;
+    final int dstB = dst & 0xff;
+
+    double blendComponent(int sr, int dr) {
+      final double srcNorm = sr / 255.0;
+      final double dstNorm = dr / 255.0;
+      return dstNorm * (1 - sa) + dstNorm * srcNorm * sa;
+    }
+
+    final int outR = _clampToByte((blendComponent(srcR, dstR) * 255).round());
+    final int outG = _clampToByte((blendComponent(srcG, dstG) * 255).round());
+    final int outB = _clampToByte((blendComponent(srcB, dstB) * 255).round());
+    final int outAlpha = _clampToByte((outA * 255).round());
+
+    return (outAlpha << 24) | (outR << 16) | (outG << 8) | outB;
   }
 
   static int _mul255(int channel, int alpha) {

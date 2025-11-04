@@ -11,10 +11,15 @@ import 'package:flutter/material.dart'
     as material
     show ReorderableDragStartListener, ReorderableListView;
 import 'package:flutter/services.dart'
-    show FilteringTextInputFormatter, TextInputFormatter, TextInputType,
-        TextEditingValue, TextSelection;
+    show
+        FilteringTextInputFormatter,
+        TextInputFormatter,
+        TextInputType,
+        TextEditingValue,
+        TextSelection;
 import 'package:flutter/rendering.dart' show RenderBox;
-import 'package:flutter/scheduler.dart' show SingleTickerProviderStateMixin, TickerProvider;
+import 'package:flutter/scheduler.dart'
+    show SingleTickerProviderStateMixin, TickerProvider;
 import 'package:flutter/widgets.dart'
     show FocusNode, TextEditingController, WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
@@ -85,6 +90,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _penStrokeWidth = _defaultPenStrokeWidth;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
+  bool _layerOpacityGestureActive = false;
+  String? _layerOpacityGestureLayerId;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -150,7 +157,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         return;
       }
       final bool widthChanged = (size.width - _workspaceSize.width).abs() > 0.5;
-      final bool heightChanged = (size.height - _workspaceSize.height).abs() > 0.5;
+      final bool heightChanged =
+          (size.height - _workspaceSize.height).abs() > 0.5;
       if (!widthChanged && !heightChanged) {
         return;
       }
@@ -243,6 +251,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   Widget _buildLayerPanelContent(FluentThemeData theme);
   Widget _buildColorPanelContent(FluentThemeData theme);
+  Widget? _buildColorPanelTrailing(FluentThemeData theme);
   Widget _buildColorIndicator(FluentThemeData theme);
 
   List<CanvasLayerData> snapshotLayers() => _controller.snapshotLayers();

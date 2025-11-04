@@ -5,36 +5,51 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+enum CanvasLayerBlendMode { normal, multiply }
+
 @immutable
 class CanvasLayerData {
   CanvasLayerData({
     required this.id,
     required this.name,
     this.visible = true,
+    this.opacity = 1.0,
+    this.locked = false,
+    this.clippingMask = false,
+    this.blendMode = CanvasLayerBlendMode.normal,
     Color? fillColor,
     Uint8List? bitmap,
     int? bitmapWidth,
     int? bitmapHeight,
-  })  : fillColor = fillColor,
-        bitmap = bitmap != null ? Uint8List.fromList(bitmap) : null,
-        bitmapWidth = bitmap != null ? bitmapWidth : null,
-        bitmapHeight = bitmap != null ? bitmapHeight : null;
+  }) : fillColor = fillColor,
+       bitmap = bitmap != null ? Uint8List.fromList(bitmap) : null,
+       bitmapWidth = bitmap != null ? bitmapWidth : null,
+       bitmapHeight = bitmap != null ? bitmapHeight : null;
 
   final String id;
   final String name;
   final bool visible;
+  final double opacity;
+  final bool locked;
+  final bool clippingMask;
+  final CanvasLayerBlendMode blendMode;
   final Color? fillColor;
   final Uint8List? bitmap;
   final int? bitmapWidth;
   final int? bitmapHeight;
 
   bool get hasFill => fillColor != null;
-  bool get hasBitmap => bitmap != null && bitmapWidth != null && bitmapHeight != null;
+  bool get hasBitmap =>
+      bitmap != null && bitmapWidth != null && bitmapHeight != null;
 
   CanvasLayerData copyWith({
     String? id,
     String? name,
     bool? visible,
+    double? opacity,
+    bool? locked,
+    bool? clippingMask,
+    CanvasLayerBlendMode? blendMode,
     Color? fillColor,
     bool clearFill = false,
     Uint8List? bitmap,
@@ -48,7 +63,9 @@ class CanvasLayerData {
     } else if (bitmap != null) {
       resolvedBitmap = Uint8List.fromList(bitmap);
     } else {
-      resolvedBitmap = this.bitmap != null ? Uint8List.fromList(this.bitmap!) : null;
+      resolvedBitmap = this.bitmap != null
+          ? Uint8List.fromList(this.bitmap!)
+          : null;
     }
     final int? resolvedWidth;
     final int? resolvedHeight;
@@ -64,6 +81,10 @@ class CanvasLayerData {
       id: id ?? this.id,
       name: name ?? this.name,
       visible: visible ?? this.visible,
+      opacity: opacity ?? this.opacity,
+      locked: locked ?? this.locked,
+      clippingMask: clippingMask ?? this.clippingMask,
+      blendMode: blendMode ?? this.blendMode,
       fillColor: clearFill ? null : (fillColor ?? this.fillColor),
       bitmap: resolvedBitmap,
       bitmapWidth: resolvedWidth,
@@ -76,6 +97,10 @@ class CanvasLayerData {
       'id': id,
       'name': name,
       'visible': visible,
+      'opacity': opacity,
+      'locked': locked,
+      'clippingMask': clippingMask,
+      'blendMode': blendMode.name,
       if (fillColor != null) 'fillColor': _encodeColor(fillColor!),
       if (hasBitmap)
         'bitmap': <String, dynamic>{
@@ -117,11 +142,39 @@ class CanvasLayerData {
       id: json['id'] as String,
       name: json['name'] as String,
       visible: json['visible'] as bool? ?? true,
+      opacity: _parseOpacity(json['opacity']),
+      locked: json['locked'] as bool? ?? false,
+      clippingMask: json['clippingMask'] as bool? ?? false,
+      blendMode: _parseBlendMode(json['blendMode'] as String?),
       fillColor: fill,
       bitmap: bitmap,
       bitmapWidth: bitmapWidth,
       bitmapHeight: bitmapHeight,
     );
+  }
+
+  static CanvasLayerBlendMode _parseBlendMode(String? raw) {
+    if (raw == null) {
+      return CanvasLayerBlendMode.normal;
+    }
+    return CanvasLayerBlendMode.values.firstWhere(
+      (mode) => mode.name == raw,
+      orElse: () => CanvasLayerBlendMode.normal,
+    );
+  }
+
+  static double _parseOpacity(Object? value) {
+    if (value is num) {
+      final double normalized = value.toDouble();
+      if (normalized <= 0) {
+        return 0;
+      }
+      if (normalized >= 1) {
+        return 1;
+      }
+      return normalized;
+    }
+    return 1.0;
   }
 }
 

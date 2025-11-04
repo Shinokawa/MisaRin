@@ -15,11 +15,13 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         key: const SelectToolIntent(CanvasTool.pen),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
-      for (final key
-          in ToolbarShortcuts.of(ToolbarAction.magicWandTool).shortcuts)
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.magicWandTool,
+      ).shortcuts)
         key: const SelectToolIntent(CanvasTool.magicWand),
-      for (final key
-          in ToolbarShortcuts.of(ToolbarAction.selectionTool).shortcuts)
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.selectionTool,
+      ).shortcuts)
         key: const SelectToolIntent(CanvasTool.selection),
       for (final key in ToolbarShortcuts.of(ToolbarAction.handTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.hand),
@@ -134,16 +136,15 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                       child: AnimatedBuilder(
                                         animation: _controller,
                                         builder: (context, _) {
-                                          final ui.Image? image = _controller.image;
+                                          final ui.Image? image =
+                                              _controller.image;
                                           if (image == null) {
                                             return const SizedBox.shrink();
                                           }
                                           final bool hasSelectionOverlay =
                                               selectionPath != null ||
-                                                  selectionPreviewPath !=
-                                                      null ||
-                                                  magicWandPreviewPath !=
-                                                      null;
+                                              selectionPreviewPath != null ||
+                                              magicWandPreviewPath != null;
                                           return Stack(
                                             fit: StackFit.expand,
                                             children: [
@@ -156,19 +157,18 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                               if (hasSelectionOverlay)
                                                 Positioned.fill(
                                                   child: CustomPaint(
-                                                    painter:
-                                                      _SelectionOverlayPainter(
-                                                    selectionPath:
-                                                        selectionPath,
-                                                    selectionPreviewPath:
-                                                        selectionPreviewPath,
-                                                    magicPreviewPath:
-                                                        magicWandPreviewPath,
-                                                    dashPhase:
-                                                        selectionDashPhase,
+                                                    painter: _SelectionOverlayPainter(
+                                                      selectionPath:
+                                                          selectionPath,
+                                                      selectionPreviewPath:
+                                                          selectionPreviewPath,
+                                                      magicPreviewPath:
+                                                          magicWandPreviewPath,
+                                                      dashPhase:
+                                                          selectionDashPhase,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
                                             ],
                                           );
                                         },
@@ -194,7 +194,8 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             ),
                           ),
                           Positioned(
-                            left: _toolButtonPadding +
+                            left:
+                                _toolButtonPadding +
                                 _toolbarButtonSize +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
@@ -211,7 +212,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               selectionShape: selectionShape,
                               onSelectionShapeChanged: _updateSelectionShape,
                             ),
-                        ),
+                          ),
                           Positioned(
                             left: _toolButtonPadding,
                             bottom: _toolButtonPadding,
@@ -229,6 +230,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                   _PanelCard(
                                     width: _sidePanelWidth,
                                     title: '取色',
+                                    trailing: _buildColorPanelTrailing(theme),
                                     child: _buildColorPanelContent(theme),
                                   ),
                                   const SizedBox(height: _sidePanelSpacing),
