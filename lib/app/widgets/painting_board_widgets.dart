@@ -22,6 +22,18 @@ class DeselectIntent extends Intent {
   const DeselectIntent();
 }
 
+class CutIntent extends Intent {
+  const CutIntent();
+}
+
+class CopyIntent extends Intent {
+  const CopyIntent();
+}
+
+class PasteIntent extends Intent {
+  const PasteIntent();
+}
+
 class _CheckboardBackground extends StatelessWidget {
   const _CheckboardBackground({
     this.cellSize = 16.0,

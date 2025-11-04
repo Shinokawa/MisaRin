@@ -13,6 +13,8 @@ import 'package:flutter/material.dart'
 import 'package:flutter/services.dart'
     show
         FilteringTextInputFormatter,
+        LogicalKeyboardKey,
+        LogicalKeySet,
         TextInputFormatter,
         TextInputType,
         TextEditingValue,
@@ -40,6 +42,7 @@ part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
 part 'painting_board_marching_ants.dart';
 part 'painting_board_selection.dart';
+part 'painting_board_clipboard.dart';
 part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
 part 'painting_board_widgets.dart';
@@ -194,6 +197,18 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double get selectionDashPhase;
   bool isPointInsideSelection(Offset position);
 
+  Uint8List? get selectionMaskSnapshot;
+  Path? get selectionPathSnapshot;
+
+  void setSelectionState({
+    SelectionShape? shape,
+    Path? path,
+    Uint8List? mask,
+  });
+
+  void clearSelectionArtifacts();
+  void resetSelectionUndoFlag();
+
   UnmodifiableListView<BitmapLayerState> get _layers => _controller.layers;
   String? get _activeLayerId => _controller.activeLayerId;
   Color get _backgroundPreviewColor;
@@ -241,6 +256,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _handleUndo();
   void _handleRedo();
+  bool cut();
+  bool copy();
+  bool paste();
 
   void _updatePenStrokeWidth(double value);
   void _updateBucketSampleAllLayers(bool value);
@@ -303,6 +321,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       layers: _controller.snapshotLayers(),
       backgroundColor: _controller.backgroundColor,
       activeLayerId: _controller.activeLayerId,
+      selectionShape: selectionShape,
+      selectionMask: selectionMaskSnapshot != null
+          ? Uint8List.fromList(selectionMaskSnapshot!)
+          : null,
+      selectionPath: selectionPathSnapshot != null
+          ? (Path()..addPath(selectionPathSnapshot!, Offset.zero))
+          : null,
     );
   }
 
@@ -314,12 +339,24 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       if (activeId != null) {
         _controller.setActiveLayer(activeId);
       }
+      setSelectionState(
+        shape: entry.selectionShape,
+        path: entry.selectionPath != null
+            ? (Path()..addPath(entry.selectionPath!, Offset.zero))
+            : null,
+        mask: entry.selectionMask != null
+            ? Uint8List.fromList(entry.selectionMask!)
+            : null,
+      );
+      clearSelectionArtifacts();
     } finally {
       _historyLocked = false;
     }
     setState(() {});
     _focusNode.requestFocus();
     _markDirty();
+    resetSelectionUndoFlag();
+    _updateSelectionAnimation();
   }
 
   void _refreshHistoryLimit() {
@@ -389,6 +426,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardLayerMixin,
         _PaintingBoardColorMixin,
         _PaintingBoardSelectionMixin,
+        _PaintingBoardClipboardMixin,
         _PaintingBoardInteractionMixin,
         _PaintingBoardBuildMixin {
   @override
@@ -460,9 +498,15 @@ class _CanvasHistoryEntry {
     required this.layers,
     required this.backgroundColor,
     required this.activeLayerId,
+    required this.selectionShape,
+    this.selectionMask,
+    this.selectionPath,
   });
 
   final List<CanvasLayerData> layers;
   final Color backgroundColor;
   final String? activeLayerId;
+  final SelectionShape selectionShape;
+  final Uint8List? selectionMask;
+  final Path? selectionPath;
 }

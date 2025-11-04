@@ -18,6 +18,9 @@ class MenuActionHandler {
     this.redo,
     this.zoomIn,
     this.zoomOut,
+    this.cut,
+    this.copy,
+    this.paste,
   });
 
   const MenuActionHandler.empty()
@@ -31,7 +34,10 @@ class MenuActionHandler {
       undo = null,
       redo = null,
       zoomIn = null,
-      zoomOut = null;
+      zoomOut = null,
+      cut = null,
+      copy = null,
+      paste = null;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -44,6 +50,9 @@ class MenuActionHandler {
   final MenuAsyncAction? redo;
   final MenuAsyncAction? zoomIn;
   final MenuAsyncAction? zoomOut;
+  final MenuAsyncAction? cut;
+  final MenuAsyncAction? copy;
+  final MenuAsyncAction? paste;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

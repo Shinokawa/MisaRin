@@ -29,6 +29,18 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         key: const ExitBoardIntent(),
       for (final key in ToolbarShortcuts.of(ToolbarAction.deselect).shortcuts)
         key: const DeselectIntent(),
+      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyX):
+          const CutIntent(),
+      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyX):
+          const CutIntent(),
+      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyC):
+          const CopyIntent(),
+      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyC):
+          const CopyIntent(),
+      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyV):
+          const PasteIntent(),
+      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyV):
+          const PasteIntent(),
     };
 
     final theme = FluentTheme.of(context);
@@ -83,6 +95,24 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
               DeselectIntent: CallbackAction<DeselectIntent>(
                 onInvoke: (intent) {
                   _clearSelection();
+                  return null;
+                },
+              ),
+              CutIntent: CallbackAction<CutIntent>(
+                onInvoke: (intent) {
+                  cut();
+                  return null;
+                },
+              ),
+              CopyIntent: CallbackAction<CopyIntent>(
+                onInvoke: (intent) {
+                  copy();
+                  return null;
+                },
+              ),
+              PasteIntent: CallbackAction<PasteIntent>(
+                onInvoke: (intent) {
+                  paste();
                   return null;
                 },
               ),

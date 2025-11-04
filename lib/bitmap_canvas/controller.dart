@@ -437,6 +437,139 @@ class BitmapCanvasController extends ChangeNotifier {
     return result;
   }
 
+  CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) {
+    final int index = _layers.indexWhere((layer) => layer.id == id);
+    if (index < 0) {
+      return null;
+    }
+    final BitmapLayerState layer = _layers[index];
+    Uint8List? effectiveMask;
+    if (mask != null) {
+      if (mask.length != _width * _height) {
+        throw ArgumentError('Selection mask size mismatch');
+      }
+      if (!_maskHasCoverage(mask)) {
+        return null;
+      }
+      effectiveMask = Uint8List.fromList(mask);
+    }
+    final Uint8List bitmap = effectiveMask == null
+        ? _surfaceToRgba(layer.surface)
+        : _surfaceToMaskedRgba(layer.surface, effectiveMask);
+    return CanvasLayerData(
+      id: layer.id,
+      name: layer.name,
+      visible: true,
+      opacity: layer.opacity,
+      locked: false,
+      clippingMask: false,
+      blendMode: layer.blendMode,
+      fillColor: null,
+      bitmap: bitmap,
+      bitmapWidth: _width,
+      bitmapHeight: _height,
+    );
+  }
+
+  void clearLayerRegion(String id, {Uint8List? mask}) {
+    final int index = _layers.indexWhere((layer) => layer.id == id);
+    if (index < 0) {
+      return;
+    }
+    final BitmapLayerState layer = _layers[index];
+    final Uint32List pixels = layer.surface.pixels;
+    final int replacement = index == 0
+        ? BitmapSurface.encodeColor(_backgroundColor)
+        : 0;
+    if (mask == null) {
+      for (int i = 0; i < pixels.length; i++) {
+        pixels[i] = replacement;
+      }
+      _markDirty();
+      return;
+    }
+    if (mask.length != _width * _height) {
+      throw ArgumentError('Selection mask size mismatch');
+    }
+    int minX = _width;
+    int minY = _height;
+    int maxX = -1;
+    int maxY = -1;
+    for (int y = 0; y < _height; y++) {
+      final int rowOffset = y * _width;
+      for (int x = 0; x < _width; x++) {
+        final int indexInMask = rowOffset + x;
+        if (mask[indexInMask] == 0) {
+          continue;
+        }
+        pixels[indexInMask] = replacement;
+        if (x < minX) {
+          minX = x;
+        }
+        if (x > maxX) {
+          maxX = x;
+        }
+        if (y < minY) {
+          minY = y;
+        }
+        if (y > maxY) {
+          maxY = y;
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) {
+      return;
+    }
+    _markDirty(
+      region: Rect.fromLTRB(
+        minX.toDouble(),
+        minY.toDouble(),
+        (maxX + 1).toDouble(),
+        (maxY + 1).toDouble(),
+      ),
+    );
+  }
+
+  String insertLayerFromData(
+    CanvasLayerData data, {
+    String? aboveLayerId,
+  }) {
+    final BitmapSurface surface = BitmapSurface(
+      width: _width,
+      height: _height,
+    );
+    if (data.bitmap != null &&
+        data.bitmapWidth == _width &&
+        data.bitmapHeight == _height) {
+      _writeRgbaToSurface(surface, data.bitmap!);
+    } else if (data.fillColor != null) {
+      surface.fill(data.fillColor!);
+    } else {
+      surface.fill(const Color(0x00000000));
+    }
+    final BitmapLayerState layer = BitmapLayerState(
+      id: data.id,
+      name: data.name,
+      surface: surface,
+      visible: true,
+      opacity: data.opacity,
+      locked: false,
+      clippingMask: false,
+      blendMode: data.blendMode,
+    );
+    int insertIndex = _layers.length;
+    if (aboveLayerId != null) {
+      final int index = _layers.indexWhere((candidate) => candidate.id == aboveLayerId);
+      if (index >= 0) {
+        insertIndex = index + 1;
+      }
+    }
+    _layers.insert(insertIndex, layer);
+    _activeIndex = insertIndex;
+    _markDirty();
+    return layer.id;
+  }
+
   void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) {
     _layers.clear();
     _clipMaskBuffer = null;
@@ -904,6 +1037,35 @@ class BitmapCanvasController extends ChangeNotifier {
       rgba[offset + 3] = (argb >> 24) & 0xff;
     }
     return rgba;
+  }
+
+  static Uint8List _surfaceToMaskedRgba(
+    BitmapSurface surface,
+    Uint8List mask,
+  ) {
+    final Uint32List pixels = surface.pixels;
+    final Uint8List rgba = Uint8List(pixels.length * 4);
+    for (int i = 0; i < pixels.length; i++) {
+      if (mask[i] == 0) {
+        continue;
+      }
+      final int argb = pixels[i];
+      final int offset = i * 4;
+      rgba[offset] = (argb >> 16) & 0xff;
+      rgba[offset + 1] = (argb >> 8) & 0xff;
+      rgba[offset + 2] = argb & 0xff;
+      rgba[offset + 3] = (argb >> 24) & 0xff;
+    }
+    return rgba;
+  }
+
+  static bool _maskHasCoverage(Uint8List mask) {
+    for (final int value in mask) {
+      if (value != 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static void _writeRgbaToSurface(BitmapSurface surface, Uint8List rgba) {

@@ -492,6 +492,18 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.redo();
       },
+      cut: () {
+        final board = _activeBoard;
+        board?.cut();
+      },
+      copy: () {
+        final board = _activeBoard;
+        board?.copy();
+      },
+      paste: () {
+        final board = _activeBoard;
+        board?.paste();
+      },
       zoomIn: () {
         final board = _activeBoard;
         board?.zoomIn();

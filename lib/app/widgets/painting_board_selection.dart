@@ -27,6 +27,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   AnimationController? _selectionDashController;
   double _selectionDashPhase = 0.0;
   double _selectionDashValue = 0.0;
+  bool _selectionUndoArmed = false;
 
   @override
   SelectionShape get selectionShape => _selectionShape;
@@ -42,6 +43,12 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
   @override
   double get selectionDashPhase => _selectionDashPhase;
+
+  @override
+  Uint8List? get selectionMaskSnapshot => _selectionMask;
+
+  @override
+  Path? get selectionPathSnapshot => _selectionPath;
 
   @override
   bool isPointInsideSelection(Offset position) {
@@ -77,17 +84,13 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
         _magicWandPreviewPath == null) {
       return;
     }
+    _prepareSelectionUndo();
     setState(() {
-      _selectionPath = null;
-      _selectionMask = null;
-      _selectionPreviewPath = null;
-      _clearMagicWandPreview();
-      _isSelectionDragging = false;
-      _selectionDragStart = null;
-      _resetPolygonState();
-      _controller.setSelectionMask(null);
+      setSelectionState(path: null, mask: null);
+      clearSelectionArtifacts();
     });
     _updateSelectionAnimation();
+    _finishSelectionUndo();
   }
 
   @override
@@ -100,6 +103,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     if (_magicWandPreviewMask == null || _magicWandPreviewPath == null) {
       return;
     }
+    _prepareSelectionUndo();
     setState(() {
       _applySelectionPathInternal(
         _magicWandPreviewPath,
@@ -109,6 +113,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       _magicWandPreviewPath = null;
     });
     _updateSelectionAnimation();
+    _finishSelectionUndo();
   }
 
   void _applyMagicWandPreview(Offset position) {
@@ -134,6 +139,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       _updateSelectionAnimation();
       return;
     }
+    _prepareSelectionUndo();
     _beginDragSelection(position);
     _updateSelectionAnimation();
   }
@@ -168,6 +174,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       _applySelectionPathInternal(finalizedPath);
     });
     _updateSelectionAnimation();
+    _finishSelectionUndo();
   }
 
   @override
@@ -184,6 +191,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       _selectionPreviewPath = null;
     });
     _updateSelectionAnimation();
+    _finishSelectionUndo();
   }
 
   @override
@@ -232,12 +240,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
   void _beginDragSelection(Offset position) {
     setState(() {
-      _selectionPath = null;
-      _selectionMask = null;
+      setSelectionState(path: null, mask: null);
       _isSelectionDragging = true;
       _selectionDragStart = position;
       _selectionPreviewPath = Path()..addRect(Rect.fromLTWH(position.dx, position.dy, 0, 0));
-      _controller.setSelectionMask(null);
     });
     _updateSelectionAnimation();
   }
@@ -272,14 +278,13 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   void _handlePolygonPointerDown(Offset position, Duration timestamp) {
     final bool isDoubleTap = _isPolygonDoubleTap(position, timestamp);
     if (_polygonPoints.isEmpty) {
+      _prepareSelectionUndo();
       setState(() {
-      _selectionPath = null;
-      _selectionMask = null;
-      _polygonPoints.add(position);
-      _selectionPreviewPath =
-          _buildPolygonPath(points: _polygonPoints, hover: _polygonHoverPoint);
-      _controller.setSelectionMask(null);
-    });
+        setSelectionState(path: null, mask: null);
+        _polygonPoints.add(position);
+        _selectionPreviewPath =
+            _buildPolygonPath(points: _polygonPoints, hover: _polygonHoverPoint);
+      });
       _lastPolygonTapTime = timestamp;
       _lastPolygonTapPosition = position;
       _updateSelectionAnimation();
@@ -304,6 +309,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       _lastPolygonTapTime = null;
       _lastPolygonTapPosition = null;
       _updateSelectionAnimation();
+      _finishSelectionUndo();
       return;
     }
 
@@ -437,21 +443,51 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
   void _applySelectionPathInternal(Path? path, {Uint8List? mask}) {
     if (path == null) {
-      _selectionPath = null;
-      _selectionMask = null;
-      _controller.setSelectionMask(null);
+      setSelectionState(path: null, mask: null);
       return;
     }
     final Uint8List effectiveMask = mask ?? _maskFromPath(path);
     if (!_maskHasCoverage(effectiveMask)) {
-      _selectionPath = null;
-      _selectionMask = null;
-      _controller.setSelectionMask(null);
+      setSelectionState(path: null, mask: null);
       return;
     }
+    setSelectionState(path: path, mask: effectiveMask);
+  }
+
+  void _prepareSelectionUndo() {
+    if (_selectionUndoArmed) {
+      return;
+    }
+    _pushUndoSnapshot();
+    _selectionUndoArmed = true;
+  }
+
+  void _finishSelectionUndo() {
+    resetSelectionUndoFlag();
+  }
+
+  @override
+  void setSelectionState({SelectionShape? shape, Path? path, Uint8List? mask}) {
+    if (shape != null) {
+      _selectionShape = shape;
+    }
     _selectionPath = path;
-    _selectionMask = effectiveMask;
-    _controller.setSelectionMask(_selectionMask);
+    _selectionMask = mask;
+    _controller.setSelectionMask(mask);
+  }
+
+  @override
+  void clearSelectionArtifacts() {
+    _selectionPreviewPath = null;
+    _clearMagicWandPreview();
+    _isSelectionDragging = false;
+    _selectionDragStart = null;
+    _resetPolygonState();
+  }
+
+  @override
+  void resetSelectionUndoFlag() {
+    _selectionUndoArmed = false;
   }
 
   Uint8List _maskFromPath(Path path) {
