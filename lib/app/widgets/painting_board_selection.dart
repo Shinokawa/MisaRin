@@ -26,6 +26,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   Uint8List? _magicWandPreviewMask;
   AnimationController? _selectionDashController;
   double _selectionDashPhase = 0.0;
+  double _selectionDashValue = 0.0;
 
   @override
   SelectionShape get selectionShape => _selectionShape;
@@ -357,6 +358,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       _magicWandPreviewPath != null;
 
   @override
+  @override
   void _updateSelectionAnimation() {
     final AnimationController? controller = _selectionDashController;
     if (controller == null) {
@@ -365,6 +367,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     if (_hasSelectionOverlay) {
       if (!controller.isAnimating) {
         controller.repeat();
+        _selectionDashValue = controller.value;
       }
     } else {
       if (controller.isAnimating) {
@@ -375,18 +378,27 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   @override
-  @override
   void initializeSelectionTicker(TickerProvider provider) {
     _selectionDashController = AnimationController(
       vsync: provider,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 550),
     )..addListener(() {
+        final AnimationController controller = _selectionDashController!;
+        final double value = controller.value;
+        double delta = value - _selectionDashValue;
+        if (delta < 0) {
+          delta += 1.0;
+        }
+        _selectionDashValue = value;
         if (!_hasSelectionOverlay) {
           return;
         }
-        _selectionDashPhase =
-            _selectionDashController!.value *
-                (_kSelectionDashLength + _kSelectionDashGap);
+        _selectionDashPhase +=
+            delta * (_kSelectionDashLength + _kSelectionDashGap);
+        if (_selectionDashPhase > 1e6) {
+          _selectionDashPhase =
+              _selectionDashPhase % (_kSelectionDashLength + _kSelectionDashGap);
+        }
         if (mounted) {
           setState(() {});
         }
@@ -395,10 +407,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   @override
-  @override
   void disposeSelectionTicker() {
     _selectionDashController?.dispose();
     _selectionDashController = null;
+    _selectionDashValue = 0;
   }
 
   Path? _buildPolygonPath({
@@ -528,11 +540,11 @@ class _SelectionOverlayPainter extends CustomPainter {
     ..color = _kSelectionFillColor
     ..style = PaintingStyle.fill;
   static final Paint _selectionStrokePaintDark = Paint()
-    ..color = _kSelectionStrokeColor
+    ..color = const Color(0xFF2B2B2B)
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.0;
   static final Paint _selectionStrokePaintLight = Paint()
-    ..color = Colors.white.withOpacity(0.85)
+    ..color = Colors.white.withOpacity(0.9)
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.0;
   static final Paint _previewFillPaint = Paint()
