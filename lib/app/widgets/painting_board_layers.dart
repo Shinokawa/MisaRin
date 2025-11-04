@@ -225,20 +225,39 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     }
 
     Widget toggleRow() {
-      return Row(
+      Widget buildLabeledCheckbox({
+        required String label,
+        required bool value,
+        required ValueChanged<bool> onChanged,
+      }) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label),
+            const SizedBox(width: 6),
+            Checkbox(
+              checked: value,
+              content: const SizedBox.shrink(),
+              onChanged: (checked) => onChanged(checked ?? value),
+            ),
+          ],
+        );
+      }
+
+      return Wrap(
+        spacing: 16,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Checkbox(
-            checked: activeLayer.locked,
-            onChanged: (value) =>
-                _updateActiveLayerLocked(value ?? activeLayer.locked),
-            content: const Text('锁定图层'),
+          buildLabeledCheckbox(
+            label: '锁定图层',
+            value: activeLayer.locked,
+            onChanged: _updateActiveLayerLocked,
           ),
-          const SizedBox(width: 12),
-          Checkbox(
-            checked: activeLayer.clippingMask,
-            onChanged: (value) =>
-                _updateActiveLayerClipping(value ?? activeLayer.clippingMask),
-            content: const Text('剪贴蒙版'),
+          buildLabeledCheckbox(
+            label: '剪贴蒙版',
+            value: activeLayer.clippingMask,
+            onChanged: _updateActiveLayerClipping,
           ),
         ],
       );
@@ -438,15 +457,16 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                   deleteButton,
                                 ],
                               ),
-                              if (layer.clippingMask)
-                                Positioned(
-                                  left: -18,
-                                  top: 12,
-                                  child: _ClippingMaskArrow(
-                                    color: theme.accentColor
-                                        .defaultBrushFor(theme.brightness),
-                                  ),
+                            if (layer.clippingMask)
+                              Positioned(
+                                left: -10,
+                                top: 6,
+                                bottom: 6,
+                                child: _ClippingMaskIndicator(
+                                  color: theme.accentColor
+                                      .defaultBrushFor(theme.brightness),
                                 ),
+                              ),
                             ],
                           ),
                         ),
@@ -582,7 +602,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                 Positioned(
                                   left: -18,
                                   top: 12,
-                                  child: _ClippingMaskArrow(
+                                  child: _ClippingMaskIndicator(
                                     color: theme.accentColor
                                         .defaultBrushFor(theme.brightness),
                                   ),
@@ -603,17 +623,19 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
   }
 }
 
-class _ClippingMaskArrow extends StatelessWidget {
-  const _ClippingMaskArrow({required this.color});
+class _ClippingMaskIndicator extends StatelessWidget {
+  const _ClippingMaskIndicator({required this.color});
 
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 16,
-      height: 16,
-      child: Icon(FluentIcons.arrow_down_right8, size: 16, color: color),
+    return Container(
+      width: 3,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+      ),
     );
   }
 }
