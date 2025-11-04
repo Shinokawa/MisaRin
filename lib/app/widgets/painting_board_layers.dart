@@ -166,99 +166,83 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
-  Widget _buildLayerPropertiesPanel(
+  Widget? _buildLayerControlStrip(
     FluentThemeData theme,
     BitmapLayerState? activeLayer,
   ) {
-    final Color borderColor = theme.resources.controlStrokeColorSecondary
-        .withOpacity(0.55);
-    final Color background = Color.alphaBlend(
-      theme.resources.subtleFillColorTertiary,
-      theme.cardColor.withOpacity(1.0),
-    );
-
     if (activeLayer == null) {
-      return DecoratedBox(
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          child: Text(
-            '选择一个图层以调整设置',
-            style: theme.typography.body?.copyWith(
-              color: theme.resources.textFillColorSecondary,
+      return null;
+    }
+
+    final double clampedOpacity =
+        activeLayer.opacity.clamp(0.0, 1.0).toDouble();
+    final int opacityPercent = (clampedOpacity * 100).round();
+    final TextStyle labelStyle = theme.typography.caption ??
+        theme.typography.body?.copyWith(fontSize: 12) ??
+        const TextStyle(fontSize: 12);
+
+    Widget opacityRow() {
+      return Row(
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text('不透明度', style: labelStyle),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Slider(
+              value: clampedOpacity,
+              min: 0,
+              max: 1,
+              divisions: 100,
+              onChangeStart: _handleLayerOpacityChangeStart,
+              onChanged: _handleLayerOpacityChanged,
+              onChangeEnd: _handleLayerOpacityChangeEnd,
             ),
           ),
-        ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 50,
+            child: Text(
+              '$opacityPercent%',
+              textAlign: TextAlign.end,
+              style: theme.typography.bodyStrong,
+            ),
+          ),
+        ],
       );
     }
 
-    final double clampedOpacity = activeLayer.opacity
-        .clamp(0.0, 1.0)
-        .toDouble();
-    final int opacityPercent = (clampedOpacity * 100).round();
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              activeLayer.name,
-              style: theme.typography.bodyStrong,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 12),
-            Text('不透明度', style: theme.typography.caption),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Slider(
-                    value: clampedOpacity,
-                    min: 0,
-                    max: 1,
-                    divisions: 100,
-                    onChangeStart: _handleLayerOpacityChangeStart,
-                    onChanged: _handleLayerOpacityChanged,
-                    onChangeEnd: _handleLayerOpacityChangeEnd,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 48,
-                  child: Text(
-                    '$opacityPercent%',
-                    textAlign: TextAlign.end,
-                    style: theme.typography.bodyStrong,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ToggleSwitch(
-              checked: activeLayer.locked,
-              onChanged: _updateActiveLayerLocked,
-              content: const Text('锁定图层'),
-            ),
-            const SizedBox(height: 8),
-            ToggleSwitch(
-              checked: activeLayer.clippingMask,
-              onChanged: _updateActiveLayerClipping,
-              content: const Text('剪贴蒙版'),
-            ),
-            const SizedBox(height: 12),
-            Text('图层模式', style: theme.typography.caption),
-            const SizedBox(height: 8),
-            ComboBox<CanvasLayerBlendMode>(
+    Widget toggleRow() {
+      return Row(
+        children: [
+          Checkbox(
+            checked: activeLayer.locked,
+            onChanged: (value) =>
+                _updateActiveLayerLocked(value ?? activeLayer.locked),
+            content: const Text('锁定图层'),
+          ),
+          const SizedBox(width: 12),
+          Checkbox(
+            checked: activeLayer.clippingMask,
+            onChanged: (value) =>
+                _updateActiveLayerClipping(value ?? activeLayer.clippingMask),
+            content: const Text('剪贴蒙版'),
+          ),
+        ],
+      );
+    }
+
+    Widget blendRow() {
+      return Row(
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text('图层模式', style: labelStyle),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ComboBox<CanvasLayerBlendMode>(
               value: activeLayer.blendMode,
               items: CanvasLayerBlendMode.values
                   .map(
@@ -274,9 +258,20 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                 }
               },
             ),
-          ],
-        ),
-      ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        opacityRow(),
+        const SizedBox(height: 6),
+        toggleRow(),
+        const SizedBox(height: 6),
+        blendRow(),
+      ],
     );
   }
 
@@ -312,26 +307,36 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
         }
       }
     }
+    final Widget? layerControls = _buildLayerControlStrip(theme, activeLayer);
 
-    return Column(
-      mainAxisSize: MainAxisSize.max,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: Scrollbar(
-            controller: _layerScrollController,
-            child: Localizations.override(
-              context: context,
-              delegates: const [GlobalMaterialLocalizations.delegate],
-              child: material.ReorderableListView.builder(
-                scrollController: _layerScrollController,
-                padding: EdgeInsets.zero,
-                buildDefaultDragHandles: false,
-                dragStartBehavior: DragStartBehavior.down,
-                proxyDecorator: (child, index, animation) => child,
-                itemCount: orderedLayers.length,
-                onReorder: _handleLayerReorder,
-                itemBuilder: (context, index) {
+    final List<Widget> panelChildren = <Widget>[
+      const SizedBox(height: 4),
+      Separator(),
+      const SizedBox(height: 6),
+    ];
+    if (layerControls != null) {
+      panelChildren
+        ..add(layerControls)
+        ..add(const SizedBox(height: 6))
+        ..add(Separator())
+        ..add(const SizedBox(height: 6));
+    }
+    panelChildren.add(
+      Expanded(
+        child: Scrollbar(
+          controller: _layerScrollController,
+          child: Localizations.override(
+            context: context,
+            delegates: const [GlobalMaterialLocalizations.delegate],
+            child: material.ReorderableListView.builder(
+              scrollController: _layerScrollController,
+              padding: EdgeInsets.zero,
+              buildDefaultDragHandles: false,
+              dragStartBehavior: DragStartBehavior.down,
+              proxyDecorator: (child, index, animation) => child,
+              itemCount: orderedLayers.length,
+              onReorder: _handleLayerReorder,
+              itemBuilder: (context, index) {
                   final BitmapLayerState layer = orderedLayers[index];
                   final bool isActive = layer.id == activeLayerId;
                   final double contentOpacity = layer.visible ? 1.0 : 0.45;
@@ -444,9 +449,13 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        _buildLayerPropertiesPanel(theme, activeLayer),
-      ],
+      ),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: panelChildren,
     );
   }
 }
