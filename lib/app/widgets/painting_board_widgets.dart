@@ -328,14 +328,6 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               ),
             ],
           ),
-          if (widget.selectionShape == SelectionShape.polygon)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                '提示：单击添加节点，双击或点击起点闭合选区',
-                style: theme.typography.caption,
-              ),
-            ),
         ],
       );
     } else {

@@ -184,6 +184,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             top: _toolButtonPadding,
                             child: CanvasToolbar(
                               activeTool: _activeTool,
+                              selectionShape: selectionShape,
                               onToolSelected: _setActiveTool,
                               onUndo: _handleUndo,
                               onRedo: _handleRedo,
@@ -197,19 +198,19 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                 _toolbarButtonSize +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
-                          child: _ToolSettingsCard(
-                            activeTool: _activeTool,
-                            penStrokeWidth: _penStrokeWidth,
-                            onPenStrokeWidthChanged: _updatePenStrokeWidth,
-                            bucketSampleAllLayers: _bucketSampleAllLayers,
-                            bucketContiguous: _bucketContiguous,
-                            onBucketSampleAllLayersChanged:
-                                _updateBucketSampleAllLayers,
-                            onBucketContiguousChanged:
-                                _updateBucketContiguous,
-                            selectionShape: selectionShape,
-                            onSelectionShapeChanged: _updateSelectionShape,
-                          ),
+                            child: _ToolSettingsCard(
+                              activeTool: _activeTool,
+                              penStrokeWidth: _penStrokeWidth,
+                              onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                              bucketSampleAllLayers: _bucketSampleAllLayers,
+                              bucketContiguous: _bucketContiguous,
+                              onBucketSampleAllLayersChanged:
+                                  _updateBucketSampleAllLayers,
+                              onBucketContiguousChanged:
+                                  _updateBucketContiguous,
+                              selectionShape: selectionShape,
+                              onSelectionShapeChanged: _updateSelectionShape,
+                            ),
                         ),
                           Positioned(
                             left: _toolButtonPadding,

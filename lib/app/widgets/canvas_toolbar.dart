@@ -16,6 +16,7 @@ class CanvasToolbar extends StatelessWidget {
   const CanvasToolbar({
     super.key,
     required this.activeTool,
+    required this.selectionShape,
     required this.onToolSelected,
     required this.onUndo,
     required this.onRedo,
@@ -25,6 +26,7 @@ class CanvasToolbar extends StatelessWidget {
   });
 
   final CanvasTool activeTool;
+  final SelectionShape selectionShape;
   final ValueChanged<CanvasTool> onToolSelected;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
@@ -102,6 +104,7 @@ class CanvasToolbar extends StatelessWidget {
           useMousePosition: false,
           child: SelectionToolButton(
             isSelected: activeTool == CanvasTool.selection,
+            selectionShape: selectionShape,
             onPressed: () => onToolSelected(CanvasTool.selection),
           ),
         ),
