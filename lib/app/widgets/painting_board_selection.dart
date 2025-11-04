@@ -622,34 +622,139 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       return null;
     }
     final int height = mask.length ~/ width;
-    Path? result;
+    final Map<int, List<int>> adjacency = <int, List<int>>{};
+    final Set<int> edges = <int>{};
+    bool hasCoverage = false;
+
+    void addEdge(int startX, int startY, int endX, int endY) {
+      final int startKey = _encodeVertex(startX, startY);
+      final int endKey = _encodeVertex(endX, endY);
+      (adjacency[startKey] ??= <int>[]).add(endKey);
+      edges.add(_encodeEdge(startKey, endKey));
+    }
+
+    void removeEdge(int startKey, int endKey) {
+      final List<int>? outs = adjacency[startKey];
+      if (outs != null) {
+        for (int i = 0; i < outs.length; i++) {
+          if (outs[i] == endKey) {
+            final int lastIndex = outs.length - 1;
+            outs[i] = outs[lastIndex];
+            outs.removeLast();
+            break;
+          }
+        }
+        if (outs.isEmpty) {
+          adjacency.remove(startKey);
+        }
+      }
+      edges.remove(_encodeEdge(startKey, endKey));
+    }
+
+    int? popNextEdge(int startKey, int? previousKey) {
+      final List<int>? outs = adjacency[startKey];
+      if (outs == null || outs.isEmpty) {
+        adjacency.remove(startKey);
+        return null;
+      }
+      int selectedIndex = outs.length - 1;
+      if (previousKey != null && outs.length > 1) {
+        for (int i = 0; i < outs.length; i++) {
+          if (outs[i] != previousKey) {
+            selectedIndex = i;
+            break;
+          }
+        }
+      }
+      final int endKey = outs[selectedIndex];
+      final int lastIndex = outs.length - 1;
+      outs[selectedIndex] = outs[lastIndex];
+      outs.removeLast();
+      if (outs.isEmpty) {
+        adjacency.remove(startKey);
+      }
+      edges.remove(_encodeEdge(startKey, endKey));
+      return endKey;
+    }
+
     for (int y = 0; y < height; y++) {
       final int rowOffset = y * width;
-      int x = 0;
-      while (x < width) {
-        if (mask[rowOffset + x] == 0) {
-          x += 1;
+      for (int x = 0; x < width; x++) {
+        final int index = rowOffset + x;
+        if (mask[index] == 0) {
           continue;
         }
-        final int start = x;
-        while (x < width && mask[rowOffset + x] != 0) {
-          x += 1;
+        hasCoverage = true;
+        if (y == 0 || mask[index - width] == 0) {
+          addEdge(x, y, x + 1, y);
         }
-        final Rect rect = Rect.fromLTWH(
-          start.toDouble(),
-          y.toDouble(),
-          (x - start).toDouble(),
-          1,
-        );
-        final Path segment = Path()..addRect(rect);
-        result = result == null
-            ? segment
-            : Path.combine(ui.PathOperation.union, result, segment);
+        if (x == width - 1 || mask[index + 1] == 0) {
+          addEdge(x + 1, y, x + 1, y + 1);
+        }
+        if (y == height - 1 || mask[index + width] == 0) {
+          addEdge(x + 1, y + 1, x, y + 1);
+        }
+        if (x == 0 || mask[index - 1] == 0) {
+          addEdge(x, y + 1, x, y);
+        }
       }
     }
-    return result;
+
+    if (!hasCoverage) {
+      return null;
+    }
+
+    final Path path = Path()..fillType = PathFillType.evenOdd;
+
+    while (edges.isNotEmpty) {
+      final int startEdge = edges.first;
+      final int startKey = _edgeStart(startEdge);
+      final int firstNextKey = _edgeEnd(startEdge);
+      removeEdge(startKey, firstNextKey);
+
+      path.moveTo(
+        _vertexX(startKey).toDouble(),
+        _vertexY(startKey).toDouble(),
+      );
+      path.lineTo(
+        _vertexX(firstNextKey).toDouble(),
+        _vertexY(firstNextKey).toDouble(),
+      );
+
+      int previousKey = startKey;
+      int currentKey = firstNextKey;
+      while (currentKey != startKey) {
+        final int? nextKey = popNextEdge(currentKey, previousKey);
+        if (nextKey == null) {
+          break;
+        }
+        path.lineTo(
+          _vertexX(nextKey).toDouble(),
+          _vertexY(nextKey).toDouble(),
+        );
+        previousKey = currentKey;
+        currentKey = nextKey;
+      }
+      path.close();
+    }
+
+    return path;
   }
 }
+
+int _encodeVertex(int x, int y) => (y << 32) | x;
+
+double _vertexX(int key) => (key & 0xFFFFFFFF).toDouble();
+
+double _vertexY(int key) => (key >> 32).toDouble();
+
+const int _kEdgeMask = 0xFFFFFFFFFFFFFFFF;
+
+int _encodeEdge(int startKey, int endKey) => (startKey << 64) | endKey;
+
+int _edgeStart(int edgeKey) => edgeKey >> 64;
+
+int _edgeEnd(int edgeKey) => edgeKey & _kEdgeMask;
 
 class _SelectionOverlayPainter extends CustomPainter {
   const _SelectionOverlayPainter({
