@@ -318,8 +318,12 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     if (dragPath == null) {
       return _isAdditiveSelection ? _selectionPath : null;
     }
-    if (_isAdditiveSelection && _selectionPath != null) {
-      return Path.combine(ui.PathOperation.union, _selectionPath!, dragPath);
+    if (_isAdditiveSelection && (_selectionPath != null || _selectionMask != null)) {
+      final Path? base = _selectionPath ??
+          _pathFromMask(_selectionMask!, _controller.width);
+      if (base != null) {
+        return Path.combine(ui.PathOperation.union, base, dragPath);
+      }
     }
     return dragPath;
   }
@@ -515,8 +519,15 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
         setSelectionState(path: null, mask: null);
         return;
       }
-      final Path? combined = _pathFromMask(merged, _controller.width);
-      setSelectionState(path: combined, mask: merged);
+      final Path basePath = _selectionPath ??
+          (_pathFromMask(_selectionMask!, _controller.width) ?? Path());
+      if (effectivePath != null) {
+        final Path combinedPath =
+            Path.combine(ui.PathOperation.union, basePath, effectivePath);
+        setSelectionState(path: combinedPath, mask: merged);
+        return;
+      }
+      setSelectionState(path: basePath, mask: merged);
       return;
     }
     final Path? resolvedPath =
@@ -611,7 +622,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       return null;
     }
     final int height = mask.length ~/ width;
-    final Path path = Path();
+    Path? result;
     for (int y = 0; y < height; y++) {
       final int rowOffset = y * width;
       int x = 0;
@@ -630,10 +641,13 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
           (x - start).toDouble(),
           1,
         );
-        path.addRect(rect);
+        final Path segment = Path()..addRect(rect);
+        result = result == null
+            ? segment
+            : Path.combine(ui.PathOperation.union, result, segment);
       }
     }
-    return path;
+    return result;
   }
 }
 
