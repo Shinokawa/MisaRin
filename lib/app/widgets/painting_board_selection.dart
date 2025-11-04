@@ -28,6 +28,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   double _selectionDashPhase = 0.0;
   double _selectionDashValue = 0.0;
   bool _selectionUndoArmed = false;
+  bool _isAdditiveSelection = false;
+  Path? _currentDragPath;
 
   bool get _isShiftPressed {
     final Set<LogicalKeyboardKey> pressed =
@@ -148,7 +150,9 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       return;
     }
     _prepareSelectionUndo();
-    _beginDragSelection(position);
+    final bool additive =
+        _isShiftPressed && _selectionMask != null && _selectionShape != SelectionShape.polygon;
+    _beginDragSelection(position, additive: additive);
     _updateSelectionAnimation();
   }
 
@@ -161,7 +165,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       return;
     }
     setState(() {
-      _selectionPreviewPath = _buildDragPath(position);
+      _currentDragPath = _buildDragPath(position);
+      _selectionPreviewPath = _computeDragPreviewPath();
     });
     _updateSelectionAnimation();
   }
@@ -174,13 +179,16 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     if (!_isSelectionDragging) {
       return;
     }
-    final Path? finalizedPath = _selectionPreviewPath;
+    final Path? finalizedPath = _currentDragPath;
+    final bool additive = _isAdditiveSelection;
     setState(() {
       _isSelectionDragging = false;
       _selectionDragStart = null;
       _selectionPreviewPath = null;
-      _applySelectionPathInternal(finalizedPath);
+      _currentDragPath = null;
+      _isAdditiveSelection = false;
     });
+    _applySelectionPathInternal(finalizedPath, additive: additive);
     _updateSelectionAnimation();
     _finishSelectionUndo();
   }
@@ -197,6 +205,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       _isSelectionDragging = false;
       _selectionDragStart = null;
       _selectionPreviewPath = null;
+      _currentDragPath = null;
+      _isAdditiveSelection = false;
     });
     _updateSelectionAnimation();
     _finishSelectionUndo();
@@ -246,12 +256,16 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _updateSelectionAnimation();
   }
 
-  void _beginDragSelection(Offset position) {
+  void _beginDragSelection(Offset position, {required bool additive}) {
     setState(() {
-      setSelectionState(path: null, mask: null);
+      if (!additive) {
+        setSelectionState(path: null, mask: null);
+      }
+      _isAdditiveSelection = additive;
       _isSelectionDragging = true;
       _selectionDragStart = position;
-      _selectionPreviewPath = Path()..addRect(Rect.fromLTWH(position.dx, position.dy, 0, 0));
+      _currentDragPath = null;
+      _selectionPreviewPath = null;
     });
     _updateSelectionAnimation();
   }
@@ -297,6 +311,17 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     final double adjustedDx = dx >= 0 ? side : -side;
     final double adjustedDy = dy >= 0 ? side : -side;
     return Offset(start.dx + adjustedDx, start.dy + adjustedDy);
+  }
+
+  Path? _computeDragPreviewPath() {
+    final Path? dragPath = _currentDragPath;
+    if (dragPath == null) {
+      return _isAdditiveSelection ? _selectionPath : null;
+    }
+    if (_isAdditiveSelection && _selectionPath != null) {
+      return Path.combine(ui.PathOperation.union, _selectionPath!, dragPath);
+    }
+    return dragPath;
   }
 
   void _handlePolygonPointerDown(Offset position, Duration timestamp) {
@@ -465,17 +490,38 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     return path;
   }
 
-  void _applySelectionPathInternal(Path? path, {Uint8List? mask}) {
-    if (path == null) {
-      setSelectionState(path: null, mask: null);
+  void _applySelectionPathInternal(Path? path,
+      {Uint8List? mask, bool additive = false}) {
+    Uint8List? effectiveMask = mask;
+    Path? effectivePath = path;
+    if (effectiveMask == null && effectivePath != null) {
+      effectiveMask = _maskFromPath(effectivePath);
+    }
+    if (effectiveMask == null) {
+      if (!additive) {
+        setSelectionState(path: null, mask: null);
+      }
       return;
     }
-    final Uint8List effectiveMask = mask ?? _maskFromPath(path);
     if (!_maskHasCoverage(effectiveMask)) {
-      setSelectionState(path: null, mask: null);
+      if (!additive) {
+        setSelectionState(path: null, mask: null);
+      }
       return;
     }
-    setSelectionState(path: path, mask: effectiveMask);
+    if (additive && _selectionMask != null) {
+      final Uint8List merged = _mergeMasks(_selectionMask!, effectiveMask);
+      if (!_maskHasCoverage(merged)) {
+        setSelectionState(path: null, mask: null);
+        return;
+      }
+      final Path? combined = _pathFromMask(merged, _controller.width);
+      setSelectionState(path: combined, mask: merged);
+      return;
+    }
+    final Path? resolvedPath =
+        effectivePath ?? _pathFromMask(effectiveMask, _controller.width);
+    setSelectionState(path: resolvedPath, mask: effectiveMask);
   }
 
   void _prepareSelectionUndo() {
@@ -550,6 +596,14 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       }
     }
     return false;
+  }
+
+  Uint8List _mergeMasks(Uint8List current, Uint8List added) {
+    final Uint8List result = Uint8List(current.length);
+    for (int i = 0; i < current.length; i++) {
+      result[i] = (current[i] != 0 || added[i] != 0) ? 1 : 0;
+    }
+    return result;
   }
 
   Path? _pathFromMask(Uint8List mask, int width) {
