@@ -536,57 +536,29 @@ class _SelectionOverlayPainter extends CustomPainter {
   final Path? magicPreviewPath;
   final double dashPhase;
 
-  static final Paint _selectionFillPaint = Paint()
-    ..color = _kSelectionFillColor
-    ..style = PaintingStyle.fill;
-  static final Paint _selectionStrokePaintDark = Paint()
-    ..color = const Color(0xFF2B2B2B)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.0;
-  static final Paint _selectionStrokePaintLight = Paint()
-    ..color = Colors.white.withOpacity(0.9)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.0;
   static final Paint _previewFillPaint = Paint()
     ..color = _kSelectionPreviewFillColor
     ..style = PaintingStyle.fill;
+  static final _MarchingAntsStroke _selectionStroke = _MarchingAntsStroke(
+    dashLength: _kSelectionDashLength,
+    dashGap: _kSelectionDashGap,
+    strokeWidth: 1.0,
+    lightColor: const Color(0xE6FFFFFF),
+    darkColor: const Color(0xFF2B2B2B),
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
     if (magicPreviewPath != null) {
       canvas.drawPath(magicPreviewPath!, _previewFillPaint);
-      _drawMarchingAnts(canvas, magicPreviewPath!);
+      _selectionStroke.paint(canvas, magicPreviewPath!, dashPhase);
     }
     if (selectionPreviewPath != null) {
       canvas.drawPath(selectionPreviewPath!, _previewFillPaint);
-      _drawMarchingAnts(canvas, selectionPreviewPath!);
+      _selectionStroke.paint(canvas, selectionPreviewPath!, dashPhase);
     }
     if (selectionPath != null) {
-      _drawMarchingAnts(canvas, selectionPath!);
-    }
-  }
-
-  void _drawMarchingAnts(Canvas canvas, Path path) {
-    final ui.PathMetrics metrics = path.computeMetrics(forceClosed: false);
-    final double pattern = _kSelectionDashLength + _kSelectionDashGap;
-    for (final ui.PathMetric metric in metrics) {
-      double distance = - (dashPhase % pattern);
-      int segmentIndex = 0;
-      while (distance < metric.length) {
-        final double start = math.max(0.0, distance);
-        final double rawEnd = distance + _kSelectionDashLength;
-        final double end = math.min(metric.length, rawEnd);
-        if (end > start) {
-          final Path segment = metric.extractPath(start, end);
-          final bool isEven = segmentIndex.isEven;
-          canvas.drawPath(
-            segment,
-            isEven ? _selectionStrokePaintLight : _selectionStrokePaintDark,
-          );
-        }
-        distance += pattern;
-        segmentIndex += 1;
-      }
+      _selectionStroke.paint(canvas, selectionPath!, dashPhase);
     }
   }
 

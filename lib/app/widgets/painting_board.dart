@@ -33,6 +33,7 @@ import 'layer_visibility_button.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
+part 'painting_board_marching_ants.dart';
 part 'painting_board_selection.dart';
 part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
