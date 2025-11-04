@@ -29,6 +29,14 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   double _selectionDashValue = 0.0;
   bool _selectionUndoArmed = false;
 
+  bool get _isShiftPressed {
+    final Set<LogicalKeyboardKey> pressed =
+        HardwareKeyboard.instance.logicalKeysPressed;
+    return pressed.contains(LogicalKeyboardKey.shiftLeft) ||
+        pressed.contains(LogicalKeyboardKey.shiftRight) ||
+        pressed.contains(LogicalKeyboardKey.shift);
+  }
+
   @override
   SelectionShape get selectionShape => _selectionShape;
 
@@ -253,10 +261,17 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     if (start == null) {
       return null;
     }
-    final double left = start.dx < current.dx ? start.dx : current.dx;
-    final double top = start.dy < current.dy ? start.dy : current.dy;
-    final double right = start.dx > current.dx ? start.dx : current.dx;
-    final double bottom = start.dy > current.dy ? start.dy : current.dy;
+    Offset constrainedCurrent = current;
+    if (_isShiftPressed &&
+        (_selectionShape == SelectionShape.rectangle ||
+            _selectionShape == SelectionShape.ellipse)) {
+      constrainedCurrent = _constrainToSquare(start, current);
+    }
+    final Offset effective = constrainedCurrent;
+    final double left = start.dx < effective.dx ? start.dx : effective.dx;
+    final double top = start.dy < effective.dy ? start.dy : effective.dy;
+    final double right = start.dx > effective.dx ? start.dx : effective.dx;
+    final double bottom = start.dy > effective.dy ? start.dy : effective.dy;
     double width = right - left;
     double height = bottom - top;
     if (width < 1) {
@@ -273,6 +288,15 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       return Path()..addOval(rect);
     }
     return null;
+  }
+
+  Offset _constrainToSquare(Offset start, Offset current) {
+    final double dx = current.dx - start.dx;
+    final double dy = current.dy - start.dy;
+    final double side = math.max(dx.abs(), dy.abs());
+    final double adjustedDx = dx >= 0 ? side : -side;
+    final double adjustedDy = dy >= 0 ? side : -side;
+    return Offset(start.dx + adjustedDx, start.dy + adjustedDy);
   }
 
   void _handlePolygonPointerDown(Offset position, Duration timestamp) {

@@ -13,6 +13,7 @@ import 'package:flutter/material.dart'
 import 'package:flutter/services.dart'
     show
         FilteringTextInputFormatter,
+        HardwareKeyboard,
         LogicalKeyboardKey,
         LogicalKeySet,
         TextInputFormatter,
