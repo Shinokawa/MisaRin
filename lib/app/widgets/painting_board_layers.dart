@@ -166,6 +166,17 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
+  Widget _buildPanelDivider(FluentThemeData theme) {
+    final Color dividerColor =
+        theme.resources.controlStrokeColorDefault.withOpacity(0.35);
+    return SizedBox(
+      height: 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: dividerColor),
+      ),
+    );
+  }
+
   Widget? _buildLayerControlStrip(
     FluentThemeData theme,
     BitmapLayerState? activeLayer,
@@ -309,34 +320,34 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     }
     final Widget? layerControls = _buildLayerControlStrip(theme, activeLayer);
 
-    final List<Widget> panelChildren = <Widget>[
-      const SizedBox(height: 4),
-      Separator(),
-      const SizedBox(height: 6),
-    ];
-    if (layerControls != null) {
-      panelChildren
-        ..add(layerControls)
-        ..add(const SizedBox(height: 6))
-        ..add(Separator())
-        ..add(const SizedBox(height: 6));
-    }
-    panelChildren.add(
-      Expanded(
-        child: Scrollbar(
-          controller: _layerScrollController,
-          child: Localizations.override(
-            context: context,
-            delegates: const [GlobalMaterialLocalizations.delegate],
-            child: material.ReorderableListView.builder(
-              scrollController: _layerScrollController,
-              padding: EdgeInsets.zero,
-              buildDefaultDragHandles: false,
-              dragStartBehavior: DragStartBehavior.down,
-              proxyDecorator: (child, index, animation) => child,
-              itemCount: orderedLayers.length,
-              onReorder: _handleLayerReorder,
-              itemBuilder: (context, index) {
+    return Column(
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 4),
+        _buildPanelDivider(theme),
+        const SizedBox(height: 6),
+        if (layerControls != null) ...[
+          layerControls,
+          const SizedBox(height: 6),
+          _buildPanelDivider(theme),
+          const SizedBox(height: 6),
+        ],
+        Expanded(
+          child: Scrollbar(
+            controller: _layerScrollController,
+            child: Localizations.override(
+              context: context,
+              delegates: const [GlobalMaterialLocalizations.delegate],
+              child: material.ReorderableListView.builder(
+                scrollController: _layerScrollController,
+                padding: EdgeInsets.zero,
+                buildDefaultDragHandles: false,
+                dragStartBehavior: DragStartBehavior.down,
+                proxyDecorator: (child, index, animation) => child,
+                itemCount: orderedLayers.length,
+                onReorder: _handleLayerReorder,
+                itemBuilder: (context, index) {
                   final BitmapLayerState layer = orderedLayers[index];
                   final bool isActive = layer.id == activeLayerId;
                   final double contentOpacity = layer.visible ? 1.0 : 0.45;
@@ -416,8 +427,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                             Icon(
                                               FluentIcons.lock,
                                               size: 12,
-                                              color: theme
-                                                  .resources
+                                              color: theme.resources
                                                   .textFillColorSecondary,
                                             ),
                                           ],
@@ -433,9 +443,8 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                   left: -18,
                                   top: 12,
                                   child: _ClippingMaskArrow(
-                                    color: theme.accentColor.defaultBrushFor(
-                                      theme.brightness,
-                                    ),
+                                    color: theme.accentColor
+                                        .defaultBrushFor(theme.brightness),
                                   ),
                                 ),
                             ],
@@ -449,13 +458,147 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
             ),
           ),
         ),
-      ),
+      ],
     );
-
     return Column(
       mainAxisSize: MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: panelChildren,
+      children: [
+        const SizedBox(height: 4),
+        _buildPanelDivider(theme),
+        const SizedBox(height: 6),
+        if (layerControls != null) ...[
+          layerControls,
+          const SizedBox(height: 6),
+          _buildPanelDivider(theme),
+          const SizedBox(height: 6),
+        ],
+        Expanded(
+          child: Scrollbar(
+            controller: _layerScrollController,
+            child: Localizations.override(
+              context: context,
+              delegates: const [GlobalMaterialLocalizations.delegate],
+              child: material.ReorderableListView.builder(
+                scrollController: _layerScrollController,
+                padding: EdgeInsets.zero,
+                buildDefaultDragHandles: false,
+                dragStartBehavior: DragStartBehavior.down,
+                proxyDecorator: (child, index, animation) => child,
+                itemCount: orderedLayers.length,
+                onReorder: _handleLayerReorder,
+                itemBuilder: (context, index) {
+                  final BitmapLayerState layer = orderedLayers[index];
+                  final bool isActive = layer.id == activeLayerId;
+                  final double contentOpacity = layer.visible ? 1.0 : 0.45;
+                  final Color background = isActive
+                      ? Color.alphaBlend(
+                          theme.resources.subtleFillColorSecondary,
+                          tileBaseColor,
+                        )
+                      : tileBaseColor;
+                  final Color borderColor =
+                      theme.resources.controlStrokeColorSecondary;
+                  final Color tileBorder = Color.lerp(
+                    borderColor,
+                    Colors.transparent,
+                    0.6,
+                  )!;
+
+                  final Widget visibilityButton = LayerVisibilityButton(
+                    visible: layer.visible,
+                    onChanged: (value) =>
+                        _handleLayerVisibilityChanged(layer.id, value),
+                  );
+
+                  final bool canDelete = _layers.length > 1;
+                  final Widget deleteButton = IconButton(
+                    icon: const Icon(FluentIcons.delete),
+                    onPressed: canDelete
+                        ? () => _handleRemoveLayer(layer.id)
+                        : null,
+                  );
+
+                  return material.ReorderableDragStartListener(
+                    key: ValueKey(layer.id),
+                    index: index,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: layer.clippingMask ? 18 : 0,
+                        bottom: index == orderedLayers.length - 1 ? 0 : 8,
+                      ),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _handleLayerSelected(layer.id),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: background,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: tileBorder),
+                          ),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Row(
+                                children: [
+                                  visibilityButton,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Opacity(
+                                      opacity: contentOpacity,
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              layer.name,
+                                              style: isActive
+                                                  ? theme.typography.bodyStrong
+                                                  : theme.typography.body,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (layer.locked) ...[
+                                            const SizedBox(width: 6),
+                                            Icon(
+                                              FluentIcons.lock,
+                                              size: 12,
+                                              color: theme.resources
+                                                  .textFillColorSecondary,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  deleteButton,
+                                ],
+                              ),
+                              if (layer.clippingMask)
+                                Positioned(
+                                  left: -18,
+                                  top: 12,
+                                  child: _ClippingMaskArrow(
+                                    color: theme.accentColor
+                                        .defaultBrushFor(theme.brightness),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
