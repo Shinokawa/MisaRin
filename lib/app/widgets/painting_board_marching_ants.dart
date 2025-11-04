@@ -29,6 +29,11 @@ class _MarchingAntsStroke {
       LinkedHashMap<int, _MarchingAntsPathCache>();
 
   void paint(Canvas canvas, Path path, double phase) {
+    double effectivePhase = phase;
+    if (!effectivePhase.isFinite) {
+      effectivePhase = 0.0;
+    }
+
     final double pattern = dashLength + dashGap;
     if (pattern <= 0) {
       return;
@@ -39,13 +44,24 @@ class _MarchingAntsStroke {
       return;
     }
 
-    double distanceOffset = -(phase % pattern);
-    if (distanceOffset.isNaN || distanceOffset.isInfinite) {
-      distanceOffset = 0.0;
+    final double wrapsDouble = effectivePhase / pattern;
+    int wrapCount = wrapsDouble.floor();
+    double offset = effectivePhase - wrapCount * pattern;
+    if (offset < 0) {
+      offset += pattern;
+      wrapCount -= 1;
     }
 
+    final double distanceOffset = -offset;
+
     for (final ui.PathMetric metric in cache.metrics) {
-      _paintMetric(canvas, metric, distanceOffset, pattern);
+      _paintMetric(
+        canvas,
+        metric,
+        distanceOffset,
+        pattern,
+        wrapCount,
+      );
     }
   }
 
@@ -68,9 +84,9 @@ class _MarchingAntsStroke {
     ui.PathMetric metric,
     double initialOffset,
     double pattern,
+    int segmentIndex,
   ) {
     double distance = initialOffset;
-    int segmentIndex = 0;
     while (distance < metric.length) {
       final double start = math.max(0.0, distance);
       final double rawEnd = distance + dashLength;
