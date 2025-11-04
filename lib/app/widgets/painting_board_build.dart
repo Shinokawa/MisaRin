@@ -60,7 +60,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
         final Rect boardRect = _boardRect;
 
-        final MouseCursor workspaceCursor = _activeTool == CanvasTool.hand
+        final MouseCursor workspaceCursor = _effectiveActiveTool == CanvasTool.hand
             ? SystemMouseCursors.move
             : SystemMouseCursors.basic;
 
@@ -120,6 +120,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
             child: Focus(
               focusNode: _focusNode,
               autofocus: true,
+              onKeyEvent: _handleWorkspaceKeyEvent,
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onScaleStart: _handleScaleStart,

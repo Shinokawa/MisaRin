@@ -14,6 +14,11 @@ import 'package:flutter/services.dart'
     show
         FilteringTextInputFormatter,
         HardwareKeyboard,
+        KeyDownEvent,
+        KeyEvent,
+        KeyEventResult,
+        KeyRepeatEvent,
+        KeyUpEvent,
         LogicalKeyboardKey,
         LogicalKeySet,
         TextInputFormatter,
@@ -96,6 +101,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _bucketContiguous = true;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
+  bool _spacePanOverrideActive = false;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -187,6 +193,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   }
 
   CanvasTool get activeTool => _activeTool;
+  CanvasTool get _effectiveActiveTool =>
+      _spacePanOverrideActive ? CanvasTool.hand : _activeTool;
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
   bool get canUndo => _undoStack.isNotEmpty;
@@ -250,6 +258,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _handlePointerCancel(PointerCancelEvent event);
   void _handlePointerHover(PointerHoverEvent event);
   void _handlePointerSignal(PointerSignalEvent event);
+  KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event);
 
   void _handleScaleStart(ScaleStartDetails details);
   void _handleScaleUpdate(ScaleUpdateDetails details);

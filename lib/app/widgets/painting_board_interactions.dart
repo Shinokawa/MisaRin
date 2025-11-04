@@ -179,7 +179,8 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       return;
     }
     final Offset boardLocal = _toBoardLocal(pointer);
-    switch (_activeTool) {
+    final CanvasTool tool = _effectiveActiveTool;
+    switch (tool) {
       case CanvasTool.pen:
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
@@ -215,7 +216,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (_isScalingGesture) {
       return;
     }
-    switch (_activeTool) {
+    switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
@@ -238,7 +239,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   void _handlePointerUp(PointerUpEvent event) {
-    switch (_activeTool) {
+    switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
           _finishStroke();
@@ -259,7 +260,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
-    switch (_activeTool) {
+    switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
           _finishStroke();
@@ -280,7 +281,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   void _handlePointerHover(PointerHoverEvent event) {
-    if (_activeTool != CanvasTool.selection) {
+    if (_effectiveActiveTool != CanvasTool.selection) {
       return;
     }
     final Rect boardRect = _boardRect;
@@ -290,6 +291,31 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     }
     final Offset boardLocal = _toBoardLocal(event.localPosition);
     _handleSelectionHover(boardLocal);
+  }
+
+  @override
+  KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event) {
+    if (event.logicalKey != LogicalKeyboardKey.space) {
+      return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      if (_spacePanOverrideActive) {
+        return KeyEventResult.handled;
+      }
+      setState(() => _spacePanOverrideActive = true);
+      return KeyEventResult.handled;
+    }
+    if (event is KeyUpEvent) {
+      if (!_spacePanOverrideActive) {
+        return KeyEventResult.handled;
+      }
+      if (_isDraggingBoard) {
+        _finishDragBoard();
+      }
+      setState(() => _spacePanOverrideActive = false);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   void _applyZoom(double targetScale, Offset workspaceFocalPoint) {
