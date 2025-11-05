@@ -172,15 +172,16 @@ class _EyedropperCursorOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const double outlineRadius = 0.75;
     const List<Offset> outlineOffsets = <Offset>[
-      Offset(-1, 0),
-      Offset(1, 0),
-      Offset(0, -1),
-      Offset(0, 1),
-      Offset(-1, -1),
-      Offset(1, -1),
-      Offset(-1, 1),
-      Offset(1, 1),
+      Offset(-outlineRadius, 0),
+      Offset(outlineRadius, 0),
+      Offset(0, -outlineRadius),
+      Offset(0, outlineRadius),
+      Offset(-outlineRadius, -outlineRadius),
+      Offset(outlineRadius, -outlineRadius),
+      Offset(-outlineRadius, outlineRadius),
+      Offset(outlineRadius, outlineRadius),
     ];
 
     return SizedBox(
