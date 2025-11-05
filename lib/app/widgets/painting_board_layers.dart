@@ -268,7 +268,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
         children: [
           SizedBox(
             width: 52,
-            child: Text('图层模式', style: labelStyle),
+            child: Text('混合模式', style: labelStyle),
           ),
           const SizedBox(width: 8),
           Expanded(
