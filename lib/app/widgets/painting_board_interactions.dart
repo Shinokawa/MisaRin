@@ -104,15 +104,15 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _lastEyedropperSample = null;
       }
       _activeTool = tool;
-      if (_activeTool == CanvasTool.eyedropper) {
+      if (ToolCursorStyles.hasOverlay(_effectiveActiveTool)) {
         final Offset? pointer = _lastWorkspacePointer;
         if (pointer != null && _boardRect.contains(pointer)) {
-          _eyedropperCursorPosition = pointer;
+          _toolCursorPosition = pointer;
         } else {
-          _eyedropperCursorPosition = null;
+          _toolCursorPosition = null;
         }
       } else {
-        _eyedropperCursorPosition = null;
+        _toolCursorPosition = null;
       }
     });
     _updateSelectionAnimation();
@@ -253,39 +253,40 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     _setPrimaryColor(color, remember: remember);
   }
 
-  void _updateEyedropperCursor(Offset workspacePosition) {
-    if (_effectiveActiveTool != CanvasTool.eyedropper) {
-      if (_eyedropperCursorPosition != null) {
-        setState(() => _eyedropperCursorPosition = null);
+  void _updateToolCursorOverlay(Offset workspacePosition) {
+    final CanvasTool tool = _effectiveActiveTool;
+    if (!ToolCursorStyles.hasOverlay(tool)) {
+      if (_toolCursorPosition != null) {
+        setState(() => _toolCursorPosition = null);
       }
       return;
     }
     if (_isInsideToolArea(workspacePosition)) {
-      if (_eyedropperCursorPosition != null) {
-        setState(() => _eyedropperCursorPosition = null);
+      if (_toolCursorPosition != null) {
+        setState(() => _toolCursorPosition = null);
       }
       return;
     }
     final Rect boardRect = _boardRect;
     if (!boardRect.contains(workspacePosition)) {
-      if (_eyedropperCursorPosition != null) {
-        setState(() => _eyedropperCursorPosition = null);
+      if (_toolCursorPosition != null) {
+        setState(() => _toolCursorPosition = null);
       }
       return;
     }
-    final Offset? current = _eyedropperCursorPosition;
+    final Offset? current = _toolCursorPosition;
     if (current != null &&
         (current - workspacePosition).distanceSquared < 0.25) {
       return;
     }
-    setState(() => _eyedropperCursorPosition = workspacePosition);
+    setState(() => _toolCursorPosition = workspacePosition);
   }
 
-  void _clearEyedropperCursor() {
-    if (_eyedropperCursorPosition == null) {
+  void _clearToolCursorOverlay() {
+    if (_toolCursorPosition == null) {
       return;
     }
-    setState(() => _eyedropperCursorPosition = null);
+    setState(() => _toolCursorPosition = null);
   }
 
   void _recordWorkspacePointer(Offset workspacePosition) {
@@ -301,7 +302,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (_effectiveActiveTool == CanvasTool.selection) {
       _clearSelectionHover();
     }
-    _clearEyedropperCursor();
+    _clearToolCursorOverlay();
     _lastWorkspacePointer = null;
   }
 
@@ -546,7 +547,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       return;
     }
     _recordWorkspacePointer(event.localPosition);
-    _updateEyedropperCursor(event.localPosition);
+    _updateToolCursorOverlay(event.localPosition);
     final Offset pointer = event.localPosition;
     if (_isInsideToolArea(pointer)) {
       return;
@@ -609,7 +610,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       return;
     }
     _recordWorkspacePointer(event.localPosition);
-    _updateEyedropperCursor(event.localPosition);
+    _updateToolCursorOverlay(event.localPosition);
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
@@ -718,7 +719,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
 
   void _handlePointerHover(PointerHoverEvent event) {
     _recordWorkspacePointer(event.localPosition);
-    _updateEyedropperCursor(event.localPosition);
+    _updateToolCursorOverlay(event.localPosition);
     if (_effectiveActiveTool != CanvasTool.selection) {
       return;
     }
@@ -744,7 +745,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         setState(() {
           _eyedropperOverrideActive = true;
           if (pointer != null && _boardRect.contains(pointer)) {
-            _eyedropperCursorPosition = pointer;
+            _toolCursorPosition = pointer;
           }
         });
         return KeyEventResult.handled;
@@ -756,7 +757,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _finishEyedropperSample();
         setState(() {
           _eyedropperOverrideActive = false;
-          _eyedropperCursorPosition = null;
+          _toolCursorPosition = null;
         });
         return KeyEventResult.handled;
       }

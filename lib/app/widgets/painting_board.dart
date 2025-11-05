@@ -42,6 +42,7 @@ import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import 'canvas_toolbar.dart';
+import 'tool_cursor_overlay.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../preferences/app_preferences.dart';
 import 'layer_visibility_button.dart';
@@ -117,7 +118,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isEyedropperSampling = false;
   bool _eyedropperOverrideActive = false;
   Offset? _lastEyedropperSample;
-  Offset? _eyedropperCursorPosition;
+  Offset? _toolCursorPosition;
   Offset? _lastWorkspacePointer;
 
   final CanvasViewport _viewport = CanvasViewport();

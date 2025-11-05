@@ -164,52 +164,6 @@ class _PanelCard extends StatelessWidget {
   }
 }
 
-class _EyedropperCursorOverlay extends StatelessWidget {
-  const _EyedropperCursorOverlay();
-
-  static const double size = 20;
-  static const Offset tipOffset = Offset(5, 17);
-
-  @override
-  Widget build(BuildContext context) {
-    const double outlineRadius = 0.75;
-    const List<Offset> outlineOffsets = <Offset>[
-      Offset(-outlineRadius, 0),
-      Offset(outlineRadius, 0),
-      Offset(0, -outlineRadius),
-      Offset(0, outlineRadius),
-      Offset(-outlineRadius, -outlineRadius),
-      Offset(outlineRadius, -outlineRadius),
-      Offset(-outlineRadius, outlineRadius),
-      Offset(outlineRadius, outlineRadius),
-    ];
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          for (final Offset offset in outlineOffsets)
-            Transform.translate(
-              offset: offset,
-              child: const Icon(
-                FluentIcons.eyedropper,
-                size: size,
-                color: Colors.white,
-              ),
-            ),
-          const Icon(
-            FluentIcons.eyedropper,
-            size: size,
-            color: Colors.black,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ToolSettingsCard extends StatefulWidget {
   const _ToolSettingsCard({
     required this.activeTool,

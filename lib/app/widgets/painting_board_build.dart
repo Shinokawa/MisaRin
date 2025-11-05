@@ -71,6 +71,18 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         _initializeViewportIfNeeded();
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
         final Rect boardRect = _boardRect;
+        final ToolCursorStyle? cursorStyle =
+            ToolCursorStyles.styleFor(_effectiveActiveTool);
+        final MouseCursor boardCursor;
+        if (cursorStyle?.hideSystemCursor ?? false) {
+          boardCursor = SystemMouseCursors.none;
+        } else if (_effectiveActiveTool == CanvasTool.layerAdjust) {
+          boardCursor = _isLayerDragging
+              ? SystemMouseCursors.grabbing
+              : SystemMouseCursors.move;
+        } else {
+          boardCursor = MouseCursor.defer;
+        }
 
         final MouseCursor workspaceCursor;
         switch (_effectiveActiveTool) {
@@ -176,10 +188,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             left: boardRect.left,
                             top: boardRect.top,
                             child: MouseRegion(
-                              cursor:
-                                  _effectiveActiveTool == CanvasTool.eyedropper
-                                  ? SystemMouseCursors.none
-                                  : MouseCursor.defer,
+                              cursor: boardCursor,
                               child: Transform.scale(
                                 scale: _viewport.scale,
                                 alignment: Alignment.topLeft,
@@ -340,16 +349,16 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               ),
                             ),
                           ),
-                          if (_eyedropperCursorPosition != null &&
-                              _effectiveActiveTool == CanvasTool.eyedropper)
+                          if (_toolCursorPosition != null &&
+                              cursorStyle != null)
                             Positioned(
-                              left: _eyedropperCursorPosition!.dx -
-                                  _EyedropperCursorOverlay.tipOffset.dx,
-                              top: _eyedropperCursorPosition!.dy -
-                                  _EyedropperCursorOverlay.tipOffset.dy,
-                              child: const IgnorePointer(
+                              left: _toolCursorPosition!.dx -
+                                  cursorStyle.anchor.dx,
+                              top: _toolCursorPosition!.dy -
+                                  cursorStyle.anchor.dy,
+                              child: IgnorePointer(
                                 ignoring: true,
-                                child: _EyedropperCursorOverlay(),
+                                child: cursorStyle.overlay,
                               ),
                             ),
                         ],
