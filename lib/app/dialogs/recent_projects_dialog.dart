@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +7,7 @@ import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../widgets/project_preview_thumbnail.dart';
 import 'misarin_dialog.dart';
+import '../utils/file_manager.dart';
 
 Future<ProjectSummary?> showRecentProjectsDialog(BuildContext context) {
   return showDialog<ProjectSummary>(
@@ -173,7 +173,7 @@ class _RecentProjectTileState extends State<_RecentProjectTile> {
               leading: const Icon(FluentIcons.folder_open),
               text: const Text('打开文件所在路径'),
               onPressed: () {
-                unawaited(_revealInFileManager(path));
+                unawaited(revealInFileManager(path));
               },
             ),
           ],
@@ -244,38 +244,6 @@ class _RecentProjectTileState extends State<_RecentProjectTile> {
         ),
       ),
     );
-  }
-}
-
-Future<void> _revealInFileManager(String projectPath) async {
-  if (projectPath.isEmpty) {
-    return;
-  }
-  final File file = File(projectPath);
-  final Directory directory = file.parent;
-  try {
-    final bool fileExists = await file.exists();
-    final bool directoryExists = await directory.exists();
-    if (Platform.isMacOS) {
-      if (fileExists) {
-        await Process.run('open', ['-R', file.path]);
-      } else {
-        await Process.run('open', [directory.path]);
-      }
-    } else if (Platform.isWindows) {
-      if (fileExists) {
-        await Process.run('explorer.exe', ['/select,', file.path]);
-      } else {
-        await Process.run('explorer.exe', [directory.path]);
-      }
-    } else if (Platform.isLinux) {
-      final String target = directoryExists
-          ? directory.path
-          : (fileExists ? file.path : projectPath);
-      await Process.run('xdg-open', [target]);
-    }
-  } catch (error) {
-    debugPrint('Failed to reveal project location: $error');
   }
 }
 

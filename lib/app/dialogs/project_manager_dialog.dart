@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../project/project_repository.dart';
+import '../utils/file_manager.dart';
 import '../widgets/project_preview_thumbnail.dart';
 import 'misarin_dialog.dart';
 
@@ -37,6 +38,7 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
 
   bool _selectAll = false;
   bool _deleting = false;
+  bool _revealing = false;
   bool _loading = true;
   String? _errorMessage;
 
@@ -59,6 +61,7 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
       _selected.clear();
       _selectAll = false;
       _deleting = false;
+      _revealing = false;
       _loading = true;
       _errorMessage = null;
     });
@@ -147,6 +150,37 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
     _subscribe();
   }
 
+  Future<void> _revealSelected() async {
+    if (_selected.isEmpty || _revealing) {
+      return;
+    }
+    final String? target = _firstSelectedPath();
+    if (target == null) {
+      return;
+    }
+    setState(() {
+      _revealing = true;
+    });
+    try {
+      await revealInFileManager(target);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _revealing = false;
+        });
+      }
+    }
+  }
+
+  String? _firstSelectedPath() {
+    for (final StoredProjectInfo info in _projects) {
+      if (_selected.contains(info.path)) {
+        return info.path;
+      }
+    }
+    return _selected.isEmpty ? null : _selected.first;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
@@ -183,6 +217,28 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
             ),
             Text('全选', style: theme.typography.bodyStrong),
             const Spacer(),
+            Tooltip(
+              message: '打开所选项目所在文件夹',
+              child: Button(
+                onPressed:
+                    !_revealing && hasSelection ? () => _revealSelected() : null,
+                child: _revealing
+                    ? const SizedBox(
+                        height: 14,
+                        width: 14,
+                        child: ProgressRing(strokeWidth: 2.0),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(FluentIcons.open_file),
+                          SizedBox(width: 6),
+                          Text('打开文件夹'),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(width: 8),
             Tooltip(
               message: '删除所选项目',
               child: FilledButton(
