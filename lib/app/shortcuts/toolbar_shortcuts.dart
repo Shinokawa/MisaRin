@@ -3,7 +3,9 @@ import 'package:flutter/widgets.dart';
 
 enum ToolbarAction {
   exit,
+  layerAdjustTool,
   penTool,
+  curvePenTool,
   bucketTool,
   magicWandTool,
   selectionTool,
@@ -40,6 +42,10 @@ class ToolbarShortcuts {
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.escape)],
       primaryLabel: 'Esc',
     ),
+    ToolbarAction.layerAdjustTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyV)],
+      primaryLabel: 'V',
+    ),
     ToolbarAction.bucketTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyG)],
       primaryLabel: 'G',
@@ -47,6 +53,10 @@ class ToolbarShortcuts {
     ToolbarAction.penTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyB)],
       primaryLabel: 'B',
+    ),
+    ToolbarAction.curvePenTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyP)],
+      primaryLabel: 'P',
     ),
     ToolbarAction.magicWandTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyW)],

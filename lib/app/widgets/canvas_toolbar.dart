@@ -11,6 +11,8 @@ import 'pen_tool_button.dart';
 import 'selection_tool_button.dart';
 import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
+import 'layer_adjust_tool_button.dart';
+import 'curve_pen_tool_button.dart';
 
 class CanvasToolbar extends StatelessWidget {
   const CanvasToolbar({
@@ -34,7 +36,7 @@ class CanvasToolbar extends StatelessWidget {
   final bool canRedo;
   final VoidCallback onExit;
 
-  static const int buttonCount = 8;
+  static const int buttonCount = 10;
 
   static const TooltipThemeData _rightTooltipStyle = TooltipThemeData(
     preferBelow: false,
@@ -65,6 +67,17 @@ class CanvasToolbar extends StatelessWidget {
         ),
         const SizedBox(height: 9),
         Tooltip(
+          message: _tooltipMessage('图层调节', ToolbarAction.layerAdjustTool),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: LayerAdjustToolButton(
+            isSelected: activeTool == CanvasTool.layerAdjust,
+            onPressed: () => onToolSelected(CanvasTool.layerAdjust),
+          ),
+        ),
+        const SizedBox(height: 9),
+        Tooltip(
           message: _tooltipMessage('画笔工具', ToolbarAction.penTool),
           displayHorizontally: true,
           style: _rightTooltipStyle,
@@ -72,6 +85,17 @@ class CanvasToolbar extends StatelessWidget {
           child: PenToolButton(
             isSelected: activeTool == CanvasTool.pen,
             onPressed: () => onToolSelected(CanvasTool.pen),
+          ),
+        ),
+        const SizedBox(height: 9),
+        Tooltip(
+          message: _tooltipMessage('曲线画笔', ToolbarAction.curvePenTool),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: CurvePenToolButton(
+            isSelected: activeTool == CanvasTool.curvePen,
+            onPressed: () => onToolSelected(CanvasTool.curvePen),
           ),
         ),
         const SizedBox(height: 9),

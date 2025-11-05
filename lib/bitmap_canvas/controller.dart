@@ -69,6 +69,10 @@ class BitmapCanvasController extends ChangeNotifier {
   Uint8List? _compositeRgba;
   Uint8List? _selectionMask;
   Uint8List? _clipMaskBuffer;
+  Uint32List? _activeLayerTranslationSnapshot;
+  String? _activeLayerTranslationId;
+  int _activeLayerTranslationDx = 0;
+  int _activeLayerTranslationDy = 0;
 
   UnmodifiableListView<BitmapLayerState> get layers =>
       UnmodifiableListView<BitmapLayerState>(_layers);
@@ -100,6 +104,87 @@ class BitmapCanvasController extends ChangeNotifier {
       throw ArgumentError('Selection mask size mismatch');
     }
     _selectionMask = mask;
+  }
+
+  void translateActiveLayer(int dx, int dy) {
+    if (dx == 0 && dy == 0) {
+      return;
+    }
+    final BitmapLayerState layer = _activeLayer;
+    if (layer.locked) {
+      return;
+    }
+    final BitmapSurface surface = layer.surface;
+    final Uint32List original =
+        _ensureTranslationSnapshot(layer.id, surface.pixels);
+    if (dx == _activeLayerTranslationDx && dy == _activeLayerTranslationDy) {
+      return;
+    }
+    final Uint32List target = surface.pixels;
+    final int width = surface.width;
+    final int height = surface.height;
+    target.fillRange(0, target.length, 0);
+    for (int y = 0; y < height; y++) {
+      final int destY = y + dy;
+      if (destY < 0 || destY >= height) {
+        continue;
+      }
+      final int srcOffset = y * width;
+      final int dstOffset = destY * width;
+      for (int x = 0; x < width; x++) {
+        final int destX = x + dx;
+        if (destX < 0 || destX >= width) {
+          continue;
+        }
+        target[dstOffset + destX] = original[srcOffset + x];
+      }
+    }
+    _activeLayerTranslationDx = dx;
+    _activeLayerTranslationDy = dy;
+    _markDirty();
+  }
+
+  void commitActiveLayerTranslation() {
+    if (_activeLayerTranslationSnapshot == null) {
+      return;
+    }
+    _activeLayerTranslationSnapshot = null;
+    _activeLayerTranslationId = null;
+    _activeLayerTranslationDx = 0;
+    _activeLayerTranslationDy = 0;
+    _markDirty();
+  }
+
+  void cancelActiveLayerTranslation() {
+    final Uint32List? snapshot = _activeLayerTranslationSnapshot;
+    final String? id = _activeLayerTranslationId;
+    if (snapshot == null || id == null) {
+      return;
+    }
+    final BitmapLayerState layer = _layers.firstWhere(
+      (candidate) => candidate.id == id,
+      orElse: () => _activeLayer,
+    );
+    final Uint32List target = layer.surface.pixels;
+    target.setAll(0, snapshot);
+    _activeLayerTranslationSnapshot = null;
+    _activeLayerTranslationId = null;
+    _activeLayerTranslationDx = 0;
+    _activeLayerTranslationDy = 0;
+    _markDirty();
+  }
+
+  Uint32List _ensureTranslationSnapshot(String layerId, Uint32List pixels) {
+    final Uint32List? existing = _activeLayerTranslationSnapshot;
+    if (existing != null && _activeLayerTranslationId == layerId) {
+      return existing;
+    }
+    final Uint32List snapshot = Uint32List.fromList(pixels);
+    _activeLayerTranslationSnapshot = snapshot;
+    _activeLayerTranslationId = layerId;
+    _activeLayerTranslationDx = 0;
+    _activeLayerTranslationDy = 0;
+    return snapshot;
   }
 
   Future<void> disposeController() async {

@@ -248,7 +248,8 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
     }
 
     Widget content;
-    if (widget.activeTool == CanvasTool.pen) {
+    if (widget.activeTool == CanvasTool.pen ||
+        widget.activeTool == CanvasTool.curvePen) {
       content = Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -420,6 +421,36 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
 
   static String _formatValue(double value) {
     return value.round().toString();
+  }
+}
+
+class _CurvePreviewPainter extends CustomPainter {
+  const _CurvePreviewPainter({
+    required this.path,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  final Path path;
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth.clamp(1.0, 60.0)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CurvePreviewPainter oldDelegate) {
+    return oldDelegate.path != path ||
+        oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }
 

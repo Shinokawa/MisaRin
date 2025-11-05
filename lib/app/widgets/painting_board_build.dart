@@ -11,8 +11,14 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         key: const UndoIntent(),
       for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
         key: const RedoIntent(),
+      for (final key in
+          ToolbarShortcuts.of(ToolbarAction.layerAdjustTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.layerAdjust),
       for (final key in ToolbarShortcuts.of(ToolbarAction.penTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.pen),
+      for (final key in
+          ToolbarShortcuts.of(ToolbarAction.curvePenTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.curvePen),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
       for (final key in ToolbarShortcuts.of(
@@ -60,9 +66,24 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
         final Rect boardRect = _boardRect;
 
-        final MouseCursor workspaceCursor = _effectiveActiveTool == CanvasTool.hand
-            ? SystemMouseCursors.move
-            : SystemMouseCursors.basic;
+        final MouseCursor workspaceCursor;
+        switch (_effectiveActiveTool) {
+          case CanvasTool.hand:
+            workspaceCursor =
+                _isDraggingBoard ? SystemMouseCursors.grabbing : SystemMouseCursors.grab;
+            break;
+          case CanvasTool.layerAdjust:
+            workspaceCursor = _isLayerDragging
+                ? SystemMouseCursors.grabbing
+                : SystemMouseCursors.move;
+            break;
+          case CanvasTool.curvePen:
+            workspaceCursor = SystemMouseCursors.precise;
+            break;
+          default:
+            workspaceCursor = SystemMouseCursors.basic;
+            break;
+        }
 
         return Shortcuts(
           shortcuts: shortcutBindings,
@@ -185,6 +206,16 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                                 filterQuality:
                                                     FilterQuality.none,
                                               ),
+                                              if (_curvePreviewPath != null)
+                                                Positioned.fill(
+                                                  child: CustomPaint(
+                                                    painter: _CurvePreviewPainter(
+                                                      path: _curvePreviewPath!,
+                                                      color: _primaryColor,
+                                                      strokeWidth: _penStrokeWidth,
+                                                    ),
+                                                  ),
+                                                ),
                                               if (hasSelectionOverlay)
                                                 Positioned.fill(
                                                   child: CustomPaint(

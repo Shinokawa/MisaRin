@@ -102,6 +102,16 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
   bool _spacePanOverrideActive = false;
+  bool _isLayerDragging = false;
+  Offset? _layerDragStart;
+  int _layerDragAppliedDx = 0;
+  int _layerDragAppliedDy = 0;
+  Offset? _curveAnchor;
+  Offset? _curvePendingEnd;
+  Offset? _curveDragOrigin;
+  Offset _curveDragDelta = Offset.zero;
+  bool _isCurvePlacingSegment = false;
+  Path? _curvePreviewPath;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;

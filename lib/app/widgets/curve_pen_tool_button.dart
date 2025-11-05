@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-class HandToolButton extends StatelessWidget {
-  const HandToolButton({
+class CurvePenToolButton extends StatelessWidget {
+  const CurvePenToolButton({
     super.key,
     required this.isSelected,
     required this.onPressed,
@@ -53,7 +53,11 @@ class HandToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Icon(FluentIcons.hands_free, color: iconColor, size: 20),
+          child: Icon(
+            FluentIcons.charticulator_plot_curve,
+            color: iconColor,
+            size: 20,
+          ),
         ),
       ),
     );

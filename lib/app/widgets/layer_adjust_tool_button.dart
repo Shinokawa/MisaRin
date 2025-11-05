@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-class HandToolButton extends StatelessWidget {
-  const HandToolButton({
+class LayerAdjustToolButton extends StatelessWidget {
+  const LayerAdjustToolButton({
     super.key,
     required this.isSelected,
     required this.onPressed,
@@ -53,7 +53,7 @@ class HandToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Icon(FluentIcons.hands_free, color: iconColor, size: 20),
+          child: Icon(FluentIcons.move, color: iconColor, size: 20),
         ),
       ),
     );

@@ -67,6 +67,12 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (_activeTool == tool) {
       return;
     }
+    if (_activeTool == CanvasTool.curvePen) {
+      _resetCurvePenState(notify: false);
+    }
+    if (_activeTool == CanvasTool.layerAdjust && _isLayerDragging) {
+      _finishLayerAdjustDrag();
+    }
     setState(() {
       if (_activeTool == CanvasTool.magicWand) {
         _convertMagicWandPreviewToSelection();
@@ -77,6 +83,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       if (tool != CanvasTool.selection) {
         _resetSelectionPreview();
         _resetPolygonState();
+      }
+      if (tool != CanvasTool.curvePen) {
+        _curvePreviewPath = null;
       }
       _activeTool = tool;
     });
@@ -163,6 +172,213 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     setState(() => _isDraggingBoard = false);
   }
 
+  BitmapLayerState? _activeLayerForAdjustment() {
+    final String? activeId = _controller.activeLayerId;
+    if (activeId == null) {
+      return null;
+    }
+    for (final BitmapLayerState layer in _controller.layers) {
+      if (layer.id == activeId) {
+        return layer;
+      }
+    }
+    return null;
+  }
+
+  void _beginLayerAdjustDrag(Offset boardLocal) {
+    final BitmapLayerState? layer = _activeLayerForAdjustment();
+    if (layer == null || layer.locked) {
+      return;
+    }
+    _focusNode.requestFocus();
+    _pushUndoSnapshot();
+    _isLayerDragging = true;
+    _layerDragStart = boardLocal;
+    _layerDragAppliedDx = 0;
+    _layerDragAppliedDy = 0;
+  }
+
+  void _updateLayerAdjustDrag(Offset boardLocal) {
+    if (!_isLayerDragging) {
+      return;
+    }
+    final Offset? start = _layerDragStart;
+    if (start == null) {
+      return;
+    }
+    final double dx = boardLocal.dx - start.dx;
+    final double dy = boardLocal.dy - start.dy;
+    final int moveX = dx.round();
+    final int moveY = dy.round();
+    if (moveX == _layerDragAppliedDx && moveY == _layerDragAppliedDy) {
+      return;
+    }
+    _layerDragAppliedDx = moveX;
+    _layerDragAppliedDy = moveY;
+    _controller.translateActiveLayer(moveX, moveY);
+    _markDirty();
+  }
+
+  void _finishLayerAdjustDrag() {
+    if (!_isLayerDragging) {
+      return;
+    }
+    _controller.commitActiveLayerTranslation();
+    _isLayerDragging = false;
+    _layerDragStart = null;
+    _layerDragAppliedDx = 0;
+    _layerDragAppliedDy = 0;
+  }
+
+  void _handleCurvePenPointerDown(Offset boardLocal) {
+    _focusNode.requestFocus();
+    if (_curveAnchor == null) {
+      if (!isPointInsideSelection(boardLocal)) {
+        return;
+      }
+      setState(() {
+        _curveAnchor = boardLocal;
+        _curvePreviewPath = null;
+      });
+      return;
+    }
+    if (!isPointInsideSelection(boardLocal) || _isCurvePlacingSegment) {
+      return;
+    }
+    setState(() {
+      _curvePendingEnd = boardLocal;
+      _curveDragOrigin = boardLocal;
+      _curveDragDelta = Offset.zero;
+      _isCurvePlacingSegment = true;
+      _curvePreviewPath = _buildCurvePreviewPath();
+    });
+  }
+
+  void _handleCurvePenPointerMove(Offset boardLocal) {
+    if (!_isCurvePlacingSegment || _curveDragOrigin == null) {
+      return;
+    }
+    setState(() {
+      _curveDragDelta = boardLocal - _curveDragOrigin!;
+      _curvePreviewPath = _buildCurvePreviewPath();
+    });
+  }
+
+  void _handleCurvePenPointerUp() {
+    if (!_isCurvePlacingSegment) {
+      return;
+    }
+    final Offset? start = _curveAnchor;
+    final Offset? end = _curvePendingEnd;
+    if (start == null || end == null) {
+      _cancelCurvePenSegment();
+      return;
+    }
+    _pushUndoSnapshot();
+    final Offset control = _computeCurveControlPoint(start, end, _curveDragDelta);
+    _drawQuadraticCurve(start, control, end);
+    setState(() {
+      _curveAnchor = end;
+      _curvePendingEnd = null;
+      _curveDragOrigin = null;
+      _curveDragDelta = Offset.zero;
+      _curvePreviewPath = null;
+      _isCurvePlacingSegment = false;
+    });
+  }
+
+  void _cancelCurvePenSegment() {
+    if (!_isCurvePlacingSegment) {
+      return;
+    }
+    setState(() {
+      _curvePendingEnd = null;
+      _curveDragOrigin = null;
+      _curveDragDelta = Offset.zero;
+      _curvePreviewPath = null;
+      _isCurvePlacingSegment = false;
+    });
+  }
+
+  void _resetCurvePenState({bool notify = true}) {
+    void apply() {
+      _curveAnchor = null;
+      _curvePendingEnd = null;
+      _curveDragOrigin = null;
+      _curveDragDelta = Offset.zero;
+      _curvePreviewPath = null;
+      _isCurvePlacingSegment = false;
+    }
+
+    if (notify) {
+      setState(apply);
+    } else {
+      apply();
+    }
+  }
+
+  Path? _buildCurvePreviewPath() {
+    final Offset? start = _curveAnchor;
+    final Offset? end = _curvePendingEnd;
+    if (start == null || end == null) {
+      return null;
+    }
+    final Offset control = _computeCurveControlPoint(start, end, _curveDragDelta);
+    final Path path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+    return path;
+  }
+
+  Offset _computeCurveControlPoint(
+    Offset start,
+    Offset end,
+    Offset dragDelta,
+  ) {
+    final Offset midpoint = Offset(
+      (start.dx + end.dx) / 2,
+      (start.dy + end.dy) / 2,
+    );
+    final Offset baseline = end - start;
+    final double length = baseline.distance;
+    if (length < 1e-3) {
+      return midpoint + dragDelta;
+    }
+    final Offset perpendicular = Offset(-baseline.dy, baseline.dx);
+    final double perpLength = perpendicular.distance;
+    if (perpLength < 1e-3) {
+      return midpoint + dragDelta;
+    }
+    final Offset normalized = perpendicular / perpLength;
+    final double magnitude =
+        dragDelta.dx * normalized.dx + dragDelta.dy * normalized.dy;
+    return midpoint + normalized * magnitude;
+  }
+
+  void _drawQuadraticCurve(Offset start, Offset control, Offset end) {
+    _controller.beginStroke(
+      start,
+      color: _primaryColor,
+      radius: _penStrokeWidth / 2,
+    );
+    final double estimatedLength =
+        (start - control).distance + (control - end).distance;
+    final int steps = math.max(12, estimatedLength.ceil());
+    for (int i = 1; i <= steps; i++) {
+      final double t = i / steps;
+      final double invT = 1 - t;
+      final double x = invT * invT * start.dx +
+          2 * invT * t * control.dx +
+          t * t * end.dx;
+      final double y = invT * invT * start.dy +
+          2 * invT * t * control.dy +
+          t * t * end.dy;
+      _controller.extendStroke(Offset(x, y));
+    }
+    _controller.endStroke();
+    _markDirty();
+  }
+
   void _handlePointerDown(PointerDownEvent event) {
     if (!_isPrimaryPointer(event)) {
       return;
@@ -181,12 +397,18 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     final Offset boardLocal = _toBoardLocal(pointer);
     final CanvasTool tool = _effectiveActiveTool;
     switch (tool) {
+      case CanvasTool.layerAdjust:
+        _beginLayerAdjustDrag(boardLocal);
+        break;
       case CanvasTool.pen:
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
         }
         _startStroke(boardLocal);
+        break;
+      case CanvasTool.curvePen:
+        _handleCurvePenPointerDown(boardLocal);
         break;
       case CanvasTool.bucket:
         _focusNode.requestFocus();
@@ -223,6 +445,14 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
           _appendPoint(boardLocal);
         }
         break;
+      case CanvasTool.layerAdjust:
+        final Offset boardLocal = _toBoardLocal(event.localPosition);
+        _updateLayerAdjustDrag(boardLocal);
+        break;
+      case CanvasTool.curvePen:
+        final Offset boardLocal = _toBoardLocal(event.localPosition);
+        _handleCurvePenPointerMove(boardLocal);
+        break;
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
         break;
@@ -245,6 +475,14 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
           _finishStroke();
         }
         break;
+      case CanvasTool.layerAdjust:
+        if (_isLayerDragging) {
+          _finishLayerAdjustDrag();
+        }
+        break;
+      case CanvasTool.curvePen:
+        _handleCurvePenPointerUp();
+        break;
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
         break;
@@ -256,6 +494,14 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
           _finishDragBoard();
         }
         break;
+      case CanvasTool.curvePen:
+        _handleCurvePenPointerUp();
+        break;
+      case CanvasTool.layerAdjust:
+        if (_isLayerDragging) {
+          _finishLayerAdjustDrag();
+        }
+        break;
     }
   }
 
@@ -265,6 +511,14 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         if (_isDrawing) {
           _finishStroke();
         }
+        break;
+      case CanvasTool.layerAdjust:
+        if (_isLayerDragging) {
+          _finishLayerAdjustDrag();
+        }
+        break;
+      case CanvasTool.curvePen:
+        _cancelCurvePenSegment();
         break;
       case CanvasTool.selection:
         _handleSelectionPointerCancel();
