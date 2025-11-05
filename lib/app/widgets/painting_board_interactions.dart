@@ -106,8 +106,10 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       _activeTool = tool;
       if (_activeTool == CanvasTool.eyedropper) {
         final Offset? pointer = _lastWorkspacePointer;
-        if (pointer != null) {
+        if (pointer != null && _boardRect.contains(pointer)) {
           _eyedropperCursorPosition = pointer;
+        } else {
+          _eyedropperCursorPosition = null;
         }
       } else {
         _eyedropperCursorPosition = null;
@@ -253,6 +255,16 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
 
   void _updateEyedropperCursor(Offset workspacePosition) {
     if (_effectiveActiveTool != CanvasTool.eyedropper) {
+      if (_eyedropperCursorPosition != null) {
+        setState(() => _eyedropperCursorPosition = null);
+      }
+      return;
+    }
+    final Rect boardRect = _boardRect;
+    if (!boardRect.contains(workspacePosition)) {
+      if (_eyedropperCursorPosition != null) {
+        setState(() => _eyedropperCursorPosition = null);
+      }
       return;
     }
     final Offset? current = _eyedropperCursorPosition;
@@ -720,7 +732,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         final Offset? pointer = _lastWorkspacePointer;
         setState(() {
           _eyedropperOverrideActive = true;
-          if (pointer != null) {
+          if (pointer != null && _boardRect.contains(pointer)) {
             _eyedropperCursorPosition = pointer;
           }
         });

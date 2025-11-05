@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/widgets.dart' show Image;
 
 class CurvePenToolButton extends StatelessWidget {
   const CurvePenToolButton({
@@ -25,11 +26,7 @@ class CurvePenToolButton extends StatelessWidget {
         ? accent
         : (isDark ? const Color(0xFFE1E1E7) : const Color(0xFF323130));
     final Color shadowColor = isSelected
-        ? Color.lerp(
-            Colors.transparent,
-            accent,
-            isDark ? 0.45 : 0.28,
-          )!
+        ? Color.lerp(Colors.transparent, accent, isDark ? 0.45 : 0.28)!
         : Colors.transparent;
 
     return MouseRegion(
@@ -53,10 +50,15 @@ class CurvePenToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Icon(
-            FluentIcons.charticulator_plot_curve,
-            color: iconColor,
-            size: 20,
+          child: Center(
+            child: Image.asset(
+              'icons/line.png',
+              width: 20,
+              height: 20,
+              color: iconColor,
+              colorBlendMode: BlendMode.srcIn,
+              filterQuality: FilterQuality.high,
+            ),
           ),
         ),
       ),

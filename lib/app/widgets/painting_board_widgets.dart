@@ -170,45 +170,28 @@ class _EyedropperCursorOverlay extends StatelessWidget {
   final Color color;
   final bool sampling;
 
-  static const double size = 32;
+  static const double size = 26;
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
-    final Color borderColor = sampling ? accent : Colors.white;
-    final Color indicatorColor = color.withAlpha(0xFF);
+    final bool isLightSample = color.computeLuminance() > 0.45;
+    final Color iconColor = sampling
+        ? accent
+        : (isLightSample ? const Color(0xFF323130) : Colors.white);
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.45),
-              borderRadius: BorderRadius.circular(size / 2),
-            ),
+          Icon(
+            FluentIcons.eyedropper,
+            size: size + 4,
+            color: Colors.black.withOpacity(0.35),
           ),
-          Container(
-            width: size - 10,
-            height: size - 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: indicatorColor,
-              border: Border.all(color: borderColor, width: 2.0),
-            ),
-          ),
-          Transform.rotate(
-            angle: -0.55,
-            child: Icon(
-              FluentIcons.color,
-              size: 14,
-              color: sampling ? accent : Colors.white,
-            ),
-          ),
+          Icon(FluentIcons.eyedropper, size: size, color: iconColor),
         ],
       ),
     );

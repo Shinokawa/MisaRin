@@ -88,7 +88,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
             workspaceCursor = SystemMouseCursors.precise;
             break;
           case CanvasTool.eyedropper:
-            workspaceCursor = SystemMouseCursors.none;
+            workspaceCursor = SystemMouseCursors.basic;
             break;
           default:
             workspaceCursor = SystemMouseCursors.basic;
@@ -175,79 +175,86 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                           Positioned(
                             left: boardRect.left,
                             top: boardRect.top,
-                            child: Transform.scale(
-                              scale: _viewport.scale,
-                              alignment: Alignment.topLeft,
-                              child: SizedBox(
-                                width: _canvasSize.width,
-                                height: _canvasSize.height,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: isDark
-                                          ? Color.lerp(
-                                              Colors.white,
-                                              Colors.transparent,
-                                              0.88,
-                                            )!
-                                          : const Color(0x33000000),
-                                      width: 1,
+                            child: MouseRegion(
+                              cursor:
+                                  _effectiveActiveTool == CanvasTool.eyedropper
+                                  ? SystemMouseCursors.none
+                                  : MouseCursor.defer,
+                              child: Transform.scale(
+                                scale: _viewport.scale,
+                                alignment: Alignment.topLeft,
+                                child: SizedBox(
+                                  width: _canvasSize.width,
+                                  height: _canvasSize.height,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: isDark
+                                            ? Color.lerp(
+                                                Colors.white,
+                                                Colors.transparent,
+                                                0.88,
+                                              )!
+                                            : const Color(0x33000000),
+                                        width: 1,
+                                      ),
                                     ),
-                                  ),
-                                  child: ClipRect(
-                                    child: RepaintBoundary(
-                                      child: AnimatedBuilder(
-                                        animation: _controller,
-                                        builder: (context, _) {
-                                          final ui.Image? image =
-                                              _controller.image;
-                                          if (image == null) {
-                                            return const SizedBox.shrink();
-                                          }
-                                          final bool hasSelectionOverlay =
-                                              selectionPath != null ||
-                                              selectionPreviewPath != null ||
-                                              magicWandPreviewPath != null;
-                                          return Stack(
-                                            fit: StackFit.expand,
-                                            children: [
-                                              const _CheckboardBackground(),
-                                              RawImage(
-                                                image: image,
-                                                filterQuality:
-                                                    FilterQuality.none,
-                                              ),
-                                              if (_curvePreviewPath != null)
-                                                Positioned.fill(
-                                                  child: CustomPaint(
-                                                    painter:
-                                                        _CurvePreviewPainter(
-                                                          path:
-                                                              _curvePreviewPath!,
-                                                          color: _primaryColor,
-                                                          strokeWidth:
-                                                              _penStrokeWidth,
-                                                        ),
-                                                  ),
+                                    child: ClipRect(
+                                      child: RepaintBoundary(
+                                        child: AnimatedBuilder(
+                                          animation: _controller,
+                                          builder: (context, _) {
+                                            final ui.Image? image =
+                                                _controller.image;
+                                            if (image == null) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            final bool hasSelectionOverlay =
+                                                selectionPath != null ||
+                                                selectionPreviewPath != null ||
+                                                magicWandPreviewPath != null;
+                                            return Stack(
+                                              fit: StackFit.expand,
+                                              children: [
+                                                const _CheckboardBackground(),
+                                                RawImage(
+                                                  image: image,
+                                                  filterQuality:
+                                                      FilterQuality.none,
                                                 ),
-                                              if (hasSelectionOverlay)
-                                                Positioned.fill(
-                                                  child: CustomPaint(
-                                                    painter: _SelectionOverlayPainter(
-                                                      selectionPath:
-                                                          selectionPath,
-                                                      selectionPreviewPath:
-                                                          selectionPreviewPath,
-                                                      magicPreviewPath:
-                                                          magicWandPreviewPath,
-                                                      dashPhase:
-                                                          selectionDashPhase,
+                                                if (_curvePreviewPath != null)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter:
+                                                          _CurvePreviewPainter(
+                                                            path:
+                                                                _curvePreviewPath!,
+                                                            color:
+                                                                _primaryColor,
+                                                            strokeWidth:
+                                                                _penStrokeWidth,
+                                                          ),
                                                     ),
                                                   ),
-                                                ),
-                                            ],
-                                          );
-                                        },
+                                                if (hasSelectionOverlay)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter: _SelectionOverlayPainter(
+                                                        selectionPath:
+                                                            selectionPath,
+                                                        selectionPreviewPath:
+                                                            selectionPreviewPath,
+                                                        magicPreviewPath:
+                                                            magicWandPreviewPath,
+                                                        dashPhase:
+                                                            selectionDashPhase,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            );
+                                          },
+                                        ),
                                       ),
                                     ),
                                   ),

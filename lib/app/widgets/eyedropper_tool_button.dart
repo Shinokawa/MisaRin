@@ -49,7 +49,7 @@ class EyedropperToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Icon(FluentIcons.color, color: iconColor, size: 20),
+          child: Icon(FluentIcons.eyedropper, color: iconColor, size: 20),
         ),
       ),
     );

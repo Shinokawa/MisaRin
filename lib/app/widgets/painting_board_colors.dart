@@ -160,7 +160,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     if (_recentColors.isEmpty) {
       return null;
     }
-    final int count = math.min(4, _recentColors.length);
+    final int count = math.min(5, _recentColors.length);
     final Color borderColor = theme.resources.controlStrokeColorDefault;
     final Color previewBorder = Color.lerp(
       borderColor,
@@ -191,8 +191,8 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       Colors.transparent,
       0.35,
     )!;
-    final List<Color> overflowRecent = _recentColors.length > 4
-        ? _recentColors.sublist(4)
+    final List<Color> overflowRecent = _recentColors.length > 5
+        ? _recentColors.sublist(5)
         : <Color>[];
     return LayoutBuilder(
       builder: (context, constraints) {
