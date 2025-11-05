@@ -186,18 +186,20 @@ class CanvasPageState extends State<CanvasPage> {
       return false;
     }
 
+    final _ExportChoice? choice = await _showExportFormatDialog();
+    if (choice == null) {
+      return false;
+    }
     final String? selectedPath = await FilePicker.platform.saveFile(
       dialogTitle: '另存为项目文件',
-      fileName: _suggestedFileName('rin'),
+      fileName: _suggestedFileName(choice.extension),
       type: FileType.custom,
-      allowedExtensions: const ['rin'],
+      allowedExtensions: <String>[choice.extension],
     );
     if (selectedPath == null) {
       return false;
     }
-    final String normalizedPath = selectedPath.toLowerCase().endsWith('.rin')
-        ? selectedPath
-        : '$selectedPath.rin';
+    final String normalizedPath = _normalizeExportPath(selectedPath, choice.extension);
 
     setState(() => _isSaving = true);
     try {
@@ -207,15 +209,34 @@ class CanvasPageState extends State<CanvasPage> {
         layers: layers,
         maxDimension: 256,
       );
-      final ProjectDocument updated = _document.copyWith(
-        layers: layers,
-        previewBytes: preview,
-        path: normalizedPath,
-      );
-      final ProjectDocument saved = await _repository.saveDocumentAs(
-        updated,
-        normalizedPath,
-      );
+      late final ProjectDocument saved;
+      late final String successMessage;
+      if (choice.type == _ExportType.rin) {
+        final ProjectDocument updated = _document.copyWith(
+          layers: layers,
+          previewBytes: preview,
+          path: normalizedPath,
+        );
+        saved = await _repository.saveDocumentAs(
+          updated,
+          normalizedPath,
+        );
+        successMessage = '项目已保存到 $normalizedPath';
+      } else {
+        await _repository.exportDocumentAsPsd(
+          document: _document.copyWith(
+            layers: layers,
+            previewBytes: preview,
+          ),
+          path: normalizedPath,
+        );
+        saved = _document.copyWith(
+          layers: layers,
+          previewBytes: preview,
+          path: _document.path,
+        );
+        successMessage = 'PSD 已导出到 $normalizedPath';
+      }
       if (!mounted) {
         return true;
       }
@@ -226,7 +247,7 @@ class CanvasPageState extends State<CanvasPage> {
       _workspace.updateDocument(saved);
       _workspace.markDirty(saved.id, false);
       board.markSaved();
-      _showInfoBar('项目已保存到 $normalizedPath', severity: InfoBarSeverity.success);
+      _showInfoBar(successMessage, severity: InfoBarSeverity.success);
       return true;
     } catch (error) {
       if (mounted) {
@@ -235,6 +256,46 @@ class CanvasPageState extends State<CanvasPage> {
       }
       return false;
     }
+  }
+
+  Future<_ExportChoice?> _showExportFormatDialog() async {
+    return showDialog<_ExportChoice?>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return ContentDialog(
+          title: const Text('选择导出格式'),
+          content: const Text('请选择要保存的文件格式。'),
+          actions: [
+            Button(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('取消'),
+            ),
+            Tooltip(
+              message: '导出为 PSD 文件',
+              child: Button(
+                onPressed: () => Navigator.of(context).pop(
+                  const _ExportChoice(_ExportType.psd, 'psd'),
+                ),
+                child: const Text('保存为 PSD'),
+              ),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(
+                const _ExportChoice(_ExportType.rin, 'rin'),
+              ),
+              child: const Text('保存为 RIN'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _normalizeExportPath(String raw, String extension) {
+    final String lower = raw.toLowerCase();
+    final String suffix = '.$extension';
+    return lower.endsWith(suffix) ? raw : '$raw$suffix';
   }
 
   Future<bool> _exportProject() async {
@@ -615,6 +676,15 @@ class CanvasPageState extends State<CanvasPage> {
       ),
     );
   }
+}
+
+enum _ExportType { rin, psd }
+
+class _ExportChoice {
+  const _ExportChoice(this.type, this.extension);
+
+  final _ExportType type;
+  final String extension;
 }
 
 enum _ExitAction { save, discard, cancel }

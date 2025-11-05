@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../psd/psd_importer.dart';
+import '../psd/psd_exporter.dart';
 import 'project_binary_codec.dart';
 import 'project_document.dart';
 import 'recent_projects_index.dart';
@@ -205,6 +206,14 @@ class ProjectRepository {
     await _ensureProjectDirectory();
     const PsdImporter importer = PsdImporter();
     return importer.importFile(path);
+  }
+
+  Future<void> exportDocumentAsPsd({
+    required ProjectDocument document,
+    required String path,
+  }) async {
+    const PsdExporter exporter = PsdExporter();
+    await exporter.export(document, path);
   }
 
   Future<ProjectDocument> createDocumentFromImage(
