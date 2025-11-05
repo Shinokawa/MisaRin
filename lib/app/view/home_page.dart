@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../dialogs/project_manager_dialog.dart';
 import '../dialogs/recent_projects_dialog.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
@@ -39,6 +40,10 @@ class MisarinHomePage extends StatelessWidget {
 
   Future<void> _handleOpenAbout(BuildContext context) async {
     await AppMenuActions.showAbout(context);
+  }
+
+  Future<void> _handleManageProjects(BuildContext context) async {
+    await showProjectManagerDialog(context);
   }
 
   void _showInfoBar(
@@ -154,6 +159,13 @@ class MisarinHomePage extends StatelessWidget {
             ),
             _buildSidebarAction(
               context,
+              icon: FluentIcons.folder,
+              label: '项目管理',
+              description: '批量查看或清理自动保存的项目文件',
+              onPressed: () => _handleManageProjects(context),
+            ),
+            _buildSidebarAction(
+              context,
               icon: FluentIcons.settings,
               label: '设置',
               description: '预览即将上线的个性化选项',
@@ -163,7 +175,7 @@ class MisarinHomePage extends StatelessWidget {
               context,
               icon: FluentIcons.info,
               label: '关于',
-              description: '了解项目 misa rin',
+              description: '了解项目 Misa Rin',
               onPressed: () => _handleOpenAbout(context),
             ),
           ],

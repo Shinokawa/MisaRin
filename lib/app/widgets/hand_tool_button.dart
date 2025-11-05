@@ -53,7 +53,7 @@ class HandToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Icon(FluentIcons.move, color: iconColor, size: 20),
+          child: Icon(FluentIcons.hands_free, color: iconColor, size: 20),
         ),
       ),
     );

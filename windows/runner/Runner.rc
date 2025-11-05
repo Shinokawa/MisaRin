@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.aimessoft" "\0"
-            VALUE "FileDescription", "misa_rin" "\0"
+            VALUE "FileDescription", "Misa Rin" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "misa_rin" "\0"
+            VALUE "InternalName", "Misa Rin" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.aimessoft. All rights reserved." "\0"
             VALUE "OriginalFilename", "misa_rin.exe" "\0"
-            VALUE "ProductName", "misa_rin" "\0"
+            VALUE "ProductName", "Misa Rin" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -57,39 +57,18 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     }
   }
 
-  void _applyPaintBucket(Offset position) {
-    final CanvasLayerData? active = _store.activeLayer;
-    bool applied = false;
-    if (active != null) {
-      applied = _store.setLayerFillColor(active.id, _primaryColor);
-    }
-    if (!applied) {
-      for (final CanvasLayerData layer in _layers.reversed) {
-        if (!layer.visible) {
-          continue;
-        }
-        applied = _store.setLayerFillColor(layer.id, _primaryColor);
-        if (applied) {
-          break;
-        }
-      }
-    }
-    if (!applied) {
-      _store.addLayer(
-        name: '填充',
-        fillColor: _primaryColor,
-        aboveLayerId: active?.id,
-      );
-      applied = true;
-    }
-
-    if (!applied) {
+  Future<void> _applyPaintBucket(Offset position) async {
+    if (!isPointInsideSelection(position)) {
       return;
     }
-    _syncStrokeCache();
-    setState(() {
-      _bumpCurrentStrokeVersion();
-    });
+    _pushUndoSnapshot();
+    _controller.floodFill(
+      position,
+      color: _primaryColor,
+      contiguous: _bucketContiguous,
+      sampleAllLayers: _bucketSampleAllLayers,
+    );
+    setState(() {});
     _markDirty();
   }
 
@@ -121,6 +100,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     });
   }
 
+  @override
   void _setPrimaryColor(Color color, {bool remember = true}) {
     setState(() {
       _primaryColor = color;
@@ -145,10 +125,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     _recentColors.removeWhere((c) => c.value == color.value);
     _recentColors.insert(0, color);
     if (_recentColors.length > _recentColorCapacity) {
-      _recentColors.removeRange(
-        _recentColorCapacity,
-        _recentColors.length,
-      );
+      _recentColors.removeRange(_recentColorCapacity, _recentColors.length);
     }
   }
 
@@ -179,10 +156,44 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     return '#$alpha$red$green$blue';
   }
 
+  Widget? _buildColorPanelTrailing(FluentThemeData theme) {
+    if (_recentColors.isEmpty) {
+      return null;
+    }
+    final int count = math.min(5, _recentColors.length);
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Color previewBorder = Color.lerp(
+      borderColor,
+      Colors.transparent,
+      0.35,
+    )!;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List<Widget>.generate(count, (int index) {
+        final Color color = _recentColors[index];
+        return Padding(
+          padding: EdgeInsets.only(left: index == 0 ? 0 : 6),
+          child: _InlineRecentColorSwatch(
+            color: color,
+            selected: color.value == _primaryColor.value,
+            borderColor: previewBorder,
+            onTap: () => _selectRecentColor(color),
+          ),
+        );
+      }),
+    );
+  }
+
   Widget _buildColorPanelContent(FluentThemeData theme) {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
-    final Color previewBorder =
-        Color.lerp(borderColor, Colors.transparent, 0.35)!;
+    final Color previewBorder = Color.lerp(
+      borderColor,
+      Colors.transparent,
+      0.35,
+    )!;
+    final List<Color> overflowRecent = _recentColors.length > 5
+        ? _recentColors.sublist(5)
+        : <Color>[];
     return LayoutBuilder(
       builder: (context, constraints) {
         double sliderWidth = 24;
@@ -234,10 +245,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
                               gradient: LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
-                                colors: [
-                                  Color(0x00FFFFFF),
-                                  Color(0xFF000000),
-                                ],
+                                colors: [Color(0x00FFFFFF), Color(0xFF000000)],
                               ),
                             ),
                           ),
@@ -258,16 +266,15 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
         Widget buildHueSlider(double height) {
           const List<Color> hueColors = [
-            Color(0xFFFF0000),
-            Color(0xFFFF00FF),
-            Color(0xFF0000FF),
-            Color(0xFF00FFFF),
-            Color(0xFF00FF00),
-            Color(0xFFFFFF00),
-            Color(0xFFFF0000),
+            Color(0xFFFF0000), // 0° Red
+            Color(0xFFFFFF00), // 60° Yellow
+            Color(0xFF00FF00), // 120° Green
+            Color(0xFF00FFFF), // 180° Cyan
+            Color(0xFF0000FF), // 240° Blue
+            Color(0xFFFF00FF), // 300° Magenta
+            Color(0xFFFF0000), // 360° Red
           ];
-          final double handleY =
-              (hsv.hue.clamp(0.0, 360.0) / 360.0) * height;
+          final double handleY = (hsv.hue.clamp(0.0, 360.0) / 360.0) * height;
           return GestureDetector(
             onPanDown: (details) =>
                 _updatePrimaryHue(details.localPosition.dy, height),
@@ -311,7 +318,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           return Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _recentColors
+            children: overflowRecent
                 .map<Widget>(
                   (color) => _RecentColorSwatch(
                     color: color,
@@ -327,7 +334,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_recentColors.isNotEmpty) ...[
+            if (overflowRecent.isNotEmpty) ...[
               const SizedBox(height: 12),
               buildRecentColors(),
             ],
@@ -370,8 +377,10 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
             decoration: BoxDecoration(
               color: _primaryColor,
               borderRadius: BorderRadius.circular(10),
-              border:
-                  Border.all(color: borderColor, width: _colorIndicatorBorder),
+              border: Border.all(
+                color: borderColor,
+                width: _colorIndicatorBorder,
+              ),
             ),
           ),
         ),
@@ -392,10 +401,7 @@ class _ColorPickerHandle extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.black.withOpacity(0.8),
-          width: 2,
-        ),
+        border: Border.all(color: Colors.black.withOpacity(0.8), width: 2),
         color: color,
       ),
     );
@@ -412,10 +418,7 @@ class _HueSliderHandle extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.black.withOpacity(0.7),
-          width: 2,
-        ),
+        border: Border.all(color: Colors.black.withOpacity(0.7), width: 2),
         color: Colors.white,
       ),
     );
@@ -460,6 +463,54 @@ class _RecentColorSwatch extends StatelessWidget {
                       color: Colors.black.withOpacity(0.2),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineRecentColorSwatch extends StatelessWidget {
+  const _InlineRecentColorSwatch({
+    required this.color,
+    required this.selected,
+    required this.borderColor,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool selected;
+  final Color borderColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final Color highlight = theme.accentColor.defaultBrushFor(theme.brightness);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            color: color,
+            border: Border.all(
+              color: selected ? highlight : borderColor,
+              width: selected ? 2 : 1.2,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.18),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
                     ),
                   ]
                 : null,

@@ -1,61 +1,11 @@
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
-@immutable
-class CanvasStroke {
-  CanvasStroke({
-    required this.color,
-    required this.width,
-    List<Offset>? points,
-  }) : points = points ?? <Offset>[];
-
-  final Color color;
-  final double width;
-  final List<Offset> points;
-
-  CanvasStroke copyWith({
-    Color? color,
-    double? width,
-    List<Offset>? points,
-  }) {
-    return CanvasStroke(
-      color: color ?? this.color,
-      width: width ?? this.width,
-      points: points != null ? List<Offset>.from(points) : List<Offset>.from(this.points),
-    );
-  }
-
-  CanvasStroke clone() => copyWith();
-
-  Map<String, dynamic> toJson() {
-    return <String, dynamic>{
-      'color': _encodeColor(color),
-      'width': width,
-      'points': points
-          .map((point) => <String, double>{'x': point.dx, 'y': point.dy})
-          .toList(growable: false),
-    };
-  }
-
-  factory CanvasStroke.fromJson(Map<String, dynamic> json) {
-    final List<dynamic> rawPoints = json['points'] as List<dynamic>? ?? const <dynamic>[];
-    return CanvasStroke(
-      color: Color(json['color'] as int),
-      width: (json['width'] as num).toDouble(),
-      points: rawPoints
-          .map((dynamic entry) {
-            final Map<String, dynamic> map = entry as Map<String, dynamic>;
-            return Offset(
-              (map['x'] as num).toDouble(),
-              (map['y'] as num).toDouble(),
-            );
-          })
-          .toList(growable: true),
-    );
-  }
-}
+enum CanvasLayerBlendMode { normal, multiply }
 
 @immutable
 class CanvasLayerData {
@@ -63,35 +13,82 @@ class CanvasLayerData {
     required this.id,
     required this.name,
     this.visible = true,
+    this.opacity = 1.0,
+    this.locked = false,
+    this.clippingMask = false,
+    this.blendMode = CanvasLayerBlendMode.normal,
     Color? fillColor,
-    List<CanvasStroke> strokes = const <CanvasStroke>[],
-  })  : fillColor = fillColor,
-        strokes = List<CanvasStroke>.unmodifiable(
-          strokes.map((stroke) => stroke.clone()),
-        );
+    Uint8List? bitmap,
+    int? bitmapWidth,
+    int? bitmapHeight,
+  }) : fillColor = fillColor,
+       bitmap = bitmap != null ? Uint8List.fromList(bitmap) : null,
+       bitmapWidth = bitmap != null ? bitmapWidth : null,
+       bitmapHeight = bitmap != null ? bitmapHeight : null;
 
   final String id;
   final String name;
   final bool visible;
+  final double opacity;
+  final bool locked;
+  final bool clippingMask;
+  final CanvasLayerBlendMode blendMode;
   final Color? fillColor;
-  final List<CanvasStroke> strokes;
+  final Uint8List? bitmap;
+  final int? bitmapWidth;
+  final int? bitmapHeight;
 
   bool get hasFill => fillColor != null;
+  bool get hasBitmap =>
+      bitmap != null && bitmapWidth != null && bitmapHeight != null;
 
   CanvasLayerData copyWith({
     String? id,
     String? name,
     bool? visible,
+    double? opacity,
+    bool? locked,
+    bool? clippingMask,
+    CanvasLayerBlendMode? blendMode,
     Color? fillColor,
     bool clearFill = false,
-    List<CanvasStroke>? strokes,
+    Uint8List? bitmap,
+    int? bitmapWidth,
+    int? bitmapHeight,
+    bool clearBitmap = false,
   }) {
+    final Uint8List? resolvedBitmap;
+    if (clearBitmap) {
+      resolvedBitmap = null;
+    } else if (bitmap != null) {
+      resolvedBitmap = Uint8List.fromList(bitmap);
+    } else {
+      resolvedBitmap = this.bitmap != null
+          ? Uint8List.fromList(this.bitmap!)
+          : null;
+    }
+    final int? resolvedWidth;
+    final int? resolvedHeight;
+    if (resolvedBitmap == null) {
+      resolvedWidth = null;
+      resolvedHeight = null;
+    } else {
+      resolvedWidth = bitmapWidth ?? this.bitmapWidth;
+      resolvedHeight = bitmapHeight ?? this.bitmapHeight;
+    }
+
     return CanvasLayerData(
       id: id ?? this.id,
       name: name ?? this.name,
       visible: visible ?? this.visible,
+      opacity: opacity ?? this.opacity,
+      locked: locked ?? this.locked,
+      clippingMask: clippingMask ?? this.clippingMask,
+      blendMode: blendMode ?? this.blendMode,
       fillColor: clearFill ? null : (fillColor ?? this.fillColor),
-      strokes: strokes ?? this.strokes,
+      bitmap: resolvedBitmap,
+      bitmapWidth: resolvedWidth,
+      bitmapHeight: resolvedHeight,
     );
   }
 
@@ -100,18 +97,21 @@ class CanvasLayerData {
       'id': id,
       'name': name,
       'visible': visible,
-      'type': 'strokes',
+      'opacity': opacity,
+      'locked': locked,
+      'clippingMask': clippingMask,
+      'blendMode': blendMode.name,
       if (fillColor != null) 'fillColor': _encodeColor(fillColor!),
-      'strokes': strokes.map((stroke) => stroke.toJson()).toList(growable: false),
+      if (hasBitmap)
+        'bitmap': <String, dynamic>{
+          'width': bitmapWidth,
+          'height': bitmapHeight,
+          'pixels': base64Encode(bitmap!),
+        },
     };
   }
 
   static CanvasLayerData fromJson(Map<String, dynamic> json) {
-    final List<dynamic> rawStrokes = json['strokes'] as List<dynamic>? ?? const <dynamic>[];
-    final List<CanvasStroke> strokes = rawStrokes
-        .map((dynamic entry) => CanvasStroke.fromJson(entry as Map<String, dynamic>))
-        .toList(growable: false);
-
     Color? fill;
     if (json.containsKey('fillColor')) {
       fill = Color(json['fillColor'] as int);
@@ -119,13 +119,62 @@ class CanvasLayerData {
       fill = Color(json['color'] as int);
     }
 
+    Uint8List? bitmap;
+    int? bitmapWidth;
+    int? bitmapHeight;
+    final Object? rawBitmap = json['bitmap'];
+    if (rawBitmap is Map<String, dynamic>) {
+      final String? encoded = rawBitmap['pixels'] as String?;
+      if (encoded != null) {
+        try {
+          bitmap = Uint8List.fromList(base64Decode(encoded));
+          bitmapWidth = rawBitmap['width'] as int?;
+          bitmapHeight = rawBitmap['height'] as int?;
+        } catch (_) {
+          bitmap = null;
+          bitmapWidth = null;
+          bitmapHeight = null;
+        }
+      }
+    }
+
     return CanvasLayerData(
       id: json['id'] as String,
       name: json['name'] as String,
       visible: json['visible'] as bool? ?? true,
+      opacity: _parseOpacity(json['opacity']),
+      locked: json['locked'] as bool? ?? false,
+      clippingMask: json['clippingMask'] as bool? ?? false,
+      blendMode: _parseBlendMode(json['blendMode'] as String?),
       fillColor: fill,
-      strokes: strokes,
+      bitmap: bitmap,
+      bitmapWidth: bitmapWidth,
+      bitmapHeight: bitmapHeight,
     );
+  }
+
+  static CanvasLayerBlendMode _parseBlendMode(String? raw) {
+    if (raw == null) {
+      return CanvasLayerBlendMode.normal;
+    }
+    return CanvasLayerBlendMode.values.firstWhere(
+      (mode) => mode.name == raw,
+      orElse: () => CanvasLayerBlendMode.normal,
+    );
+  }
+
+  static double _parseOpacity(Object? value) {
+    if (value is num) {
+      final double normalized = value.toDouble();
+      if (normalized <= 0) {
+        return 0;
+      }
+      if (normalized >= 1) {
+        return 1;
+      }
+      return normalized;
+    }
+    return 1.0;
   }
 }
 
@@ -136,9 +185,8 @@ String generateLayerId() {
 }
 
 int _encodeColor(Color color) {
-  final int a = (color.a * 255.0).round() & 0xff;
-  final int r = (color.r * 255.0).round() & 0xff;
-  final int g = (color.g * 255.0).round() & 0xff;
-  final int b = (color.b * 255.0).round() & 0xff;
-  return (a << 24) | (r << 16) | (g << 8) | b;
+  return (color.alpha << 24) |
+      (color.red << 16) |
+      (color.green << 8) |
+      color.blue;
 }

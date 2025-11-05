@@ -3,21 +3,56 @@ part of 'painting_board.dart';
 mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
   @override
   Widget build(BuildContext context) {
-    final bool canUndo = _store.canUndo;
-    final bool canRedo = _store.canRedo;
+    _refreshHistoryLimit();
+    final bool canUndo = this.canUndo;
+    final bool canRedo = this.canRedo;
     final Map<LogicalKeySet, Intent> shortcutBindings = {
       for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
         key: const UndoIntent(),
       for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
         key: const RedoIntent(),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.layerAdjustTool,
+      ).shortcuts)
+        key: const SelectToolIntent(CanvasTool.layerAdjust),
       for (final key in ToolbarShortcuts.of(ToolbarAction.penTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.pen),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.curvePenTool,
+      ).shortcuts)
+        key: const SelectToolIntent(CanvasTool.curvePen),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.magicWandTool,
+      ).shortcuts)
+        key: const SelectToolIntent(CanvasTool.magicWand),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.eyedropperTool,
+      ).shortcuts)
+        key: const SelectToolIntent(CanvasTool.eyedropper),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.selectionTool,
+      ).shortcuts)
+        key: const SelectToolIntent(CanvasTool.selection),
       for (final key in ToolbarShortcuts.of(ToolbarAction.handTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.hand),
       for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
         key: const ExitBoardIntent(),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.deselect).shortcuts)
+        key: const DeselectIntent(),
+      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyX):
+          const CutIntent(),
+      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyX):
+          const CutIntent(),
+      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyC):
+          const CopyIntent(),
+      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyC):
+          const CopyIntent(),
+      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyV):
+          const PasteIntent(),
+      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyV):
+          const PasteIntent(),
     };
 
     final theme = FluentTheme.of(context);
@@ -28,18 +63,61 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        _workspaceSize = constraints.biggest;
+        final Size candidate = constraints.biggest;
+        if (candidate.width.isFinite && candidate.height.isFinite) {
+          _workspaceSize = candidate;
+        }
+        _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
-        final Size scaledSize = _scaledBoardSize;
-        _layoutBaseOffset = Offset(
-          (_workspaceSize.width - scaledSize.width) / 2,
-          (_workspaceSize.height - scaledSize.height) / 2,
-        );
+        _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
         final Rect boardRect = _boardRect;
+        final ToolCursorStyle? cursorStyle =
+            ToolCursorStyles.styleFor(_effectiveActiveTool);
+        final bool shouldHideCursor =
+            (cursorStyle?.hideSystemCursor ?? false) &&
+                _toolCursorPosition != null;
+        final bool isLayerAdjustDragging =
+            _effectiveActiveTool == CanvasTool.layerAdjust &&
+                _isLayerDragging;
 
-        final MouseCursor workspaceCursor = _activeTool == CanvasTool.hand
-            ? SystemMouseCursors.move
-            : SystemMouseCursors.basic;
+        final MouseCursor boardCursor;
+        if ((cursorStyle?.hideSystemCursor ?? false) &&
+            _toolCursorPosition != null) {
+          boardCursor = SystemMouseCursors.none;
+        } else if (_effectiveActiveTool == CanvasTool.layerAdjust) {
+          boardCursor = _isLayerDragging
+              ? SystemMouseCursors.grabbing
+              : SystemMouseCursors.move;
+        } else {
+          boardCursor = MouseCursor.defer;
+        }
+
+        final MouseCursor workspaceCursor;
+        if (shouldHideCursor) {
+          workspaceCursor = SystemMouseCursors.none;
+        } else {
+          switch (_effectiveActiveTool) {
+            case CanvasTool.hand:
+              workspaceCursor = _isDraggingBoard
+                  ? SystemMouseCursors.grabbing
+                  : SystemMouseCursors.grab;
+              break;
+            case CanvasTool.layerAdjust:
+              workspaceCursor = _isLayerDragging
+                  ? SystemMouseCursors.grabbing
+                  : SystemMouseCursors.move;
+              break;
+            case CanvasTool.curvePen:
+              workspaceCursor = SystemMouseCursors.precise;
+              break;
+            case CanvasTool.eyedropper:
+              workspaceCursor = SystemMouseCursors.basic;
+              break;
+            default:
+              workspaceCursor = SystemMouseCursors.basic;
+              break;
+          }
+        }
 
         return Shortcuts(
           shortcuts: shortcutBindings,
@@ -69,10 +147,35 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                   return null;
                 },
               ),
+              DeselectIntent: CallbackAction<DeselectIntent>(
+                onInvoke: (intent) {
+                  _clearSelection();
+                  return null;
+                },
+              ),
+              CutIntent: CallbackAction<CutIntent>(
+                onInvoke: (intent) {
+                  cut();
+                  return null;
+                },
+              ),
+              CopyIntent: CallbackAction<CopyIntent>(
+                onInvoke: (intent) {
+                  copy();
+                  return null;
+                },
+              ),
+              PasteIntent: CallbackAction<PasteIntent>(
+                onInvoke: (intent) {
+                  paste();
+                  return null;
+                },
+              ),
             },
             child: Focus(
               focusNode: _focusNode,
               autofocus: true,
+              onKeyEvent: _handleWorkspaceKeyEvent,
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onScaleStart: _handleScaleStart,
@@ -80,6 +183,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                 onScaleEnd: _handleScaleEnd,
                 child: MouseRegion(
                   cursor: workspaceCursor,
+                  onExit: (_) => _handleWorkspacePointerExit(),
                   child: Listener(
                     behavior: HitTestBehavior.opaque,
                     onPointerDown: _handlePointerDown,
@@ -87,6 +191,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                     onPointerUp: _handlePointerUp,
                     onPointerCancel: _handlePointerCancel,
                     onPointerSignal: _handlePointerSignal,
+                    onPointerHover: _handlePointerHover,
                     child: Container(
                       color: workspaceColor,
                       child: Stack(
@@ -94,32 +199,83 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                           Positioned(
                             left: boardRect.left,
                             top: boardRect.top,
-                            child: SizedBox(
-                              width: _scaledBoardSize.width,
-                              height: _scaledBoardSize.height,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: isDark
-                                        ? Color.lerp(
-                                            Colors.white,
-                                            Colors.transparent,
-                                            0.88,
-                                          )!
-                                        : const Color(0x33000000),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: ClipRect(
-                                  child: RepaintBoundary(
-                                    child: CustomPaint(
-                                      painter: StrokePainter(
-                                        cache: _strokeCache,
-                                        cacheVersion: _strokeCache.version,
-                                        currentStroke: _store.currentStroke,
-                                        currentStrokeVersion:
-                                            _currentStrokeVersion,
-                                        scale: _viewport.scale,
+                            child: MouseRegion(
+                              cursor: boardCursor,
+                              child: Transform.scale(
+                                scale: _viewport.scale,
+                                alignment: Alignment.topLeft,
+                                child: SizedBox(
+                                  width: _canvasSize.width,
+                                  height: _canvasSize.height,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: isDark
+                                            ? Color.lerp(
+                                                Colors.white,
+                                                Colors.transparent,
+                                                0.88,
+                                              )!
+                                            : const Color(0x33000000),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: ClipRect(
+                                      child: RepaintBoundary(
+                                        child: AnimatedBuilder(
+                                          animation: _controller,
+                                          builder: (context, _) {
+                                            final ui.Image? image =
+                                                _controller.image;
+                                            if (image == null) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            final bool hasSelectionOverlay =
+                                                selectionPath != null ||
+                                                selectionPreviewPath != null ||
+                                                magicWandPreviewPath != null;
+                                            return Stack(
+                                              fit: StackFit.expand,
+                                              children: [
+                                                const _CheckboardBackground(),
+                                                RawImage(
+                                                  image: image,
+                                                  filterQuality:
+                                                      FilterQuality.none,
+                                                ),
+                                                if (_curvePreviewPath != null)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter:
+                                                          _CurvePreviewPainter(
+                                                            path:
+                                                                _curvePreviewPath!,
+                                                            color:
+                                                                _primaryColor,
+                                                            strokeWidth:
+                                                                _penStrokeWidth,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                if (hasSelectionOverlay)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter: _SelectionOverlayPainter(
+                                                        selectionPath:
+                                                            selectionPath,
+                                                        selectionPreviewPath:
+                                                            selectionPreviewPath,
+                                                        magicPreviewPath:
+                                                            magicWandPreviewPath,
+                                                        dashPhase:
+                                                            selectionDashPhase,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            );
+                                          },
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -132,6 +288,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             top: _toolButtonPadding,
                             child: CanvasToolbar(
                               activeTool: _activeTool,
+                              selectionShape: selectionShape,
                               onToolSelected: _setActiveTool,
                               onUndo: _handleUndo,
                               onRedo: _handleRedo,
@@ -141,7 +298,8 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             ),
                           ),
                           Positioned(
-                            left: _toolButtonPadding +
+                            left:
+                                _toolButtonPadding +
                                 _toolbarButtonSize +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
@@ -149,6 +307,14 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               activeTool: _activeTool,
                               penStrokeWidth: _penStrokeWidth,
                               onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                              bucketSampleAllLayers: _bucketSampleAllLayers,
+                              bucketContiguous: _bucketContiguous,
+                              onBucketSampleAllLayersChanged:
+                                  _updateBucketSampleAllLayers,
+                              onBucketContiguousChanged:
+                                  _updateBucketContiguous,
+                              selectionShape: selectionShape,
+                              onSelectionShapeChanged: _updateSelectionShape,
                             ),
                           ),
                           Positioned(
@@ -168,6 +334,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                   _PanelCard(
                                     width: _sidePanelWidth,
                                     title: '取色',
+                                    trailing: _buildColorPanelTrailing(theme),
                                     child: _buildColorPanelContent(theme),
                                   ),
                                   const SizedBox(height: _sidePanelSpacing),
@@ -194,6 +361,34 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               ),
                             ),
                           ),
+                          if (_toolCursorPosition != null &&
+                              cursorStyle != null)
+                            Positioned(
+                              left: _toolCursorPosition!.dx -
+                                  cursorStyle.anchor.dx +
+                                  cursorStyle.iconOffset.dx,
+                              top: _toolCursorPosition!.dy -
+                                  cursorStyle.anchor.dy +
+                                  cursorStyle.iconOffset.dy,
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: ToolCursorStyles.iconFor(
+                                  _effectiveActiveTool,
+                                  isDragging: isLayerAdjustDragging,
+                                ),
+                              ),
+                            ),
+                          if (_toolCursorPosition != null)
+                            Positioned(
+                              left: _toolCursorPosition!.dx -
+                                  ToolCursorStyles.crosshairSize / 2,
+                              top: _toolCursorPosition!.dy -
+                                  ToolCursorStyles.crosshairSize / 2,
+                              child: const IgnorePointer(
+                                ignoring: true,
+                                child: ToolCursorCrosshair(),
+                              ),
+                            ),
                         ],
                       ),
                     ),

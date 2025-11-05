@@ -1,7 +1,20 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-enum ToolbarAction { exit, penTool, bucketTool, handTool, undo, redo }
+enum ToolbarAction {
+  exit,
+  layerAdjustTool,
+  penTool,
+  curvePenTool,
+  bucketTool,
+  magicWandTool,
+  eyedropperTool,
+  selectionTool,
+  handTool,
+  undo,
+  redo,
+  deselect,
+}
 
 class ShortcutInfo {
   const ShortcutInfo({
@@ -30,6 +43,10 @@ class ToolbarShortcuts {
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.escape)],
       primaryLabel: 'Esc',
     ),
+    ToolbarAction.layerAdjustTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyV)],
+      primaryLabel: 'V',
+    ),
     ToolbarAction.bucketTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyG)],
       primaryLabel: 'G',
@@ -37,6 +54,22 @@ class ToolbarShortcuts {
     ToolbarAction.penTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyB)],
       primaryLabel: 'B',
+    ),
+    ToolbarAction.curvePenTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyP)],
+      primaryLabel: 'P',
+    ),
+    ToolbarAction.magicWandTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyW)],
+      primaryLabel: 'W',
+    ),
+    ToolbarAction.eyedropperTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyI)],
+      primaryLabel: 'I',
+    ),
+    ToolbarAction.selectionTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyM)],
+      primaryLabel: 'M',
     ),
     ToolbarAction.handTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyH)],
@@ -65,6 +98,14 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+Shift+Z',
       macLabel: 'Command+Shift+Z',
+    ),
+    ToolbarAction.deselect: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyD),
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyD),
+      ],
+      primaryLabel: 'Ctrl+D',
+      macLabel: 'Command+D',
     ),
   };
 

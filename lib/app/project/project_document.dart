@@ -41,6 +41,8 @@ class ProjectDocument {
     String name = '未命名项目',
   }) {
     final DateTime now = DateTime.now();
+    final int width = settings.width.round();
+    final int height = settings.height.round();
     return ProjectDocument(
       id: _generateProjectId(),
       name: name,
@@ -50,8 +52,15 @@ class ProjectDocument {
       layers: <CanvasLayerData>[
         CanvasLayerData(
           id: generateLayerId(),
-          name: '图层 1',
+          name: '背景',
           fillColor: settings.backgroundColor,
+        ),
+        CanvasLayerData(
+          id: generateLayerId(),
+          name: '图层 2',
+          bitmap: Uint8List(width * height * 4),
+          bitmapWidth: width,
+          bitmapHeight: height,
         ),
       ],
     );

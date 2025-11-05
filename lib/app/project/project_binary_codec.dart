@@ -180,6 +180,8 @@ class ProjectBinaryCodec {
     required List<List<Offset>> strokes,
   }) {
     final String backgroundId = generateLayerId();
+    final int width = settings.width.round();
+    final int height = settings.height.round();
     return <CanvasLayerData>[
       CanvasLayerData(
         id: backgroundId,
@@ -190,15 +192,9 @@ class ProjectBinaryCodec {
         CanvasLayerData(
           id: generateLayerId(),
           name: '图层 2',
-          strokes: strokes
-              .map(
-                (points) => CanvasStroke(
-                  color: const Color(0xFF000000),
-                  width: 3,
-                  points: List<Offset>.from(points),
-                ),
-              )
-              .toList(growable: false),
+          bitmap: Uint8List(width * height * 4),
+          bitmapWidth: width,
+          bitmapHeight: height,
         ),
     ];
   }
@@ -210,11 +206,10 @@ class ProjectBinaryCodec {
   }
 
   static int _encodeColor(Color color) {
-    final int alpha = (color.a * 255.0).round() & 0xff;
-    final int red = (color.r * 255.0).round() & 0xff;
-    final int green = (color.g * 255.0).round() & 0xff;
-    final int blue = (color.b * 255.0).round() & 0xff;
-    return (alpha << 24) | (red << 16) | (green << 8) | blue;
+    return (color.alpha << 24) |
+        (color.red << 16) |
+        (color.green << 8) |
+        color.blue;
   }
 }
 
