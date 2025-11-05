@@ -73,6 +73,9 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         final Rect boardRect = _boardRect;
         final ToolCursorStyle? cursorStyle =
             ToolCursorStyles.styleFor(_effectiveActiveTool);
+        final bool shouldHideCursor =
+            (cursorStyle?.hideSystemCursor ?? false) &&
+                _toolCursorPosition != null;
         final MouseCursor boardCursor;
         if (cursorStyle?.hideSystemCursor ?? false) {
           boardCursor = SystemMouseCursors.none;
@@ -85,26 +88,30 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         }
 
         final MouseCursor workspaceCursor;
-        switch (_effectiveActiveTool) {
-          case CanvasTool.hand:
-            workspaceCursor = _isDraggingBoard
-                ? SystemMouseCursors.grabbing
-                : SystemMouseCursors.grab;
-            break;
-          case CanvasTool.layerAdjust:
-            workspaceCursor = _isLayerDragging
-                ? SystemMouseCursors.grabbing
-                : SystemMouseCursors.move;
-            break;
-          case CanvasTool.curvePen:
-            workspaceCursor = SystemMouseCursors.precise;
-            break;
-          case CanvasTool.eyedropper:
-            workspaceCursor = SystemMouseCursors.basic;
-            break;
-          default:
-            workspaceCursor = SystemMouseCursors.basic;
-            break;
+        if (shouldHideCursor) {
+          workspaceCursor = SystemMouseCursors.none;
+        } else {
+          switch (_effectiveActiveTool) {
+            case CanvasTool.hand:
+              workspaceCursor = _isDraggingBoard
+                  ? SystemMouseCursors.grabbing
+                  : SystemMouseCursors.grab;
+              break;
+            case CanvasTool.layerAdjust:
+              workspaceCursor = _isLayerDragging
+                  ? SystemMouseCursors.grabbing
+                  : SystemMouseCursors.move;
+              break;
+            case CanvasTool.curvePen:
+              workspaceCursor = SystemMouseCursors.precise;
+              break;
+            case CanvasTool.eyedropper:
+              workspaceCursor = SystemMouseCursors.basic;
+              break;
+            default:
+              workspaceCursor = SystemMouseCursors.basic;
+              break;
+          }
         }
 
         return Shortcuts(
@@ -358,7 +365,18 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                   cursorStyle.anchor.dy,
                               child: IgnorePointer(
                                 ignoring: true,
-                                child: cursorStyle.overlay,
+                                child: cursorStyle.icon,
+                              ),
+                            ),
+                          if (_toolCursorPosition != null)
+                            Positioned(
+                              left: _toolCursorPosition!.dx -
+                                  ToolCursorStyles.crosshairSize / 2,
+                              top: _toolCursorPosition!.dy -
+                                  ToolCursorStyles.crosshairSize / 2,
+                              child: const IgnorePointer(
+                                ignoring: true,
+                                child: ToolCursorCrosshair(),
                               ),
                             ),
                         ],

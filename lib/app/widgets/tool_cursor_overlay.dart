@@ -6,13 +6,13 @@ import '../../canvas/canvas_tools.dart';
 
 class ToolCursorStyle {
   const ToolCursorStyle({
+    required this.icon,
     required this.anchor,
-    required this.overlay,
     this.hideSystemCursor = true,
   });
 
+  final Widget icon;
   final Offset anchor;
-  final Widget overlay;
   final bool hideSystemCursor;
 }
 
@@ -22,6 +22,7 @@ class ToolCursorStyles {
   static bool hasOverlay(CanvasTool tool) => _styles.containsKey(tool);
 
   static const double _defaultIconSize = 20;
+  static const double crosshairSize = 11;
   static const List<Offset> _defaultOutlineOffsets = <Offset>[
     Offset(-0.75, 0),
     Offset(0.75, 0),
@@ -37,14 +38,14 @@ class ToolCursorStyles {
       <CanvasTool, ToolCursorStyle>{
     CanvasTool.eyedropper: ToolCursorStyle(
       anchor: const Offset(5, 17),
-      overlay: const _OutlinedToolCursorIcon(
+      icon: const _OutlinedToolCursorIcon(
         size: _defaultIconSize,
         icon: FluentIcons.eyedropper,
       ),
     ),
     CanvasTool.bucket: ToolCursorStyle(
       anchor: const Offset(8, 18),
-      overlay: const _OutlinedToolCursorIcon(
+      icon: const _OutlinedToolCursorIcon(
         size: _defaultIconSize,
         icon: FluentIcons.bucket_color,
         mirrorHorizontally: true,
@@ -52,7 +53,7 @@ class ToolCursorStyles {
     ),
     CanvasTool.magicWand: ToolCursorStyle(
       anchor: Offset.zero,
-      overlay: const _OutlinedToolCursorIcon(
+      icon: const _OutlinedToolCursorIcon(
         size: _defaultIconSize,
         icon: FluentIcons.auto_enhance_on,
         mirrorHorizontally: true,
@@ -132,4 +133,60 @@ class _OutlinedToolCursorIcon extends StatelessWidget {
       mirrorHorizontally: mirrorHorizontally,
     );
   }
+}
+
+class ToolCursorCrosshair extends StatelessWidget {
+  const ToolCursorCrosshair({super.key});
+
+  static const double size = ToolCursorStyles.crosshairSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _ToolCursorCrosshairPainter()),
+    );
+  }
+}
+
+class _ToolCursorCrosshairPainter extends CustomPainter {
+  const _ToolCursorCrosshairPainter();
+
+  static const double _outlineWidth = 2.0;
+  static const double _innerWidth = 1.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final double arm = size.width / 2;
+
+    void drawCross(Paint paint) {
+      canvas.drawLine(
+        Offset(center.dx, center.dy - arm),
+        Offset(center.dx, center.dy + arm),
+        paint,
+      );
+      canvas.drawLine(
+        Offset(center.dx - arm, center.dy),
+        Offset(center.dx + arm, center.dy),
+        paint,
+      );
+    }
+
+    final Paint outline = Paint()
+      ..color = Colors.white
+      ..strokeWidth = _outlineWidth
+      ..strokeCap = StrokeCap.square;
+    final Paint inner = Paint()
+      ..color = Colors.black
+      ..strokeWidth = _innerWidth
+      ..strokeCap = StrokeCap.square;
+
+    drawCross(outline);
+    drawCross(inner);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ToolCursorCrosshairPainter oldDelegate) => false;
 }
