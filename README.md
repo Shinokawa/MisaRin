@@ -1,7 +1,8 @@
 # Misa Rin
 
 Misa Rin 是一款以桌面端体验为核心的 Flutter 数字绘图/像素编辑器。项目基于 Fluent UI 设计体系，结合自研的 `bitmap_canvas` 渲染内核和图层系统，为 Windows、macOS、Linux 以及 Web 提供统一的多平台绘图体验。
-<img width="1470" height="839" alt="image" src="https://github.com/user-attachments/assets/a1193ee5-ce69-49ac-9ef0-66cf22e514be" />
+<img width="1468" height="840" alt="image" src="https://github.com/user-attachments/assets/33a1213a-f03b-44d3-8736-7566177af07e" />
+
 
 ## 功能亮点
 
