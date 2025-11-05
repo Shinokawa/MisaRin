@@ -2,90 +2,179 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:archive/archive.dart';
+
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import 'project_document.dart';
 
+/// `.rin` 二进制编解码器（v4）
+///
+/// 结构参考 PSD 分块思路：头部 + 文档元数据 + 图层块 + 预览块。
+/// 所有字符串按 UTF-8 存储并携带 32bit 长度前缀；位图数据按需使用
+/// zlib 压缩，避免 JSON 与 Base64 的额外开销。
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
-  static const int _version = 2;
+  static const int _version = 4;
+
+  static final ZLibEncoder _encoder = ZLibEncoder();
+  static final ZLibDecoder _decoder = ZLibDecoder();
+
+  static const int _compressionRaw = 0;
+  static const int _compressionZlib = 1;
 
   static Uint8List encode(ProjectDocument document) {
-    final BytesBuilder builder = BytesBuilder();
-    builder.add(utf8.encode(_magic));
-    builder.addByte(_version);
+    final _ByteWriter writer = _ByteWriter();
+    writer.writeBytes(Uint8List.fromList(_magic.codeUnits));
+    writer.writeUint16(_version);
 
-    final Map<String, dynamic> metadata = <String, dynamic>{
-      'id': document.id,
-      'name': document.name,
-      'createdAt': document.createdAt.toIso8601String(),
-      'updatedAt': document.updatedAt.toIso8601String(),
-      'settings': <String, dynamic>{
-        'width': document.settings.width,
-        'height': document.settings.height,
-        'backgroundColor': _encodeColor(document.settings.backgroundColor),
-      },
-    };
+    writer.writeString(document.id);
+    writer.writeString(document.name);
+    writer.writeInt64(document.createdAt.microsecondsSinceEpoch);
+    writer.writeInt64(document.updatedAt.microsecondsSinceEpoch);
 
-    final Uint8List metadataBytes = Uint8List.fromList(
-      utf8.encode(jsonEncode(metadata)),
-    );
-    builder.add(_writeUint32(metadataBytes.length));
-    builder.add(metadataBytes);
+    writer.writeFloat32(document.settings.width);
+    writer.writeFloat32(document.settings.height);
+    writer.writeUint32(document.settings.backgroundColor.value);
 
-    final Uint8List layerBytes = Uint8List.fromList(
-      utf8.encode(jsonEncode(_encodeLayers(document.layers))),
-    );
-    builder.add(_writeUint32(layerBytes.length));
-    builder.add(layerBytes);
+    writer.writeUint32(document.layers.length);
+    for (final CanvasLayerData layer in document.layers) {
+      writer.writeString(layer.id);
+      writer.writeString(layer.name);
+      writer.writeBool(layer.visible);
+      writer.writeFloat32(layer.opacity);
+      writer.writeBool(layer.locked);
+      writer.writeBool(layer.clippingMask);
+      writer.writeUint8(layer.blendMode.index);
 
-    final Uint8List preview = document.previewBytes ?? Uint8List(0);
-    builder.add(_writeUint32(preview.length));
-    if (preview.isNotEmpty) {
-      builder.add(preview);
+      writer.writeBool(layer.fillColor != null);
+      if (layer.fillColor != null) {
+        writer.writeUint32(layer.fillColor!.value);
+      }
+
+      writer.writeBool(layer.hasBitmap);
+      if (layer.hasBitmap) {
+        writer.writeUint32(layer.bitmapWidth!);
+        writer.writeUint32(layer.bitmapHeight!);
+        final Uint8List rawBitmap = Uint8List.fromList(layer.bitmap!);
+        final Uint8List compressedBitmap =
+            Uint8List.fromList(_encoder.encode(rawBitmap));
+        final bool useCompression = compressedBitmap.length < rawBitmap.length;
+        writer.writeUint8(useCompression ? _compressionZlib : _compressionRaw);
+        final Uint8List storedBitmap =
+            useCompression ? compressedBitmap : rawBitmap;
+        writer.writeUint32(storedBitmap.length);
+        writer.writeBytes(storedBitmap);
+      }
     }
 
-    return builder.toBytes();
+    final Uint8List previewRaw = document.previewBytes == null
+        ? Uint8List(0)
+        : Uint8List.fromList(document.previewBytes!);
+    if (previewRaw.isEmpty) {
+      writer.writeBool(false);
+    } else {
+      final Uint8List compressedPreview =
+          Uint8List.fromList(_encoder.encode(previewRaw));
+      final bool useCompression =
+          compressedPreview.length < previewRaw.length;
+      writer.writeBool(true);
+      writer.writeUint8(useCompression ? _compressionZlib : _compressionRaw);
+      final Uint8List storedPreview =
+          useCompression ? compressedPreview : previewRaw;
+      writer.writeUint32(storedPreview.length);
+      writer.writeBytes(storedPreview);
+    }
+
+    return writer.toBytes();
   }
 
   static ProjectDocument decode(Uint8List bytes, {String? path}) {
     final _ByteReader reader = _ByteReader(bytes);
     reader.expectMagic(_magic);
-    final int version = reader.readByte();
-    if (version != 1 && version != _version) {
+    final int version = reader.readUint16();
+    if (version != _version) {
       throw UnsupportedError('不支持的项目文件版本：$version');
     }
 
-    final int metadataLength = reader.readUint32();
-    final Map<String, dynamic> metadata =
-        jsonDecode(utf8.decode(reader.readBytes(metadataLength)))
-            as Map<String, dynamic>;
+    final String id = reader.readString();
+    final String name = reader.readString();
+    final DateTime createdAt =
+        DateTime.fromMicrosecondsSinceEpoch(reader.readInt64());
+    final DateTime updatedAt =
+        DateTime.fromMicrosecondsSinceEpoch(reader.readInt64());
 
-    late final List<CanvasLayerData> layers;
-    if (version == 1) {
-      final int strokesLength = reader.readUint32();
-      final List<List<Offset>> strokes = _decodeStrokes(
-        reader.readBytes(strokesLength),
-      );
-      layers = _legacyLayers(
-        settings: _parseSettings(metadata['settings'] as Map<String, dynamic>),
-        strokes: strokes,
-      );
-    } else {
-      final int layersLength = reader.readUint32();
-      layers = _decodeLayers(reader.readBytes(layersLength));
+    final double width = reader.readFloat32();
+    final double height = reader.readFloat32();
+    final Color backgroundColor = Color(reader.readUint32());
+    final CanvasSettings settings = CanvasSettings(
+      width: width,
+      height: height,
+      backgroundColor: backgroundColor,
+    );
+
+    final int layerCount = reader.readUint32();
+    final List<CanvasLayerData> layers = <CanvasLayerData>[];
+    for (int i = 0; i < layerCount; i++) {
+      final String layerId = reader.readString();
+      final String layerName = reader.readString();
+      final bool visible = reader.readBool();
+      final double opacity = reader.readFloat32();
+      final bool locked = reader.readBool();
+      final bool clippingMask = reader.readBool();
+      final CanvasLayerBlendMode blendMode =
+          _decodeBlendMode(reader.readUint8());
+
+      Color? fillColor;
+      if (reader.readBool()) {
+        fillColor = Color(reader.readUint32());
+      }
+
+      Uint8List? bitmap;
+      int? bitmapWidth;
+      int? bitmapHeight;
+      if (reader.readBool()) {
+        bitmapWidth = reader.readUint32();
+        bitmapHeight = reader.readUint32();
+        final int compression = reader.readUint8();
+        final int dataLength = reader.readUint32();
+        final Uint8List encoded = reader.readBytes(dataLength);
+        bitmap = compression == _compressionZlib
+            ? Uint8List.fromList(_decoder.decodeBytes(encoded))
+            : encoded;
+      }
+
+      layers.add(CanvasLayerData(
+        id: layerId,
+        name: layerName,
+        visible: visible,
+        opacity: opacity,
+        locked: locked,
+        clippingMask: clippingMask,
+        blendMode: blendMode,
+        fillColor: fillColor,
+        bitmap: bitmap,
+        bitmapWidth: bitmapWidth,
+        bitmapHeight: bitmapHeight,
+      ));
     }
-    final int previewLength = reader.readUint32();
-    final Uint8List? preview = previewLength == 0
-        ? null
-        : reader.readBytes(previewLength);
+
+    Uint8List? preview;
+    if (reader.readBool()) {
+      final int compression = reader.readUint8();
+      final int dataLength = reader.readUint32();
+      final Uint8List encoded = reader.readBytes(dataLength);
+      preview = compression == _compressionZlib
+          ? Uint8List.fromList(_decoder.decodeBytes(encoded))
+          : encoded;
+    }
 
     return ProjectDocument(
-      id: metadata['id'] as String,
-      name: metadata['name'] as String,
-      createdAt: DateTime.parse(metadata['createdAt'] as String),
-      updatedAt: DateTime.parse(metadata['updatedAt'] as String),
-      settings: _parseSettings(metadata['settings'] as Map<String, dynamic>),
+      id: id,
+      name: name,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      settings: settings,
       layers: layers,
       previewBytes: preview,
       path: path,
@@ -99,117 +188,127 @@ class ProjectBinaryCodec {
   }) {
     final _ByteReader reader = _ByteReader(bytes);
     reader.expectMagic(_magic);
-    final int version = reader.readByte();
-    if (version != 1 && version != _version) {
+    final int version = reader.readUint16();
+    if (version != _version) {
       throw UnsupportedError('不支持的项目文件版本：$version');
     }
 
-    final int metadataLength = reader.readUint32();
-    final Map<String, dynamic> metadata =
-        jsonDecode(utf8.decode(reader.readBytes(metadataLength)))
-            as Map<String, dynamic>;
+    final String id = reader.readString();
+    final String name = reader.readString();
+    reader.readInt64(); // createdAt，无需展示
+    final DateTime updatedAt =
+        DateTime.fromMicrosecondsSinceEpoch(reader.readInt64());
 
-    if (version == 1) {
-      final int strokesLength = reader.readUint32();
-      reader.skip(strokesLength);
-    } else {
-      final int layersLength = reader.readUint32();
-      reader.skip(layersLength);
+    final double width = reader.readFloat32();
+    final double height = reader.readFloat32();
+    final Color backgroundColor = Color(reader.readUint32());
+
+    final int layerCount = reader.readUint32();
+    for (int i = 0; i < layerCount; i++) {
+      reader.readString(); // layer id
+      reader.readString(); // layer name
+      reader.readBool();
+      reader.readFloat32();
+      reader.readBool();
+      reader.readBool();
+      reader.readUint8();
+
+      if (reader.readBool()) {
+        reader.readUint32();
+      }
+
+      if (reader.readBool()) {
+        reader.readUint32();
+        reader.readUint32();
+        reader.readUint8();
+        final int dataLength = reader.readUint32();
+        reader.skip(dataLength);
+      }
     }
 
-    final int previewLength = reader.readUint32();
-    final Uint8List? preview = previewLength == 0
-        ? null
-        : reader.readBytes(previewLength);
+    Uint8List? preview;
+    if (reader.readBool()) {
+      final int compression = reader.readUint8();
+      final int length = reader.readUint32();
+      final Uint8List encoded = reader.readBytes(length);
+      preview = compression == _compressionZlib
+          ? Uint8List.fromList(_decoder.decodeBytes(encoded))
+          : encoded;
+    }
 
-    final DateTime updatedAt = DateTime.parse(metadata['updatedAt'] as String);
     return ProjectSummary(
-      id: metadata['id'] as String,
-      name: metadata['name'] as String,
+      id: id,
+      name: name,
       path: path,
       updatedAt: updatedAt,
       lastOpened: lastOpened ?? updatedAt,
-      settings: _parseSettings(metadata['settings'] as Map<String, dynamic>),
+      settings: CanvasSettings(
+        width: width,
+        height: height,
+        backgroundColor: backgroundColor,
+      ),
       previewBytes: preview,
     );
   }
 
-  static CanvasSettings _parseSettings(Map<String, dynamic> json) {
-    return CanvasSettings(
-      width: (json['width'] as num).toDouble(),
-      height: (json['height'] as num).toDouble(),
-      backgroundColor: Color(json['backgroundColor'] as int),
-    );
-  }
-
-  static List<List<Offset>> _decodeStrokes(Uint8List bytes) {
-    final _ByteReader reader = _ByteReader(bytes);
-    final int strokeCount = reader.readUint32();
-    final List<List<Offset>> strokes = <List<Offset>>[];
-    for (int i = 0; i < strokeCount; i++) {
-      final int pointCount = reader.readUint32();
-      final List<Offset> stroke = <Offset>[];
-      for (int j = 0; j < pointCount; j++) {
-        final double dx = reader.readFloat32();
-        final double dy = reader.readFloat32();
-        stroke.add(Offset(dx, dy));
-      }
-      strokes.add(stroke);
+  static CanvasLayerBlendMode _decodeBlendMode(int raw) {
+    if (raw < 0 || raw >= CanvasLayerBlendMode.values.length) {
+      return CanvasLayerBlendMode.normal;
     }
-    return strokes;
+    return CanvasLayerBlendMode.values[raw];
+  }
+}
+
+class _ByteWriter {
+  final BytesBuilder _builder = BytesBuilder();
+
+  void writeBytes(Uint8List bytes) {
+    if (bytes.isEmpty) {
+      return;
+    }
+    _builder.add(bytes);
   }
 
-  static List<Map<String, dynamic>> _encodeLayers(
-    List<CanvasLayerData> layers,
-  ) {
-    return layers.map((layer) => layer.toJson()).toList(growable: false);
+  void writeUint8(int value) {
+    _builder.addByte(value & 0xFF);
   }
 
-  static List<CanvasLayerData> _decodeLayers(Uint8List bytes) {
-    final List<dynamic> jsonList =
-        jsonDecode(utf8.decode(bytes)) as List<dynamic>;
-    return jsonList
-        .map((dynamic entry) => CanvasLayerData.fromJson(
-              entry as Map<String, dynamic>,
-            ))
-        .toList(growable: false);
+  void writeBool(bool value) {
+    writeUint8(value ? 1 : 0);
   }
 
-  static List<CanvasLayerData> _legacyLayers({
-    required CanvasSettings settings,
-    required List<List<Offset>> strokes,
-  }) {
-    final String backgroundId = generateLayerId();
-    final int width = settings.width.round();
-    final int height = settings.height.round();
-    return <CanvasLayerData>[
-      CanvasLayerData(
-        id: backgroundId,
-        name: '图层 1',
-        fillColor: settings.backgroundColor,
-      ),
-      if (strokes.isNotEmpty)
-        CanvasLayerData(
-          id: generateLayerId(),
-          name: '图层 2',
-          bitmap: Uint8List(width * height * 4),
-          bitmapWidth: width,
-          bitmapHeight: height,
-        ),
-    ];
+  void writeUint16(int value) {
+    final ByteData data = ByteData(2);
+    data.setUint16(0, value, Endian.big);
+    _builder.add(data.buffer.asUint8List());
   }
 
-  static Uint8List _writeUint32(int value) {
+  void writeUint32(int value) {
     final ByteData data = ByteData(4);
     data.setUint32(0, value, Endian.big);
-    return data.buffer.asUint8List();
+    _builder.add(data.buffer.asUint8List());
   }
 
-  static int _encodeColor(Color color) {
-    return (color.alpha << 24) |
-        (color.red << 16) |
-        (color.green << 8) |
-        color.blue;
+  void writeInt64(int value) {
+    final ByteData data = ByteData(8);
+    data.setInt64(0, value, Endian.big);
+    _builder.add(data.buffer.asUint8List());
+  }
+
+  void writeFloat32(double value) {
+    final ByteData data = ByteData(4);
+    data.setFloat32(0, value, Endian.big);
+    _builder.add(data.buffer.asUint8List());
+  }
+
+  void writeString(String value) {
+    final Uint8List bytes = Uint8List.fromList(utf8.encode(value));
+    writeUint32(bytes.length);
+    writeBytes(bytes);
+  }
+
+  Uint8List toBytes() {
+    return _builder.toBytes();
   }
 }
 
@@ -220,9 +319,9 @@ class _ByteReader {
   int _offset = 0;
 
   void expectMagic(String magic) {
-    final List<int> expected = utf8.encode(magic);
-    final List<int> actual = readBytes(expected.length);
-    if (expected.length != actual.length) {
+    final Uint8List expected = Uint8List.fromList(magic.codeUnits);
+    final Uint8List actual = readBytes(expected.length);
+    if (actual.length != expected.length) {
       throw const FormatException('项目文件头部损坏');
     }
     for (int i = 0; i < expected.length; i++) {
@@ -232,11 +331,21 @@ class _ByteReader {
     }
   }
 
-  int readByte() {
+  int readUint8() {
     if (_offset >= _bytes.length) {
       throw const FormatException('意外读取到文件末尾');
     }
     return _bytes[_offset++];
+  }
+
+  bool readBool() {
+    return readUint8() != 0;
+  }
+
+  int readUint16() {
+    final ByteData data = ByteData.sublistView(_bytes, _offset, _offset + 2);
+    _offset += 2;
+    return data.getUint16(0, Endian.big);
   }
 
   int readUint32() {
@@ -245,15 +354,33 @@ class _ByteReader {
     return data.getUint32(0, Endian.big);
   }
 
+  int readInt64() {
+    final ByteData data = ByteData.sublistView(_bytes, _offset, _offset + 8);
+    _offset += 8;
+    return data.getInt64(0, Endian.big);
+  }
+
   double readFloat32() {
     final ByteData data = ByteData.sublistView(_bytes, _offset, _offset + 4);
     _offset += 4;
     return data.getFloat32(0, Endian.big);
   }
 
+  String readString() {
+    final int length = readUint32();
+    if (length == 0) {
+      return '';
+    }
+    final Uint8List bytes = readBytes(length);
+    return utf8.decode(bytes);
+  }
+
   Uint8List readBytes(int length) {
     if (length == 0) {
       return Uint8List(0);
+    }
+    if (_offset + length > _bytes.length) {
+      throw const FormatException('项目文件结构不完整');
     }
     final Uint8List slice = Uint8List.sublistView(
       _bytes,
