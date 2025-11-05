@@ -76,8 +76,13 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         final bool shouldHideCursor =
             (cursorStyle?.hideSystemCursor ?? false) &&
                 _toolCursorPosition != null;
+        final bool isLayerAdjustDragging =
+            _effectiveActiveTool == CanvasTool.layerAdjust &&
+                _isLayerDragging;
+
         final MouseCursor boardCursor;
-        if (cursorStyle?.hideSystemCursor ?? false) {
+        if ((cursorStyle?.hideSystemCursor ?? false) &&
+            _toolCursorPosition != null) {
           boardCursor = SystemMouseCursors.none;
         } else if (_effectiveActiveTool == CanvasTool.layerAdjust) {
           boardCursor = _isLayerDragging
@@ -367,7 +372,10 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                   cursorStyle.iconOffset.dy,
                               child: IgnorePointer(
                                 ignoring: true,
-                                child: cursorStyle.icon,
+                                child: ToolCursorStyles.iconFor(
+                                  _effectiveActiveTool,
+                                  isDragging: isLayerAdjustDragging,
+                                ),
                               ),
                             ),
                           if (_toolCursorPosition != null)

@@ -55,6 +55,14 @@ class ToolCursorStyles {
         mirrorHorizontally: true,
       ),
     ),
+    CanvasTool.layerAdjust: ToolCursorStyle(
+      anchor: Offset.zero,
+      iconOffset: const Offset(0, 0),
+      icon: const _OutlinedToolCursorIcon(
+        size: _defaultIconSize,
+        icon: FluentIcons.move,
+      ),
+    ),
     CanvasTool.magicWand: ToolCursorStyle(
       anchor: Offset.zero,
       iconOffset: const Offset(-5.5, -5.5),
@@ -116,6 +124,20 @@ class ToolCursorStyles {
         ],
       ),
     );
+  }
+
+  static Widget iconFor(CanvasTool tool, {required bool isDragging}) {
+    final ToolCursorStyle? style = styleFor(tool);
+    if (style == null) {
+      return const SizedBox.shrink();
+    }
+    if (tool == CanvasTool.layerAdjust && isDragging) {
+      return buildOutlinedIcon(
+        icon: FluentIcons.hands_free,
+        size: _defaultIconSize,
+      );
+    }
+    return style.icon;
   }
 }
 
