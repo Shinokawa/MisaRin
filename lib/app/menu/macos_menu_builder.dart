@@ -120,10 +120,18 @@ class MacosMenuBuilder {
             ),
             PlatformMenuItem(
               label: '打开…',
-              onSelected:
-                  _wrap(handler.open) ?? _placeholder('文件 > 打开…', log),
+              onSelected: _wrap(handler.open) ?? _placeholder('文件 > 打开…', log),
               shortcut: const SingleActivator(
                 LogicalKeyboardKey.keyO,
+                meta: true,
+              ),
+            ),
+            PlatformMenuItem(
+              label: '导入图像…',
+              onSelected:
+                  _wrap(handler.importImage) ?? _placeholder('文件 > 导入图像…', log),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyI,
                 meta: true,
               ),
             ),
@@ -206,8 +214,7 @@ class MacosMenuBuilder {
           members: <PlatformMenuItem>[
             PlatformMenuItem(
               label: '剪切',
-              onSelected:
-                  _wrap(handler.cut) ?? _placeholder('编辑 > 剪切', log),
+              onSelected: _wrap(handler.cut) ?? _placeholder('编辑 > 剪切', log),
               shortcut: const SingleActivator(
                 LogicalKeyboardKey.keyX,
                 meta: true,
@@ -215,8 +222,7 @@ class MacosMenuBuilder {
             ),
             PlatformMenuItem(
               label: '复制',
-              onSelected:
-                  _wrap(handler.copy) ?? _placeholder('编辑 > 复制', log),
+              onSelected: _wrap(handler.copy) ?? _placeholder('编辑 > 复制', log),
               shortcut: const SingleActivator(
                 LogicalKeyboardKey.keyC,
                 meta: true,
@@ -224,8 +230,7 @@ class MacosMenuBuilder {
             ),
             PlatformMenuItem(
               label: '粘贴',
-              onSelected:
-                  _wrap(handler.paste) ?? _placeholder('编辑 > 粘贴', log),
+              onSelected: _wrap(handler.paste) ?? _placeholder('编辑 > 粘贴', log),
               shortcut: const SingleActivator(
                 LogicalKeyboardKey.keyV,
                 meta: true,

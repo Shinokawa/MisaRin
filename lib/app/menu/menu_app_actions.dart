@@ -42,8 +42,8 @@ class AppMenuActions {
       return;
     }
     try {
-      final ProjectDocument document =
-          await ProjectRepository.instance.loadDocument(path);
+      final ProjectDocument document = await ProjectRepository.instance
+          .loadDocument(path);
       if (!context.mounted) {
         return;
       }
@@ -70,6 +70,40 @@ class AppMenuActions {
 
   static Future<void> showAbout(BuildContext context) async {
     await showAboutMisarinDialog(context);
+  }
+
+  static Future<void> importImage(BuildContext context) async {
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      dialogTitle: '导入图片',
+      type: FileType.custom,
+      allowedExtensions: const ['png', 'jpg', 'jpeg', 'bmp', 'gif'],
+    );
+    final PlatformFile? file = result?.files.singleOrNull;
+    final String? path = file?.path;
+    if (path == null || !context.mounted) {
+      return;
+    }
+    try {
+      final ProjectDocument document = await ProjectRepository.instance
+          .createDocumentFromImage(path, name: file!.name);
+      if (!context.mounted) {
+        return;
+      }
+      await _showProject(context, document);
+      if (!context.mounted) {
+        return;
+      }
+      _showInfoBar(
+        context,
+        '已导入图片：${file.name}',
+        severity: InfoBarSeverity.success,
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      _showInfoBar(context, '导入图片失败：$error', severity: InfoBarSeverity.error);
+    }
   }
 
   static Future<void> openProject(

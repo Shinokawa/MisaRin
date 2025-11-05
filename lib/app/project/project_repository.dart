@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import 'project_binary_codec.dart';
 import 'project_document.dart';
@@ -122,8 +124,10 @@ class ProjectRepository {
 
   Stream<StoredProjectInfo> streamStoredProjects() async* {
     final Directory directory = await _ensureProjectDirectory();
-    await for (final FileSystemEntity entity
-        in directory.list(recursive: false, followLinks: false)) {
+    await for (final FileSystemEntity entity in directory.list(
+      recursive: false,
+      followLinks: false,
+    )) {
       if (entity is! File) {
         continue;
       }
@@ -168,10 +172,11 @@ class ProjectRepository {
 
   Future<List<_IndexedEntry>> _loadIndexEntries() async {
     final List<_IndexedEntry> entries = <_IndexedEntry>[];
-    final List<RecentProjectRecord> raw = await (_recentIndex?.entries() ??
-        Future<List<RecentProjectRecord>>.value(
-          const <RecentProjectRecord>[],
-        ));
+    final List<RecentProjectRecord> raw =
+        await (_recentIndex?.entries() ??
+            Future<List<RecentProjectRecord>>.value(
+              const <RecentProjectRecord>[],
+            ));
     for (final RecentProjectRecord entry in raw) {
       entries.add(_IndexedEntry(entry.path, entry.lastOpened));
     }
@@ -193,6 +198,69 @@ class ProjectRepository {
   }) async {
     await _ensureProjectDirectory();
     return ProjectDocument.newProject(settings: settings, name: name);
+  }
+
+  Future<ProjectDocument> createDocumentFromImage(
+    String path, {
+    String? name,
+  }) async {
+    await _ensureProjectDirectory();
+    final File file = File(path);
+    if (!await file.exists()) {
+      throw Exception('文件不存在：$path');
+    }
+    final Uint8List bytes = await file.readAsBytes();
+    final ui.Codec codec = await ui.instantiateImageCodec(bytes);
+    final ui.FrameInfo frame = await codec.getNextFrame();
+    final ui.Image image = frame.image;
+    final ByteData? pixelData = await image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+    codec.dispose();
+    if (pixelData == null) {
+      image.dispose();
+      throw Exception('无法读取图像像素数据');
+    }
+    final Uint8List rgba = Uint8List.fromList(pixelData.buffer.asUint8List());
+    image.dispose();
+
+    final int width = frame.image.width;
+    final int height = frame.image.height;
+    final CanvasSettings settings = CanvasSettings(
+      width: width.toDouble(),
+      height: height.toDouble(),
+      backgroundColor: const ui.Color(0xFFFFFFFF),
+    );
+
+    final String resolvedName =
+        (name ?? p.basenameWithoutExtension(path)).trim().isEmpty
+        ? '导入图像'
+        : (name ?? p.basenameWithoutExtension(path));
+    final ProjectDocument base = ProjectDocument.newProject(
+      settings: settings,
+      name: resolvedName,
+    );
+
+    final List<CanvasLayerData> layers = <CanvasLayerData>[
+      base.layers.first,
+      base.layers.length > 1
+          ? base.layers[1].copyWith(
+              name: '导入图像',
+              bitmap: rgba,
+              bitmapWidth: width,
+              bitmapHeight: height,
+              clearFill: true,
+            )
+          : CanvasLayerData(
+              id: generateLayerId(),
+              name: resolvedName,
+              bitmap: rgba,
+              bitmapWidth: width,
+              bitmapHeight: height,
+            ),
+    ];
+
+    return base.copyWith(layers: layers);
   }
 }
 

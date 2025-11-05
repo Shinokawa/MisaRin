@@ -9,6 +9,7 @@ class MenuActionHandler {
   const MenuActionHandler({
     this.newProject,
     this.open,
+    this.importImage,
     this.preferences,
     this.about,
     this.save,
@@ -26,6 +27,7 @@ class MenuActionHandler {
   const MenuActionHandler.empty()
     : newProject = null,
       open = null,
+      importImage = null,
       preferences = null,
       about = null,
       save = null,
@@ -41,6 +43,7 @@ class MenuActionHandler {
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
+  final MenuAsyncAction? importImage;
   final MenuAsyncAction? preferences;
   final MenuAsyncAction? about;
   final MenuAsyncAction? save;

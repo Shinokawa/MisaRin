@@ -69,6 +69,7 @@ class MisarinHomePage extends StatelessWidget {
     final theme = FluentTheme.of(context);
     final handler = MenuActionHandler(
       newProject: () => AppMenuActions.createProject(context),
+      importImage: () => AppMenuActions.importImage(context),
       preferences: () => AppMenuActions.openSettings(context),
       about: () => AppMenuActions.showAbout(context),
     );
