@@ -115,8 +115,10 @@ class BitmapCanvasController extends ChangeNotifier {
       return;
     }
     final BitmapSurface surface = layer.surface;
-    final Uint32List original =
-        _ensureTranslationSnapshot(layer.id, surface.pixels);
+    final Uint32List original = _ensureTranslationSnapshot(
+      layer.id,
+      surface.pixels,
+    );
     if (dx == _activeLayerTranslationDx && dy == _activeLayerTranslationDy) {
       return;
     }
@@ -615,14 +617,8 @@ class BitmapCanvasController extends ChangeNotifier {
     );
   }
 
-  String insertLayerFromData(
-    CanvasLayerData data, {
-    String? aboveLayerId,
-  }) {
-    final BitmapSurface surface = BitmapSurface(
-      width: _width,
-      height: _height,
-    );
+  String insertLayerFromData(CanvasLayerData data, {String? aboveLayerId}) {
+    final BitmapSurface surface = BitmapSurface(width: _width, height: _height);
     if (data.bitmap != null &&
         data.bitmapWidth == _width &&
         data.bitmapHeight == _height) {
@@ -644,7 +640,9 @@ class BitmapCanvasController extends ChangeNotifier {
     );
     int insertIndex = _layers.length;
     if (aboveLayerId != null) {
-      final int index = _layers.indexWhere((candidate) => candidate.id == aboveLayerId);
+      final int index = _layers.indexWhere(
+        (candidate) => candidate.id == aboveLayerId,
+      );
       if (index >= 0) {
         insertIndex = index + 1;
       }
@@ -948,6 +946,19 @@ class BitmapCanvasController extends ChangeNotifier {
     return BitmapSurface.decodeColor(color ?? 0);
   }
 
+  Color sampleColor(Offset position, {bool sampleAllLayers = true}) {
+    final int x = position.dx.floor();
+    final int y = position.dy.floor();
+    if (x < 0 || x >= _width || y < 0 || y >= _height) {
+      return const Color(0x00000000);
+    }
+    if (sampleAllLayers) {
+      _updateComposite(requiresFullSurface: true, region: null);
+      return _colorAtComposite(position);
+    }
+    return _colorAtSurface(_activeSurface, x, y);
+  }
+
   void _floodFillAcrossLayers(
     int startX,
     int startY,
@@ -1124,10 +1135,7 @@ class BitmapCanvasController extends ChangeNotifier {
     return rgba;
   }
 
-  static Uint8List _surfaceToMaskedRgba(
-    BitmapSurface surface,
-    Uint8List mask,
-  ) {
+  static Uint8List _surfaceToMaskedRgba(BitmapSurface surface, Uint8List mask) {
     final Uint32List pixels = surface.pixels;
     final Uint8List rgba = Uint8List(pixels.length * 4);
     for (int i = 0; i < pixels.length; i++) {

@@ -16,19 +16,19 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   Rect get _toolbarRect => Rect.fromLTWH(
-        _toolButtonPadding,
-        _toolButtonPadding,
-        _toolbarButtonSize,
-        _toolbarButtonSize * CanvasToolbar.buttonCount +
-            _toolbarSpacing * (CanvasToolbar.buttonCount - 1),
-      );
+    _toolButtonPadding,
+    _toolButtonPadding,
+    _toolbarButtonSize,
+    _toolbarButtonSize * CanvasToolbar.buttonCount +
+        _toolbarSpacing * (CanvasToolbar.buttonCount - 1),
+  );
 
   Rect get _toolSettingsRect => Rect.fromLTWH(
-        _toolButtonPadding + _toolbarButtonSize + _toolSettingsSpacing,
-        _toolButtonPadding,
-        _toolSettingsCardWidth,
-        _toolSettingsCardHeight,
-      );
+    _toolButtonPadding + _toolbarButtonSize + _toolSettingsSpacing,
+    _toolButtonPadding,
+    _toolSettingsCardWidth,
+    _toolSettingsCardHeight,
+  );
 
   Rect get _colorIndicatorRect {
     final double top =
@@ -51,8 +51,10 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       left,
       _toolButtonPadding,
       _sidePanelWidth,
-      (_workspaceSize.height - 2 * _toolButtonPadding)
-          .clamp(0.0, double.infinity),
+      (_workspaceSize.height - 2 * _toolButtonPadding).clamp(
+        0.0,
+        double.infinity,
+      ),
     );
   }
 
@@ -61,6 +63,13 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _toolSettingsRect.contains(workspacePosition) ||
         _rightSidebarRect.contains(workspacePosition) ||
         _colorIndicatorRect.contains(workspacePosition);
+  }
+
+  bool _isWithinCanvas(Offset boardLocal) {
+    return boardLocal.dx >= 0 &&
+        boardLocal.dy >= 0 &&
+        boardLocal.dx < _canvasSize.width &&
+        boardLocal.dy < _canvasSize.height;
   }
 
   void _setActiveTool(CanvasTool tool) {
@@ -72,6 +81,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     }
     if (_activeTool == CanvasTool.layerAdjust && _isLayerDragging) {
       _finishLayerAdjustDrag();
+    }
+    if (_activeTool == CanvasTool.eyedropper && _isEyedropperSampling) {
+      _finishEyedropperSample();
     }
     setState(() {
       if (_activeTool == CanvasTool.magicWand) {
@@ -87,7 +99,19 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       if (tool != CanvasTool.curvePen) {
         _curvePreviewPath = null;
       }
+      if (_activeTool == CanvasTool.eyedropper) {
+        _isEyedropperSampling = false;
+        _lastEyedropperSample = null;
+      }
       _activeTool = tool;
+      if (_activeTool == CanvasTool.eyedropper) {
+        final Offset? pointer = _lastWorkspacePointer;
+        if (pointer != null) {
+          _eyedropperCursorPosition = pointer;
+        }
+      } else {
+        _eyedropperCursorPosition = null;
+      }
     });
     _updateSelectionAnimation();
   }
@@ -172,6 +196,93 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     setState(() => _isDraggingBoard = false);
   }
 
+  void _beginEyedropperSample(Offset boardLocal) {
+    if (!_isWithinCanvas(boardLocal)) {
+      return;
+    }
+    setState(() {
+      _isEyedropperSampling = true;
+      _lastEyedropperSample = boardLocal;
+    });
+    _applyEyedropperSample(boardLocal, remember: false);
+  }
+
+  void _updateEyedropperSample(Offset boardLocal) {
+    if (!_isEyedropperSampling || !_isWithinCanvas(boardLocal)) {
+      return;
+    }
+    final Offset? previous = _lastEyedropperSample;
+    if (previous != null && (previous - boardLocal).distanceSquared < 1.0) {
+      return;
+    }
+    _lastEyedropperSample = boardLocal;
+    _applyEyedropperSample(boardLocal, remember: false);
+  }
+
+  void _finishEyedropperSample() {
+    if (!_isEyedropperSampling) {
+      return;
+    }
+    final Offset? sample = _lastEyedropperSample;
+    if (sample != null) {
+      _applyEyedropperSample(sample);
+    }
+    setState(() {
+      _isEyedropperSampling = false;
+      _lastEyedropperSample = null;
+    });
+  }
+
+  void _cancelEyedropperSample() {
+    if (!_isEyedropperSampling) {
+      return;
+    }
+    setState(() {
+      _isEyedropperSampling = false;
+      _lastEyedropperSample = null;
+    });
+  }
+
+  void _applyEyedropperSample(Offset boardLocal, {bool remember = true}) {
+    final Color color = _controller.sampleColor(
+      boardLocal,
+      sampleAllLayers: true,
+    );
+    _setPrimaryColor(color, remember: remember);
+  }
+
+  void _updateEyedropperCursor(Offset workspacePosition) {
+    if (_effectiveActiveTool != CanvasTool.eyedropper) {
+      return;
+    }
+    final Offset? current = _eyedropperCursorPosition;
+    if (current != null &&
+        (current - workspacePosition).distanceSquared < 0.25) {
+      return;
+    }
+    setState(() => _eyedropperCursorPosition = workspacePosition);
+  }
+
+  void _clearEyedropperCursor() {
+    if (_eyedropperCursorPosition == null) {
+      return;
+    }
+    setState(() => _eyedropperCursorPosition = null);
+  }
+
+  void _recordWorkspacePointer(Offset workspacePosition) {
+    _lastWorkspacePointer = workspacePosition;
+  }
+
+  @override
+  void _handleWorkspacePointerExit() {
+    if (_effectiveActiveTool == CanvasTool.selection) {
+      _clearSelectionHover();
+    }
+    _clearEyedropperCursor();
+    _lastWorkspacePointer = null;
+  }
+
   BitmapLayerState? _activeLayerForAdjustment() {
     final String? activeId = _controller.activeLayerId;
     if (activeId == null) {
@@ -195,6 +306,24 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     }
     return keys.contains(LogicalKeyboardKey.controlLeft) ||
         keys.contains(LogicalKeyboardKey.controlRight);
+  }
+
+  bool _isAltKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.altLeft ||
+        key == LogicalKeyboardKey.altRight ||
+        key == LogicalKeyboardKey.alt;
+  }
+
+  void _interruptForEyedropperOverride() {
+    if (_isDrawing) {
+      _finishStroke();
+    }
+    if (_isLayerDragging) {
+      _finishLayerAdjustDrag();
+    }
+    if (_activeTool == CanvasTool.curvePen) {
+      _resetCurvePenState();
+    }
   }
 
   void _beginLayerAdjustDrag(Offset boardLocal) {
@@ -295,7 +424,11 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       return;
     }
     _pushUndoSnapshot();
-    final Offset control = _computeCurveControlPoint(start, end, _curveDragDelta);
+    final Offset control = _computeCurveControlPoint(
+      start,
+      end,
+      _curveDragDelta,
+    );
     _drawQuadraticCurve(start, control, end);
     setState(() {
       _curveAnchor = end;
@@ -343,23 +476,20 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (start == null || end == null) {
       return null;
     }
-    final Offset control = _computeCurveControlPoint(start, end, _curveDragDelta);
+    final Offset control = _computeCurveControlPoint(
+      start,
+      end,
+      _curveDragDelta,
+    );
     final Path path = Path()
       ..moveTo(start.dx, start.dy)
       ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
     return path;
   }
 
-  Offset _computeCurveControlPoint(
-    Offset start,
-    Offset end,
-    Offset dragDelta,
-  ) {
+  Offset _computeCurveControlPoint(Offset start, Offset end, Offset dragDelta) {
     if (dragDelta.distanceSquared < 1e-6) {
-      return Offset(
-        (start.dx + end.dx) / 2,
-        (start.dy + end.dy) / 2,
-      );
+      return Offset((start.dx + end.dx) / 2, (start.dy + end.dy) / 2);
     }
     return end - dragDelta;
   }
@@ -376,12 +506,10 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     for (int i = 1; i <= steps; i++) {
       final double t = i / steps;
       final double invT = 1 - t;
-      final double x = invT * invT * start.dx +
-          2 * invT * t * control.dx +
-          t * t * end.dx;
-      final double y = invT * invT * start.dy +
-          2 * invT * t * control.dy +
-          t * t * end.dy;
+      final double x =
+          invT * invT * start.dx + 2 * invT * t * control.dx + t * t * end.dx;
+      final double y =
+          invT * invT * start.dy + 2 * invT * t * control.dy + t * t * end.dy;
       _controller.extendStroke(Offset(x, y));
     }
     _controller.endStroke();
@@ -395,6 +523,8 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (_isScalingGesture) {
       return;
     }
+    _recordWorkspacePointer(event.localPosition);
+    _updateEyedropperCursor(event.localPosition);
     final Offset pointer = event.localPosition;
     if (_isInsideToolArea(pointer)) {
       return;
@@ -435,6 +565,10 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _focusNode.requestFocus();
         _handleMagicWandPointerDown(boardLocal);
         break;
+      case CanvasTool.eyedropper:
+        _focusNode.requestFocus();
+        _beginEyedropperSample(boardLocal);
+        break;
       case CanvasTool.selection:
         _focusNode.requestFocus();
         _handleSelectionPointerDown(boardLocal, event.timeStamp);
@@ -452,6 +586,8 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (_isScalingGesture) {
       return;
     }
+    _recordWorkspacePointer(event.localPosition);
+    _updateEyedropperCursor(event.localPosition);
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
@@ -469,6 +605,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         break;
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
+        break;
+      case CanvasTool.eyedropper:
+        _updateEyedropperSample(_toBoardLocal(event.localPosition));
         break;
       case CanvasTool.selection:
         final Offset boardLocal = _toBoardLocal(event.localPosition);
@@ -499,6 +638,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         break;
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
+        break;
+      case CanvasTool.eyedropper:
+        _finishEyedropperSample();
         break;
       case CanvasTool.selection:
         _handleSelectionPointerUp();
@@ -531,6 +673,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
           _finishLayerAdjustDrag();
         }
         break;
+      case CanvasTool.eyedropper:
+        _cancelEyedropperSample();
+        break;
       case CanvasTool.curvePen:
         _cancelCurvePenSegment();
         break;
@@ -549,6 +694,8 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   void _handlePointerHover(PointerHoverEvent event) {
+    _recordWorkspacePointer(event.localPosition);
+    _updateEyedropperCursor(event.localPosition);
     if (_effectiveActiveTool != CanvasTool.selection) {
       return;
     }
@@ -563,7 +710,37 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
 
   @override
   KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event) {
-    if (event.logicalKey != LogicalKeyboardKey.space) {
+    final LogicalKeyboardKey key = event.logicalKey;
+    if (_isAltKey(key) && _activeTool != CanvasTool.eyedropper) {
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        if (_eyedropperOverrideActive) {
+          return KeyEventResult.handled;
+        }
+        _interruptForEyedropperOverride();
+        final Offset? pointer = _lastWorkspacePointer;
+        setState(() {
+          _eyedropperOverrideActive = true;
+          if (pointer != null) {
+            _eyedropperCursorPosition = pointer;
+          }
+        });
+        return KeyEventResult.handled;
+      }
+      if (event is KeyUpEvent) {
+        if (!_eyedropperOverrideActive) {
+          return KeyEventResult.handled;
+        }
+        _finishEyedropperSample();
+        setState(() {
+          _eyedropperOverrideActive = false;
+          _eyedropperCursorPosition = null;
+        });
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (key != LogicalKeyboardKey.space) {
       return KeyEventResult.ignored;
     }
     if (event is KeyDownEvent || event is KeyRepeatEvent) {

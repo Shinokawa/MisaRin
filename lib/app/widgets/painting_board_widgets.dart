@@ -84,12 +84,7 @@ class _CheckboardPainter extends CustomPainter {
       final bool oddRow = y.isOdd;
       for (int x = 0; x < horizontalCount; x++) {
         final bool useDark = oddRow ? x.isEven : x.isOdd;
-        final Rect rect = Rect.fromLTWH(
-          x * step,
-          y * step,
-          step,
-          step,
-        );
+        final Rect rect = Rect.fromLTWH(x * step, y * step, step, step);
         canvas.drawRect(rect, useDark ? darkPaint : lightPaint);
       }
     }
@@ -169,6 +164,57 @@ class _PanelCard extends StatelessWidget {
   }
 }
 
+class _EyedropperCursorOverlay extends StatelessWidget {
+  const _EyedropperCursorOverlay({required this.color, required this.sampling});
+
+  final Color color;
+  final bool sampling;
+
+  static const double size = 32;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
+    final Color borderColor = sampling ? accent : Colors.white;
+    final Color indicatorColor = color.withAlpha(0xFF);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.45),
+              borderRadius: BorderRadius.circular(size / 2),
+            ),
+          ),
+          Container(
+            width: size - 10,
+            height: size - 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: indicatorColor,
+              border: Border.all(color: borderColor, width: 2.0),
+            ),
+          ),
+          Transform.rotate(
+            angle: -0.55,
+            child: Icon(
+              FluentIcons.color,
+              size: 14,
+              color: sampling ? accent : Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ToolSettingsCard extends StatefulWidget {
   const _ToolSettingsCard({
     required this.activeTool,
@@ -210,7 +256,9 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: _formatValue(widget.penStrokeWidth));
+    _controller = TextEditingController(
+      text: _formatValue(widget.penStrokeWidth),
+    );
     _focusNode = FocusNode()..addListener(_handleFocusChange);
   }
 
@@ -263,12 +311,12 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               ),
               min: _ToolSettingsCard._minPenStrokeWidth,
               max: _ToolSettingsCard._maxPenStrokeWidth,
-              divisions: (_ToolSettingsCard._maxPenStrokeWidth -
-                      _ToolSettingsCard._minPenStrokeWidth)
-                  .round(),
-              onChanged: (value) => widget.onPenStrokeWidthChanged(
-                value.roundToDouble(),
-              ),
+              divisions:
+                  (_ToolSettingsCard._maxPenStrokeWidth -
+                          _ToolSettingsCard._minPenStrokeWidth)
+                      .round(),
+              onChanged: (value) =>
+                  widget.onPenStrokeWidthChanged(value.roundToDouble()),
             ),
           ),
           const SizedBox(width: 12),
@@ -280,8 +328,9 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
                 focusNode: _focusNode,
                 controller: _controller,
                 inputFormatters: _digitInputFormatters,
-                keyboardType:
-                    const TextInputType.numberWithOptions(signed: false),
+                keyboardType: const TextInputType.numberWithOptions(
+                  signed: false,
+                ),
                 onChanged: _handleTextChanged,
                 textAlign: TextAlign.center,
               ),
@@ -348,10 +397,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         height: 40,
         child: Align(
           alignment: Alignment.centerLeft,
-          child: Text(
-            '该工具暂无可调节参数',
-            style: theme.typography.body,
-          ),
+          child: Text('该工具暂无可调节参数', style: theme.typography.body),
         ),
       );
     }
@@ -372,10 +418,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           height: _toolSettingsCardHeight,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: content,
-            ),
+            child: Align(alignment: Alignment.centerLeft, child: content),
           ),
         ),
       ),
@@ -391,8 +434,10 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
       return;
     }
     final double clamped = parsed
-        .clamp(_ToolSettingsCard._minPenStrokeWidth,
-            _ToolSettingsCard._maxPenStrokeWidth)
+        .clamp(
+          _ToolSettingsCard._minPenStrokeWidth,
+          _ToolSettingsCard._maxPenStrokeWidth,
+        )
         .toDouble()
         .roundToDouble();
     final String formatted = _formatValue(clamped);
@@ -485,10 +530,7 @@ class _BucketOptionTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          ToggleSwitch(
-            checked: value,
-            onChanged: onChanged,
-          ),
+          ToggleSwitch(checked: value, onChanged: onChanged),
         ],
       ),
     );

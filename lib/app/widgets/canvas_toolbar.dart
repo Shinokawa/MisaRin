@@ -13,6 +13,7 @@ import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
 import 'layer_adjust_tool_button.dart';
 import 'curve_pen_tool_button.dart';
+import 'eyedropper_tool_button.dart';
 
 class CanvasToolbar extends StatelessWidget {
   const CanvasToolbar({
@@ -36,7 +37,7 @@ class CanvasToolbar extends StatelessWidget {
   final bool canRedo;
   final VoidCallback onExit;
 
-  static const int buttonCount = 10;
+  static const int buttonCount = 11;
 
   static const TooltipThemeData _rightTooltipStyle = TooltipThemeData(
     preferBelow: false,
@@ -45,8 +46,10 @@ class CanvasToolbar extends StatelessWidget {
   );
 
   static String _tooltipMessage(String base, ToolbarAction action) {
-    final shortcutLabel =
-        ToolbarShortcuts.labelForPlatform(action, defaultTargetPlatform);
+    final shortcutLabel = ToolbarShortcuts.labelForPlatform(
+      action,
+      defaultTargetPlatform,
+    );
     if (shortcutLabel.isEmpty) {
       return base;
     }
@@ -118,6 +121,17 @@ class CanvasToolbar extends StatelessWidget {
           child: MagicWandToolButton(
             isSelected: activeTool == CanvasTool.magicWand,
             onPressed: () => onToolSelected(CanvasTool.magicWand),
+          ),
+        ),
+        const SizedBox(height: 9),
+        Tooltip(
+          message: _tooltipMessage('吸管工具', ToolbarAction.eyedropperTool),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: EyedropperToolButton(
+            isSelected: activeTool == CanvasTool.eyedropper,
+            onPressed: () => onToolSelected(CanvasTool.eyedropper),
           ),
         ),
         const SizedBox(height: 9),

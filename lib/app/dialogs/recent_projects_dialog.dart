@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
+import '../widgets/project_preview_thumbnail.dart';
 import 'misarin_dialog.dart';
 
 Future<ProjectSummary?> showRecentProjectsDialog(BuildContext context) {
@@ -50,8 +50,8 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
       _loading = true;
       _errorMessage = null;
     });
-    final Stream<ProjectSummary> stream =
-        ProjectRepository.instance.streamRecentProjects();
+    final Stream<ProjectSummary> stream = ProjectRepository.instance
+        .streamRecentProjects();
     _subscription = stream.listen(
       (ProjectSummary summary) {
         if (!mounted) {
@@ -87,10 +87,7 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
     final theme = FluentTheme.of(context);
     return MisarinDialog(
       title: const Text('最近打开'),
-      content: SizedBox(
-        height: 320,
-        child: _buildContent(context, theme),
-      ),
+      content: SizedBox(height: 320, child: _buildContent(context, theme)),
       contentWidth: 480,
       maxWidth: 560,
       actions: [
@@ -137,10 +134,7 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
 }
 
 class _RecentProjectTile extends StatefulWidget {
-  const _RecentProjectTile({
-    required this.summary,
-    required this.onOpen,
-  });
+  const _RecentProjectTile({required this.summary, required this.onOpen});
 
   final ProjectSummary summary;
   final VoidCallback onOpen;
@@ -218,7 +212,7 @@ class _RecentProjectTileState extends State<_RecentProjectTile> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _PreviewThumbnail(bytes: widget.summary.previewBytes),
+                  ProjectPreviewThumbnail(bytes: widget.summary.previewBytes),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -249,39 +243,6 @@ class _RecentProjectTileState extends State<_RecentProjectTile> {
           },
         ),
       ),
-    );
-  }
-}
-
-class _PreviewThumbnail extends StatelessWidget {
-  const _PreviewThumbnail({this.bytes});
-
-  final Uint8List? bytes;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final Widget placeholder = Container(
-      width: 96,
-      height: 72,
-      decoration: BoxDecoration(
-        color: theme.resources.subtleFillColorTertiary,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: theme.resources.controlStrongStrokeColorDefault,
-          width: 0.6,
-        ),
-      ),
-      child: const Icon(FluentIcons.picture, size: 20),
-    );
-
-    final Uint8List? data = bytes;
-    if (data == null || data.isEmpty) {
-      return placeholder;
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Image.memory(data, width: 96, height: 72, fit: BoxFit.cover),
     );
   }
 }

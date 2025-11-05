@@ -6,7 +6,8 @@ import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/animation.dart' show AnimationController;
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -113,6 +114,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset _curveDragDelta = Offset.zero;
   bool _isCurvePlacingSegment = false;
   Path? _curvePreviewPath;
+  bool _isEyedropperSampling = false;
+  bool _eyedropperOverrideActive = false;
+  Offset? _lastEyedropperSample;
+  Offset? _eyedropperCursorPosition;
+  Offset? _lastWorkspacePointer;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -204,8 +210,16 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   }
 
   CanvasTool get activeTool => _activeTool;
-  CanvasTool get _effectiveActiveTool =>
-      _spacePanOverrideActive ? CanvasTool.hand : _activeTool;
+  CanvasTool get _effectiveActiveTool {
+    if (_eyedropperOverrideActive) {
+      return CanvasTool.eyedropper;
+    }
+    if (_spacePanOverrideActive) {
+      return CanvasTool.hand;
+    }
+    return _activeTool;
+  }
+
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
   bool get canUndo => _undoStack.isNotEmpty;
@@ -220,11 +234,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Uint8List? get selectionMaskSnapshot;
   Path? get selectionPathSnapshot;
 
-  void setSelectionState({
-    SelectionShape? shape,
-    Path? path,
-    Uint8List? mask,
-  });
+  void setSelectionState({SelectionShape? shape, Path? path, Uint8List? mask});
 
   void clearSelectionArtifacts();
   void resetSelectionUndoFlag();
@@ -243,6 +253,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   });
 
   void _rememberColor(Color color);
+  void _setPrimaryColor(Color color, {bool remember = true});
   Future<void> _applyPaintBucket(Offset position);
 
   void _setActiveTool(CanvasTool tool);
@@ -268,6 +279,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _handlePointerUp(PointerUpEvent event);
   void _handlePointerCancel(PointerCancelEvent event);
   void _handlePointerHover(PointerHoverEvent event);
+  void _handleWorkspacePointerExit();
   void _handlePointerSignal(PointerSignalEvent event);
   KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event);
 

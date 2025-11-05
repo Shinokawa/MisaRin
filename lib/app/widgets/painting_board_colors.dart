@@ -100,6 +100,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     });
   }
 
+  @override
   void _setPrimaryColor(Color color, {bool remember = true}) {
     setState(() {
       _primaryColor = color;

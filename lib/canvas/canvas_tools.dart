@@ -4,6 +4,7 @@ enum CanvasTool {
   curvePen,
   bucket,
   magicWand,
+  eyedropper,
   selection,
   hand,
 }

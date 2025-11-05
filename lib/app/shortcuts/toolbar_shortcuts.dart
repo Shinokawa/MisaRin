@@ -8,6 +8,7 @@ enum ToolbarAction {
   curvePenTool,
   bucketTool,
   magicWandTool,
+  eyedropperTool,
   selectionTool,
   handTool,
   undo,
@@ -61,6 +62,10 @@ class ToolbarShortcuts {
     ToolbarAction.magicWandTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyW)],
       primaryLabel: 'W',
+    ),
+    ToolbarAction.eyedropperTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyI)],
+      primaryLabel: 'I',
     ),
     ToolbarAction.selectionTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyM)],

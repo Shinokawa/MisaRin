@@ -11,13 +11,15 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         key: const UndoIntent(),
       for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
         key: const RedoIntent(),
-      for (final key in
-          ToolbarShortcuts.of(ToolbarAction.layerAdjustTool).shortcuts)
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.layerAdjustTool,
+      ).shortcuts)
         key: const SelectToolIntent(CanvasTool.layerAdjust),
       for (final key in ToolbarShortcuts.of(ToolbarAction.penTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.pen),
-      for (final key in
-          ToolbarShortcuts.of(ToolbarAction.curvePenTool).shortcuts)
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.curvePenTool,
+      ).shortcuts)
         key: const SelectToolIntent(CanvasTool.curvePen),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
@@ -25,6 +27,10 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         ToolbarAction.magicWandTool,
       ).shortcuts)
         key: const SelectToolIntent(CanvasTool.magicWand),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.eyedropperTool,
+      ).shortcuts)
+        key: const SelectToolIntent(CanvasTool.eyedropper),
       for (final key in ToolbarShortcuts.of(
         ToolbarAction.selectionTool,
       ).shortcuts)
@@ -69,8 +75,9 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         final MouseCursor workspaceCursor;
         switch (_effectiveActiveTool) {
           case CanvasTool.hand:
-            workspaceCursor =
-                _isDraggingBoard ? SystemMouseCursors.grabbing : SystemMouseCursors.grab;
+            workspaceCursor = _isDraggingBoard
+                ? SystemMouseCursors.grabbing
+                : SystemMouseCursors.grab;
             break;
           case CanvasTool.layerAdjust:
             workspaceCursor = _isLayerDragging
@@ -79,6 +86,9 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
             break;
           case CanvasTool.curvePen:
             workspaceCursor = SystemMouseCursors.precise;
+            break;
+          case CanvasTool.eyedropper:
+            workspaceCursor = SystemMouseCursors.none;
             break;
           default:
             workspaceCursor = SystemMouseCursors.basic;
@@ -149,6 +159,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                 onScaleEnd: _handleScaleEnd,
                 child: MouseRegion(
                   cursor: workspaceCursor,
+                  onExit: (_) => _handleWorkspacePointerExit(),
                   child: Listener(
                     behavior: HitTestBehavior.opaque,
                     onPointerDown: _handlePointerDown,
@@ -209,11 +220,14 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                               if (_curvePreviewPath != null)
                                                 Positioned.fill(
                                                   child: CustomPaint(
-                                                    painter: _CurvePreviewPainter(
-                                                      path: _curvePreviewPath!,
-                                                      color: _primaryColor,
-                                                      strokeWidth: _penStrokeWidth,
-                                                    ),
+                                                    painter:
+                                                        _CurvePreviewPainter(
+                                                          path:
+                                                              _curvePreviewPath!,
+                                                          color: _primaryColor,
+                                                          strokeWidth:
+                                                              _penStrokeWidth,
+                                                        ),
                                                   ),
                                                 ),
                                               if (hasSelectionOverlay)
@@ -319,6 +333,23 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               ),
                             ),
                           ),
+                          if (_eyedropperCursorPosition != null &&
+                              _effectiveActiveTool == CanvasTool.eyedropper)
+                            Positioned(
+                              left:
+                                  _eyedropperCursorPosition!.dx -
+                                  _EyedropperCursorOverlay.size / 2,
+                              top:
+                                  _eyedropperCursorPosition!.dy -
+                                  _EyedropperCursorOverlay.size / 2,
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: _EyedropperCursorOverlay(
+                                  color: _primaryColor,
+                                  sampling: _isEyedropperSampling,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),

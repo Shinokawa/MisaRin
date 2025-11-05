@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../project/project_repository.dart';
+import '../widgets/project_preview_thumbnail.dart';
 import 'misarin_dialog.dart';
 
 Future<void> showProjectManagerDialog(BuildContext context) {
@@ -61,8 +62,8 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
       _loading = true;
       _errorMessage = null;
     });
-    final Stream<StoredProjectInfo> stream =
-        ProjectRepository.instance.streamStoredProjects();
+    final Stream<StoredProjectInfo> stream = ProjectRepository.instance
+        .streamStoredProjects();
     _subscription = stream.listen(
       (StoredProjectInfo info) {
         if (!mounted) {
@@ -230,13 +231,23 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
                   final bool selected = _selected.contains(info.path);
                   return ListTile.selectable(
                     key: ValueKey(info.path),
-                    leading: Checkbox(
-                      checked: selected,
-                      onChanged: (value) =>
-                          _toggleSelection(info.path, value ?? false),
+                    leading: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Checkbox(
+                          checked: selected,
+                          onChanged: (value) =>
+                              _toggleSelection(info.path, value ?? false),
+                        ),
+                        const SizedBox(width: 12),
+                        ProjectPreviewThumbnail(
+                          bytes: info.summary?.previewBytes,
+                          width: 96,
+                          height: 72,
+                        ),
+                      ],
                     ),
-                    onPressed: () =>
-                        _toggleSelection(info.path, !selected),
+                    onPressed: () => _toggleSelection(info.path, !selected),
                     title: Text(
                       info.displayName,
                       maxLines: 1,
