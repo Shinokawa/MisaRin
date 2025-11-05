@@ -225,7 +225,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool get _cursorRequiresOverlay =>
       ToolCursorStyles.hasOverlay(_effectiveActiveTool);
 
-  bool get _penRequiresOverlay => _effectiveActiveTool == CanvasTool.pen;
+  bool get _penRequiresOverlay =>
+      _effectiveActiveTool == CanvasTool.pen ||
+      _effectiveActiveTool == CanvasTool.curvePen;
 
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;

@@ -265,8 +265,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   void _updateToolCursorOverlay(Offset workspacePosition) {
     final CanvasTool tool = _effectiveActiveTool;
     final bool overlayTool = ToolCursorStyles.hasOverlay(tool);
-    final bool isPen = tool == CanvasTool.pen;
-    if (!overlayTool && !isPen) {
+    final bool isPenLike =
+        tool == CanvasTool.pen || tool == CanvasTool.curvePen;
+    if (!overlayTool && !isPenLike) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {
           _toolCursorPosition = null;
@@ -304,7 +305,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _toolCursorPosition = workspacePosition;
         _penCursorWorkspacePosition = null;
       });
-    } else if (isPen) {
+    } else if (isPenLike) {
       final Offset? current = _penCursorWorkspacePosition;
       if (current != null &&
           (current - workspacePosition).distanceSquared < 0.25) {
