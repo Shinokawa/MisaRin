@@ -7,7 +7,7 @@ import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../project/project_document.dart';
 
-/// 仅支持 8bit RGB PSD，读取所有可见图层并转换为 `ProjectDocument`。
+/// 仅支持 8bit RGB PSD，读取所有图层并转换为 `ProjectDocument`。
 ///
 /// 解析逻辑参考 Adobe PSD 规范以及 Krita 中的实现，但进行了大量简化：
 /// - 仅解析 `8BPS` 旧版 PSD（版本 1），不支持 PSB。
@@ -29,9 +29,6 @@ class PsdImporter {
     final List<_PsdLayerRecord> records =
         _readLayers(reader, header, sections.layerAndMaskLength);
 
-    final List<_PsdLayerRecord> visibleRecords =
-        records.where((layer) => layer.visible).toList(growable: false);
-
     final DateTime now = DateTime.now();
     final CanvasSettings settings = CanvasSettings(
       width: header.width.toDouble(),
@@ -45,12 +42,11 @@ class PsdImporter {
     );
 
     final List<CanvasLayerData> canvasLayers = <CanvasLayerData>[];
-    for (int i = visibleRecords.length - 1; i >= 0; i--) {
-      final _PsdLayerRecord record = visibleRecords[i];
+    for (final _PsdLayerRecord record in records) {
       final CanvasLayerData? canvasLayer =
           _convertLayer(record, header.width, header.height);
       if (canvasLayer != null) {
-        canvasLayers.add(canvasLayer);
+        canvasLayers.insert(0, canvasLayer);
       }
     }
 
@@ -177,7 +173,7 @@ class PsdImporter {
     }
     final String blendKey = reader.readAscii(4);
     final int opacity = reader.readUint8();
-    reader.skip(1); // clipping
+    final int clipping = reader.readUint8();
     final int flags = reader.readUint8();
     reader.skip(1); // filler
 
@@ -190,8 +186,11 @@ class PsdImporter {
     final int blendRangesLength = reader.readUint32();
     reader.skip(blendRangesLength);
 
-    final String layerName = reader.readPascalString(padding: 4);
-
+    String layerName = reader.readPascalString(padding: 4);
+    layerName = layerName.isEmpty ? 'PSD 图层' : layerName;
+    if (reader.offset < extraEnd) {
+      layerName = _consumeAdditionalLayerInfo(reader, extraEnd, layerName);
+    }
     reader.offset = extraEnd;
 
     return _PsdLayerRecord(
@@ -201,12 +200,68 @@ class PsdImporter {
       right: right,
       channels: channels,
       opacity: opacity,
+      clipping: clipping,
       flags: flags,
       blendKey: blendKey,
-      name: layerName.isEmpty ? 'PSD 图层' : layerName,
+      name: layerName,
       width: header.width,
       height: header.height,
     );
+  }
+
+  String _consumeAdditionalLayerInfo(
+    _ByteReader reader,
+    int extraEnd,
+    String currentName,
+  ) {
+    String resolvedName = currentName;
+    while (reader.offset + 12 <= extraEnd) {
+      final String signature = reader.readAscii(4);
+      final String key = reader.readAscii(4);
+      final int length = reader.readUint32();
+      final int dataStart = reader.offset;
+      final int dataEnd = dataStart + length;
+      if (dataEnd > extraEnd) {
+        reader.offset = extraEnd;
+        break;
+      }
+      if ((signature == '8BIM' || signature == '8B64') && key == 'luni') {
+        final String? unicodeName = _readUnicodeString(reader, length);
+        if (unicodeName != null && unicodeName.isNotEmpty) {
+          resolvedName = unicodeName;
+        }
+      } else {
+        reader.offset = dataEnd;
+      }
+      if ((length & 1) == 1) {
+        reader.skip(1);
+      }
+    }
+    return resolvedName;
+  }
+
+  String? _readUnicodeString(_ByteReader reader, int blockLength) {
+    final int blockStart = reader.offset;
+    if (blockLength < 4) {
+      reader.skip(blockLength);
+      return null;
+    }
+    final int charCount = reader.readUint32();
+    final int maxBytes = blockLength - 4;
+    final int expectedBytes = charCount * 2;
+    final int readLength = expectedBytes <= maxBytes ? expectedBytes : maxBytes;
+    final Uint8List encoded = reader.readBytes(readLength);
+    final List<int> codeUnits = <int>[];
+    for (int i = 0; i + 1 < encoded.length; i += 2) {
+      codeUnits.add((encoded[i] << 8) | encoded[i + 1]);
+    }
+    final String value = codeUnits.isEmpty ? '' : String.fromCharCodes(codeUnits);
+    final int consumed = reader.offset - blockStart;
+    final int remaining = blockLength - consumed;
+    if (remaining > 0) {
+      reader.skip(remaining);
+    }
+    return value;
   }
 
   void _readChannelPixels(
@@ -323,6 +378,7 @@ class PsdImporter {
       name: record.name,
       visible: record.visible,
       opacity: record.opacity / 255.0,
+      clippingMask: record.isClippingMask,
       blendMode: record.blendMode,
       bitmap: bitmap,
       bitmapWidth: canvasWidth,
@@ -378,6 +434,7 @@ class _PsdLayerRecord {
     required this.right,
     required this.channels,
     required this.opacity,
+    required this.clipping,
     required this.flags,
     required this.blendKey,
     required this.name,
@@ -391,6 +448,7 @@ class _PsdLayerRecord {
   final int right;
   final List<_PsdChannel> channels;
   final int opacity;
+  final int clipping;
   final int flags;
   final String blendKey;
   final String name;
@@ -398,6 +456,7 @@ class _PsdLayerRecord {
   final int height;
 
   bool get visible => (flags & 0x02) == 0;
+  bool get isClippingMask => clipping == 1;
 
   int get layerWidth {
     final int value = right - left;
@@ -410,9 +469,11 @@ class _PsdLayerRecord {
   }
 
   CanvasLayerBlendMode get blendMode {
-    switch (blendKey.trim()) {
+    final String normalized = blendKey.trim();
+    switch (normalized) {
       case 'mul':
       case 'mul ':
+      case 'Mltp':
         return CanvasLayerBlendMode.multiply;
       default:
         return CanvasLayerBlendMode.normal;
