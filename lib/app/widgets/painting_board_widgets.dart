@@ -168,24 +168,36 @@ class _EyedropperCursorOverlay extends StatelessWidget {
   const _EyedropperCursorOverlay();
 
   static const double size = 20;
-  static const Offset tipOffset = Offset(6, 18);
+  static const Offset tipOffset = Offset(5, 17);
 
   @override
   Widget build(BuildContext context) {
+    const List<Offset> outlineOffsets = <Offset>[
+      Offset(-1, 0),
+      Offset(1, 0),
+      Offset(0, -1),
+      Offset(0, 1),
+      Offset(-1, -1),
+      Offset(1, -1),
+      Offset(-1, 1),
+      Offset(1, 1),
+    ];
+
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Transform.translate(
-            offset: const Offset(0.8, 0.8),
-            child: const Icon(
-              FluentIcons.eyedropper,
-              size: size + 2,
-              color: Colors.white,
+          for (final Offset offset in outlineOffsets)
+            Transform.translate(
+              offset: offset,
+              child: const Icon(
+                FluentIcons.eyedropper,
+                size: size,
+                color: Colors.white,
+              ),
             ),
-          ),
           const Icon(
             FluentIcons.eyedropper,
             size: size,
