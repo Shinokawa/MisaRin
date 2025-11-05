@@ -343,9 +343,10 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                           if (_eyedropperCursorPosition != null &&
                               _effectiveActiveTool == CanvasTool.eyedropper)
                             Positioned(
-                              left: _eyedropperCursorPosition!.dx,
+                              left: _eyedropperCursorPosition!.dx -
+                                  _EyedropperCursorOverlay.tipOffset.dx,
                               top: _eyedropperCursorPosition!.dy -
-                                  _EyedropperCursorOverlay.size,
+                                  _EyedropperCursorOverlay.tipOffset.dy,
                               child: const IgnorePointer(
                                 ignoring: true,
                                 child: _EyedropperCursorOverlay(),

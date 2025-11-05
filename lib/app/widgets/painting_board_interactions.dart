@@ -260,6 +260,12 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       }
       return;
     }
+    if (_isInsideToolArea(workspacePosition)) {
+      if (_eyedropperCursorPosition != null) {
+        setState(() => _eyedropperCursorPosition = null);
+      }
+      return;
+    }
     final Rect boardRect = _boardRect;
     if (!boardRect.contains(workspacePosition)) {
       if (_eyedropperCursorPosition != null) {
@@ -283,7 +289,11 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   }
 
   void _recordWorkspacePointer(Offset workspacePosition) {
-    _lastWorkspacePointer = workspacePosition;
+    if (_isInsideToolArea(workspacePosition)) {
+      _lastWorkspacePointer = null;
+    } else {
+      _lastWorkspacePointer = workspacePosition;
+    }
   }
 
   @override
