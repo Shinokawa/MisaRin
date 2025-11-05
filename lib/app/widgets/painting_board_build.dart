@@ -360,9 +360,11 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               cursorStyle != null)
                             Positioned(
                               left: _toolCursorPosition!.dx -
-                                  cursorStyle.anchor.dx,
+                                  cursorStyle.anchor.dx +
+                                  cursorStyle.iconOffset.dx,
                               top: _toolCursorPosition!.dy -
-                                  cursorStyle.anchor.dy,
+                                  cursorStyle.anchor.dy +
+                                  cursorStyle.iconOffset.dy,
                               child: IgnorePointer(
                                 ignoring: true,
                                 child: cursorStyle.icon,

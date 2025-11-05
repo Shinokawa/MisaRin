@@ -8,11 +8,13 @@ class ToolCursorStyle {
   const ToolCursorStyle({
     required this.icon,
     required this.anchor,
+    this.iconOffset = Offset.zero,
     this.hideSystemCursor = true,
   });
 
   final Widget icon;
   final Offset anchor;
+  final Offset iconOffset;
   final bool hideSystemCursor;
 }
 
@@ -38,6 +40,7 @@ class ToolCursorStyles {
       <CanvasTool, ToolCursorStyle>{
     CanvasTool.eyedropper: ToolCursorStyle(
       anchor: const Offset(5, 17),
+      iconOffset: const Offset(5, -2),
       icon: const _OutlinedToolCursorIcon(
         size: _defaultIconSize,
         icon: FluentIcons.eyedropper,
@@ -45,6 +48,7 @@ class ToolCursorStyles {
     ),
     CanvasTool.bucket: ToolCursorStyle(
       anchor: const Offset(8, 18),
+      iconOffset: const Offset(5, -2),
       icon: const _OutlinedToolCursorIcon(
         size: _defaultIconSize,
         icon: FluentIcons.bucket_color,
@@ -53,6 +57,7 @@ class ToolCursorStyles {
     ),
     CanvasTool.magicWand: ToolCursorStyle(
       anchor: Offset.zero,
+      iconOffset: const Offset(-5.5, -5.5),
       icon: const _OutlinedToolCursorIcon(
         size: _defaultIconSize,
         icon: FluentIcons.auto_enhance_on,
