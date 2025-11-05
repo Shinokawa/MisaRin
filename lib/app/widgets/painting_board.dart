@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/animation.dart' show AnimationController;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material

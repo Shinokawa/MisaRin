@@ -185,6 +185,18 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     return null;
   }
 
+  bool _isCurveCancelModifierPressed() {
+    final Set<LogicalKeyboardKey> keys =
+        HardwareKeyboard.instance.logicalKeysPressed;
+    final TargetPlatform platform = defaultTargetPlatform;
+    if (platform == TargetPlatform.macOS) {
+      return keys.contains(LogicalKeyboardKey.metaLeft) ||
+          keys.contains(LogicalKeyboardKey.metaRight);
+    }
+    return keys.contains(LogicalKeyboardKey.controlLeft) ||
+        keys.contains(LogicalKeyboardKey.controlRight);
+  }
+
   void _beginLayerAdjustDrag(Offset boardLocal) {
     final BitmapLayerState? layer = _activeLayerForAdjustment();
     if (layer == null || layer.locked) {
@@ -236,6 +248,14 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       if (!isPointInsideSelection(boardLocal)) {
         return;
       }
+      _pushUndoSnapshot();
+      _controller.beginStroke(
+        boardLocal,
+        color: _primaryColor,
+        radius: _penStrokeWidth / 2,
+      );
+      _controller.endStroke();
+      _markDirty();
       setState(() {
         _curveAnchor = boardLocal;
         _curvePreviewPath = null;
@@ -335,24 +355,13 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     Offset end,
     Offset dragDelta,
   ) {
-    final Offset midpoint = Offset(
-      (start.dx + end.dx) / 2,
-      (start.dy + end.dy) / 2,
-    );
-    final Offset baseline = end - start;
-    final double length = baseline.distance;
-    if (length < 1e-3) {
-      return midpoint + dragDelta;
+    if (dragDelta.distanceSquared < 1e-6) {
+      return Offset(
+        (start.dx + end.dx) / 2,
+        (start.dy + end.dy) / 2,
+      );
     }
-    final Offset perpendicular = Offset(-baseline.dy, baseline.dx);
-    final double perpLength = perpendicular.distance;
-    if (perpLength < 1e-3) {
-      return midpoint + dragDelta;
-    }
-    final Offset normalized = perpendicular / perpLength;
-    final double magnitude =
-        dragDelta.dx * normalized.dx + dragDelta.dy * normalized.dy;
-    return midpoint + normalized * magnitude;
+    return end - dragDelta;
   }
 
   void _drawQuadraticCurve(Offset start, Offset control, Offset end) {
@@ -408,6 +417,11 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _startStroke(boardLocal);
         break;
       case CanvasTool.curvePen:
+        if (_isCurveCancelModifierPressed() &&
+            (_curveAnchor != null || _isCurvePlacingSegment)) {
+          _resetCurvePenState();
+          return;
+        }
         _handleCurvePenPointerDown(boardLocal);
         break;
       case CanvasTool.bucket:
