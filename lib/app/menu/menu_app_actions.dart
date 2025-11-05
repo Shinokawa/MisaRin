@@ -35,15 +35,19 @@ class AppMenuActions {
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
       dialogTitle: '打开项目',
       type: FileType.custom,
-      allowedExtensions: const ['rin'],
+      allowedExtensions: const ['rin', 'psd'],
     );
     final String? path = result?.files.singleOrNull?.path;
     if (path == null || !context.mounted) {
       return;
     }
     try {
-      final ProjectDocument document = await ProjectRepository.instance
-          .loadDocument(path);
+      final ProjectDocument document;
+      if (path.toLowerCase().endsWith('.psd')) {
+        document = await ProjectRepository.instance.importPsd(path);
+      } else {
+        document = await ProjectRepository.instance.loadDocument(path);
+      }
       if (!context.mounted) {
         return;
       }

@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
+import '../psd/psd_importer.dart';
 import 'project_binary_codec.dart';
 import 'project_document.dart';
 import 'recent_projects_index.dart';
@@ -198,6 +199,12 @@ class ProjectRepository {
   }) async {
     await _ensureProjectDirectory();
     return ProjectDocument.newProject(settings: settings, name: name);
+  }
+
+  Future<ProjectDocument> importPsd(String path) async {
+    await _ensureProjectDirectory();
+    const PsdImporter importer = PsdImporter();
+    return importer.importFile(path);
   }
 
   Future<ProjectDocument> createDocumentFromImage(

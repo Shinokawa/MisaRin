@@ -14,6 +14,10 @@ class MisarinHomePage extends StatelessWidget {
     await AppMenuActions.createProject(context);
   }
 
+  Future<void> _handleOpenProject(BuildContext context) async {
+    await AppMenuActions.openProjectFromDisk(context);
+  }
+
   Future<void> _handleOpenRecent(BuildContext context) async {
     final ProjectSummary? summary = await showRecentProjectsDialog(context);
     if (summary == null || !context.mounted) {
@@ -150,6 +154,13 @@ class MisarinHomePage extends StatelessWidget {
               label: '新建项目',
               description: '从空白画布开启新的创意',
               onPressed: () => _handleCreateProject(context),
+            ),
+            _buildSidebarAction(
+              context,
+              icon: FluentIcons.open_file,
+              label: '打开项目',
+              description: '从磁盘加载 .rin / .psd 文件',
+              onPressed: () => _handleOpenProject(context),
             ),
             _buildSidebarAction(
               context,
