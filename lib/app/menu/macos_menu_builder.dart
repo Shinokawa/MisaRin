@@ -19,7 +19,7 @@ class MacosMenuBuilder {
       _applicationMenu(handler, log),
       _fileMenu(handler, log),
       _editMenu(handler, log),
-      _imageMenu(log),
+      _imageMenu(handler, log),
       _layerMenu(log),
       _selectMenu(log),
       _filterMenu(log),
@@ -242,7 +242,10 @@ class MacosMenuBuilder {
     );
   }
 
-  static PlatformMenu _imageMenu(MenuLogger log) {
+  static PlatformMenu _imageMenu(
+    MenuActionHandler handler,
+    MenuLogger log,
+  ) {
     return PlatformMenu(
       label: '图像',
       menus: <PlatformMenuItem>[
@@ -254,6 +257,31 @@ class MacosMenuBuilder {
           label: '调整 > 色阶…',
           onSelected: _placeholder('图像 > 调整 > 色阶…', log),
           shortcut: const SingleActivator(LogicalKeyboardKey.keyL, meta: true),
+        ),
+        PlatformMenu(
+          label: '图像变换',
+          menus: <PlatformMenuItem>[
+            PlatformMenuItem(
+              label: '顺时针 90 度',
+              onSelected: _wrap(handler.rotateCanvas90Clockwise) ??
+                  _placeholder('图像 > 图像变换 > 顺时针 90 度', log),
+            ),
+            PlatformMenuItem(
+              label: '逆时针 90 度',
+              onSelected: _wrap(handler.rotateCanvas90CounterClockwise) ??
+                  _placeholder('图像 > 图像变换 > 逆时针 90 度', log),
+            ),
+            PlatformMenuItem(
+              label: '顺时针 180 度',
+              onSelected: _wrap(handler.rotateCanvas180Clockwise) ??
+                  _placeholder('图像 > 图像变换 > 顺时针 180 度', log),
+            ),
+            PlatformMenuItem(
+              label: '逆时针 180 度',
+              onSelected: _wrap(handler.rotateCanvas180CounterClockwise) ??
+                  _placeholder('图像 > 图像变换 > 逆时针 180 度', log),
+            ),
+          ],
         ),
       ],
     );

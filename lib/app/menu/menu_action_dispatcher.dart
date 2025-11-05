@@ -19,6 +19,10 @@ class MenuActionHandler {
     this.redo,
     this.zoomIn,
     this.zoomOut,
+    this.rotateCanvas90Clockwise,
+    this.rotateCanvas90CounterClockwise,
+    this.rotateCanvas180Clockwise,
+    this.rotateCanvas180CounterClockwise,
     this.cut,
     this.copy,
     this.paste,
@@ -37,6 +41,10 @@ class MenuActionHandler {
       redo = null,
       zoomIn = null,
       zoomOut = null,
+      rotateCanvas90Clockwise = null,
+      rotateCanvas90CounterClockwise = null,
+      rotateCanvas180Clockwise = null,
+      rotateCanvas180CounterClockwise = null,
       cut = null,
       copy = null,
       paste = null;
@@ -53,6 +61,10 @@ class MenuActionHandler {
   final MenuAsyncAction? redo;
   final MenuAsyncAction? zoomIn;
   final MenuAsyncAction? zoomOut;
+  final MenuAsyncAction? rotateCanvas90Clockwise;
+  final MenuAsyncAction? rotateCanvas90CounterClockwise;
+  final MenuAsyncAction? rotateCanvas180Clockwise;
+  final MenuAsyncAction? rotateCanvas180CounterClockwise;
   final MenuAsyncAction? cut;
   final MenuAsyncAction? copy;
   final MenuAsyncAction? paste;

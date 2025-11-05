@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../canvas/canvas_exporter.dart';
+import '../../canvas/canvas_settings.dart';
 import '../dialogs/export_dialog.dart';
 import '../dialogs/misarin_dialog.dart';
 import '../menu/menu_action_dispatcher.dart';
@@ -290,6 +291,40 @@ class CanvasPageState extends State<CanvasPage> {
     }
   }
 
+  void _applyCanvasRotation(CanvasRotation rotation) {
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null) {
+      _showInfoBar('画布尚未准备好，无法执行图像变换。',
+          severity: InfoBarSeverity.warning);
+      return;
+    }
+    final CanvasRotationResult? result = board.rotateCanvas(rotation);
+    if (result == null) {
+      _showInfoBar('画布尺寸异常，无法执行图像变换。',
+          severity: InfoBarSeverity.error);
+      return;
+    }
+
+    final CanvasSettings updatedSettings = _document.settings.copyWith(
+      width: result.width.toDouble(),
+      height: result.height.toDouble(),
+    );
+    final DateTime now = DateTime.now();
+    final ProjectDocument updated = _document.copyWith(
+      settings: updatedSettings,
+      updatedAt: now,
+      layers: result.layers,
+      previewBytes: null,
+    );
+
+    setState(() {
+      _document = updated;
+      _hasUnsavedChanges = true;
+    });
+    _workspace.updateDocument(updated);
+    _workspace.markDirty(updated.id, true);
+  }
+
   Future<void> _handleExitRequest() async {
     final bool canLeave = await _ensureCanLeave(
       dialogTitle: '返回主页面',
@@ -512,6 +547,18 @@ class CanvasPageState extends State<CanvasPage> {
       zoomOut: () {
         final board = _activeBoard;
         board?.zoomOut();
+      },
+      rotateCanvas90Clockwise: () {
+        _applyCanvasRotation(CanvasRotation.clockwise90);
+      },
+      rotateCanvas90CounterClockwise: () {
+        _applyCanvasRotation(CanvasRotation.counterClockwise90);
+      },
+      rotateCanvas180Clockwise: () {
+        _applyCanvasRotation(CanvasRotation.clockwise180);
+      },
+      rotateCanvas180CounterClockwise: () {
+        _applyCanvasRotation(CanvasRotation.counterClockwise180);
       },
       export: () async {
         await _exportProject();

@@ -71,6 +71,25 @@ const double _colorIndicatorBorder = 3;
 const int _recentColorCapacity = 5;
 const double _initialViewportScaleFactor = 0.8;
 
+enum CanvasRotation {
+  clockwise90,
+  counterClockwise90,
+  clockwise180,
+  counterClockwise180,
+}
+
+class CanvasRotationResult {
+  const CanvasRotationResult({
+    required this.layers,
+    required this.width,
+    required this.height,
+  });
+
+  final List<CanvasLayerData> layers;
+  final int width;
+  final int height;
+}
+
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
     super.key,
@@ -316,12 +335,135 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   List<CanvasLayerData> snapshotLayers() => _controller.snapshotLayers();
 
+  CanvasRotationResult? rotateCanvas(CanvasRotation rotation) {
+    final int width = _controller.width;
+    final int height = _controller.height;
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    _controller.commitActiveLayerTranslation();
+    final List<CanvasLayerData> original = snapshotLayers();
+    if (original.isEmpty) {
+      return CanvasRotationResult(layers: const <CanvasLayerData>[], width: width, height: height);
+    }
+    final List<CanvasLayerData> rotated = <CanvasLayerData>[
+      for (final CanvasLayerData layer in original)
+        _rotateLayerData(layer, rotation),
+    ];
+    setSelectionState(path: null, mask: null);
+    clearSelectionArtifacts();
+    resetSelectionUndoFlag();
+    final bool swaps = _rotationSwapsDimensions(rotation);
+    if (!swaps) {
+      _controller.loadLayers(rotated, _controller.backgroundColor);
+      _resetHistory();
+      setState(() {});
+    }
+    return CanvasRotationResult(
+      layers: rotated,
+      width: swaps ? height : width,
+      height: swaps ? width : height,
+    );
+  }
+
   void markSaved() {
     if (!_isDirty) {
       return;
     }
     _isDirty = false;
     widget.onDirtyChanged?.call(false);
+  }
+
+  CanvasLayerData _rotateLayerData(
+    CanvasLayerData layer,
+    CanvasRotation rotation,
+  ) {
+    final Uint8List? bitmap = layer.bitmap;
+    final int? bitmapWidth = layer.bitmapWidth;
+    final int? bitmapHeight = layer.bitmapHeight;
+    if (bitmap != null && bitmapWidth != null && bitmapHeight != null) {
+      final bool swaps = _rotationSwapsDimensions(rotation);
+      final int targetWidth = swaps ? bitmapHeight : bitmapWidth;
+      final int targetHeight = swaps ? bitmapWidth : bitmapHeight;
+      final Uint8List rotated = _rotateBitmapRgba(
+        bitmap,
+        bitmapWidth,
+        bitmapHeight,
+        rotation,
+      );
+      return CanvasLayerData(
+        id: layer.id,
+        name: layer.name,
+        visible: layer.visible,
+        opacity: layer.opacity,
+        locked: layer.locked,
+        clippingMask: layer.clippingMask,
+        blendMode: layer.blendMode,
+        bitmap: rotated,
+        bitmapWidth: targetWidth,
+        bitmapHeight: targetHeight,
+        fillColor: layer.fillColor,
+      );
+    }
+
+    return CanvasLayerData(
+      id: layer.id,
+      name: layer.name,
+      visible: layer.visible,
+      opacity: layer.opacity,
+      locked: layer.locked,
+      clippingMask: layer.clippingMask,
+      blendMode: layer.blendMode,
+      fillColor: layer.fillColor,
+    );
+  }
+
+  static bool _rotationSwapsDimensions(CanvasRotation rotation) {
+    return rotation == CanvasRotation.clockwise90 ||
+        rotation == CanvasRotation.counterClockwise90;
+  }
+
+  static Uint8List _rotateBitmapRgba(
+    Uint8List source,
+    int width,
+    int height,
+    CanvasRotation rotation,
+  ) {
+    if (source.length != width * height * 4) {
+      return Uint8List.fromList(source);
+    }
+    final bool swaps = _rotationSwapsDimensions(rotation);
+    final int targetWidth = swaps ? height : width;
+    final int targetHeight = swaps ? width : height;
+    final Uint8List output = Uint8List(targetWidth * targetHeight * 4);
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final int srcIndex = (y * width + x) * 4;
+        late int destX;
+        late int destY;
+        switch (rotation) {
+          case CanvasRotation.clockwise90:
+            destX = height - 1 - y;
+            destY = x;
+            break;
+          case CanvasRotation.counterClockwise90:
+            destX = y;
+            destY = width - 1 - x;
+            break;
+          case CanvasRotation.clockwise180:
+          case CanvasRotation.counterClockwise180:
+            destX = width - 1 - x;
+            destY = height - 1 - y;
+            break;
+        }
+        final int destIndex = (destY * targetWidth + destX) * 4;
+        output[destIndex] = source[srcIndex];
+        output[destIndex + 1] = source[srcIndex + 1];
+        output[destIndex + 2] = source[srcIndex + 2];
+        output[destIndex + 3] = source[srcIndex + 3];
+      }
+    }
+    return output;
   }
 
   void _markDirty() {
