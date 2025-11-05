@@ -120,6 +120,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _lastEyedropperSample;
   Offset? _toolCursorPosition;
   Offset? _lastWorkspacePointer;
+  Offset? _penCursorWorkspacePosition;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -220,6 +221,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     }
     return _activeTool;
   }
+
+  bool get _cursorRequiresOverlay =>
+      ToolCursorStyles.hasOverlay(_effectiveActiveTool);
+
+  bool get _penRequiresOverlay => _effectiveActiveTool == CanvasTool.pen;
 
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;

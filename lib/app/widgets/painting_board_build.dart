@@ -71,18 +71,22 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         _initializeViewportIfNeeded();
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
         final Rect boardRect = _boardRect;
-        final ToolCursorStyle? cursorStyle =
-            ToolCursorStyles.styleFor(_effectiveActiveTool);
+        final ToolCursorStyle? cursorStyle = ToolCursorStyles.styleFor(
+          _effectiveActiveTool,
+        );
+        final bool hideCursorBecauseToolOverlay =
+            cursorStyle != null &&
+            _toolCursorPosition != null &&
+            cursorStyle.hideSystemCursor;
+        final bool hideCursorBecausePen =
+            _penRequiresOverlay && _penCursorWorkspacePosition != null;
         final bool shouldHideCursor =
-            (cursorStyle?.hideSystemCursor ?? false) &&
-                _toolCursorPosition != null;
+            hideCursorBecauseToolOverlay || hideCursorBecausePen;
         final bool isLayerAdjustDragging =
-            _effectiveActiveTool == CanvasTool.layerAdjust &&
-                _isLayerDragging;
+            _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
 
         final MouseCursor boardCursor;
-        if ((cursorStyle?.hideSystemCursor ?? false) &&
-            _toolCursorPosition != null) {
+        if (hideCursorBecauseToolOverlay || hideCursorBecausePen) {
           boardCursor = SystemMouseCursors.none;
         } else if (_effectiveActiveTool == CanvasTool.layerAdjust) {
           boardCursor = _isLayerDragging
@@ -364,10 +368,12 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                           if (_toolCursorPosition != null &&
                               cursorStyle != null)
                             Positioned(
-                              left: _toolCursorPosition!.dx -
+                              left:
+                                  _toolCursorPosition!.dx -
                                   cursorStyle.anchor.dx +
                                   cursorStyle.iconOffset.dx,
-                              top: _toolCursorPosition!.dy -
+                              top:
+                                  _toolCursorPosition!.dy -
                                   cursorStyle.anchor.dy +
                                   cursorStyle.iconOffset.dy,
                               child: IgnorePointer(
@@ -378,11 +384,19 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                 ),
                               ),
                             ),
+                          if (_penRequiresOverlay &&
+                              _penCursorWorkspacePosition != null)
+                            PenCursorOverlay(
+                              position: _penCursorWorkspacePosition!,
+                              diameter: _penStrokeWidth * _viewport.scale,
+                            ),
                           if (_toolCursorPosition != null)
                             Positioned(
-                              left: _toolCursorPosition!.dx -
+                              left:
+                                  _toolCursorPosition!.dx -
                                   ToolCursorStyles.crosshairSize / 2,
-                              top: _toolCursorPosition!.dy -
+                              top:
+                                  _toolCursorPosition!.dy -
                                   ToolCursorStyles.crosshairSize / 2,
                               child: const IgnorePointer(
                                 ignoring: true,

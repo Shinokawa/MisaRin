@@ -104,15 +104,24 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _lastEyedropperSample = null;
       }
       _activeTool = tool;
-      if (ToolCursorStyles.hasOverlay(_effectiveActiveTool)) {
+      if (_cursorRequiresOverlay) {
         final Offset? pointer = _lastWorkspacePointer;
         if (pointer != null && _boardRect.contains(pointer)) {
           _toolCursorPosition = pointer;
         } else {
           _toolCursorPosition = null;
         }
+      } else if (_penRequiresOverlay) {
+        _toolCursorPosition = null;
+        final Offset? pointer = _lastWorkspacePointer;
+        if (pointer != null && _boardRect.contains(pointer)) {
+          _penCursorWorkspacePosition = pointer;
+        } else {
+          _penCursorWorkspacePosition = null;
+        }
       } else {
         _toolCursorPosition = null;
+        _penCursorWorkspacePosition = null;
       }
     });
     _updateSelectionAnimation();
@@ -255,38 +264,67 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
 
   void _updateToolCursorOverlay(Offset workspacePosition) {
     final CanvasTool tool = _effectiveActiveTool;
-    if (!ToolCursorStyles.hasOverlay(tool)) {
-      if (_toolCursorPosition != null) {
-        setState(() => _toolCursorPosition = null);
+    final bool overlayTool = ToolCursorStyles.hasOverlay(tool);
+    final bool isPen = tool == CanvasTool.pen;
+    if (!overlayTool && !isPen) {
+      if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
+        setState(() {
+          _toolCursorPosition = null;
+          _penCursorWorkspacePosition = null;
+        });
       }
       return;
     }
     if (_isInsideToolArea(workspacePosition)) {
-      if (_toolCursorPosition != null) {
-        setState(() => _toolCursorPosition = null);
+      if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
+        setState(() {
+          _toolCursorPosition = null;
+          _penCursorWorkspacePosition = null;
+        });
       }
       return;
     }
     final Rect boardRect = _boardRect;
     if (!boardRect.contains(workspacePosition)) {
-      if (_toolCursorPosition != null) {
-        setState(() => _toolCursorPosition = null);
+      if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
+        setState(() {
+          _toolCursorPosition = null;
+          _penCursorWorkspacePosition = null;
+        });
       }
       return;
     }
-    final Offset? current = _toolCursorPosition;
-    if (current != null &&
-        (current - workspacePosition).distanceSquared < 0.25) {
-      return;
+    if (overlayTool) {
+      final Offset? current = _toolCursorPosition;
+      if (current != null &&
+          (current - workspacePosition).distanceSquared < 0.25) {
+        return;
+      }
+      setState(() {
+        _toolCursorPosition = workspacePosition;
+        _penCursorWorkspacePosition = null;
+      });
+    } else if (isPen) {
+      final Offset? current = _penCursorWorkspacePosition;
+      if (current != null &&
+          (current - workspacePosition).distanceSquared < 0.25) {
+        return;
+      }
+      setState(() {
+        _penCursorWorkspacePosition = workspacePosition;
+        _toolCursorPosition = null;
+      });
     }
-    setState(() => _toolCursorPosition = workspacePosition);
   }
 
   void _clearToolCursorOverlay() {
-    if (_toolCursorPosition == null) {
+    if (_toolCursorPosition == null && _penCursorWorkspacePosition == null) {
       return;
     }
-    setState(() => _toolCursorPosition = null);
+    setState(() {
+      _toolCursorPosition = null;
+      _penCursorWorkspacePosition = null;
+    });
   }
 
   void _recordWorkspacePointer(Offset workspacePosition) {
@@ -747,6 +785,7 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
           if (pointer != null && _boardRect.contains(pointer)) {
             _toolCursorPosition = pointer;
           }
+          _penCursorWorkspacePosition = null;
         });
         return KeyEventResult.handled;
       }
@@ -758,7 +797,12 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         setState(() {
           _eyedropperOverrideActive = false;
           _toolCursorPosition = null;
+          _penCursorWorkspacePosition = null;
         });
+        final Offset? pointer = _lastWorkspacePointer;
+        if (pointer != null && _boardRect.contains(pointer)) {
+          _updateToolCursorOverlay(pointer);
+        }
         return KeyEventResult.handled;
       }
       return KeyEventResult.handled;
@@ -771,7 +815,10 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       if (_spacePanOverrideActive) {
         return KeyEventResult.handled;
       }
-      setState(() => _spacePanOverrideActive = true);
+      setState(() {
+        _spacePanOverrideActive = true;
+        _penCursorWorkspacePosition = null;
+      });
       return KeyEventResult.handled;
     }
     if (event is KeyUpEvent) {
@@ -782,6 +829,10 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         _finishDragBoard();
       }
       setState(() => _spacePanOverrideActive = false);
+      final Offset? pointer = _lastWorkspacePointer;
+      if (pointer != null && _boardRect.contains(pointer)) {
+        _updateToolCursorOverlay(pointer);
+      }
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;

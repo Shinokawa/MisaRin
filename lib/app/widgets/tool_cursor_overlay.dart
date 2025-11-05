@@ -1,4 +1,5 @@
-import 'dart:ui' show Offset;
+import 'dart:math' as math;
+import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:fluent_ui/fluent_ui.dart';
 
@@ -38,41 +39,41 @@ class ToolCursorStyles {
 
   static final Map<CanvasTool, ToolCursorStyle> _styles =
       <CanvasTool, ToolCursorStyle>{
-    CanvasTool.eyedropper: ToolCursorStyle(
-      anchor: const Offset(5, 17),
-      iconOffset: const Offset(5, -2),
-      icon: const _OutlinedToolCursorIcon(
-        size: _defaultIconSize,
-        icon: FluentIcons.eyedropper,
-      ),
-    ),
-    CanvasTool.bucket: ToolCursorStyle(
-      anchor: const Offset(8, 18),
-      iconOffset: const Offset(5, -2),
-      icon: const _OutlinedToolCursorIcon(
-        size: _defaultIconSize,
-        icon: FluentIcons.bucket_color,
-        mirrorHorizontally: true,
-      ),
-    ),
-    CanvasTool.layerAdjust: ToolCursorStyle(
-      anchor: Offset.zero,
-      iconOffset: const Offset(0, 0),
-      icon: const _OutlinedToolCursorIcon(
-        size: _defaultIconSize,
-        icon: FluentIcons.move,
-      ),
-    ),
-    CanvasTool.magicWand: ToolCursorStyle(
-      anchor: Offset.zero,
-      iconOffset: const Offset(-5.5, -5.5),
-      icon: const _OutlinedToolCursorIcon(
-        size: _defaultIconSize,
-        icon: FluentIcons.auto_enhance_on,
-        mirrorHorizontally: true,
-      ),
-    ),
-  };
+        CanvasTool.eyedropper: ToolCursorStyle(
+          anchor: const Offset(5, 17),
+          iconOffset: const Offset(5, -2),
+          icon: const _OutlinedToolCursorIcon(
+            size: _defaultIconSize,
+            icon: FluentIcons.eyedropper,
+          ),
+        ),
+        CanvasTool.bucket: ToolCursorStyle(
+          anchor: const Offset(8, 18),
+          iconOffset: const Offset(5, -2),
+          icon: const _OutlinedToolCursorIcon(
+            size: _defaultIconSize,
+            icon: FluentIcons.bucket_color,
+            mirrorHorizontally: true,
+          ),
+        ),
+        CanvasTool.layerAdjust: ToolCursorStyle(
+          anchor: Offset.zero,
+          iconOffset: const Offset(0, 0),
+          icon: const _OutlinedToolCursorIcon(
+            size: _defaultIconSize,
+            icon: FluentIcons.move,
+          ),
+        ),
+        CanvasTool.magicWand: ToolCursorStyle(
+          anchor: Offset.zero,
+          iconOffset: const Offset(-5.5, -5.5),
+          icon: const _OutlinedToolCursorIcon(
+            size: _defaultIconSize,
+            icon: FluentIcons.auto_enhance_on,
+            mirrorHorizontally: true,
+          ),
+        ),
+      };
 
   static Widget _buildIcon({
     required IconData icon,
@@ -139,6 +140,93 @@ class ToolCursorStyles {
     }
     return style.icon;
   }
+}
+
+class PenCursorOverlay extends StatelessWidget {
+  const PenCursorOverlay({
+    super.key,
+    required this.position,
+    required this.diameter,
+  });
+
+  final Offset position;
+  final double diameter;
+
+  @override
+  Widget build(BuildContext context) {
+    final double clampedDiameter = diameter.isFinite && diameter > 0
+        ? diameter
+        : 1.0;
+    final double radius = clampedDiameter / 2;
+    final double outerRadius = radius + 1;
+    final double side = (outerRadius * 2 + 2).ceilToDouble();
+
+    return Positioned(
+      left: position.dx - side / 2,
+      top: position.dy - side / 2,
+      child: IgnorePointer(
+        ignoring: true,
+        child: SizedBox(
+          width: side,
+          height: side,
+          child: CustomPaint(
+            painter: _PenCursorPainter(radius: radius),
+            isComplex: false,
+            willChange: false,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PenCursorPainter extends CustomPainter {
+  const _PenCursorPainter({required this.radius});
+
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset center = Offset(size.width / 2, size.height / 2);
+
+    final Paint whiteStroke = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..isAntiAlias = false;
+
+    final Paint blackStroke = Paint()
+      ..color = Colors.black
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..isAntiAlias = false;
+
+    final double outerRadius = radius + 1;
+    final double innerRadius = math.max(radius - 1, 0);
+
+    if (outerRadius > 0) {
+      canvas.drawCircle(center, outerRadius, whiteStroke);
+    }
+    if (radius > 0) {
+      canvas.drawCircle(center, radius, blackStroke);
+    }
+    if (innerRadius > 0) {
+      canvas.drawCircle(center, innerRadius, whiteStroke);
+    } else {
+      final Paint centerDot = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = false;
+      canvas.drawRect(
+        Rect.fromCenter(center: center, width: 1, height: 1),
+        centerDot,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PenCursorPainter oldDelegate) =>
+      oldDelegate.radius != radius;
 }
 
 class _OutlinedToolCursorIcon extends StatelessWidget {
@@ -215,5 +303,6 @@ class _ToolCursorCrosshairPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ToolCursorCrosshairPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _ToolCursorCrosshairPainter oldDelegate) =>
+      false;
 }
