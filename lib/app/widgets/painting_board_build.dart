@@ -234,6 +234,27 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                             if (image == null) {
                                               return const SizedBox.shrink();
                                             }
+                                            final bool isTransforming =
+                                                _controller
+                                                    .isActiveLayerTransforming;
+                                            final ui.Image?
+                                                transformedActiveLayerImage =
+                                                _controller
+                                                    .activeLayerTransformImage;
+                                            final Offset
+                                                transformedLayerOffset =
+                                                _controller
+                                                    .activeLayerTransformOffset;
+                                            final double
+                                                transformedLayerOpacity =
+                                                _controller
+                                                    .activeLayerTransformOpacity;
+                                            final ui.BlendMode?
+                                                transformedLayerBlendMode =
+                                                _flutterBlendMode(
+                                                  _controller
+                                                      .activeLayerTransformBlendMode,
+                                                );
                                             final bool hasSelectionOverlay =
                                                 selectionPath != null ||
                                                 selectionPreviewPath != null ||
@@ -247,6 +268,26 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                                   filterQuality:
                                                       FilterQuality.none,
                                                 ),
+                                                if (isTransforming &&
+                                                    transformedActiveLayerImage !=
+                                                        null)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: Transform.translate(
+                                                        offset:
+                                                            transformedLayerOffset,
+                                                        child: _buildTransformedLayerOverlay(
+                                                          image:
+                                                              transformedActiveLayerImage,
+                                                          opacity:
+                                                              transformedLayerOpacity,
+                                                          blendMode:
+                                                              transformedLayerBlendMode,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
                                                 if (_curvePreviewPath != null)
                                                   Positioned.fill(
                                                     child: CustomPaint(
@@ -414,5 +455,32 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         );
       },
     );
+  }
+}
+
+Widget _buildTransformedLayerOverlay({
+  required ui.Image image,
+  required double opacity,
+  required ui.BlendMode? blendMode,
+}) {
+  Widget content = RawImage(
+    image: image,
+    filterQuality: FilterQuality.none,
+    colorBlendMode: blendMode,
+    color: blendMode != null ? const Color(0xFFFFFFFF) : null,
+  );
+  final double clampedOpacity = opacity.clamp(0.0, 1.0).toDouble();
+  if (clampedOpacity < 0.999) {
+    content = Opacity(opacity: clampedOpacity, child: content);
+  }
+  return content;
+}
+
+ui.BlendMode? _flutterBlendMode(CanvasLayerBlendMode mode) {
+  switch (mode) {
+    case CanvasLayerBlendMode.normal:
+      return null;
+    case CanvasLayerBlendMode.multiply:
+      return ui.BlendMode.multiply;
   }
 }

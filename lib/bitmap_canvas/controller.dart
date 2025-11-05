@@ -73,6 +73,11 @@ class BitmapCanvasController extends ChangeNotifier {
   String? _activeLayerTranslationId;
   int _activeLayerTranslationDx = 0;
   int _activeLayerTranslationDy = 0;
+  ui.Image? _activeLayerTransformImage;
+  bool _activeLayerTransformPreparing = false;
+  Rect? _activeLayerTransformBounds;
+  Rect? _activeLayerTransformDirtyRegion;
+  bool _pendingActiveLayerTransformCleanup = false;
 
   UnmodifiableListView<BitmapLayerState> get layers =>
       UnmodifiableListView<BitmapLayerState>(_layers);
@@ -85,6 +90,18 @@ class BitmapCanvasController extends ChangeNotifier {
   int get width => _width;
   int get height => _height;
   Uint8List? get selectionMask => _selectionMask;
+  bool get isActiveLayerTransforming =>
+      _activeLayerTranslationSnapshot != null;
+  ui.Image? get activeLayerTransformImage => _activeLayerTransformImage;
+  Offset get activeLayerTransformOffset => Offset(
+        _activeLayerTranslationDx.toDouble(),
+        _activeLayerTranslationDy.toDouble(),
+      );
+  double get activeLayerTransformOpacity => _activeLayer.opacity;
+  CanvasLayerBlendMode get activeLayerTransformBlendMode =>
+      _activeLayer.blendMode;
+  bool get isActiveLayerTransformPendingCleanup =>
+      _pendingActiveLayerTransformCleanup;
 
   bool get hasVisibleContent {
     for (int i = 0; i < _layers.length; i++) {
@@ -107,73 +124,54 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   void translateActiveLayer(int dx, int dy) {
-    if (dx == 0 && dy == 0) {
+    if (_pendingActiveLayerTransformCleanup) {
       return;
     }
     final BitmapLayerState layer = _activeLayer;
     if (layer.locked) {
       return;
     }
-    final BitmapSurface surface = layer.surface;
-    final Uint32List original = _ensureTranslationSnapshot(
-      layer.id,
-      surface.pixels,
-    );
+    if (_activeLayerTranslationSnapshot == null) {
+      _startActiveLayerTransformSession(layer);
+    }
+    if (_activeLayerTranslationSnapshot == null) {
+      return;
+    }
     if (dx == _activeLayerTranslationDx && dy == _activeLayerTranslationDy) {
       return;
     }
-    final Uint32List target = surface.pixels;
-    final int width = surface.width;
-    final int height = surface.height;
-    target.fillRange(0, target.length, 0);
-    for (int y = 0; y < height; y++) {
-      final int destY = y + dy;
-      if (destY < 0 || destY >= height) {
-        continue;
-      }
-      final int srcOffset = y * width;
-      final int dstOffset = destY * width;
-      for (int x = 0; x < width; x++) {
-        final int destX = x + dx;
-        if (destX < 0 || destX >= width) {
-          continue;
-        }
-        target[dstOffset + destX] = original[srcOffset + x];
-      }
-    }
     _activeLayerTranslationDx = dx;
     _activeLayerTranslationDy = dy;
-    _markDirty();
+    _updateActiveLayerTransformDirtyRegion();
+    notifyListeners();
   }
 
   void commitActiveLayerTranslation() {
     if (_activeLayerTranslationSnapshot == null) {
       return;
     }
-    _activeLayerTranslationSnapshot = null;
-    _activeLayerTranslationId = null;
-    _activeLayerTranslationDx = 0;
-    _activeLayerTranslationDy = 0;
-    _markDirty();
+    final Rect? dirtyRegion = _activeLayerTransformDirtyRegion;
+    _applyActiveLayerTranslation();
+    _pendingActiveLayerTransformCleanup = true;
+    if (dirtyRegion != null) {
+      _markDirty(region: dirtyRegion);
+    } else {
+      _markDirty();
+    }
   }
 
   void cancelActiveLayerTranslation() {
-    final Uint32List? snapshot = _activeLayerTranslationSnapshot;
-    final String? id = _activeLayerTranslationId;
-    if (snapshot == null || id == null) {
+    if (_activeLayerTranslationSnapshot == null) {
       return;
     }
-    final BitmapLayerState layer = _layers.firstWhere(
-      (candidate) => candidate.id == id,
-      orElse: () => _activeLayer,
-    );
-    final Uint32List target = layer.surface.pixels;
-    target.setAll(0, snapshot);
-    _activeLayerTranslationSnapshot = null;
-    _activeLayerTranslationId = null;
-    _activeLayerTranslationDx = 0;
-    _activeLayerTranslationDy = 0;
-    _markDirty();
+    final Rect? dirtyRegion = _activeLayerTransformDirtyRegion;
+    _restoreActiveLayerSnapshot();
+    _pendingActiveLayerTransformCleanup = true;
+    if (dirtyRegion != null) {
+      _markDirty(region: dirtyRegion);
+    } else {
+      _markDirty();
+    }
   }
 
   Uint32List _ensureTranslationSnapshot(String layerId, Uint32List pixels) {
@@ -189,9 +187,183 @@ class BitmapCanvasController extends ChangeNotifier {
     return snapshot;
   }
 
+  void _startActiveLayerTransformSession(BitmapLayerState layer) {
+    if (_pendingActiveLayerTransformCleanup) {
+      return;
+    }
+    final Uint32List snapshot = _ensureTranslationSnapshot(
+      layer.id,
+      layer.surface.pixels,
+    );
+    final int width = layer.surface.width;
+    final int height = layer.surface.height;
+    final Rect? bounds = _computePixelBounds(snapshot, width, height);
+    _activeLayerTransformBounds = bounds;
+    _activeLayerTransformDirtyRegion = bounds;
+    layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
+    if (bounds != null) {
+      _markDirty(region: bounds);
+    } else {
+      _markDirty();
+    }
+    _prepareActiveLayerTransformPreview(layer, snapshot);
+  }
+
+  Rect? _computePixelBounds(Uint32List pixels, int width, int height) {
+    int minX = width;
+    int minY = height;
+    int maxX = -1;
+    int maxY = -1;
+    for (int y = 0; y < height; y++) {
+      final int rowOffset = y * width;
+      for (int x = 0; x < width; x++) {
+        final int argb = pixels[rowOffset + x];
+        if ((argb >> 24) == 0) {
+          continue;
+        }
+        if (x < minX) {
+          minX = x;
+        }
+        if (x > maxX) {
+          maxX = x;
+        }
+        if (y < minY) {
+          minY = y;
+        }
+        if (y > maxY) {
+          maxY = y;
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) {
+      return null;
+    }
+    return Rect.fromLTRB(
+      minX.toDouble(),
+      minY.toDouble(),
+      (maxX + 1).toDouble(),
+      (maxY + 1).toDouble(),
+    );
+  }
+
+  void _prepareActiveLayerTransformPreview(
+    BitmapLayerState layer,
+    Uint32List snapshot,
+  ) {
+    if (_activeLayerTransformPreparing) {
+      return;
+    }
+    _activeLayerTransformPreparing = true;
+    final Uint8List rgba = _pixelsToRgba(snapshot);
+    _activeLayerTransformImage?.dispose();
+    ui.decodeImageFromPixels(
+      rgba,
+      layer.surface.width,
+      layer.surface.height,
+      ui.PixelFormat.rgba8888,
+      (ui.Image image) {
+        if (_activeLayerTranslationSnapshot == null ||
+            _activeLayerTranslationId != layer.id) {
+          _activeLayerTransformPreparing = false;
+          image.dispose();
+          return;
+        }
+        _activeLayerTransformImage?.dispose();
+        _activeLayerTransformImage = image;
+        _activeLayerTransformPreparing = false;
+        notifyListeners();
+      },
+    );
+  }
+
+  void _applyActiveLayerTranslation() {
+    final Uint32List? snapshot = _activeLayerTranslationSnapshot;
+    final String? id = _activeLayerTranslationId;
+    if (snapshot == null || id == null) {
+      return;
+    }
+    final BitmapLayerState layer = _layers.firstWhere(
+      (candidate) => candidate.id == id,
+      orElse: () => _activeLayer,
+    );
+    final BitmapSurface surface = layer.surface;
+    final Uint32List target = surface.pixels;
+    final int width = surface.width;
+    final int height = surface.height;
+    target.fillRange(0, target.length, 0);
+    final int dx = _activeLayerTranslationDx;
+    final int dy = _activeLayerTranslationDy;
+    for (int y = 0; y < height; y++) {
+      final int destY = y + dy;
+      if (destY < 0 || destY >= height) {
+        continue;
+      }
+      final int srcOffset = y * width;
+      final int dstOffset = destY * width;
+      for (int x = 0; x < width; x++) {
+        final int destX = x + dx;
+        if (destX < 0 || destX >= width) {
+          continue;
+        }
+        target[dstOffset + destX] = snapshot[srcOffset + x];
+      }
+    }
+  }
+
+  void _restoreActiveLayerSnapshot() {
+    final Uint32List? snapshot = _activeLayerTranslationSnapshot;
+    final String? id = _activeLayerTranslationId;
+    if (snapshot == null || id == null) {
+      return;
+    }
+    final BitmapLayerState layer = _layers.firstWhere(
+      (candidate) => candidate.id == id,
+      orElse: () => _activeLayer,
+    );
+    layer.surface.pixels.setAll(0, snapshot);
+  }
+
+  void _updateActiveLayerTransformDirtyRegion() {
+    final Rect? baseBounds = _activeLayerTransformBounds;
+    if (baseBounds == null) {
+      return;
+    }
+    final Rect current = baseBounds.shift(
+      Offset(
+        _activeLayerTranslationDx.toDouble(),
+        _activeLayerTranslationDy.toDouble(),
+      ),
+    );
+    final Rect? existing = _activeLayerTransformDirtyRegion;
+    if (existing == null) {
+      _activeLayerTransformDirtyRegion = current;
+    } else {
+      _activeLayerTransformDirtyRegion = _unionRects(existing, current);
+    }
+  }
+
+  void _resetActiveLayerTranslationState() {
+    _activeLayerTranslationSnapshot = null;
+    _activeLayerTranslationId = null;
+    _activeLayerTranslationDx = 0;
+    _activeLayerTranslationDy = 0;
+    _disposeActiveLayerTransformImage();
+    _activeLayerTransformPreparing = false;
+    _activeLayerTransformBounds = null;
+    _activeLayerTransformDirtyRegion = null;
+    _pendingActiveLayerTransformCleanup = false;
+  }
+
+  void _disposeActiveLayerTransformImage() {
+    _activeLayerTransformImage?.dispose();
+    _activeLayerTransformImage = null;
+  }
+
   Future<void> disposeController() async {
     _cachedImage?.dispose();
     _cachedImage = null;
+    _disposeActiveLayerTransformImage();
+    _activeLayerTransformPreparing = false;
   }
 
   void setActiveLayer(String id) {
@@ -676,6 +848,12 @@ class BitmapCanvasController extends ChangeNotifier {
     final Uint8List clipMask = _ensureClipMask();
     clipMask.fillRange(0, clipMask.length, 0);
 
+    final String? translatingLayerId =
+        _activeLayerTranslationSnapshot != null &&
+                !_pendingActiveLayerTransformCleanup
+            ? _activeLayerTranslationId
+            : null;
+
     for (int y = area.top; y < area.bottom; y++) {
       final int rowOffset = y * width;
       for (int x = area.left; x < area.right; x++) {
@@ -684,6 +862,10 @@ class BitmapCanvasController extends ChangeNotifier {
         bool initialized = false;
         for (final BitmapLayerState layer in layers) {
           if (!layer.visible) {
+            continue;
+          }
+          if (translatingLayerId != null &&
+              layer.id == translatingLayerId) {
             continue;
           }
           final double rawOpacity = layer.opacity;
@@ -889,6 +1071,10 @@ class BitmapCanvasController extends ChangeNotifier {
       ) {
         _cachedImage?.dispose();
         _cachedImage = image;
+        if (_pendingActiveLayerTransformCleanup) {
+          _pendingActiveLayerTransformCleanup = false;
+          _resetActiveLayerTranslationState();
+        }
         _compositeDirty = _pendingFullSurface || _pendingDirtyRect != null;
         notifyListeners();
         if (_compositeDirty && !_refreshScheduled) {
@@ -934,6 +1120,11 @@ class BitmapCanvasController extends ChangeNotifier {
     int? color;
     for (final BitmapLayerState layer in _layers) {
       if (!layer.visible) {
+        continue;
+      }
+      if (_activeLayerTranslationSnapshot != null &&
+          !_pendingActiveLayerTransformCleanup &&
+          layer.id == _activeLayerTranslationId) {
         continue;
       }
       final int src = layer.surface.pixels[index];
@@ -1133,6 +1324,28 @@ class BitmapCanvasController extends ChangeNotifier {
       rgba[offset + 3] = (argb >> 24) & 0xff;
     }
     return rgba;
+  }
+
+  static Uint8List _pixelsToRgba(Uint32List pixels) {
+    final Uint8List rgba = Uint8List(pixels.length * 4);
+    for (int i = 0; i < pixels.length; i++) {
+      final int argb = pixels[i];
+      final int offset = i * 4;
+      rgba[offset] = (argb >> 16) & 0xff;
+      rgba[offset + 1] = (argb >> 8) & 0xff;
+      rgba[offset + 2] = argb & 0xff;
+      rgba[offset + 3] = (argb >> 24) & 0xff;
+    }
+    return rgba;
+  }
+
+  static Rect _unionRects(Rect a, Rect b) {
+    return Rect.fromLTRB(
+      math.min(a.left, b.left),
+      math.min(a.top, b.top),
+      math.max(a.right, b.right),
+      math.max(a.bottom, b.bottom),
+    );
   }
 
   static Uint8List _surfaceToMaskedRgba(BitmapSurface surface, Uint8List mask) {

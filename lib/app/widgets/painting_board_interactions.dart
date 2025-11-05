@@ -393,6 +393,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     if (layer == null || layer.locked) {
       return;
     }
+    if (_controller.isActiveLayerTransformPendingCleanup) {
+      return;
+    }
     _focusNode.requestFocus();
     _pushUndoSnapshot();
     _isLayerDragging = true;
