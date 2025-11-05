@@ -46,7 +46,7 @@ class PsdImporter {
       final CanvasLayerData? canvasLayer =
           _convertLayer(record, header.width, header.height);
       if (canvasLayer != null) {
-        canvasLayers.insert(0, canvasLayer);
+        canvasLayers.add(canvasLayer);
       }
     }
 
