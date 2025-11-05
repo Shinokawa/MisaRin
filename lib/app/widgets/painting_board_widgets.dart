@@ -165,33 +165,28 @@ class _PanelCard extends StatelessWidget {
 }
 
 class _EyedropperCursorOverlay extends StatelessWidget {
-  const _EyedropperCursorOverlay({required this.color, required this.sampling});
+  const _EyedropperCursorOverlay();
 
-  final Color color;
-  final bool sampling;
-
-  static const double size = 26;
+  static const double size = 20;
 
   @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
-    final bool isLightSample = color.computeLuminance() > 0.45;
-    final Color iconColor = sampling
-        ? accent
-        : (isLightSample ? const Color(0xFF323130) : Colors.white);
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
         alignment: Alignment.center,
-        children: [
+        children: const [
           Icon(
             FluentIcons.eyedropper,
             size: size + 4,
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.white,
           ),
-          Icon(FluentIcons.eyedropper, size: size, color: iconColor),
+          Icon(
+            FluentIcons.eyedropper,
+            size: size,
+            color: Colors.black,
+          ),
         ],
       ),
     );

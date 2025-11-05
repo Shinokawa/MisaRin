@@ -619,7 +619,8 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       case CanvasTool.magicWand:
         break;
       case CanvasTool.eyedropper:
-        _updateEyedropperSample(_toBoardLocal(event.localPosition));
+        final Offset boardLocal = _toBoardLocal(event.localPosition);
+        _updateEyedropperSample(boardLocal);
         break;
       case CanvasTool.selection:
         final Offset boardLocal = _toBoardLocal(event.localPosition);
