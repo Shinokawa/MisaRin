@@ -62,7 +62,7 @@ class BitmapCanvasController extends ChangeNotifier {
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
   bool _currentStrokePressureEnabled = false;
-  bool _currentStrokeAntialias = false;
+  int _currentStrokeAntialiasLevel = 0;
   final StrokeDynamics _strokeDynamics = StrokeDynamics();
   StrokePressureProfile _strokePressureProfile = StrokePressureProfile.auto;
   Color _currentStrokeColor = const Color(0xFF000000);
@@ -539,7 +539,7 @@ class BitmapCanvasController extends ChangeNotifier {
     bool simulatePressure = false,
     StrokePressureProfile profile = StrokePressureProfile.auto,
     double? timestampMillis,
-    bool antialias = false,
+    int antialiasLevel = 0,
   }) {
     if (_activeLayer.locked) {
       return;
@@ -553,7 +553,7 @@ class BitmapCanvasController extends ChangeNotifier {
       ..add(position);
     _currentStrokeRadius = radius;
     _currentStrokePressureEnabled = simulatePressure;
-    _currentStrokeAntialias = antialias;
+    _currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 3);
     final double resolvedTimestamp = timestampMillis ?? 0.0;
     _strokeSamples.clear();
     _velocitySmoother.reset();
@@ -615,7 +615,7 @@ class BitmapCanvasController extends ChangeNotifier {
         endRadius: nextRadius,
         color: _currentStrokeColor,
         mask: _selectionMask,
-        antialias: _currentStrokeAntialias,
+        antialiasLevel: _currentStrokeAntialiasLevel,
       );
       _markDirty(
         region: _dirtyRectForVariableLine(
@@ -633,7 +633,7 @@ class BitmapCanvasController extends ChangeNotifier {
         radius: _currentStrokeRadius,
         color: _currentStrokeColor,
         mask: _selectionMask,
-        antialias: _currentStrokeAntialias,
+        antialiasLevel: _currentStrokeAntialiasLevel,
       );
       _markDirty(
         region: _dirtyRectForLine(last, position, _currentStrokeRadius),
@@ -667,7 +667,7 @@ class BitmapCanvasController extends ChangeNotifier {
             endRadius: tipRadius,
             color: _currentStrokeColor,
             mask: _selectionMask,
-            antialias: _currentStrokeAntialias,
+            antialiasLevel: _currentStrokeAntialiasLevel,
           );
           _markDirty(
             region: _dirtyRectForVariableLine(
@@ -689,7 +689,7 @@ class BitmapCanvasController extends ChangeNotifier {
     _currentStrokeRadius = 0;
     _currentStrokeLastRadius = 0;
     _currentStrokePressureEnabled = false;
-    _currentStrokeAntialias = false;
+    _currentStrokeAntialiasLevel = 0;
     _strokeSamples.clear();
     _velocitySmoother.reset();
   }
@@ -1169,7 +1169,7 @@ class BitmapCanvasController extends ChangeNotifier {
       radius: radius,
       color: _currentStrokeColor,
       mask: _selectionMask,
-      antialias: _currentStrokeAntialias,
+      antialiasLevel: _currentStrokeAntialiasLevel,
     );
     _markDirty(region: _dirtyRectForCircle(position, radius));
   }

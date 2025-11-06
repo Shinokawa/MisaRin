@@ -16,12 +16,12 @@ class AppPreferences {
     required this.penStrokeWidth,
     required this.simulatePenPressure,
     required this.penPressureProfile,
-    required this.penAntialias,
+    required this.penAntialiasLevel,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 5;
+  static const int _version = 6;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -30,7 +30,7 @@ class AppPreferences {
   static const bool _defaultSimulatePenPressure = false;
   static const StrokePressureProfile _defaultPenPressureProfile =
       StrokePressureProfile.auto;
-  static const bool _defaultPenAntialias = false;
+  static const int _defaultPenAntialiasLevel = 0;
 
   static AppPreferences? _instance;
 
@@ -41,7 +41,7 @@ class AppPreferences {
   double penStrokeWidth;
   bool simulatePenPressure;
   StrokePressureProfile penPressureProfile;
-  bool penAntialias;
+  int penAntialiasLevel;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -61,7 +61,7 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
-          if (version >= 5 && bytes.length >= 10) {
+          if (version >= 6 && bytes.length >= 10) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             _instance = AppPreferences._(
               bucketSampleAllLayers: bytes[1] != 0,
@@ -71,7 +71,21 @@ class AppPreferences {
               penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
               simulatePenPressure: bytes[7] != 0,
               penPressureProfile: _decodePressureProfile(bytes[8]),
-              penAntialias: bytes[9] != 0,
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
+            );
+            return _instance!;
+          }
+          if (version == 5 && bytes.length >= 10) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: bytes[9] != 0 ? 2 : 0,
             );
             return _instance!;
           }
@@ -85,7 +99,7 @@ class AppPreferences {
               penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
               simulatePenPressure: bytes[7] != 0,
               penPressureProfile: _decodePressureProfile(bytes[8]),
-              penAntialias: _defaultPenAntialias,
+              penAntialiasLevel: _defaultPenAntialiasLevel,
             );
             return _instance!;
           }
@@ -99,7 +113,7 @@ class AppPreferences {
               penStrokeWidth: _defaultPenStrokeWidth,
               simulatePenPressure: _defaultSimulatePenPressure,
               penPressureProfile: _defaultPenPressureProfile,
-              penAntialias: _defaultPenAntialias,
+              penAntialiasLevel: _defaultPenAntialiasLevel,
             );
             return _instance!;
           }
@@ -113,7 +127,7 @@ class AppPreferences {
               penStrokeWidth: _defaultPenStrokeWidth,
               simulatePenPressure: _defaultSimulatePenPressure,
               penPressureProfile: _defaultPenPressureProfile,
-              penAntialias: _defaultPenAntialias,
+              penAntialiasLevel: _defaultPenAntialiasLevel,
             );
             return _instance!;
           }
@@ -126,7 +140,7 @@ class AppPreferences {
               penStrokeWidth: _defaultPenStrokeWidth,
               simulatePenPressure: _defaultSimulatePenPressure,
               penPressureProfile: _defaultPenPressureProfile,
-              penAntialias: _defaultPenAntialias,
+              penAntialiasLevel: _defaultPenAntialiasLevel,
             );
             return _instance!;
           }
@@ -143,7 +157,7 @@ class AppPreferences {
       penStrokeWidth: _defaultPenStrokeWidth,
       simulatePenPressure: _defaultSimulatePenPressure,
       penPressureProfile: _defaultPenPressureProfile,
-      penAntialias: _defaultPenAntialias,
+      penAntialiasLevel: _defaultPenAntialiasLevel,
     );
     return _instance!;
   }
@@ -166,7 +180,7 @@ class AppPreferences {
       strokeWidth,
       prefs.simulatePenPressure ? 1 : 0,
       _encodePressureProfile(prefs.penPressureProfile),
-      prefs.penAntialias ? 1 : 0,
+      _encodeAntialiasLevel(prefs.penAntialiasLevel),
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -236,6 +250,26 @@ class AppPreferences {
       case StrokePressureProfile.auto:
         return 2;
     }
+  }
+
+  static int _decodeAntialiasLevel(int value) {
+    if (value < 0) {
+      return 0;
+    }
+    if (value > 3) {
+      return 3;
+    }
+    return value;
+  }
+
+  static int _encodeAntialiasLevel(int value) {
+    if (value < 0) {
+      return 0;
+    }
+    if (value > 3) {
+      return 3;
+    }
+    return value;
   }
 
   static ThemeMode get defaultThemeMode => _defaultThemeMode;

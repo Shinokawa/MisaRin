@@ -374,8 +374,8 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               penPressureProfile: _penPressureProfile,
                               onPenPressureProfileChanged:
                                   _updatePenPressureProfile,
-                              brushAntialias: _penAntialias,
-                              onBrushAntialiasChanged: _updatePenAntialias,
+                              brushAntialiasLevel: _penAntialiasLevel,
+                              onBrushAntialiasChanged: _updatePenAntialiasLevel,
                               bucketSampleAllLayers: _bucketSampleAllLayers,
                               bucketContiguous: _bucketContiguous,
                               onBucketSampleAllLayersChanged:

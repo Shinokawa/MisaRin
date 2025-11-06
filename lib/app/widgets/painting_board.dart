@@ -124,7 +124,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   bool _simulatePenPressure = false;
-  bool _penAntialias = false;
+  int _penAntialiasLevel = 0;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _layerOpacityGestureActive = false;
@@ -347,7 +347,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _updatePenPressureSimulation(bool value);
   void _updatePenPressureProfile(StrokePressureProfile profile);
-  void _updatePenAntialias(bool value);
+  void _updatePenAntialiasLevel(int value);
 
   void _handleScaleStart(ScaleStartDetails details);
   void _handleScaleUpdate(ScaleUpdateDetails details);
@@ -669,7 +669,7 @@ class PaintingBoardState extends _PaintingBoardBase
     );
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
-    _penAntialias = prefs.penAntialias;
+    _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);

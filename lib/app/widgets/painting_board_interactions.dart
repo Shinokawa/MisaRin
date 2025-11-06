@@ -165,13 +165,14 @@ mixin _PaintingBoardInteractionMixin
   }
 
   @override
-  void _updatePenAntialias(bool value) {
-    if (_penAntialias == value) {
+  void _updatePenAntialiasLevel(int value) {
+    final int clamped = value.clamp(0, 3);
+    if (_penAntialiasLevel == clamped) {
       return;
     }
-    setState(() => _penAntialias = value);
+    setState(() => _penAntialiasLevel = clamped);
     final AppPreferences prefs = AppPreferences.instance;
-    prefs.penAntialias = value;
+    prefs.penAntialiasLevel = clamped;
     unawaited(AppPreferences.save());
   }
 
@@ -208,7 +209,7 @@ mixin _PaintingBoardInteractionMixin
         simulatePressure: _simulatePenPressure,
         profile: _penPressureProfile,
         timestampMillis: timestamp.inMicroseconds / 1000.0,
-        antialias: _penAntialias,
+        antialiasLevel: _penAntialiasLevel,
       );
     });
     _markDirty();
@@ -526,7 +527,7 @@ mixin _PaintingBoardInteractionMixin
           radius: _penStrokeWidth / 2,
           simulatePressure: _simulatePenPressure,
           profile: _penPressureProfile,
-          antialias: _penAntialias,
+          antialiasLevel: _penAntialiasLevel,
         );
         _controller.endStroke();
         _markDirty();
@@ -656,7 +657,7 @@ mixin _PaintingBoardInteractionMixin
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
       timestampMillis: initialTimestamp,
-      antialias: _penAntialias,
+      antialiasLevel: _penAntialiasLevel,
     );
     final double estimatedLength =
         (start - control).distance + (control - end).distance;

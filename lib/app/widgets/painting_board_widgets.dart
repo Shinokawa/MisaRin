@@ -173,7 +173,7 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.onSimulatePenPressureChanged,
     required this.penPressureProfile,
     required this.onPenPressureProfileChanged,
-    required this.brushAntialias,
+    required this.brushAntialiasLevel,
     required this.onBrushAntialiasChanged,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
@@ -193,8 +193,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onSimulatePenPressureChanged;
   final StrokePressureProfile penPressureProfile;
   final ValueChanged<StrokePressureProfile> onPenPressureProfileChanged;
-  final bool brushAntialias;
-  final ValueChanged<bool> onBrushAntialiasChanged;
+  final int brushAntialiasLevel;
+  final ValueChanged<int> onBrushAntialiasChanged;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
@@ -441,9 +441,21 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
             children: [
               Text('抗锯齿', style: theme.typography.bodyStrong),
               const SizedBox(width: 8),
-              ToggleSwitch(
-                checked: widget.brushAntialias,
-                onChanged: widget.onBrushAntialiasChanged,
+              SizedBox(
+                width: 140,
+                child: Slider(
+                  value: widget.brushAntialiasLevel.toDouble(),
+                  min: 0,
+                  max: 3,
+                  divisions: 3,
+                  onChanged: (value) =>
+                      widget.onBrushAntialiasChanged(value.round()),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${widget.brushAntialiasLevel}',
+                style: theme.typography.caption,
               ),
             ],
           ),

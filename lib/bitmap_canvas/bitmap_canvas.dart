@@ -42,7 +42,7 @@ class BitmapSurface {
     required double radius,
     required Color color,
     Uint8List? mask,
-    bool antialias = false,
+    int antialiasLevel = 0,
   }) {
     if (radius <= 0) {
       return;
@@ -58,7 +58,8 @@ class BitmapSurface {
       for (int x = minX; x <= maxX; x++) {
         final double dx = x + 0.5 - center.dx;
         final double distanceSq = dx * dx + dy * dy;
-        if (!antialias) {
+        final int level = antialiasLevel.clamp(0, 3);
+        if (level == 0) {
           if (distanceSq <= radiusSq) {
             if (mask == null || mask[y * width + x] != 0) {
               blendPixel(x, y, color);
@@ -67,15 +68,16 @@ class BitmapSurface {
           continue;
         }
         final double distance = math.sqrt(distanceSq);
-        final double innerRadius = radius - 0.5;
-        final double outerRadius = radius + 0.5;
+        final double feather = _featherForLevel(level);
+        final double innerRadius = math.max(radius - feather, 0.0);
+        final double outerRadius = radius + feather;
         double coverage;
         if (distance <= innerRadius) {
           coverage = 1.0;
-        } else if (distance >= outerRadius) {
+        } else if (distance >= outerRadius || outerRadius <= innerRadius) {
           coverage = 0.0;
         } else {
-          coverage = (outerRadius - distance).clamp(0.0, 1.0);
+          coverage = (outerRadius - distance) / (outerRadius - innerRadius);
         }
         if (coverage <= 0.0) {
           continue;
@@ -106,7 +108,7 @@ class BitmapSurface {
     required double radius,
     required Color color,
     Uint8List? mask,
-    bool antialias = false,
+    int antialiasLevel = 0,
   }) {
     final double distance = (b - a).distance;
     if (distance == 0) {
@@ -115,13 +117,11 @@ class BitmapSurface {
         radius: radius,
         color: color,
         mask: mask,
-        antialias: antialias,
+        antialiasLevel: antialiasLevel,
       );
       return;
     }
-    final double spacing = antialias
-        ? math.max(0.35, radius.abs() * 0.2)
-        : math.max(0.5, radius.abs() * 0.25);
+    final double spacing = _spacingForRadius(radius, antialiasLevel);
     final int steps = math.max(1, (distance / spacing).ceil());
     final double stepX = (b.dx - a.dx) / steps;
     final double stepY = (b.dy - a.dy) / steps;
@@ -132,7 +132,7 @@ class BitmapSurface {
         radius: radius,
         color: color,
         mask: mask,
-        antialias: antialias,
+        antialiasLevel: antialiasLevel,
       );
       current = current.translate(stepX, stepY);
     }
@@ -146,7 +146,7 @@ class BitmapSurface {
     required double endRadius,
     required Color color,
     Uint8List? mask,
-    bool antialias = false,
+    int antialiasLevel = 0,
   }) {
     final double distance = (b - a).distance;
     if (distance == 0) {
@@ -156,14 +156,12 @@ class BitmapSurface {
         radius: radius,
         color: color,
         mask: mask,
-        antialias: antialias,
+        antialiasLevel: antialiasLevel,
       );
       return;
     }
     final double averageRadius = (startRadius + endRadius) * 0.5;
-    final double spacing = antialias
-        ? math.max(0.35, averageRadius.abs() * 0.2)
-        : math.max(0.5, averageRadius.abs() * 0.25);
+    final double spacing = _spacingForRadius(averageRadius, antialiasLevel);
     final int steps = math.max(1, (distance / spacing).ceil());
     final double stepX = (b.dx - a.dx) / steps;
     final double stepY = (b.dy - a.dy) / steps;
@@ -176,7 +174,7 @@ class BitmapSurface {
         radius: radius,
         color: color,
         mask: mask,
-        antialias: antialias,
+        antialiasLevel: antialiasLevel,
       );
       current = current.translate(stepX, stepY);
     }
@@ -188,7 +186,7 @@ class BitmapSurface {
     required double radius,
     required Color color,
     Uint8List? mask,
-    bool antialias = false,
+    int antialiasLevel = 0,
   }) {
     if (points.isEmpty) {
       return;
@@ -199,7 +197,7 @@ class BitmapSurface {
         radius: radius,
         color: color,
         mask: mask,
-        antialias: antialias,
+        antialiasLevel: antialiasLevel,
       );
       return;
     }
@@ -210,9 +208,23 @@ class BitmapSurface {
         radius: radius,
         color: color,
         mask: mask,
-        antialias: antialias,
+        antialiasLevel: antialiasLevel,
       );
     }
+  }
+
+  double _spacingForRadius(double radius, int antialiasLevel) {
+    final int level = antialiasLevel.clamp(0, 3);
+    const List<double> factors = <double>[0.25, 0.22, 0.18, 0.14];
+    final double factor = factors[level];
+    final double absRadius = radius.abs();
+    final double minimum = level == 0 ? 0.5 : 0.35;
+    return math.max(minimum, absRadius * factor);
+  }
+
+  double _featherForLevel(int level) {
+    const List<double> feather = <double>[0.0, 0.7, 1.1, 1.6];
+    return feather[level.clamp(0, feather.length - 1)];
   }
 
   /// Performs a flood fill starting at [start] with [color].
