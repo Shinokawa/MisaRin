@@ -463,6 +463,8 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         return '两端粗中间细';
       case StrokePressureProfile.taperCenter:
         return '两端细中间粗';
+      case StrokePressureProfile.auto:
+        return '自动';
     }
   }
 

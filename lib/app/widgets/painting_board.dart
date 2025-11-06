@@ -728,4 +728,4 @@ class _CanvasHistoryEntry {
   final Path? selectionPath;
 }
 
-StrokePressureProfile _penPressureProfile = StrokePressureProfile.taperEnds;
+StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;

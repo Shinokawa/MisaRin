@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import '../canvas/canvas_layer.dart';
 import 'bitmap_canvas.dart';
 import 'stroke_dynamics.dart';
+import 'stroke_sample.dart';
+import 'velocity_smoother.dart';
 
 class BitmapLayerState {
   BitmapLayerState({
@@ -61,9 +63,10 @@ class BitmapCanvasController extends ChangeNotifier {
   double _currentStrokeLastRadius = 0;
   bool _currentStrokePressureEnabled = false;
   final StrokeDynamics _strokeDynamics = StrokeDynamics();
-  StrokePressureProfile _strokePressureProfile =
-      StrokePressureProfile.taperEnds;
+  StrokePressureProfile _strokePressureProfile = StrokePressureProfile.auto;
   Color _currentStrokeColor = const Color(0xFF000000);
+  final StrokeSampleSeries _strokeSamples = StrokeSampleSeries();
+  final VelocitySmoother _velocitySmoother = VelocitySmoother();
 
   ui.Image? _cachedImage;
   bool _compositeDirty = true;
@@ -533,7 +536,8 @@ class BitmapCanvasController extends ChangeNotifier {
     required Color color,
     required double radius,
     bool simulatePressure = false,
-    StrokePressureProfile profile = StrokePressureProfile.taperEnds,
+    StrokePressureProfile profile = StrokePressureProfile.auto,
+    double? timestampMillis,
   }) {
     if (_activeLayer.locked) {
       return;
@@ -547,6 +551,11 @@ class BitmapCanvasController extends ChangeNotifier {
       ..add(position);
     _currentStrokeRadius = radius;
     _currentStrokePressureEnabled = simulatePressure;
+    final double resolvedTimestamp = timestampMillis ?? 0.0;
+    _strokeSamples.clear();
+    _velocitySmoother.reset();
+    _strokeSamples.add(position, resolvedTimestamp);
+    _velocitySmoother.addSample(position, resolvedTimestamp);
     if (_currentStrokePressureEnabled) {
       _strokeDynamics.start(radius, profile: _strokePressureProfile);
       _currentStrokeLastRadius = _strokeDynamics.initialRadius();
@@ -557,7 +566,11 @@ class BitmapCanvasController extends ChangeNotifier {
     _drawPoint(position, _currentStrokeLastRadius);
   }
 
-  void extendStroke(Offset position, {double? deltaTimeMillis}) {
+  void extendStroke(
+    Offset position, {
+    double? deltaTimeMillis,
+    double? timestampMillis,
+  }) {
     if (_currentStrokePoints.isEmpty) {
       return;
     }
@@ -568,9 +581,29 @@ class BitmapCanvasController extends ChangeNotifier {
     _currentStrokePoints.add(position);
     if (_currentStrokePressureEnabled) {
       final double delta = (position - last).distance;
+      final double sampleTimestamp = _resolveSampleTimestamp(
+        timestampMillis,
+        deltaTimeMillis,
+      );
+      final StrokeSample sample = _strokeSamples.add(position, sampleTimestamp);
+      final double normalizedSpeed = _velocitySmoother.addSample(
+        position,
+        sampleTimestamp,
+      );
+      final StrokeSampleMetrics? metrics =
+          _strokePressureProfile == StrokePressureProfile.auto
+          ? StrokeSampleMetrics(
+              sampleIndex: _strokeSamples.length - 1,
+              normalizedSpeed: normalizedSpeed,
+              stationaryDuration: sample.stationaryDuration,
+              totalDistance: _strokeSamples.totalDistance,
+              totalTime: _strokeSamples.totalTime,
+            )
+          : null;
       final double nextRadius = _strokeDynamics.sample(
         distance: delta,
         deltaTimeMillis: deltaTimeMillis,
+        metrics: metrics,
       );
       _activeSurface.drawVariableLine(
         a: last,
@@ -650,6 +683,8 @@ class BitmapCanvasController extends ChangeNotifier {
     _currentStrokeRadius = 0;
     _currentStrokeLastRadius = 0;
     _currentStrokePressureEnabled = false;
+    _strokeSamples.clear();
+    _velocitySmoother.reset();
   }
 
   void setStrokePressureProfile(StrokePressureProfile profile) {
@@ -658,6 +693,20 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     _strokePressureProfile = profile;
     _strokeDynamics.configure(profile: profile);
+  }
+
+  double _resolveSampleTimestamp(
+    double? timestampMillis,
+    double? deltaTimeMillis,
+  ) {
+    if (timestampMillis != null) {
+      return timestampMillis;
+    }
+    final double base = _strokeSamples.latest?.timestamp ?? 0.0;
+    if (deltaTimeMillis != null) {
+      return base + deltaTimeMillis;
+    }
+    return base;
   }
 
   bool _selectionAllows(Offset position) {

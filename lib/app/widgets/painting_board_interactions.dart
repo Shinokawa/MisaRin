@@ -186,6 +186,7 @@ mixin _PaintingBoardInteractionMixin
         radius: _penStrokeWidth / 2,
         simulatePressure: _simulatePenPressure,
         profile: _penPressureProfile,
+        timestampMillis: timestamp.inMicroseconds / 1000.0,
       );
     });
     _markDirty();
@@ -197,7 +198,11 @@ mixin _PaintingBoardInteractionMixin
     }
     final double? deltaMillis = _registerPenSample(timestamp);
     setState(() {
-      _controller.extendStroke(position, deltaTimeMillis: deltaMillis);
+      _controller.extendStroke(
+        position,
+        deltaTimeMillis: deltaMillis,
+        timestampMillis: timestamp.inMicroseconds / 1000.0,
+      );
     });
   }
 
