@@ -5,21 +5,30 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../bitmap_canvas/stroke_dynamics.dart';
+
 class AppPreferences {
   AppPreferences._({
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.historyLimit,
     required this.themeMode,
+    required this.penStrokeWidth,
+    required this.simulatePenPressure,
+    required this.penPressureProfile,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 3;
+  static const int _version = 4;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
   static const ThemeMode _defaultThemeMode = ThemeMode.system;
+  static const double _defaultPenStrokeWidth = 3.0;
+  static const bool _defaultSimulatePenPressure = false;
+  static const StrokePressureProfile _defaultPenPressureProfile =
+      StrokePressureProfile.auto;
 
   static AppPreferences? _instance;
 
@@ -27,6 +36,9 @@ class AppPreferences {
   bool bucketContiguous;
   int historyLimit;
   ThemeMode themeMode;
+  double penStrokeWidth;
+  bool simulatePenPressure;
+  StrokePressureProfile penPressureProfile;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -46,13 +58,29 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
-          if (version >= 3 && bytes.length >= 6) {
+          if (version >= 4 && bytes.length >= 9) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             _instance = AppPreferences._(
               bucketSampleAllLayers: bytes[1] != 0,
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+            );
+            return _instance!;
+          }
+          if (version == 3 && bytes.length >= 6) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _defaultPenStrokeWidth,
+              simulatePenPressure: _defaultSimulatePenPressure,
+              penPressureProfile: _defaultPenPressureProfile,
             );
             return _instance!;
           }
@@ -63,6 +91,9 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _defaultThemeMode,
+              penStrokeWidth: _defaultPenStrokeWidth,
+              simulatePenPressure: _defaultSimulatePenPressure,
+              penPressureProfile: _defaultPenPressureProfile,
             );
             return _instance!;
           }
@@ -72,6 +103,9 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _defaultHistoryLimit,
               themeMode: _defaultThemeMode,
+              penStrokeWidth: _defaultPenStrokeWidth,
+              simulatePenPressure: _defaultSimulatePenPressure,
+              penPressureProfile: _defaultPenPressureProfile,
             );
             return _instance!;
           }
@@ -85,6 +119,9 @@ class AppPreferences {
       bucketContiguous: true,
       historyLimit: _defaultHistoryLimit,
       themeMode: _defaultThemeMode,
+      penStrokeWidth: _defaultPenStrokeWidth,
+      simulatePenPressure: _defaultSimulatePenPressure,
+      penPressureProfile: _defaultPenPressureProfile,
     );
     return _instance!;
   }
@@ -95,6 +132,8 @@ class AppPreferences {
     await file.create(recursive: true);
     final int history = _clampHistoryLimit(prefs.historyLimit);
     prefs.historyLimit = history;
+    final int strokeWidth = _encodePenStrokeWidth(prefs.penStrokeWidth);
+    prefs.penStrokeWidth = strokeWidth.toDouble();
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
       prefs.bucketSampleAllLayers ? 1 : 0,
@@ -102,6 +141,9 @@ class AppPreferences {
       history & 0xff,
       (history >> 8) & 0xff,
       _encodeThemeMode(prefs.themeMode),
+      strokeWidth,
+      prefs.simulatePenPressure ? 1 : 0,
+      _encodePressureProfile(prefs.penPressureProfile),
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -136,6 +178,39 @@ class AppPreferences {
         return 1;
       case ThemeMode.system:
       default:
+        return 2;
+    }
+  }
+
+  static double _decodePenStrokeWidth(int value) {
+    final int clamped = value.clamp(1, 60);
+    return clamped.toDouble();
+  }
+
+  static int _encodePenStrokeWidth(double value) {
+    final double clamped = value.clamp(1.0, 60.0);
+    return clamped.round();
+  }
+
+  static StrokePressureProfile _decodePressureProfile(int value) {
+    switch (value) {
+      case 0:
+        return StrokePressureProfile.taperEnds;
+      case 1:
+        return StrokePressureProfile.taperCenter;
+      case 2:
+      default:
+        return StrokePressureProfile.auto;
+    }
+  }
+
+  static int _encodePressureProfile(StrokePressureProfile profile) {
+    switch (profile) {
+      case StrokePressureProfile.taperEnds:
+        return 0;
+      case StrokePressureProfile.taperCenter:
+        return 1;
+      case StrokePressureProfile.auto:
         return 2;
     }
   }

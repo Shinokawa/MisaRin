@@ -137,6 +137,9 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _penStrokeWidth = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.penStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
   }
 
   @override
@@ -145,6 +148,9 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _simulatePenPressure = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.simulatePenPressure = value;
+    unawaited(AppPreferences.save());
   }
 
   @override
@@ -153,6 +159,9 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _penPressureProfile = profile);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.penPressureProfile = profile;
+    unawaited(AppPreferences.save());
   }
 
   void _updateBucketSampleAllLayers(bool value) {
@@ -608,15 +617,22 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _drawQuadraticCurve(Offset start, Offset control, Offset end) {
+    const double initialTimestamp = 0.0;
+    const double fastDeltaMs = 3.5;
+    const double slowDeltaMs = 22.0;
+    final bool simulatePressure = _simulatePenPressure;
     _controller.beginStroke(
       start,
       color: _primaryColor,
       radius: _penStrokeWidth / 2,
-      simulatePressure: _simulatePenPressure,
+      simulatePressure: simulatePressure,
+      profile: _penPressureProfile,
+      timestampMillis: initialTimestamp,
     );
     final double estimatedLength =
         (start - control).distance + (control - end).distance;
     final int steps = math.max(12, estimatedLength.ceil());
+    double accumulatedTime = initialTimestamp;
     for (int i = 1; i <= steps; i++) {
       final double t = i / steps;
       final double invT = 1 - t;
@@ -624,7 +640,22 @@ mixin _PaintingBoardInteractionMixin
           invT * invT * start.dx + 2 * invT * t * control.dx + t * t * end.dx;
       final double y =
           invT * invT * start.dy + 2 * invT * t * control.dy + t * t * end.dy;
-      _controller.extendStroke(Offset(x, y));
+      if (simulatePressure) {
+        final double midpointWeight = (t - 0.5).abs() * 2.0;
+        final double easedWeight = (1.0 - midpointWeight)
+            .clamp(0.0, 1.0)
+            .toDouble();
+        final double deltaTime =
+            ui.lerpDouble(fastDeltaMs, slowDeltaMs, easedWeight) ?? fastDeltaMs;
+        accumulatedTime += deltaTime;
+        _controller.extendStroke(
+          Offset(x, y),
+          deltaTimeMillis: deltaTime,
+          timestampMillis: accumulatedTime,
+        );
+      } else {
+        _controller.extendStroke(Offset(x, y));
+      }
     }
     _controller.endStroke();
     _markDirty();

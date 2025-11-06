@@ -653,6 +653,12 @@ class PaintingBoardState extends _PaintingBoardBase
     final AppPreferences prefs = AppPreferences.instance;
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
+    _penStrokeWidth = prefs.penStrokeWidth.clamp(
+      _ToolSettingsCard._minPenStrokeWidth,
+      _ToolSettingsCard._maxPenStrokeWidth,
+    );
+    _simulatePenPressure = prefs.simulatePenPressure;
+    _penPressureProfile = prefs.penPressureProfile;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);

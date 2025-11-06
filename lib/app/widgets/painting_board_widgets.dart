@@ -400,19 +400,31 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         ),
         const SizedBox(width: 12),
         SizedBox(
-          width: 64,
-          child: SizedBox(
-            height: 32,
-            child: TextBox(
-              focusNode: _focusNode,
-              controller: _controller,
-              inputFormatters: _digitInputFormatters,
-              keyboardType: const TextInputType.numberWithOptions(
-                signed: false,
+          height: 32,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildStrokeAdjustButton(
+                icon: FluentIcons.calculator_subtract,
+                delta: -1,
               ),
-              onChanged: _handleTextChanged,
-              textAlign: TextAlign.center,
-            ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 64,
+                child: TextBox(
+                  focusNode: _focusNode,
+                  controller: _controller,
+                  inputFormatters: _digitInputFormatters,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: false,
+                  ),
+                  onChanged: _handleTextChanged,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(width: 4),
+              _buildStrokeAdjustButton(icon: FluentIcons.add, delta: 1),
+            ],
           ),
         ),
         const SizedBox(width: 8),
@@ -505,6 +517,42 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
       _controller.text = formatted;
       _isProgrammaticTextUpdate = false;
     }
+  }
+
+  void _adjustStrokeWidthBy(int delta) {
+    final double nextValue = (widget.penStrokeWidth + delta)
+        .clamp(
+          _ToolSettingsCard._minPenStrokeWidth,
+          _ToolSettingsCard._maxPenStrokeWidth,
+        )
+        .roundToDouble();
+    if ((nextValue - widget.penStrokeWidth).abs() < 0.01) {
+      return;
+    }
+    widget.onPenStrokeWidthChanged(nextValue);
+    final String formatted = _formatValue(nextValue);
+    if (_controller.text != formatted) {
+      _isProgrammaticTextUpdate = true;
+      _controller.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+      _isProgrammaticTextUpdate = false;
+    }
+  }
+
+  Widget _buildStrokeAdjustButton({
+    required IconData icon,
+    required int delta,
+  }) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        icon: Icon(icon, size: 14),
+        onPressed: () => _adjustStrokeWidthBy(delta),
+      ),
+    );
   }
 
   static String _formatValue(double value) {
