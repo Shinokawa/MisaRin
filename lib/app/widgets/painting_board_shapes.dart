@@ -1,6 +1,7 @@
 part of 'painting_board.dart';
 
 const int _kEllipseSegments = 64;
+const double _kEquilateralHeightFactor = 0.8660254037844386; // sqrt(3) / 2
 
 mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   ShapeToolVariant _shapeToolVariant = ShapeToolVariant.rectangle;
@@ -51,7 +52,17 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (start == null) {
       return;
     }
-    final Offset current = _clampToCanvas(boardLocal);
+    final Offset rawCurrent = _clampToCanvas(boardLocal);
+    Offset current = rawCurrent;
+    if (_isShapeShiftPressed) {
+      current = _applyShiftConstraint(
+        start: start,
+        current: rawCurrent,
+        variant: _shapeToolVariant,
+      );
+      current = _clampToCanvas(current);
+    }
+
     if (_shapeDragCurrent != null &&
         (_shapeDragCurrent! - current).distanceSquared < 0.25) {
       return;
@@ -108,6 +119,14 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     final double dx = value.dx.clamp(0.0, size.width);
     final double dy = value.dy.clamp(0.0, size.height);
     return Offset(dx, dy);
+  }
+
+  bool get _isShapeShiftPressed {
+    final Set<LogicalKeyboardKey> keys =
+        HardwareKeyboard.instance.logicalKeysPressed;
+    return keys.contains(LogicalKeyboardKey.shiftLeft) ||
+        keys.contains(LogicalKeyboardKey.shiftRight) ||
+        keys.contains(LogicalKeyboardKey.shift);
   }
 
   List<Offset> _buildShapeStrokePoints({
@@ -186,5 +205,73 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
         path.lineTo(current.dx, current.dy);
         return path;
     }
+  }
+
+  Offset _applyShiftConstraint({
+    required Offset start,
+    required Offset current,
+    required ShapeToolVariant variant,
+  }) {
+    switch (variant) {
+      case ShapeToolVariant.rectangle:
+      case ShapeToolVariant.ellipse:
+        return _constrainToSquare(start, current);
+      case ShapeToolVariant.triangle:
+        return _constrainToEquilateralTriangle(start, current);
+      case ShapeToolVariant.line:
+        return _constrainLineAngle(start, current);
+    }
+  }
+
+  Offset _constrainToSquare(Offset start, Offset current) {
+    final double dx = current.dx - start.dx;
+    final double dy = current.dy - start.dy;
+    final double length = math.max(dx.abs(), dy.abs());
+    if (length == 0) {
+      return current;
+    }
+    final double signX = dx >= 0 ? 1 : -1;
+    final double signY = dy >= 0 ? 1 : -1;
+    return Offset(start.dx + length * signX, start.dy + length * signY);
+  }
+
+  Offset _constrainToEquilateralTriangle(Offset start, Offset current) {
+    final double dx = current.dx - start.dx;
+    final double dy = current.dy - start.dy;
+    double width = dx.abs();
+    double height = dy.abs();
+    if (width == 0 && height == 0) {
+      return current;
+    }
+
+    if (width == 0) {
+      width = height / _kEquilateralHeightFactor;
+    } else if (height == 0) {
+      height = width * _kEquilateralHeightFactor;
+    } else if (height > width * _kEquilateralHeightFactor) {
+      width = height / _kEquilateralHeightFactor;
+    } else {
+      height = width * _kEquilateralHeightFactor;
+    }
+
+    final double signX = dx >= 0 ? 1 : -1;
+    final double signY = dy >= 0 ? 1 : -1;
+    return Offset(start.dx + width * signX, start.dy + height * signY);
+  }
+
+  Offset _constrainLineAngle(Offset start, Offset current) {
+    final double dx = current.dx - start.dx;
+    final double dy = current.dy - start.dy;
+    final double distance = math.sqrt(dx * dx + dy * dy);
+    if (distance == 0) {
+      return current;
+    }
+    const double step = math.pi / 4;
+    final double angle = math.atan2(dy, dx);
+    final double snappedAngle = (angle / step).round() * step;
+    return Offset(
+      start.dx + math.cos(snappedAngle) * distance,
+      start.dy + math.sin(snappedAngle) * distance,
+    );
   }
 }

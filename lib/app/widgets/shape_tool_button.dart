@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/widgets.dart' show Image;
 
 import '../../canvas/canvas_tools.dart';
 
@@ -66,9 +67,23 @@ class ShapeToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Icon(_iconForVariant(variant), color: iconColor, size: 20),
+          child: _buildIcon(iconColor),
         ),
       ),
     );
+  }
+
+  Widget _buildIcon(Color color) {
+    if (variant == ShapeToolVariant.line) {
+      return Image.asset(
+        'icons/line2.png',
+        width: 20,
+        height: 20,
+        color: color,
+        colorBlendMode: BlendMode.srcIn,
+        filterQuality: FilterQuality.high,
+      );
+    }
+    return Icon(_iconForVariant(variant), color: color, size: 20);
   }
 }

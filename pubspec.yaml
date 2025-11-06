@@ -68,6 +68,7 @@ flutter:
     - icons/warp2.png
     - icons/warp3.png
     - icons/line.png
+    - icons/line2.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
