@@ -175,6 +175,9 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.onBucketContiguousChanged,
     required this.selectionShape,
     required this.onSelectionShapeChanged,
+    required this.shapeToolVariant,
+    required this.onShapeToolVariantChanged,
+    required this.onSizeChanged,
   });
 
   final CanvasTool activeTool;
@@ -186,6 +189,9 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onBucketContiguousChanged;
   final SelectionShape selectionShape;
   final ValueChanged<SelectionShape> onSelectionShapeChanged;
+  final ShapeToolVariant shapeToolVariant;
+  final ValueChanged<ShapeToolVariant> onShapeToolVariantChanged;
+  final ValueChanged<Size> onSizeChanged;
 
   static const double _minPenStrokeWidth = 1;
   static const double _maxPenStrokeWidth = 60;
@@ -245,114 +251,100 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
     }
 
     Widget content;
-    if (widget.activeTool == CanvasTool.pen ||
-        widget.activeTool == CanvasTool.curvePen) {
-      content = Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text('笔刷大小', style: theme.typography.bodyStrong),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Slider(
-              value: widget.penStrokeWidth.clamp(
-                _ToolSettingsCard._minPenStrokeWidth,
-                _ToolSettingsCard._maxPenStrokeWidth,
-              ),
-              min: _ToolSettingsCard._minPenStrokeWidth,
-              max: _ToolSettingsCard._maxPenStrokeWidth,
-              divisions:
-                  (_ToolSettingsCard._maxPenStrokeWidth -
-                          _ToolSettingsCard._minPenStrokeWidth)
-                      .round(),
-              onChanged: (value) =>
-                  widget.onPenStrokeWidthChanged(value.roundToDouble()),
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 64,
-            child: SizedBox(
-              height: 32,
-              child: TextBox(
-                focusNode: _focusNode,
-                controller: _controller,
-                inputFormatters: _digitInputFormatters,
-                keyboardType: const TextInputType.numberWithOptions(
-                  signed: false,
+    switch (widget.activeTool) {
+      case CanvasTool.pen:
+      case CanvasTool.curvePen:
+        content = _buildBrushControls(theme);
+        break;
+      case CanvasTool.shape:
+        content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('图形类型', style: theme.typography.bodyStrong),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 160,
+                  child: ComboBox<ShapeToolVariant>(
+                    value: widget.shapeToolVariant,
+                    items: ShapeToolVariant.values
+                        .map(
+                          (variant) => ComboBoxItem<ShapeToolVariant>(
+                            value: variant,
+                            child: Text(_shapeVariantLabel(variant)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        widget.onShapeToolVariantChanged(value);
+                      }
+                    },
+                  ),
                 ),
-                onChanged: _handleTextChanged,
-                textAlign: TextAlign.center,
-              ),
+              ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Text('px', style: theme.typography.caption),
-        ],
-      );
-    } else if (widget.activeTool == CanvasTool.bucket) {
-      content = Row(
-        children: [
-          Expanded(
-            child: _BucketOptionTile(
+            const SizedBox(height: 12),
+            _buildBrushControls(theme),
+          ],
+        );
+        break;
+      case CanvasTool.bucket:
+        content = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _BucketOptionTile(
               title: '跨图层',
               value: widget.bucketSampleAllLayers,
               onChanged: widget.onBucketSampleAllLayersChanged,
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _BucketOptionTile(
+            const SizedBox(width: 16),
+            _BucketOptionTile(
               title: '连续',
               value: widget.bucketContiguous,
               onChanged: widget.onBucketContiguousChanged,
             ),
-          ),
-        ],
-      );
-    } else if (widget.activeTool == CanvasTool.selection) {
-      content = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text('选区形状', style: theme.typography.bodyStrong),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ComboBox<SelectionShape>(
-                  value: widget.selectionShape,
-                  items: SelectionShape.values
-                      .map(
-                        (shape) => ComboBoxItem<SelectionShape>(
-                          value: shape,
-                          child: Text(_selectionShapeLabel(shape)),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      widget.onSelectionShapeChanged(value);
-                    }
-                  },
-                ),
+          ],
+        );
+        break;
+      case CanvasTool.selection:
+        content = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('选区形状', style: theme.typography.bodyStrong),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 160,
+              child: ComboBox<SelectionShape>(
+                value: widget.selectionShape,
+                items: SelectionShape.values
+                    .map(
+                      (shape) => ComboBoxItem<SelectionShape>(
+                        value: shape,
+                        child: Text(_selectionShapeLabel(shape)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    widget.onSelectionShapeChanged(value);
+                  }
+                },
               ),
-            ],
-          ),
-        ],
-      );
-    } else {
-      content = SizedBox(
-        height: 40,
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text('该工具暂无可调节参数', style: theme.typography.body),
-        ),
-      );
+            ),
+          ],
+        );
+        break;
+      default:
+        content = Text('该工具暂无可调节参数', style: theme.typography.body);
+        break;
     }
 
-    return SizedBox(
-      width: _toolSettingsCardWidth,
+    return _MeasureSize(
+      onChanged: widget.onSizeChanged,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: backgroundColor,
@@ -363,14 +355,58 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
                 : Colors.black.withOpacity(0.08),
           ),
         ),
-        child: SizedBox(
-          height: _toolSettingsCardHeight,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Align(alignment: Alignment.centerLeft, child: content),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Align(alignment: Alignment.centerLeft, child: content),
         ),
       ),
+    );
+  }
+
+  Widget _buildBrushControls(FluentThemeData theme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text('笔刷大小', style: theme.typography.bodyStrong),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 200,
+          child: Slider(
+            value: widget.penStrokeWidth.clamp(
+              _ToolSettingsCard._minPenStrokeWidth,
+              _ToolSettingsCard._maxPenStrokeWidth,
+            ),
+            min: _ToolSettingsCard._minPenStrokeWidth,
+            max: _ToolSettingsCard._maxPenStrokeWidth,
+            divisions:
+                (_ToolSettingsCard._maxPenStrokeWidth -
+                        _ToolSettingsCard._minPenStrokeWidth)
+                    .round(),
+            onChanged: (value) =>
+                widget.onPenStrokeWidthChanged(value.roundToDouble()),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 64,
+          child: SizedBox(
+            height: 32,
+            child: TextBox(
+              focusNode: _focusNode,
+              controller: _controller,
+              inputFormatters: _digitInputFormatters,
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: false,
+              ),
+              onChanged: _handleTextChanged,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text('px', style: theme.typography.caption),
+      ],
     );
   }
 
@@ -418,8 +454,8 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
   }
 }
 
-class _CurvePreviewPainter extends CustomPainter {
-  const _CurvePreviewPainter({
+class _PreviewPathPainter extends CustomPainter {
+  const _PreviewPathPainter({
     required this.path,
     required this.color,
     required this.strokeWidth,
@@ -441,7 +477,7 @@ class _CurvePreviewPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_CurvePreviewPainter oldDelegate) {
+  bool shouldRepaint(_PreviewPathPainter oldDelegate) {
     return oldDelegate.path != path ||
         oldDelegate.color != color ||
         oldDelegate.strokeWidth != strokeWidth;
@@ -462,27 +498,57 @@ class _BucketOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    return SizedBox(
-      height: _toolSettingsCardHeight,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisAlignment: MainAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            fit: FlexFit.loose,
-            child: Text(
-              title,
-              style: theme.typography.bodyStrong,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
-          ToggleSwitch(checked: value, onChanged: onChanged),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          title,
+          style: theme.typography.bodyStrong,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(width: 8),
+        ToggleSwitch(checked: value, onChanged: onChanged),
+      ],
     );
+  }
+}
+
+class _MeasureSize extends SingleChildRenderObjectWidget {
+  const _MeasureSize({required this.onChanged, required super.child});
+
+  final ValueChanged<Size> onChanged;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _MeasureSizeRender(onChanged);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _MeasureSizeRender renderObject,
+  ) {
+    renderObject.onChanged = onChanged;
+  }
+}
+
+class _MeasureSizeRender extends RenderProxyBox {
+  _MeasureSizeRender(this.onChanged);
+
+  ValueChanged<Size> onChanged;
+  Size? _lastSize;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final Size size = child?.size ?? Size.zero;
+    if (_lastSize == size) {
+      return;
+    }
+    _lastSize = size;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onChanged(size));
   }
 }
 
@@ -494,5 +560,18 @@ String _selectionShapeLabel(SelectionShape shape) {
       return '圆形选区';
     case SelectionShape.polygon:
       return '多边形套索';
+  }
+}
+
+String _shapeVariantLabel(ShapeToolVariant variant) {
+  switch (variant) {
+    case ShapeToolVariant.rectangle:
+      return '矩形';
+    case ShapeToolVariant.ellipse:
+      return '椭圆';
+    case ShapeToolVariant.triangle:
+      return '三角形';
+    case ShapeToolVariant.line:
+      return '直线';
   }
 }

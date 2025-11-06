@@ -27,11 +27,15 @@ import 'package:flutter/services.dart'
         TextInputType,
         TextEditingValue,
         TextSelection;
-import 'package:flutter/rendering.dart' show RenderBox;
+import 'package:flutter/rendering.dart' show RenderBox, RenderProxyBox;
 import 'package:flutter/scheduler.dart'
     show SingleTickerProviderStateMixin, TickerProvider;
 import 'package:flutter/widgets.dart'
-    show FocusNode, TextEditingController, WidgetsBinding;
+    show
+        FocusNode,
+        TextEditingController,
+        WidgetsBinding,
+        SingleChildRenderObjectWidget;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 
@@ -51,6 +55,7 @@ part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
 part 'painting_board_marching_ants.dart';
 part 'painting_board_selection.dart';
+part 'painting_board_shapes.dart';
 part 'painting_board_clipboard.dart';
 part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
@@ -60,8 +65,6 @@ const double _toolButtonPadding = 16;
 const double _toolbarButtonSize = 48;
 const double _toolbarSpacing = 9;
 const double _toolSettingsSpacing = 12;
-const double _toolSettingsCardWidth = 320;
-const double _toolSettingsCardHeight = _toolbarButtonSize;
 const double _zoomStep = 1.1;
 const double _defaultPenStrokeWidth = 3;
 const double _sidePanelWidth = 240;
@@ -140,6 +143,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _toolCursorPosition;
   Offset? _lastWorkspacePointer;
   Offset? _penCursorWorkspacePosition;
+  Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -181,6 +185,20 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final double top = rawTop.isFinite ? rawTop : 0.0;
 
     return Offset(left, top);
+  }
+
+  void _updateToolSettingsCardSize(Size size) {
+    final double width = size.width.isFinite && size.width > 0
+        ? size.width
+        : _toolSettingsCardSize.width;
+    final double height = size.height.isFinite && size.height > 0
+        ? size.height
+        : _toolSettingsCardSize.height;
+    if ((width - _toolSettingsCardSize.width).abs() < 0.5 &&
+        (height - _toolSettingsCardSize.height).abs() < 0.5) {
+      return;
+    }
+    _toolSettingsCardSize = Size(width, height);
   }
 
   void _scheduleWorkspaceMeasurement(BuildContext context) {
@@ -246,15 +264,18 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   bool get _penRequiresOverlay =>
       _effectiveActiveTool == CanvasTool.pen ||
-      _effectiveActiveTool == CanvasTool.curvePen;
+      _effectiveActiveTool == CanvasTool.curvePen ||
+      _effectiveActiveTool == CanvasTool.shape;
 
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
   bool get canUndo => _undoStack.isNotEmpty;
   bool get canRedo => _redoStack.isNotEmpty;
   SelectionShape get selectionShape;
+  ShapeToolVariant get shapeToolVariant;
   Path? get selectionPath;
   Path? get selectionPreviewPath;
+  Path? get shapePreviewPath;
   Path? get magicWandPreviewPath;
   double get selectionDashPhase;
   bool isPointInsideSelection(Offset position);
@@ -298,6 +319,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _clearSelectionHover();
   void _clearSelection();
   void _updateSelectionShape(SelectionShape shape);
+  void _updateShapeToolVariant(ShapeToolVariant variant);
   void initializeSelectionTicker(TickerProvider provider);
   void disposeSelectionTicker();
   void _updateSelectionAnimation();
@@ -344,7 +366,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _controller.commitActiveLayerTranslation();
     final List<CanvasLayerData> original = snapshotLayers();
     if (original.isEmpty) {
-      return CanvasRotationResult(layers: const <CanvasLayerData>[], width: width, height: height);
+      return CanvasRotationResult(
+        layers: const <CanvasLayerData>[],
+        width: width,
+        height: height,
+      );
     }
     final List<CanvasLayerData> rotated = <CanvasLayerData>[
       for (final CanvasLayerData layer in original)
@@ -610,6 +636,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardLayerMixin,
         _PaintingBoardColorMixin,
         _PaintingBoardSelectionMixin,
+        _PaintingBoardShapeMixin,
         _PaintingBoardClipboardMixin,
         _PaintingBoardInteractionMixin,
         _PaintingBoardBuildMixin {

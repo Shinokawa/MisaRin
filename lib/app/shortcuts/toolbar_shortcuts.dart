@@ -6,6 +6,7 @@ enum ToolbarAction {
   layerAdjustTool,
   penTool,
   curvePenTool,
+  shapeTool,
   bucketTool,
   magicWandTool,
   eyedropperTool,
@@ -58,6 +59,10 @@ class ToolbarShortcuts {
     ToolbarAction.curvePenTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyP)],
       primaryLabel: 'P',
+    ),
+    ToolbarAction.shapeTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyR)],
+      primaryLabel: 'R',
     ),
     ToolbarAction.magicWandTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyW)],

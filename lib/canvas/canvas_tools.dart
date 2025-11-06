@@ -2,6 +2,7 @@ enum CanvasTool {
   layerAdjust,
   pen,
   curvePen,
+  shape,
   bucket,
   magicWand,
   eyedropper,
@@ -10,3 +11,5 @@ enum CanvasTool {
 }
 
 enum SelectionShape { rectangle, ellipse, polygon }
+
+enum ShapeToolVariant { rectangle, ellipse, triangle, line }

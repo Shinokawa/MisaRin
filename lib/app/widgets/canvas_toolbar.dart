@@ -14,12 +14,14 @@ import 'undo_tool_button.dart';
 import 'layer_adjust_tool_button.dart';
 import 'curve_pen_tool_button.dart';
 import 'eyedropper_tool_button.dart';
+import 'shape_tool_button.dart';
 
 class CanvasToolbar extends StatelessWidget {
   const CanvasToolbar({
     super.key,
     required this.activeTool,
     required this.selectionShape,
+    required this.shapeToolVariant,
     required this.onToolSelected,
     required this.onUndo,
     required this.onRedo,
@@ -30,6 +32,7 @@ class CanvasToolbar extends StatelessWidget {
 
   final CanvasTool activeTool;
   final SelectionShape selectionShape;
+  final ShapeToolVariant shapeToolVariant;
   final ValueChanged<CanvasTool> onToolSelected;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
@@ -37,7 +40,7 @@ class CanvasToolbar extends StatelessWidget {
   final bool canRedo;
   final VoidCallback onExit;
 
-  static const int buttonCount = 11;
+  static const int buttonCount = 12;
 
   static const TooltipThemeData _rightTooltipStyle = TooltipThemeData(
     preferBelow: false,
@@ -54,6 +57,19 @@ class CanvasToolbar extends StatelessWidget {
       return base;
     }
     return '$base ($shortcutLabel)';
+  }
+
+  static String _shapeTooltipLabel(ShapeToolVariant variant) {
+    switch (variant) {
+      case ShapeToolVariant.rectangle:
+        return '矩形工具';
+      case ShapeToolVariant.ellipse:
+        return '椭圆工具';
+      case ShapeToolVariant.triangle:
+        return '三角形工具';
+      case ShapeToolVariant.line:
+        return '直线工具';
+    }
   }
 
   @override
@@ -99,6 +115,21 @@ class CanvasToolbar extends StatelessWidget {
           child: CurvePenToolButton(
             isSelected: activeTool == CanvasTool.curvePen,
             onPressed: () => onToolSelected(CanvasTool.curvePen),
+          ),
+        ),
+        const SizedBox(height: 9),
+        Tooltip(
+          message: _tooltipMessage(
+            _shapeTooltipLabel(shapeToolVariant),
+            ToolbarAction.shapeTool,
+          ),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: ShapeToolButton(
+            isSelected: activeTool == CanvasTool.shape,
+            variant: shapeToolVariant,
+            onPressed: () => onToolSelected(CanvasTool.shape),
           ),
         ),
         const SizedBox(height: 9),

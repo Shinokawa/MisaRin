@@ -1,6 +1,7 @@
 part of 'painting_board.dart';
 
-mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
+mixin _PaintingBoardInteractionMixin
+    on _PaintingBoardBase, _PaintingBoardShapeMixin {
   void clear() {
     _pushUndoSnapshot();
     _controller.clear();
@@ -26,8 +27,8 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
   Rect get _toolSettingsRect => Rect.fromLTWH(
     _toolButtonPadding + _toolbarButtonSize + _toolSettingsSpacing,
     _toolButtonPadding,
-    _toolSettingsCardWidth,
-    _toolSettingsCardHeight,
+    _toolSettingsCardSize.width,
+    _toolSettingsCardSize.height,
   );
 
   Rect get _colorIndicatorRect {
@@ -98,6 +99,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
       }
       if (tool != CanvasTool.curvePen) {
         _curvePreviewPath = null;
+      }
+      if (tool != CanvasTool.shape) {
+        _resetShapeDrawingState();
       }
       if (_activeTool == CanvasTool.eyedropper) {
         _isEyedropperSampling = false;
@@ -266,7 +270,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
     final CanvasTool tool = _effectiveActiveTool;
     final bool overlayTool = ToolCursorStyles.hasOverlay(tool);
     final bool isPenLike =
-        tool == CanvasTool.pen || tool == CanvasTool.curvePen;
+        tool == CanvasTool.pen ||
+        tool == CanvasTool.curvePen ||
+        tool == CanvasTool.shape;
     if (!overlayTool && !isPenLike) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {
@@ -619,6 +625,10 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         }
         _handleCurvePenPointerDown(boardLocal);
         break;
+      case CanvasTool.shape:
+        _focusNode.requestFocus();
+        _beginShapeDrawing(boardLocal);
+        break;
       case CanvasTool.bucket:
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
@@ -668,6 +678,12 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         final Offset boardLocal = _toBoardLocal(event.localPosition);
         _handleCurvePenPointerMove(boardLocal);
         break;
+      case CanvasTool.shape:
+        if (_shapeDragStart != null) {
+          final Offset boardLocal = _toBoardLocal(event.localPosition);
+          _updateShapeDrawing(boardLocal);
+        }
+        break;
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
         break;
@@ -701,6 +717,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         break;
       case CanvasTool.curvePen:
         _handleCurvePenPointerUp();
+        break;
+      case CanvasTool.shape:
+        _finishShapeDrawing();
         break;
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
@@ -744,6 +763,9 @@ mixin _PaintingBoardInteractionMixin on _PaintingBoardBase {
         break;
       case CanvasTool.curvePen:
         _cancelCurvePenSegment();
+        break;
+      case CanvasTool.shape:
+        _cancelShapeDrawing();
         break;
       case CanvasTool.selection:
         _handleSelectionPointerCancel();

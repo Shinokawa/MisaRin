@@ -21,6 +21,8 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         ToolbarAction.curvePenTool,
       ).shortcuts)
         key: const SelectToolIntent(CanvasTool.curvePen),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.shapeTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.shape),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
       for (final key in ToolbarShortcuts.of(
@@ -112,6 +114,9 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                   : SystemMouseCursors.move;
               break;
             case CanvasTool.curvePen:
+              workspaceCursor = SystemMouseCursors.precise;
+              break;
+            case CanvasTool.shape:
               workspaceCursor = SystemMouseCursors.precise;
               break;
             case CanvasTool.eyedropper:
@@ -238,19 +243,17 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                                 _controller
                                                     .isActiveLayerTransforming;
                                             final ui.Image?
-                                                transformedActiveLayerImage =
+                                            transformedActiveLayerImage =
                                                 _controller
                                                     .activeLayerTransformImage;
                                             final Offset
-                                                transformedLayerOffset =
-                                                _controller
-                                                    .activeLayerTransformOffset;
+                                            transformedLayerOffset = _controller
+                                                .activeLayerTransformOffset;
                                             final double
-                                                transformedLayerOpacity =
-                                                _controller
-                                                    .activeLayerTransformOpacity;
+                                            transformedLayerOpacity = _controller
+                                                .activeLayerTransformOpacity;
                                             final ui.BlendMode?
-                                                transformedLayerBlendMode =
+                                            transformedLayerBlendMode =
                                                 _flutterBlendMode(
                                                   _controller
                                                       .activeLayerTransformBlendMode,
@@ -291,10 +294,22 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                                 if (_curvePreviewPath != null)
                                                   Positioned.fill(
                                                     child: CustomPaint(
+                                                      painter: _PreviewPathPainter(
+                                                        path:
+                                                            _curvePreviewPath!,
+                                                        color: _primaryColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (shapePreviewPath != null)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
                                                       painter:
-                                                          _CurvePreviewPainter(
+                                                          _PreviewPathPainter(
                                                             path:
-                                                                _curvePreviewPath!,
+                                                                shapePreviewPath!,
                                                             color:
                                                                 _primaryColor,
                                                             strokeWidth:
@@ -334,6 +349,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             child: CanvasToolbar(
                               activeTool: _activeTool,
                               selectionShape: selectionShape,
+                              shapeToolVariant: shapeToolVariant,
                               onToolSelected: _setActiveTool,
                               onUndo: _handleUndo,
                               onRedo: _handleRedo,
@@ -360,6 +376,10 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                                   _updateBucketContiguous,
                               selectionShape: selectionShape,
                               onSelectionShapeChanged: _updateSelectionShape,
+                              shapeToolVariant: shapeToolVariant,
+                              onShapeToolVariantChanged:
+                                  _updateShapeToolVariant,
+                              onSizeChanged: _updateToolSettingsCardSize,
                             ),
                           ),
                           Positioned(
