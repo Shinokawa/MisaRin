@@ -169,6 +169,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.activeTool,
     required this.penStrokeWidth,
     required this.onPenStrokeWidthChanged,
+    required this.simulatePenPressure,
+    required this.onSimulatePenPressureChanged,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.onBucketSampleAllLayersChanged,
@@ -183,6 +185,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final CanvasTool activeTool;
   final double penStrokeWidth;
   final ValueChanged<double> onPenStrokeWidthChanged;
+  final bool simulatePenPressure;
+  final ValueChanged<bool> onSimulatePenPressureChanged;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
@@ -364,6 +368,9 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
   }
 
   Widget _buildBrushControls(FluentThemeData theme) {
+    final bool showPressureToggle =
+        widget.activeTool == CanvasTool.pen ||
+        widget.activeTool == CanvasTool.curvePen;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -406,6 +413,20 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         ),
         const SizedBox(width: 8),
         Text('px', style: theme.typography.caption),
+        if (showPressureToggle) ...[
+          const SizedBox(width: 20),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('模拟笔压', style: theme.typography.bodyStrong),
+              const SizedBox(width: 8),
+              ToggleSwitch(
+                checked: widget.simulatePenPressure,
+                onChanged: widget.onSimulatePenPressureChanged,
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

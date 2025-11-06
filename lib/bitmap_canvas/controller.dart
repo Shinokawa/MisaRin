@@ -57,6 +57,11 @@ class BitmapCanvasController extends ChangeNotifier {
 
   final List<Offset> _currentStrokePoints = <Offset>[];
   double _currentStrokeRadius = 0;
+  double _currentStrokeMinRadius = 0;
+  double _currentStrokeMaxRadius = 0;
+  double _currentStrokeLastRadius = 0;
+  double _currentStrokeSmoothedDistance = 0;
+  bool _currentStrokePressureEnabled = false;
   Color _currentStrokeColor = const Color(0xFF000000);
 
   ui.Image? _cachedImage;
@@ -90,13 +95,12 @@ class BitmapCanvasController extends ChangeNotifier {
   int get width => _width;
   int get height => _height;
   Uint8List? get selectionMask => _selectionMask;
-  bool get isActiveLayerTransforming =>
-      _activeLayerTranslationSnapshot != null;
+  bool get isActiveLayerTransforming => _activeLayerTranslationSnapshot != null;
   ui.Image? get activeLayerTransformImage => _activeLayerTransformImage;
   Offset get activeLayerTransformOffset => Offset(
-        _activeLayerTranslationDx.toDouble(),
-        _activeLayerTranslationDy.toDouble(),
-      );
+    _activeLayerTranslationDx.toDouble(),
+    _activeLayerTranslationDy.toDouble(),
+  );
   double get activeLayerTransformOpacity => _activeLayer.opacity;
   CanvasLayerBlendMode get activeLayerTransformBlendMode =>
       _activeLayer.blendMode;
@@ -527,6 +531,7 @@ class BitmapCanvasController extends ChangeNotifier {
     Offset position, {
     required Color color,
     required double radius,
+    bool simulatePressure = false,
   }) {
     if (_activeLayer.locked) {
       return;
@@ -538,8 +543,15 @@ class BitmapCanvasController extends ChangeNotifier {
       ..clear()
       ..add(position);
     _currentStrokeRadius = radius;
+    _currentStrokePressureEnabled = simulatePressure;
+    _currentStrokeMinRadius = math.max(radius * 0.35, 0.35);
+    _currentStrokeMaxRadius = radius;
+    _currentStrokeSmoothedDistance = 0;
+    _currentStrokeLastRadius = simulatePressure
+        ? _currentStrokeMinRadius
+        : _currentStrokeRadius;
     _currentStrokeColor = color;
-    _drawPoint(position);
+    _drawPoint(position, _currentStrokeLastRadius);
   }
 
   void extendStroke(Offset position) {
@@ -551,19 +563,47 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     final Offset last = _currentStrokePoints.last;
     _currentStrokePoints.add(position);
-    _activeSurface.drawLine(
-      a: last,
-      b: position,
-      radius: _currentStrokeRadius,
-      color: _currentStrokeColor,
-      mask: _selectionMask,
-    );
-    _markDirty(region: _dirtyRectForLine(last, position, _currentStrokeRadius));
+    if (_currentStrokePressureEnabled) {
+      final double nextRadius = _computePressureRadius(last, position);
+      _activeSurface.drawVariableLine(
+        a: last,
+        b: position,
+        startRadius: _currentStrokeLastRadius,
+        endRadius: nextRadius,
+        color: _currentStrokeColor,
+        mask: _selectionMask,
+      );
+      _markDirty(
+        region: _dirtyRectForVariableLine(
+          last,
+          position,
+          _currentStrokeLastRadius,
+          nextRadius,
+        ),
+      );
+      _currentStrokeLastRadius = nextRadius;
+    } else {
+      _activeSurface.drawLine(
+        a: last,
+        b: position,
+        radius: _currentStrokeRadius,
+        color: _currentStrokeColor,
+        mask: _selectionMask,
+      );
+      _markDirty(
+        region: _dirtyRectForLine(last, position, _currentStrokeRadius),
+      );
+    }
   }
 
   void endStroke() {
     _currentStrokePoints.clear();
     _currentStrokeRadius = 0;
+    _currentStrokeMinRadius = 0;
+    _currentStrokeMaxRadius = 0;
+    _currentStrokeLastRadius = 0;
+    _currentStrokeSmoothedDistance = 0;
+    _currentStrokePressureEnabled = false;
   }
 
   bool _selectionAllows(Offset position) {
@@ -850,9 +890,9 @@ class BitmapCanvasController extends ChangeNotifier {
 
     final String? translatingLayerId =
         _activeLayerTranslationSnapshot != null &&
-                !_pendingActiveLayerTransformCleanup
-            ? _activeLayerTranslationId
-            : null;
+            !_pendingActiveLayerTransformCleanup
+        ? _activeLayerTranslationId
+        : null;
 
     for (int y = area.top; y < area.bottom; y++) {
       final int rowOffset = y * width;
@@ -864,8 +904,7 @@ class BitmapCanvasController extends ChangeNotifier {
           if (!layer.visible) {
             continue;
           }
-          if (translatingLayerId != null &&
-              layer.id == translatingLayerId) {
+          if (translatingLayerId != null && layer.id == translatingLayerId) {
             continue;
           }
           final double rawOpacity = layer.opacity;
@@ -1011,17 +1050,51 @@ class BitmapCanvasController extends ChangeNotifier {
     _activeIndex = _layers.length - 1;
   }
 
-  void _drawPoint(Offset position) {
+  void _drawPoint(Offset position, double radius) {
     if (_activeLayer.locked) {
       return;
     }
     _activeSurface.drawCircle(
       center: position,
-      radius: _currentStrokeRadius,
+      radius: radius,
       color: _currentStrokeColor,
       mask: _selectionMask,
     );
-    _markDirty(region: _dirtyRectForCircle(position, _currentStrokeRadius));
+    _markDirty(region: _dirtyRectForCircle(position, radius));
+  }
+
+  double _computePressureRadius(Offset last, Offset position) {
+    final double delta = (position - last).distance;
+    const double peakDistance = 14.0;
+    final double target = delta.clamp(0.0, peakDistance);
+    if (_currentStrokeSmoothedDistance == 0) {
+      _currentStrokeSmoothedDistance = target;
+    } else {
+      _currentStrokeSmoothedDistance = ui.lerpDouble(
+        _currentStrokeSmoothedDistance,
+        target,
+        0.35,
+      )!;
+    }
+    final double normalized = (_currentStrokeSmoothedDistance / peakDistance)
+        .clamp(0.0, 1.0);
+    final double eased = math.sqrt(normalized);
+    return ui.lerpDouble(
+          _currentStrokeMinRadius,
+          _currentStrokeMaxRadius,
+          eased,
+        ) ??
+        _currentStrokeMaxRadius;
+  }
+
+  Rect _dirtyRectForVariableLine(
+    Offset a,
+    Offset b,
+    double startRadius,
+    double endRadius,
+  ) {
+    final double maxRadius = math.max(math.max(startRadius, endRadius), 0.5);
+    return Rect.fromPoints(a, b).inflate(maxRadius + 1.5);
   }
 
   void _markDirty({Rect? region}) {

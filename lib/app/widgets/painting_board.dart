@@ -122,6 +122,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isScalingGesture = false;
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
+  bool _simulatePenPressure = false;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _layerOpacityGestureActive = false;
@@ -332,6 +333,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _handleWorkspacePointerExit();
   void _handlePointerSignal(PointerSignalEvent event);
   KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event);
+
+  void _updatePenPressureSimulation(bool value);
 
   void _handleScaleStart(ScaleStartDetails details);
   void _handleScaleUpdate(ScaleUpdateDetails details);

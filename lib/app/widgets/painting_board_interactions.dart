@@ -139,6 +139,14 @@ mixin _PaintingBoardInteractionMixin
     setState(() => _penStrokeWidth = clamped);
   }
 
+  @override
+  void _updatePenPressureSimulation(bool value) {
+    if (_simulatePenPressure == value) {
+      return;
+    }
+    setState(() => _simulatePenPressure = value);
+  }
+
   void _updateBucketSampleAllLayers(bool value) {
     if (_bucketSampleAllLayers == value) {
       return;
@@ -167,6 +175,7 @@ mixin _PaintingBoardInteractionMixin
         position,
         color: _primaryColor,
         radius: _penStrokeWidth / 2,
+        simulatePressure: _simulatePenPressure,
       );
     });
     _markDirty();
@@ -570,6 +579,7 @@ mixin _PaintingBoardInteractionMixin
       start,
       color: _primaryColor,
       radius: _penStrokeWidth / 2,
+      simulatePressure: _simulatePenPressure,
     );
     final double estimatedLength =
         (start - control).distance + (control - end).distance;

@@ -368,6 +368,9 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               activeTool: _activeTool,
                               penStrokeWidth: _penStrokeWidth,
                               onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                              simulatePenPressure: _simulatePenPressure,
+                              onSimulatePenPressureChanged:
+                                  _updatePenPressureSimulation,
                               bucketSampleAllLayers: _bucketSampleAllLayers,
                               bucketContiguous: _bucketContiguous,
                               onBucketSampleAllLayersChanged:

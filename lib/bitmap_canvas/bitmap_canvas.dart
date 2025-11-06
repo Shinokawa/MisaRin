@@ -6,11 +6,8 @@ import 'dart:ui';
 /// A lightweight bitmap surface that stores pixels in ARGB8888 format
 /// and exposes basic drawing primitives for future integration.
 class BitmapSurface {
-  BitmapSurface({
-    required this.width,
-    required this.height,
-    Color? fillColor,
-  }) : pixels = Uint32List(width * height) {
+  BitmapSurface({required this.width, required this.height, Color? fillColor})
+    : pixels = Uint32List(width * height) {
     if (width <= 0 || height <= 0) {
       throw ArgumentError('Surface dimensions must be positive');
     }
@@ -87,6 +84,35 @@ class BitmapSurface {
     final double stepY = (b.dy - a.dy) / steps;
     Offset current = a;
     for (int i = 0; i <= steps; i++) {
+      drawCircle(center: current, radius: radius, color: color, mask: mask);
+      current = current.translate(stepX, stepY);
+    }
+  }
+
+  /// Draws a line between [a] and [b] gradually interpolating the brush radius.
+  void drawVariableLine({
+    required Offset a,
+    required Offset b,
+    required double startRadius,
+    required double endRadius,
+    required Color color,
+    Uint8List? mask,
+  }) {
+    final double distance = (b - a).distance;
+    if (distance == 0) {
+      final double radius = math.max(startRadius, endRadius);
+      drawCircle(center: a, radius: radius, color: color, mask: mask);
+      return;
+    }
+    final double averageRadius = (startRadius + endRadius) * 0.5;
+    final double spacing = math.max(0.5, averageRadius.abs() * 0.25);
+    final int steps = math.max(1, (distance / spacing).ceil());
+    final double stepX = (b.dx - a.dx) / steps;
+    final double stepY = (b.dy - a.dy) / steps;
+    Offset current = a;
+    for (int i = 0; i <= steps; i++) {
+      final double t = steps == 0 ? 0.0 : i / steps;
+      final double radius = lerpDouble(startRadius, endRadius, t)!;
       drawCircle(center: current, radius: radius, color: color, mask: mask);
       current = current.translate(stepX, stepY);
     }
@@ -269,11 +295,7 @@ class BitmapPainter {
 
 /// Lightweight bitmap layer container for future layer stacking.
 class BitmapLayer {
-  BitmapLayer({
-    required this.surface,
-    this.visible = true,
-    this.name = '图层',
-  });
+  BitmapLayer({required this.surface, this.visible = true, this.name = '图层'});
 
   final BitmapSurface surface;
   bool visible;
@@ -283,7 +305,7 @@ class BitmapLayer {
 /// Simple document structure holding multiple bitmap layers.
 class BitmapDocument {
   BitmapDocument({required List<BitmapLayer> layers})
-      : layers = List<BitmapLayer>.from(layers);
+    : layers = List<BitmapLayer>.from(layers);
 
   final List<BitmapLayer> layers;
 
