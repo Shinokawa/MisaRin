@@ -454,7 +454,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               ),
               const SizedBox(width: 8),
               Text(
-                '${widget.brushAntialiasLevel}',
+                '等级 ${widget.brushAntialiasLevel}',
                 style: theme.typography.caption,
               ),
             ],

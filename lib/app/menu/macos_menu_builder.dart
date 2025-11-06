@@ -20,7 +20,7 @@ class MacosMenuBuilder {
       _fileMenu(handler, log),
       _editMenu(handler, log),
       _imageMenu(handler, log),
-      _layerMenu(log),
+      _layerMenu(handler, log),
       _selectMenu(log),
       _filterMenu(log),
       _viewMenu(handler, log),
@@ -242,10 +242,7 @@ class MacosMenuBuilder {
     );
   }
 
-  static PlatformMenu _imageMenu(
-    MenuActionHandler handler,
-    MenuLogger log,
-  ) {
+  static PlatformMenu _imageMenu(MenuActionHandler handler, MenuLogger log) {
     return PlatformMenu(
       label: '图像',
       menus: <PlatformMenuItem>[
@@ -263,22 +260,26 @@ class MacosMenuBuilder {
           menus: <PlatformMenuItem>[
             PlatformMenuItem(
               label: '顺时针 90 度',
-              onSelected: _wrap(handler.rotateCanvas90Clockwise) ??
+              onSelected:
+                  _wrap(handler.rotateCanvas90Clockwise) ??
                   _placeholder('图像 > 图像变换 > 顺时针 90 度', log),
             ),
             PlatformMenuItem(
               label: '逆时针 90 度',
-              onSelected: _wrap(handler.rotateCanvas90CounterClockwise) ??
+              onSelected:
+                  _wrap(handler.rotateCanvas90CounterClockwise) ??
                   _placeholder('图像 > 图像变换 > 逆时针 90 度', log),
             ),
             PlatformMenuItem(
               label: '顺时针 180 度',
-              onSelected: _wrap(handler.rotateCanvas180Clockwise) ??
+              onSelected:
+                  _wrap(handler.rotateCanvas180Clockwise) ??
                   _placeholder('图像 > 图像变换 > 顺时针 180 度', log),
             ),
             PlatformMenuItem(
               label: '逆时针 180 度',
-              onSelected: _wrap(handler.rotateCanvas180CounterClockwise) ??
+              onSelected:
+                  _wrap(handler.rotateCanvas180CounterClockwise) ??
                   _placeholder('图像 > 图像变换 > 逆时针 180 度', log),
             ),
           ],
@@ -287,7 +288,7 @@ class MacosMenuBuilder {
     );
   }
 
-  static PlatformMenu _layerMenu(MenuLogger log) {
+  static PlatformMenu _layerMenu(MenuActionHandler handler, MenuLogger log) {
     return PlatformMenu(
       label: '图层',
       menus: <PlatformMenuItem>[
@@ -303,6 +304,35 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '复制图层…',
           onSelected: _placeholder('图层 > 复制图层…', log),
+        ),
+        PlatformMenu(
+          label: '抗锯齿',
+          menus: <PlatformMenuItem>[
+            PlatformMenuItem(
+              label: '0',
+              onSelected:
+                  _wrap(handler.applyLayerAntialias0) ??
+                  _placeholder('图层 > 抗锯齿 > 0', log),
+            ),
+            PlatformMenuItem(
+              label: '1',
+              onSelected:
+                  _wrap(handler.applyLayerAntialias1) ??
+                  _placeholder('图层 > 抗锯齿 > 1', log),
+            ),
+            PlatformMenuItem(
+              label: '2',
+              onSelected:
+                  _wrap(handler.applyLayerAntialias2) ??
+                  _placeholder('图层 > 抗锯齿 > 2', log),
+            ),
+            PlatformMenuItem(
+              label: '3',
+              onSelected:
+                  _wrap(handler.applyLayerAntialias3) ??
+                  _placeholder('图层 > 抗锯齿 > 3', log),
+            ),
+          ],
         ),
       ],
     );

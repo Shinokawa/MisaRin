@@ -166,14 +166,28 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
+  bool applyLayerAntialiasLevel(int level) {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null || layer.locked) {
+      return false;
+    }
+    final int clamped = level.clamp(0, 3);
+    if (!_controller.applyAntialiasToActiveLayer(clamped, previewOnly: true)) {
+      return false;
+    }
+    _pushUndoSnapshot();
+    _controller.applyAntialiasToActiveLayer(clamped);
+    setState(() {});
+    _markDirty();
+    return true;
+  }
+
   Widget _buildPanelDivider(FluentThemeData theme) {
-    final Color dividerColor =
-        theme.resources.controlStrokeColorDefault.withOpacity(0.35);
+    final Color dividerColor = theme.resources.controlStrokeColorDefault
+        .withOpacity(0.35);
     return SizedBox(
       height: 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(color: dividerColor),
-      ),
+      child: DecoratedBox(decoration: BoxDecoration(color: dividerColor)),
     );
   }
 
@@ -185,20 +199,19 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
       return null;
     }
 
-    final double clampedOpacity =
-        activeLayer.opacity.clamp(0.0, 1.0).toDouble();
+    final double clampedOpacity = activeLayer.opacity
+        .clamp(0.0, 1.0)
+        .toDouble();
     final int opacityPercent = (clampedOpacity * 100).round();
-    final TextStyle labelStyle = theme.typography.caption ??
+    final TextStyle labelStyle =
+        theme.typography.caption ??
         theme.typography.body?.copyWith(fontSize: 12) ??
         const TextStyle(fontSize: 12);
 
     Widget opacityRow() {
       return Row(
         children: [
-          SizedBox(
-            width: 52,
-            child: Text('不透明度', style: labelStyle),
-          ),
+          SizedBox(width: 52, child: Text('不透明度', style: labelStyle)),
           const SizedBox(width: 8),
           Expanded(
             child: Slider(
@@ -266,10 +279,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     Widget blendRow() {
       return Row(
         children: [
-          SizedBox(
-            width: 52,
-            child: Text('混合模式', style: labelStyle),
-          ),
+          SizedBox(width: 52, child: Text('混合模式', style: labelStyle)),
           const SizedBox(width: 8),
           Expanded(
             child: ComboBox<CanvasLayerBlendMode>(
@@ -446,7 +456,8 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                             Icon(
                                               FluentIcons.lock,
                                               size: 12,
-                                              color: theme.resources
+                                              color: theme
+                                                  .resources
                                                   .textFillColorSecondary,
                                             ),
                                           ],
@@ -457,16 +468,17 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                   deleteButton,
                                 ],
                               ),
-                            if (layer.clippingMask)
-                              Positioned(
-                                left: -10,
-                                top: 6,
-                                bottom: 6,
-                                child: _ClippingMaskIndicator(
-                                  color: theme.accentColor
-                                      .defaultBrushFor(theme.brightness),
+                              if (layer.clippingMask)
+                                Positioned(
+                                  left: -10,
+                                  top: 6,
+                                  bottom: 6,
+                                  child: _ClippingMaskIndicator(
+                                    color: theme.accentColor.defaultBrushFor(
+                                      theme.brightness,
+                                    ),
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -587,7 +599,8 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                             Icon(
                                               FluentIcons.lock,
                                               size: 12,
-                                              color: theme.resources
+                                              color: theme
+                                                  .resources
                                                   .textFillColorSecondary,
                                             ),
                                           ],
@@ -603,8 +616,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                   left: -18,
                                   top: 12,
                                   child: _ClippingMaskIndicator(
-                                    color: theme.accentColor
-                                        .defaultBrushFor(theme.brightness),
+                                    color: theme.accentColor.defaultBrushFor(
+                                      theme.brightness,
+                                    ),
                                   ),
                                 ),
                             ],

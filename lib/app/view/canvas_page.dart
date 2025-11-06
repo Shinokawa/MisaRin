@@ -199,7 +199,10 @@ class CanvasPageState extends State<CanvasPage> {
     if (selectedPath == null) {
       return false;
     }
-    final String normalizedPath = _normalizeExportPath(selectedPath, choice.extension);
+    final String normalizedPath = _normalizeExportPath(
+      selectedPath,
+      choice.extension,
+    );
 
     setState(() => _isSaving = true);
     try {
@@ -217,17 +220,11 @@ class CanvasPageState extends State<CanvasPage> {
           previewBytes: preview,
           path: normalizedPath,
         );
-        saved = await _repository.saveDocumentAs(
-          updated,
-          normalizedPath,
-        );
+        saved = await _repository.saveDocumentAs(updated, normalizedPath);
         successMessage = '项目已保存到 $normalizedPath';
       } else {
         await _repository.exportDocumentAsPsd(
-          document: _document.copyWith(
-            layers: layers,
-            previewBytes: preview,
-          ),
+          document: _document.copyWith(layers: layers, previewBytes: preview),
           path: normalizedPath,
         );
         saved = _document.copyWith(
@@ -274,16 +271,16 @@ class CanvasPageState extends State<CanvasPage> {
             Tooltip(
               message: '导出为 PSD 文件',
               child: Button(
-                onPressed: () => Navigator.of(context).pop(
-                  const _ExportChoice(_ExportType.psd, 'psd'),
-                ),
+                onPressed: () => Navigator.of(
+                  context,
+                ).pop(const _ExportChoice(_ExportType.psd, 'psd')),
                 child: const Text('保存为 PSD'),
               ),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(
-                const _ExportChoice(_ExportType.rin, 'rin'),
-              ),
+              onPressed: () => Navigator.of(
+                context,
+              ).pop(const _ExportChoice(_ExportType.rin, 'rin')),
               child: const Text('保存为 RIN'),
             ),
           ],
@@ -355,14 +352,12 @@ class CanvasPageState extends State<CanvasPage> {
   void _applyCanvasRotation(CanvasRotation rotation) {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
-      _showInfoBar('画布尚未准备好，无法执行图像变换。',
-          severity: InfoBarSeverity.warning);
+      _showInfoBar('画布尚未准备好，无法执行图像变换。', severity: InfoBarSeverity.warning);
       return;
     }
     final CanvasRotationResult? result = board.rotateCanvas(rotation);
     if (result == null) {
-      _showInfoBar('画布尺寸异常，无法执行图像变换。',
-          severity: InfoBarSeverity.error);
+      _showInfoBar('画布尺寸异常，无法执行图像变换。', severity: InfoBarSeverity.error);
       return;
     }
 
@@ -480,6 +475,23 @@ class CanvasPageState extends State<CanvasPage> {
         ),
       ),
     );
+  }
+
+  void _applyLayerAntialias(int level) {
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null) {
+      _showInfoBar('当前没有可操作的画布', severity: InfoBarSeverity.warning);
+      return;
+    }
+    final bool applied = board.applyLayerAntialiasLevel(level);
+    if (!applied) {
+      _showInfoBar(
+        '无法对当前图层应用抗锯齿，图层可能为空或已锁定。',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    _workspace.markDirty(_document.id, true);
   }
 
   Future<void> _closePage() async {
@@ -624,6 +636,10 @@ class CanvasPageState extends State<CanvasPage> {
       export: () async {
         await _exportProject();
       },
+      applyLayerAntialias0: () => _applyLayerAntialias(0),
+      applyLayerAntialias1: () => _applyLayerAntialias(1),
+      applyLayerAntialias2: () => _applyLayerAntialias(2),
+      applyLayerAntialias3: () => _applyLayerAntialias(3),
     );
 
     return MenuActionBinding(

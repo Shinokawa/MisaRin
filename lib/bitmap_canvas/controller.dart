@@ -69,6 +69,18 @@ class BitmapCanvasController extends ChangeNotifier {
   final StrokeSampleSeries _strokeSamples = StrokeSampleSeries();
   final VelocitySmoother _velocitySmoother = VelocitySmoother();
 
+  static const int _kAntialiasCenterWeight = 4;
+  static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
+  static const List<int> _kAntialiasDy = <int>[-1, -1, -1, 0, 0, 1, 1, 1];
+  static const List<int> _kAntialiasWeights = <int>[1, 2, 1, 2, 2, 1, 2, 1];
+  static const Map<int, List<double>> _kAntialiasBlendProfiles =
+      <int, List<double>>{
+        0: <double>[0.25],
+        1: <double>[0.35, 0.35],
+        2: <double>[0.45, 0.5, 0.5],
+        3: <double>[0.6, 0.65, 0.7, 0.75],
+      };
+
   ui.Image? _cachedImage;
   bool _compositeDirty = true;
   bool _refreshScheduled = false;
@@ -130,6 +142,90 @@ class BitmapCanvasController extends ChangeNotifier {
       throw ArgumentError('Selection mask size mismatch');
     }
     _selectionMask = mask;
+  }
+
+  bool _runAntialiasPass(
+    Uint32List src,
+    Uint32List dest,
+    int width,
+    int height,
+    double blendFactor,
+  ) {
+    dest.setAll(0, src);
+    if (blendFactor <= 0) {
+      return false;
+    }
+    final double factor = blendFactor.clamp(0.0, 1.0);
+    bool modified = false;
+    for (int y = 0; y < height; y++) {
+      final int rowOffset = y * width;
+      for (int x = 0; x < width; x++) {
+        final int index = rowOffset + x;
+        final int center = src[index];
+        final int alpha = (center >> 24) & 0xff;
+
+        int totalWeight = _kAntialiasCenterWeight;
+        int weightedAlpha = alpha * _kAntialiasCenterWeight;
+        int weightedPremulR =
+            ((center >> 16) & 0xff) * alpha * _kAntialiasCenterWeight;
+        int weightedPremulG =
+            ((center >> 8) & 0xff) * alpha * _kAntialiasCenterWeight;
+        int weightedPremulB = (center & 0xff) * alpha * _kAntialiasCenterWeight;
+
+        for (int i = 0; i < _kAntialiasDx.length; i++) {
+          final int nx = x + _kAntialiasDx[i];
+          final int ny = y + _kAntialiasDy[i];
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+            continue;
+          }
+          final int neighbor = src[ny * width + nx];
+          final int neighborAlpha = (neighbor >> 24) & 0xff;
+          final int weight = _kAntialiasWeights[i];
+          totalWeight += weight;
+          if (neighborAlpha == 0) {
+            continue;
+          }
+          weightedAlpha += neighborAlpha * weight;
+          weightedPremulR += ((neighbor >> 16) & 0xff) * neighborAlpha * weight;
+          weightedPremulG += ((neighbor >> 8) & 0xff) * neighborAlpha * weight;
+          weightedPremulB += (neighbor & 0xff) * neighborAlpha * weight;
+        }
+
+        if (totalWeight <= 0) {
+          continue;
+        }
+
+        final int candidateAlpha = (weightedAlpha ~/ totalWeight).clamp(0, 255);
+        if (candidateAlpha <= alpha) {
+          continue;
+        }
+
+        final int newAlpha =
+            (alpha + ((candidateAlpha - alpha) * factor).round()).clamp(
+              alpha + 1,
+              255,
+            );
+        if (newAlpha <= alpha) {
+          continue;
+        }
+
+        final int boundedWeightedAlpha = math.max(weightedAlpha, 1);
+        final int neighborColorR = (weightedPremulR ~/ boundedWeightedAlpha)
+            .clamp(0, 255);
+        final int neighborColorG = (weightedPremulG ~/ boundedWeightedAlpha)
+            .clamp(0, 255);
+        final int neighborColorB = (weightedPremulB ~/ boundedWeightedAlpha)
+            .clamp(0, 255);
+
+        final int newR = neighborColorR;
+        final int newG = neighborColorG;
+        final int newB = neighborColorB;
+
+        dest[index] = (newAlpha << 24) | (newR << 16) | (newG << 8) | newB;
+        modified = true;
+      }
+    }
+    return modified;
   }
 
   void translateActiveLayer(int dx, int dy) {
@@ -692,6 +788,64 @@ class BitmapCanvasController extends ChangeNotifier {
     _currentStrokeAntialiasLevel = 0;
     _strokeSamples.clear();
     _velocitySmoother.reset();
+  }
+
+  bool applyAntialiasToActiveLayer(int level, {bool previewOnly = false}) {
+    if (_layers.isEmpty) {
+      return false;
+    }
+    final BitmapLayerState layer = _activeLayer;
+    if (layer.locked) {
+      return false;
+    }
+    final List<double> profile = List<double>.from(
+      _kAntialiasBlendProfiles[level.clamp(0, 3)] ?? const <double>[0.25],
+    );
+    if (profile.isEmpty) {
+      return false;
+    }
+    final Uint32List pixels = layer.surface.pixels;
+    if (pixels.isEmpty) {
+      return false;
+    }
+    final Uint32List temp = Uint32List(pixels.length);
+    Uint32List src = pixels;
+    Uint32List dest = temp;
+    bool anyChange = false;
+    for (final double factor in profile) {
+      if (factor <= 0) {
+        continue;
+      }
+      final bool changed = _runAntialiasPass(
+        src,
+        dest,
+        _width,
+        _height,
+        factor,
+      );
+      if (!changed) {
+        continue;
+      }
+      if (previewOnly) {
+        return true;
+      }
+      anyChange = true;
+      final Uint32List swap = src;
+      src = dest;
+      dest = swap;
+    }
+    if (!anyChange) {
+      return false;
+    }
+    if (previewOnly) {
+      return true;
+    }
+    if (!identical(src, pixels)) {
+      pixels.setAll(0, src);
+    }
+    _markDirty();
+    notifyListeners();
+    return true;
   }
 
   void setStrokePressureProfile(StrokePressureProfile profile) {

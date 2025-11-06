@@ -88,7 +88,9 @@ class BitmapSurface {
         if (coverage >= 0.999) {
           blendPixel(x, y, color);
         } else {
-          final int adjustedAlpha = (color.alpha * coverage).round().clamp(
+          final int argb = color.toARGB32();
+          final int baseAlpha = (argb >> 24) & 0xff;
+          final int adjustedAlpha = (baseAlpha * coverage).round().clamp(
             0,
             255,
           );
@@ -338,12 +340,7 @@ class BitmapSurface {
     pixels[index] = (outA << 24) | (outR << 16) | (outG << 8) | outB;
   }
 
-  static int encodeColor(Color color) {
-    return (color.alpha << 24) |
-        (color.red << 16) |
-        (color.green << 8) |
-        color.blue;
-  }
+  static int encodeColor(Color color) => color.toARGB32();
 
   static Color decodeColor(int value) {
     final int a = (value >> 24) & 0xff;
