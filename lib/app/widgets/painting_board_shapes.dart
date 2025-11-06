@@ -93,13 +93,35 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     }
 
     _pushUndoSnapshot();
+    final bool simulatePressure = _simulatePenPressure;
+    const double fastDeltaMs = 3.5;
+    const double slowDeltaMs = 22.0;
+    double accumulatedTime = 0.0;
     _controller.beginStroke(
       strokePoints.first,
       color: _primaryColor,
       radius: _penStrokeWidth / 2,
+      simulatePressure: simulatePressure,
+      profile: _penPressureProfile,
+      timestampMillis: accumulatedTime,
     );
     for (int i = 1; i < strokePoints.length; i++) {
-      _controller.extendStroke(strokePoints[i]);
+      final Offset point = strokePoints[i];
+      if (simulatePressure) {
+        final Offset previous = strokePoints[i - 1];
+        final double distance = (point - previous).distance;
+        final double normalized = (distance / 18.0).clamp(0.0, 1.0);
+        final double deltaTime =
+            ui.lerpDouble(fastDeltaMs, slowDeltaMs, normalized) ?? fastDeltaMs;
+        accumulatedTime += deltaTime;
+        _controller.extendStroke(
+          point,
+          deltaTimeMillis: deltaTime,
+          timestampMillis: accumulatedTime,
+        );
+      } else {
+        _controller.extendStroke(point);
+      }
     }
     _controller.endStroke();
     _markDirty();

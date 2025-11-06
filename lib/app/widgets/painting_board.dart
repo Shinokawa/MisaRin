@@ -169,6 +169,14 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _canvasSize.height * _viewport.scale,
   );
 
+  bool _isWithinCanvasBounds(Offset position) {
+    final Size size = _canvasSize;
+    return position.dx >= 0 &&
+        position.dy >= 0 &&
+        position.dx <= size.width &&
+        position.dy <= size.height;
+  }
+
   Offset _baseOffsetForScale(double scale) {
     final Size workspace = _workspaceSize;
     if (workspace.width <= 0 ||

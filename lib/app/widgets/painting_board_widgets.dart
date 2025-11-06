@@ -374,7 +374,8 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
   Widget _buildBrushControls(FluentThemeData theme) {
     final bool showPressureToggle =
         widget.activeTool == CanvasTool.pen ||
-        widget.activeTool == CanvasTool.curvePen;
+        widget.activeTool == CanvasTool.curvePen ||
+        widget.activeTool == CanvasTool.shape;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,

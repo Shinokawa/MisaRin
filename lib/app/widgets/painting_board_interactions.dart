@@ -495,25 +495,33 @@ mixin _PaintingBoardInteractionMixin
 
   void _handleCurvePenPointerDown(Offset boardLocal) {
     _focusNode.requestFocus();
+    final bool insideCanvas = _isWithinCanvasBounds(boardLocal);
     if (_curveAnchor == null) {
-      if (!isPointInsideSelection(boardLocal)) {
+      if (insideCanvas && !isPointInsideSelection(boardLocal)) {
         return;
       }
-      _pushUndoSnapshot();
-      _controller.beginStroke(
-        boardLocal,
-        color: _primaryColor,
-        radius: _penStrokeWidth / 2,
-      );
-      _controller.endStroke();
-      _markDirty();
+      if (insideCanvas) {
+        _pushUndoSnapshot();
+        _controller.beginStroke(
+          boardLocal,
+          color: _primaryColor,
+          radius: _penStrokeWidth / 2,
+          simulatePressure: _simulatePenPressure,
+          profile: _penPressureProfile,
+        );
+        _controller.endStroke();
+        _markDirty();
+      }
       setState(() {
         _curveAnchor = boardLocal;
         _curvePreviewPath = null;
       });
       return;
     }
-    if (!isPointInsideSelection(boardLocal) || _isCurvePlacingSegment) {
+    if (_isCurvePlacingSegment) {
+      return;
+    }
+    if (insideCanvas && !isPointInsideSelection(boardLocal)) {
       return;
     }
     setState(() {
@@ -674,12 +682,13 @@ mixin _PaintingBoardInteractionMixin
     if (_isInsideToolArea(pointer)) {
       return;
     }
+    final CanvasTool tool = _effectiveActiveTool;
     final Rect boardRect = _boardRect;
-    if (!boardRect.contains(pointer)) {
+    final bool pointerInsideBoard = boardRect.contains(pointer);
+    if (!pointerInsideBoard && tool != CanvasTool.curvePen) {
       return;
     }
     final Offset boardLocal = _toBoardLocal(pointer);
-    final CanvasTool tool = _effectiveActiveTool;
     switch (tool) {
       case CanvasTool.layerAdjust:
         _beginLayerAdjustDrag(boardLocal);
