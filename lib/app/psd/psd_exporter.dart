@@ -3,8 +3,10 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' show Color;
 
+import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../project/project_document.dart';
+import '../../canvas/blend_mode_math.dart';
 
 /// 极简 PSD 导出器（8BPS v1 / RGB / 8bit / Raw）。
 /// 仅支持普通位图图层，忽略高级特性（混合模式、剪贴蒙版遮罩等）。
@@ -103,7 +105,7 @@ class _LayerMaskSection {
     }
 
     writer.writeAscii('8BIM');
-    writer.writeAscii(_blendKey(layer.blendMode));
+    writer.writeAscii(layer.blendMode.psdKey);
     writer.writeUint8((layer.opacity.clamp(0.0, 1.0) * 255).round());
     writer.writeUint8(layer.clippingMask ? 1 : 0);
 
@@ -204,16 +206,6 @@ class _LayerMaskSection {
       writer.writeUint8(0);
     }
   }
-
-  String _blendKey(CanvasLayerBlendMode mode) {
-    switch (mode) {
-      case CanvasLayerBlendMode.multiply:
-        return 'mul ';
-      case CanvasLayerBlendMode.normal:
-      default:
-        return 'norm';
-    }
-  }
 }
 
 class _CompositeImageSection {
@@ -290,42 +282,35 @@ class _CompositeImageSection {
     double opacity,
     CanvasLayerBlendMode mode,
   ) {
-    for (int i = 0; i < dest.length; i += 4) {
-      final double sa = (src[i + 3] / 255.0) * opacity;
-      if (sa <= 0) {
+    for (int i = 0, pixelIndex = 0; i < dest.length; i += 4, pixelIndex++) {
+      final int baseAlpha = src[i + 3];
+      if (baseAlpha == 0) {
         continue;
       }
-      final double da = dest[i + 3] / 255.0;
-      final double ra;
-      double sr = src[i] / 255.0;
-      double sg = src[i + 1] / 255.0;
-      double sb = src[i + 2] / 255.0;
-      double dr = dest[i] / 255.0;
-      double dg = dest[i + 1] / 255.0;
-      double db = dest[i + 2] / 255.0;
-
-      if (mode == CanvasLayerBlendMode.multiply) {
-        sr *= dr;
-        sg *= dg;
-        sb *= db;
-      }
-
-      ra = sa + da * (1 - sa);
-      if (ra <= 0) {
-        dest[i] = 0;
-        dest[i + 1] = 0;
-        dest[i + 2] = 0;
-        dest[i + 3] = 0;
+      final int effectiveAlpha = (baseAlpha * opacity).round().clamp(0, 255);
+      if (effectiveAlpha <= 0) {
         continue;
       }
-      final double rr = (sr * sa + dr * da * (1 - sa)) / ra;
-      final double rg = (sg * sa + dg * da * (1 - sa)) / ra;
-      final double rb = (sb * sa + db * da * (1 - sa)) / ra;
-
-      dest[i] = (rr.clamp(0.0, 1.0) * 255).round();
-      dest[i + 1] = (rg.clamp(0.0, 1.0) * 255).round();
-      dest[i + 2] = (rb.clamp(0.0, 1.0) * 255).round();
-      dest[i + 3] = (ra.clamp(0.0, 1.0) * 255).round();
+      final int srcArgb =
+          (effectiveAlpha << 24) |
+          (src[i] << 16) |
+          (src[i + 1] << 8) |
+          src[i + 2];
+      final int dstArgb =
+          (dest[i + 3] << 24) |
+          (dest[i] << 16) |
+          (dest[i + 1] << 8) |
+          dest[i + 2];
+      final int blended = CanvasBlendMath.blend(
+        dstArgb,
+        srcArgb,
+        mode,
+        pixelIndex: pixelIndex,
+      );
+      dest[i] = (blended >> 16) & 0xff;
+      dest[i + 1] = (blended >> 8) & 0xff;
+      dest[i + 2] = blended & 0xff;
+      dest[i + 3] = (blended >> 24) & 0xff;
     }
   }
 }
@@ -356,9 +341,7 @@ class _ByteWriter {
   }
 
   void writeUint16(int value) {
-    _builder.add(
-      Uint8List.fromList(<int>[(value >> 8) & 0xFF, value & 0xFF]),
-    );
+    _builder.add(Uint8List.fromList(<int>[(value >> 8) & 0xFF, value & 0xFF]));
   }
 
   void writeInt32(int value) {

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../bitmap_canvas/bitmap_canvas.dart';
+import 'blend_mode_math.dart';
 import 'canvas_layer.dart';
 import 'canvas_settings.dart';
 
@@ -170,7 +171,7 @@ class CanvasExporter {
           color = effectiveColor;
           initialized = true;
         } else {
-          color = _blendWithMode(color, effectiveColor, layer.blendMode);
+          color = _blendWithMode(color, effectiveColor, layer.blendMode, index);
         }
       }
       composite[index] = initialized ? color : 0;
@@ -242,100 +243,13 @@ double _clampUnit(double value) {
   return value;
 }
 
-int _blendWithMode(int dst, int src, CanvasLayerBlendMode mode) {
-  switch (mode) {
-    case CanvasLayerBlendMode.normal:
-      return _blendArgb(dst, src);
-    case CanvasLayerBlendMode.multiply:
-      return _blendMultiply(dst, src);
-  }
-}
-
-int _blendArgb(int dst, int src) {
-  final int srcA = (src >> 24) & 0xff;
-  if (srcA == 0) {
-    return dst;
-  }
-  if (srcA == 255) {
-    return src;
-  }
-
-  final int dstA = (dst >> 24) & 0xff;
-  final int invSrcA = 255 - srcA;
-  final int outA = srcA + _mul255(dstA, invSrcA);
-  if (outA == 0) {
-    return 0;
-  }
-
-  final int srcR = (src >> 16) & 0xff;
-  final int srcG = (src >> 8) & 0xff;
-  final int srcB = src & 0xff;
-  final int dstR = (dst >> 16) & 0xff;
-  final int dstG = (dst >> 8) & 0xff;
-  final int dstB = dst & 0xff;
-
-  final int srcPremR = _mul255(srcR, srcA);
-  final int srcPremG = _mul255(srcG, srcA);
-  final int srcPremB = _mul255(srcB, srcA);
-  final int dstPremR = _mul255(dstR, dstA);
-  final int dstPremG = _mul255(dstG, dstA);
-  final int dstPremB = _mul255(dstB, dstA);
-
-  final int outPremR = srcPremR + _mul255(dstPremR, invSrcA);
-  final int outPremG = srcPremG + _mul255(dstPremG, invSrcA);
-  final int outPremB = srcPremB + _mul255(dstPremB, invSrcA);
-
-  final int outR = _clampToByte(((outPremR * 255) + (outA >> 1)) ~/ outA);
-  final int outG = _clampToByte(((outPremG * 255) + (outA >> 1)) ~/ outA);
-  final int outB = _clampToByte(((outPremB * 255) + (outA >> 1)) ~/ outA);
-
-  return (outA << 24) | (outR << 16) | (outG << 8) | outB;
-}
-
-int _blendMultiply(int dst, int src) {
-  final int srcA = (src >> 24) & 0xff;
-  if (srcA == 0) {
-    return dst;
-  }
-
-  final int dstA = (dst >> 24) & 0xff;
-  final double sa = srcA / 255.0;
-  final double da = dstA / 255.0;
-  final double outA = sa + da * (1 - sa);
-
-  final int srcR = (src >> 16) & 0xff;
-  final int srcG = (src >> 8) & 0xff;
-  final int srcB = src & 0xff;
-  final int dstR = (dst >> 16) & 0xff;
-  final int dstG = (dst >> 8) & 0xff;
-  final int dstB = dst & 0xff;
-
-  double blendComponent(int sr, int dr) {
-    final double srcNorm = sr / 255.0;
-    final double dstNorm = dr / 255.0;
-    return dstNorm * (1 - sa) + dstNorm * srcNorm * sa;
-  }
-
-  final int outR = _clampToByte((blendComponent(srcR, dstR) * 255).round());
-  final int outG = _clampToByte((blendComponent(srcG, dstG) * 255).round());
-  final int outB = _clampToByte((blendComponent(srcB, dstB) * 255).round());
-  final int outAlpha = _clampToByte((outA * 255).round());
-
-  return (outAlpha << 24) | (outR << 16) | (outG << 8) | outB;
-}
-
-int _mul255(int channel, int alpha) {
-  return (channel * alpha + 127) ~/ 255;
-}
-
-int _clampToByte(int value) {
-  if (value <= 0) {
-    return 0;
-  }
-  if (value >= 255) {
-    return 255;
-  }
-  return value;
+int _blendWithMode(
+  int dst,
+  int src,
+  CanvasLayerBlendMode mode,
+  int pixelIndex,
+) {
+  return CanvasBlendMath.blend(dst, src, mode, pixelIndex: pixelIndex);
 }
 
 int _encodeColor(ui.Color color) {

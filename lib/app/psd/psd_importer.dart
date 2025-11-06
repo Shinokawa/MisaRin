@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../project/project_document.dart';
@@ -17,17 +18,17 @@ import '../project/project_document.dart';
 class PsdImporter {
   const PsdImporter();
 
-  Future<ProjectDocument> importFile(
-    String path, {
-    String? displayName,
-  }) async {
+  Future<ProjectDocument> importFile(String path, {String? displayName}) async {
     final Uint8List data = await File(path).readAsBytes();
     final _ByteReader reader = _ByteReader(data);
 
     final _PsdHeader header = _readHeader(reader);
     final _PsdSections sections = _readSections(reader);
-    final List<_PsdLayerRecord> records =
-        _readLayers(reader, header, sections.layerAndMaskLength);
+    final List<_PsdLayerRecord> records = _readLayers(
+      reader,
+      header,
+      sections.layerAndMaskLength,
+    );
 
     final DateTime now = DateTime.now();
     final CanvasSettings settings = CanvasSettings(
@@ -43,8 +44,11 @@ class PsdImporter {
 
     final List<CanvasLayerData> canvasLayers = <CanvasLayerData>[];
     for (final _PsdLayerRecord record in records) {
-      final CanvasLayerData? canvasLayer =
-          _convertLayer(record, header.width, header.height);
+      final CanvasLayerData? canvasLayer = _convertLayer(
+        record,
+        header.width,
+        header.height,
+      );
       if (canvasLayer != null) {
         canvasLayers.add(canvasLayer);
       }
@@ -255,7 +259,9 @@ class PsdImporter {
     for (int i = 0; i + 1 < encoded.length; i += 2) {
       codeUnits.add((encoded[i] << 8) | encoded[i + 1]);
     }
-    final String value = codeUnits.isEmpty ? '' : String.fromCharCodes(codeUnits);
+    final String value = codeUnits.isEmpty
+        ? ''
+        : String.fromCharCodes(codeUnits);
     final int consumed = reader.offset - blockStart;
     final int remaining = blockLength - consumed;
     if (remaining > 0) {
@@ -315,7 +321,11 @@ class PsdImporter {
       final int signed = value > 127 ? value - 256 : value;
       if (signed >= 0) {
         final int count = signed + 1;
-        for (int j = 0; j < count && written < expectedPixels && i < input.length; j++) {
+        for (
+          int j = 0;
+          j < count && written < expectedPixels && i < input.length;
+          j++
+        ) {
           output[offset + written] = input[i++];
           written += 1;
         }
@@ -345,12 +355,14 @@ class PsdImporter {
       return null;
     }
 
-    final Uint8List red = record.channelData(0) ?? _filled(layerWidth * layerHeight, 0);
+    final Uint8List red =
+        record.channelData(0) ?? _filled(layerWidth * layerHeight, 0);
     final Uint8List green =
         record.channelData(1) ?? _filled(layerWidth * layerHeight, 0);
-    final Uint8List blue = record.channelData(2) ?? _filled(layerWidth * layerHeight, 0);
-    final Uint8List alpha = record.channelData(-1) ??
-        _filled(layerWidth * layerHeight, 255);
+    final Uint8List blue =
+        record.channelData(2) ?? _filled(layerWidth * layerHeight, 0);
+    final Uint8List alpha =
+        record.channelData(-1) ?? _filled(layerWidth * layerHeight, 255);
 
     final Uint8List bitmap = Uint8List(canvasWidth * canvasHeight * 4);
 
@@ -468,17 +480,8 @@ class _PsdLayerRecord {
     return value > 0 ? value : 0;
   }
 
-  CanvasLayerBlendMode get blendMode {
-    final String normalized = blendKey.trim();
-    switch (normalized) {
-      case 'mul':
-      case 'mul ':
-      case 'Mltp':
-        return CanvasLayerBlendMode.multiply;
-      default:
-        return CanvasLayerBlendMode.normal;
-    }
-  }
+  CanvasLayerBlendMode get blendMode =>
+      CanvasLayerBlendModeX.fromPsdKey(blendKey);
 
   Uint8List? channelData(int channelId) {
     for (final _PsdChannel channel in channels) {
@@ -529,8 +532,10 @@ class _ByteReader {
 
   int readUint32() {
     final int value =
-        (_bytes[_offset] << 24) | (_bytes[_offset + 1] << 16) |
-        (_bytes[_offset + 2] << 8) | _bytes[_offset + 3];
+        (_bytes[_offset] << 24) |
+        (_bytes[_offset + 1] << 16) |
+        (_bytes[_offset + 2] << 8) |
+        _bytes[_offset + 3];
     _offset += 4;
     return value;
   }
@@ -544,7 +549,11 @@ class _ByteReader {
     if (length <= 0) {
       return Uint8List(0);
     }
-    final Uint8List slice = Uint8List.sublistView(_bytes, _offset, _offset + length);
+    final Uint8List slice = Uint8List.sublistView(
+      _bytes,
+      _offset,
+      _offset + length,
+    );
     _offset += length;
     return Uint8List.fromList(slice);
   }

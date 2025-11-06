@@ -1,8 +1,10 @@
 part of 'painting_board.dart';
 
-mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
+mixin _PaintingBoardBuildMixin
+    on _PaintingBoardBase, _PaintingBoardInteractionMixin {
   @override
   Widget build(BuildContext context) {
+    _refreshStylusPreferencesIfNeeded();
     _refreshHistoryLimit();
     final bool canUndo = this.canUndo;
     final bool canRedo = this.canRedo;
@@ -72,6 +74,9 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
+        _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
+          _workspaceSize.height - _toolButtonPadding * 2,
+        );
         final Rect boardRect = _boardRect;
         final ToolCursorStyle? cursorStyle = ToolCursorStyles.styleFor(
           _effectiveActiveTool,
@@ -356,18 +361,22 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               canUndo: canUndo,
                               canRedo: canRedo,
                               onExit: widget.onRequestExit,
+                              layout: _toolbarLayout,
                             ),
                           ),
                           Positioned(
                             left:
                                 _toolButtonPadding +
-                                _toolbarButtonSize +
+                                _toolbarLayout.width +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
                             child: _ToolSettingsCard(
                               activeTool: _activeTool,
                               penStrokeWidth: _penStrokeWidth,
                               onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                              stylusPressureEnabled: _stylusPressureEnabled,
+                              onStylusPressureEnabledChanged:
+                                  _updateStylusPressureEnabled,
                               simulatePenPressure: _simulatePenPressure,
                               onSimulatePenPressureChanged:
                                   _updatePenPressureSimulation,
@@ -505,10 +514,5 @@ Widget _buildTransformedLayerOverlay({
 }
 
 ui.BlendMode? _flutterBlendMode(CanvasLayerBlendMode mode) {
-  switch (mode) {
-    case CanvasLayerBlendMode.normal:
-      return null;
-    case CanvasLayerBlendMode.multiply:
-      return ui.BlendMode.multiply;
-  }
+  return mode.flutterBlendMode;
 }

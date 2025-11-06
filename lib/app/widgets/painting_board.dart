@@ -42,6 +42,7 @@ import 'package:flutter_localizations/flutter_localizations.dart'
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/controller.dart';
 import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
+import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_tools.dart';
@@ -63,8 +64,8 @@ part 'painting_board_build.dart';
 part 'painting_board_widgets.dart';
 
 const double _toolButtonPadding = 16;
-const double _toolbarButtonSize = 48;
-const double _toolbarSpacing = 9;
+const double _toolbarButtonSize = CanvasToolbar.buttonSize;
+const double _toolbarSpacing = CanvasToolbar.spacing;
 const double _toolSettingsSpacing = 12;
 const double _zoomStep = 1.1;
 const double _defaultPenStrokeWidth = 3;
@@ -125,6 +126,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _penStrokeWidth = _defaultPenStrokeWidth;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = 0;
+  bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
+  double _stylusMinFactor = AppPreferences.defaultStylusMinFactor;
+  double _stylusMaxFactor = AppPreferences.defaultStylusMaxFactor;
+  double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _layerOpacityGestureActive = false;
@@ -147,7 +152,18 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _lastWorkspacePointer;
   Offset? _penCursorWorkspacePosition;
   Duration? _lastPenSampleTimestamp;
+  bool _activeStrokeUsesStylus = false;
+  double? _activeStylusPressureMin;
+  double? _activeStylusPressureMax;
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
+  CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
+    columns: 1,
+    rows: CanvasToolbar.buttonCount,
+    width: CanvasToolbar.buttonSize,
+    height:
+        CanvasToolbar.buttonSize * CanvasToolbar.buttonCount +
+        CanvasToolbar.spacing * (CanvasToolbar.buttonCount - 1),
+  );
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -176,6 +192,35 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         position.dy >= 0 &&
         position.dx <= size.width &&
         position.dy <= size.height;
+  }
+
+  void _applyStylusSettingsToController() {
+    _controller.configureStylusPressure(
+      enabled: _stylusPressureEnabled,
+      minFactor: _stylusMinFactor,
+      maxFactor: _stylusMaxFactor,
+      curve: _stylusCurve,
+    );
+  }
+
+  void _refreshStylusPreferencesIfNeeded() {
+    final AppPreferences prefs = AppPreferences.instance;
+    const double epsilon = 0.0001;
+    final bool needsUpdate =
+        _stylusPressureEnabled != prefs.stylusPressureEnabled ||
+        (_stylusMinFactor - prefs.stylusPressureMinFactor).abs() > epsilon ||
+        (_stylusMaxFactor - prefs.stylusPressureMaxFactor).abs() > epsilon ||
+        (_stylusCurve - prefs.stylusPressureCurve).abs() > epsilon;
+    if (!needsUpdate) {
+      return;
+    }
+    _stylusPressureEnabled = prefs.stylusPressureEnabled;
+    _stylusMinFactor = prefs.stylusPressureMinFactor;
+    _stylusMaxFactor = prefs.stylusPressureMaxFactor;
+    _stylusCurve = prefs.stylusPressureCurve;
+    if (mounted) {
+      _applyStylusSettingsToController();
+    }
   }
 
   Offset _baseOffsetForScale(double scale) {
@@ -670,6 +715,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
+    _stylusPressureEnabled = prefs.stylusPressureEnabled;
+    _stylusMinFactor = prefs.stylusPressureMinFactor;
+    _stylusMaxFactor = prefs.stylusPressureMaxFactor;
+    _stylusCurve = prefs.stylusPressureCurve;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
@@ -680,6 +729,7 @@ class PaintingBoardState extends _PaintingBoardBase
       backgroundColor: widget.settings.backgroundColor,
       initialLayers: layers,
     );
+    _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
     _resetHistory();
   }
@@ -709,6 +759,7 @@ class PaintingBoardState extends _PaintingBoardBase
         backgroundColor: widget.settings.backgroundColor,
         initialLayers: _buildInitialLayers(),
       );
+      _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
       _resetHistory();
       setState(() {

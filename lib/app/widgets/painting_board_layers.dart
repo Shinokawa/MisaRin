@@ -284,15 +284,16 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
           Expanded(
             child: ComboBox<CanvasLayerBlendMode>(
               value: activeLayer.blendMode,
-              items: CanvasLayerBlendMode.values
+              items: kCanvasBlendModeDisplayOrder
                   .map(
-                    (mode) => ComboBoxItem<CanvasLayerBlendMode>(
-                      value: mode,
-                      child: Text(_blendModeLabel(mode)),
-                    ),
+                    (CanvasLayerBlendMode mode) =>
+                        ComboBoxItem<CanvasLayerBlendMode>(
+                          value: mode,
+                          child: Text(mode.label),
+                        ),
                   )
                   .toList(growable: false),
-              onChanged: (mode) {
+              onChanged: (CanvasLayerBlendMode? mode) {
                 if (mode != null) {
                   _updateActiveLayerBlendMode(mode);
                 }
@@ -313,15 +314,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
         blendRow(),
       ],
     );
-  }
-
-  String _blendModeLabel(CanvasLayerBlendMode mode) {
-    switch (mode) {
-      case CanvasLayerBlendMode.normal:
-        return '正常';
-      case CanvasLayerBlendMode.multiply:
-        return '正片叠底';
-    }
   }
 
   Widget _buildLayerPanelContent(FluentThemeData theme) {

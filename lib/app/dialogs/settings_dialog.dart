@@ -38,11 +38,19 @@ class _SettingsDialogContent extends StatefulWidget {
 
 class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late int _historyLimit;
+  late bool _stylusPressureEnabled;
+  late double _stylusMinFactor;
+  late double _stylusMaxFactor;
+  late double _stylusCurve;
 
   @override
   void initState() {
     super.initState();
     _historyLimit = AppPreferences.instance.historyLimit;
+    _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
+    _stylusMinFactor = AppPreferences.instance.stylusPressureMinFactor;
+    _stylusMaxFactor = AppPreferences.instance.stylusPressureMaxFactor;
+    _stylusCurve = AppPreferences.instance.stylusPressureCurve;
   }
 
   @override
@@ -87,6 +95,86 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                 unawaited(AppPreferences.save());
               }
             },
+          ),
+        ),
+        const SizedBox(height: 16),
+        InfoLabel(
+          label: '数位笔压设置',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('启用数位笔笔压'),
+                  const SizedBox(width: 12),
+                  ToggleSwitch(
+                    checked: _stylusPressureEnabled,
+                    onChanged: (value) {
+                      setState(() => _stylusPressureEnabled = value);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.stylusPressureEnabled = value;
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _StylusSliderTile(
+                label: '最细倍数',
+                description: '控制笔压最轻时笔刷半径与基础半径的倍数。',
+                value: _stylusMinFactor,
+                min: AppPreferences.stylusMinFactorLowerBound,
+                max: AppPreferences.stylusMinFactorUpperBound,
+                enabled: _stylusPressureEnabled,
+                onChanged: (value) {
+                  setState(() {
+                    _stylusMinFactor = value;
+                    if (_stylusMaxFactor <= _stylusMinFactor) {
+                      _stylusMaxFactor = (_stylusMinFactor + 0.01)
+                          .clamp(
+                            AppPreferences.stylusMaxFactorLowerBound,
+                            AppPreferences.stylusMaxFactorUpperBound,
+                          );
+                    }
+                  });
+                  final AppPreferences prefs = AppPreferences.instance;
+                  prefs.stylusPressureMinFactor = _stylusMinFactor;
+                  prefs.stylusPressureMaxFactor = _stylusMaxFactor;
+                  unawaited(AppPreferences.save());
+                },
+              ),
+              const SizedBox(height: 12),
+              _StylusSliderTile(
+                label: '最粗倍数',
+                description: '控制笔压最重时笔刷半径与基础半径的倍数。',
+                value: _stylusMaxFactor,
+                min: AppPreferences.stylusMaxFactorLowerBound,
+                max: AppPreferences.stylusMaxFactorUpperBound,
+                enabled: _stylusPressureEnabled,
+                onChanged: (value) {
+                  setState(() => _stylusMaxFactor = value);
+                  final AppPreferences prefs = AppPreferences.instance;
+                  prefs.stylusPressureMaxFactor = _stylusMaxFactor;
+                  unawaited(AppPreferences.save());
+                },
+              ),
+              const SizedBox(height: 12),
+              _StylusSliderTile(
+                label: '响应曲线',
+                description: '调整压力与笔触粗细之间的过渡速度。',
+                value: _stylusCurve,
+                min: AppPreferences.stylusCurveLowerBound,
+                max: AppPreferences.stylusCurveUpperBound,
+                enabled: _stylusPressureEnabled,
+                asMultiplier: false,
+                onChanged: (value) {
+                  setState(() => _stylusCurve = value);
+                  final AppPreferences prefs = AppPreferences.instance;
+                  prefs.stylusPressureCurve = _stylusCurve;
+                  unawaited(AppPreferences.save());
+                },
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -137,9 +225,68 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     controller.onThemeModeChanged(defaultTheme);
     setState(() {
       _historyLimit = defaultHistory;
+      _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
+      _stylusMinFactor = AppPreferences.defaultStylusMinFactor;
+      _stylusMaxFactor = AppPreferences.defaultStylusMaxFactor;
+      _stylusCurve = AppPreferences.defaultStylusCurve;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
+    prefs.stylusPressureEnabled = _stylusPressureEnabled;
+    prefs.stylusPressureMinFactor = _stylusMinFactor;
+    prefs.stylusPressureMaxFactor = _stylusMaxFactor;
+    prefs.stylusPressureCurve = _stylusCurve;
     unawaited(AppPreferences.save());
+  }
+}
+
+class _StylusSliderTile extends StatelessWidget {
+  const _StylusSliderTile({
+    required this.label,
+    required this.description,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.enabled,
+    required this.onChanged,
+    this.asMultiplier = true,
+  });
+
+  final String label;
+  final String description;
+  final double value;
+  final double min;
+  final double max;
+  final bool enabled;
+  final ValueChanged<double> onChanged;
+  final bool asMultiplier;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final double clampedValue = value.clamp(min, max);
+    final Widget slider = Slider(
+      value: clampedValue,
+      min: min,
+      max: max,
+      divisions: 100,
+      onChanged: enabled ? onChanged : null,
+    );
+
+    final String valueLabel = asMultiplier
+        ? '${clampedValue.toStringAsFixed(2)}x'
+        : clampedValue.toStringAsFixed(2);
+
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.55,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$label：$valueLabel', style: theme.typography.bodyStrong),
+          slider,
+          Text(description, style: theme.typography.caption),
+        ],
+      ),
+    );
   }
 }

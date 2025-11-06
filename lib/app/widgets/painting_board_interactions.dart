@@ -12,20 +12,43 @@ mixin _PaintingBoardInteractionMixin
   }
 
   bool _isPrimaryPointer(PointerEvent event) {
-    return event.kind == PointerDeviceKind.mouse &&
-        (event.buttons & kPrimaryMouseButton) != 0;
+    if (event.kind == PointerDeviceKind.mouse) {
+      if (event is PointerUpEvent || event is PointerCancelEvent) {
+        return true;
+      }
+      return (event.buttons & kPrimaryMouseButton) != 0;
+    }
+    if (event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus) {
+      if (event is PointerUpEvent || event is PointerCancelEvent) {
+        return true;
+      }
+      if (event is PointerHoverEvent) {
+        return true;
+      }
+      if (event is PointerDownEvent || event is PointerMoveEvent) {
+        if (event.down) {
+          return true;
+        }
+        if (event is PointerMoveEvent) {
+          return (event.pressure > 0.0) ||
+              (event.buttons & kPrimaryStylusButton) != 0;
+        }
+      }
+      return event.down;
+    }
+    return false;
   }
 
   Rect get _toolbarRect => Rect.fromLTWH(
     _toolButtonPadding,
     _toolButtonPadding,
-    _toolbarButtonSize,
-    _toolbarButtonSize * CanvasToolbar.buttonCount +
-        _toolbarSpacing * (CanvasToolbar.buttonCount - 1),
+    _toolbarLayout.width,
+    _toolbarLayout.height,
   );
 
   Rect get _toolSettingsRect => Rect.fromLTWH(
-    _toolButtonPadding + _toolbarButtonSize + _toolSettingsSpacing,
+    _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing,
     _toolButtonPadding,
     _toolSettingsCardSize.width,
     _toolSettingsCardSize.height,
@@ -153,6 +176,17 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateStylusPressureEnabled(bool value) {
+    if (_stylusPressureEnabled == value) {
+      return;
+    }
+    setState(() => _stylusPressureEnabled = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.stylusPressureEnabled = value;
+    unawaited(AppPreferences.save());
+    _applyStylusSettingsToController();
+  }
+
   @override
   void _updatePenPressureProfile(StrokePressureProfile profile) {
     if (_penPressureProfile == profile) {
@@ -196,8 +230,45 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
-  void _startStroke(Offset position, Duration timestamp) {
+  bool _isStylusEvent(PointerEvent event) {
+    return event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus;
+  }
+
+  double? _stylusPressureValue(PointerEvent? event) {
+    if (event == null || !_isStylusEvent(event)) {
+      return null;
+    }
+    final double value = event.pressure;
+    if (!value.isFinite) {
+      return null;
+    }
+    return value;
+  }
+
+  double? _stylusPressureBound(double? bound) {
+    if (bound == null || !bound.isFinite) {
+      return null;
+    }
+    return bound;
+  }
+
+  void _startStroke(
+    Offset position,
+    Duration timestamp,
+    PointerEvent? rawEvent,
+  ) {
     final Offset start = _sanitizeStrokePosition(position);
+    _activeStrokeUsesStylus = rawEvent != null &&
+        _stylusPressureEnabled &&
+        _isStylusEvent(rawEvent);
+    if (_activeStrokeUsesStylus) {
+      _activeStylusPressureMin = _stylusPressureBound(rawEvent?.pressureMin);
+      _activeStylusPressureMax = _stylusPressureBound(rawEvent?.pressureMax);
+    } else {
+      _activeStylusPressureMin = null;
+      _activeStylusPressureMax = null;
+    }
     _pushUndoSnapshot();
     _lastPenSampleTimestamp = timestamp;
     setState(() {
@@ -206,7 +277,11 @@ mixin _PaintingBoardInteractionMixin
         start,
         color: _primaryColor,
         radius: _penStrokeWidth / 2,
-        simulatePressure: _simulatePenPressure,
+        simulatePressure: _simulatePenPressure && !_activeStrokeUsesStylus,
+        useDevicePressure: _activeStrokeUsesStylus,
+        pressure: _stylusPressureValue(rawEvent),
+        pressureMin: _activeStylusPressureMin,
+        pressureMax: _activeStylusPressureMax,
         profile: _penPressureProfile,
         timestampMillis: timestamp.inMicroseconds / 1000.0,
         antialiasLevel: _penAntialiasLevel,
@@ -215,17 +290,34 @@ mixin _PaintingBoardInteractionMixin
     _markDirty();
   }
 
-  void _appendPoint(Offset position, Duration timestamp) {
+  void _appendPoint(
+    Offset position,
+    Duration timestamp,
+    PointerEvent? rawEvent,
+  ) {
     if (!_isDrawing) {
       return;
     }
     final double? deltaMillis = _registerPenSample(timestamp);
     final Offset clamped = _sanitizeStrokePosition(position);
+    if (_activeStrokeUsesStylus && rawEvent != null && _isStylusEvent(rawEvent)) {
+      final double? candidateMin = _stylusPressureBound(rawEvent.pressureMin);
+      final double? candidateMax = _stylusPressureBound(rawEvent.pressureMax);
+      if (candidateMin != null) {
+        _activeStylusPressureMin = candidateMin;
+      }
+      if (candidateMax != null) {
+        _activeStylusPressureMax = candidateMax;
+      }
+    }
     setState(() {
       _controller.extendStroke(
         clamped,
         deltaTimeMillis: deltaMillis,
         timestampMillis: timestamp.inMicroseconds / 1000.0,
+        pressure: _stylusPressureValue(rawEvent),
+        pressureMin: _activeStylusPressureMin,
+        pressureMax: _activeStylusPressureMax,
       );
     });
   }
@@ -242,6 +334,9 @@ mixin _PaintingBoardInteractionMixin
       _isDrawing = false;
     });
     _lastPenSampleTimestamp = null;
+    _activeStrokeUsesStylus = false;
+    _activeStylusPressureMin = null;
+    _activeStylusPressureMax = null;
   }
 
   Offset _sanitizeStrokePosition(Offset position) {
@@ -720,7 +815,8 @@ mixin _PaintingBoardInteractionMixin
         if (!isPointInsideSelection(boardLocal)) {
           return;
         }
-        _startStroke(boardLocal, event.timeStamp);
+        _refreshStylusPreferencesIfNeeded();
+        _startStroke(boardLocal, event.timeStamp, event);
         break;
       case CanvasTool.curvePen:
         if (_isCurveCancelModifierPressed() &&
@@ -772,7 +868,7 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
-          _appendPoint(boardLocal, event.timeStamp);
+          _appendPoint(boardLocal, event.timeStamp, event);
         }
         break;
       case CanvasTool.layerAdjust:

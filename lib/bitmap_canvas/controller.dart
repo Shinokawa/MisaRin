@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../canvas/blend_mode_math.dart';
 import '../canvas/canvas_layer.dart';
 import 'bitmap_canvas.dart';
 import 'stroke_dynamics.dart';
@@ -61,13 +62,23 @@ class BitmapCanvasController extends ChangeNotifier {
   final List<Offset> _currentStrokePoints = <Offset>[];
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
-  bool _currentStrokePressureEnabled = false;
+  bool _currentStrokeSimulatedPressure = false;
+  bool _currentStrokeStylusPressureEnabled = false;
+  double _currentStylusMinFactor = 0.1;
+  double _currentStylusMaxFactor = 1.0;
+  double _currentStylusCurve = 1.0;
+  double? _currentStylusSmoothedPressure;
+  static const double _kStylusSmoothing = 0.55;
   int _currentStrokeAntialiasLevel = 0;
   final StrokeDynamics _strokeDynamics = StrokeDynamics();
   StrokePressureProfile _strokePressureProfile = StrokePressureProfile.auto;
   Color _currentStrokeColor = const Color(0xFF000000);
   final StrokeSampleSeries _strokeSamples = StrokeSampleSeries();
   final VelocitySmoother _velocitySmoother = VelocitySmoother();
+  bool _stylusPressureEnabled = true;
+  double _stylusMinFactor = 0.18;
+  double _stylusMaxFactor = 1.28;
+  double _stylusCurve = 0.85;
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -135,6 +146,21 @@ class BitmapCanvasController extends ChangeNotifier {
       }
     }
     return false;
+  }
+
+  void configureStylusPressure({
+    required bool enabled,
+    required double minFactor,
+    required double maxFactor,
+    required double curve,
+  }) {
+    _stylusPressureEnabled = enabled;
+    final double clampedMin = minFactor.clamp(0.0, maxFactor);
+    final double clampedMax = math.max(maxFactor, clampedMin + 0.01);
+    final double clampedCurve = curve.clamp(0.1, 8.0);
+    _stylusMinFactor = clampedMin;
+    _stylusMaxFactor = clampedMax;
+    _stylusCurve = clampedCurve;
   }
 
   void setSelectionMask(Uint8List? mask) {
@@ -633,6 +659,10 @@ class BitmapCanvasController extends ChangeNotifier {
     required Color color,
     required double radius,
     bool simulatePressure = false,
+    bool useDevicePressure = false,
+    double? pressure,
+    double? pressureMin,
+    double? pressureMax,
     StrokePressureProfile profile = StrokePressureProfile.auto,
     double? timestampMillis,
     int antialiasLevel = 0,
@@ -648,16 +678,36 @@ class BitmapCanvasController extends ChangeNotifier {
       ..clear()
       ..add(position);
     _currentStrokeRadius = radius;
-    _currentStrokePressureEnabled = simulatePressure;
+    _currentStrokeSimulatedPressure = simulatePressure;
+    _currentStrokeStylusPressureEnabled =
+        useDevicePressure && _stylusPressureEnabled && !simulatePressure;
+    _currentStylusMinFactor = _stylusMinFactor;
+    _currentStylusMaxFactor = math.max(_stylusMaxFactor, _stylusMinFactor);
+    _currentStylusCurve = _stylusCurve;
+    _currentStylusSmoothedPressure = null;
     _currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 3);
     final double resolvedTimestamp = timestampMillis ?? 0.0;
     _strokeSamples.clear();
     _velocitySmoother.reset();
     _strokeSamples.add(position, resolvedTimestamp);
     _velocitySmoother.addSample(position, resolvedTimestamp);
-    if (_currentStrokePressureEnabled) {
+    if (_currentStrokeSimulatedPressure) {
       _strokeDynamics.start(radius, profile: _strokePressureProfile);
       _currentStrokeLastRadius = _strokeDynamics.initialRadius();
+    } else if (_currentStrokeStylusPressureEnabled) {
+      final double? normalized = _normalizeStylusPressure(
+        pressure,
+        pressureMin,
+        pressureMax,
+      );
+      if (normalized != null) {
+        _currentStylusSmoothedPressure = normalized.clamp(0.0, 1.0);
+        _currentStrokeLastRadius = _stylusRadiusFromNormalized(
+          _currentStylusSmoothedPressure!,
+        );
+      } else {
+        _currentStrokeLastRadius = _currentStrokeRadius;
+      }
     } else {
       _currentStrokeLastRadius = _currentStrokeRadius;
     }
@@ -669,6 +719,9 @@ class BitmapCanvasController extends ChangeNotifier {
     Offset position, {
     double? deltaTimeMillis,
     double? timestampMillis,
+    double? pressure,
+    double? pressureMin,
+    double? pressureMax,
   }) {
     if (_currentStrokePoints.isEmpty) {
       return;
@@ -678,7 +731,7 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     final Offset last = _currentStrokePoints.last;
     _currentStrokePoints.add(position);
-    if (_currentStrokePressureEnabled) {
+    if (_currentStrokeSimulatedPressure) {
       final double delta = (position - last).distance;
       final double sampleTimestamp = _resolveSampleTimestamp(
         timestampMillis,
@@ -722,6 +775,48 @@ class BitmapCanvasController extends ChangeNotifier {
         ),
       );
       _currentStrokeLastRadius = nextRadius;
+    } else if (_currentStrokeStylusPressureEnabled) {
+      final double sampleTimestamp = _resolveSampleTimestamp(
+        timestampMillis,
+        deltaTimeMillis,
+      );
+      _strokeSamples.add(position, sampleTimestamp);
+      _velocitySmoother.addSample(position, sampleTimestamp);
+
+      final double? normalized = _normalizeStylusPressure(
+        pressure,
+        pressureMin,
+        pressureMax,
+      );
+      double nextRadius = _currentStrokeRadius;
+      if (normalized != null) {
+        final double candidate = normalized.clamp(0.0, 1.0);
+        final double smoothed = _currentStylusSmoothedPressure == null
+            ? candidate
+            : _currentStylusSmoothedPressure! +
+                  (candidate - _currentStylusSmoothedPressure!) *
+                      _kStylusSmoothing;
+        _currentStylusSmoothedPressure = smoothed;
+        nextRadius = _stylusRadiusFromNormalized(smoothed);
+      }
+      _activeSurface.drawVariableLine(
+        a: last,
+        b: position,
+        startRadius: _currentStrokeLastRadius,
+        endRadius: nextRadius,
+        color: _currentStrokeColor,
+        mask: _selectionMask,
+        antialiasLevel: _currentStrokeAntialiasLevel,
+      );
+      _markDirty(
+        region: _dirtyRectForVariableLine(
+          last,
+          position,
+          _currentStrokeLastRadius,
+          nextRadius,
+        ),
+      );
+      _currentStrokeLastRadius = nextRadius;
     } else {
       _activeSurface.drawLine(
         a: last,
@@ -738,7 +833,7 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   void endStroke() {
-    if (_currentStrokePressureEnabled && _currentStrokePoints.isNotEmpty) {
+    if (_currentStrokeSimulatedPressure && _currentStrokePoints.isNotEmpty) {
       final Offset tip = _currentStrokePoints.last;
       if (_currentStrokePoints.length >= 2) {
         final Offset prev =
@@ -781,10 +876,54 @@ class BitmapCanvasController extends ChangeNotifier {
       }
     }
 
+    if (_currentStrokeStylusPressureEnabled && _currentStrokePoints.isNotEmpty) {
+      final Offset tip = _currentStrokePoints.last;
+      final double tipRadius = _stylusRadiusFromNormalized(0.0);
+      if (_currentStrokePoints.length >= 2) {
+        final Offset prev =
+            _currentStrokePoints[_currentStrokePoints.length - 2];
+        final Offset direction = tip - prev;
+        final double length = direction.distance;
+        if (length > 0.001) {
+          final Offset unit = direction / length;
+          final double base = math.max(_currentStrokeRadius, 0.1);
+          final double taperLength = math.min(base * 4.0, length * 2.0 + 1.5);
+          final Offset extension = tip + unit * taperLength;
+          final double startRadius = math.max(
+            _currentStrokeLastRadius,
+            tipRadius,
+          );
+          _activeSurface.drawVariableLine(
+            a: tip,
+            b: extension,
+            startRadius: startRadius,
+            endRadius: tipRadius,
+            color: _currentStrokeColor,
+            mask: _selectionMask,
+            antialiasLevel: _currentStrokeAntialiasLevel,
+          );
+          _markDirty(
+            region: _dirtyRectForVariableLine(
+              tip,
+              extension,
+              startRadius,
+              tipRadius,
+            ),
+          );
+        } else {
+          _drawPoint(tip, tipRadius);
+        }
+      } else {
+        _drawPoint(tip, tipRadius);
+      }
+    }
+
     _currentStrokePoints.clear();
     _currentStrokeRadius = 0;
     _currentStrokeLastRadius = 0;
-    _currentStrokePressureEnabled = false;
+    _currentStrokeSimulatedPressure = false;
+    _currentStrokeStylusPressureEnabled = false;
+    _currentStylusSmoothedPressure = null;
     _currentStrokeAntialiasLevel = 0;
     _strokeSamples.clear();
     _velocitySmoother.reset();
@@ -854,6 +993,45 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     _strokePressureProfile = profile;
     _strokeDynamics.configure(profile: profile);
+  }
+
+  double? _normalizeStylusPressure(
+    double? pressure,
+    double? pressureMin,
+    double? pressureMax,
+  ) {
+    if (pressure == null || !pressure.isFinite) {
+      return null;
+    }
+    double lower = pressureMin ?? 0.0;
+    double upper = pressureMax ?? 1.0;
+    if (!lower.isFinite) {
+      lower = 0.0;
+    }
+    if (!upper.isFinite || upper <= lower) {
+      upper = lower + 1.0;
+    }
+    final double normalized = (pressure - lower) / (upper - lower);
+    if (!normalized.isFinite) {
+      return null;
+    }
+    return normalized.clamp(0.0, 1.0);
+  }
+
+  double _stylusRadiusFromNormalized(double normalized) {
+    final double clamped = normalized.clamp(0.0, 1.0);
+    final double curved = math.pow(clamped, _currentStylusCurve).toDouble();
+    final double minFactor = _currentStylusMinFactor.clamp(0.0, 10.0);
+    final double maxFactor = math.max(
+      _currentStylusMaxFactor,
+      minFactor + 0.01,
+    );
+    final double? lerped = ui.lerpDouble(minFactor, maxFactor, curved);
+    final double factor = (lerped ?? maxFactor).clamp(0.0, 20.0);
+    final double radius = _currentStrokeRadius * factor;
+    final double minimum = math.max(_currentStrokeRadius * 0.02, 0.08);
+    final double maximum = math.max(_currentStrokeRadius * 4.0, minimum);
+    return radius.clamp(minimum, maximum);
   }
 
   double _resolveSampleTimestamp(
@@ -1218,7 +1396,12 @@ class BitmapCanvasController extends ChangeNotifier {
             color = effectiveColor;
             initialized = true;
           } else {
-            color = _blendWithMode(color, effectiveColor, layer.blendMode);
+            color = _blendWithMode(
+              color,
+              effectiveColor,
+              layer.blendMode,
+              index,
+            );
           }
         }
 
@@ -1431,6 +1614,10 @@ class BitmapCanvasController extends ChangeNotifier {
       return const Color(0x00000000);
     }
     final int index = y * _width + x;
+    final Uint32List? compositePixels = _compositePixels;
+    if (compositePixels != null && compositePixels.length > index) {
+      return BitmapSurface.decodeColor(compositePixels[index]);
+    }
     int? color;
     for (final BitmapLayerState layer in _layers) {
       if (!layer.visible) {
@@ -1834,45 +2021,13 @@ class BitmapCanvasController extends ChangeNotifier {
     return (outA << 24) | (outR << 16) | (outG << 8) | outB;
   }
 
-  static int _blendWithMode(int dst, int src, CanvasLayerBlendMode mode) {
-    switch (mode) {
-      case CanvasLayerBlendMode.normal:
-        return _blendArgb(dst, src);
-      case CanvasLayerBlendMode.multiply:
-        return _blendMultiply(dst, src);
-    }
-  }
-
-  static int _blendMultiply(int dst, int src) {
-    final int srcA = (src >> 24) & 0xff;
-    if (srcA == 0) {
-      return dst;
-    }
-
-    final int dstA = (dst >> 24) & 0xff;
-    final double sa = srcA / 255.0;
-    final double da = dstA / 255.0;
-    final double outA = sa + da * (1 - sa);
-
-    final int srcR = (src >> 16) & 0xff;
-    final int srcG = (src >> 8) & 0xff;
-    final int srcB = src & 0xff;
-    final int dstR = (dst >> 16) & 0xff;
-    final int dstG = (dst >> 8) & 0xff;
-    final int dstB = dst & 0xff;
-
-    double blendComponent(int sr, int dr) {
-      final double srcNorm = sr / 255.0;
-      final double dstNorm = dr / 255.0;
-      return dstNorm * (1 - sa) + dstNorm * srcNorm * sa;
-    }
-
-    final int outR = _clampToByte((blendComponent(srcR, dstR) * 255).round());
-    final int outG = _clampToByte((blendComponent(srcG, dstG) * 255).round());
-    final int outB = _clampToByte((blendComponent(srcB, dstB) * 255).round());
-    final int outAlpha = _clampToByte((outA * 255).round());
-
-    return (outAlpha << 24) | (outR << 16) | (outG << 8) | outB;
+  static int _blendWithMode(
+    int dst,
+    int src,
+    CanvasLayerBlendMode mode,
+    int pixelIndex,
+  ) {
+    return CanvasBlendMath.blend(dst, src, mode, pixelIndex: pixelIndex);
   }
 
   static int _mul255(int channel, int alpha) {

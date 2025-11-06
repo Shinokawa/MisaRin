@@ -169,6 +169,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.activeTool,
     required this.penStrokeWidth,
     required this.onPenStrokeWidthChanged,
+    required this.stylusPressureEnabled,
+    required this.onStylusPressureEnabledChanged,
     required this.simulatePenPressure,
     required this.onSimulatePenPressureChanged,
     required this.penPressureProfile,
@@ -189,6 +191,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final CanvasTool activeTool;
   final double penStrokeWidth;
   final ValueChanged<double> onPenStrokeWidthChanged;
+  final bool stylusPressureEnabled;
+  final ValueChanged<bool> onStylusPressureEnabledChanged;
   final bool simulatePenPressure;
   final ValueChanged<bool> onSimulatePenPressureChanged;
   final StrokePressureProfile penPressureProfile;
@@ -456,6 +460,18 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               Text(
                 '等级 ${widget.brushAntialiasLevel}',
                 style: theme.typography.caption,
+              ),
+            ],
+          ),
+         const SizedBox(width: 20),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('数位笔笔压', style: theme.typography.bodyStrong),
+              const SizedBox(width: 8),
+              ToggleSwitch(
+                checked: widget.stylusPressureEnabled,
+                onChanged: widget.onStylusPressureEnabledChanged,
               ),
             ],
           ),
