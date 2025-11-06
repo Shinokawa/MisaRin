@@ -67,7 +67,7 @@ class ShapeToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: _buildIcon(iconColor),
+          child: Center(child: _buildIcon(iconColor)),
         ),
       ),
     );
@@ -77,13 +77,13 @@ class ShapeToolButton extends StatelessWidget {
     if (variant == ShapeToolVariant.line) {
       return Image.asset(
         'icons/line2.png',
-        width: 20,
-        height: 20,
+        width: 24,
+        height: 24,
         color: color,
         colorBlendMode: BlendMode.srcIn,
         filterQuality: FilterQuality.high,
       );
     }
-    return Icon(_iconForVariant(variant), color: color, size: 20);
+    return Icon(_iconForVariant(variant), color: color, size: 24);
   }
 }
