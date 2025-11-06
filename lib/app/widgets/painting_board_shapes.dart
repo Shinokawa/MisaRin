@@ -104,6 +104,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
       timestampMillis: accumulatedTime,
+      antialias: _penAntialias,
     );
     for (int i = 1; i < strokePoints.length; i++) {
       final Offset point = strokePoints[i];

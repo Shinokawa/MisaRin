@@ -42,6 +42,7 @@ class BitmapSurface {
     required double radius,
     required Color color,
     Uint8List? mask,
+    bool antialias = false,
   }) {
     if (radius <= 0) {
       return;
@@ -56,10 +57,43 @@ class BitmapSurface {
       final double dy = y + 0.5 - center.dy;
       for (int x = minX; x <= maxX; x++) {
         final double dx = x + 0.5 - center.dx;
-        if (dx * dx + dy * dy <= radiusSq) {
-          if (mask == null || mask[y * width + x] != 0) {
-            blendPixel(x, y, color);
+        final double distanceSq = dx * dx + dy * dy;
+        if (!antialias) {
+          if (distanceSq <= radiusSq) {
+            if (mask == null || mask[y * width + x] != 0) {
+              blendPixel(x, y, color);
+            }
           }
+          continue;
+        }
+        final double distance = math.sqrt(distanceSq);
+        final double innerRadius = radius - 0.5;
+        final double outerRadius = radius + 0.5;
+        double coverage;
+        if (distance <= innerRadius) {
+          coverage = 1.0;
+        } else if (distance >= outerRadius) {
+          coverage = 0.0;
+        } else {
+          coverage = (outerRadius - distance).clamp(0.0, 1.0);
+        }
+        if (coverage <= 0.0) {
+          continue;
+        }
+        if (mask != null && mask[y * width + x] == 0) {
+          continue;
+        }
+        if (coverage >= 0.999) {
+          blendPixel(x, y, color);
+        } else {
+          final int adjustedAlpha = (color.alpha * coverage).round().clamp(
+            0,
+            255,
+          );
+          if (adjustedAlpha == 0) {
+            continue;
+          }
+          blendPixel(x, y, color.withAlpha(adjustedAlpha));
         }
       }
     }
@@ -72,19 +106,34 @@ class BitmapSurface {
     required double radius,
     required Color color,
     Uint8List? mask,
+    bool antialias = false,
   }) {
     final double distance = (b - a).distance;
     if (distance == 0) {
-      drawCircle(center: a, radius: radius, color: color);
+      drawCircle(
+        center: a,
+        radius: radius,
+        color: color,
+        mask: mask,
+        antialias: antialias,
+      );
       return;
     }
-    final double spacing = math.max(0.5, radius * 0.25);
+    final double spacing = antialias
+        ? math.max(0.35, radius.abs() * 0.2)
+        : math.max(0.5, radius.abs() * 0.25);
     final int steps = math.max(1, (distance / spacing).ceil());
     final double stepX = (b.dx - a.dx) / steps;
     final double stepY = (b.dy - a.dy) / steps;
     Offset current = a;
     for (int i = 0; i <= steps; i++) {
-      drawCircle(center: current, radius: radius, color: color, mask: mask);
+      drawCircle(
+        center: current,
+        radius: radius,
+        color: color,
+        mask: mask,
+        antialias: antialias,
+      );
       current = current.translate(stepX, stepY);
     }
   }
@@ -97,15 +146,24 @@ class BitmapSurface {
     required double endRadius,
     required Color color,
     Uint8List? mask,
+    bool antialias = false,
   }) {
     final double distance = (b - a).distance;
     if (distance == 0) {
       final double radius = math.max(startRadius, endRadius);
-      drawCircle(center: a, radius: radius, color: color, mask: mask);
+      drawCircle(
+        center: a,
+        radius: radius,
+        color: color,
+        mask: mask,
+        antialias: antialias,
+      );
       return;
     }
     final double averageRadius = (startRadius + endRadius) * 0.5;
-    final double spacing = math.max(0.5, averageRadius.abs() * 0.25);
+    final double spacing = antialias
+        ? math.max(0.35, averageRadius.abs() * 0.2)
+        : math.max(0.5, averageRadius.abs() * 0.25);
     final int steps = math.max(1, (distance / spacing).ceil());
     final double stepX = (b.dx - a.dx) / steps;
     final double stepY = (b.dy - a.dy) / steps;
@@ -113,7 +171,13 @@ class BitmapSurface {
     for (int i = 0; i <= steps; i++) {
       final double t = steps == 0 ? 0.0 : i / steps;
       final double radius = lerpDouble(startRadius, endRadius, t)!;
-      drawCircle(center: current, radius: radius, color: color, mask: mask);
+      drawCircle(
+        center: current,
+        radius: radius,
+        color: color,
+        mask: mask,
+        antialias: antialias,
+      );
       current = current.translate(stepX, stepY);
     }
   }
@@ -124,12 +188,19 @@ class BitmapSurface {
     required double radius,
     required Color color,
     Uint8List? mask,
+    bool antialias = false,
   }) {
     if (points.isEmpty) {
       return;
     }
     if (points.length == 1) {
-      drawCircle(center: points.first, radius: radius, color: color);
+      drawCircle(
+        center: points.first,
+        radius: radius,
+        color: color,
+        mask: mask,
+        antialias: antialias,
+      );
       return;
     }
     for (int i = 0; i < points.length - 1; i++) {
@@ -139,6 +210,7 @@ class BitmapSurface {
         radius: radius,
         color: color,
         mask: mask,
+        antialias: antialias,
       );
     }
   }

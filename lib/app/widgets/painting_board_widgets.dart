@@ -173,6 +173,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.onSimulatePenPressureChanged,
     required this.penPressureProfile,
     required this.onPenPressureProfileChanged,
+    required this.brushAntialias,
+    required this.onBrushAntialiasChanged,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.onBucketSampleAllLayersChanged,
@@ -191,6 +193,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onSimulatePenPressureChanged;
   final StrokePressureProfile penPressureProfile;
   final ValueChanged<StrokePressureProfile> onPenPressureProfileChanged;
+  final bool brushAntialias;
+  final ValueChanged<bool> onBrushAntialiasChanged;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
@@ -372,7 +376,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
   }
 
   Widget _buildBrushControls(FluentThemeData theme) {
-    final bool showPressureToggle =
+    final bool showAdvancedBrushToggles =
         widget.activeTool == CanvasTool.pen ||
         widget.activeTool == CanvasTool.curvePen ||
         widget.activeTool == CanvasTool.shape;
@@ -430,7 +434,19 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         ),
         const SizedBox(width: 8),
         Text('px', style: theme.typography.caption),
-        if (showPressureToggle) ...[
+        if (showAdvancedBrushToggles) ...[
+          const SizedBox(width: 16),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('抗锯齿', style: theme.typography.bodyStrong),
+              const SizedBox(width: 8),
+              ToggleSwitch(
+                checked: widget.brushAntialias,
+                onChanged: widget.onBrushAntialiasChanged,
+              ),
+            ],
+          ),
           const SizedBox(width: 20),
           Row(
             mainAxisSize: MainAxisSize.min,

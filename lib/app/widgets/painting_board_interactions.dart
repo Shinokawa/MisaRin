@@ -164,6 +164,17 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  @override
+  void _updatePenAntialias(bool value) {
+    if (_penAntialias == value) {
+      return;
+    }
+    setState(() => _penAntialias = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.penAntialias = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateBucketSampleAllLayers(bool value) {
     if (_bucketSampleAllLayers == value) {
       return;
@@ -185,17 +196,19 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _startStroke(Offset position, Duration timestamp) {
+    final Offset start = _sanitizeStrokePosition(position);
     _pushUndoSnapshot();
     _lastPenSampleTimestamp = timestamp;
     setState(() {
       _isDrawing = true;
       _controller.beginStroke(
-        position,
+        start,
         color: _primaryColor,
         radius: _penStrokeWidth / 2,
         simulatePressure: _simulatePenPressure,
         profile: _penPressureProfile,
         timestampMillis: timestamp.inMicroseconds / 1000.0,
+        antialias: _penAntialias,
       );
     });
     _markDirty();
@@ -206,9 +219,10 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     final double? deltaMillis = _registerPenSample(timestamp);
+    final Offset clamped = _sanitizeStrokePosition(position);
     setState(() {
       _controller.extendStroke(
-        position,
+        clamped,
         deltaTimeMillis: deltaMillis,
         timestampMillis: timestamp.inMicroseconds / 1000.0,
       );
@@ -227,6 +241,10 @@ mixin _PaintingBoardInteractionMixin
       _isDrawing = false;
     });
     _lastPenSampleTimestamp = null;
+  }
+
+  Offset _sanitizeStrokePosition(Offset position) {
+    return _clampToCanvas(position);
   }
 
   double? _registerPenSample(Duration timestamp) {
@@ -508,6 +526,7 @@ mixin _PaintingBoardInteractionMixin
           radius: _penStrokeWidth / 2,
           simulatePressure: _simulatePenPressure,
           profile: _penPressureProfile,
+          antialias: _penAntialias,
         );
         _controller.endStroke();
         _markDirty();
@@ -629,13 +648,15 @@ mixin _PaintingBoardInteractionMixin
     const double fastDeltaMs = 3.5;
     const double slowDeltaMs = 22.0;
     final bool simulatePressure = _simulatePenPressure;
+    final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
-      start,
+      strokeStart,
       color: _primaryColor,
       radius: _penStrokeWidth / 2,
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
       timestampMillis: initialTimestamp,
+      antialias: _penAntialias,
     );
     final double estimatedLength =
         (start - control).distance + (control - end).distance;
