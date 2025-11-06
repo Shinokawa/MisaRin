@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../canvas/canvas_layer.dart';
 import 'bitmap_canvas.dart';
+import 'stroke_dynamics.dart';
 
 class BitmapLayerState {
   BitmapLayerState({
@@ -57,11 +58,9 @@ class BitmapCanvasController extends ChangeNotifier {
 
   final List<Offset> _currentStrokePoints = <Offset>[];
   double _currentStrokeRadius = 0;
-  double _currentStrokeMinRadius = 0;
-  double _currentStrokeMaxRadius = 0;
   double _currentStrokeLastRadius = 0;
-  double _currentStrokeSmoothedDistance = 0;
   bool _currentStrokePressureEnabled = false;
+  final StrokeDynamics _strokeDynamics = StrokeDynamics();
   Color _currentStrokeColor = const Color(0xFF000000);
 
   ui.Image? _cachedImage;
@@ -544,17 +543,17 @@ class BitmapCanvasController extends ChangeNotifier {
       ..add(position);
     _currentStrokeRadius = radius;
     _currentStrokePressureEnabled = simulatePressure;
-    _currentStrokeMinRadius = math.max(radius * 0.35, 0.35);
-    _currentStrokeMaxRadius = radius;
-    _currentStrokeSmoothedDistance = 0;
-    _currentStrokeLastRadius = simulatePressure
-        ? _currentStrokeMinRadius
-        : _currentStrokeRadius;
+    if (_currentStrokePressureEnabled) {
+      _strokeDynamics.start(radius);
+      _currentStrokeLastRadius = _strokeDynamics.initialRadius();
+    } else {
+      _currentStrokeLastRadius = _currentStrokeRadius;
+    }
     _currentStrokeColor = color;
     _drawPoint(position, _currentStrokeLastRadius);
   }
 
-  void extendStroke(Offset position) {
+  void extendStroke(Offset position, {double? deltaTimeMillis}) {
     if (_currentStrokePoints.isEmpty) {
       return;
     }
@@ -564,7 +563,11 @@ class BitmapCanvasController extends ChangeNotifier {
     final Offset last = _currentStrokePoints.last;
     _currentStrokePoints.add(position);
     if (_currentStrokePressureEnabled) {
-      final double nextRadius = _computePressureRadius(last, position);
+      final double delta = (position - last).distance;
+      final double nextRadius = _strokeDynamics.sample(
+        distance: delta,
+        deltaTimeMillis: deltaTimeMillis,
+      );
       _activeSurface.drawVariableLine(
         a: last,
         b: position,
@@ -597,12 +600,50 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   void endStroke() {
+    if (_currentStrokePressureEnabled && _currentStrokePoints.isNotEmpty) {
+      final Offset tip = _currentStrokePoints.last;
+      if (_currentStrokePoints.length >= 2) {
+        final Offset prev =
+            _currentStrokePoints[_currentStrokePoints.length - 2];
+        final Offset direction = tip - prev;
+        final double length = direction.distance;
+        if (length > 0.001) {
+          final Offset unit = direction / length;
+          final double base = math.max(_currentStrokeRadius, 0.1);
+          final double taperLength = math.min(base * 6.5, length * 2.4 + 2.0);
+          final Offset extension = tip + unit * taperLength;
+          final double tipRadius = _strokeDynamics.tipRadius();
+          final double startRadius = math.min(
+            _currentStrokeLastRadius,
+            _currentStrokeRadius,
+          );
+          _activeSurface.drawVariableLine(
+            a: tip,
+            b: extension,
+            startRadius: startRadius,
+            endRadius: tipRadius,
+            color: _currentStrokeColor,
+            mask: _selectionMask,
+          );
+          _markDirty(
+            region: _dirtyRectForVariableLine(
+              tip,
+              extension,
+              startRadius,
+              tipRadius,
+            ),
+          );
+        } else {
+          _drawPoint(tip, _strokeDynamics.tipRadius());
+        }
+      } else {
+        _drawPoint(tip, _strokeDynamics.tipRadius());
+      }
+    }
+
     _currentStrokePoints.clear();
     _currentStrokeRadius = 0;
-    _currentStrokeMinRadius = 0;
-    _currentStrokeMaxRadius = 0;
     _currentStrokeLastRadius = 0;
-    _currentStrokeSmoothedDistance = 0;
     _currentStrokePressureEnabled = false;
   }
 
@@ -1061,30 +1102,6 @@ class BitmapCanvasController extends ChangeNotifier {
       mask: _selectionMask,
     );
     _markDirty(region: _dirtyRectForCircle(position, radius));
-  }
-
-  double _computePressureRadius(Offset last, Offset position) {
-    final double delta = (position - last).distance;
-    const double peakDistance = 14.0;
-    final double target = delta.clamp(0.0, peakDistance);
-    if (_currentStrokeSmoothedDistance == 0) {
-      _currentStrokeSmoothedDistance = target;
-    } else {
-      _currentStrokeSmoothedDistance = ui.lerpDouble(
-        _currentStrokeSmoothedDistance,
-        target,
-        0.35,
-      )!;
-    }
-    final double normalized = (_currentStrokeSmoothedDistance / peakDistance)
-        .clamp(0.0, 1.0);
-    final double eased = math.sqrt(normalized);
-    return ui.lerpDouble(
-          _currentStrokeMinRadius,
-          _currentStrokeMaxRadius,
-          eased,
-        ) ??
-        _currentStrokeMaxRadius;
   }
 
   Rect _dirtyRectForVariableLine(

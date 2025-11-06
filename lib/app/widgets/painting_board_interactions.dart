@@ -167,8 +167,9 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
-  void _startStroke(Offset position) {
+  void _startStroke(Offset position, Duration timestamp) {
     _pushUndoSnapshot();
+    _lastPenSampleTimestamp = timestamp;
     setState(() {
       _isDrawing = true;
       _controller.beginStroke(
@@ -181,23 +182,41 @@ mixin _PaintingBoardInteractionMixin
     _markDirty();
   }
 
-  void _appendPoint(Offset position) {
+  void _appendPoint(Offset position, Duration timestamp) {
     if (!_isDrawing) {
       return;
     }
+    final double? deltaMillis = _registerPenSample(timestamp);
     setState(() {
-      _controller.extendStroke(position);
+      _controller.extendStroke(position, deltaTimeMillis: deltaMillis);
     });
   }
 
-  void _finishStroke() {
+  void _finishStroke([Duration? timestamp]) {
     if (!_isDrawing) {
       return;
+    }
+    if (timestamp != null) {
+      _registerPenSample(timestamp);
     }
     _controller.endStroke();
     setState(() {
       _isDrawing = false;
     });
+    _lastPenSampleTimestamp = null;
+  }
+
+  double? _registerPenSample(Duration timestamp) {
+    final Duration? previous = _lastPenSampleTimestamp;
+    _lastPenSampleTimestamp = timestamp;
+    if (previous == null) {
+      return null;
+    }
+    final Duration delta = timestamp - previous;
+    if (delta <= Duration.zero) {
+      return null;
+    }
+    return delta.inMicroseconds / 1000.0;
   }
 
   void _beginDragBoard() {
@@ -625,7 +644,7 @@ mixin _PaintingBoardInteractionMixin
         if (!isPointInsideSelection(boardLocal)) {
           return;
         }
-        _startStroke(boardLocal);
+        _startStroke(boardLocal, event.timeStamp);
         break;
       case CanvasTool.curvePen:
         if (_isCurveCancelModifierPressed() &&
@@ -677,7 +696,7 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
-          _appendPoint(boardLocal);
+          _appendPoint(boardLocal, event.timeStamp);
         }
         break;
       case CanvasTool.layerAdjust:
@@ -717,7 +736,7 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
-          _finishStroke();
+          _finishStroke(event.timeStamp);
         }
         break;
       case CanvasTool.layerAdjust:
@@ -760,7 +779,7 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
-          _finishStroke();
+          _finishStroke(event.timeStamp);
         }
         break;
       case CanvasTool.layerAdjust:

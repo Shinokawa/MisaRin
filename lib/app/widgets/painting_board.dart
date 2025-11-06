@@ -144,6 +144,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _toolCursorPosition;
   Offset? _lastWorkspacePointer;
   Offset? _penCursorWorkspacePosition;
+  Duration? _lastPenSampleTimestamp;
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
 
   final CanvasViewport _viewport = CanvasViewport();
