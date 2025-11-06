@@ -188,16 +188,17 @@ class StrokeDynamics {
   }) {
     final double clampedSpeed = normalizedSpeed.clamp(0.0, 1.0);
     final double easedSpeed = math.pow(clampedSpeed, 0.85).toDouble();
+    final double easedInverse = math.pow(1.0 - clampedSpeed, 0.9).toDouble();
 
     double factor = _lerp(
-      maxRadiusFactor * 1.02,
-      minRadiusFactor * 0.96,
-      easedSpeed,
+      minRadiusFactor * 0.92,
+      maxRadiusFactor * 1.04,
+      easedInverse,
     );
 
     final int sampleIndex = metrics?.sampleIndex ?? _sampleCount;
     final double ramp = ((sampleIndex + 1) / _autoRampSamples).clamp(0.0, 1.0);
-    factor = _lerp(minRadiusFactor * 0.88, factor, ramp);
+    factor = _lerp(minRadiusFactor * 0.82, factor, ramp);
 
     if (metrics != null) {
       final double holdRatio =
@@ -221,7 +222,7 @@ class StrokeDynamics {
         .pow(smoothedSpeed.clamp(0.0, 1.0), 1.3)
         .toDouble();
     final double flickBlend = (flick * 0.55).clamp(0.0, 1.0);
-    factor = _lerp(factor, minRadiusFactor * 0.9, flickBlend);
+    factor = _lerp(factor, minRadiusFactor * 0.88, flickBlend);
 
     return factor;
   }
