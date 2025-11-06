@@ -61,6 +61,8 @@ class BitmapCanvasController extends ChangeNotifier {
   double _currentStrokeLastRadius = 0;
   bool _currentStrokePressureEnabled = false;
   final StrokeDynamics _strokeDynamics = StrokeDynamics();
+  StrokePressureProfile _strokePressureProfile =
+      StrokePressureProfile.taperEnds;
   Color _currentStrokeColor = const Color(0xFF000000);
 
   ui.Image? _cachedImage;
@@ -531,6 +533,7 @@ class BitmapCanvasController extends ChangeNotifier {
     required Color color,
     required double radius,
     bool simulatePressure = false,
+    StrokePressureProfile profile = StrokePressureProfile.taperEnds,
   }) {
     if (_activeLayer.locked) {
       return;
@@ -538,13 +541,14 @@ class BitmapCanvasController extends ChangeNotifier {
     if (_selectionMask != null && !_selectionAllows(position)) {
       return;
     }
+    setStrokePressureProfile(profile);
     _currentStrokePoints
       ..clear()
       ..add(position);
     _currentStrokeRadius = radius;
     _currentStrokePressureEnabled = simulatePressure;
     if (_currentStrokePressureEnabled) {
-      _strokeDynamics.start(radius);
+      _strokeDynamics.start(radius, profile: _strokePressureProfile);
       _currentStrokeLastRadius = _strokeDynamics.initialRadius();
     } else {
       _currentStrokeLastRadius = _currentStrokeRadius;
@@ -613,10 +617,11 @@ class BitmapCanvasController extends ChangeNotifier {
           final double taperLength = math.min(base * 6.5, length * 2.4 + 2.0);
           final Offset extension = tip + unit * taperLength;
           final double tipRadius = _strokeDynamics.tipRadius();
-          final double startRadius = math.min(
-            _currentStrokeLastRadius,
-            _currentStrokeRadius,
-          );
+          final bool taperEnds =
+              _strokePressureProfile == StrokePressureProfile.taperEnds;
+          final double startRadius = taperEnds
+              ? math.max(_currentStrokeLastRadius, _currentStrokeRadius)
+              : math.min(_currentStrokeLastRadius, _currentStrokeRadius);
           _activeSurface.drawVariableLine(
             a: tip,
             b: extension,
@@ -645,6 +650,14 @@ class BitmapCanvasController extends ChangeNotifier {
     _currentStrokeRadius = 0;
     _currentStrokeLastRadius = 0;
     _currentStrokePressureEnabled = false;
+  }
+
+  void setStrokePressureProfile(StrokePressureProfile profile) {
+    if (_strokePressureProfile == profile) {
+      return;
+    }
+    _strokePressureProfile = profile;
+    _strokeDynamics.configure(profile: profile);
   }
 
   bool _selectionAllows(Offset position) {

@@ -371,6 +371,9 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               simulatePenPressure: _simulatePenPressure,
                               onSimulatePenPressureChanged:
                                   _updatePenPressureSimulation,
+                              penPressureProfile: _penPressureProfile,
+                              onPenPressureProfileChanged:
+                                  _updatePenPressureProfile,
                               bucketSampleAllLayers: _bucketSampleAllLayers,
                               bucketContiguous: _bucketContiguous,
                               onBucketSampleAllLayersChanged:

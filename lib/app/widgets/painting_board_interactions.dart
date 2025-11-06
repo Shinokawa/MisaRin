@@ -147,6 +147,14 @@ mixin _PaintingBoardInteractionMixin
     setState(() => _simulatePenPressure = value);
   }
 
+  @override
+  void _updatePenPressureProfile(StrokePressureProfile profile) {
+    if (_penPressureProfile == profile) {
+      return;
+    }
+    setState(() => _penPressureProfile = profile);
+  }
+
   void _updateBucketSampleAllLayers(bool value) {
     if (_bucketSampleAllLayers == value) {
       return;
@@ -177,6 +185,7 @@ mixin _PaintingBoardInteractionMixin
         color: _primaryColor,
         radius: _penStrokeWidth / 2,
         simulatePressure: _simulatePenPressure,
+        profile: _penPressureProfile,
       );
     });
     _markDirty();

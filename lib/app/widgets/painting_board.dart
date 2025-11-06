@@ -41,6 +41,7 @@ import 'package:flutter_localizations/flutter_localizations.dart'
 
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/controller.dart';
+import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_tools.dart';
@@ -336,6 +337,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event);
 
   void _updatePenPressureSimulation(bool value);
+  void _updatePenPressureProfile(StrokePressureProfile profile);
 
   void _handleScaleStart(ScaleStartDetails details);
   void _handleScaleUpdate(ScaleUpdateDetails details);
@@ -725,3 +727,5 @@ class _CanvasHistoryEntry {
   final Uint8List? selectionMask;
   final Path? selectionPath;
 }
+
+StrokePressureProfile _penPressureProfile = StrokePressureProfile.taperEnds;

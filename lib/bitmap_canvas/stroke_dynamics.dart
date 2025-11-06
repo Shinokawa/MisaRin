@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
+enum StrokePressureProfile { taperEnds, taperCenter }
+
 /// Encapsulates speed-based brush radius simulation to mimic stylus pressure.
 class StrokeDynamics {
   StrokeDynamics({
+    this.profile = StrokePressureProfile.taperEnds,
     this.minRadiusFactor = 0.09,
     this.maxRadiusFactor = 1.85,
     this.minSpeed = 0.018,
@@ -10,6 +13,8 @@ class StrokeDynamics {
     this.smoothingFactor = 0.32,
     this.highSpeedBias = 0.18,
   });
+
+  StrokePressureProfile profile;
 
   /// Radius multiplier used for the thinnest parts of the stroke.
   final double minRadiusFactor;
@@ -40,10 +45,17 @@ class StrokeDynamics {
 
   /// Prepares the dynamics calculator for a new stroke using the provided
   /// baseline radius.
-  void start(double baseRadius) {
+  void start(double baseRadius, {StrokePressureProfile? profile}) {
     _baseRadius = math.max(baseRadius, 0.1);
+    if (profile != null) {
+      this.profile = profile;
+    }
     _smoothedIntensity = null;
     _latestIntensity = 0.0;
+  }
+
+  void configure({required StrokePressureProfile profile}) {
+    this.profile = profile;
   }
 
   double get minRadius => math.max(_baseRadius * minRadiusFactor, 0.08);
@@ -69,7 +81,9 @@ class StrokeDynamics {
     _latestIntensity = biased.clamp(0.0, 1.0);
 
     final double eased = math.pow(_latestIntensity, 0.6).toDouble();
-    final double factor = _lerp(maxRadiusFactor, minRadiusFactor, eased);
+    final double factor = profile == StrokePressureProfile.taperEnds
+        ? _lerp(maxRadiusFactor, minRadiusFactor, eased)
+        : _lerp(minRadiusFactor, maxRadiusFactor, eased);
     final double radius = _baseRadius * factor;
     final double ceiling = maxRadius;
     final double floor = minRadius * 0.55;

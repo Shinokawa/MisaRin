@@ -171,6 +171,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.onPenStrokeWidthChanged,
     required this.simulatePenPressure,
     required this.onSimulatePenPressureChanged,
+    required this.penPressureProfile,
+    required this.onPenPressureProfileChanged,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.onBucketSampleAllLayersChanged,
@@ -187,6 +189,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<double> onPenStrokeWidthChanged;
   final bool simulatePenPressure;
   final ValueChanged<bool> onSimulatePenPressureChanged;
+  final StrokePressureProfile penPressureProfile;
+  final ValueChanged<StrokePressureProfile> onPenPressureProfileChanged;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
@@ -426,9 +430,40 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               ),
             ],
           ),
+          if (widget.simulatePenPressure) ...[
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 160,
+              child: ComboBox<StrokePressureProfile>(
+                value: widget.penPressureProfile,
+                items: StrokePressureProfile.values
+                    .map(
+                      (profile) => ComboBoxItem<StrokePressureProfile>(
+                        value: profile,
+                        child: Text(_pressureProfileLabel(profile)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    widget.onPenPressureProfileChanged(value);
+                  }
+                },
+              ),
+            ),
+          ],
         ],
       ],
     );
+  }
+
+  String _pressureProfileLabel(StrokePressureProfile profile) {
+    switch (profile) {
+      case StrokePressureProfile.taperEnds:
+        return '两端粗中间细';
+      case StrokePressureProfile.taperCenter:
+        return '两端细中间粗';
+    }
   }
 
   void _handleTextChanged(String value) {
