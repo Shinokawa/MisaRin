@@ -231,19 +231,11 @@ mixin _PaintingBoardInteractionMixin
   }
 
   bool _isStylusEvent(PointerEvent event) {
-    return event.kind == PointerDeviceKind.stylus ||
-        event.kind == PointerDeviceKind.invertedStylus;
+    return TabletInputBridge.instance.isTabletPointer(event);
   }
 
   double? _stylusPressureValue(PointerEvent? event) {
-    if (event == null || !_isStylusEvent(event)) {
-      return null;
-    }
-    final double value = event.pressure;
-    if (!value.isFinite) {
-      return null;
-    }
-    return value;
+    return TabletInputBridge.instance.pressureForEvent(event);
   }
 
   double? _stylusPressureBound(double? bound) {

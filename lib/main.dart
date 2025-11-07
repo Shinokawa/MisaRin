@@ -7,9 +7,11 @@ import 'package:window_manager/window_manager.dart';
 import 'app/app.dart';
 import 'app/menu/macos_menu_shell.dart';
 import 'app/preferences/app_preferences.dart';
+import 'app/utils/tablet_input_bridge.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  TabletInputBridge.instance.ensureInitialized();
 
   await AppPreferences.load();
 

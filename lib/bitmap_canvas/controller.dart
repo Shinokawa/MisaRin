@@ -765,6 +765,7 @@ class BitmapCanvasController extends ChangeNotifier {
         color: _currentStrokeColor,
         mask: _selectionMask,
         antialiasLevel: _currentStrokeAntialiasLevel,
+        includeStartCap: false,
       );
       _markDirty(
         region: _dirtyRectForVariableLine(
@@ -807,6 +808,7 @@ class BitmapCanvasController extends ChangeNotifier {
         color: _currentStrokeColor,
         mask: _selectionMask,
         antialiasLevel: _currentStrokeAntialiasLevel,
+        includeStartCap: false,
       );
       _markDirty(
         region: _dirtyRectForVariableLine(
@@ -825,6 +827,7 @@ class BitmapCanvasController extends ChangeNotifier {
         color: _currentStrokeColor,
         mask: _selectionMask,
         antialiasLevel: _currentStrokeAntialiasLevel,
+        includeStartCap: false,
       );
       _markDirty(
         region: _dirtyRectForLine(last, position, _currentStrokeRadius),
@@ -859,6 +862,7 @@ class BitmapCanvasController extends ChangeNotifier {
             color: _currentStrokeColor,
             mask: _selectionMask,
             antialiasLevel: _currentStrokeAntialiasLevel,
+            includeStartCap: false,
           );
           _markDirty(
             region: _dirtyRectForVariableLine(
@@ -901,6 +905,7 @@ class BitmapCanvasController extends ChangeNotifier {
             color: _currentStrokeColor,
             mask: _selectionMask,
             antialiasLevel: _currentStrokeAntialiasLevel,
+            includeStartCap: false,
           );
           _markDirty(
             region: _dirtyRectForVariableLine(

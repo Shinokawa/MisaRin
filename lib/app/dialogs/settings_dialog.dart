@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
+import '../utils/tablet_input_bridge.dart';
 import 'misarin_dialog.dart';
 
 Future<void> showSettingsDialog(BuildContext context) {
@@ -342,8 +343,8 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       return;
     }
     final Offset pos = event.localPosition;
-    final double pressure =
-        event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 0.0;
+    final double pressure = TabletInputBridge.instance.pressureForEvent(event) ??
+        (event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 0.0);
     final double radius = math.sqrt(pressure).clamp(0.5, 4.0);
     final bool inContact = event.down || pressure > 0.0;
     setState(() {
@@ -394,13 +395,9 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
     });
   }
 
-  bool _isStylusEvent(PointerEvent event) {
-    return event.kind == PointerDeviceKind.stylus ||
-        event.kind == PointerDeviceKind.invertedStylus;
-  }
-
   bool _shouldCaptureEvent(PointerEvent event) {
-    if (_isStylusEvent(event) || event.kind == PointerDeviceKind.unknown) {
+    if (TabletInputBridge.instance.isTabletPointer(event) ||
+        event.kind == PointerDeviceKind.unknown) {
       return true;
     }
     if (event.kind == PointerDeviceKind.mouse) {

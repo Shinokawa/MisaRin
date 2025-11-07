@@ -111,6 +111,7 @@ class BitmapSurface {
     required Color color,
     Uint8List? mask,
     int antialiasLevel = 0,
+    bool includeStartCap = true,
   }) {
     _drawCapsuleSegment(
       a: a,
@@ -120,6 +121,7 @@ class BitmapSurface {
       color: color,
       mask: mask,
       antialiasLevel: antialiasLevel.clamp(0, 3),
+      includeStartCap: includeStartCap,
     );
   }
 
@@ -132,6 +134,7 @@ class BitmapSurface {
     required Color color,
     Uint8List? mask,
     int antialiasLevel = 0,
+    bool includeStartCap = true,
   }) {
     _drawCapsuleSegment(
       a: a,
@@ -141,6 +144,7 @@ class BitmapSurface {
       color: color,
       mask: mask,
       antialiasLevel: antialiasLevel.clamp(0, 3),
+      includeStartCap: includeStartCap,
     );
   }
 
@@ -165,6 +169,7 @@ class BitmapSurface {
       );
       return;
     }
+    bool includeStartCap = true;
     for (int i = 0; i < points.length - 1; i++) {
       drawLine(
         a: points[i],
@@ -173,7 +178,9 @@ class BitmapSurface {
         color: color,
         mask: mask,
         antialiasLevel: antialiasLevel,
+        includeStartCap: includeStartCap,
       );
+      includeStartCap = false;
     }
   }
 
@@ -190,6 +197,7 @@ class BitmapSurface {
     required Color color,
     Uint8List? mask,
     required int antialiasLevel,
+    bool includeStartCap = true,
   }) {
     final double maxRadius = math.max(math.max(startRadius, endRadius), 0.0);
     if (maxRadius <= 0.0) {
@@ -233,8 +241,12 @@ class BitmapSurface {
           continue;
         }
         final double px = x + 0.5;
-        double t = ((px - ax) * abx + (py - ay) * aby) * invLenSq;
+        final double rawT = ((px - ax) * abx + (py - ay) * aby) * invLenSq;
+        double t = rawT;
         if (t < 0.0) {
+          if (!includeStartCap && t < -1e-6) {
+            continue;
+          }
           t = 0.0;
         } else if (t > 1.0) {
           t = 1.0;
