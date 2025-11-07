@@ -253,6 +253,30 @@ mixin _PaintingBoardInteractionMixin
     return bound;
   }
 
+  void _logTabletSample(
+    String phase,
+    PointerEvent? event,
+    Offset boardPosition,
+    double? pressure,
+  ) {
+    assert(() {
+      final String kind = event?.kind.toString() ?? 'null';
+      final double? raw = event?.pressure;
+      final String formattedPressure =
+          pressure != null ? pressure.toStringAsFixed(3) : '—';
+      final String formattedRaw =
+          raw != null && raw.isFinite ? raw.toStringAsFixed(3) : '—';
+      final String posX = boardPosition.dx.toStringAsFixed(1);
+      final String posY = boardPosition.dy.toStringAsFixed(1);
+      debugPrint(
+        '[TabletSample] phase=$phase kind=$kind device=${event?.device ?? -1} '
+        'pos=($posX,$posY) pressure=$formattedPressure rawPressure=$formattedRaw '
+        'buttons=${event?.buttons ?? 0}',
+      );
+      return true;
+    }());
+  }
+
   void _startStroke(
     Offset position,
     Duration timestamp,
@@ -262,6 +286,7 @@ mixin _PaintingBoardInteractionMixin
     _activeStrokeUsesStylus = rawEvent != null &&
         _stylusPressureEnabled &&
         _isStylusEvent(rawEvent);
+    final double? stylusPressure = _stylusPressureValue(rawEvent);
     if (_activeStrokeUsesStylus) {
       _activeStylusPressureMin = _stylusPressureBound(rawEvent?.pressureMin);
       _activeStylusPressureMax = _stylusPressureBound(rawEvent?.pressureMax);
@@ -279,7 +304,7 @@ mixin _PaintingBoardInteractionMixin
         radius: _penStrokeWidth / 2,
         simulatePressure: _simulatePenPressure && !_activeStrokeUsesStylus,
         useDevicePressure: _activeStrokeUsesStylus,
-        pressure: _stylusPressureValue(rawEvent),
+        pressure: stylusPressure,
         pressureMin: _activeStylusPressureMin,
         pressureMax: _activeStylusPressureMax,
         profile: _penPressureProfile,
@@ -287,6 +312,7 @@ mixin _PaintingBoardInteractionMixin
         antialiasLevel: _penAntialiasLevel,
       );
     });
+    _logTabletSample('start', rawEvent, start, stylusPressure);
     _markDirty();
   }
 
@@ -300,6 +326,7 @@ mixin _PaintingBoardInteractionMixin
     }
     final double? deltaMillis = _registerPenSample(timestamp);
     final Offset clamped = _sanitizeStrokePosition(position);
+    double? stylusPressure = _stylusPressureValue(rawEvent);
     if (_activeStrokeUsesStylus && rawEvent != null && _isStylusEvent(rawEvent)) {
       final double? candidateMin = _stylusPressureBound(rawEvent.pressureMin);
       final double? candidateMax = _stylusPressureBound(rawEvent.pressureMax);
@@ -315,11 +342,12 @@ mixin _PaintingBoardInteractionMixin
         clamped,
         deltaTimeMillis: deltaMillis,
         timestampMillis: timestamp.inMicroseconds / 1000.0,
-        pressure: _stylusPressureValue(rawEvent),
+        pressure: stylusPressure,
         pressureMin: _activeStylusPressureMin,
         pressureMax: _activeStylusPressureMax,
       );
     });
+    _logTabletSample('move', rawEvent, clamped, stylusPressure);
   }
 
   void _finishStroke([Duration? timestamp]) {
@@ -908,6 +936,8 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
+          final Offset boardLocal = _toBoardLocal(event.localPosition);
+          _logTabletSample('end', event, boardLocal, _stylusPressureValue(event));
           _finishStroke(event.timeStamp);
         }
         break;

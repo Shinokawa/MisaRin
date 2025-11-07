@@ -112,32 +112,15 @@ class BitmapSurface {
     Uint8List? mask,
     int antialiasLevel = 0,
   }) {
-    final double distance = (b - a).distance;
-    if (distance == 0) {
-      drawCircle(
-        center: a,
-        radius: radius,
-        color: color,
-        mask: mask,
-        antialiasLevel: antialiasLevel,
-      );
-      return;
-    }
-    final double spacing = _spacingForRadius(radius, antialiasLevel);
-    final int steps = math.max(1, (distance / spacing).ceil());
-    final double stepX = (b.dx - a.dx) / steps;
-    final double stepY = (b.dy - a.dy) / steps;
-    Offset current = a;
-    for (int i = 0; i <= steps; i++) {
-      drawCircle(
-        center: current,
-        radius: radius,
-        color: color,
-        mask: mask,
-        antialiasLevel: antialiasLevel,
-      );
-      current = current.translate(stepX, stepY);
-    }
+    _drawCapsuleSegment(
+      a: a,
+      b: b,
+      startRadius: radius,
+      endRadius: radius,
+      color: color,
+      mask: mask,
+      antialiasLevel: antialiasLevel.clamp(0, 3),
+    );
   }
 
   /// Draws a line between [a] and [b] gradually interpolating the brush radius.
@@ -150,36 +133,15 @@ class BitmapSurface {
     Uint8List? mask,
     int antialiasLevel = 0,
   }) {
-    final double distance = (b - a).distance;
-    if (distance == 0) {
-      final double radius = math.max(startRadius, endRadius);
-      drawCircle(
-        center: a,
-        radius: radius,
-        color: color,
-        mask: mask,
-        antialiasLevel: antialiasLevel,
-      );
-      return;
-    }
-    final double averageRadius = (startRadius + endRadius) * 0.5;
-    final double spacing = _spacingForRadius(averageRadius, antialiasLevel);
-    final int steps = math.max(1, (distance / spacing).ceil());
-    final double stepX = (b.dx - a.dx) / steps;
-    final double stepY = (b.dy - a.dy) / steps;
-    Offset current = a;
-    for (int i = 0; i <= steps; i++) {
-      final double t = steps == 0 ? 0.0 : i / steps;
-      final double radius = lerpDouble(startRadius, endRadius, t)!;
-      drawCircle(
-        center: current,
-        radius: radius,
-        color: color,
-        mask: mask,
-        antialiasLevel: antialiasLevel,
-      );
-      current = current.translate(stepX, stepY);
-    }
+    _drawCapsuleSegment(
+      a: a,
+      b: b,
+      startRadius: startRadius,
+      endRadius: endRadius,
+      color: color,
+      mask: mask,
+      antialiasLevel: antialiasLevel.clamp(0, 3),
+    );
   }
 
   /// Draws a stroke made of consecutive [points].
@@ -215,18 +177,107 @@ class BitmapSurface {
     }
   }
 
-  double _spacingForRadius(double radius, int antialiasLevel) {
-    final int level = antialiasLevel.clamp(0, 3);
-    const List<double> factors = <double>[0.25, 0.22, 0.18, 0.14];
-    final double factor = factors[level];
-    final double absRadius = radius.abs();
-    final double minimum = level == 0 ? 0.5 : 0.35;
-    return math.max(minimum, absRadius * factor);
-  }
-
   double _featherForLevel(int level) {
     const List<double> feather = <double>[0.0, 0.7, 1.1, 1.6];
     return feather[level.clamp(0, feather.length - 1)];
+  }
+
+  void _drawCapsuleSegment({
+    required Offset a,
+    required Offset b,
+    required double startRadius,
+    required double endRadius,
+    required Color color,
+    Uint8List? mask,
+    required int antialiasLevel,
+  }) {
+    final double maxRadius = math.max(math.max(startRadius, endRadius), 0.0);
+    if (maxRadius <= 0.0) {
+      return;
+    }
+    final double ax = a.dx;
+    final double ay = a.dy;
+    final double bx = b.dx;
+    final double by = b.dy;
+    final double abx = bx - ax;
+    final double aby = by - ay;
+    final double lenSq = abx * abx + aby * aby;
+    if (lenSq <= 1e-6) {
+      drawCircle(
+        center: a,
+        radius: maxRadius,
+        color: color,
+        mask: mask,
+        antialiasLevel: antialiasLevel,
+      );
+      return;
+    }
+    final double invLenSq = 1.0 / lenSq;
+    final double feather = _featherForLevel(antialiasLevel);
+    final double expand = maxRadius + feather + 1.5;
+    final int minX = math.max(0, (math.min(ax, bx) - expand).floor());
+    final int maxX = math.min(width - 1, (math.max(ax, bx) + expand).ceil());
+    final int minY = math.max(0, (math.min(ay, by) - expand).floor());
+    final int maxY = math.min(height - 1, (math.max(ay, by) + expand).ceil());
+    if (minX > maxX || minY > maxY) {
+      return;
+    }
+    final bool variableRadius = (startRadius - endRadius).abs() > 1e-6;
+    final double radiusDelta = endRadius - startRadius;
+    final int baseAlpha = color.alpha;
+    for (int y = minY; y <= maxY; y++) {
+      final double py = y + 0.5;
+      final int rowIndex = y * width;
+      for (int x = minX; x <= maxX; x++) {
+        if (mask != null && mask[rowIndex + x] == 0) {
+          continue;
+        }
+        final double px = x + 0.5;
+        double t = ((px - ax) * abx + (py - ay) * aby) * invLenSq;
+        if (t < 0.0) {
+          t = 0.0;
+        } else if (t > 1.0) {
+          t = 1.0;
+        }
+        final double closestX = ax + abx * t;
+        final double closestY = ay + aby * t;
+        final double dxp = px - closestX;
+        final double dyp = py - closestY;
+        final double distance = math.sqrt(dxp * dxp + dyp * dyp);
+        double radius = variableRadius ? startRadius + radiusDelta * t : startRadius;
+        radius = radius.abs();
+        if (radius == 0.0 && feather == 0.0) {
+          continue;
+        }
+        double coverage;
+        if (antialiasLevel == 0) {
+          if (distance <= radius) {
+            coverage = 1.0;
+          } else {
+            continue;
+          }
+        } else {
+          final double innerRadius = math.max(radius - feather, 0.0);
+          final double outerRadius = radius + feather;
+          if (distance <= innerRadius) {
+            coverage = 1.0;
+          } else if (distance >= outerRadius || outerRadius <= innerRadius) {
+            continue;
+          } else {
+            coverage = (outerRadius - distance) / (outerRadius - innerRadius);
+          }
+        }
+        if (coverage >= 0.999) {
+          blendPixel(x, y, color);
+        } else {
+          final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
+          if (adjustedAlpha == 0) {
+            continue;
+          }
+          blendPixel(x, y, color.withAlpha(adjustedAlpha));
+        }
+      }
+    }
   }
 
   /// Performs a flood fill starting at [start] with [color].

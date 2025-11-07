@@ -331,30 +331,28 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   double? _latestMax;
   double? _latestRadius;
   double? _latestTilt;
+  PointerDeviceKind? _latestPointerKind;
   int _sampleCount = 0;
   DateTime? _lastSample;
   double _estimatedRps = 0;
+  bool _isDrawingContact = false;
 
   void _handlePointer(PointerEvent event) {
-    if (event.kind != PointerDeviceKind.stylus &&
-        event.kind != PointerDeviceKind.invertedStylus) {
+    if (!_shouldCaptureEvent(event)) {
       return;
     }
     final Offset pos = event.localPosition;
-    final double radius = math.sqrt(event.pressure).clamp(0.5, 4.0);
+    final double pressure =
+        event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 0.0;
+    final double radius = math.sqrt(pressure).clamp(0.5, 4.0);
+    final bool inContact = event.down || pressure > 0.0;
     setState(() {
-      _points.add(
-        _TabletPoint(
-          position: pos,
-          pressure: event.pressure,
-          radius: radius,
-        ),
-      );
-      _latestPressure = event.pressure;
+      _latestPressure = pressure;
       _latestMin = event.pressureMin;
       _latestMax = event.pressureMax;
       _latestRadius = radius;
       _latestTilt = event.orientation;
+      _latestPointerKind = event.kind;
       final DateTime now = DateTime.now();
       if (_lastSample != null) {
         final Duration delta = now.difference(_lastSample!);
@@ -364,6 +362,20 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
         }
       }
       _lastSample = now;
+      if (!inContact) {
+        _isDrawingContact = false;
+        return;
+      }
+      final bool isNewStroke = !_isDrawingContact;
+      _isDrawingContact = true;
+      _points.add(
+        _TabletPoint(
+          position: pos,
+          pressure: pressure,
+          radius: radius,
+          isNewStroke: isNewStroke,
+        ),
+      );
       _sampleCount += 1;
     });
   }
@@ -376,8 +388,32 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       _latestPressure = null;
       _latestRadius = null;
       _latestTilt = null;
+      _latestPointerKind = null;
       _lastSample = null;
+      _isDrawingContact = false;
     });
+  }
+
+  bool _isStylusEvent(PointerEvent event) {
+    return event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus;
+  }
+
+  bool _shouldCaptureEvent(PointerEvent event) {
+    if (_isStylusEvent(event) || event.kind == PointerDeviceKind.unknown) {
+      return true;
+    }
+    if (event.kind == PointerDeviceKind.mouse) {
+      if (event is PointerDownEvent || event is PointerUpEvent) {
+        return true;
+      }
+      if (event is PointerMoveEvent) {
+        return event.down ||
+            (event.buttons & kPrimaryMouseButton) != 0;
+      }
+      return false;
+    }
+    return false;
   }
 
   @override
@@ -391,8 +427,10 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
         children: [
           Expanded(
             child: Listener(
+              behavior: HitTestBehavior.opaque,
               onPointerDown: _handlePointer,
               onPointerMove: _handlePointer,
+              onPointerUp: _handlePointerUp,
               onPointerHover: _handlePointer,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -421,6 +459,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
                 _buildStat('倾角(弧度)', _latestTilt),
                 _buildStat('采样计数', _sampleCount.toDouble(), fractionDigits: 0),
                 _buildStat('采样频率(Hz)', _estimatedRps),
+                _buildTextStat('指针类型', _pointerKindLabel(_latestPointerKind)),
                 const Spacer(),
                 Button(
                   onPressed: _clear,
@@ -432,6 +471,17 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
         ],
       ),
     );
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (!_shouldCaptureEvent(event)) {
+      return;
+    }
+    setState(() {
+      _latestPointerKind = event.kind;
+      _latestPressure = 0;
+      _isDrawingContact = false;
+    });
   }
 
   Widget _buildStat(String label, double? value, {int fractionDigits = 2}) {
@@ -450,6 +500,32 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       ),
     );
   }
+
+  Widget _buildTextStat(String label, String value) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.typography.caption),
+          Text(value, style: theme.typography.body),
+        ],
+      ),
+    );
+  }
+
+  String _pointerKindLabel(PointerDeviceKind? kind) {
+    if (kind == null) {
+      return '—';
+    }
+    final String raw = kind.toString();
+    final int dotIndex = raw.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == raw.length - 1) {
+      return raw;
+    }
+    return raw.substring(dotIndex + 1);
+  }
 }
 
 class _TabletPoint {
@@ -457,11 +533,13 @@ class _TabletPoint {
     required this.position,
     required this.pressure,
     required this.radius,
+    required this.isNewStroke,
   });
 
   final Offset position;
   final double pressure;
   final double radius;
+  final bool isNewStroke;
 }
 
 class _TabletPainter extends CustomPainter {
@@ -471,15 +549,38 @@ class _TabletPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
+    if (points.isEmpty) {
+      return;
+    }
+    final Paint strokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = const Color(0xFF0063B1).withOpacity(0.85);
+    final Paint dotPaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = const Color(0xFF0063B1).withOpacity(0.55);
+      ..color = const Color(0xFF0063B1).withOpacity(0.6);
+
+    Offset? previous;
+    double previousRadius = 0;
     for (final _TabletPoint point in points) {
       final Offset clamped = Offset(
         point.position.dx.clamp(0.0, size.width),
         point.position.dy.clamp(0.0, size.height),
       );
-      canvas.drawCircle(clamped, point.radius, paint);
+      if (point.isNewStroke || previous == null) {
+        final double radius = math.max(point.radius, 1.0);
+        canvas.drawCircle(clamped, radius, dotPaint);
+        previous = clamped;
+        previousRadius = point.radius;
+        continue;
+      }
+      final double strokeWidth =
+          ((previousRadius + point.radius) / 2).clamp(1.0, 12.0).toDouble();
+      strokePaint.strokeWidth = strokeWidth;
+      canvas.drawLine(previous, clamped, strokePaint);
+      previous = clamped;
+      previousRadius = point.radius;
     }
   }
 
