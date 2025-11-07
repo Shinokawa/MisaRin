@@ -125,7 +125,7 @@ void _strokeExtend(
       color: controller._currentStrokeColor,
       mask: controller._selectionMask,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
-      includeStartCap: false,
+      includeStartCap: firstSegment,
     );
     controller._markDirty(
       region: _strokeDirtyRectForVariableLine(
@@ -181,7 +181,7 @@ void _strokeExtend(
       color: controller._currentStrokeColor,
       mask: controller._selectionMask,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
-      includeStartCap: false,
+      includeStartCap: firstSegment,
     );
     controller._markDirty(
       region: _strokeDirtyRectForVariableLine(
@@ -203,7 +203,7 @@ void _strokeExtend(
     color: controller._currentStrokeColor,
     mask: controller._selectionMask,
     antialiasLevel: controller._currentStrokeAntialiasLevel,
-    includeStartCap: false,
+    includeStartCap: firstSegment,
   );
   controller._markDirty(
     region:
@@ -248,7 +248,7 @@ void _strokeEnd(BitmapCanvasController controller) {
           color: controller._currentStrokeColor,
           mask: controller._selectionMask,
           antialiasLevel: controller._currentStrokeAntialiasLevel,
-          includeStartCap: false,
+          includeStartCap: true,
         );
         controller._markDirty(
           region: _strokeDirtyRectForVariableLine(
@@ -292,7 +292,7 @@ void _strokeEnd(BitmapCanvasController controller) {
           color: controller._currentStrokeColor,
           mask: controller._selectionMask,
           antialiasLevel: controller._currentStrokeAntialiasLevel,
-          includeStartCap: false,
+          includeStartCap: true,
         );
         controller._markDirty(
           region: _strokeDirtyRectForVariableLine(
