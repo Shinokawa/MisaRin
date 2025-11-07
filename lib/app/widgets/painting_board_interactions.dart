@@ -786,12 +786,12 @@ mixin _PaintingBoardInteractionMixin
       final double y =
           invT * invT * start.dy + 2 * invT * t * control.dy + t * t * end.dy;
       if (simulatePressure) {
-        final double midpointWeight = (t - 0.5).abs() * 2.0;
-        final double easedWeight = (1.0 - midpointWeight)
-            .clamp(0.0, 1.0)
-            .toDouble();
-        final double deltaTime =
-            ui.lerpDouble(fastDeltaMs, slowDeltaMs, easedWeight) ?? fastDeltaMs;
+      final double midpointWeight = (t - 0.5).abs() * 2.0;
+      final double easedWeight = (1.0 - midpointWeight)
+          .clamp(0.0, 1.0)
+          .toDouble();
+      final double deltaTime =
+          ui.lerpDouble(slowDeltaMs, fastDeltaMs, easedWeight) ?? slowDeltaMs;
         accumulatedTime += deltaTime;
         _controller.extendStroke(
           Offset(x, y),
