@@ -88,6 +88,8 @@ const double _colorIndicatorSize = 56;
 const double _colorIndicatorBorder = 3;
 const int _recentColorCapacity = 5;
 const double _initialViewportScaleFactor = 0.8;
+const double _curveStrokeSampleSpacing = 3.4;
+const double _syntheticStrokeMinDeltaMs = 3.6; // keep >= StrokeDynamics._minDeltaMs
 
 enum CanvasRotation {
   clockwise90,
@@ -286,6 +288,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final double durationJitter =
         ui.lerpDouble(0.85, 1.25, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
     targetDuration *= durationJitter;
+    final double minimumTimeline =
+        samples.length * _syntheticStrokeMinDeltaMs;
+    final double resolvedDuration =
+        math.max(targetDuration, minimumTimeline);
     final List<double> weights = <double>[];
     double totalWeight = 0.0;
     for (final _SyntheticStrokeSample sample in samples) {
@@ -311,10 +317,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         weights[i] = 1.0;
       }
     }
-    final double scale = targetDuration / totalWeight;
+    final double scale = resolvedDuration / totalWeight;
     double timestamp = initialTimestamp;
     for (int i = 0; i < samples.length; i++) {
-      final double deltaTime = math.max(3.0, weights[i] * scale);
+      final double deltaTime =
+          math.max(_syntheticStrokeMinDeltaMs, weights[i] * scale);
       timestamp += deltaTime;
       _controller.extendStroke(
         samples[i].point,

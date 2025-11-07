@@ -768,25 +768,16 @@ mixin _PaintingBoardInteractionMixin
       timestampMillis: initialTimestamp,
       antialiasLevel: _penAntialiasLevel,
     );
-    final double estimatedLength =
-        (start - control).distance + (control - end).distance;
-    final int steps = math.max(12, estimatedLength.ceil());
-    final List<Offset> samplePoints = <Offset>[];
-    for (int i = 1; i <= steps; i++) {
-      final double t = i / steps;
-      samplePoints.add(
-        _clampToCanvas(_sampleQuadraticPoint(start, control, end, t)),
-      );
-    }
+    final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
+      strokeStart,
+      control,
+      _clampToCanvas(end),
+    );
     final List<Offset> polyline = <Offset>[strokeStart, ...samplePoints];
     if (simulatePressure) {
-      final List<Offset> dense = _densifyStrokePolyline(
-        polyline,
-        maxSegmentLength: 4.5,
-      );
       final List<_SyntheticStrokeSample> samples = _buildSyntheticStrokeSamples(
-        dense.length > 1 ? dense.sublist(1) : const <Offset>[],
-        dense.first,
+        polyline.length > 1 ? polyline.sublist(1) : const <Offset>[],
+        polyline.first,
       );
       final double totalDistance = _syntheticStrokeTotalDistance(samples);
       _simulateStrokeWithSyntheticTimeline(
@@ -795,7 +786,8 @@ mixin _PaintingBoardInteractionMixin
         initialTimestamp: initialTimestamp,
       );
     } else {
-      for (final Offset point in samplePoints) {
+      for (int i = 1; i < polyline.length; i++) {
+        final Offset point = polyline[i];
         _controller.extendStroke(point);
       }
     }
@@ -803,21 +795,37 @@ mixin _PaintingBoardInteractionMixin
     _markDirty();
   }
 
-  Offset _sampleQuadraticPoint(
+  List<Offset> _sampleQuadraticCurvePoints(
     Offset start,
     Offset control,
     Offset end,
-    double t,
   ) {
-    final double clampedT = t.clamp(0.0, 1.0);
-    final double invT = 1 - clampedT;
-    final double x = invT * invT * start.dx +
-        2 * invT * clampedT * control.dx +
-        clampedT * clampedT * end.dx;
-    final double y = invT * invT * start.dy +
-        2 * invT * clampedT * control.dy +
-        clampedT * clampedT * end.dy;
-    return Offset(x, y);
+    final Path path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+    final List<Offset> samples = <Offset>[];
+    for (final ui.PathMetric metric in path.computeMetrics()) {
+      final double length = metric.length;
+      if (length <= 0.0) {
+        continue;
+      }
+      double distance = _curveStrokeSampleSpacing;
+      while (distance < length) {
+        final ui.Tangent? tangent = metric.getTangentForOffset(distance);
+        if (tangent != null) {
+          samples.add(_clampToCanvas(tangent.position));
+        }
+        distance += _curveStrokeSampleSpacing;
+      }
+      final ui.Tangent? endPoint = metric.getTangentForOffset(length);
+      if (endPoint != null) {
+        final Offset clamped = _clampToCanvas(endPoint.position);
+        if (samples.isEmpty || (samples.last - clamped).distance > 0.01) {
+          samples.add(clamped);
+        }
+      }
+    }
+    return samples;
   }
 
   void _handlePointerDown(PointerDownEvent event) {
