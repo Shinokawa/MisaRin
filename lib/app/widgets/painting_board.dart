@@ -932,6 +932,10 @@ class PaintingBoardState extends _PaintingBoardBase
     super.dispose();
   }
 
+  void addLayerAboveActiveLayer() {
+    _handleAddLayer();
+  }
+
   @override
   void didUpdateWidget(covariant PaintingBoard oldWidget) {
     super.didUpdateWidget(oldWidget);

@@ -613,6 +613,10 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.paste();
       },
+      newLayer: () {
+        final board = _activeBoard;
+        board?.addLayerAboveActiveLayer();
+      },
       zoomIn: () {
         final board = _activeBoard;
         board?.zoomIn();

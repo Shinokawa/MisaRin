@@ -26,6 +26,7 @@ class MenuActionHandler {
     this.cut,
     this.copy,
     this.paste,
+    this.newLayer,
     this.applyLayerAntialias0,
     this.applyLayerAntialias1,
     this.applyLayerAntialias2,
@@ -52,6 +53,7 @@ class MenuActionHandler {
       cut = null,
       copy = null,
       paste = null,
+      newLayer = null,
       applyLayerAntialias0 = null,
       applyLayerAntialias1 = null,
       applyLayerAntialias2 = null,
@@ -76,6 +78,7 @@ class MenuActionHandler {
   final MenuAsyncAction? cut;
   final MenuAsyncAction? copy;
   final MenuAsyncAction? paste;
+  final MenuAsyncAction? newLayer;
   final MenuAsyncAction? applyLayerAntialias0;
   final MenuAsyncAction? applyLayerAntialias1;
   final MenuAsyncAction? applyLayerAntialias2;

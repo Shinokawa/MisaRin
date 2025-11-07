@@ -292,14 +292,21 @@ class MacosMenuBuilder {
     return PlatformMenu(
       label: '图层',
       menus: <PlatformMenuItem>[
-        PlatformMenuItem(
-          label: '新建 > 图层…',
-          onSelected: _placeholder('图层 > 新建 > 图层…', log),
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyN,
-            meta: true,
-            shift: true,
-          ),
+        PlatformMenu(
+          label: '新建',
+          menus: <PlatformMenuItem>[
+            PlatformMenuItem(
+              label: '图层…',
+              onSelected:
+                  _wrap(handler.newLayer) ??
+                  _placeholder('图层 > 新建 > 图层…', log),
+              shortcut: const SingleActivator(
+                LogicalKeyboardKey.keyN,
+                meta: true,
+                shift: true,
+              ),
+            ),
+          ],
         ),
         PlatformMenuItem(
           label: '复制图层…',

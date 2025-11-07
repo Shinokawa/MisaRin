@@ -55,9 +55,62 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
+  Future<void> _handleLayerRename(BitmapLayerState layer) async {
+    final TextEditingController controller =
+        TextEditingController(text: layer.name);
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.text.length,
+    );
+
+    String? result;
+    try {
+      result = await showDialog<String>(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) {
+          return ContentDialog(
+            title: const Text('重命名图层'),
+            content: TextBox(
+              controller: controller,
+              autofocus: true,
+              placeholder: '图层名称',
+              onSubmitted: (value) => Navigator.of(context).pop(value),
+            ),
+            actions: [
+              Button(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () =>
+                    Navigator.of(context).pop(controller.text),
+                child: const Text('确定'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
+
+    if (result == null) {
+      return;
+    }
+    final String trimmed = result.trim();
+    if (trimmed.isEmpty || trimmed == layer.name) {
+      return;
+    }
+    _pushUndoSnapshot();
+    _controller.renameLayer(layer.id, trimmed);
+    setState(() {});
+    _markDirty();
+  }
+
   void _handleAddLayer() {
     _pushUndoSnapshot();
-    _controller.addLayer();
+    _controller.addLayer(aboveLayerId: _activeLayerId);
     setState(() {});
     _markDirty();
   }
@@ -136,14 +189,25 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
-  void _updateActiveLayerLocked(bool locked) {
-    final BitmapLayerState? layer = _currentActiveLayer();
-    if (layer == null || layer.locked == locked) {
+  void _applyLayerLockedState(BitmapLayerState layer, bool locked) {
+    if (layer.locked == locked) {
       return;
     }
     _pushUndoSnapshot();
     _controller.setLayerLocked(layer.id, locked);
     setState(() {});
+  }
+
+  void _updateActiveLayerLocked(bool locked) {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null) {
+      return;
+    }
+    _applyLayerLockedState(layer, locked);
+  }
+
+  void _handleLayerLockToggle(BitmapLayerState layer) {
+    _applyLayerLockedState(layer, !layer.locked);
   }
 
   void _updateActiveLayerClipping(bool clipping) {
@@ -392,6 +456,18 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                         _handleLayerVisibilityChanged(layer.id, value),
                   );
 
+                  final Widget lockButton = Tooltip(
+                    message: layer.locked ? '解锁图层' : '锁定图层',
+                    child: IconButton(
+                      icon: Icon(
+                        layer.locked
+                            ? FluentIcons.lock
+                            : FluentIcons.unlock,
+                      ),
+                      onPressed: () => _handleLayerLockToggle(layer),
+                    ),
+                  );
+
                   final bool canDelete = _layers.length > 1;
                   final Widget deleteButton = IconButton(
                     icon: const Icon(FluentIcons.delete),
@@ -411,6 +487,10 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () => _handleLayerSelected(layer.id),
+                        onDoubleTap: () {
+                          _handleLayerSelected(layer.id);
+                          unawaited(_handleLayerRename(layer));
+                        },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(
@@ -455,11 +535,13 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                           ],
                                         ],
                                       ),
-                                    ),
                                   ),
-                                  deleteButton,
-                                ],
-                              ),
+                                ),
+                                lockButton,
+                                const SizedBox(width: 4),
+                                deleteButton,
+                              ],
+                            ),
                               if (layer.clippingMask)
                                 Positioned(
                                   left: -10,
