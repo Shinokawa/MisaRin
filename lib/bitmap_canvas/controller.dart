@@ -468,120 +468,12 @@ class BitmapCanvasController extends ChangeNotifier {
   void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) =>
       _layerManagerLoadLayers(this, layers, backgroundColor);
 
-  void _updateComposite({required bool requiresFullSurface, Rect? region}) {
-    _ensureCompositeBuffers();
-    final _IntRect area = requiresFullSurface
-        ? _IntRect(0, 0, _width, _height)
-        : _clipRectToSurface(region!);
-    if (area.isEmpty) {
-      return;
-    }
-
-    final Uint32List composite = _compositePixels!;
-    final Uint8List rgba = _compositeRgba!;
-    final List<BitmapLayerState> layers = _layers;
-    final int width = _width;
-    final Uint8List clipMask = _ensureClipMask();
-    clipMask.fillRange(0, clipMask.length, 0);
-
-    final String? translatingLayerId =
-        _activeLayerTranslationSnapshot != null &&
-            !_pendingActiveLayerTransformCleanup
-        ? _activeLayerTranslationId
-        : null;
-
-    for (int y = area.top; y < area.bottom; y++) {
-      final int rowOffset = y * width;
-      for (int x = area.left; x < area.right; x++) {
-        final int index = rowOffset + x;
-        int color = 0;
-        bool initialized = false;
-        for (final BitmapLayerState layer in layers) {
-          if (!layer.visible) {
-            continue;
-          }
-          if (translatingLayerId != null && layer.id == translatingLayerId) {
-            continue;
-          }
-          final double rawOpacity = layer.opacity;
-          final double layerOpacity = _clampUnit(rawOpacity);
-          if (layerOpacity <= 0) {
-            if (!layer.clippingMask) {
-              clipMask[index] = 0;
-            }
-            continue;
-          }
-          final int src = layer.surface.pixels[index];
-          final int srcA = (src >> 24) & 0xff;
-          if (!layer.clippingMask && (srcA == 0)) {
-            clipMask[index] = 0;
-          }
-          if (srcA == 0) {
-            continue;
-          }
-
-          double totalOpacity = layerOpacity;
-          if (layer.clippingMask) {
-            final int maskAlpha = clipMask[index];
-            if (maskAlpha == 0) {
-              continue;
-            }
-            totalOpacity *= maskAlpha / 255.0;
-            if (totalOpacity <= 0) {
-              continue;
-            }
-          }
-
-          int effectiveA = (srcA * totalOpacity).round();
-          if (effectiveA <= 0) {
-            if (!layer.clippingMask) {
-              clipMask[index] = 0;
-            }
-            continue;
-          }
-          effectiveA = effectiveA.clamp(0, 255);
-
-          if (!layer.clippingMask) {
-            clipMask[index] = effectiveA;
-          }
-
-          final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
-          if (!initialized) {
-            color = effectiveColor;
-            initialized = true;
-          } else {
-            color = _blendWithMode(
-              color,
-              effectiveColor,
-              layer.blendMode,
-              index,
-            );
-          }
-        }
-
-        if (!initialized) {
-          composite[index] = 0;
-          final int rgbaOffset = index * 4;
-          rgba[rgbaOffset] = 0;
-          rgba[rgbaOffset + 1] = 0;
-          rgba[rgbaOffset + 2] = 0;
-          rgba[rgbaOffset + 3] = 0;
-          continue;
-        }
-
-        composite[index] = color;
-        final int rgbaOffset = index * 4;
-        rgba[rgbaOffset] = (color >> 16) & 0xff;
-        rgba[rgbaOffset + 1] = (color >> 8) & 0xff;
-        rgba[rgbaOffset + 2] = color & 0xff;
-        rgba[rgbaOffset + 3] = (color >> 24) & 0xff;
-      }
-    }
-
-    if (requiresFullSurface) {
-      _compositeInitialized = true;
-    }
-  }
+  void _updateComposite({required bool requiresFullSurface, Rect? region}) =>
+      _compositeUpdate(
+        this,
+        requiresFullSurface: requiresFullSurface,
+        region: region,
+      );
 
   void _drawPoint(Offset position, double radius) =>
       _strokeDrawPoint(this, position, radius);
@@ -594,66 +486,11 @@ class BitmapCanvasController extends ChangeNotifier {
   ) =>
       _strokeDirtyRectForVariableLine(a, b, startRadius, endRadius);
 
-  void _markDirty({Rect? region}) {
-    _compositeDirty = true;
-    if (region == null || _pendingFullSurface) {
-      _pendingDirtyRect = null;
-      _pendingFullSurface = true;
-    } else if (_pendingDirtyRect == null) {
-      _pendingDirtyRect = region;
-    } else {
-      final Rect current = _pendingDirtyRect!;
-      _pendingDirtyRect = Rect.fromLTRB(
-        math.min(current.left, region.left),
-        math.min(current.top, region.top),
-        math.max(current.right, region.right),
-        math.max(current.bottom, region.bottom),
-      );
-    }
-    _scheduleCompositeRefresh();
-  }
+  void _markDirty({Rect? region}) =>
+      _compositeMarkDirty(this, region: region);
 
-  void _scheduleCompositeRefresh() {
-    if (_refreshScheduled) {
-      return;
-    }
-    _refreshScheduled = true;
-    scheduleMicrotask(() {
-      _refreshScheduled = false;
-      if (!_compositeDirty) {
-        return;
-      }
-      final Rect? dirtyRect = _pendingDirtyRect;
-      final bool requiresFullSurface =
-          !_compositeInitialized || _pendingFullSurface || dirtyRect == null;
-
-      _pendingDirtyRect = null;
-      _pendingFullSurface = false;
-
-      _updateComposite(
-        requiresFullSurface: requiresFullSurface,
-        region: requiresFullSurface ? null : dirtyRect,
-      );
-
-      final Uint8List rgba = _compositeRgba ?? Uint8List(_width * _height * 4);
-      ui.decodeImageFromPixels(rgba, _width, _height, ui.PixelFormat.rgba8888, (
-        ui.Image image,
-      ) {
-        _cachedImage?.dispose();
-        _cachedImage = image;
-        if (_pendingActiveLayerTransformCleanup) {
-          _pendingActiveLayerTransformCleanup = false;
-          _resetActiveLayerTranslationState(this);
-        }
-        _compositeDirty = _pendingFullSurface || _pendingDirtyRect != null;
-        notifyListeners();
-        if (_compositeDirty && !_refreshScheduled) {
-          _scheduleCompositeRefresh();
-        }
-      });
-    });
-    notifyListeners();
-  }
+  void _scheduleCompositeRefresh() =>
+      _compositeScheduleRefresh(this);
 
   BitmapLayerState get _activeLayer => _layers[_activeIndex];
 
@@ -751,14 +588,9 @@ class BitmapCanvasController extends ChangeNotifier {
     }
   }
 
-  void _ensureCompositeBuffers() {
-    _compositePixels ??= Uint32List(_width * _height);
-    _compositeRgba ??= Uint8List(_width * _height * 4);
-  }
+  void _ensureCompositeBuffers() => _compositeEnsureBuffers(this);
 
-  Uint8List _ensureClipMask() {
-    return _clipMaskBuffer ??= Uint8List(_width * _height);
-  }
+  Uint8List _ensureClipMask() => _compositeEnsureClipMask(this);
 
   static double _clampUnit(double value) {
     if (value <= 0) {
@@ -770,20 +602,8 @@ class BitmapCanvasController extends ChangeNotifier {
     return value;
   }
 
-  _IntRect _clipRectToSurface(Rect rect) {
-    final double effectiveLeft = rect.left;
-    final double effectiveTop = rect.top;
-    final double effectiveRight = rect.right;
-    final double effectiveBottom = rect.bottom;
-    final int left = math.max(0, effectiveLeft.floor());
-    final int top = math.max(0, effectiveTop.floor());
-    final int right = math.min(_width, effectiveRight.ceil());
-    final int bottom = math.min(_height, effectiveBottom.ceil());
-    if (left >= right || top >= bottom) {
-      return const _IntRect(0, 0, 0, 0);
-    }
-    return _IntRect(left, top, right, bottom);
-  }
+  _IntRect _clipRectToSurface(Rect rect) =>
+      _compositeClipRectToSurface(this, rect);
 
   Rect _dirtyRectForCircle(Offset center, double radius) =>
       _strokeDirtyRectForCircle(center, radius);
