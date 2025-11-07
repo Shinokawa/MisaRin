@@ -64,7 +64,7 @@ class TabletInputBridge {
     if (!_supportMacOS) {
       return false;
     }
-    final _TabletSample? sample = _samples[event.device];
+    final _TabletSample? sample = _sampleForPointer(event);
     if (sample == null) {
       return false;
     }
@@ -86,7 +86,7 @@ class TabletInputBridge {
     if (!_supportMacOS) {
       return null;
     }
-    final _TabletSample? sample = _samples[event.device];
+    final _TabletSample? sample = _sampleForPointer(event);
     if (sample == null) {
       return null;
     }
@@ -94,6 +94,25 @@ class TabletInputBridge {
       return null;
     }
     return sample.pressure.clamp(0.0, 1.0);
+  }
+
+  _TabletSample? _sampleForPointer(PointerEvent event) {
+    final _TabletSample? direct = _samples[event.device];
+    if (direct != null) {
+      return direct;
+    }
+    if (_samples.isEmpty) {
+      return null;
+    }
+    if (_samples.length == 1) {
+      return _samples.values.first;
+    }
+    for (final _TabletSample sample in _samples.values) {
+      if (sample.inContact) {
+        return sample;
+      }
+    }
+    return _samples.values.first;
   }
 }
 
