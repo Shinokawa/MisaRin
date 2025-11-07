@@ -94,34 +94,38 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
 
     _pushUndoSnapshot();
     final bool simulatePressure = _simulatePenPressure;
-    const double fastDeltaMs = 3.5;
-    const double slowDeltaMs = 22.0;
-    double accumulatedTime = 0.0;
+    const double initialTimestamp = 0.0;
+    final List<Offset> effectivePoints = simulatePressure
+        ? _densifyStrokePolyline(strokePoints)
+        : strokePoints;
+    if (effectivePoints.length < 2) {
+      _resetShapeDrawingState();
+      return;
+    }
+    final Offset strokeStart = effectivePoints.first;
     _controller.beginStroke(
-      strokePoints.first,
+      strokeStart,
       color: _primaryColor,
       radius: _penStrokeWidth / 2,
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
-      timestampMillis: accumulatedTime,
+      timestampMillis: initialTimestamp,
       antialiasLevel: _penAntialiasLevel,
     );
-    for (int i = 1; i < strokePoints.length; i++) {
-      final Offset point = strokePoints[i];
-      if (simulatePressure) {
-        final Offset previous = strokePoints[i - 1];
-        final double distance = (point - previous).distance;
-        final double normalized = (distance / 18.0).clamp(0.0, 1.0);
-        final double deltaTime =
-            ui.lerpDouble(fastDeltaMs, slowDeltaMs, normalized) ?? fastDeltaMs;
-        accumulatedTime += deltaTime;
-        _controller.extendStroke(
-          point,
-          deltaTimeMillis: deltaTime,
-          timestampMillis: accumulatedTime,
-        );
-      } else {
-        _controller.extendStroke(point);
+    if (simulatePressure) {
+      final List<Offset> samplePoints =
+          effectivePoints.length > 1 ? effectivePoints.sublist(1) : const <Offset>[];
+      final List<_SyntheticStrokeSample> samples =
+          _buildSyntheticStrokeSamples(samplePoints, strokeStart);
+      final double totalDistance = _syntheticStrokeTotalDistance(samples);
+      _simulateStrokeWithSyntheticTimeline(
+        samples,
+        totalDistance: totalDistance,
+        initialTimestamp: initialTimestamp,
+      );
+    } else {
+      for (int i = 1; i < effectivePoints.length; i++) {
+        _controller.extendStroke(effectivePoints[i]);
       }
     }
     _controller.endStroke();

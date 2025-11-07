@@ -757,8 +757,6 @@ mixin _PaintingBoardInteractionMixin
 
   void _drawQuadraticCurve(Offset start, Offset control, Offset end) {
     const double initialTimestamp = 0.0;
-    const double fastDeltaMs = 3.5;
-    const double slowDeltaMs = 22.0;
     final bool simulatePressure = _simulatePenPressure;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
@@ -773,55 +771,32 @@ mixin _PaintingBoardInteractionMixin
     final double estimatedLength =
         (start - control).distance + (control - end).distance;
     final int steps = math.max(12, estimatedLength.ceil());
-    double accumulatedTime = initialTimestamp;
-
+    final List<Offset> samplePoints = <Offset>[];
+    for (int i = 1; i <= steps; i++) {
+      final double t = i / steps;
+      samplePoints.add(
+        _clampToCanvas(_sampleQuadraticPoint(start, control, end, t)),
+      );
+    }
+    final List<Offset> polyline = <Offset>[strokeStart, ...samplePoints];
     if (simulatePressure) {
-      final double baseStep = 1.0 / steps;
-      double t = baseStep;
-      double lastSampleT = 0.0;
-      while (t <= 1.0 + 1e-3) {
-        final double clampedT = t.clamp(0.0, 1.0);
-        final Offset point = _sampleQuadraticPoint(start, control, end, clampedT);
-        final double speedWeight =
-            _curveStrokeSpeedWeight(clampedT, _penPressureProfile);
-        final double easedWeight =
-            math.pow(speedWeight.clamp(0.0, 1.0), 0.9).toDouble();
-        final double deltaTime =
-            ui.lerpDouble(slowDeltaMs, fastDeltaMs, easedWeight) ?? slowDeltaMs;
-        accumulatedTime += deltaTime;
-        _controller.extendStroke(
-          point,
-          deltaTimeMillis: deltaTime,
-          timestampMillis: accumulatedTime,
-        );
-        lastSampleT = clampedT;
-        if ((1.0 - clampedT).abs() <= 1e-4) {
-          break;
-        }
-        final double spacingScale =
-            ui.lerpDouble(0.55, 3.2, easedWeight) ?? 1.0;
-        t += baseStep * spacingScale;
-      }
-      if ((1.0 - lastSampleT).abs() > 1e-4) {
-        final double terminalWeight =
-            _curveStrokeSpeedWeight(1.0, _penPressureProfile);
-        final double easedTerminal =
-            math.pow(terminalWeight.clamp(0.0, 1.0), 0.9).toDouble();
-        final double deltaTime =
-            ui.lerpDouble(slowDeltaMs, fastDeltaMs, easedTerminal) ?? fastDeltaMs;
-        accumulatedTime += deltaTime;
-        _controller.extendStroke(
-          _sampleQuadraticPoint(start, control, end, 1.0),
-          deltaTimeMillis: deltaTime,
-          timestampMillis: accumulatedTime,
-        );
-      }
+      final List<Offset> dense = _densifyStrokePolyline(
+        polyline,
+        maxSegmentLength: 4.5,
+      );
+      final List<_SyntheticStrokeSample> samples = _buildSyntheticStrokeSamples(
+        dense.length > 1 ? dense.sublist(1) : const <Offset>[],
+        dense.first,
+      );
+      final double totalDistance = _syntheticStrokeTotalDistance(samples);
+      _simulateStrokeWithSyntheticTimeline(
+        samples,
+        totalDistance: totalDistance,
+        initialTimestamp: initialTimestamp,
+      );
     } else {
-      for (int i = 1; i <= steps; i++) {
-        final double t = i / steps;
-        _controller.extendStroke(
-          _sampleQuadraticPoint(start, control, end, t),
-        );
+      for (final Offset point in samplePoints) {
+        _controller.extendStroke(point);
       }
     }
     _controller.endStroke();
@@ -843,23 +818,6 @@ mixin _PaintingBoardInteractionMixin
         2 * invT * clampedT * control.dy +
         clampedT * clampedT * end.dy;
     return Offset(x, y);
-  }
-
-  double _curveStrokeSpeedWeight(double t, StrokePressureProfile profile) {
-    final double normalizedT = t.clamp(0.0, 1.0);
-    final double midpointWeight = (normalizedT - 0.5).abs() * 2.0;
-    switch (profile) {
-      case StrokePressureProfile.taperEnds:
-        return (1.0 - midpointWeight).clamp(0.0, 1.0);
-      case StrokePressureProfile.taperCenter:
-        return midpointWeight.clamp(0.0, 1.0);
-      case StrokePressureProfile.auto:
-        final double symmetric = (1.0 - midpointWeight).clamp(0.0, 1.0);
-        final double easeIn = math.pow(normalizedT, 0.65).toDouble();
-        final double easeOut = math.pow(1.0 - normalizedT, 0.65).toDouble();
-        final double bias = ((easeIn + easeOut) * 0.25).clamp(0.0, 0.35);
-        return (symmetric * 0.85 + bias).clamp(0.0, 1.0);
-    }
   }
 
   void _handlePointerDown(PointerDownEvent event) {

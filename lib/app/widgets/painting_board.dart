@@ -64,6 +64,18 @@ part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
 part 'painting_board_widgets.dart';
 
+class _SyntheticStrokeSample {
+  const _SyntheticStrokeSample({
+    required this.point,
+    required this.distance,
+    required this.progress,
+  });
+
+  final Offset point;
+  final double distance;
+  final double progress;
+}
+
 const double _toolButtonPadding = 16;
 const double _toolbarButtonSize = CanvasToolbar.buttonSize;
 const double _toolbarSpacing = CanvasToolbar.spacing;
@@ -140,6 +152,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _layerDragStart;
   int _layerDragAppliedDx = 0;
   int _layerDragAppliedDy = 0;
+  final math.Random _syntheticStrokeRandom = math.Random();
   Offset? _curveAnchor;
   Offset? _curvePendingEnd;
   Offset? _curveDragOrigin;
@@ -202,6 +215,173 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       maxFactor: _stylusMaxFactor,
       curve: _stylusCurve,
     );
+  }
+
+  List<_SyntheticStrokeSample> _buildSyntheticStrokeSamples(
+    List<Offset> points,
+    Offset initialPoint,
+  ) {
+    if (points.isEmpty) {
+      return const <_SyntheticStrokeSample>[];
+    }
+    final List<_SyntheticStrokeSample> pending = <_SyntheticStrokeSample>[];
+    double totalDistance = 0.0;
+    Offset previous = initialPoint;
+    for (final Offset point in points) {
+      final double distance = (point - previous).distance;
+      if (distance < 0.001) {
+        previous = point;
+        continue;
+      }
+      pending.add(
+        _SyntheticStrokeSample(
+          point: point,
+          distance: distance,
+          progress: 0.0,
+        ),
+      );
+      totalDistance += distance;
+      previous = point;
+    }
+    if (pending.isEmpty) {
+      return const <_SyntheticStrokeSample>[];
+    }
+    if (totalDistance <= 0.0001) {
+      final int count = pending.length;
+      for (int i = 0; i < count; i++) {
+        final _SyntheticStrokeSample sample = pending[i];
+        pending[i] = _SyntheticStrokeSample(
+          point: sample.point,
+          distance: sample.distance,
+          progress: (i + 1) / count,
+        );
+      }
+      return pending;
+    }
+    double cumulative = 0.0;
+    for (int i = 0; i < pending.length; i++) {
+      final _SyntheticStrokeSample sample = pending[i];
+      cumulative += sample.distance;
+      pending[i] = _SyntheticStrokeSample(
+        point: sample.point,
+        distance: sample.distance,
+        progress: (cumulative / totalDistance).clamp(0.0, 1.0),
+      );
+    }
+    return pending;
+  }
+
+  void _simulateStrokeWithSyntheticTimeline(
+    List<_SyntheticStrokeSample> samples, {
+    required double totalDistance,
+    required double initialTimestamp,
+  }) {
+    if (samples.isEmpty) {
+      return;
+    }
+    final double effectiveDistance =
+        totalDistance > 0.0001 ? totalDistance : samples.length.toDouble();
+    double targetDuration =
+        _syntheticStrokeTargetDuration(effectiveDistance).clamp(160.0, 720.0);
+    final double durationJitter =
+        ui.lerpDouble(0.85, 1.25, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
+    targetDuration *= durationJitter;
+    final List<double> weights = <double>[];
+    double totalWeight = 0.0;
+    for (final _SyntheticStrokeSample sample in samples) {
+      final double speed = _syntheticStrokeSpeedFactor(
+        sample.progress,
+        _penPressureProfile,
+      );
+      final double jitter = ui.lerpDouble(
+            0.82,
+            1.24,
+            _syntheticStrokeRandom.nextDouble(),
+          ) ??
+          1.0;
+      final double normalizedDistance =
+          math.max(sample.distance, 0.02) / math.max(speed, 0.05);
+      final double weight = math.max(0.001, normalizedDistance * jitter);
+      weights.add(weight);
+      totalWeight += weight;
+    }
+    if (totalWeight <= 0.0001) {
+      totalWeight = samples.length.toDouble();
+      for (int i = 0; i < weights.length; i++) {
+        weights[i] = 1.0;
+      }
+    }
+    final double scale = targetDuration / totalWeight;
+    double timestamp = initialTimestamp;
+    for (int i = 0; i < samples.length; i++) {
+      final double deltaTime = math.max(3.0, weights[i] * scale);
+      timestamp += deltaTime;
+      _controller.extendStroke(
+        samples[i].point,
+        deltaTimeMillis: deltaTime,
+        timestampMillis: timestamp,
+      );
+    }
+  }
+
+  double _syntheticStrokeTotalDistance(List<_SyntheticStrokeSample> samples) {
+    double total = 0.0;
+    for (final _SyntheticStrokeSample sample in samples) {
+      total += sample.distance;
+    }
+    return total;
+  }
+
+  double _syntheticStrokeTargetDuration(double totalDistance) {
+    final double normalized = (totalDistance / 320.0).clamp(0.0, 1.0);
+    return ui.lerpDouble(200.0, 500.0, normalized) ?? 320.0;
+  }
+
+  double _syntheticStrokeSpeedFactor(
+    double progress,
+    StrokePressureProfile profile,
+  ) {
+    final double normalized = progress.clamp(0.0, 1.0);
+    final double fromCenter = (normalized - 0.5).abs() * 2.0;
+    switch (profile) {
+      case StrokePressureProfile.taperEnds:
+        return ui.lerpDouble(2.8, 0.38, fromCenter) ?? 1.0;
+      case StrokePressureProfile.taperCenter:
+        return ui.lerpDouble(0.42, 2.6, fromCenter) ?? 1.0;
+      case StrokePressureProfile.auto:
+        final double sine = math.sin(normalized * math.pi).abs();
+        final double blend = ui.lerpDouble(1.8, 0.55, sine) ?? 1.0;
+        final double edgeBias = ui.lerpDouble(1.1, 0.75, fromCenter) ?? 1.0;
+        return blend * edgeBias;
+    }
+  }
+
+  List<Offset> _densifyStrokePolyline(
+    List<Offset> points, {
+    double maxSegmentLength = 6.0,
+  }) {
+    if (points.length < 2) {
+      return List<Offset>.from(points);
+    }
+    final double spacing = maxSegmentLength.clamp(0.8, 24.0);
+    final List<Offset> dense = <Offset>[points.first];
+    for (int i = 1; i < points.length; i++) {
+      final Offset from = dense.last;
+      final Offset to = points[i];
+      final double segmentLength = (to - from).distance;
+      if (segmentLength <= spacing + 1e-3) {
+        dense.add(to);
+        continue;
+      }
+      final int segments = math.max(1, (segmentLength / spacing).ceil());
+      for (int s = 1; s <= segments; s++) {
+        final double t = s / segments;
+        final double x = ui.lerpDouble(from.dx, to.dx, t) ?? to.dx;
+        final double y = ui.lerpDouble(from.dy, to.dy, t) ?? to.dy;
+        dense.add(Offset(x, y));
+      }
+    }
+    return dense;
   }
 
   void _refreshStylusPreferencesIfNeeded() {
