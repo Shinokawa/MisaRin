@@ -43,8 +43,6 @@ class TabletInputBridge {
     final double pressureMin = (raw['pressureMin'] as num?)?.toDouble() ?? 0.0;
     final double pressureMax = (raw['pressureMax'] as num?)?.toDouble() ?? 1.0;
     final bool inContact = raw['inContact'] as bool? ?? false;
-    debugPrint('[TabletBridge] device=$deviceId pressure=${pressure.toStringAsFixed(3)} '
-        'inContact=$inContact');
     _samples[deviceId] = _TabletSample(
       pressure: pressure,
       min: pressureMin,

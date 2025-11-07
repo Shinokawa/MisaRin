@@ -245,30 +245,6 @@ mixin _PaintingBoardInteractionMixin
     return bound;
   }
 
-  void _logTabletSample(
-    String phase,
-    PointerEvent? event,
-    Offset boardPosition,
-    double? pressure,
-  ) {
-    assert(() {
-      final String kind = event?.kind.toString() ?? 'null';
-      final double? raw = event?.pressure;
-      final String formattedPressure =
-          pressure != null ? pressure.toStringAsFixed(3) : '—';
-      final String formattedRaw =
-          raw != null && raw.isFinite ? raw.toStringAsFixed(3) : '—';
-      final String posX = boardPosition.dx.toStringAsFixed(1);
-      final String posY = boardPosition.dy.toStringAsFixed(1);
-      debugPrint(
-        '[TabletSample] phase=$phase kind=$kind device=${event?.device ?? -1} '
-        'pos=($posX,$posY) pressure=$formattedPressure rawPressure=$formattedRaw '
-        'buttons=${event?.buttons ?? 0}',
-      );
-      return true;
-    }());
-  }
-
   void _startStroke(
     Offset position,
     Duration timestamp,
@@ -304,7 +280,6 @@ mixin _PaintingBoardInteractionMixin
         antialiasLevel: _penAntialiasLevel,
       );
     });
-    _logTabletSample('start', rawEvent, start, stylusPressure);
     _markDirty();
   }
 
@@ -339,7 +314,28 @@ mixin _PaintingBoardInteractionMixin
         pressureMax: _activeStylusPressureMax,
       );
     });
-    _logTabletSample('move', rawEvent, clamped, stylusPressure);
+  }
+
+  void _appendStylusReleaseSample(
+    Offset boardLocal,
+    Duration timestamp,
+    double? pressure,
+  ) {
+    if (!_activeStrokeUsesStylus) {
+      return;
+    }
+    final double targetPressure = (pressure ?? 0.0).clamp(0.0, 1.0);
+    final double? deltaMillis = _registerPenSample(timestamp);
+    setState(() {
+      _controller.extendStroke(
+        boardLocal,
+        deltaTimeMillis: deltaMillis,
+        timestampMillis: timestamp.inMicroseconds / 1000.0,
+        pressure: targetPressure,
+        pressureMin: _activeStylusPressureMin,
+        pressureMax: _activeStylusPressureMax,
+      );
+    });
   }
 
   void _finishStroke([Duration? timestamp]) {
@@ -929,8 +925,17 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
-          _logTabletSample('end', event, boardLocal, _stylusPressureValue(event));
-          _finishStroke(event.timeStamp);
+          final double? releasePressure = _stylusPressureValue(event);
+          if (_activeStrokeUsesStylus) {
+            _appendStylusReleaseSample(
+              boardLocal,
+              event.timeStamp,
+              releasePressure,
+            );
+            _finishStroke();
+          } else {
+            _finishStroke(event.timeStamp);
+          }
         }
         break;
       case CanvasTool.layerAdjust:

@@ -20,17 +20,7 @@ private final class LoggingFlutterViewController: FlutterViewController {
     )
   }
 
-  private func logEvent(_ tag: String, event: NSEvent) {
-#if DEBUG
-    let type = event.type.rawValue
-    let device = event.pointingDeviceType.rawValue
-    let pressure = String(format: "%.3f", event.pressure)
-    Swift.print("[TabletLog] tag=\(tag) type=\(type) device=\(device) pressure=\(pressure) buttons=\(event.buttonMask)")
-#endif
-  }
-
   private func dispatchPointerEvent(tag: String, event: NSEvent, inContact: Bool) {
-    logEvent(tag, event: event)
     if tabletChannel == nil {
       configureTabletChannel()
     }
