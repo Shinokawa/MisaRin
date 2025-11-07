@@ -1,6 +1,10 @@
 part of 'painting_board.dart';
 
 mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
+  final TextEditingController _layerRenameController = TextEditingController();
+  final FocusNode _layerRenameFocusNode = FocusNode();
+  String? _renamingLayerId;
+
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
     if (provided != null && provided.isNotEmpty) {
@@ -55,55 +59,56 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
-  Future<void> _handleLayerRename(BitmapLayerState layer) async {
-    final TextEditingController controller =
-        TextEditingController(text: layer.name);
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
-    );
-
-    String? result;
-    try {
-      result = await showDialog<String>(
-        context: context,
-        barrierDismissible: true,
-        builder: (context) {
-          return ContentDialog(
-            title: const Text('重命名图层'),
-            content: TextBox(
-              controller: controller,
-              autofocus: true,
-              placeholder: '图层名称',
-              onSubmitted: (value) => Navigator.of(context).pop(value),
-            ),
-            actions: [
-              Button(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () =>
-                    Navigator.of(context).pop(controller.text),
-                child: const Text('确定'),
-              ),
-            ],
-          );
-        },
-      );
-    } finally {
-      controller.dispose();
+  void _handleLayerRenameFocusChange() {
+    if (!_layerRenameFocusNode.hasFocus && _renamingLayerId != null) {
+      _finalizeLayerRename();
     }
+  }
 
-    if (result == null) {
+  void _beginLayerRename(BitmapLayerState layer) {
+    if (_renamingLayerId != null && _renamingLayerId != layer.id) {
+      _finalizeLayerRename(cancel: true);
+    }
+    _layerRenameController
+      ..text = layer.name
+      ..selection = TextSelection(baseOffset: 0, extentOffset: layer.name.length);
+    setState(() {
+      _renamingLayerId = layer.id;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _renamingLayerId != layer.id) {
+        return;
+      }
+      if (!_layerRenameFocusNode.hasFocus) {
+        _layerRenameFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _finalizeLayerRename({bool cancel = false}) {
+    final String? targetId = _renamingLayerId;
+    if (targetId == null) {
       return;
     }
-    final String trimmed = result.trim();
-    if (trimmed.isEmpty || trimmed == layer.name) {
+    final String nextName = _layerRenameController.text.trim();
+    setState(() {
+      _renamingLayerId = null;
+    });
+    if (cancel || nextName.isEmpty) {
+      return;
+    }
+    BitmapLayerState? target;
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id == targetId) {
+        target = layer;
+        break;
+      }
+    }
+    if (target == null || target.name == nextName) {
       return;
     }
     _pushUndoSnapshot();
-    _controller.renameLayer(layer.id, trimmed);
+    _controller.renameLayer(target.id, nextName);
     setState(() {});
     _markDirty();
   }
@@ -252,6 +257,42 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     return SizedBox(
       height: 1,
       child: DecoratedBox(decoration: BoxDecoration(color: dividerColor)),
+    );
+  }
+
+  Widget _buildInlineLayerRenameField(
+    FluentThemeData theme, {
+    required bool isActive,
+    required String layerId,
+  }) {
+    final TextStyle style =
+        (isActive ? theme.typography.bodyStrong : theme.typography.body) ??
+            const TextStyle(fontSize: 14);
+    final Color cursorColor = theme.accentColor.defaultBrushFor(
+      theme.brightness,
+    );
+    final Color selectionColor = cursorColor.withOpacity(0.35);
+    return SizedBox(
+      height: style.fontSize != null ? style.fontSize! * 1.4 : 24,
+      child: EditableText(
+        key: ValueKey<String>('layer-rename-$layerId'),
+        controller: _layerRenameController,
+        focusNode: _layerRenameFocusNode,
+        style: style,
+        cursorColor: cursorColor,
+        backgroundCursorColor: Colors.transparent,
+        selectionColor: selectionColor,
+        maxLines: 1,
+        autofocus: true,
+        cursorWidth: 1.5,
+        cursorRadius: const Radius.circular(1.5),
+        onSubmitted: (_) => _finalizeLayerRename(),
+        onEditingComplete: _finalizeLayerRename,
+        onTapOutside: (_) => _finalizeLayerRename(),
+        inputFormatters: const [],
+        textInputAction: TextInputAction.done,
+        keyboardType: TextInputType.text,
+      ),
     );
   }
 
@@ -475,6 +516,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                         ? () => _handleRemoveLayer(layer.id)
                         : null,
                   );
+                  final bool isRenaming = _renamingLayerId == layer.id;
 
                   return material.ReorderableDragStartListener(
                     key: ValueKey(layer.id),
@@ -489,7 +531,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                         onTap: () => _handleLayerSelected(layer.id),
                         onDoubleTap: () {
                           _handleLayerSelected(layer.id);
-                          unawaited(_handleLayerRename(layer));
+                          _beginLayerRename(layer);
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
@@ -515,13 +557,22 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                       child: Row(
                                         children: [
                                           Expanded(
-                                            child: Text(
-                                              layer.name,
-                                              style: isActive
-                                                  ? theme.typography.bodyStrong
-                                                  : theme.typography.body,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
+                                            child: isRenaming
+                                                ? _buildInlineLayerRenameField(
+                                                    theme,
+                                                    isActive: isActive,
+                                                    layerId: layer.id,
+                                                  )
+                                                : Text(
+                                                    layer.name,
+                                                    style: isActive
+                                                        ? theme
+                                                            .typography.bodyStrong
+                                                        : theme
+                                                            .typography.body,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
                                           ),
                                           if (layer.locked) ...[
                                             const SizedBox(width: 6),
@@ -668,16 +719,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          if (layer.locked) ...[
-                                            const SizedBox(width: 6),
-                                            Icon(
-                                              FluentIcons.lock,
-                                              size: 12,
-                                              color: theme
-                                                  .resources
-                                                  .textFillColorSecondary,
-                                            ),
-                                          ],
                                         ],
                                       ),
                                     ),

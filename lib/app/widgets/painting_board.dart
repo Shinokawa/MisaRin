@@ -32,6 +32,7 @@ import 'package:flutter/scheduler.dart'
     show SingleTickerProviderStateMixin, TickerProvider;
 import 'package:flutter/widgets.dart'
     show
+        EditableText,
         FocusNode,
         TextEditingController,
         WidgetsBinding,
@@ -893,6 +894,7 @@ class PaintingBoardState extends _PaintingBoardBase
   void initState() {
     super.initState();
     initializeSelectionTicker(this);
+    _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
@@ -928,6 +930,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
     _layerScrollController.dispose();
+    _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
+    _layerRenameController.dispose();
+    _layerRenameFocusNode.dispose();
     _focusNode.dispose();
     super.dispose();
   }
