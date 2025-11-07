@@ -113,19 +113,36 @@ void _strokeExtend(
     if (nextRadius == null) {
       return;
     }
-    double startRadius = controller._currentStrokeLastRadius;
-    if (firstSegment) {
-      startRadius = nextRadius;
+    final double resolvedRadius = _strokeResolveSimulatedRadius(
+      controller,
+      nextRadius,
+    );
+    final double segmentLength = (position - last).distance;
+    if (_strokeSegmentShouldSnapToPoint(segmentLength, resolvedRadius)) {
+      _strokeDrawPoint(controller, position, resolvedRadius);
+      controller._currentStrokeHasMoved = true;
+      controller._currentStrokeLastRadius = resolvedRadius;
+      return;
     }
+    final double previousRadius = controller._currentStrokeLastRadius.isFinite &&
+            controller._currentStrokeLastRadius > 0.0
+        ? controller._currentStrokeLastRadius
+        : controller._currentStrokeRadius;
+    final bool restartCaps = firstSegment ||
+        _strokeNeedsRestartCaps(
+          previousRadius,
+          resolvedRadius,
+        );
+    final double startRadius = restartCaps ? resolvedRadius : previousRadius;
     controller._activeSurface.drawVariableLine(
       a: last,
       b: position,
       startRadius: startRadius,
-      endRadius: nextRadius,
+      endRadius: resolvedRadius,
       color: controller._currentStrokeColor,
       mask: controller._selectionMask,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
-      includeStartCap: firstSegment,
+      includeStartCap: restartCaps,
     );
     controller._markDirty(
       region: _strokeDirtyRectForVariableLine(
@@ -136,7 +153,7 @@ void _strokeExtend(
       ),
     );
     controller._currentStrokeHasMoved = true;
-    controller._currentStrokeLastRadius = nextRadius;
+    controller._currentStrokeLastRadius = resolvedRadius;
     return;
   }
 
@@ -169,8 +186,13 @@ void _strokeExtend(
       controller._currentStylusSmoothedPressure = smoothed;
       nextRadius = _strokeRadiusFromNormalized(controller, smoothed);
     }
+    final bool restartCaps = firstSegment ||
+        _strokeNeedsRestartCaps(
+          controller._currentStrokeLastRadius,
+          nextRadius,
+        );
     double startRadius = controller._currentStrokeLastRadius;
-    if (firstSegment) {
+    if (restartCaps) {
       startRadius = nextRadius;
     }
     controller._activeSurface.drawVariableLine(
@@ -181,7 +203,7 @@ void _strokeExtend(
       color: controller._currentStrokeColor,
       mask: controller._selectionMask,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
-      includeStartCap: firstSegment,
+      includeStartCap: restartCaps,
     );
     controller._markDirty(
       region: _strokeDirtyRectForVariableLine(
@@ -375,6 +397,50 @@ double _strokeRadiusFromNormalized(
   final double minimum = math.max(controller._currentStrokeRadius * 0.02, 0.08);
   final double maximum = math.max(controller._currentStrokeRadius * 4.0, minimum);
   return radius.clamp(minimum, maximum);
+}
+
+bool _strokeNeedsRestartCaps(double previousRadius, double nextRadius) {
+  if (!previousRadius.isFinite || !nextRadius.isFinite) {
+    return false;
+  }
+  if (nextRadius <= previousRadius) {
+    return false;
+  }
+  const double kMinimalCoverage = 0.18;
+  const double kGrowthRatioThreshold = 1.5;
+  if (previousRadius <= kMinimalCoverage) {
+    return (nextRadius - previousRadius) > 0.04;
+  }
+  return nextRadius >= previousRadius * kGrowthRatioThreshold;
+}
+
+double _strokeResolveSimulatedRadius(
+  BitmapCanvasController controller,
+  double candidate,
+) {
+  final double base = math.max(controller._currentStrokeRadius, 0.05);
+  final double minimum = math.max(base * 0.12, 0.06);
+  final double maximum = math.max(base * 4.0, minimum + 0.01);
+  double sanitized = candidate.isFinite ? candidate.abs() : base;
+  sanitized = sanitized.clamp(minimum, maximum);
+  final double previous = controller._currentStrokeLastRadius;
+  if (previous.isFinite && previous > 0.0) {
+    final double smoothed = previous +
+        (sanitized - previous) * BitmapCanvasController._kStylusSmoothing;
+    return smoothed.clamp(minimum, maximum);
+  }
+  return sanitized;
+}
+
+bool _strokeSegmentShouldSnapToPoint(double length, double radius) {
+  if (!length.isFinite || !radius.isFinite) {
+    return false;
+  }
+  if (length <= 1e-4) {
+    return true;
+  }
+  const double kShortSegmentRatio = 0.35;
+  return length <= radius * kShortSegmentRatio;
 }
 
 void _strokeDrawPoint(
