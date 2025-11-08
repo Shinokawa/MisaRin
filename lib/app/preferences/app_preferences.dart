@@ -41,7 +41,7 @@ class AppPreferences {
   static const double _defaultStylusCurve = 0.85;
   static const bool _defaultAutoSharpPeakEnabled = false;
   static const PenStrokeSliderRange _defaultPenStrokeSliderRange =
-      PenStrokeSliderRange.full;
+      PenStrokeSliderRange.compact;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;

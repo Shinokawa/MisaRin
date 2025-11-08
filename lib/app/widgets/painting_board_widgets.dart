@@ -403,6 +403,14 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
       wrapChildren.add(
         _buildToggleSwitchRow(
           theme,
+          label: '自动尖锐出峰',
+          value: widget.autoSharpPeakEnabled,
+          onChanged: widget.onAutoSharpPeakChanged,
+        ),
+      );
+      wrapChildren.add(
+        _buildToggleSwitchRow(
+          theme,
           label: '数位笔笔压',
           value: widget.stylusPressureEnabled,
           onChanged: widget.onStylusPressureEnabledChanged,
@@ -414,14 +422,6 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           label: '模拟笔压',
           value: widget.simulatePenPressure,
           onChanged: widget.onSimulatePenPressureChanged,
-        ),
-      );
-      wrapChildren.add(
-        _buildToggleSwitchRow(
-          theme,
-          label: '自动尖锐出峰',
-          value: widget.autoSharpPeakEnabled,
-          onChanged: widget.onAutoSharpPeakChanged,
         ),
       );
       if (widget.simulatePenPressure) {
