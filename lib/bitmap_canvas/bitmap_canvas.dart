@@ -582,7 +582,7 @@ class BitmapSurface {
         antialiasLevel: antialiasLevel,
       );
     }
-    if (radius <= _kSubpixelRadiusLimit) {
+    if (antialiasLevel > 0 && radius <= _kSubpixelRadiusLimit) {
       return _projectedPixelCoverage(dx: dx, dy: dy, radius: radius);
     }
     return _radialCoverage(distance, radius, feather, antialiasLevel);
