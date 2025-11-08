@@ -3,6 +3,13 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+const double _kSubpixelRadiusLimit = 0.6;
+const double _kHalfPixel = 0.5;
+const double _kSupersampleDiameterThreshold = 10.0;
+const double _kSupersampleFineDiameter = 1.0;
+const int _kMinIntegrationSlices = 6;
+const int _kMaxIntegrationSlices = 20;
+
 /// A lightweight bitmap surface that stores pixels in ARGB8888 format
 /// and exposes basic drawing primitives for future integration.
 class BitmapSurface {
@@ -51,34 +58,22 @@ class BitmapSurface {
     final int maxX = math.min(width - 1, (center.dx + radius + 1).ceil());
     final int minY = math.max(0, (center.dy - radius - 1).floor());
     final int maxY = math.min(height - 1, (center.dy + radius + 1).ceil());
-    final double radiusSq = radius * radius;
+    final int level = antialiasLevel.clamp(0, 3);
+    final double feather = _featherForLevel(level);
 
     for (int y = minY; y <= maxY; y++) {
       final double dy = y + 0.5 - center.dy;
       for (int x = minX; x <= maxX; x++) {
         final double dx = x + 0.5 - center.dx;
-        final double distanceSq = dx * dx + dy * dy;
-        final int level = antialiasLevel.clamp(0, 3);
-        if (level == 0) {
-          if (distanceSq <= radiusSq) {
-            if (mask == null || mask[y * width + x] != 0) {
-              blendPixel(x, y, color);
-            }
-          }
-          continue;
-        }
-        final double distance = math.sqrt(distanceSq);
-        final double feather = _featherForLevel(level);
-        final double innerRadius = math.max(radius - feather, 0.0);
-        final double outerRadius = radius + feather;
-        double coverage;
-        if (distance <= innerRadius) {
-          coverage = 1.0;
-        } else if (distance >= outerRadius || outerRadius <= innerRadius) {
-          coverage = 0.0;
-        } else {
-          coverage = (outerRadius - distance) / (outerRadius - innerRadius);
-        }
+        final double distance = math.sqrt(dx * dx + dy * dy);
+        final double coverage = _computePixelCoverage(
+          dx: dx,
+          dy: dy,
+          distance: distance,
+          radius: radius,
+          feather: feather,
+          antialiasLevel: level,
+        );
         if (coverage <= 0.0) {
           continue;
         }
@@ -87,18 +82,18 @@ class BitmapSurface {
         }
         if (coverage >= 0.999) {
           blendPixel(x, y, color);
-        } else {
-          final int argb = color.toARGB32();
-          final int baseAlpha = (argb >> 24) & 0xff;
-          final int adjustedAlpha = (baseAlpha * coverage).round().clamp(
-            0,
-            255,
-          );
-          if (adjustedAlpha == 0) {
-            continue;
-          }
-          blendPixel(x, y, color.withAlpha(adjustedAlpha));
+          continue;
         }
+        final int argb = color.toARGB32();
+        final int baseAlpha = (argb >> 24) & 0xff;
+        final int adjustedAlpha = (baseAlpha * coverage).round().clamp(
+          0,
+          255,
+        );
+        if (adjustedAlpha == 0) {
+          continue;
+        }
+        blendPixel(x, y, color.withAlpha(adjustedAlpha));
       }
     }
   }
@@ -241,42 +236,44 @@ class BitmapSurface {
           continue;
         }
         final double px = x + 0.5;
-        final double rawT = ((px - ax) * abx + (py - ay) * aby) * invLenSq;
-        double t = rawT;
-        if (t < 0.0) {
-          if (!includeStartCap && t < -1e-6) {
-            continue;
-          }
-          t = 0.0;
-        } else if (t > 1.0) {
-          t = 1.0;
-        }
-        final double closestX = ax + abx * t;
-        final double closestY = ay + aby * t;
-        final double dxp = px - closestX;
-        final double dyp = py - closestY;
-        final double distance = math.sqrt(dxp * dxp + dyp * dyp);
-        double radius = variableRadius ? startRadius + radiusDelta * t : startRadius;
-        radius = radius.abs();
-        if (radius == 0.0 && feather == 0.0) {
+        final _CapsuleCoverageSample centerSample = _capsuleCoverageSample(
+          px: px,
+          py: py,
+          ax: ax,
+          ay: ay,
+          abx: abx,
+          aby: aby,
+          invLenSq: invLenSq,
+          includeStartCap: includeStartCap,
+          variableRadius: variableRadius,
+          startRadius: startRadius,
+          radiusDelta: radiusDelta,
+          feather: feather,
+          antialiasLevel: antialiasLevel,
+        );
+        double coverage = centerSample.coverage;
+        if (coverage <= 0.0) {
           continue;
         }
-        double coverage;
-        if (antialiasLevel == 0) {
-          if (distance <= radius) {
-            coverage = 1.0;
-          } else {
+        if (_needsSupersampling(centerSample.radius, antialiasLevel)) {
+          coverage = _supersampleCapsuleCoverage(
+            px: px,
+            py: py,
+            ax: ax,
+            ay: ay,
+            abx: abx,
+            aby: aby,
+            invLenSq: invLenSq,
+            includeStartCap: includeStartCap,
+            variableRadius: variableRadius,
+            startRadius: startRadius,
+            radiusDelta: radiusDelta,
+            feather: feather,
+            antialiasLevel: antialiasLevel,
+            supersample: _supersampleFactor(centerSample.radius),
+          );
+          if (coverage <= 0.0) {
             continue;
-          }
-        } else {
-          final double innerRadius = math.max(radius - feather, 0.0);
-          final double outerRadius = radius + feather;
-          if (distance <= innerRadius) {
-            coverage = 1.0;
-          } else if (distance >= outerRadius || outerRadius <= innerRadius) {
-            continue;
-          } else {
-            coverage = (outerRadius - distance) / (outerRadius - innerRadius);
           }
         }
         if (coverage >= 0.999) {
@@ -356,6 +353,286 @@ class BitmapSurface {
 
   bool _inBounds(int x, int y) => x >= 0 && x < width && y >= 0 && y < height;
 
+  double _computePixelCoverage({
+    required double dx,
+    required double dy,
+    required double distance,
+    required double radius,
+    required double feather,
+    required int antialiasLevel,
+  }) {
+    if (radius <= 0.0) {
+      return 0.0;
+    }
+    if (_needsSupersampling(radius, antialiasLevel)) {
+      return _supersampleCircleCoverage(
+        dx: dx,
+        dy: dy,
+        radius: radius,
+        feather: feather,
+        antialiasLevel: antialiasLevel,
+      );
+    }
+    if (radius <= _kSubpixelRadiusLimit) {
+      return _projectedPixelCoverage(dx: dx, dy: dy, radius: radius);
+    }
+    return _radialCoverage(distance, radius, feather, antialiasLevel);
+  }
+
+  double _projectedPixelCoverage({
+    required double dx,
+    required double dy,
+    required double radius,
+  }) {
+    final double absDx = dx.abs();
+    final double absDy = dy.abs();
+    if (absDx >= radius + _kHalfPixel || absDy >= radius + _kHalfPixel) {
+      return 0.0;
+    }
+    if (absDx + radius <= _kHalfPixel && absDy + radius <= _kHalfPixel) {
+      final double area = math.pi * radius * radius;
+      return area >= 1.0 ? 1.0 : area;
+    }
+    final double cx = -dx;
+    final double cy = -dy;
+    final double minX = math.max(-_kHalfPixel, cx - radius);
+    final double maxX = math.min(_kHalfPixel, cx + radius);
+    if (minX >= maxX) {
+      return 0.0;
+    }
+    final double width = maxX - minX;
+    final int slices = _integrationSlicesForRadius(radius);
+    double area = 0.0;
+    for (int i = 0; i < slices; i++) {
+      final double start = minX + width * (i / slices);
+      final double end = minX + width * ((i + 1) / slices);
+      final double mid = (start + end) * 0.5;
+      final double span = _verticalIntersectionLength(mid, cx, cy, radius);
+      if (span <= 0.0) {
+        continue;
+      }
+      area += span * (end - start);
+    }
+    return area.clamp(0.0, 1.0);
+  }
+
+  int _integrationSlicesForRadius(double radius) {
+    final double scaled = (radius * 32.0).clamp(
+      _kMinIntegrationSlices.toDouble(),
+      _kMaxIntegrationSlices.toDouble(),
+    );
+    return scaled.round().clamp(_kMinIntegrationSlices, _kMaxIntegrationSlices);
+  }
+
+  double _verticalIntersectionLength(
+    double sampleX,
+    double cx,
+    double cy,
+    double radius,
+  ) {
+    final double dx = sampleX - cx;
+    final double radSq = radius * radius;
+    final double remainder = radSq - dx * dx;
+    if (remainder <= 0.0) {
+      return 0.0;
+    }
+    final double chord = math.sqrt(remainder);
+    final double low = math.max(-_kHalfPixel, cy - chord);
+    final double high = math.min(_kHalfPixel, cy + chord);
+    final double span = high - low;
+    return span > 0.0 ? span : 0.0;
+  }
+
+  double _radialCoverage(
+    double distance,
+    double radius,
+    double feather,
+    int antialiasLevel,
+  ) {
+    if (radius <= 0.0) {
+      return 0.0;
+    }
+    if (antialiasLevel <= 0 || feather <= 0.0) {
+      return distance <= radius ? 1.0 : 0.0;
+    }
+    final double innerRadius = math.max(radius - feather, 0.0);
+    final double outerRadius = radius + feather;
+    if (distance <= innerRadius) {
+      return 1.0;
+    }
+    if (distance >= outerRadius || outerRadius <= innerRadius) {
+      return 0.0;
+    }
+    return (outerRadius - distance) / (outerRadius - innerRadius);
+  }
+
+  bool _needsSupersampling(double radius, int antialiasLevel) {
+    if (antialiasLevel <= 0 || radius <= 0.0) {
+      return false;
+    }
+    final double diameter = radius * 2.0;
+    if (diameter < _kSupersampleFineDiameter) {
+      return true;
+    }
+    return diameter < _kSupersampleDiameterThreshold;
+  }
+
+  int _supersampleFactor(double radius) {
+    final double diameter = radius * 2.0;
+    if (diameter < _kSupersampleFineDiameter) {
+      return 6;
+    }
+    if (diameter < _kSupersampleDiameterThreshold) {
+      return 3;
+    }
+    return 1;
+  }
+
+  double _supersampleCircleCoverage({
+    required double dx,
+    required double dy,
+    required double radius,
+    required double feather,
+    required int antialiasLevel,
+  }) {
+    final int samples = _supersampleFactor(radius).clamp(1, 6);
+    if (samples <= 1) {
+      return _radialCoverage(
+        math.sqrt(dx * dx + dy * dy),
+        radius,
+        feather,
+        antialiasLevel,
+      );
+    }
+    final double step = 1.0 / samples;
+    final double start = -0.5 + step * 0.5;
+    double accumulated = 0.0;
+    for (int sy = 0; sy < samples; sy++) {
+      final double offsetY = start + sy * step;
+      for (int sx = 0; sx < samples; sx++) {
+        final double offsetX = start + sx * step;
+        final double sampleDx = dx + offsetX;
+        final double sampleDy = dy + offsetY;
+        final double distance =
+            math.sqrt(sampleDx * sampleDx + sampleDy * sampleDy);
+        accumulated += _radialCoverage(
+          distance,
+          radius,
+          feather,
+          antialiasLevel,
+        );
+      }
+    }
+    final double inv = 1.0 / (samples * samples);
+    return accumulated * inv;
+  }
+
+  double _supersampleCapsuleCoverage({
+    required double px,
+    required double py,
+    required double ax,
+    required double ay,
+    required double abx,
+    required double aby,
+    required double invLenSq,
+    required bool includeStartCap,
+    required bool variableRadius,
+    required double startRadius,
+    required double radiusDelta,
+    required double feather,
+    required int antialiasLevel,
+    required int supersample,
+  }) {
+    if (supersample <= 1) {
+      return _capsuleCoverageSample(
+        px: px,
+        py: py,
+        ax: ax,
+        ay: ay,
+        abx: abx,
+        aby: aby,
+        invLenSq: invLenSq,
+        includeStartCap: includeStartCap,
+        variableRadius: variableRadius,
+        startRadius: startRadius,
+        radiusDelta: radiusDelta,
+        feather: feather,
+        antialiasLevel: antialiasLevel,
+      ).coverage;
+    }
+    final double step = 1.0 / supersample;
+    final double start = -0.5 + step * 0.5;
+    double accumulated = 0.0;
+    for (int sy = 0; sy < supersample; sy++) {
+      final double offsetY = start + sy * step;
+      final double samplePy = py + offsetY;
+      for (int sx = 0; sx < supersample; sx++) {
+        final double offsetX = start + sx * step;
+        final double samplePx = px + offsetX;
+        accumulated += _capsuleCoverageSample(
+          px: samplePx,
+          py: samplePy,
+          ax: ax,
+          ay: ay,
+          abx: abx,
+          aby: aby,
+          invLenSq: invLenSq,
+          includeStartCap: includeStartCap,
+          variableRadius: variableRadius,
+          startRadius: startRadius,
+          radiusDelta: radiusDelta,
+          feather: feather,
+          antialiasLevel: antialiasLevel,
+        ).coverage;
+      }
+    }
+    final double inv = 1.0 / (supersample * supersample);
+    return accumulated * inv;
+  }
+
+  _CapsuleCoverageSample _capsuleCoverageSample({
+    required double px,
+    required double py,
+    required double ax,
+    required double ay,
+    required double abx,
+    required double aby,
+    required double invLenSq,
+    required bool includeStartCap,
+    required bool variableRadius,
+    required double startRadius,
+    required double radiusDelta,
+    required double feather,
+    required int antialiasLevel,
+  }) {
+    final double rawT = ((px - ax) * abx + (py - ay) * aby) * invLenSq;
+    double t = rawT;
+    if (t < 0.0) {
+      if (!includeStartCap && t < -1e-6) {
+        return _CapsuleCoverageSample.zero;
+      }
+      t = 0.0;
+    } else if (t > 1.0) {
+      t = 1.0;
+    }
+    final double closestX = ax + abx * t;
+    final double closestY = ay + aby * t;
+    final double dxp = px - closestX;
+    final double dyp = py - closestY;
+    final double distance = math.sqrt(dxp * dxp + dyp * dyp);
+    double radius = variableRadius ? startRadius + radiusDelta * t : startRadius;
+    radius = radius.abs();
+    if (radius == 0.0 && feather == 0.0) {
+      return _CapsuleCoverageSample.zero;
+    }
+    final double coverage =
+        _radialCoverage(distance, radius, feather, antialiasLevel);
+    if (coverage <= 0.0) {
+      return _CapsuleCoverageSample.zero;
+    }
+    return _CapsuleCoverageSample(coverage, radius);
+  }
+
   void blendPixel(int x, int y, Color color) {
     if (!_inBounds(x, y)) {
       return;
@@ -412,6 +689,16 @@ class BitmapSurface {
     final int b = value & 0xff;
     return Color.fromARGB(a, r, g, b);
   }
+}
+
+class _CapsuleCoverageSample {
+  const _CapsuleCoverageSample(this.coverage, this.radius);
+
+  final double coverage;
+  final double radius;
+
+  static const _CapsuleCoverageSample zero =
+      _CapsuleCoverageSample(0.0, 0.0);
 }
 
 /// High-level helper that orchestrates bitmap painting actions.

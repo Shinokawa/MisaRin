@@ -9,6 +9,13 @@ void _strokeConfigureStylusPressure(
   controller._stylusCurve = curve.clamp(0.1, 8.0);
 }
 
+void _strokeConfigureSharpTips(
+  BitmapCanvasController controller, {
+  required bool enabled,
+}) {
+  controller._strokePressureSimulator.setSharpTipsEnabled(enabled);
+}
+
 void _strokeBegin(
   BitmapCanvasController controller,
   Offset position, {

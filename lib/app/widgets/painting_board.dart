@@ -147,6 +147,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   int _penAntialiasLevel = 0;
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
+  bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _layerOpacityGestureActive = false;
@@ -220,6 +221,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       enabled: _stylusPressureEnabled,
       curve: _stylusCurve,
     );
+    _controller.configureSharpTips(enabled: _autoSharpPeakEnabled);
   }
 
   List<_SyntheticStrokeSample> _buildSyntheticStrokeSamples(
@@ -580,6 +582,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _updatePenPressureSimulation(bool value);
   void _updatePenPressureProfile(StrokePressureProfile profile);
   void _updatePenAntialiasLevel(int value);
+  void _updateAutoSharpPeakEnabled(bool value);
 
   void _handleScaleStart(ScaleStartDetails details);
   void _handleScaleUpdate(ScaleUpdateDetails details);
@@ -905,6 +908,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
+    _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);

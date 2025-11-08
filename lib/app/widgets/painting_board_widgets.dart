@@ -177,6 +177,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.onPenPressureProfileChanged,
     required this.brushAntialiasLevel,
     required this.onBrushAntialiasChanged,
+    required this.autoSharpPeakEnabled,
+    required this.onAutoSharpPeakChanged,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.onBucketSampleAllLayersChanged,
@@ -199,6 +201,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<StrokePressureProfile> onPenPressureProfileChanged;
   final int brushAntialiasLevel;
   final ValueChanged<int> onBrushAntialiasChanged;
+  final bool autoSharpPeakEnabled;
+  final ValueChanged<bool> onAutoSharpPeakChanged;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
@@ -484,6 +488,18 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               ToggleSwitch(
                 checked: widget.simulatePenPressure,
                 onChanged: widget.onSimulatePenPressureChanged,
+              ),
+            ],
+          ),
+          const SizedBox(width: 20),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('自动尖锐出峰', style: theme.typography.bodyStrong),
+              const SizedBox(width: 8),
+              ToggleSwitch(
+                checked: widget.autoSharpPeakEnabled,
+                onChanged: widget.onAutoSharpPeakChanged,
               ),
             ],
           ),

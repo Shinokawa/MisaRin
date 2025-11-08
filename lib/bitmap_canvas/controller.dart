@@ -157,6 +157,9 @@ class BitmapCanvasController extends ChangeNotifier {
         curve: curve,
       );
 
+  void configureSharpTips({required bool enabled}) =>
+      _strokeConfigureSharpTips(this, enabled: enabled);
+
   void setSelectionMask(Uint8List? mask) =>
       _fillSetSelectionMask(this, mask);
 

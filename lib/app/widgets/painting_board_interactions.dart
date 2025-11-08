@@ -210,6 +210,18 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  @override
+  void _updateAutoSharpPeakEnabled(bool value) {
+    if (_autoSharpPeakEnabled == value) {
+      return;
+    }
+    setState(() => _autoSharpPeakEnabled = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.autoSharpPeakEnabled = value;
+    unawaited(AppPreferences.save());
+    _applyStylusSettingsToController();
+  }
+
   void _updateBucketSampleAllLayers(bool value) {
     if (_bucketSampleAllLayers == value) {
       return;
@@ -354,6 +366,7 @@ mixin _PaintingBoardInteractionMixin
       timestampMillis: timestamp.inMicroseconds / 1000.0,
       initialDeltaMillis: deltaMillis,
       pressure: targetPressure,
+      enableSharpPeak: _autoSharpPeakEnabled,
     );
     _lastStylusPressureValue = 0.0;
   }
@@ -384,6 +397,7 @@ mixin _PaintingBoardInteractionMixin
     required double timestampMillis,
     double? initialDeltaMillis,
     required double pressure,
+    required bool enableSharpPeak,
   }) {
     const int kTailSteps = 5;
     const double kTailDeltaMs = 6.0;
@@ -405,6 +419,10 @@ mixin _PaintingBoardInteractionMixin
         pressureMin: _activeStylusPressureMin,
         pressureMax: _activeStylusPressureMax,
       );
+
+      if (!enableSharpPeak) {
+        return;
+      }
 
       double nextTimestamp = timestampMillis + (initialDeltaMillis ?? 0.0);
       if (clampedPressure <= 0.0001) {

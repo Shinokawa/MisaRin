@@ -47,6 +47,7 @@ class StrokePressureSimulator {
   StrokePressureProfile _profile = StrokePressureProfile.auto;
   bool _simulatingStroke = false;
   bool _usesDevicePressure = false;
+  bool _sharpTipsEnabled = true;
 
   bool get isSimulatingStroke => _simulatingStroke;
   bool get usesDevicePressure => _usesDevicePressure;
@@ -71,7 +72,10 @@ class StrokePressureSimulator {
     }
 
     _strokeDynamics.start(baseRadius, profile: _profile);
-    return _strokeDynamics.initialRadius();
+    final double initialRadius = _sharpTipsEnabled
+        ? _strokeDynamics.initialRadius()
+        : baseRadius;
+    return initialRadius;
   }
 
   /// 计算下一段笔触的半径，内部会维护采样与速度数据。
@@ -137,6 +141,9 @@ class StrokePressureSimulator {
     if (!_simulatingStroke) {
       return null;
     }
+    if (!_sharpTipsEnabled) {
+      return null;
+    }
     final double tipRadius = _strokeDynamics.tipRadius();
     if (!hasPath || previousPoint == null) {
       return SimulatedTailInstruction.point(
@@ -192,6 +199,10 @@ class StrokePressureSimulator {
     }
     _profile = profile;
     _strokeDynamics.configure(profile: profile);
+  }
+
+  void setSharpTipsEnabled(bool enabled) {
+    _sharpTipsEnabled = enabled;
   }
 
   double? _stylusPressureToIntensity(double? pressure) {

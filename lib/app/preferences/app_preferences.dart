@@ -19,11 +19,12 @@ class AppPreferences {
     required this.penAntialiasLevel,
     required this.stylusPressureEnabled,
     required this.stylusPressureCurve,
+    required this.autoSharpPeakEnabled,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 8;
+  static const int _version = 9;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -35,6 +36,7 @@ class AppPreferences {
   static const int _defaultPenAntialiasLevel = 0;
   static const bool _defaultStylusPressureEnabled = true;
   static const double _defaultStylusCurve = 0.85;
+  static const bool _defaultAutoSharpPeakEnabled = false;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -44,6 +46,8 @@ class AppPreferences {
   static const double defaultStylusCurve = _defaultStylusCurve;
   static const double stylusCurveLowerBound = _stylusCurveLowerBound;
   static const double stylusCurveUpperBound = _stylusCurveUpperBound;
+  static const bool defaultAutoSharpPeakEnabled =
+      _defaultAutoSharpPeakEnabled;
 
   static AppPreferences? _instance;
 
@@ -57,6 +61,7 @@ class AppPreferences {
   int penAntialiasLevel;
   bool stylusPressureEnabled;
   double stylusPressureCurve;
+  bool autoSharpPeakEnabled;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -76,6 +81,27 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
+          if (version >= 9 && bytes.length >= 13) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
+              stylusPressureEnabled: bytes[10] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[11],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[12] != 0,
+            );
+            return _instance!;
+          }
           if (version >= 8 && bytes.length >= 12) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             _instance = AppPreferences._(
@@ -93,6 +119,7 @@ class AppPreferences {
                 lower: _stylusCurveLowerBound,
                 upper: _stylusCurveUpperBound,
               ),
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
             );
             return _instance!;
           }
@@ -113,6 +140,7 @@ class AppPreferences {
                 lower: _stylusCurveLowerBound,
                 upper: _stylusCurveUpperBound,
               ),
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
             );
             return _instance!;
           }
@@ -129,6 +157,7 @@ class AppPreferences {
               penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
             );
             return _instance!;
           }
@@ -145,6 +174,7 @@ class AppPreferences {
               penAntialiasLevel: bytes[9] != 0 ? 2 : 0,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
             );
             return _instance!;
           }
@@ -161,6 +191,7 @@ class AppPreferences {
               penAntialiasLevel: _defaultPenAntialiasLevel,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
             );
             return _instance!;
           }
@@ -177,6 +208,7 @@ class AppPreferences {
               penAntialiasLevel: _defaultPenAntialiasLevel,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
             );
             return _instance!;
           }
@@ -193,6 +225,7 @@ class AppPreferences {
               penAntialiasLevel: _defaultPenAntialiasLevel,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
             );
             return _instance!;
           }
@@ -208,6 +241,7 @@ class AppPreferences {
               penAntialiasLevel: _defaultPenAntialiasLevel,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
             );
             return _instance!;
           }
@@ -227,6 +261,7 @@ class AppPreferences {
       penAntialiasLevel: _defaultPenAntialiasLevel,
       stylusPressureEnabled: _defaultStylusPressureEnabled,
       stylusPressureCurve: _defaultStylusCurve,
+      autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
     );
     return _instance!;
   }
@@ -266,6 +301,7 @@ class AppPreferences {
       _encodeAntialiasLevel(prefs.penAntialiasLevel),
       prefs.stylusPressureEnabled ? 1 : 0,
       stylusCurveEncoded,
+      prefs.autoSharpPeakEnabled ? 1 : 0,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }

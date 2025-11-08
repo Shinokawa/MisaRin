@@ -385,6 +385,9 @@ mixin _PaintingBoardBuildMixin
                                   _updatePenPressureProfile,
                               brushAntialiasLevel: _penAntialiasLevel,
                               onBrushAntialiasChanged: _updatePenAntialiasLevel,
+                              autoSharpPeakEnabled: _autoSharpPeakEnabled,
+                              onAutoSharpPeakChanged:
+                                  _updateAutoSharpPeakEnabled,
                               bucketSampleAllLayers: _bucketSampleAllLayers,
                               bucketContiguous: _bucketContiguous,
                               onBucketSampleAllLayersChanged:
