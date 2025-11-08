@@ -307,7 +307,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       effectiveDistance,
     ).clamp(160.0, 720.0);
     if (useFastCurveStyle) {
-      targetDuration *= 0.78;
+      targetDuration *= 0.62;
     }
     final double durationJitter =
         ui.lerpDouble(0.85, 1.25, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
@@ -375,8 +375,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     }
     final double normalized = progress.clamp(0.0, 1.0);
     final double sine = math.sin(normalized * math.pi).abs();
-    final double scale = ui.lerpDouble(0.55, 1.85, sine) ?? 1.0;
-    return scale.clamp(0.35, 2.2);
+    final double eased =
+        math.pow(sine, 0.78).toDouble().clamp(0.0, 1.0);
+    final double scale = ui.lerpDouble(0.24, 4.25, eased) ?? 1.0;
+    return scale.clamp(0.24, 4.25);
   }
 
   double _syntheticStrokeTargetDuration(double totalDistance) {

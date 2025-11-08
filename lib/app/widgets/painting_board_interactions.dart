@@ -994,7 +994,8 @@ mixin _PaintingBoardInteractionMixin
         if (tangent != null) {
           samples.add(_clampToCanvas(tangent.position));
         }
-        distance += _curveStrokeSampleSpacing;
+        final double progress = (distance / length).clamp(0.0, 1.0);
+        distance += _curveSampleSpacing(progress);
       }
       final ui.Tangent? endPoint = metric.getTangentForOffset(length);
       if (endPoint != null) {
@@ -1005,6 +1006,18 @@ mixin _PaintingBoardInteractionMixin
       }
     }
     return samples;
+  }
+
+  double _curveSampleSpacing(double progress) {
+    final double normalized = progress.clamp(0.0, 1.0);
+    final double sine = math.sin(normalized * math.pi).abs();
+    final double eased =
+        math.pow(sine, 0.72).toDouble().clamp(0.0, 1.0);
+    final double scale = ui.lerpDouble(0.52, 2.35, eased) ?? 1.0;
+    return (_curveStrokeSampleSpacing * scale).clamp(
+      _curveStrokeSampleSpacing * 0.48,
+      _curveStrokeSampleSpacing * 2.6,
+    );
   }
 
   void _handlePointerDown(PointerDownEvent event) {
