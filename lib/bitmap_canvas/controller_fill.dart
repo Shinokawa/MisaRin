@@ -167,7 +167,7 @@ void _fillFloodFillAcrossLayers(
   final int target = compositePixels[index];
   final int replacement = BitmapSurface.encodeColor(color);
   final Uint32List surfacePixels = controller._activeSurface.pixels;
-  final Uint8List? mask = controller._selectionMask;
+  final Uint8List? selectionMask = controller._selectionMask;
 
   if (!contiguous) {
     int minX = controller._width;
@@ -179,7 +179,7 @@ void _fillFloodFillAcrossLayers(
       if (compositePixels[i] != target) {
         continue;
       }
-      if (mask != null && mask[i] == 0) {
+      if (selectionMask != null && selectionMask[i] == 0) {
         continue;
       }
       if (surfacePixels[i] == replacement) {
@@ -214,15 +214,62 @@ void _fillFloodFillAcrossLayers(
     }
     return;
   }
-
-  controller._activeSurface.floodFill(
-    start: Offset(startX.toDouble(), startY.toDouble()),
-    color: color,
-    targetColor: BitmapSurface.decodeColor(target),
-    contiguous: true,
-    mask: mask,
+  final Uint8List contiguousMask = Uint8List(controller._width * controller._height);
+  final bool filled = _fillFloodFillMask(
+    controller,
+    pixels: compositePixels,
+    targetColor: target,
+    mask: contiguousMask,
+    startX: startX,
+    startY: startY,
+    width: controller._width,
+    height: controller._height,
   );
-  controller._markDirty();
+  if (!filled) {
+    return;
+  }
+
+  // When sampling across layers we must derive the contiguous region from
+  // the composite; the active layer alone may not contain the sampled color.
+  int minX = controller._width;
+  int minY = controller._height;
+  int maxX = -1;
+  int maxY = -1;
+  bool changed = false;
+  for (int i = 0; i < contiguousMask.length; i++) {
+    if (contiguousMask[i] == 0) {
+      continue;
+    }
+    if (surfacePixels[i] == replacement) {
+      continue;
+    }
+    surfacePixels[i] = replacement;
+    changed = true;
+    final int px = i % controller._width;
+    final int py = i ~/ controller._width;
+    if (px < minX) {
+      minX = px;
+    }
+    if (py < minY) {
+      minY = py;
+    }
+    if (px > maxX) {
+      maxX = px;
+    }
+    if (py > maxY) {
+      maxY = py;
+    }
+  }
+  if (changed) {
+    controller._markDirty(
+      region: Rect.fromLTRB(
+        minX.toDouble(),
+        minY.toDouble(),
+        (maxX + 1).toDouble(),
+        (maxY + 1).toDouble(),
+      ),
+    );
+  }
 }
 
 bool _fillFloodFillMask(
@@ -240,8 +287,6 @@ bool _fillFloodFillMask(
   }
   final Queue<int> queue = Queue<int>();
   final Set<int> visited = <int>{};
-  queue.add(startY * width + startX);
-  visited.add(startY * width + startX);
   int processed = 0;
 
   bool shouldInclude(int x, int y) {
@@ -267,6 +312,8 @@ bool _fillFloodFillMask(
     mask[index] = 1;
     queue.add(index);
   }
+
+  enqueue(startX, startY);
 
   while (queue.isNotEmpty) {
     final int index = queue.removeFirst();
