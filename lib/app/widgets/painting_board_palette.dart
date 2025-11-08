@@ -7,6 +7,8 @@ const double _paletteCardWidth = 184;
 const double _paletteCardPadding = 12;
 const double _paletteCardShadowBlur = 12;
 const double _paletteSwatchSize = 32;
+const double _paletteMinimumColorDistance = 0.12;
+const double _paletteDuplicateEpsilon = 0.01;
 
 class _PaletteCardEntry {
   _PaletteCardEntry({
@@ -26,6 +28,13 @@ class _PaletteBucket {
   int r = 0;
   int g = 0;
   int b = 0;
+}
+
+class _PaletteSelection {
+  const _PaletteSelection({required this.color, required this.score});
+
+  final Color color;
+  final double score;
 }
 
 mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
@@ -245,7 +254,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     }
     final List<_PaletteBucket> sorted = buckets.values.toList()
       ..sort((a, b) => b.weight.compareTo(a.weight));
-    final List<Color> colors = <Color>[];
+    final List<Color> candidates = <Color>[];
     for (final _PaletteBucket bucket in sorted) {
       if (bucket.weight <= 0) {
         continue;
@@ -253,12 +262,84 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       final int r = (bucket.r ~/ bucket.weight).clamp(0, 255);
       final int g = (bucket.g ~/ bucket.weight).clamp(0, 255);
       final int b = (bucket.b ~/ bucket.weight).clamp(0, 255);
-      colors.add(Color.fromARGB(0xFF, r, g, b));
-      if (colors.length >= desiredCount) {
-        break;
+      final Color color = Color.fromARGB(0xFF, r, g, b);
+      bool isDuplicate = false;
+      for (final Color existing in candidates) {
+        if (_colorDistance(existing, color) < _paletteDuplicateEpsilon) {
+          isDuplicate = true;
+          break;
+        }
+      }
+      if (!isDuplicate) {
+        candidates.add(color);
       }
     }
-    return colors;
+    if (candidates.isEmpty) {
+      return const <Color>[];
+    }
+    final int clampedDesired = desiredCount
+        .clamp(_minPaletteColorCount, _maxPaletteColorCount)
+        .toInt();
+    final int targetCount = math.max(
+      1,
+      math.min(clampedDesired, candidates.length),
+    );
+    // Use a farthest-point style sampling so each new color maximizes its
+    // distance to the already selected ones.
+    final List<Color> selectedColors = <Color>[candidates.first];
+    final Set<int> used = <int>{0};
+    while (selectedColors.length < targetCount) {
+      double bestDistance = -1;
+      int bestIndex = -1;
+      for (int i = 0; i < candidates.length; i++) {
+        if (used.contains(i)) {
+          continue;
+        }
+        final Color candidate = candidates[i];
+        double minDistance = double.infinity;
+        for (final Color selection in selectedColors) {
+          final double distance = _colorDistance(candidate, selection);
+          if (distance < minDistance) {
+            minDistance = distance;
+          }
+        }
+        if (minDistance > bestDistance) {
+          bestDistance = minDistance;
+          bestIndex = i;
+        }
+      }
+      if (bestIndex == -1 || bestDistance < _paletteMinimumColorDistance) {
+        break;
+      }
+      used.add(bestIndex);
+      selectedColors.add(candidates[bestIndex]);
+    }
+    final List<_PaletteSelection> orderedSelections =
+        <_PaletteSelection>[];
+    for (int i = 0; i < selectedColors.length; i++) {
+      final Color color = selectedColors[i];
+      double minDistance = double.infinity;
+      for (int j = 0; j < selectedColors.length; j++) {
+        if (i == j) {
+          continue;
+        }
+        final double distance =
+            _colorDistance(color, selectedColors[j]);
+        if (distance < minDistance) {
+          minDistance = distance;
+        }
+      }
+      if (minDistance == double.infinity) {
+        minDistance = double.maxFinite;
+      }
+      orderedSelections.add(
+        _PaletteSelection(color: color, score: minDistance),
+      );
+    }
+    orderedSelections.sort((a, b) => b.score.compareTo(a.score));
+    return orderedSelections
+        .map((entry) => entry.color)
+        .toList(growable: false);
   }
 
   void _closePaletteCard(int id) {
@@ -344,6 +425,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     }
     return null;
   }
+
 }
 
 class _WorkspacePaletteCard extends StatelessWidget {
@@ -374,58 +456,61 @@ class _WorkspacePaletteCard extends StatelessWidget {
           ? const Color(0xFF1F1F1F)
           : Colors.white;
     }
-    return _PaletteHitTestBlocker(
-      child: _MeasureSize(
-        onChanged: onSizeChanged,
-        child: Container(
-          width: _paletteCardWidth,
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: radius,
-            border: Border.all(
-              color: theme.brightness.isDark
-                  ? Colors.white.withOpacity(0.12)
-                  : Colors.black.withOpacity(0.08),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1A000000),
-                blurRadius: _paletteCardShadowBlur,
-                offset: Offset(0, 6),
+    return MouseRegion(
+      cursor: SystemMouseCursors.basic,
+      child: _PaletteHitTestBlocker(
+        child: _MeasureSize(
+          onChanged: onSizeChanged,
+          child: Container(
+            width: _paletteCardWidth,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: radius,
+              border: Border.all(
+                color: theme.brightness.isDark
+                    ? Colors.white.withOpacity(0.12)
+                    : Colors.black.withOpacity(0.08),
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(_paletteCardPadding),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: (_) => onDragStart(),
-                  onPanUpdate: (details) => onDragUpdate(details.delta),
-                  onPanEnd: (_) => onDragEnd(),
-                  onPanCancel: onDragEnd,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '调色盘',
-                          style: theme.typography.subtitle,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(FluentIcons.chrome_close, size: 12),
-                        iconButtonMode: IconButtonMode.small,
-                        onPressed: onClose,
-                      ),
-                    ],
-                  ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A000000),
+                  blurRadius: _paletteCardShadowBlur,
+                  offset: Offset(0, 6),
                 ),
-                const SizedBox(height: 10),
-                _PaletteSwatches(colors: colors),
               ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(_paletteCardPadding),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: (_) => onDragStart(),
+                    onPanUpdate: (details) => onDragUpdate(details.delta),
+                    onPanEnd: (_) => onDragEnd(),
+                    onPanCancel: onDragEnd,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '调色盘',
+                            style: theme.typography.subtitle,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(FluentIcons.chrome_close, size: 12),
+                          iconButtonMode: IconButtonMode.small,
+                          onPressed: onClose,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _PaletteSwatches(colors: colors),
+                ],
+              ),
             ),
           ),
         ),
@@ -483,6 +568,13 @@ class _PaletteHitTestBlocker extends SingleChildRenderObjectWidget {
 
 class _PaletteHitTestRender extends RenderProxyBoxWithHitTestBehavior {
   _PaletteHitTestRender() : super(behavior: HitTestBehavior.opaque);
+}
+
+double _colorDistance(Color a, Color b) {
+  final double dr = (a.red - b.red) / 255.0;
+  final double dg = (a.green - b.green) / 255.0;
+  final double db = (a.blue - b.blue) / 255.0;
+  return math.sqrt(dr * dr + dg * dg + db * db);
 }
 
 String _hexStringForColor(Color color) {

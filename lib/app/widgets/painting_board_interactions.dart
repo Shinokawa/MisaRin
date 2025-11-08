@@ -1054,7 +1054,7 @@ mixin _PaintingBoardInteractionMixin
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
     final Offset pointer = event.localPosition;
-    if (_isInsideToolArea(pointer)) {
+    if (_isInsideToolArea(pointer) || _isInsidePaletteCardArea(pointer)) {
       return;
     }
     final CanvasTool tool = _effectiveActiveTool;

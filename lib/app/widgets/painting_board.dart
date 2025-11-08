@@ -220,6 +220,22 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   final List<_PaletteCardEntry> _paletteCards = <_PaletteCardEntry>[];
   int _paletteCardSerial = 0;
 
+  bool _isInsidePaletteCardArea(Offset workspacePosition) {
+    for (final _PaletteCardEntry entry in _paletteCards) {
+      final Size size = entry.size ?? const Size(_paletteCardWidth, 180.0);
+      final Rect rect = Rect.fromLTWH(
+        entry.offset.dx,
+        entry.offset.dy,
+        size.width,
+        size.height,
+      );
+      if (rect.contains(workspacePosition)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Size get _canvasSize => widget.settings.size;
 
   Size get _scaledBoardSize => Size(
