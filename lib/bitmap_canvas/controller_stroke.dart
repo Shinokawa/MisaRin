@@ -35,6 +35,7 @@ void _strokeBegin(
   double? timestampMillis,
   int antialiasLevel = 0,
   BrushShape brushShape = BrushShape.circle,
+  bool enableNeedleTips = false,
 }) {
   if (controller._activeLayer.locked) {
     return;
@@ -54,6 +55,10 @@ void _strokeBegin(
       : 0.0;
   controller._currentStrokeStylusPressureEnabled =
       useDevicePressure && controller._stylusPressureEnabled;
+  final bool needleTipsEnabled =
+      enableNeedleTips &&
+      simulatePressure &&
+      !controller._currentStrokeStylusPressureEnabled;
   controller._currentStylusCurve = controller._stylusCurve;
   controller._currentStylusLastPressure = null;
   controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 3);
@@ -68,6 +73,7 @@ void _strokeBegin(
         simulatePressure: simulatePressure,
         useDevicePressure: controller._currentStrokeStylusPressureEnabled,
         stylusPressureBlend: effectiveStylusBlend,
+        needleTipsEnabled: needleTipsEnabled,
       );
   double? stylusSeedRadius;
   if (controller._currentStrokeStylusPressureEnabled) {

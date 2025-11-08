@@ -935,6 +935,8 @@ mixin _PaintingBoardInteractionMixin
   void _drawQuadraticCurve(Offset start, Offset control, Offset end) {
     const double initialTimestamp = 0.0;
     final bool simulatePressure = _simulatePenPressure;
+    final bool enableNeedleTips = simulatePressure &&
+        _penPressureProfile == StrokePressureProfile.taperCenter;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
       strokeStart,
@@ -945,6 +947,7 @@ mixin _PaintingBoardInteractionMixin
       timestampMillis: initialTimestamp,
       antialiasLevel: _penAntialiasLevel,
       brushShape: _brushShape,
+      enableNeedleTips: enableNeedleTips,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,

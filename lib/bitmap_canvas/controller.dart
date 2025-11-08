@@ -301,6 +301,7 @@ class BitmapCanvasController extends ChangeNotifier {
     double? timestampMillis,
     int antialiasLevel = 0,
     BrushShape brushShape = BrushShape.circle,
+    bool enableNeedleTips = false,
   }) => _strokeBegin(
     this,
     position,
@@ -316,6 +317,7 @@ class BitmapCanvasController extends ChangeNotifier {
     timestampMillis: timestampMillis,
     antialiasLevel: antialiasLevel,
     brushShape: brushShape,
+    enableNeedleTips: enableNeedleTips,
   );
 
   void extendStroke(

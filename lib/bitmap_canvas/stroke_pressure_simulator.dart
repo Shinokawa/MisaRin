@@ -49,6 +49,7 @@ class StrokePressureSimulator {
   bool _usesDevicePressure = false;
   bool _sharpTipsEnabled = true;
   double _stylusPressureBlend = 1.0;
+  bool _needleTipsEnabled = false;
 
   bool get isSimulatingStroke => _simulatingStroke;
   bool get usesDevicePressure => _usesDevicePressure;
@@ -61,6 +62,7 @@ class StrokePressureSimulator {
     required bool simulatePressure,
     bool useDevicePressure = false,
     double stylusPressureBlend = 1.0,
+    bool needleTipsEnabled = false,
   }) {
     _strokeSamples.clear();
     _velocitySmoother.reset();
@@ -69,6 +71,7 @@ class StrokePressureSimulator {
 
     _stylusPressureBlend = stylusPressureBlend.clamp(0.0, 1.0);
     _usesDevicePressure = useDevicePressure;
+    _needleTipsEnabled = needleTipsEnabled && !useDevicePressure;
     _simulatingStroke = simulatePressure || useDevicePressure;
     if (!_simulatingStroke) {
       return null;
@@ -155,7 +158,10 @@ class StrokePressureSimulator {
     if (!_sharpTipsEnabled) {
       return null;
     }
-    final double tipRadius = _strokeDynamics.tipRadius();
+    final double baseTipRadius = _strokeDynamics.tipRadius();
+    final double tipRadius = _needleTipsEnabled
+        ? math.max(baseTipRadius * 0.35, baseRadius * 0.006)
+        : baseTipRadius;
     if (!hasPath || previousPoint == null) {
       return SimulatedTailInstruction.point(point: tip, pointRadius: tipRadius);
     }
@@ -166,7 +172,10 @@ class StrokePressureSimulator {
     }
     final Offset unit = direction / length;
     final double base = math.max(baseRadius, 0.1);
-    final double taperLength = math.min(base * 6.5, length * 2.4 + 2.0);
+    final double taperMax = _needleTipsEnabled ? base * 8.5 : base * 6.5;
+    final double taperDynamic =
+        length * (_needleTipsEnabled ? 3.2 : 2.4) + (_needleTipsEnabled ? 4.0 : 2.0);
+    final double taperLength = math.min(taperMax, taperDynamic);
     final Offset extension = tip + unit * taperLength;
     final double startRadius = lastRadius > 0.0 ? lastRadius : baseRadius;
     return SimulatedTailInstruction.line(
@@ -197,6 +206,7 @@ class StrokePressureSimulator {
     _simulatingStroke = false;
     _usesDevicePressure = false;
     _stylusPressureBlend = 1.0;
+    _needleTipsEnabled = false;
   }
 
   void setProfile(StrokePressureProfile profile) {
