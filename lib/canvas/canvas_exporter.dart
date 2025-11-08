@@ -213,16 +213,35 @@ class _PreparedLayer {
 Uint32List _buildLayerPixels(CanvasLayerData layer, int width, int height) {
   final Uint32List pixels = Uint32List(width * height);
   if (layer.bitmap != null &&
-      layer.bitmapWidth == width &&
-      layer.bitmapHeight == height) {
+      layer.bitmapWidth != null &&
+      layer.bitmapHeight != null) {
     final Uint8List bitmap = layer.bitmap!;
-    for (int i = 0; i < pixels.length; i++) {
-      final int offset = i * 4;
-      final int r = bitmap[offset];
-      final int g = bitmap[offset + 1];
-      final int b = bitmap[offset + 2];
-      final int a = bitmap[offset + 3];
-      pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
+    final int srcWidth = layer.bitmapWidth!;
+    final int srcHeight = layer.bitmapHeight!;
+    final int offsetX = layer.bitmapLeft ?? 0;
+    final int offsetY = layer.bitmapTop ?? 0;
+    for (int y = 0; y < srcHeight; y++) {
+      final int canvasY = y + offsetY;
+      if (canvasY < 0 || canvasY >= height) {
+        continue;
+      }
+      final int rowOffset = y * srcWidth;
+      for (int x = 0; x < srcWidth; x++) {
+        final int canvasX = x + offsetX;
+        if (canvasX < 0 || canvasX >= width) {
+          continue;
+        }
+        final int rgbaIndex = (rowOffset + x) * 4;
+        final int a = bitmap[rgbaIndex + 3];
+        if (a == 0) {
+          continue;
+        }
+        final int r = bitmap[rgbaIndex];
+        final int g = bitmap[rgbaIndex + 1];
+        final int b = bitmap[rgbaIndex + 2];
+        final int destIndex = canvasY * width + canvasX;
+        pixels[destIndex] = (a << 24) | (r << 16) | (g << 8) | b;
+      }
     }
   } else if (layer.fillColor != null) {
     final int encoded = _encodeColor(layer.fillColor!);

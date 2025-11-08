@@ -188,6 +188,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.bucketContiguous,
     required this.onBucketSampleAllLayersChanged,
     required this.onBucketContiguousChanged,
+    required this.layerAdjustCropOutside,
+    required this.onLayerAdjustCropOutsideChanged,
     required this.selectionShape,
     required this.onSelectionShapeChanged,
     required this.shapeToolVariant,
@@ -217,6 +219,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final bool bucketContiguous;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
   final ValueChanged<bool> onBucketContiguousChanged;
+  final bool layerAdjustCropOutside;
+  final ValueChanged<bool> onLayerAdjustCropOutsideChanged;
   final SelectionShape selectionShape;
   final ValueChanged<SelectionShape> onSelectionShapeChanged;
   final ShapeToolVariant shapeToolVariant;
@@ -342,6 +346,14 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               onChanged: widget.onBucketContiguousChanged,
             ),
           ],
+        );
+        break;
+      case CanvasTool.layerAdjust:
+        content = _buildToggleSwitchRow(
+          theme,
+          label: '裁剪出界画面',
+          value: widget.layerAdjustCropOutside,
+          onChanged: widget.onLayerAdjustCropOutsideChanged,
         );
         break;
       case CanvasTool.selection:

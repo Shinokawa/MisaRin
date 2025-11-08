@@ -266,6 +266,17 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateLayerAdjustCropOutside(bool value) {
+    if (_layerAdjustCropOutside == value) {
+      return;
+    }
+    setState(() => _layerAdjustCropOutside = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.layerAdjustCropOutside = value;
+    unawaited(AppPreferences.save());
+    _controller.setLayerOverflowCropping(value);
+  }
+
   bool _isStylusEvent(PointerEvent event) {
     return TabletInputBridge.instance.isTabletPointer(event);
   }

@@ -26,11 +26,12 @@ class AppPreferences {
     required this.penStrokeSliderRange,
     required this.strokeStabilizerStrength,
     required this.brushShape,
+    required this.layerAdjustCropOutside,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 13;
+  static const int _version = 14;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -64,6 +65,7 @@ class AppPreferences {
   static const double defaultStrokeStabilizerStrength =
       _defaultStrokeStabilizerStrength;
   static const BrushShape defaultBrushShape = _defaultBrushShape;
+  static const bool defaultLayerAdjustCropOutside = false;
 
   static AppPreferences? _instance;
 
@@ -81,6 +83,7 @@ class AppPreferences {
   PenStrokeSliderRange penStrokeSliderRange;
   double strokeStabilizerStrength;
   BrushShape brushShape;
+  bool layerAdjustCropOutside;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -100,6 +103,34 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
+          if (version >= 14 && bytes.length >= 18) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+              strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                bytes[15],
+              ),
+              brushShape: _decodeBrushShape(bytes[16]),
+              layerAdjustCropOutside: bytes[17] != 0,
+            );
+            return _instance!;
+          }
           if (version >= 13 && bytes.length >= 17) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
@@ -124,6 +155,7 @@ class AppPreferences {
                 bytes[15],
               ),
               brushShape: _decodeBrushShape(bytes[16]),
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -151,6 +183,8 @@ class AppPreferences {
                 bytes[15],
               ),
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -176,6 +210,8 @@ class AppPreferences {
               penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -201,6 +237,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -225,6 +263,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -249,6 +289,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -273,6 +315,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -293,6 +337,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -313,6 +359,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -333,6 +381,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -353,6 +403,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -373,6 +425,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -392,6 +446,8 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
+
+              layerAdjustCropOutside: false,
             );
             return _instance!;
           }
@@ -415,6 +471,8 @@ class AppPreferences {
       penStrokeSliderRange: _defaultPenStrokeSliderRange,
       strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
       brushShape: _defaultBrushShape,
+
+      layerAdjustCropOutside: false,
     );
     return _instance!;
   }
@@ -472,6 +530,7 @@ class AppPreferences {
       sliderRangeEncoded,
       stabilizerEncoded,
       _encodeBrushShape(prefs.brushShape),
+      prefs.layerAdjustCropOutside ? 1 : 0,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }

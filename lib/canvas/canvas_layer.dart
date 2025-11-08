@@ -49,10 +49,14 @@ class CanvasLayerData {
     Uint8List? bitmap,
     int? bitmapWidth,
     int? bitmapHeight,
+    int? bitmapLeft,
+    int? bitmapTop,
   }) : fillColor = fillColor,
        bitmap = bitmap != null ? Uint8List.fromList(bitmap) : null,
        bitmapWidth = bitmap != null ? bitmapWidth : null,
-       bitmapHeight = bitmap != null ? bitmapHeight : null;
+       bitmapHeight = bitmap != null ? bitmapHeight : null,
+       bitmapLeft = bitmap != null ? bitmapLeft ?? 0 : null,
+       bitmapTop = bitmap != null ? bitmapTop ?? 0 : null;
 
   final String id;
   final String name;
@@ -65,6 +69,8 @@ class CanvasLayerData {
   final Uint8List? bitmap;
   final int? bitmapWidth;
   final int? bitmapHeight;
+  final int? bitmapLeft;
+  final int? bitmapTop;
 
   bool get hasFill => fillColor != null;
   bool get hasBitmap =>
@@ -83,6 +89,8 @@ class CanvasLayerData {
     Uint8List? bitmap,
     int? bitmapWidth,
     int? bitmapHeight,
+    int? bitmapLeft,
+    int? bitmapTop,
     bool clearBitmap = false,
   }) {
     final Uint8List? resolvedBitmap;
@@ -97,12 +105,18 @@ class CanvasLayerData {
     }
     final int? resolvedWidth;
     final int? resolvedHeight;
+    final int? resolvedLeft;
+    final int? resolvedTop;
     if (resolvedBitmap == null) {
       resolvedWidth = null;
       resolvedHeight = null;
+      resolvedLeft = null;
+      resolvedTop = null;
     } else {
       resolvedWidth = bitmapWidth ?? this.bitmapWidth;
       resolvedHeight = bitmapHeight ?? this.bitmapHeight;
+      resolvedLeft = bitmapLeft ?? this.bitmapLeft ?? 0;
+      resolvedTop = bitmapTop ?? this.bitmapTop ?? 0;
     }
 
     return CanvasLayerData(
@@ -117,6 +131,8 @@ class CanvasLayerData {
       bitmap: resolvedBitmap,
       bitmapWidth: resolvedWidth,
       bitmapHeight: resolvedHeight,
+      bitmapLeft: resolvedLeft,
+      bitmapTop: resolvedTop,
     );
   }
 
@@ -132,6 +148,8 @@ class CanvasLayerData {
       if (fillColor != null) 'fillColor': _encodeColor(fillColor!),
       if (hasBitmap)
         'bitmap': <String, dynamic>{
+          if (bitmapLeft != null) 'left': bitmapLeft,
+          if (bitmapTop != null) 'top': bitmapTop,
           'width': bitmapWidth,
           'height': bitmapHeight,
           'pixels': base64Encode(bitmap!),
@@ -150,6 +168,8 @@ class CanvasLayerData {
     Uint8List? bitmap;
     int? bitmapWidth;
     int? bitmapHeight;
+    int? bitmapLeft;
+    int? bitmapTop;
     final Object? rawBitmap = json['bitmap'];
     if (rawBitmap is Map<String, dynamic>) {
       final String? encoded = rawBitmap['pixels'] as String?;
@@ -158,10 +178,14 @@ class CanvasLayerData {
           bitmap = Uint8List.fromList(base64Decode(encoded));
           bitmapWidth = rawBitmap['width'] as int?;
           bitmapHeight = rawBitmap['height'] as int?;
+          bitmapLeft = rawBitmap['left'] as int? ?? 0;
+          bitmapTop = rawBitmap['top'] as int? ?? 0;
         } catch (_) {
           bitmap = null;
           bitmapWidth = null;
           bitmapHeight = null;
+          bitmapLeft = null;
+          bitmapTop = null;
         }
       }
     }
@@ -178,6 +202,8 @@ class CanvasLayerData {
       bitmap: bitmap,
       bitmapWidth: bitmapWidth,
       bitmapHeight: bitmapHeight,
+      bitmapLeft: bitmapLeft,
+      bitmapTop: bitmapTop,
     );
   }
 

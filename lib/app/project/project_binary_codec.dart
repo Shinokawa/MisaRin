@@ -15,7 +15,7 @@ import 'project_document.dart';
 /// zlib 压缩，避免 JSON 与 Base64 的额外开销。
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
-  static const int _version = 4;
+  static const int _version = 5;
 
   static final ZLibEncoder _encoder = ZLibEncoder();
   static final ZLibDecoder _decoder = ZLibDecoder();
@@ -54,6 +54,8 @@ class ProjectBinaryCodec {
 
       writer.writeBool(layer.hasBitmap);
       if (layer.hasBitmap) {
+        writer.writeInt32(layer.bitmapLeft ?? 0);
+        writer.writeInt32(layer.bitmapTop ?? 0);
         writer.writeUint32(layer.bitmapWidth!);
         writer.writeUint32(layer.bitmapHeight!);
         final Uint8List rawBitmap = Uint8List.fromList(layer.bitmap!);
@@ -133,7 +135,13 @@ class ProjectBinaryCodec {
       Uint8List? bitmap;
       int? bitmapWidth;
       int? bitmapHeight;
+      int bitmapLeft = 0;
+      int bitmapTop = 0;
       if (reader.readBool()) {
+        if (version >= 5) {
+          bitmapLeft = reader.readInt32();
+          bitmapTop = reader.readInt32();
+        }
         bitmapWidth = reader.readUint32();
         bitmapHeight = reader.readUint32();
         final int compression = reader.readUint8();
@@ -156,6 +164,8 @@ class ProjectBinaryCodec {
         bitmap: bitmap,
         bitmapWidth: bitmapWidth,
         bitmapHeight: bitmapHeight,
+        bitmapLeft: bitmap != null ? bitmapLeft : null,
+        bitmapTop: bitmap != null ? bitmapTop : null,
       ));
     }
 
@@ -218,6 +228,10 @@ class ProjectBinaryCodec {
       }
 
       if (reader.readBool()) {
+        if (version >= 5) {
+          reader.readInt32();
+          reader.readInt32();
+        }
         reader.readUint32();
         reader.readUint32();
         reader.readUint8();
@@ -289,6 +303,12 @@ class _ByteWriter {
     _builder.add(data.buffer.asUint8List());
   }
 
+  void writeInt32(int value) {
+    final ByteData data = ByteData(4);
+    data.setInt32(0, value, Endian.big);
+    _builder.add(data.buffer.asUint8List());
+  }
+
   void writeInt64(int value) {
     final ByteData data = ByteData(8);
     data.setInt64(0, value, Endian.big);
@@ -352,6 +372,12 @@ class _ByteReader {
     final ByteData data = ByteData.sublistView(_bytes, _offset, _offset + 4);
     _offset += 4;
     return data.getUint32(0, Endian.big);
+  }
+
+  int readInt32() {
+    final ByteData data = ByteData.sublistView(_bytes, _offset, _offset + 4);
+    _offset += 4;
+    return data.getInt32(0, Endian.big);
   }
 
   int readInt64() {

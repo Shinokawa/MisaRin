@@ -107,11 +107,18 @@ class BitmapCanvasController extends ChangeNotifier {
   String? _activeLayerTranslationId;
   int _activeLayerTranslationDx = 0;
   int _activeLayerTranslationDy = 0;
+  int _activeLayerTransformSnapshotWidth = 0;
+  int _activeLayerTransformSnapshotHeight = 0;
+  int _activeLayerTransformOriginX = 0;
+  int _activeLayerTransformOriginY = 0;
   ui.Image? _activeLayerTransformImage;
   bool _activeLayerTransformPreparing = false;
   Rect? _activeLayerTransformBounds;
   Rect? _activeLayerTransformDirtyRegion;
   bool _pendingActiveLayerTransformCleanup = false;
+  bool _clipLayerOverflow = false;
+  final Map<String, _LayerOverflowStore> _layerOverflowStores =
+      <String, _LayerOverflowStore>{};
 
   UnmodifiableListView<BitmapLayerState> get layers =>
       UnmodifiableListView<BitmapLayerState>(_layers);
@@ -127,14 +134,23 @@ class BitmapCanvasController extends ChangeNotifier {
   bool get isActiveLayerTransforming => _activeLayerTranslationSnapshot != null;
   ui.Image? get activeLayerTransformImage => _activeLayerTransformImage;
   Offset get activeLayerTransformOffset => Offset(
-    _activeLayerTranslationDx.toDouble(),
-    _activeLayerTranslationDy.toDouble(),
+    (_activeLayerTransformOriginX + _activeLayerTranslationDx).toDouble(),
+    (_activeLayerTransformOriginY + _activeLayerTranslationDy).toDouble(),
   );
   double get activeLayerTransformOpacity => _activeLayer.opacity;
   CanvasLayerBlendMode get activeLayerTransformBlendMode =>
       _activeLayer.blendMode;
   bool get isActiveLayerTransformPendingCleanup =>
       _pendingActiveLayerTransformCleanup;
+
+  bool get clipLayerOverflow => _clipLayerOverflow;
+
+  void setLayerOverflowCropping(bool enabled) {
+    if (_clipLayerOverflow == enabled) {
+      return;
+    }
+    _clipLayerOverflow = enabled;
+  }
 
   bool get hasVisibleContent {
     for (int i = 0; i < _layers.length; i++) {

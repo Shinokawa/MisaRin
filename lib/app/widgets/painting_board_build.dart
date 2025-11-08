@@ -422,6 +422,10 @@ mixin _PaintingBoardBuildMixin
                                     _updateBucketSampleAllLayers,
                                 onBucketContiguousChanged:
                                     _updateBucketContiguous,
+                                layerAdjustCropOutside:
+                                    _layerAdjustCropOutside,
+                                onLayerAdjustCropOutsideChanged:
+                                    _updateLayerAdjustCropOutside,
                                 selectionShape: selectionShape,
                                 onSelectionShapeChanged: _updateSelectionShape,
                                 shapeToolVariant: shapeToolVariant,

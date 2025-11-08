@@ -163,6 +163,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       AppPreferences.defaultPenStrokeSliderRange;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
+  bool _layerAdjustCropOutside = false;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
   bool _spacePanOverrideActive = false;
@@ -936,6 +937,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final AppPreferences prefs = AppPreferences.instance;
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
+    _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
@@ -956,6 +958,7 @@ class PaintingBoardState extends _PaintingBoardBase
       backgroundColor: widget.settings.backgroundColor,
       initialLayers: layers,
     );
+    _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
     _resetHistory();
