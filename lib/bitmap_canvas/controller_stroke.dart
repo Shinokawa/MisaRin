@@ -341,7 +341,10 @@ double _strokeResolveSimulatedRadius(
   bool preferImmediate = false,
 }) {
   final double base = math.max(controller._currentStrokeRadius, 0.05);
-  final double minimum = math.max(base * 0.12, 0.06);
+  final bool stylusActive = controller._currentStrokeStylusPressureEnabled;
+  final double minFactor = stylusActive ? 0.025 : 0.12;
+  final double minClamp = stylusActive ? 0.02 : 0.06;
+  final double minimum = math.max(base * minFactor, minClamp);
   final double maximum = math.max(base * 4.0, minimum + 0.01);
   double sanitized = candidate.isFinite ? candidate.abs() : base;
   sanitized = sanitized.clamp(minimum, maximum);

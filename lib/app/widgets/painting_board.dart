@@ -174,6 +174,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double? _activeStylusPressureMin;
   double? _activeStylusPressureMax;
   double? _lastStylusPressureValue;
+  Offset? _lastStrokeBoardPosition;
+  Offset? _lastStylusDirection;
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
   CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
     columns: 1,

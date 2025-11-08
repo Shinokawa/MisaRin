@@ -262,6 +262,9 @@ mixin _PaintingBoardInteractionMixin
       _activeStylusPressureMin = null;
       _activeStylusPressureMax = null;
     }
+    _lastStrokeBoardPosition = start;
+    _lastStylusDirection = null;
+    _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
     _pushUndoSnapshot();
     _lastPenSampleTimestamp = timestamp;
@@ -305,6 +308,14 @@ mixin _PaintingBoardInteractionMixin
         _activeStylusPressureMax = candidateMax;
       }
     }
+    final Offset? previousPoint = _lastStrokeBoardPosition;
+    if (previousPoint != null) {
+      final Offset delta = clamped - previousPoint;
+      if (delta.distanceSquared > 1e-5) {
+        _lastStylusDirection = delta / delta.distance;
+      }
+    }
+    _lastStrokeBoardPosition = clamped;
     if (stylusPressure != null && stylusPressure.isFinite) {
       _lastStylusPressureValue = stylusPressure.clamp(0.0, 1.0);
     }
@@ -339,6 +350,7 @@ mixin _PaintingBoardInteractionMixin
     final double? deltaMillis = _registerPenSample(timestamp);
     _emitReleaseSamples(
       anchor: boardLocal,
+      direction: _lastStylusDirection,
       timestampMillis: timestamp.inMicroseconds / 1000.0,
       initialDeltaMillis: deltaMillis,
       pressure: targetPressure,
@@ -362,10 +374,13 @@ mixin _PaintingBoardInteractionMixin
     _activeStylusPressureMin = null;
     _activeStylusPressureMax = null;
     _lastStylusPressureValue = null;
+    _lastStrokeBoardPosition = null;
+    _lastStylusDirection = null;
   }
 
   void _emitReleaseSamples({
     required Offset anchor,
+    Offset? direction,
     required double timestampMillis,
     double? initialDeltaMillis,
     required double pressure,
@@ -374,9 +389,16 @@ mixin _PaintingBoardInteractionMixin
     const double kTailDeltaMs = 6.0;
     final double clampedPressure = pressure.clamp(0.0, 1.0);
 
+    final Offset dir =
+        (direction != null && direction.distanceSquared > 1e-5)
+            ? (direction / direction.distance)
+            : Offset.zero;
+    final double stepDistance = math.max(_penStrokeWidth * 0.35, 3.0);
+    Offset currentPoint = anchor;
+
     setState(() {
       _controller.extendStroke(
-        anchor,
+        currentPoint,
         deltaTimeMillis: initialDeltaMillis,
         timestampMillis: timestampMillis,
         pressure: clampedPressure,
@@ -387,8 +409,11 @@ mixin _PaintingBoardInteractionMixin
       double nextTimestamp = timestampMillis + (initialDeltaMillis ?? 0.0);
       if (clampedPressure <= 0.0001) {
         nextTimestamp += kTailDeltaMs;
+        if (dir != Offset.zero) {
+          currentPoint = currentPoint + dir * stepDistance;
+        }
         _controller.extendStroke(
-          anchor,
+          currentPoint,
           deltaTimeMillis: kTailDeltaMs,
           timestampMillis: nextTimestamp,
           pressure: 0.0,
@@ -405,8 +430,11 @@ mixin _PaintingBoardInteractionMixin
           break;
         }
         nextTimestamp += kTailDeltaMs;
+        if (dir != Offset.zero) {
+          currentPoint = currentPoint + dir * stepDistance;
+        }
         _controller.extendStroke(
-          anchor,
+          currentPoint,
           deltaTimeMillis: kTailDeltaMs,
           timestampMillis: nextTimestamp,
           pressure: virtualPressure,
@@ -416,8 +444,11 @@ mixin _PaintingBoardInteractionMixin
       }
 
       nextTimestamp += kTailDeltaMs;
+      if (dir != Offset.zero) {
+        currentPoint = currentPoint + dir * stepDistance;
+      }
       _controller.extendStroke(
-        anchor,
+        currentPoint,
         deltaTimeMillis: kTailDeltaMs,
         timestampMillis: nextTimestamp,
         pressure: 0.0,
