@@ -85,7 +85,6 @@ class BitmapCanvasController extends ChangeNotifier {
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
   static const List<int> _kAntialiasDy = <int>[-1, -1, -1, 0, 0, 1, 1, 1];
   static const List<int> _kAntialiasWeights = <int>[1, 2, 1, 2, 2, 1, 2, 1];
-  static const int _kAntialiasNeighborWeightTotal = 12; // sum of weights above
   static const Map<int, List<double>> _kAntialiasBlendProfiles =
       <int, List<double>>{
         0: <double>[0.25],
@@ -93,8 +92,18 @@ class BitmapCanvasController extends ChangeNotifier {
         2: <double>[0.45, 0.5, 0.5],
         3: <double>[0.6, 0.65, 0.7, 0.75],
       };
-  static const int _kColorEdgeNeighborDiffThreshold = 18;
-  static const double _kColorEdgeBlendAmplifier = 1.15;
+  static const double _kEdgeDetectMin = 0.015;
+  static const double _kEdgeDetectMax = 0.4;
+  static const double _kEdgeSmoothStrength = 1.0;
+  static const double _kEdgeSmoothGamma = 0.55;
+  static const List<int> _kGaussianKernel5x5 = <int>[
+    1, 4, 6, 4, 1,
+    4, 16, 24, 16, 4,
+    6, 24, 36, 24, 6,
+    4, 16, 24, 16, 4,
+    1, 4, 6, 4, 1,
+  ];
+  static const int _kGaussianKernel5x5Weight = 256;
 
   ui.Image? _cachedImage;
   bool _compositeDirty = true;
@@ -261,105 +270,175 @@ class BitmapCanvasController extends ChangeNotifier {
     return modified;
   }
 
-  bool _runColorEdgeAntialiasPass(
+  bool _runEdgeAwareColorSmoothPass(
     Uint32List src,
     Uint32List dest,
+    Uint32List blurBuffer,
     int width,
     int height,
-    double blendFactor,
   ) {
-    dest.setAll(0, src);
-    if (blendFactor <= 0) {
-      return false;
-    }
+    _computeGaussianBlur(src, blurBuffer, width, height);
     bool modified = false;
     for (int y = 0; y < height; y++) {
       final int rowOffset = y * width;
       for (int x = 0; x < width; x++) {
         final int index = rowOffset + x;
-        final int center = src[index];
-        final int alpha = (center >> 24) & 0xff;
+        final int baseColor = src[index];
+        final int alpha = (baseColor >> 24) & 0xff;
         if (alpha == 0) {
-          continue;
-        }
-        final int centerR = (center >> 16) & 0xff;
-        final int centerG = (center >> 8) & 0xff;
-        final int centerB = center & 0xff;
-
-        double weightedR = 0;
-        double weightedG = 0;
-        double weightedB = 0;
-        int weightSum = 0;
-        int maxNeighborDiff = 0;
-
-        for (int i = 0; i < _kAntialiasDx.length; i++) {
-          final int nx = x + _kAntialiasDx[i];
-          final int ny = y + _kAntialiasDy[i];
-          if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
-            continue;
-          }
-          final int neighbor = src[ny * width + nx];
-          final int neighborAlpha = (neighbor >> 24) & 0xff;
-          if (neighborAlpha == 0) {
-            continue;
-          }
-          final int nr = (neighbor >> 16) & 0xff;
-          final int ng = (neighbor >> 8) & 0xff;
-          final int nb = neighbor & 0xff;
-          final int diffR = (nr - centerR).abs();
-          final int diffG = (ng - centerG).abs();
-          final int diffB = (nb - centerB).abs();
-          final int diff = math.max(diffR, math.max(diffG, diffB));
-          if (diff < _kColorEdgeNeighborDiffThreshold) {
-            continue;
-          }
-          final int weight = _kAntialiasWeights[i];
-          weightSum += weight;
-          weightedR += nr * weight;
-          weightedG += ng * weight;
-          weightedB += nb * weight;
-          if (diff > maxNeighborDiff) {
-            maxNeighborDiff = diff;
-          }
-        }
-
-        if (weightSum == 0) {
+          dest[index] = baseColor;
           continue;
         }
 
-        final double avgR = weightedR / weightSum;
-        final double avgG = weightedG / weightSum;
-        final double avgB = weightedB / weightSum;
-        final double diffR = (avgR - centerR).abs();
-        final double diffG = (avgG - centerG).abs();
-        final double diffB = (avgB - centerB).abs();
-        final double maxAvgDiff = math.max(diffR, math.max(diffG, diffB));
-        if (maxAvgDiff < _kColorEdgeNeighborDiffThreshold) {
+        final double gradient = _computeEdgeGradient(src, width, height, x, y);
+        final double weight = _edgeSmoothWeight(gradient);
+        if (weight <= 0) {
+          dest[index] = baseColor;
           continue;
         }
-
-        final double normalizedWeight =
-            (weightSum / _kAntialiasNeighborWeightTotal).clamp(0.0, 1.0);
-        final double diffScale = (maxNeighborDiff / 255.0).clamp(0.0, 1.0);
-        final double t = (blendFactor * normalizedWeight * diffScale *
-                _kColorEdgeBlendAmplifier)
-            .clamp(0.0, 1.0);
-        if (t <= 0) {
-          continue;
+        final int blurred = blurBuffer[index];
+        final int newColor = _lerpArgb(baseColor, blurred, weight);
+        dest[index] = newColor;
+        if (newColor != baseColor) {
+          modified = true;
         }
-
-        final int newR =
-            (centerR + ((avgR - centerR) * t)).round().clamp(0, 255);
-        final int newG =
-            (centerG + ((avgG - centerG) * t)).round().clamp(0, 255);
-        final int newB =
-            (centerB + ((avgB - centerB) * t)).round().clamp(0, 255);
-
-        dest[index] = (alpha << 24) | (newR << 16) | (newG << 8) | newB;
-        modified = true;
       }
     }
     return modified;
+  }
+
+  double _computeEdgeGradient(
+    Uint32List src,
+    int width,
+    int height,
+    int x,
+    int y,
+  ) {
+    final int index = y * width + x;
+    final int center = src[index];
+    final int alpha = (center >> 24) & 0xff;
+    if (alpha == 0) {
+      return 0;
+    }
+    final double centerLuma = _computeLuma(center);
+    double maxDiff = 0;
+
+    void accumulate(int nx, int ny) {
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+        return;
+      }
+      final int neighbor = src[ny * width + nx];
+      final int neighborAlpha = (neighbor >> 24) & 0xff;
+      if (neighborAlpha == 0) {
+        return;
+      }
+      final double diff = (centerLuma - _computeLuma(neighbor)).abs();
+      if (diff > maxDiff) {
+        maxDiff = diff;
+      }
+    }
+
+    accumulate(x - 1, y);
+    accumulate(x + 1, y);
+    accumulate(x, y - 1);
+    accumulate(x, y + 1);
+    accumulate(x - 1, y - 1);
+    accumulate(x + 1, y - 1);
+    accumulate(x - 1, y + 1);
+    accumulate(x + 1, y + 1);
+    return maxDiff;
+  }
+
+  double _edgeSmoothWeight(double gradient) {
+    if (gradient <= _kEdgeDetectMin) {
+      return 0;
+    }
+    final double normalized = ((gradient - _kEdgeDetectMin) /
+            (_kEdgeDetectMax - _kEdgeDetectMin))
+        .clamp(0.0, 1.0);
+    return math.pow(normalized, _kEdgeSmoothGamma) * _kEdgeSmoothStrength;
+  }
+
+  void _computeGaussianBlur(
+    Uint32List src,
+    Uint32List dest,
+    int width,
+    int height,
+  ) {
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        double weightedAlpha = 0;
+        double weightedR = 0;
+        double weightedG = 0;
+        double weightedB = 0;
+        double totalWeight = 0;
+        int kernelIndex = 0;
+        for (int ky = -2; ky <= 2; ky++) {
+          final int ny = (y + ky).clamp(0, height - 1);
+          final int rowOffset = ny * width;
+          for (int kx = -2; kx <= 2; kx++) {
+            final int nx = (x + kx).clamp(0, width - 1);
+            final int weight = _kGaussianKernel5x5[kernelIndex++];
+            final int sample = src[rowOffset + nx];
+            final int alpha = (sample >> 24) & 0xff;
+            if (alpha == 0) {
+              continue;
+            }
+            totalWeight += weight;
+            weightedAlpha += alpha * weight;
+            weightedR += ((sample >> 16) & 0xff) * alpha * weight;
+            weightedG += ((sample >> 8) & 0xff) * alpha * weight;
+            weightedB += (sample & 0xff) * alpha * weight;
+          }
+        }
+        if (totalWeight == 0) {
+          dest[y * width + x] = src[y * width + x];
+          continue;
+        }
+        final double normalizedAlpha = weightedAlpha / totalWeight;
+        final double premulAlpha = math.max(weightedAlpha, 1.0);
+        final int outAlpha = normalizedAlpha.round().clamp(0, 255);
+        final int outR = (weightedR / premulAlpha).round().clamp(0, 255);
+        final int outG = (weightedG / premulAlpha).round().clamp(0, 255);
+        final int outB = (weightedB / premulAlpha).round().clamp(0, 255);
+        dest[y * width + x] =
+            (outAlpha << 24) | (outR << 16) | (outG << 8) | outB;
+      }
+    }
+  }
+
+  static double _computeLuma(int color) {
+    final int alpha = (color >> 24) & 0xff;
+    if (alpha == 0) {
+      return 0;
+    }
+    final int r = (color >> 16) & 0xff;
+    final int g = (color >> 8) & 0xff;
+    final int b = color & 0xff;
+    // ITU-R BT.709 perceptual weights normalized to 0-1 luma.
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+  }
+
+  static int _lerpArgb(int a, int b, double t) {
+    final double clampedT = t.clamp(0.0, 1.0);
+    int _lerpChannel(int ca, int cb) =>
+        (ca + ((cb - ca) * clampedT).round()).clamp(0, 255);
+
+    final int aA = (a >> 24) & 0xff;
+    final int aR = (a >> 16) & 0xff;
+    final int aG = (a >> 8) & 0xff;
+    final int aB = a & 0xff;
+
+    final int bA = (b >> 24) & 0xff;
+    final int bR = (b >> 16) & 0xff;
+    final int bG = (b >> 8) & 0xff;
+    final int bB = b & 0xff;
+
+    final int outA = _lerpChannel(aA, bA);
+    final int outR = _lerpChannel(aR, bR);
+    final int outG = _lerpChannel(aG, bG);
+    final int outB = _lerpChannel(aB, bB);
+    return (outA << 24) | (outR << 16) | (outG << 8) | outB;
   }
 
   void translateActiveLayer(int dx, int dy) =>
@@ -491,32 +570,34 @@ class BitmapCanvasController extends ChangeNotifier {
         _height,
         factor,
       );
-      if (alphaChanged) {
-        if (previewOnly) {
-          return true;
-        }
-        anyChange = true;
-        final Uint32List swap = src;
-        src = dest;
-        dest = swap;
+      if (!alphaChanged) {
+        continue;
       }
+      if (previewOnly) {
+        return true;
+      }
+      anyChange = true;
+      final Uint32List swap = src;
+      src = dest;
+      dest = swap;
+    }
 
-      final bool colorChanged = _runColorEdgeAntialiasPass(
-        src,
-        dest,
-        _width,
-        _height,
-        factor,
-      );
-      if (colorChanged) {
-        if (previewOnly) {
-          return true;
-        }
-        anyChange = true;
-        final Uint32List swap = src;
-        src = dest;
-        dest = swap;
+    final Uint32List blurBuffer = Uint32List(pixels.length);
+    final bool colorChanged = _runEdgeAwareColorSmoothPass(
+      src,
+      dest,
+      blurBuffer,
+      _width,
+      _height,
+    );
+    if (colorChanged) {
+      if (previewOnly) {
+        return true;
       }
+      anyChange = true;
+      final Uint32List swap = src;
+      src = dest;
+      dest = swap;
     }
     if (!anyChange) {
       return false;
