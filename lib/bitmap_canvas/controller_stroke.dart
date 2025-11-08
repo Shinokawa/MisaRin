@@ -227,10 +227,6 @@ void _strokeLogDrawnSegment({
   final String pressureLabel = normalizedPressure != null
       ? normalizedPressure.clamp(0.0, 1.0).toStringAsFixed(3)
       : (usesDevicePressure ? 'virtual' : 'fixed');
-  debugPrint(
-    '[StrokeDraw] device=$usesDevicePressure pressure=$pressureLabel start='
-    '${startRadius.toStringAsFixed(3)} end=${endRadius.toStringAsFixed(3)}',
-  );
 }
 
 void _strokeEnd(BitmapCanvasController controller) {
