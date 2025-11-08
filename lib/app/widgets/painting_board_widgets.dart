@@ -404,7 +404,11 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Align(alignment: Alignment.centerLeft, child: content),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            widthFactor: 1,
+            child: content,
+          ),
         ),
       ),
     );

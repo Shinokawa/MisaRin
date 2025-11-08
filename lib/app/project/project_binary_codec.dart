@@ -8,7 +8,7 @@ import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import 'project_document.dart';
 
-/// `.rin` 二进制编解码器（v4）
+/// `.rin` 二进制编解码器（v5，向后兼容 v4）
 ///
 /// 结构参考 PSD 分块思路：头部 + 文档元数据 + 图层块 + 预览块。
 /// 所有字符串按 UTF-8 存储并携带 32bit 长度前缀；位图数据按需使用
@@ -16,6 +16,7 @@ import 'project_document.dart';
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
   static const int _version = 5;
+  static const int _minSupportedVersion = 4;
 
   static final ZLibEncoder _encoder = ZLibEncoder();
   static final ZLibDecoder _decoder = ZLibDecoder();
@@ -95,9 +96,7 @@ class ProjectBinaryCodec {
     final _ByteReader reader = _ByteReader(bytes);
     reader.expectMagic(_magic);
     final int version = reader.readUint16();
-    if (version != _version) {
-      throw UnsupportedError('不支持的项目文件版本：$version');
-    }
+    _ensureSupportedVersion(version);
 
     final String id = reader.readString();
     final String name = reader.readString();
@@ -199,9 +198,7 @@ class ProjectBinaryCodec {
     final _ByteReader reader = _ByteReader(bytes);
     reader.expectMagic(_magic);
     final int version = reader.readUint16();
-    if (version != _version) {
-      throw UnsupportedError('不支持的项目文件版本：$version');
-    }
+    _ensureSupportedVersion(version);
 
     final String id = reader.readString();
     final String name = reader.readString();
@@ -270,6 +267,12 @@ class ProjectBinaryCodec {
       return CanvasLayerBlendMode.normal;
     }
     return CanvasLayerBlendMode.values[raw];
+  }
+
+  static void _ensureSupportedVersion(int version) {
+    if (version < _minSupportedVersion || version > _version) {
+      throw UnsupportedError('不支持的项目文件版本：$version');
+    }
   }
 }
 

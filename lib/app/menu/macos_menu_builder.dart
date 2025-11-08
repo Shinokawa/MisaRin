@@ -5,28 +5,19 @@ import 'package:flutter/widgets.dart';
 
 import 'menu_action_dispatcher.dart';
 
-typedef MenuLogger = void Function(String entry);
-
 class MacosMenuBuilder {
   const MacosMenuBuilder._();
 
-  static List<PlatformMenu> build(
-    MenuActionHandler handler, {
-    MenuLogger? onLog,
-  }) {
-    final log = onLog ?? _defaultLogger;
-    return <PlatformMenu>[
-      _applicationMenu(handler, log),
-      _fileMenu(handler, log),
-      _editMenu(handler, log),
-      _imageMenu(handler, log),
-      _layerMenu(handler, log),
-      _selectMenu(log),
-      _filterMenu(log),
-      _viewMenu(handler, log),
-      _windowMenu(log),
-      _helpMenu(log),
-    ];
+  static List<PlatformMenu> build(MenuActionHandler handler) {
+    return <PlatformMenu?>[
+      _applicationMenu(handler),
+      _fileMenu(handler),
+      _editMenu(handler),
+      _imageMenu(handler),
+      _layerMenu(handler),
+      _viewMenu(handler),
+      _windowMenu(),
+    ].whereType<PlatformMenu>().toList(growable: false);
   }
 
   static VoidCallback? _wrap(MenuAsyncAction? action) {
@@ -36,32 +27,27 @@ class MacosMenuBuilder {
     return () => unawaited(Future.sync(action));
   }
 
-  static VoidCallback _placeholder(String label, MenuLogger log) {
-    return () => log('macOS 菜单占位触发：$label');
-  }
+  static PlatformMenu _applicationMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
 
-  static void _defaultLogger(String entry) {
-    debugPrint(entry);
-  }
-
-  static PlatformMenu _applicationMenu(
-    MenuActionHandler handler,
-    MenuLogger log,
-  ) {
-    return PlatformMenu(
-      label: 'Misa Rin',
-      menus: <PlatformMenuItem>[
+    final aboutAction = _wrap(handler.about);
+    if (aboutAction != null) {
+      menus.add(
         PlatformMenuItem(
           label: '关于 Misa Rin',
-          onSelected:
-              _wrap(handler.about) ?? _placeholder('应用 > 关于 Misa Rin', log),
+          onSelected: aboutAction,
         ),
+      );
+    }
+
+    final preferencesAction = _wrap(handler.preferences);
+    if (preferencesAction != null) {
+      menus.add(
         PlatformMenuItemGroup(
           members: <PlatformMenuItem>[
             PlatformMenuItem(
               label: '偏好设置…',
-              onSelected:
-                  _wrap(handler.preferences) ?? _placeholder('偏好设置…', log),
+              onSelected: preferencesAction,
               shortcut: const SingleActivator(
                 LogicalKeyboardKey.comma,
                 meta: true,
@@ -69,237 +55,306 @@ class MacosMenuBuilder {
             ),
           ],
         ),
-        PlatformMenuItemGroup(
-          members: const <PlatformMenuItem>[
-            PlatformProvidedMenuItem(
-              type: PlatformProvidedMenuItemType.servicesSubmenu,
-            ),
-          ],
-        ),
-        PlatformMenuItemGroup(
-          members: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '隐藏 Misa Rin',
-              onSelected: _placeholder('隐藏 Misa Rin', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyH,
-                meta: true,
-              ),
-            ),
-            const PlatformProvidedMenuItem(
-              type: PlatformProvidedMenuItemType.hideOtherApplications,
-            ),
-            const PlatformProvidedMenuItem(
-              type: PlatformProvidedMenuItemType.showAllApplications,
-            ),
-          ],
-        ),
-        PlatformMenuItemGroup(
-          members: const <PlatformMenuItem>[
-            PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.quit),
-          ],
-        ),
-      ],
+      );
+    }
+
+    menus.add(
+      PlatformMenuItemGroup(
+        members: const <PlatformMenuItem>[
+          PlatformProvidedMenuItem(
+            type: PlatformProvidedMenuItemType.servicesSubmenu,
+          ),
+        ],
+      ),
+    );
+
+    menus.add(
+      PlatformMenuItemGroup(
+        members: const <PlatformMenuItem>[
+          PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.hide),
+          PlatformProvidedMenuItem(
+            type: PlatformProvidedMenuItemType.hideOtherApplications,
+          ),
+          PlatformProvidedMenuItem(
+            type: PlatformProvidedMenuItemType.showAllApplications,
+          ),
+        ],
+      ),
+    );
+
+    menus.add(
+      PlatformMenuItemGroup(
+        members: const <PlatformMenuItem>[
+          PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.quit),
+        ],
+      ),
+    );
+
+    return PlatformMenu(
+      label: 'Misa Rin',
+      menus: menus,
     );
   }
 
-  static PlatformMenu _fileMenu(MenuActionHandler handler, MenuLogger log) {
+  static PlatformMenu? _fileMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
+
+    final List<PlatformMenuItem> creationItems = <PlatformMenuItem>[];
+    final newProjectAction = _wrap(handler.newProject);
+    if (newProjectAction != null) {
+      creationItems.add(
+        PlatformMenuItem(
+          label: '新建…',
+          onSelected: newProjectAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyN,
+            meta: true,
+          ),
+        ),
+      );
+    }
+    final openAction = _wrap(handler.open);
+    if (openAction != null) {
+      creationItems.add(
+        PlatformMenuItem(
+          label: '打开…',
+          onSelected: openAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyO,
+            meta: true,
+          ),
+        ),
+      );
+    }
+    final importImageAction = _wrap(handler.importImage);
+    if (importImageAction != null) {
+      creationItems.add(
+        PlatformMenuItem(
+          label: '导入图像…',
+          onSelected: importImageAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyI,
+            meta: true,
+          ),
+        ),
+      );
+    }
+    if (creationItems.isNotEmpty) {
+      menus.add(PlatformMenuItemGroup(members: creationItems));
+    }
+
+    final List<PlatformMenuItem> saveItems = <PlatformMenuItem>[];
+    final saveAction = _wrap(handler.save);
+    if (saveAction != null) {
+      saveItems.add(
+        PlatformMenuItem(
+          label: '保存',
+          onSelected: saveAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyS,
+            meta: true,
+          ),
+        ),
+      );
+    }
+    final saveAsAction = _wrap(handler.saveAs);
+    if (saveAsAction != null) {
+      saveItems.add(
+        PlatformMenuItem(
+          label: '另存为…',
+          onSelected: saveAsAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyS,
+            meta: true,
+            shift: true,
+          ),
+        ),
+      );
+    }
+    final exportAction = _wrap(handler.export);
+    if (exportAction != null) {
+      saveItems.add(
+        PlatformMenuItem(
+          label: '导出…',
+          onSelected: exportAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyE,
+            meta: true,
+            shift: true,
+          ),
+        ),
+      );
+    }
+    if (saveItems.isNotEmpty) {
+      menus.add(PlatformMenuItemGroup(members: saveItems));
+    }
+
+    if (menus.isEmpty) {
+      return null;
+    }
+
     return PlatformMenu(
       label: '文件',
-      menus: <PlatformMenuItem>[
-        PlatformMenuItemGroup(
-          members: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '新建…',
-              onSelected:
-                  _wrap(handler.newProject) ?? _placeholder('文件 > 新建…', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyN,
-                meta: true,
-              ),
-            ),
-            PlatformMenuItem(
-              label: '打开…',
-              onSelected: _wrap(handler.open) ?? _placeholder('文件 > 打开…', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyO,
-                meta: true,
-              ),
-            ),
-            PlatformMenuItem(
-              label: '导入图像…',
-              onSelected:
-                  _wrap(handler.importImage) ?? _placeholder('文件 > 导入图像…', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyI,
-                meta: true,
-              ),
-            ),
-          ],
-        ),
-        PlatformMenuItemGroup(
-          members: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '保存',
-              onSelected: _wrap(handler.save) ?? _placeholder('文件 > 保存', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyS,
-                meta: true,
-              ),
-            ),
-            PlatformMenuItem(
-              label: '另存为…',
-              onSelected:
-                  _wrap(handler.saveAs) ?? _placeholder('文件 > 另存为…', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyS,
-                meta: true,
-                shift: true,
-              ),
-            ),
-            PlatformMenuItem(
-              label: '导出…',
-              onSelected:
-                  _wrap(handler.export) ?? _placeholder('文件 > 导出…', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyE,
-                meta: true,
-                shift: true,
-              ),
-            ),
-          ],
-        ),
-        PlatformMenuItemGroup(
-          members: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '关闭',
-              onSelected: _placeholder('文件 > 关闭', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyW,
-                meta: true,
-              ),
-            ),
-          ],
-        ),
-      ],
+      menus: menus,
     );
   }
 
-  static PlatformMenu _editMenu(MenuActionHandler handler, MenuLogger log) {
+  static PlatformMenu? _editMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
+
+    final List<PlatformMenuItem> historyItems = <PlatformMenuItem>[];
+    final undoAction = _wrap(handler.undo);
+    if (undoAction != null) {
+      historyItems.add(
+        PlatformMenuItem(
+          label: '撤销',
+          onSelected: undoAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyZ,
+            meta: true,
+          ),
+        ),
+      );
+    }
+    final redoAction = _wrap(handler.redo);
+    if (redoAction != null) {
+      historyItems.add(
+        PlatformMenuItem(
+          label: '恢复',
+          onSelected: redoAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyZ,
+            meta: true,
+            shift: true,
+          ),
+        ),
+      );
+    }
+    if (historyItems.isNotEmpty) {
+      menus.add(PlatformMenuItemGroup(members: historyItems));
+    }
+
+    final List<PlatformMenuItem> clipboardItems = <PlatformMenuItem>[];
+    final cutAction = _wrap(handler.cut);
+    if (cutAction != null) {
+      clipboardItems.add(
+        PlatformMenuItem(
+          label: '剪切',
+          onSelected: cutAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyX,
+            meta: true,
+          ),
+        ),
+      );
+    }
+    final copyAction = _wrap(handler.copy);
+    if (copyAction != null) {
+      clipboardItems.add(
+        PlatformMenuItem(
+          label: '复制',
+          onSelected: copyAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyC,
+            meta: true,
+          ),
+        ),
+      );
+    }
+    final pasteAction = _wrap(handler.paste);
+    if (pasteAction != null) {
+      clipboardItems.add(
+        PlatformMenuItem(
+          label: '粘贴',
+          onSelected: pasteAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyV,
+            meta: true,
+          ),
+        ),
+      );
+    }
+    if (clipboardItems.isNotEmpty) {
+      menus.add(PlatformMenuItemGroup(members: clipboardItems));
+    }
+
+    if (menus.isEmpty) {
+      return null;
+    }
+
     return PlatformMenu(
       label: '编辑',
-      menus: <PlatformMenuItem>[
-        PlatformMenuItemGroup(
-          members: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '撤销',
-              onSelected: _wrap(handler.undo) ?? _placeholder('编辑 > 撤销', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyZ,
-                meta: true,
-              ),
-            ),
-            PlatformMenuItem(
-              label: '恢复',
-              onSelected: _wrap(handler.redo) ?? _placeholder('编辑 > 恢复', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyZ,
-                meta: true,
-                shift: true,
-              ),
-            ),
-          ],
-        ),
-        PlatformMenuItemGroup(
-          members: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '剪切',
-              onSelected: _wrap(handler.cut) ?? _placeholder('编辑 > 剪切', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyX,
-                meta: true,
-              ),
-            ),
-            PlatformMenuItem(
-              label: '复制',
-              onSelected: _wrap(handler.copy) ?? _placeholder('编辑 > 复制', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyC,
-                meta: true,
-              ),
-            ),
-            PlatformMenuItem(
-              label: '粘贴',
-              onSelected: _wrap(handler.paste) ?? _placeholder('编辑 > 粘贴', log),
-              shortcut: const SingleActivator(
-                LogicalKeyboardKey.keyV,
-                meta: true,
-              ),
-            ),
-          ],
-        ),
-      ],
+      menus: menus,
     );
   }
 
-  static PlatformMenu _imageMenu(MenuActionHandler handler, MenuLogger log) {
+  static PlatformMenu? _imageMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> transformItems = <PlatformMenuItem>[];
+
+    final rotate90CW = _wrap(handler.rotateCanvas90Clockwise);
+    if (rotate90CW != null) {
+      transformItems.add(
+        PlatformMenuItem(
+          label: '顺时针 90 度',
+          onSelected: rotate90CW,
+        ),
+      );
+    }
+    final rotate90CCW = _wrap(handler.rotateCanvas90CounterClockwise);
+    if (rotate90CCW != null) {
+      transformItems.add(
+        PlatformMenuItem(
+          label: '逆时针 90 度',
+          onSelected: rotate90CCW,
+        ),
+      );
+    }
+    final rotate180CW = _wrap(handler.rotateCanvas180Clockwise);
+    if (rotate180CW != null) {
+      transformItems.add(
+        PlatformMenuItem(
+          label: '顺时针 180 度',
+          onSelected: rotate180CW,
+        ),
+      );
+    }
+    final rotate180CCW = _wrap(handler.rotateCanvas180CounterClockwise);
+    if (rotate180CCW != null) {
+      transformItems.add(
+        PlatformMenuItem(
+          label: '逆时针 180 度',
+          onSelected: rotate180CCW,
+        ),
+      );
+    }
+
+    if (transformItems.isEmpty) {
+      return null;
+    }
+
     return PlatformMenu(
       label: '图像',
       menus: <PlatformMenuItem>[
-        PlatformMenuItem(
-          label: '模式 > RGB 颜色',
-          onSelected: _placeholder('图像 > 模式 > RGB 颜色', log),
-        ),
-        PlatformMenuItem(
-          label: '调整 > 色阶…',
-          onSelected: _placeholder('图像 > 调整 > 色阶…', log),
-          shortcut: const SingleActivator(LogicalKeyboardKey.keyL, meta: true),
-        ),
         PlatformMenu(
           label: '图像变换',
-          menus: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '顺时针 90 度',
-              onSelected:
-                  _wrap(handler.rotateCanvas90Clockwise) ??
-                  _placeholder('图像 > 图像变换 > 顺时针 90 度', log),
-            ),
-            PlatformMenuItem(
-              label: '逆时针 90 度',
-              onSelected:
-                  _wrap(handler.rotateCanvas90CounterClockwise) ??
-                  _placeholder('图像 > 图像变换 > 逆时针 90 度', log),
-            ),
-            PlatformMenuItem(
-              label: '顺时针 180 度',
-              onSelected:
-                  _wrap(handler.rotateCanvas180Clockwise) ??
-                  _placeholder('图像 > 图像变换 > 顺时针 180 度', log),
-            ),
-            PlatformMenuItem(
-              label: '逆时针 180 度',
-              onSelected:
-                  _wrap(handler.rotateCanvas180CounterClockwise) ??
-                  _placeholder('图像 > 图像变换 > 逆时针 180 度', log),
-            ),
-          ],
+          menus: transformItems,
         ),
       ],
     );
   }
 
-  static PlatformMenu _layerMenu(MenuActionHandler handler, MenuLogger log) {
-    return PlatformMenu(
-      label: '图层',
-      menus: <PlatformMenuItem>[
+  static PlatformMenu? _layerMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
+
+    final newLayerAction = _wrap(handler.newLayer);
+    if (newLayerAction != null) {
+      menus.add(
         PlatformMenu(
           label: '新建',
           menus: <PlatformMenuItem>[
             PlatformMenuItem(
               label: '图层…',
-              onSelected:
-                  _wrap(handler.newLayer) ??
-                  _placeholder('图层 > 新建 > 图层…', log),
+              onSelected: newLayerAction,
               shortcut: const SingleActivator(
                 LogicalKeyboardKey.keyN,
                 meta: true,
@@ -308,112 +363,109 @@ class MacosMenuBuilder {
             ),
           ],
         ),
+      );
+    }
+
+    final List<PlatformMenuItem> antialiasItems = <PlatformMenuItem>[];
+    final aa0 = _wrap(handler.applyLayerAntialias0);
+    if (aa0 != null) {
+      antialiasItems.add(
         PlatformMenuItem(
-          label: '复制图层…',
-          onSelected: _placeholder('图层 > 复制图层…', log),
+          label: '0',
+          onSelected: aa0,
         ),
+      );
+    }
+    final aa1 = _wrap(handler.applyLayerAntialias1);
+    if (aa1 != null) {
+      antialiasItems.add(
+        PlatformMenuItem(
+          label: '1',
+          onSelected: aa1,
+        ),
+      );
+    }
+    final aa2 = _wrap(handler.applyLayerAntialias2);
+    if (aa2 != null) {
+      antialiasItems.add(
+        PlatformMenuItem(
+          label: '2',
+          onSelected: aa2,
+        ),
+      );
+    }
+    final aa3 = _wrap(handler.applyLayerAntialias3);
+    if (aa3 != null) {
+      antialiasItems.add(
+        PlatformMenuItem(
+          label: '3',
+          onSelected: aa3,
+        ),
+      );
+    }
+    if (antialiasItems.isNotEmpty) {
+      menus.add(
         PlatformMenu(
           label: '抗锯齿',
-          menus: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '0',
-              onSelected:
-                  _wrap(handler.applyLayerAntialias0) ??
-                  _placeholder('图层 > 抗锯齿 > 0', log),
-            ),
-            PlatformMenuItem(
-              label: '1',
-              onSelected:
-                  _wrap(handler.applyLayerAntialias1) ??
-                  _placeholder('图层 > 抗锯齿 > 1', log),
-            ),
-            PlatformMenuItem(
-              label: '2',
-              onSelected:
-                  _wrap(handler.applyLayerAntialias2) ??
-                  _placeholder('图层 > 抗锯齿 > 2', log),
-            ),
-            PlatformMenuItem(
-              label: '3',
-              onSelected:
-                  _wrap(handler.applyLayerAntialias3) ??
-                  _placeholder('图层 > 抗锯齿 > 3', log),
-            ),
-          ],
+          menus: antialiasItems,
         ),
-      ],
+      );
+    }
+
+    if (menus.isEmpty) {
+      return null;
+    }
+
+    return PlatformMenu(
+      label: '图层',
+      menus: menus,
     );
   }
 
-  static PlatformMenu _selectMenu(MenuLogger log) {
-    return PlatformMenu(
-      label: '选择',
-      menus: <PlatformMenuItem>[
-        PlatformMenuItem(
-          label: '全选',
-          onSelected: _placeholder('选择 > 全选', log),
-          shortcut: const SingleActivator(LogicalKeyboardKey.keyA, meta: true),
-        ),
-        PlatformMenuItem(
-          label: '取消选择',
-          onSelected: _placeholder('选择 > 取消选择', log),
-          shortcut: const SingleActivator(LogicalKeyboardKey.keyD, meta: true),
-        ),
-      ],
-    );
-  }
+  static PlatformMenu? _viewMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
 
-  static PlatformMenu _filterMenu(MenuLogger log) {
-    return PlatformMenu(
-      label: '滤镜',
-      menus: <PlatformMenuItem>[
-        PlatformMenuItem(
-          label: '转换为智能滤镜…',
-          onSelected: _placeholder('滤镜 > 转换为智能滤镜…', log),
-        ),
-        PlatformMenuItem(
-          label: 'Camera Raw 滤镜…',
-          onSelected: _placeholder('滤镜 > Camera Raw 滤镜…', log),
-        ),
-      ],
-    );
-  }
-
-  static PlatformMenu _viewMenu(MenuActionHandler handler, MenuLogger log) {
-    return PlatformMenu(
-      label: '视图',
-      menus: <PlatformMenuItem>[
+    final zoomInAction = _wrap(handler.zoomIn);
+    if (zoomInAction != null) {
+      menus.add(
         PlatformMenuItem(
           label: '放大',
-          onSelected: _wrap(handler.zoomIn) ?? _placeholder('视图 > 放大', log),
-          shortcut: const SingleActivator(LogicalKeyboardKey.equal, meta: true),
-        ),
-        PlatformMenuItem(
-          label: '缩小',
-          onSelected: _wrap(handler.zoomOut) ?? _placeholder('视图 > 缩小', log),
-          shortcut: const SingleActivator(LogicalKeyboardKey.minus, meta: true),
-        ),
-        PlatformMenuItem(
-          label: '适合屏幕',
-          onSelected: _placeholder('视图 > 适合屏幕', log),
+          onSelected: zoomInAction,
           shortcut: const SingleActivator(
-            LogicalKeyboardKey.digit0,
+            LogicalKeyboardKey.equal,
             meta: true,
           ),
         ),
-      ],
+      );
+    }
+    final zoomOutAction = _wrap(handler.zoomOut);
+    if (zoomOutAction != null) {
+      menus.add(
+        PlatformMenuItem(
+          label: '缩小',
+          onSelected: zoomOutAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.minus,
+            meta: true,
+          ),
+        ),
+      );
+    }
+
+    if (menus.isEmpty) {
+      return null;
+    }
+
+    return PlatformMenu(
+      label: '视图',
+      menus: menus,
     );
   }
 
-  static PlatformMenu _windowMenu(MenuLogger log) {
+  static PlatformMenu _windowMenu() {
     return PlatformMenu(
       label: '窗口',
       menus: <PlatformMenuItem>[
-        PlatformMenuItem(label: '排列', onSelected: _placeholder('窗口 > 排列', log)),
-        PlatformMenuItem(
-          label: '工作区',
-          onSelected: _placeholder('窗口 > 工作区', log),
-        ),
         PlatformMenuItemGroup(
           members: const <PlatformMenuItem>[
             PlatformProvidedMenuItem(
@@ -426,22 +478,6 @@ class MacosMenuBuilder {
               type: PlatformProvidedMenuItemType.arrangeWindowsInFront,
             ),
           ],
-        ),
-      ],
-    );
-  }
-
-  static PlatformMenu _helpMenu(MenuLogger log) {
-    return PlatformMenu(
-      label: '帮助',
-      menus: <PlatformMenuItem>[
-        PlatformMenuItem(
-          label: 'Misa Rin 帮助',
-          onSelected: _placeholder('帮助 > Misa Rin 帮助', log),
-        ),
-        PlatformMenuItem(
-          label: '系统信息…',
-          onSelected: _placeholder('帮助 > 系统信息…', log),
         ),
       ],
     );
