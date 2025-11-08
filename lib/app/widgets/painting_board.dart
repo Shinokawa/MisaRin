@@ -59,6 +59,7 @@ import '../preferences/app_preferences.dart';
 import '../constants/pen_constants.dart';
 import '../utils/tablet_input_bridge.dart';
 import 'layer_visibility_button.dart';
+import 'app_notification.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';

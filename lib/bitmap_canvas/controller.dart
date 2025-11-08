@@ -85,6 +85,7 @@ class BitmapCanvasController extends ChangeNotifier {
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
   static const List<int> _kAntialiasDy = <int>[-1, -1, -1, 0, 0, 1, 1, 1];
   static const List<int> _kAntialiasWeights = <int>[1, 2, 1, 2, 2, 1, 2, 1];
+  static const int _kAntialiasNeighborWeightTotal = 12; // sum of weights above
   static const Map<int, List<double>> _kAntialiasBlendProfiles =
       <int, List<double>>{
         0: <double>[0.25],
@@ -92,6 +93,8 @@ class BitmapCanvasController extends ChangeNotifier {
         2: <double>[0.45, 0.5, 0.5],
         3: <double>[0.6, 0.65, 0.7, 0.75],
       };
+  static const int _kColorEdgeNeighborDiffThreshold = 18;
+  static const double _kColorEdgeBlendAmplifier = 1.15;
 
   ui.Image? _cachedImage;
   bool _compositeDirty = true;
@@ -194,14 +197,17 @@ class BitmapCanvasController extends ChangeNotifier {
         final int index = rowOffset + x;
         final int center = src[index];
         final int alpha = (center >> 24) & 0xff;
+        final int centerR = (center >> 16) & 0xff;
+        final int centerG = (center >> 8) & 0xff;
+        final int centerB = center & 0xff;
 
         int totalWeight = _kAntialiasCenterWeight;
         int weightedAlpha = alpha * _kAntialiasCenterWeight;
         int weightedPremulR =
-            ((center >> 16) & 0xff) * alpha * _kAntialiasCenterWeight;
+            centerR * alpha * _kAntialiasCenterWeight;
         int weightedPremulG =
-            ((center >> 8) & 0xff) * alpha * _kAntialiasCenterWeight;
-        int weightedPremulB = (center & 0xff) * alpha * _kAntialiasCenterWeight;
+            centerG * alpha * _kAntialiasCenterWeight;
+        int weightedPremulB = centerB * alpha * _kAntialiasCenterWeight;
 
         for (int i = 0; i < _kAntialiasDx.length; i++) {
           final int nx = x + _kAntialiasDx[i];
@@ -227,32 +233,129 @@ class BitmapCanvasController extends ChangeNotifier {
         }
 
         final int candidateAlpha = (weightedAlpha ~/ totalWeight).clamp(0, 255);
-        if (candidateAlpha <= alpha) {
+        final int deltaAlpha = candidateAlpha - alpha;
+        if (deltaAlpha == 0) {
           continue;
         }
 
-        final int newAlpha =
-            (alpha + ((candidateAlpha - alpha) * factor).round()).clamp(
-              alpha + 1,
-              255,
-            );
-        if (newAlpha <= alpha) {
+        final int newAlpha = (alpha + (deltaAlpha * factor).round())
+            .clamp(0, 255);
+        if (newAlpha == alpha) {
           continue;
         }
 
-        final int boundedWeightedAlpha = math.max(weightedAlpha, 1);
-        final int neighborColorR = (weightedPremulR ~/ boundedWeightedAlpha)
-            .clamp(0, 255);
-        final int neighborColorG = (weightedPremulG ~/ boundedWeightedAlpha)
-            .clamp(0, 255);
-        final int neighborColorB = (weightedPremulB ~/ boundedWeightedAlpha)
-            .clamp(0, 255);
-
-        final int newR = neighborColorR;
-        final int newG = neighborColorG;
-        final int newB = neighborColorB;
+        int newR = centerR;
+        int newG = centerG;
+        int newB = centerB;
+        if (deltaAlpha > 0) {
+          final int boundedWeightedAlpha = math.max(weightedAlpha, 1);
+          newR = (weightedPremulR ~/ boundedWeightedAlpha).clamp(0, 255);
+          newG = (weightedPremulG ~/ boundedWeightedAlpha).clamp(0, 255);
+          newB = (weightedPremulB ~/ boundedWeightedAlpha).clamp(0, 255);
+        }
 
         dest[index] = (newAlpha << 24) | (newR << 16) | (newG << 8) | newB;
+        modified = true;
+      }
+    }
+    return modified;
+  }
+
+  bool _runColorEdgeAntialiasPass(
+    Uint32List src,
+    Uint32List dest,
+    int width,
+    int height,
+    double blendFactor,
+  ) {
+    dest.setAll(0, src);
+    if (blendFactor <= 0) {
+      return false;
+    }
+    bool modified = false;
+    for (int y = 0; y < height; y++) {
+      final int rowOffset = y * width;
+      for (int x = 0; x < width; x++) {
+        final int index = rowOffset + x;
+        final int center = src[index];
+        final int alpha = (center >> 24) & 0xff;
+        if (alpha == 0) {
+          continue;
+        }
+        final int centerR = (center >> 16) & 0xff;
+        final int centerG = (center >> 8) & 0xff;
+        final int centerB = center & 0xff;
+
+        double weightedR = 0;
+        double weightedG = 0;
+        double weightedB = 0;
+        int weightSum = 0;
+        int maxNeighborDiff = 0;
+
+        for (int i = 0; i < _kAntialiasDx.length; i++) {
+          final int nx = x + _kAntialiasDx[i];
+          final int ny = y + _kAntialiasDy[i];
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+            continue;
+          }
+          final int neighbor = src[ny * width + nx];
+          final int neighborAlpha = (neighbor >> 24) & 0xff;
+          if (neighborAlpha == 0) {
+            continue;
+          }
+          final int nr = (neighbor >> 16) & 0xff;
+          final int ng = (neighbor >> 8) & 0xff;
+          final int nb = neighbor & 0xff;
+          final int diffR = (nr - centerR).abs();
+          final int diffG = (ng - centerG).abs();
+          final int diffB = (nb - centerB).abs();
+          final int diff = math.max(diffR, math.max(diffG, diffB));
+          if (diff < _kColorEdgeNeighborDiffThreshold) {
+            continue;
+          }
+          final int weight = _kAntialiasWeights[i];
+          weightSum += weight;
+          weightedR += nr * weight;
+          weightedG += ng * weight;
+          weightedB += nb * weight;
+          if (diff > maxNeighborDiff) {
+            maxNeighborDiff = diff;
+          }
+        }
+
+        if (weightSum == 0) {
+          continue;
+        }
+
+        final double avgR = weightedR / weightSum;
+        final double avgG = weightedG / weightSum;
+        final double avgB = weightedB / weightSum;
+        final double diffR = (avgR - centerR).abs();
+        final double diffG = (avgG - centerG).abs();
+        final double diffB = (avgB - centerB).abs();
+        final double maxAvgDiff = math.max(diffR, math.max(diffG, diffB));
+        if (maxAvgDiff < _kColorEdgeNeighborDiffThreshold) {
+          continue;
+        }
+
+        final double normalizedWeight =
+            (weightSum / _kAntialiasNeighborWeightTotal).clamp(0.0, 1.0);
+        final double diffScale = (maxNeighborDiff / 255.0).clamp(0.0, 1.0);
+        final double t = (blendFactor * normalizedWeight * diffScale *
+                _kColorEdgeBlendAmplifier)
+            .clamp(0.0, 1.0);
+        if (t <= 0) {
+          continue;
+        }
+
+        final int newR =
+            (centerR + ((avgR - centerR) * t)).round().clamp(0, 255);
+        final int newG =
+            (centerG + ((avgG - centerG) * t)).round().clamp(0, 255);
+        final int newB =
+            (centerB + ((avgB - centerB) * t)).round().clamp(0, 255);
+
+        dest[index] = (alpha << 24) | (newR << 16) | (newG << 8) | newB;
         modified = true;
       }
     }
@@ -381,23 +484,39 @@ class BitmapCanvasController extends ChangeNotifier {
       if (factor <= 0) {
         continue;
       }
-      final bool changed = _runAntialiasPass(
+      final bool alphaChanged = _runAntialiasPass(
         src,
         dest,
         _width,
         _height,
         factor,
       );
-      if (!changed) {
-        continue;
+      if (alphaChanged) {
+        if (previewOnly) {
+          return true;
+        }
+        anyChange = true;
+        final Uint32List swap = src;
+        src = dest;
+        dest = swap;
       }
-      if (previewOnly) {
-        return true;
+
+      final bool colorChanged = _runColorEdgeAntialiasPass(
+        src,
+        dest,
+        _width,
+        _height,
+        factor,
+      );
+      if (colorChanged) {
+        if (previewOnly) {
+          return true;
+        }
+        anyChange = true;
+        final Uint32List swap = src;
+        src = dest;
+        dest = swap;
       }
-      anyChange = true;
-      final Uint32List swap = src;
-      src = dest;
-      dest = swap;
     }
     if (!anyChange) {
       return false;

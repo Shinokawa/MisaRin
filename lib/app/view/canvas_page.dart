@@ -14,6 +14,7 @@ import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
+import '../widgets/app_notification.dart';
 import '../widgets/canvas_title_bar.dart';
 import '../widgets/painting_board.dart';
 import '../workspace/canvas_workspace_controller.dart';
@@ -464,16 +465,10 @@ class CanvasPageState extends State<CanvasPage> {
     if (!mounted) {
       return;
     }
-    displayInfoBar(
+    AppNotifications.show(
       context,
-      builder: (context, close) => InfoBar(
-        severity: severity,
-        title: Text(message),
-        action: IconButton(
-          icon: const Icon(FluentIcons.clear),
-          onPressed: close,
-        ),
-      ),
+      message: message,
+      severity: severity,
     );
   }
 

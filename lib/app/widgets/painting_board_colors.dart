@@ -409,26 +409,28 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     );
     final bool isDark = theme.brightness.isDark;
     final Color background = isDark ? const Color(0xFF1B1B1F) : Colors.white;
-    return Tooltip(
-      message: '当前颜色 ${_formatColorHex(_primaryColor)}',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: _handleEditPrimaryColor,
-          child: Container(
-            width: _colorIndicatorSize,
-            height: _colorIndicatorSize,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: strokeColor, width: 1.5),
-            ),
-            padding: const EdgeInsets.all(4),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox.expand(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(color: _primaryColor),
+    return AppNotificationAnchor(
+      child: Tooltip(
+        message: '当前颜色 ${_formatColorHex(_primaryColor)}',
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: _handleEditPrimaryColor,
+            child: Container(
+              width: _colorIndicatorSize,
+              height: _colorIndicatorSize,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: strokeColor, width: 1.5),
+              ),
+              padding: const EdgeInsets.all(4),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox.expand(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: _primaryColor),
+                  ),
                 ),
               ),
             ),

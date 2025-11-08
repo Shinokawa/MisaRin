@@ -6,6 +6,7 @@ import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
+import '../widgets/app_notification.dart';
 
 class MisarinHomePage extends StatelessWidget {
   const MisarinHomePage({super.key});
@@ -55,16 +56,10 @@ class MisarinHomePage extends StatelessWidget {
     String message, {
     InfoBarSeverity severity = InfoBarSeverity.info,
   }) {
-    displayInfoBar(
+    AppNotifications.show(
       context,
-      builder: (context, close) => InfoBar(
-        title: Text(message),
-        severity: severity,
-        action: IconButton(
-          icon: const Icon(FluentIcons.clear),
-          onPressed: close,
-        ),
-      ),
+      message: message,
+      severity: severity,
     );
   }
 

@@ -7,6 +7,7 @@ import '../dialogs/settings_dialog.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../view/canvas_page.dart';
+import '../widgets/app_notification.dart';
 
 class AppMenuActions {
   const AppMenuActions._();
@@ -144,16 +145,10 @@ class AppMenuActions {
     String message, {
     InfoBarSeverity severity = InfoBarSeverity.info,
   }) {
-    displayInfoBar(
+    AppNotifications.show(
       context,
-      builder: (context, close) => InfoBar(
-        title: Text(message),
-        severity: severity,
-        action: IconButton(
-          icon: const Icon(FluentIcons.clear),
-          onPressed: close,
-        ),
-      ),
+      message: message,
+      severity: severity,
     );
   }
 }
