@@ -245,19 +245,36 @@ class BitmapSurface {
     if (vertices.length < 3) {
       return;
     }
-    final int minX = math.max(0, bounds.left.floor());
-    final int maxX = math.min(width - 1, bounds.right.ceil());
-    final int minY = math.max(0, bounds.top.floor());
-    final int maxY = math.min(height - 1, bounds.bottom.ceil());
+    final double baseFeather = _featherForLevel(antialiasLevel);
+    final double feather = antialiasLevel > 0
+        ? math.max(baseFeather, 0.35)
+        : 0.0;
+    final Rect coverageBounds = bounds.inflate(feather + 1.5);
+    final int minX = math.max(0, coverageBounds.left.floor());
+    final int maxX = math.min(width - 1, coverageBounds.right.ceil());
+    final int minY = math.max(0, coverageBounds.top.floor());
+    final int maxY = math.min(height - 1, coverageBounds.bottom.ceil());
     if (minX > maxX || minY > maxY) {
       return;
     }
-    final int supersample = _polygonSupersampleFactor(radius, antialiasLevel);
-    final double step = supersample <= 0 ? 1.0 : 1.0 / supersample;
-    final double start = -0.5 + step * 0.5;
-    final double invSampleCount = supersample <= 0
-        ? 1.0
-        : 1.0 / (supersample * supersample);
+    int supersample = 1;
+    double step = 1.0;
+    double start = 0.0;
+    double invSampleCount = 1.0;
+    if (antialiasLevel > 0) {
+      final bool requiresSupersampling = _needsSupersampling(
+        radius,
+        antialiasLevel,
+      );
+      final int adaptiveSamples = requiresSupersampling
+          ? _supersampleFactor(radius).clamp(1, 6)
+          : 1;
+      final int desiredSamples = (antialiasLevel + 1) * 2;
+      supersample = math.max(adaptiveSamples, desiredSamples).clamp(2, 6);
+      step = 1.0 / supersample;
+      start = -0.5 + step * 0.5;
+      invSampleCount = 1.0 / (supersample * supersample);
+    }
     final int baseAlpha = color.alpha;
     for (int y = minY; y <= maxY; y++) {
       final double py = y + 0.5;
@@ -266,26 +283,32 @@ class BitmapSurface {
         if (mask != null && mask[rowIndex + x] == 0) {
           continue;
         }
+        double coverage;
         if (supersample <= 1) {
-          if (!_isPointInsidePolygon(x + 0.5, py, vertices)) {
-            continue;
-          }
-          blendPixel(x, y, color);
-          continue;
-        }
-        double coverage = 0.0;
-        for (int sy = 0; sy < supersample; sy++) {
-          final double offsetY = start + sy * step;
-          final double samplePy = py + offsetY;
-          for (int sx = 0; sx < supersample; sx++) {
-            final double offsetX = start + sx * step;
-            final double samplePx = x + 0.5 + offsetX;
-            if (_isPointInsidePolygon(samplePx, samplePy, vertices)) {
-              coverage += 1.0;
+          coverage = _polygonCoverageAtPoint(
+            px: x + 0.5,
+            py: py,
+            vertices: vertices,
+            feather: feather,
+          );
+        } else {
+          double accumulated = 0.0;
+          for (int sy = 0; sy < supersample; sy++) {
+            final double offsetY = start + sy * step;
+            final double samplePy = py + offsetY;
+            for (int sx = 0; sx < supersample; sx++) {
+              final double offsetX = start + sx * step;
+              final double samplePx = x + 0.5 + offsetX;
+              accumulated += _polygonCoverageAtPoint(
+                px: samplePx,
+                py: samplePy,
+                vertices: vertices,
+                feather: feather,
+              );
             }
           }
+          coverage = accumulated * invSampleCount;
         }
-        coverage *= invSampleCount;
         if (coverage <= 0.0) {
           continue;
         }
@@ -302,35 +325,69 @@ class BitmapSurface {
     }
   }
 
-  int _polygonSupersampleFactor(double radius, int antialiasLevel) {
-    final int base = _supersampleFactor(radius).clamp(1, 6);
-    return math.max(base, antialiasLevel + 1);
+  double _polygonCoverageAtPoint({
+    required double px,
+    required double py,
+    required List<Offset> vertices,
+    required double feather,
+  }) {
+    final double signedDistance = _signedDistanceToPolygon(px, py, vertices);
+    if (!signedDistance.isFinite) {
+      return 0.0;
+    }
+    if (feather <= 0.0) {
+      return signedDistance <= 0.0 ? 1.0 : 0.0;
+    }
+    if (signedDistance <= -feather) {
+      return 1.0;
+    }
+    if (signedDistance >= feather) {
+      return 0.0;
+    }
+    return (feather - signedDistance) / (2.0 * feather);
   }
 
-  bool _isPointInsidePolygon(double px, double py, List<Offset> vertices) {
-    if (vertices.length < 3) {
-      return false;
+  double _signedDistanceToPolygon(double px, double py, List<Offset> vertices) {
+    final int count = vertices.length;
+    if (count < 3) {
+      return double.infinity;
     }
-    double? sign;
-    for (int i = 0; i < vertices.length; i++) {
+    double minDistSq = double.infinity;
+    bool inside = false;
+    for (int i = 0; i < count; i++) {
       final Offset a = vertices[i];
-      final Offset b = vertices[(i + 1) % vertices.length];
-      final double edgeX = b.dx - a.dx;
-      final double edgeY = b.dy - a.dy;
-      final double cross = edgeX * (py - a.dy) - edgeY * (px - a.dx);
-      if (cross == 0) {
-        continue;
+      final Offset b = vertices[(i + 1) % count];
+      final double ax = a.dx;
+      final double ay = a.dy;
+      final double bx = b.dx;
+      final double by = b.dy;
+      final double abx = bx - ax;
+      final double aby = by - ay;
+      double proj = 0.0;
+      final double denom = abx * abx + aby * aby;
+      if (denom > 0.0) {
+        proj = ((px - ax) * abx + (py - ay) * aby) / denom;
+        if (proj < 0.0) {
+          proj = 0.0;
+        } else if (proj > 1.0) {
+          proj = 1.0;
+        }
       }
-      final double currentSign = cross > 0 ? 1.0 : -1.0;
-      if (sign == null) {
-        sign = currentSign;
-        continue;
+      final double closestX = ax + abx * proj;
+      final double closestY = ay + aby * proj;
+      final double dx = px - closestX;
+      final double dy = py - closestY;
+      final double distSq = dx * dx + dy * dy;
+      if (distSq < minDistSq) {
+        minDistSq = distSq;
       }
-      if (currentSign != sign) {
-        return false;
+      if (((ay > py) != (by > py)) &&
+          (px < (bx - ax) * (py - ay) / (by - ay) + ax)) {
+        inside = !inside;
       }
     }
-    return true;
+    final double distance = math.sqrt(math.max(minDistSq, 0.0));
+    return inside ? -distance : distance;
   }
 
   void _drawCapsuleSegment({

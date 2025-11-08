@@ -962,6 +962,7 @@ mixin _PaintingBoardInteractionMixin
         samples,
         totalDistance: totalDistance,
         initialTimestamp: initialTimestamp,
+        style: _SyntheticStrokeTimelineStyle.fastCurve,
       );
     } else {
       for (int i = 1; i < polyline.length; i++) {

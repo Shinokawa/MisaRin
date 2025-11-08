@@ -81,6 +81,11 @@ class _SyntheticStrokeSample {
   final double progress;
 }
 
+enum _SyntheticStrokeTimelineStyle {
+  natural,
+  fastCurve,
+}
+
 const double _toolButtonPadding = 16;
 const double _toolbarButtonSize = CanvasToolbar.buttonSize;
 const double _toolbarSpacing = CanvasToolbar.spacing;
@@ -287,16 +292,23 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     List<_SyntheticStrokeSample> samples, {
     required double totalDistance,
     required double initialTimestamp,
+    _SyntheticStrokeTimelineStyle style =
+        _SyntheticStrokeTimelineStyle.natural,
   }) {
     if (samples.isEmpty) {
       return;
     }
+    final bool useFastCurveStyle =
+        style == _SyntheticStrokeTimelineStyle.fastCurve;
     final double effectiveDistance = totalDistance > 0.0001
         ? totalDistance
         : samples.length.toDouble();
     double targetDuration = _syntheticStrokeTargetDuration(
       effectiveDistance,
     ).clamp(160.0, 720.0);
+    if (useFastCurveStyle) {
+      targetDuration *= 0.78;
+    }
     final double durationJitter =
         ui.lerpDouble(0.85, 1.25, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
     targetDuration *= durationJitter;
@@ -305,14 +317,19 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final List<double> weights = <double>[];
     double totalWeight = 0.0;
     for (final _SyntheticStrokeSample sample in samples) {
-      final double speed = _syntheticStrokeSpeedFactor(
+      final double baseSpeed = _syntheticStrokeSpeedFactor(
         sample.progress,
         _penPressureProfile,
       );
+      final double styleScale = _syntheticTimelineSpeedScale(
+        sample.progress,
+        style,
+      );
+      final double speed = math.max(baseSpeed * styleScale, 0.05);
       final double jitter =
           ui.lerpDouble(0.82, 1.24, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
       final double normalizedDistance =
-          math.max(sample.distance, 0.02) / math.max(speed, 0.05);
+          math.max(sample.distance, 0.02) / speed;
       final double weight = math.max(0.001, normalizedDistance * jitter);
       weights.add(weight);
       totalWeight += weight;
@@ -345,6 +362,21 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       total += sample.distance;
     }
     return total;
+  }
+
+  /// Adds an optional speed bias so synthetic strokes can mimic a faster
+  /// flick, which emphasises the contrast between slow and fast segments.
+  double _syntheticTimelineSpeedScale(
+    double progress,
+    _SyntheticStrokeTimelineStyle style,
+  ) {
+    if (style == _SyntheticStrokeTimelineStyle.natural) {
+      return 1.0;
+    }
+    final double normalized = progress.clamp(0.0, 1.0);
+    final double sine = math.sin(normalized * math.pi).abs();
+    final double scale = ui.lerpDouble(0.55, 1.85, sine) ?? 1.0;
+    return scale.clamp(0.35, 2.2);
   }
 
   double _syntheticStrokeTargetDuration(double totalDistance) {

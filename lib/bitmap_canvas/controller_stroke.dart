@@ -489,7 +489,7 @@ double _strokeStampSpacing(double radius) {
   if (!radius.isFinite) {
     return 0.5;
   }
-  return math.max(0.5, radius * 0.55);
+  return math.max(0.2, radius * 0.3);
 }
 
 Rect _strokeDirtyRectForVariableLine(
