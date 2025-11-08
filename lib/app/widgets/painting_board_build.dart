@@ -418,12 +418,14 @@ mixin _PaintingBoardBuildMixin
                                     _updateAutoSharpPeakEnabled,
                                 bucketSampleAllLayers: _bucketSampleAllLayers,
                                 bucketContiguous: _bucketContiguous,
+                                bucketSwallowColorLine: _bucketSwallowColorLine,
                                 onBucketSampleAllLayersChanged:
                                     _updateBucketSampleAllLayers,
                                 onBucketContiguousChanged:
                                     _updateBucketContiguous,
-                                layerAdjustCropOutside:
-                                    _layerAdjustCropOutside,
+                                onBucketSwallowColorLineChanged:
+                                    _updateBucketSwallowColorLine,
+                                layerAdjustCropOutside: _layerAdjustCropOutside,
                                 onLayerAdjustCropOutsideChanged:
                                     _updateLayerAdjustCropOutside,
                                 selectionShape: selectionShape,

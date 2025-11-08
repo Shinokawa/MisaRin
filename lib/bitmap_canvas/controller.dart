@@ -432,12 +432,14 @@ class BitmapCanvasController extends ChangeNotifier {
     required Color color,
     bool contiguous = true,
     bool sampleAllLayers = false,
+    List<Color>? swallowColors,
   }) => _fillFloodFill(
     this,
     position,
     color: color,
     contiguous: contiguous,
     sampleAllLayers: sampleAllLayers,
+    swallowColors: swallowColors,
   );
 
   Uint8List? computeMagicWandMask(

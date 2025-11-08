@@ -67,6 +67,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       color: _primaryColor,
       contiguous: _bucketContiguous,
       sampleAllLayers: _bucketSampleAllLayers,
+      swallowColors: _bucketSwallowColorLine ? kColorLinePresets : null,
     );
     setState(() {});
     _markDirty();
@@ -133,6 +134,17 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     _setPrimaryColor(color);
   }
 
+  void _handleSelectColorLineColor(Color color) {
+    final bool changed = _colorLineColor.value != color.value;
+    if (changed) {
+      setState(() => _colorLineColor = color);
+      final AppPreferences prefs = AppPreferences.instance;
+      prefs.colorLineColor = color;
+      unawaited(AppPreferences.save());
+    }
+    _setPrimaryColor(color);
+  }
+
   Future<void> _handleEditPrimaryColor() async {
     await _pickColor(
       title: '调整当前颜色',
@@ -181,6 +193,31 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           ),
         );
       }),
+    );
+  }
+
+  Widget _buildColorLineSelector(FluentThemeData theme) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text('色线', style: theme.typography.bodyStrong),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            children: kColorLinePresets
+                .map((Color color) {
+                  return _ColorLineSwatch(
+                    color: color,
+                    selected: color.value == _colorLineColor.value,
+                    onTap: () => _handleSelectColorLineColor(color),
+                  );
+                })
+                .toList(growable: false),
+          ),
+        ),
+      ],
     );
   }
 
@@ -334,6 +371,8 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildColorLineSelector(theme),
+            const SizedBox(height: 12),
             if (overflowRecent.isNotEmpty) ...[
               const SizedBox(height: 12),
               buildRecentColors(),
@@ -365,12 +404,11 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
   Widget _buildColorIndicator(FluentThemeData theme) {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
-    final Color strokeColor =
-        borderColor.withValues(alpha: borderColor.a * 0.6);
+    final Color strokeColor = borderColor.withValues(
+      alpha: borderColor.a * 0.6,
+    );
     final bool isDark = theme.brightness.isDark;
-    final Color background = isDark
-        ? const Color(0xFF1B1B1F)
-        : Colors.white;
+    final Color background = isDark ? const Color(0xFF1B1B1F) : Colors.white;
     return Tooltip(
       message: '当前颜色 ${_formatColorHex(_primaryColor)}',
       child: MouseRegion(
@@ -383,10 +421,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
             decoration: BoxDecoration(
               color: background,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: strokeColor,
-                width: 1.5,
-              ),
+              border: Border.all(color: strokeColor, width: 1.5),
             ),
             padding: const EdgeInsets.all(4),
             child: ClipRRect(
@@ -526,6 +561,56 @@ class _InlineRecentColorSwatch extends StatelessWidget {
                       color: Colors.black.withOpacity(0.18),
                       blurRadius: 4,
                       offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorLineSwatch extends StatelessWidget {
+  const _ColorLineSwatch({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final Color border = theme.resources.controlStrokeColorDefault;
+    final Color highlight = theme.accentColor.defaultBrushFor(theme.brightness);
+    final Color effectiveBorder = selected
+        ? highlight
+        : border.withValues(alpha: border.a * 0.8);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+            border: Border.all(
+              color: effectiveBorder,
+              width: selected ? 2.2 : 1.4,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
                   ]
                 : null,

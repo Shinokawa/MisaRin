@@ -266,6 +266,16 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateBucketSwallowColorLine(bool value) {
+    if (_bucketSwallowColorLine == value) {
+      return;
+    }
+    setState(() => _bucketSwallowColorLine = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketSwallowColorLine = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateLayerAdjustCropOutside(bool value) {
     if (_layerAdjustCropOutside == value) {
       return;
@@ -946,7 +956,8 @@ mixin _PaintingBoardInteractionMixin
   void _drawQuadraticCurve(Offset start, Offset control, Offset end) {
     const double initialTimestamp = 0.0;
     final bool simulatePressure = _simulatePenPressure;
-    final bool enableNeedleTips = simulatePressure &&
+    final bool enableNeedleTips =
+        simulatePressure &&
         _penPressureProfile == StrokePressureProfile.taperCenter;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
@@ -1025,8 +1036,7 @@ mixin _PaintingBoardInteractionMixin
   double _curveSampleSpacing(double progress) {
     final double normalized = progress.clamp(0.0, 1.0);
     final double sine = math.sin(normalized * math.pi).abs();
-    final double eased =
-        math.pow(sine, 0.72).toDouble().clamp(0.0, 1.0);
+    final double eased = math.pow(sine, 0.72).toDouble().clamp(0.0, 1.0);
     final double scale = ui.lerpDouble(0.52, 2.35, eased) ?? 1.0;
     return (_curveStrokeSampleSpacing * scale).clamp(
       _curveStrokeSampleSpacing * 0.48,

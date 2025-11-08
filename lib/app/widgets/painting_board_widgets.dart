@@ -186,8 +186,10 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.onAutoSharpPeakChanged,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
+    required this.bucketSwallowColorLine,
     required this.onBucketSampleAllLayersChanged,
     required this.onBucketContiguousChanged,
+    required this.onBucketSwallowColorLineChanged,
     required this.layerAdjustCropOutside,
     required this.onLayerAdjustCropOutsideChanged,
     required this.selectionShape,
@@ -217,8 +219,10 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onAutoSharpPeakChanged;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
+  final bool bucketSwallowColorLine;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
   final ValueChanged<bool> onBucketContiguousChanged;
+  final ValueChanged<bool> onBucketSwallowColorLineChanged;
   final bool layerAdjustCropOutside;
   final ValueChanged<bool> onLayerAdjustCropOutsideChanged;
   final SelectionShape selectionShape;
@@ -344,6 +348,11 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               title: '连续',
               value: widget.bucketContiguous,
               onChanged: widget.onBucketContiguousChanged,
+            ),
+            _BucketOptionTile(
+              title: '吞并色线',
+              value: widget.bucketSwallowColorLine,
+              onChanged: widget.onBucketSwallowColorLineChanged,
             ),
           ],
         );

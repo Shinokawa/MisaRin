@@ -54,6 +54,7 @@ import '../../canvas/canvas_viewport.dart';
 import 'canvas_toolbar.dart';
 import 'tool_cursor_overlay.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
+import '../constants/color_line_presets.dart';
 import '../preferences/app_preferences.dart';
 import '../constants/pen_constants.dart';
 import '../utils/tablet_input_bridge.dart';
@@ -81,10 +82,7 @@ class _SyntheticStrokeSample {
   final double progress;
 }
 
-enum _SyntheticStrokeTimelineStyle {
-  natural,
-  fastCurve,
-}
+enum _SyntheticStrokeTimelineStyle { natural, fastCurve }
 
 const double _toolButtonPadding = 16;
 const double _toolbarButtonSize = CanvasToolbar.buttonSize;
@@ -163,6 +161,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       AppPreferences.defaultPenStrokeSliderRange;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
+  bool _bucketSwallowColorLine = AppPreferences.defaultBucketSwallowColorLine;
   bool _layerAdjustCropOutside = false;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
@@ -211,6 +210,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Color _primaryColor = const Color(0xFF000000);
   late HSVColor _primaryHsv;
   final List<Color> _recentColors = <Color>[];
+  Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
   final List<_CanvasHistoryEntry> _redoStack = <_CanvasHistoryEntry>[];
   bool _historyLocked = false;
@@ -293,8 +293,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     List<_SyntheticStrokeSample> samples, {
     required double totalDistance,
     required double initialTimestamp,
-    _SyntheticStrokeTimelineStyle style =
-        _SyntheticStrokeTimelineStyle.natural,
+    _SyntheticStrokeTimelineStyle style = _SyntheticStrokeTimelineStyle.natural,
   }) {
     if (samples.isEmpty) {
       return;
@@ -329,8 +328,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       final double speed = math.max(baseSpeed * styleScale, 0.05);
       final double jitter =
           ui.lerpDouble(0.82, 1.24, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
-      final double normalizedDistance =
-          math.max(sample.distance, 0.02) / speed;
+      final double normalizedDistance = math.max(sample.distance, 0.02) / speed;
       final double weight = math.max(0.001, normalizedDistance * jitter);
       weights.add(weight);
       totalWeight += weight;
@@ -376,8 +374,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     }
     final double normalized = progress.clamp(0.0, 1.0);
     final double sine = math.sin(normalized * math.pi).abs();
-    final double eased =
-        math.pow(sine, 0.78).toDouble().clamp(0.0, 1.0);
+    final double eased = math.pow(sine, 0.78).toDouble().clamp(0.0, 1.0);
     final double scale = ui.lerpDouble(0.24, 4.25, eased) ?? 1.0;
     return scale.clamp(0.24, 4.25);
   }
@@ -937,6 +934,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final AppPreferences prefs = AppPreferences.instance;
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
+    _bucketSwallowColorLine = prefs.bucketSwallowColorLine;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
@@ -948,6 +946,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
     _brushShape = prefs.brushShape;
+    _colorLineColor = prefs.colorLineColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
