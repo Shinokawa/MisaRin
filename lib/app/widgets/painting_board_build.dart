@@ -80,15 +80,17 @@ mixin _PaintingBoardBuildMixin
         final double toolSettingsLeft =
             _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing;
         final double sidebarLeft =
-            (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding)
-                .clamp(0.0, double.infinity);
+            (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding).clamp(
+              0.0,
+              double.infinity,
+            );
         final double computedToolSettingsMaxWidth =
             sidebarLeft - toolSettingsLeft - _toolSettingsSpacing;
         final double? toolSettingsMaxWidth =
             computedToolSettingsMaxWidth.isFinite &&
-                    computedToolSettingsMaxWidth > 0
-                ? computedToolSettingsMaxWidth
-                : null;
+                computedToolSettingsMaxWidth > 0
+            ? computedToolSettingsMaxWidth
+            : null;
         final Rect boardRect = _boardRect;
         final ToolCursorStyle? cursorStyle = ToolCursorStyles.styleFor(
           _effectiveActiveTool,
@@ -389,36 +391,38 @@ mixin _PaintingBoardBuildMixin
                                     )
                                   : null,
                               child: _ToolSettingsCard(
-                              activeTool: _activeTool,
-                              penStrokeWidth: _penStrokeWidth,
-                              onPenStrokeWidthChanged: _updatePenStrokeWidth,
-                              stylusPressureEnabled: _stylusPressureEnabled,
-                              onStylusPressureEnabledChanged:
-                                  _updateStylusPressureEnabled,
-                              simulatePenPressure: _simulatePenPressure,
-                              onSimulatePenPressureChanged:
-                                  _updatePenPressureSimulation,
-                              penPressureProfile: _penPressureProfile,
-                              onPenPressureProfileChanged:
-                                  _updatePenPressureProfile,
-                              brushAntialiasLevel: _penAntialiasLevel,
-                              onBrushAntialiasChanged: _updatePenAntialiasLevel,
-                              autoSharpPeakEnabled: _autoSharpPeakEnabled,
-                              onAutoSharpPeakChanged:
-                                  _updateAutoSharpPeakEnabled,
-                              bucketSampleAllLayers: _bucketSampleAllLayers,
-                              bucketContiguous: _bucketContiguous,
-                              onBucketSampleAllLayersChanged:
-                                  _updateBucketSampleAllLayers,
-                              onBucketContiguousChanged:
-                                  _updateBucketContiguous,
-                              selectionShape: selectionShape,
-                              onSelectionShapeChanged: _updateSelectionShape,
-                              shapeToolVariant: shapeToolVariant,
-                              onShapeToolVariantChanged:
-                                  _updateShapeToolVariant,
-                              onSizeChanged: _updateToolSettingsCardSize,
-                            ),
+                                activeTool: _activeTool,
+                                penStrokeWidth: _penStrokeWidth,
+                                penStrokeSliderRange: _penStrokeSliderRange,
+                                onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                                stylusPressureEnabled: _stylusPressureEnabled,
+                                onStylusPressureEnabledChanged:
+                                    _updateStylusPressureEnabled,
+                                simulatePenPressure: _simulatePenPressure,
+                                onSimulatePenPressureChanged:
+                                    _updatePenPressureSimulation,
+                                penPressureProfile: _penPressureProfile,
+                                onPenPressureProfileChanged:
+                                    _updatePenPressureProfile,
+                                brushAntialiasLevel: _penAntialiasLevel,
+                                onBrushAntialiasChanged:
+                                    _updatePenAntialiasLevel,
+                                autoSharpPeakEnabled: _autoSharpPeakEnabled,
+                                onAutoSharpPeakChanged:
+                                    _updateAutoSharpPeakEnabled,
+                                bucketSampleAllLayers: _bucketSampleAllLayers,
+                                bucketContiguous: _bucketContiguous,
+                                onBucketSampleAllLayersChanged:
+                                    _updateBucketSampleAllLayers,
+                                onBucketContiguousChanged:
+                                    _updateBucketContiguous,
+                                selectionShape: selectionShape,
+                                onSelectionShapeChanged: _updateSelectionShape,
+                                shapeToolVariant: shapeToolVariant,
+                                onShapeToolVariantChanged:
+                                    _updateShapeToolVariant,
+                                onSizeChanged: _updateToolSettingsCardSize,
+                              ),
                             ),
                           ),
                           Positioned(

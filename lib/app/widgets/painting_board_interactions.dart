@@ -1,5 +1,7 @@
 part of 'painting_board.dart';
 
+const double _kStylusSimulationBlend = 0.68;
+
 mixin _PaintingBoardInteractionMixin
     on _PaintingBoardBase, _PaintingBoardShapeMixin {
   void clear() {
@@ -155,10 +157,7 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _updatePenStrokeWidth(double value) {
-    final double clamped = value.clamp(
-      _ToolSettingsCard._minPenStrokeWidth,
-      _ToolSettingsCard._maxPenStrokeWidth,
-    );
+    final double clamped = _penStrokeSliderRange.clamp(value);
     if ((_penStrokeWidth - clamped).abs() < 0.0005) {
       return;
     }
@@ -266,9 +265,13 @@ mixin _PaintingBoardInteractionMixin
     PointerEvent? rawEvent,
   ) {
     final Offset start = _sanitizeStrokePosition(position);
-    _activeStrokeUsesStylus = rawEvent != null &&
-        _stylusPressureEnabled &&
-        _isStylusEvent(rawEvent);
+    _activeStrokeUsesStylus =
+        rawEvent != null && _stylusPressureEnabled && _isStylusEvent(rawEvent);
+    final bool combineStylusAndSimulation =
+        _simulatePenPressure && _activeStrokeUsesStylus;
+    final double stylusBlend = combineStylusAndSimulation
+        ? _kStylusSimulationBlend
+        : 1.0;
     final double? stylusPressure = _stylusPressureValue(rawEvent);
     if (_activeStrokeUsesStylus) {
       _activeStylusPressureMin = _stylusPressureBound(rawEvent?.pressureMin);
@@ -289,8 +292,9 @@ mixin _PaintingBoardInteractionMixin
         start,
         color: _primaryColor,
         radius: _penStrokeWidth / 2,
-        simulatePressure: _simulatePenPressure && !_activeStrokeUsesStylus,
+        simulatePressure: _simulatePenPressure,
         useDevicePressure: _activeStrokeUsesStylus,
+        stylusPressureBlend: stylusBlend,
         pressure: stylusPressure,
         pressureMin: _activeStylusPressureMin,
         pressureMax: _activeStylusPressureMax,
@@ -313,7 +317,9 @@ mixin _PaintingBoardInteractionMixin
     final double? deltaMillis = _registerPenSample(timestamp);
     final Offset clamped = _sanitizeStrokePosition(position);
     double? stylusPressure = _stylusPressureValue(rawEvent);
-    if (_activeStrokeUsesStylus && rawEvent != null && _isStylusEvent(rawEvent)) {
+    if (_activeStrokeUsesStylus &&
+        rawEvent != null &&
+        _isStylusEvent(rawEvent)) {
       final double? candidateMin = _stylusPressureBound(rawEvent.pressureMin);
       final double? candidateMax = _stylusPressureBound(rawEvent.pressureMax);
       if (candidateMin != null) {
@@ -406,10 +412,9 @@ mixin _PaintingBoardInteractionMixin
     const double kTailDeltaMs = 6.0;
     final double clampedPressure = pressure.clamp(0.0, 1.0);
 
-    final Offset dir =
-        (direction != null && direction.distanceSquared > 1e-5)
-            ? (direction / direction.distance)
-            : Offset.zero;
+    final Offset dir = (direction != null && direction.distanceSquared > 1e-5)
+        ? (direction / direction.distance)
+        : Offset.zero;
     final double stepDistance = math.max(_penStrokeWidth * 0.35, 3.0);
     Offset currentPoint = anchor;
 
@@ -446,7 +451,10 @@ mixin _PaintingBoardInteractionMixin
 
       for (int i = 0; i < kTailSteps; i++) {
         final double t = (i + 1) / (kTailSteps + 1);
-        final double virtualPressure = (clampedPressure * (1.0 - t)).clamp(0.0, 1.0);
+        final double virtualPressure = (clampedPressure * (1.0 - t)).clamp(
+          0.0,
+          1.0,
+        );
         if (virtualPressure <= 0.0001) {
           break;
         }

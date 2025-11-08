@@ -106,24 +106,35 @@ class StrokeDynamics {
   /// When [metrics] is provided and the profile is [StrokePressureProfile.auto],
   /// additional history-derived signals influence the simulated pressure.
   /// When [intensityOverride] is supplied, it is treated as the normalized
-  /// stylus intensity, bypassing the speed-based estimator.
+  /// stylus intensity; assign [intensityBlend] below 1.0 to mix it with the
+  /// speed-based estimator represented by [speedSignal].
   double sample({
     required double distance,
     double? deltaTimeMillis,
     StrokeSampleMetrics? metrics,
     double? intensityOverride,
+    double? speedSignal,
+    double intensityBlend = 1.0,
   }) {
     final double clampedDelta = _clampDelta(deltaTimeMillis);
-    final double normalized = intensityOverride != null
-        ? intensityOverride.clamp(0.0, 1.0)
-        : _normalizeSpeed(_computeSpeed(distance, clampedDelta));
-    final double previous = _smoothedIntensity ?? normalized;
-    _smoothedIntensity = previous + (normalized - previous) * smoothingFactor;
+    final double baseSpeed =
+        (speedSignal ?? _normalizeSpeed(_computeSpeed(distance, clampedDelta)))
+            .clamp(0.0, 1.0);
+    final double blend = intensityOverride != null
+        ? intensityBlend.clamp(0.0, 1.0)
+        : 0.0;
+    final double override = intensityOverride?.clamp(0.0, 1.0) ?? 0.0;
+    final double targetIntensity = blend > 0.0
+        ? (override * blend) + (baseSpeed * (1.0 - blend))
+        : (intensityOverride ?? baseSpeed);
+    final double previous = _smoothedIntensity ?? targetIntensity;
+    _smoothedIntensity =
+        previous + (targetIntensity - previous) * smoothingFactor;
 
     // Mix in a bit of the unsmoothed spike to emphasise sudden accelerations.
     final double biased =
         (_smoothedIntensity! * (1 - highSpeedBias)) +
-        (normalized * highSpeedBias);
+        (targetIntensity * highSpeedBias);
     _latestIntensity = biased.clamp(0.0, 1.0);
 
     final double easedSpeed = math.pow(_latestIntensity, 0.6).toDouble();
@@ -136,10 +147,12 @@ class StrokeDynamics {
         factor = _lerp(minRadiusFactor, maxRadiusFactor, easedSpeed);
         break;
       case StrokePressureProfile.auto:
-        if (intensityOverride != null) {
+        final bool stylusDominates =
+            intensityOverride != null && blend >= 0.999;
+        if (stylusDominates) {
           factor = _lerp(maxRadiusFactor, minRadiusFactor, easedSpeed);
         } else {
-          final double normalizedSpeed = metrics?.normalizedSpeed ?? easedSpeed;
+          final double normalizedSpeed = metrics?.normalizedSpeed ?? baseSpeed;
           factor = _autoFactor(
             smoothedSpeed: easedSpeed,
             normalizedSpeed: normalizedSpeed,

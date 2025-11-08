@@ -94,7 +94,8 @@ const double _colorIndicatorBorder = 3;
 const int _recentColorCapacity = 5;
 const double _initialViewportScaleFactor = 0.8;
 const double _curveStrokeSampleSpacing = 3.4;
-const double _syntheticStrokeMinDeltaMs = 3.6; // keep >= StrokeDynamics._minDeltaMs
+const double _syntheticStrokeMinDeltaMs =
+    3.6; // keep >= StrokeDynamics._minDeltaMs
 
 enum CanvasRotation {
   clockwise90,
@@ -149,6 +150,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
+  PenStrokeSliderRange _penStrokeSliderRange =
+      AppPreferences.defaultPenStrokeSliderRange;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _layerOpacityGestureActive = false;
@@ -242,11 +245,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         continue;
       }
       pending.add(
-        _SyntheticStrokeSample(
-          point: point,
-          distance: distance,
-          progress: 0.0,
-        ),
+        _SyntheticStrokeSample(point: point, distance: distance, progress: 0.0),
       );
       totalDistance += distance;
       previous = point;
@@ -287,17 +286,17 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     if (samples.isEmpty) {
       return;
     }
-    final double effectiveDistance =
-        totalDistance > 0.0001 ? totalDistance : samples.length.toDouble();
-    double targetDuration =
-        _syntheticStrokeTargetDuration(effectiveDistance).clamp(160.0, 720.0);
+    final double effectiveDistance = totalDistance > 0.0001
+        ? totalDistance
+        : samples.length.toDouble();
+    double targetDuration = _syntheticStrokeTargetDuration(
+      effectiveDistance,
+    ).clamp(160.0, 720.0);
     final double durationJitter =
         ui.lerpDouble(0.85, 1.25, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
     targetDuration *= durationJitter;
-    final double minimumTimeline =
-        samples.length * _syntheticStrokeMinDeltaMs;
-    final double resolvedDuration =
-        math.max(targetDuration, minimumTimeline);
+    final double minimumTimeline = samples.length * _syntheticStrokeMinDeltaMs;
+    final double resolvedDuration = math.max(targetDuration, minimumTimeline);
     final List<double> weights = <double>[];
     double totalWeight = 0.0;
     for (final _SyntheticStrokeSample sample in samples) {
@@ -305,12 +304,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         sample.progress,
         _penPressureProfile,
       );
-      final double jitter = ui.lerpDouble(
-            0.82,
-            1.24,
-            _syntheticStrokeRandom.nextDouble(),
-          ) ??
-          1.0;
+      final double jitter =
+          ui.lerpDouble(0.82, 1.24, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
       final double normalizedDistance =
           math.max(sample.distance, 0.02) / math.max(speed, 0.05);
       final double weight = math.max(0.001, normalizedDistance * jitter);
@@ -326,8 +321,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final double scale = resolvedDuration / totalWeight;
     double timestamp = initialTimestamp;
     for (int i = 0; i < samples.length; i++) {
-      final double deltaTime =
-          math.max(_syntheticStrokeMinDeltaMs, weights[i] * scale);
+      final double deltaTime = math.max(
+        _syntheticStrokeMinDeltaMs,
+        weights[i] * scale,
+      );
       timestamp += deltaTime;
       _controller.extendStroke(
         samples[i].point,
@@ -900,10 +897,8 @@ class PaintingBoardState extends _PaintingBoardBase
     final AppPreferences prefs = AppPreferences.instance;
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
-    _penStrokeWidth = prefs.penStrokeWidth.clamp(
-      _ToolSettingsCard._minPenStrokeWidth,
-      _ToolSettingsCard._maxPenStrokeWidth,
-    );
+    _penStrokeSliderRange = prefs.penStrokeSliderRange;
+    _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);

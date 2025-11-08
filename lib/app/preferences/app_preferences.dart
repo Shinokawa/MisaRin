@@ -22,11 +22,12 @@ class AppPreferences {
     required this.stylusPressureEnabled,
     required this.stylusPressureCurve,
     required this.autoSharpPeakEnabled,
+    required this.penStrokeSliderRange,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 10;
+  static const int _version = 11;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -39,6 +40,8 @@ class AppPreferences {
   static const bool _defaultStylusPressureEnabled = true;
   static const double _defaultStylusCurve = 0.85;
   static const bool _defaultAutoSharpPeakEnabled = false;
+  static const PenStrokeSliderRange _defaultPenStrokeSliderRange =
+      PenStrokeSliderRange.full;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -48,8 +51,9 @@ class AppPreferences {
   static const double defaultStylusCurve = _defaultStylusCurve;
   static const double stylusCurveLowerBound = _stylusCurveLowerBound;
   static const double stylusCurveUpperBound = _stylusCurveUpperBound;
-  static const bool defaultAutoSharpPeakEnabled =
-      _defaultAutoSharpPeakEnabled;
+  static const bool defaultAutoSharpPeakEnabled = _defaultAutoSharpPeakEnabled;
+  static const PenStrokeSliderRange defaultPenStrokeSliderRange =
+      _defaultPenStrokeSliderRange;
 
   static AppPreferences? _instance;
 
@@ -64,6 +68,7 @@ class AppPreferences {
   bool stylusPressureEnabled;
   double stylusPressureCurve;
   bool autoSharpPeakEnabled;
+  PenStrokeSliderRange penStrokeSliderRange;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -83,6 +88,29 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
+          if (version >= 11 && bytes.length >= 15) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+            );
+            return _instance!;
+          }
           if (version >= 10 && bytes.length >= 14) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
@@ -102,6 +130,7 @@ class AppPreferences {
                 upper: _stylusCurveUpperBound,
               ),
               autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -123,6 +152,7 @@ class AppPreferences {
                 upper: _stylusCurveUpperBound,
               ),
               autoSharpPeakEnabled: bytes[12] != 0,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -144,6 +174,7 @@ class AppPreferences {
                 upper: _stylusCurveUpperBound,
               ),
               autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -165,6 +196,7 @@ class AppPreferences {
                 upper: _stylusCurveUpperBound,
               ),
               autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -182,6 +214,7 @@ class AppPreferences {
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
               autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -199,6 +232,7 @@ class AppPreferences {
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
               autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -216,6 +250,7 @@ class AppPreferences {
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
               autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -233,6 +268,7 @@ class AppPreferences {
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
               autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -250,6 +286,7 @@ class AppPreferences {
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
               autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -266,6 +303,7 @@ class AppPreferences {
               stylusPressureEnabled: _defaultStylusPressureEnabled,
               stylusPressureCurve: _defaultStylusCurve,
               autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
             );
             return _instance!;
           }
@@ -286,6 +324,7 @@ class AppPreferences {
       stylusPressureEnabled: _defaultStylusPressureEnabled,
       stylusPressureCurve: _defaultStylusCurve,
       autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+      penStrokeSliderRange: _defaultPenStrokeSliderRange,
     );
     return _instance!;
   }
@@ -296,8 +335,10 @@ class AppPreferences {
     await file.create(recursive: true);
     final int history = _clampHistoryLimit(prefs.historyLimit);
     prefs.historyLimit = history;
-    final double strokeWidthValue =
-        prefs.penStrokeWidth.clamp(kPenStrokeMin, kPenStrokeMax);
+    final double strokeWidthValue = prefs.penStrokeWidth.clamp(
+      kPenStrokeMin,
+      kPenStrokeMax,
+    );
     prefs.penStrokeWidth = strokeWidthValue;
     final int strokeWidth = _encodePenStrokeWidth(strokeWidthValue);
     final double stylusCurve = _clampStylusFactor(
@@ -312,6 +353,9 @@ class AppPreferences {
       stylusCurve,
       lower: _stylusCurveLowerBound,
       upper: _stylusCurveUpperBound,
+    );
+    final int sliderRangeEncoded = _encodePenStrokeSliderRange(
+      prefs.penStrokeSliderRange,
     );
 
     final Uint8List payload = Uint8List.fromList(<int>[
@@ -329,6 +373,7 @@ class AppPreferences {
       prefs.stylusPressureEnabled ? 1 : 0,
       stylusCurveEncoded,
       prefs.autoSharpPeakEnabled ? 1 : 0,
+      sliderRangeEncoded,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -395,7 +440,9 @@ class AppPreferences {
     }
     final double numerator = math.log(clamped / kPenStrokeMin);
     final double denominator = math.log(kPenStrokeMax / kPenStrokeMin);
-    final double normalized = denominator == 0 ? 0.0 : (numerator / denominator);
+    final double normalized = denominator == 0
+        ? 0.0
+        : (numerator / denominator);
     return (normalized * 65535.0).round().clamp(0, 0xffff);
   }
 
@@ -477,6 +524,30 @@ class AppPreferences {
     return value;
   }
 
+  static PenStrokeSliderRange _decodePenStrokeSliderRange(int value) {
+    switch (value) {
+      case 0:
+        return PenStrokeSliderRange.compact;
+      case 1:
+        return PenStrokeSliderRange.medium;
+      case 2:
+      default:
+        return PenStrokeSliderRange.full;
+    }
+  }
+
+  static int _encodePenStrokeSliderRange(PenStrokeSliderRange range) {
+    switch (range) {
+      case PenStrokeSliderRange.compact:
+        return 0;
+      case PenStrokeSliderRange.medium:
+        return 1;
+      case PenStrokeSliderRange.full:
+      default:
+        return 2;
+    }
+  }
+
   static ThemeMode get defaultThemeMode => _defaultThemeMode;
   static int get defaultHistoryLimit => _defaultHistoryLimit;
 
@@ -487,5 +558,21 @@ class AppPreferences {
       await directory.create(recursive: true);
     }
     return File(p.join(directory.path, _fileName));
+  }
+}
+
+enum PenStrokeSliderRange {
+  compact(min: 1.0, max: 60.0),
+  medium(min: 0.1, max: 500.0),
+  full(min: 0.01, max: 1000.0);
+
+  const PenStrokeSliderRange({required this.min, required this.max});
+
+  final double min;
+  final double max;
+
+  double clamp(double value) {
+    final num clamped = value.clamp(min, max);
+    return clamped.toDouble();
   }
 }

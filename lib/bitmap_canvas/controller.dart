@@ -150,18 +150,12 @@ class BitmapCanvasController extends ChangeNotifier {
   void configureStylusPressure({
     required bool enabled,
     required double curve,
-  }) =>
-      _strokeConfigureStylusPressure(
-        this,
-        enabled: enabled,
-        curve: curve,
-      );
+  }) => _strokeConfigureStylusPressure(this, enabled: enabled, curve: curve);
 
   void configureSharpTips({required bool enabled}) =>
       _strokeConfigureSharpTips(this, enabled: enabled);
 
-  void setSelectionMask(Uint8List? mask) =>
-      _fillSetSelectionMask(this, mask);
+  void setSelectionMask(Uint8List? mask) => _fillSetSelectionMask(this, mask);
 
   bool _runAntialiasPass(
     Uint32List src,
@@ -250,11 +244,9 @@ class BitmapCanvasController extends ChangeNotifier {
   void translateActiveLayer(int dx, int dy) =>
       _translateActiveLayer(this, dx, dy);
 
-  void commitActiveLayerTranslation() =>
-      _commitActiveLayerTranslation(this);
+  void commitActiveLayerTranslation() => _commitActiveLayerTranslation(this);
 
-  void cancelActiveLayerTranslation() =>
-      _cancelActiveLayerTranslation(this);
+  void cancelActiveLayerTranslation() => _cancelActiveLayerTranslation(this);
 
   Future<void> disposeController() async {
     _cachedImage?.dispose();
@@ -263,8 +255,7 @@ class BitmapCanvasController extends ChangeNotifier {
     _activeLayerTransformPreparing = false;
   }
 
-  void setActiveLayer(String id) =>
-      _layerManagerSetActiveLayer(this, id);
+  void setActiveLayer(String id) => _layerManagerSetActiveLayer(this, id);
 
   void updateLayerVisibility(String id, bool visible) =>
       _layerManagerUpdateVisibility(this, id, visible);
@@ -300,27 +291,28 @@ class BitmapCanvasController extends ChangeNotifier {
     required double radius,
     bool simulatePressure = false,
     bool useDevicePressure = false,
+    double stylusPressureBlend = 1.0,
     double? pressure,
     double? pressureMin,
     double? pressureMax,
     StrokePressureProfile profile = StrokePressureProfile.auto,
     double? timestampMillis,
     int antialiasLevel = 0,
-  }) =>
-      _strokeBegin(
-        this,
-        position,
-        color: color,
-        radius: radius,
-        simulatePressure: simulatePressure,
-        useDevicePressure: useDevicePressure,
-        pressure: pressure,
-        pressureMin: pressureMin,
-        pressureMax: pressureMax,
-        profile: profile,
-        timestampMillis: timestampMillis,
-        antialiasLevel: antialiasLevel,
-      );
+  }) => _strokeBegin(
+    this,
+    position,
+    color: color,
+    radius: radius,
+    simulatePressure: simulatePressure,
+    useDevicePressure: useDevicePressure,
+    stylusPressureBlend: stylusPressureBlend,
+    pressure: pressure,
+    pressureMin: pressureMin,
+    pressureMax: pressureMax,
+    profile: profile,
+    timestampMillis: timestampMillis,
+    antialiasLevel: antialiasLevel,
+  );
 
   void extendStroke(
     Offset position, {
@@ -329,16 +321,15 @@ class BitmapCanvasController extends ChangeNotifier {
     double? pressure,
     double? pressureMin,
     double? pressureMax,
-  }) =>
-      _strokeExtend(
-        this,
-        position,
-        deltaTimeMillis: deltaTimeMillis,
-        timestampMillis: timestampMillis,
-        pressure: pressure,
-        pressureMin: pressureMin,
-        pressureMax: pressureMax,
-      );
+  }) => _strokeExtend(
+    this,
+    position,
+    deltaTimeMillis: deltaTimeMillis,
+    timestampMillis: timestampMillis,
+    pressure: pressure,
+    pressureMin: pressureMin,
+    pressureMax: pressureMax,
+  );
 
   void endStroke() => _strokeEnd(this);
 
@@ -407,46 +398,36 @@ class BitmapCanvasController extends ChangeNotifier {
     double? pressure,
     double? pressureMin,
     double? pressureMax,
-  ) =>
-      _strokeNormalizeStylusPressure(
-        this,
-        pressure,
-        pressureMin,
-        pressureMax,
-      );
+  ) => _strokeNormalizeStylusPressure(this, pressure, pressureMin, pressureMax);
 
   bool _selectionAllows(Offset position) =>
       _fillSelectionAllows(this, position);
 
-  bool _selectionAllowsInt(int x, int y) =>
-      _fillSelectionAllowsInt(this, x, y);
+  bool _selectionAllowsInt(int x, int y) => _fillSelectionAllowsInt(this, x, y);
 
   void floodFill(
     Offset position, {
     required Color color,
     bool contiguous = true,
     bool sampleAllLayers = false,
-  }) =>
-      _fillFloodFill(
-        this,
-        position,
-        color: color,
-        contiguous: contiguous,
-        sampleAllLayers: sampleAllLayers,
-      );
+  }) => _fillFloodFill(
+    this,
+    position,
+    color: color,
+    contiguous: contiguous,
+    sampleAllLayers: sampleAllLayers,
+  );
 
   Uint8List? computeMagicWandMask(
     Offset position, {
     bool sampleAllLayers = true,
-  }) =>
-      _fillComputeMagicWandMask(
-        this,
-        position,
-        sampleAllLayers: sampleAllLayers,
-      );
+  }) => _fillComputeMagicWandMask(
+    this,
+    position,
+    sampleAllLayers: sampleAllLayers,
+  );
 
-  List<CanvasLayerData> snapshotLayers() =>
-      _layerManagerSnapshotLayers(this);
+  List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
 
   CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) =>
       _layerManagerBuildClipboardLayer(this, id, mask: mask);
@@ -475,14 +456,11 @@ class BitmapCanvasController extends ChangeNotifier {
     Offset b,
     double startRadius,
     double endRadius,
-  ) =>
-      _strokeDirtyRectForVariableLine(a, b, startRadius, endRadius);
+  ) => _strokeDirtyRectForVariableLine(a, b, startRadius, endRadius);
 
-  void _markDirty({Rect? region}) =>
-      _compositeMarkDirty(this, region: region);
+  void _markDirty({Rect? region}) => _compositeMarkDirty(this, region: region);
 
-  void _scheduleCompositeRefresh() =>
-      _compositeScheduleRefresh(this);
+  void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 
   BitmapLayerState get _activeLayer => _layers[_activeIndex];
 
@@ -502,7 +480,6 @@ class BitmapCanvasController extends ChangeNotifier {
 
   Color sampleColor(Offset position, {bool sampleAllLayers = true}) =>
       _fillSampleColor(this, position, sampleAllLayers: sampleAllLayers);
-
 
   Color _colorAtSurface(BitmapSurface surface, int x, int y) =>
       _fillColorAtSurface(this, surface, x, y);

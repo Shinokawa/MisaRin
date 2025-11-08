@@ -47,6 +47,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late int _historyLimit;
   late bool _stylusPressureEnabled;
   late double _stylusCurve;
+  late PenStrokeSliderRange _penSliderRange;
 
   @override
   void initState() {
@@ -54,6 +55,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _historyLimit = AppPreferences.instance.historyLimit;
     _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
+    _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
   }
 
   @override
@@ -74,18 +76,9 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
             isExpanded: true,
             value: themeMode,
             items: const [
-              ComboBoxItem(
-                value: ThemeMode.light,
-                child: Text('浅色'),
-              ),
-              ComboBoxItem(
-                value: ThemeMode.dark,
-                child: Text('深色'),
-              ),
-              ComboBoxItem(
-                value: ThemeMode.system,
-                child: Text('跟随系统'),
-              ),
+              ComboBoxItem(value: ThemeMode.light, child: Text('浅色')),
+              ComboBoxItem(value: ThemeMode.dark, child: Text('深色')),
+              ComboBoxItem(value: ThemeMode.system, child: Text('跟随系统')),
             ],
             onChanged: (mode) {
               if (mode == null) {
@@ -142,6 +135,38 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
         const SizedBox(height: 16),
         InfoLabel(
+          label: '笔刷大小滑块区间',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ComboBox<PenStrokeSliderRange>(
+                isExpanded: true,
+                value: _penSliderRange,
+                items: PenStrokeSliderRange.values
+                    .map(
+                      (range) => ComboBoxItem<PenStrokeSliderRange>(
+                        value: range,
+                        child: Text(_sliderRangeLabel(range)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (range) {
+                  if (range == null) {
+                    return;
+                  }
+                  _updatePenSliderRange(range);
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '影响工具面板内的笔刷大小滑块，有助于在不同精度间快速切换。',
+                style: theme.typography.caption,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        InfoLabel(
           label: '撤销/恢复步数上限',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,10 +190,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                   unawaited(AppPreferences.save());
                 },
               ),
-              Text(
-                '当前上限：$_historyLimit 步',
-                style: theme.typography.caption,
-              ),
+              Text('当前上限：$_historyLimit 步', style: theme.typography.caption),
               Text(
                 '调整撤销/恢复历史的保存数量，范围 $minHistory-$maxHistory。',
                 style: theme.typography.caption,
@@ -178,6 +200,35 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
       ],
     );
+  }
+
+  void _updatePenSliderRange(PenStrokeSliderRange range) {
+    setState(() => _penSliderRange = range);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.penStrokeSliderRange = range;
+    _clampPenWidthForRange(prefs, range);
+    unawaited(AppPreferences.save());
+  }
+
+  void _clampPenWidthForRange(
+    AppPreferences prefs,
+    PenStrokeSliderRange range,
+  ) {
+    final double adjusted = range.clamp(prefs.penStrokeWidth);
+    if ((adjusted - prefs.penStrokeWidth).abs() > 0.0001) {
+      prefs.penStrokeWidth = adjusted;
+    }
+  }
+
+  String _sliderRangeLabel(PenStrokeSliderRange range) {
+    switch (range) {
+      case PenStrokeSliderRange.compact:
+        return '1 - 60 px（粗调）';
+      case PenStrokeSliderRange.medium:
+        return '0.1 - 500 px（中档）';
+      case PenStrokeSliderRange.full:
+        return '0.01 - 1000 px（全范围）';
+    }
   }
 
   void resetToDefaults() {
@@ -190,11 +241,14 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _historyLimit = defaultHistory;
       _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
       _stylusCurve = AppPreferences.defaultStylusCurve;
+      _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
     prefs.stylusPressureEnabled = _stylusPressureEnabled;
     prefs.stylusPressureCurve = _stylusCurve;
+    prefs.penStrokeSliderRange = _penSliderRange;
+    _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }
 
@@ -295,9 +349,10 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       return;
     }
     final Offset pos = event.localPosition;
-    final double pressure = TabletInputBridge.instance.pressureForEvent(event) ??
+    final double pressure =
+        TabletInputBridge.instance.pressureForEvent(event) ??
         (event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 0.0);
-    final double radius = math.sqrt(pressure).clamp(0.5, 4.0);
+    final double radius = _brushRadiusForPressure(pressure);
     final bool inContact = event.down || pressure > 0.0;
     setState(() {
       _latestPressure = pressure;
@@ -357,8 +412,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
         return true;
       }
       if (event is PointerMoveEvent) {
-        return event.down ||
-            (event.buttons & kPrimaryMouseButton) != 0;
+        return event.down || (event.buttons & kPrimaryMouseButton) != 0;
       }
       return false;
     }
@@ -383,13 +437,12 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
               onPointerHover: _handlePointer,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color:
-                      theme.brightness.isDark ? const Color(0xFF171717) : Colors.white,
+                  color: theme.brightness.isDark
+                      ? const Color(0xFF171717)
+                      : Colors.white,
                   border: Border.all(color: theme.accentColor.lighter),
                 ),
-                child: CustomPaint(
-                  painter: _TabletPainter(_points),
-                ),
+                child: CustomPaint(painter: _TabletPainter(_points)),
               ),
             ),
           ),
@@ -410,16 +463,21 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
                 _buildStat('采样频率(Hz)', _estimatedRps),
                 _buildTextStat('指针类型', _pointerKindLabel(_latestPointerKind)),
                 const Spacer(),
-                Button(
-                  onPressed: _clear,
-                  child: const Text('清空涂鸦'),
-                ),
+                Button(onPressed: _clear, child: const Text('清空涂鸦')),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  double _brushRadiusForPressure(double pressure) {
+    const double minRadius = 1.0;
+    const double maxRadius = 12.0;
+    final double normalized = pressure.clamp(0.0, 1.0);
+    final double eased = math.sqrt(normalized);
+    return minRadius + (maxRadius - minRadius) * eased;
   }
 
   void _handlePointerUp(PointerUpEvent event) {
@@ -524,8 +582,9 @@ class _TabletPainter extends CustomPainter {
         previousRadius = point.radius;
         continue;
       }
-      final double strokeWidth =
-          ((previousRadius + point.radius) / 2).clamp(1.0, 12.0).toDouble();
+      final double strokeWidth = ((previousRadius + point.radius) / 2)
+          .clamp(1.0, 12.0)
+          .toDouble();
       strokePaint.strokeWidth = strokeWidth;
       canvas.drawLine(previous, clamped, strokePaint);
       previous = clamped;

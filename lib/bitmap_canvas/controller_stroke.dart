@@ -27,6 +27,7 @@ void _strokeBegin(
   required double radius,
   bool simulatePressure = false,
   bool useDevicePressure = false,
+  double stylusPressureBlend = 1.0,
   double? pressure,
   double? pressureMin,
   double? pressureMax,
@@ -46,8 +47,12 @@ void _strokeBegin(
     ..clear()
     ..add(position);
   controller._currentStrokeRadius = radius;
+  final double effectiveStylusBlend =
+      controller._currentStrokeStylusPressureEnabled
+      ? stylusPressureBlend.clamp(0.0, 1.0)
+      : 0.0;
   controller._currentStrokeStylusPressureEnabled =
-      useDevicePressure && controller._stylusPressureEnabled && !simulatePressure;
+      useDevicePressure && controller._stylusPressureEnabled;
   controller._currentStylusCurve = controller._stylusCurve;
   controller._currentStylusLastPressure = null;
   controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 3);
@@ -55,12 +60,13 @@ void _strokeBegin(
   final double resolvedTimestamp = timestampMillis ?? 0.0;
   final double? simulatedInitialRadius = controller._strokePressureSimulator
       .beginStroke(
-    position: position,
-    timestampMillis: resolvedTimestamp,
-    baseRadius: radius,
-    simulatePressure: simulatePressure,
-    useDevicePressure: controller._currentStrokeStylusPressureEnabled,
-  );
+        position: position,
+        timestampMillis: resolvedTimestamp,
+        baseRadius: radius,
+        simulatePressure: simulatePressure,
+        useDevicePressure: controller._currentStrokeStylusPressureEnabled,
+        stylusPressureBlend: effectiveStylusBlend,
+      );
   double? stylusSeedRadius;
   if (controller._currentStrokeStylusPressureEnabled) {
     final double? normalized = _strokeNormalizeStylusPressure(
@@ -71,12 +77,14 @@ void _strokeBegin(
     );
     if (normalized != null) {
       controller._currentStylusLastPressure = normalized;
-      stylusSeedRadius =
-          controller._strokePressureSimulator.seedPressureSample(normalized);
+      stylusSeedRadius = controller._strokePressureSimulator.seedPressureSample(
+        normalized,
+      );
     }
   }
   if (controller._strokePressureSimulator.isSimulatingStroke) {
-    controller._currentStrokeLastRadius = stylusSeedRadius ??
+    controller._currentStrokeLastRadius =
+        stylusSeedRadius ??
         simulatedInitialRadius ??
         controller._currentStrokeRadius;
   } else {
@@ -121,12 +129,12 @@ void _strokeExtend(
   if (controller._strokePressureSimulator.isSimulatingStroke) {
     final double? nextRadius = controller._strokePressureSimulator
         .sampleNextRadius(
-      lastPosition: last,
-      position: position,
-      timestampMillis: timestampMillis,
-      deltaTimeMillis: deltaTimeMillis,
-      normalizedPressure: stylusPressure,
-    );
+          lastPosition: last,
+          position: position,
+          timestampMillis: timestampMillis,
+          deltaTimeMillis: deltaTimeMillis,
+          normalizedPressure: stylusPressure,
+        );
     if (nextRadius == null) {
       return;
     }
@@ -142,15 +150,13 @@ void _strokeExtend(
       controller._currentStrokeLastRadius = resolvedRadius;
       return;
     }
-    final double previousRadius = controller._currentStrokeLastRadius.isFinite &&
+    final double previousRadius =
+        controller._currentStrokeLastRadius.isFinite &&
             controller._currentStrokeLastRadius > 0.0
         ? controller._currentStrokeLastRadius
         : controller._currentStrokeRadius;
-    final bool restartCaps = firstSegment ||
-        _strokeNeedsRestartCaps(
-          previousRadius,
-          resolvedRadius,
-        );
+    final bool restartCaps =
+        firstSegment || _strokeNeedsRestartCaps(previousRadius, resolvedRadius);
     final double startRadius = restartCaps ? resolvedRadius : previousRadius;
     controller._activeSurface.drawVariableLine(
       a: last,
@@ -203,8 +209,11 @@ void _strokeExtend(
     return true;
   }());
   controller._markDirty(
-    region:
-        _strokeDirtyRectForLine(last, position, controller._currentStrokeRadius),
+    region: _strokeDirtyRectForLine(
+      last,
+      position,
+      controller._currentStrokeRadius,
+    ),
   );
   controller._currentStrokeHasMoved = true;
 }
@@ -219,7 +228,8 @@ void _strokeLogDrawnSegment({
       ? normalizedPressure.clamp(0.0, 1.0).toStringAsFixed(3)
       : (usesDevicePressure ? 'virtual' : 'fixed');
   debugPrint(
-    '[StrokeDraw] device=$usesDevicePressure pressure=$pressureLabel start=${startRadius.toStringAsFixed(3)} end=${endRadius.toStringAsFixed(3)}',
+    '[StrokeDraw] device=$usesDevicePressure pressure=$pressureLabel start='
+    '${startRadius.toStringAsFixed(3)} end=${endRadius.toStringAsFixed(3)}',
   );
 }
 
@@ -233,18 +243,20 @@ void _strokeEnd(BitmapCanvasController controller) {
   final Offset tip = controller._currentStrokePoints.last;
 
   if (controller._strokePressureSimulator.isSimulatingStroke) {
-    final Offset? previousPoint = hasPath &&
-            controller._currentStrokePoints.length >= 2
-        ? controller._currentStrokePoints[controller._currentStrokePoints.length - 2]
+    final Offset? previousPoint =
+        hasPath && controller._currentStrokePoints.length >= 2
+        ? controller
+              ._currentStrokePoints[controller._currentStrokePoints.length - 2]
         : null;
-    final SimulatedTailInstruction? tailInstruction =
-        controller._strokePressureSimulator.buildTail(
-      hasPath: hasPath,
-      tip: tip,
-      previousPoint: previousPoint,
-      baseRadius: controller._currentStrokeRadius,
-      lastRadius: controller._currentStrokeLastRadius,
-    );
+    final SimulatedTailInstruction? tailInstruction = controller
+        ._strokePressureSimulator
+        .buildTail(
+          hasPath: hasPath,
+          tip: tip,
+          previousPoint: previousPoint,
+          baseRadius: controller._currentStrokeRadius,
+          lastRadius: controller._currentStrokeLastRadius,
+        );
     if (tailInstruction != null) {
       if (tailInstruction.isLine) {
         final Offset start = tailInstruction.start!;
@@ -324,10 +336,9 @@ double? _strokeNormalizeStylusPressure(
   if (!normalized.isFinite) {
     return null;
   }
-  final double curved = math.pow(
-    normalized.clamp(0.0, 1.0),
-    controller._currentStylusCurve,
-  ).toDouble();
+  final double curved = math
+      .pow(normalized.clamp(0.0, 1.0), controller._currentStylusCurve)
+      .toDouble();
   return curved.clamp(0.0, 1.0);
 }
 
@@ -372,8 +383,7 @@ double _strokeResolveSimulatedRadius(
     final double smoothing = preferImmediate
         ? 1.0
         : BitmapCanvasController._kStylusSmoothing;
-    final double smoothed = previous +
-        (sanitized - previous) * smoothing;
+    final double smoothed = previous + (sanitized - previous) * smoothing;
     return smoothed.clamp(minimum, maximum);
   }
   return sanitized;
@@ -405,9 +415,7 @@ void _strokeDrawPoint(
     mask: controller._selectionMask,
     antialiasLevel: controller._currentStrokeAntialiasLevel,
   );
-  controller._markDirty(
-    region: _strokeDirtyRectForCircle(position, radius),
-  );
+  controller._markDirty(region: _strokeDirtyRectForCircle(position, radius));
 }
 
 Rect _strokeDirtyRectForVariableLine(

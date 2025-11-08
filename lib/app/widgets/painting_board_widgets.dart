@@ -168,6 +168,7 @@ class _ToolSettingsCard extends StatefulWidget {
   const _ToolSettingsCard({
     required this.activeTool,
     required this.penStrokeWidth,
+    required this.penStrokeSliderRange,
     required this.onPenStrokeWidthChanged,
     required this.stylusPressureEnabled,
     required this.onStylusPressureEnabledChanged,
@@ -192,6 +193,7 @@ class _ToolSettingsCard extends StatefulWidget {
 
   final CanvasTool activeTool;
   final double penStrokeWidth;
+  final PenStrokeSliderRange penStrokeSliderRange;
   final ValueChanged<double> onPenStrokeWidthChanged;
   final bool stylusPressureEnabled;
   final ValueChanged<bool> onStylusPressureEnabledChanged;
@@ -213,9 +215,6 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<ShapeToolVariant> onShapeToolVariantChanged;
   final ValueChanged<Size> onSizeChanged;
 
-  static const double _minPenStrokeWidth = kPenStrokeMin;
-  static const double _maxPenStrokeWidth = kPenStrokeMax;
-
   @override
   State<_ToolSettingsCard> createState() => _ToolSettingsCardState();
 }
@@ -229,6 +228,9 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
       <TextInputFormatter>[
         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
       ];
+
+  double get _sliderMin => widget.penStrokeSliderRange.min;
+  double get _sliderMax => widget.penStrokeSliderRange.max;
 
   @override
   void initState() {
@@ -398,24 +400,30 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
 
     if (showAdvancedBrushToggles) {
       wrapChildren.add(_buildBrushAntialiasRow(theme));
-      wrapChildren.add(_buildToggleSwitchRow(
-        theme,
-        label: '数位笔笔压',
-        value: widget.stylusPressureEnabled,
-        onChanged: widget.onStylusPressureEnabledChanged,
-      ));
-      wrapChildren.add(_buildToggleSwitchRow(
-        theme,
-        label: '模拟笔压',
-        value: widget.simulatePenPressure,
-        onChanged: widget.onSimulatePenPressureChanged,
-      ));
-      wrapChildren.add(_buildToggleSwitchRow(
-        theme,
-        label: '自动尖锐出峰',
-        value: widget.autoSharpPeakEnabled,
-        onChanged: widget.onAutoSharpPeakChanged,
-      ));
+      wrapChildren.add(
+        _buildToggleSwitchRow(
+          theme,
+          label: '数位笔笔压',
+          value: widget.stylusPressureEnabled,
+          onChanged: widget.onStylusPressureEnabledChanged,
+        ),
+      );
+      wrapChildren.add(
+        _buildToggleSwitchRow(
+          theme,
+          label: '模拟笔压',
+          value: widget.simulatePenPressure,
+          onChanged: widget.onSimulatePenPressureChanged,
+        ),
+      );
+      wrapChildren.add(
+        _buildToggleSwitchRow(
+          theme,
+          label: '自动尖锐出峰',
+          value: widget.autoSharpPeakEnabled,
+          onChanged: widget.onAutoSharpPeakChanged,
+        ),
+      );
       if (widget.simulatePenPressure) {
         wrapChildren.add(
           SizedBox(
@@ -459,12 +467,9 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         SizedBox(
           width: 200,
           child: Slider(
-            value: widget.penStrokeWidth.clamp(
-              _ToolSettingsCard._minPenStrokeWidth,
-              _ToolSettingsCard._maxPenStrokeWidth,
-            ),
-            min: _ToolSettingsCard._minPenStrokeWidth,
-            max: _ToolSettingsCard._maxPenStrokeWidth,
+            value: widget.penStrokeSliderRange.clamp(widget.penStrokeWidth),
+            min: _sliderMin,
+            max: _sliderMax,
             onChanged: widget.onPenStrokeWidthChanged,
           ),
         ),
@@ -517,8 +522,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
             min: 0,
             max: 3,
             divisions: 3,
-            onChanged: (value) =>
-                widget.onBrushAntialiasChanged(value.round()),
+            onChanged: (value) => widget.onBrushAntialiasChanged(value.round()),
           ),
         ),
         const SizedBox(width: 8),
@@ -541,10 +545,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
       children: [
         Text(label, style: theme.typography.bodyStrong),
         const SizedBox(width: 8),
-        ToggleSwitch(
-          checked: value,
-          onChanged: onChanged,
-        ),
+        ToggleSwitch(checked: value, onChanged: onChanged),
       ],
     );
   }
@@ -568,10 +569,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
     if (parsed == null) {
       return;
     }
-    final double clamped = parsed.clamp(
-      _ToolSettingsCard._minPenStrokeWidth,
-      _ToolSettingsCard._maxPenStrokeWidth,
-    );
+    final double clamped = widget.penStrokeSliderRange.clamp(parsed);
     final String formatted = _formatValue(clamped);
     if (_controller.text != formatted) {
       _isProgrammaticTextUpdate = true;
@@ -597,9 +595,8 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
   }
 
   void _adjustStrokeWidthBy(int delta) {
-    final double nextValue = (widget.penStrokeWidth + delta).clamp(
-      _ToolSettingsCard._minPenStrokeWidth,
-      _ToolSettingsCard._maxPenStrokeWidth,
+    final double nextValue = widget.penStrokeSliderRange.clamp(
+      widget.penStrokeWidth + delta,
     );
     if ((nextValue - widget.penStrokeWidth).abs() < 0.0005) {
       return;

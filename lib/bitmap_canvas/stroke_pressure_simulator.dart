@@ -13,18 +13,18 @@ class SimulatedTailInstruction {
     required this.end,
     required this.startRadius,
     required this.endRadius,
-  })  : type = SimulatedTailType.line,
-        point = null,
-        pointRadius = null;
+  }) : type = SimulatedTailType.line,
+       point = null,
+       pointRadius = null;
 
   const SimulatedTailInstruction.point({
     required this.point,
     required this.pointRadius,
-  })  : type = SimulatedTailType.point,
-        start = null,
-        end = null,
-        startRadius = null,
-        endRadius = null;
+  }) : type = SimulatedTailType.point,
+       start = null,
+       end = null,
+       startRadius = null,
+       endRadius = null;
 
   final SimulatedTailType type;
   final Offset? start;
@@ -48,6 +48,7 @@ class StrokePressureSimulator {
   bool _simulatingStroke = false;
   bool _usesDevicePressure = false;
   bool _sharpTipsEnabled = true;
+  double _stylusPressureBlend = 1.0;
 
   bool get isSimulatingStroke => _simulatingStroke;
   bool get usesDevicePressure => _usesDevicePressure;
@@ -59,12 +60,14 @@ class StrokePressureSimulator {
     required double baseRadius,
     required bool simulatePressure,
     bool useDevicePressure = false,
+    double stylusPressureBlend = 1.0,
   }) {
     _strokeSamples.clear();
     _velocitySmoother.reset();
     _strokeSamples.add(position, timestampMillis);
     _velocitySmoother.addSample(position, timestampMillis);
 
+    _stylusPressureBlend = stylusPressureBlend.clamp(0.0, 1.0);
     _usesDevicePressure = useDevicePressure;
     _simulatingStroke = simulatePressure || useDevicePressure;
     if (!_simulatingStroke) {
@@ -95,26 +98,32 @@ class StrokePressureSimulator {
       deltaTimeMillis,
     );
     final StrokeSample sample = _strokeSamples.add(position, sampleTimestamp);
-    final double computedSpeed =
-        _velocitySmoother.addSample(position, sampleTimestamp);
-    final double? intensityOverride =
-        _usesDevicePressure ? _stylusPressureToIntensity(normalizedPressure) : null;
-    final double metricSignal = intensityOverride ?? computedSpeed;
-    final StrokeSampleMetrics? metrics =
-        _profile == StrokePressureProfile.auto
-            ? StrokeSampleMetrics(
-                sampleIndex: _strokeSamples.length - 1,
-                normalizedSpeed: metricSignal,
-                stationaryDuration: sample.stationaryDuration,
-                totalDistance: _strokeSamples.totalDistance,
-                totalTime: _strokeSamples.totalTime,
-              )
-            : null;
+    final double normalizedSpeed = _velocitySmoother.addSample(
+      position,
+      sampleTimestamp,
+    );
+    final double? intensityOverride = _usesDevicePressure
+        ? _stylusPressureToIntensity(normalizedPressure)
+        : null;
+    final double effectiveBlend = intensityOverride != null
+        ? _stylusPressureBlend
+        : 0.0;
+    final StrokeSampleMetrics? metrics = _profile == StrokePressureProfile.auto
+        ? StrokeSampleMetrics(
+            sampleIndex: _strokeSamples.length - 1,
+            normalizedSpeed: normalizedSpeed,
+            stationaryDuration: sample.stationaryDuration,
+            totalDistance: _strokeSamples.totalDistance,
+            totalTime: _strokeSamples.totalTime,
+          )
+        : null;
     return _strokeDynamics.sample(
       distance: delta,
       deltaTimeMillis: deltaTimeMillis,
       metrics: metrics,
       intensityOverride: intensityOverride,
+      speedSignal: normalizedSpeed,
+      intensityBlend: effectiveBlend,
     );
   }
 
@@ -127,6 +136,8 @@ class StrokePressureSimulator {
     return _strokeDynamics.sample(
       distance: 0.0,
       intensityOverride: signal,
+      speedSignal: 0.0,
+      intensityBlend: _stylusPressureBlend,
     );
   }
 
@@ -146,18 +157,12 @@ class StrokePressureSimulator {
     }
     final double tipRadius = _strokeDynamics.tipRadius();
     if (!hasPath || previousPoint == null) {
-      return SimulatedTailInstruction.point(
-        point: tip,
-        pointRadius: tipRadius,
-      );
+      return SimulatedTailInstruction.point(point: tip, pointRadius: tipRadius);
     }
     final Offset direction = tip - previousPoint;
     final double length = direction.distance;
     if (length <= 0.001) {
-      return SimulatedTailInstruction.point(
-        point: tip,
-        pointRadius: tipRadius,
-      );
+      return SimulatedTailInstruction.point(point: tip, pointRadius: tipRadius);
     }
     final Offset unit = direction / length;
     final double base = math.max(baseRadius, 0.1);
@@ -191,6 +196,7 @@ class StrokePressureSimulator {
     _velocitySmoother.reset();
     _simulatingStroke = false;
     _usesDevicePressure = false;
+    _stylusPressureBlend = 1.0;
   }
 
   void setProfile(StrokePressureProfile profile) {
