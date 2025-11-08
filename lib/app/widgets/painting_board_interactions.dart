@@ -167,6 +167,18 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateStrokeStabilizerStrength(double value) {
+    final double clamped = value.clamp(0.0, 1.0);
+    if ((_strokeStabilizerStrength - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _strokeStabilizerStrength = clamped);
+    _strokeStabilizer.reset();
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.strokeStabilizerStrength = clamped;
+    unawaited(AppPreferences.save());
+  }
+
   @override
   void _updatePenPressureSimulation(bool value) {
     if (_simulatePenPressure == value) {
@@ -264,7 +276,8 @@ mixin _PaintingBoardInteractionMixin
     Duration timestamp,
     PointerEvent? rawEvent,
   ) {
-    final Offset start = _sanitizeStrokePosition(position);
+    final Offset start =
+        _sanitizeStrokePosition(position, isInitialSample: true);
     _activeStrokeUsesStylus =
         rawEvent != null && _stylusPressureEnabled && _isStylusEvent(rawEvent);
     final bool combineStylusAndSimulation =
@@ -398,6 +411,7 @@ mixin _PaintingBoardInteractionMixin
     _lastStylusPressureValue = null;
     _lastStrokeBoardPosition = null;
     _lastStylusDirection = null;
+    _strokeStabilizer.reset();
   }
 
   void _emitReleaseSamples({
@@ -487,8 +501,25 @@ mixin _PaintingBoardInteractionMixin
     });
   }
 
-  Offset _sanitizeStrokePosition(Offset position) {
-    return _clampToCanvas(position);
+  Offset _sanitizeStrokePosition(
+    Offset position, {
+    bool isInitialSample = false,
+  }) {
+    final Offset clamped = _clampToCanvas(position);
+    final bool enableStabilizer =
+        _strokeStabilizerStrength > 0.0001 &&
+        _effectiveActiveTool == CanvasTool.pen;
+    if (!enableStabilizer) {
+      if (isInitialSample) {
+        _strokeStabilizer.reset();
+      }
+      return clamped;
+    }
+    if (isInitialSample) {
+      _strokeStabilizer.start(clamped);
+      return clamped;
+    }
+    return _strokeStabilizer.filter(clamped, _strokeStabilizerStrength);
   }
 
   double? _registerPenSample(Duration timestamp) {
@@ -1377,5 +1408,44 @@ mixin _PaintingBoardInteractionMixin
     final Offset focalPoint = _boardRect.center;
     _applyZoom(_viewport.scale * factor, focalPoint);
     return true;
+  }
+}
+
+class _StrokeStabilizer {
+  Offset? _filtered;
+
+  void start(Offset position) {
+    _filtered = position;
+  }
+
+  Offset filter(Offset position, double strength) {
+    final double clampedStrength = strength.clamp(0.0, 1.0);
+    final Offset? previous = _filtered;
+    if (previous == null) {
+      _filtered = position;
+      return position;
+    }
+    final Offset delta = position - previous;
+    final double distance = delta.distance;
+    if (distance <= 1e-4) {
+      return previous;
+    }
+    final double easedStrength = math.pow(clampedStrength, 0.82).toDouble();
+    final double extendedStrength = math.pow(clampedStrength, 1.12).toDouble();
+    final double followFloor =
+        ui.lerpDouble(1.0, 0.08, easedStrength) ?? 1.0;
+    final double catchupDistance =
+        ui.lerpDouble(1.5, 48.0, extendedStrength) ?? 6.5;
+    final double releaseFactor =
+        math.pow((distance / catchupDistance).clamp(0.0, 1.0), 0.85).toDouble();
+    final double mix =
+        ui.lerpDouble(followFloor, 1.0, releaseFactor) ?? followFloor;
+    final Offset filtered = previous + delta * mix;
+    _filtered = filtered;
+    return filtered;
+  }
+
+  void reset() {
+    _filtered = null;
   }
 }

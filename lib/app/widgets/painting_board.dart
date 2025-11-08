@@ -96,6 +96,7 @@ const double _initialViewportScaleFactor = 0.8;
 const double _curveStrokeSampleSpacing = 3.4;
 const double _syntheticStrokeMinDeltaMs =
     3.6; // keep >= StrokeDynamics._minDeltaMs
+const int _strokeStabilizerMaxLevel = 30;
 
 enum CanvasRotation {
   clockwise90,
@@ -145,6 +146,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isScalingGesture = false;
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
+  double _strokeStabilizerStrength =
+      AppPreferences.defaultStrokeStabilizerStrength;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = 0;
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
@@ -181,6 +184,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double? _lastStylusPressureValue;
   Offset? _lastStrokeBoardPosition;
   Offset? _lastStylusDirection;
+  final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
   CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
     columns: 1,
@@ -899,6 +903,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _bucketContiguous = prefs.bucketContiguous;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
+    _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);

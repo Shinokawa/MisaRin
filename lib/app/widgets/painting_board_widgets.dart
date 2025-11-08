@@ -170,6 +170,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.penStrokeWidth,
     required this.penStrokeSliderRange,
     required this.onPenStrokeWidthChanged,
+    required this.strokeStabilizerStrength,
+    required this.onStrokeStabilizerChanged,
     required this.stylusPressureEnabled,
     required this.onStylusPressureEnabledChanged,
     required this.simulatePenPressure,
@@ -195,6 +197,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final double penStrokeWidth;
   final PenStrokeSliderRange penStrokeSliderRange;
   final ValueChanged<double> onPenStrokeWidthChanged;
+  final double strokeStabilizerStrength;
+  final ValueChanged<double> onStrokeStabilizerChanged;
   final bool stylusPressureEnabled;
   final ValueChanged<bool> onStylusPressureEnabledChanged;
   final bool simulatePenPressure;
@@ -396,7 +400,11 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         widget.activeTool == CanvasTool.curvePen ||
         widget.activeTool == CanvasTool.shape;
 
-    final List<Widget> wrapChildren = <Widget>[_buildBrushSizeRow(theme)];
+    final List<Widget> wrapChildren = <Widget>[
+      _buildBrushSizeRow(theme),
+      if (widget.activeTool == CanvasTool.pen)
+        _buildStrokeStabilizerRow(theme),
+    ];
 
     if (showAdvancedBrushToggles) {
       wrapChildren.add(_buildBrushAntialiasRow(theme));
@@ -530,6 +538,36 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           '等级 ${widget.brushAntialiasLevel}',
           style: theme.typography.caption,
         ),
+      ],
+    );
+  }
+
+  Widget _buildStrokeStabilizerRow(FluentThemeData theme) {
+    final double value = widget.strokeStabilizerStrength.clamp(0.0, 1.0);
+    final double projected =
+        (value * _strokeStabilizerMaxLevel).clamp(0.0, _strokeStabilizerMaxLevel.toDouble());
+    final int level = projected.round().clamp(0, _strokeStabilizerMaxLevel);
+    final double sliderValue = level.toDouble();
+    final String label = level == 0 ? '关' : '等级 $level';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('手抖修正', style: theme.typography.bodyStrong),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 200,
+          child: Slider(
+            value: sliderValue,
+            min: 0,
+            max: _strokeStabilizerMaxLevel.toDouble(),
+            divisions: _strokeStabilizerMaxLevel,
+            onChanged: (raw) => widget.onStrokeStabilizerChanged(
+              (raw / _strokeStabilizerMaxLevel).clamp(0.0, 1.0),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(label, style: theme.typography.caption),
       ],
     );
   }

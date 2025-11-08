@@ -395,6 +395,10 @@ mixin _PaintingBoardBuildMixin
                                 penStrokeWidth: _penStrokeWidth,
                                 penStrokeSliderRange: _penStrokeSliderRange,
                                 onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                                strokeStabilizerStrength:
+                                    _strokeStabilizerStrength,
+                                onStrokeStabilizerChanged:
+                                    _updateStrokeStabilizerStrength,
                                 stylusPressureEnabled: _stylusPressureEnabled,
                                 onStylusPressureEnabledChanged:
                                     _updateStylusPressureEnabled,
