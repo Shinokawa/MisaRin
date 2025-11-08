@@ -167,6 +167,16 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateBrushShape(BrushShape shape) {
+    if (_brushShape == shape) {
+      return;
+    }
+    setState(() => _brushShape = shape);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.brushShape = shape;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateStrokeStabilizerStrength(double value) {
     final double clamped = value.clamp(0.0, 1.0);
     if ((_strokeStabilizerStrength - clamped).abs() < 0.0005) {
@@ -276,8 +286,10 @@ mixin _PaintingBoardInteractionMixin
     Duration timestamp,
     PointerEvent? rawEvent,
   ) {
-    final Offset start =
-        _sanitizeStrokePosition(position, isInitialSample: true);
+    final Offset start = _sanitizeStrokePosition(
+      position,
+      isInitialSample: true,
+    );
     _activeStrokeUsesStylus =
         rawEvent != null && _stylusPressureEnabled && _isStylusEvent(rawEvent);
     final bool combineStylusAndSimulation =
@@ -314,6 +326,7 @@ mixin _PaintingBoardInteractionMixin
         profile: _penPressureProfile,
         timestampMillis: timestamp.inMicroseconds / 1000.0,
         antialiasLevel: _penAntialiasLevel,
+        brushShape: _brushShape,
       );
     });
     _markDirty();
@@ -802,6 +815,7 @@ mixin _PaintingBoardInteractionMixin
           simulatePressure: _simulatePenPressure,
           profile: _penPressureProfile,
           antialiasLevel: _penAntialiasLevel,
+          brushShape: _brushShape,
         );
         _controller.endStroke();
         _markDirty();
@@ -930,6 +944,7 @@ mixin _PaintingBoardInteractionMixin
       profile: _penPressureProfile,
       timestampMillis: initialTimestamp,
       antialiasLevel: _penAntialiasLevel,
+      brushShape: _brushShape,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,
@@ -1432,12 +1447,12 @@ class _StrokeStabilizer {
     }
     final double easedStrength = math.pow(clampedStrength, 0.82).toDouble();
     final double extendedStrength = math.pow(clampedStrength, 1.12).toDouble();
-    final double followFloor =
-        ui.lerpDouble(1.0, 0.08, easedStrength) ?? 1.0;
+    final double followFloor = ui.lerpDouble(1.0, 0.08, easedStrength) ?? 1.0;
     final double catchupDistance =
         ui.lerpDouble(1.5, 48.0, extendedStrength) ?? 6.5;
-    final double releaseFactor =
-        math.pow((distance / catchupDistance).clamp(0.0, 1.0), 0.85).toDouble();
+    final double releaseFactor = math
+        .pow((distance / catchupDistance).clamp(0.0, 1.0), 0.85)
+        .toDouble();
     final double mix =
         ui.lerpDouble(followFloor, 1.0, releaseFactor) ?? followFloor;
     final Offset filtered = previous + delta * mix;

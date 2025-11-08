@@ -111,12 +111,16 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       profile: _penPressureProfile,
       timestampMillis: initialTimestamp,
       antialiasLevel: _penAntialiasLevel,
+      brushShape: _brushShape,
     );
     if (simulatePressure) {
-      final List<Offset> samplePoints =
-          effectivePoints.length > 1 ? effectivePoints.sublist(1) : const <Offset>[];
-      final List<_SyntheticStrokeSample> samples =
-          _buildSyntheticStrokeSamples(samplePoints, strokeStart);
+      final List<Offset> samplePoints = effectivePoints.length > 1
+          ? effectivePoints.sublist(1)
+          : const <Offset>[];
+      final List<_SyntheticStrokeSample> samples = _buildSyntheticStrokeSamples(
+        samplePoints,
+        strokeStart,
+      );
       final double totalDistance = _syntheticStrokeTotalDistance(samples);
       _simulateStrokeWithSyntheticTimeline(
         samples,

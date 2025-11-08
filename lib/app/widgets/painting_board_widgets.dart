@@ -170,6 +170,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.penStrokeWidth,
     required this.penStrokeSliderRange,
     required this.onPenStrokeWidthChanged,
+    required this.brushShape,
+    required this.onBrushShapeChanged,
     required this.strokeStabilizerStrength,
     required this.onStrokeStabilizerChanged,
     required this.stylusPressureEnabled,
@@ -197,6 +199,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final double penStrokeWidth;
   final PenStrokeSliderRange penStrokeSliderRange;
   final ValueChanged<double> onPenStrokeWidthChanged;
+  final BrushShape brushShape;
+  final ValueChanged<BrushShape> onBrushShapeChanged;
   final double strokeStabilizerStrength;
   final ValueChanged<double> onStrokeStabilizerChanged;
   final bool stylusPressureEnabled;
@@ -402,8 +406,8 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
 
     final List<Widget> wrapChildren = <Widget>[
       _buildBrushSizeRow(theme),
-      if (widget.activeTool == CanvasTool.pen)
-        _buildStrokeStabilizerRow(theme),
+      _buildBrushShapeRow(theme),
+      if (widget.activeTool == CanvasTool.pen) _buildStrokeStabilizerRow(theme),
     ];
 
     if (showAdvancedBrushToggles) {
@@ -462,6 +466,36 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: wrapChildren,
+    );
+  }
+
+  Widget _buildBrushShapeRow(FluentThemeData theme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text('笔刷形状', style: theme.typography.bodyStrong),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 140,
+          child: ComboBox<BrushShape>(
+            value: widget.brushShape,
+            items: BrushShape.values
+                .map(
+                  (shape) => ComboBoxItem<BrushShape>(
+                    value: shape,
+                    child: Text(_brushShapeLabel(shape)),
+                  ),
+                )
+                .toList(),
+            onChanged: (shape) {
+              if (shape != null) {
+                widget.onBrushShapeChanged(shape);
+              }
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -544,8 +578,10 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
 
   Widget _buildStrokeStabilizerRow(FluentThemeData theme) {
     final double value = widget.strokeStabilizerStrength.clamp(0.0, 1.0);
-    final double projected =
-        (value * _strokeStabilizerMaxLevel).clamp(0.0, _strokeStabilizerMaxLevel.toDouble());
+    final double projected = (value * _strokeStabilizerMaxLevel).clamp(
+      0.0,
+      _strokeStabilizerMaxLevel.toDouble(),
+    );
     final int level = projected.round().clamp(0, _strokeStabilizerMaxLevel);
     final double sliderValue = level.toDouble();
     final String label = level == 0 ? '关' : '等级 $level';
@@ -811,5 +847,16 @@ String _shapeVariantLabel(ShapeToolVariant variant) {
       return '三角形';
     case ShapeToolVariant.line:
       return '直线';
+  }
+}
+
+String _brushShapeLabel(BrushShape shape) {
+  switch (shape) {
+    case BrushShape.circle:
+      return '圆形';
+    case BrushShape.triangle:
+      return '三角形';
+    case BrushShape.square:
+      return '正方形';
   }
 }

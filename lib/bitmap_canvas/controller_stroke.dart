@@ -34,6 +34,7 @@ void _strokeBegin(
   StrokePressureProfile profile = StrokePressureProfile.auto,
   double? timestampMillis,
   int antialiasLevel = 0,
+  BrushShape brushShape = BrushShape.circle,
 }) {
   if (controller._activeLayer.locked) {
     return;
@@ -57,6 +58,7 @@ void _strokeBegin(
   controller._currentStylusLastPressure = null;
   controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 3);
   controller._currentStrokeHasMoved = false;
+  controller._currentBrushShape = brushShape;
   final double resolvedTimestamp = timestampMillis ?? 0.0;
   final double? simulatedInitialRadius = controller._strokePressureSimulator
       .beginStroke(
@@ -126,6 +128,8 @@ void _strokeExtend(
       stylusPressure = controller._currentStylusLastPressure;
     }
   }
+  final bool useCircularBrush =
+      controller._currentBrushShape == BrushShape.circle;
   if (controller._strokePressureSimulator.isSimulatingStroke) {
     final double? nextRadius = controller._strokePressureSimulator
         .sampleNextRadius(
@@ -158,16 +162,27 @@ void _strokeExtend(
     final bool restartCaps =
         firstSegment || _strokeNeedsRestartCaps(previousRadius, resolvedRadius);
     final double startRadius = restartCaps ? resolvedRadius : previousRadius;
-    controller._activeSurface.drawVariableLine(
-      a: last,
-      b: position,
-      startRadius: startRadius,
-      endRadius: resolvedRadius,
-      color: controller._currentStrokeColor,
-      mask: controller._selectionMask,
-      antialiasLevel: controller._currentStrokeAntialiasLevel,
-      includeStartCap: restartCaps,
-    );
+    if (useCircularBrush) {
+      controller._activeSurface.drawVariableLine(
+        a: last,
+        b: position,
+        startRadius: startRadius,
+        endRadius: resolvedRadius,
+        color: controller._currentStrokeColor,
+        mask: controller._selectionMask,
+        antialiasLevel: controller._currentStrokeAntialiasLevel,
+        includeStartCap: restartCaps,
+      );
+    } else {
+      _strokeStampSegment(
+        controller,
+        last,
+        position,
+        startRadius: startRadius,
+        endRadius: resolvedRadius,
+        includeStart: restartCaps,
+      );
+    }
     assert(() {
       _strokeLogDrawnSegment(
         usesDevicePressure: controller._currentStrokeStylusPressureEnabled,
@@ -190,15 +205,26 @@ void _strokeExtend(
     return;
   }
 
-  controller._activeSurface.drawLine(
-    a: last,
-    b: position,
-    radius: controller._currentStrokeRadius,
-    color: controller._currentStrokeColor,
-    mask: controller._selectionMask,
-    antialiasLevel: controller._currentStrokeAntialiasLevel,
-    includeStartCap: firstSegment,
-  );
+  if (useCircularBrush) {
+    controller._activeSurface.drawLine(
+      a: last,
+      b: position,
+      radius: controller._currentStrokeRadius,
+      color: controller._currentStrokeColor,
+      mask: controller._selectionMask,
+      antialiasLevel: controller._currentStrokeAntialiasLevel,
+      includeStartCap: firstSegment,
+    );
+  } else {
+    _strokeStampSegment(
+      controller,
+      last,
+      position,
+      startRadius: controller._currentStrokeRadius,
+      endRadius: controller._currentStrokeRadius,
+      includeStart: firstSegment,
+    );
+  }
   assert(() {
     _strokeLogDrawnSegment(
       usesDevicePressure: false,
@@ -404,14 +430,66 @@ void _strokeDrawPoint(
   if (controller._activeLayer.locked) {
     return;
   }
-  controller._activeSurface.drawCircle(
-    center: position,
-    radius: radius,
-    color: controller._currentStrokeColor,
-    mask: controller._selectionMask,
-    antialiasLevel: controller._currentStrokeAntialiasLevel,
+  final double resolvedRadius = math.max(radius.abs(), 0.01);
+  final BrushShape brushShape = controller._currentBrushShape;
+  if (brushShape == BrushShape.circle) {
+    controller._activeSurface.drawCircle(
+      center: position,
+      radius: resolvedRadius,
+      color: controller._currentStrokeColor,
+      mask: controller._selectionMask,
+      antialiasLevel: controller._currentStrokeAntialiasLevel,
+    );
+  } else {
+    controller._activeSurface.drawBrushStamp(
+      center: position,
+      radius: resolvedRadius,
+      color: controller._currentStrokeColor,
+      shape: brushShape,
+      mask: controller._selectionMask,
+      antialiasLevel: controller._currentStrokeAntialiasLevel,
+    );
+  }
+  controller._markDirty(
+    region: _strokeDirtyRectForCircle(position, resolvedRadius),
   );
-  controller._markDirty(region: _strokeDirtyRectForCircle(position, radius));
+}
+
+void _strokeStampSegment(
+  BitmapCanvasController controller,
+  Offset start,
+  Offset end, {
+  required double startRadius,
+  required double endRadius,
+  required bool includeStart,
+}) {
+  final double distance = (end - start).distance;
+  if (!distance.isFinite || distance <= 0.0001) {
+    _strokeDrawPoint(controller, end, endRadius);
+    return;
+  }
+  final double maxRadius = math.max(
+    math.max(startRadius.abs(), endRadius.abs()),
+    0.01,
+  );
+  final double spacing = _strokeStampSpacing(maxRadius);
+  final int samples = math.max(1, (distance / spacing).ceil());
+  final int startIndex = includeStart ? 0 : 1;
+  for (int i = startIndex; i <= samples; i++) {
+    final double t = samples == 0 ? 1.0 : (i / samples);
+    final double lerpRadius =
+        ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
+    final double sampleX = ui.lerpDouble(start.dx, end.dx, t) ?? end.dx;
+    final double sampleY = ui.lerpDouble(start.dy, end.dy, t) ?? end.dy;
+    _strokeDrawPoint(controller, Offset(sampleX, sampleY), lerpRadius);
+  }
+}
+
+double _strokeStampSpacing(double radius) {
+  if (!radius.isFinite) {
+    return 0.5;
+  }
+  return math.max(0.5, radius * 0.55);
 }
 
 Rect _strokeDirtyRectForVariableLine(

@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+import '../canvas/brush_shape_geometry.dart';
+import '../canvas/canvas_tools.dart';
+
 const double _kSubpixelRadiusLimit = 0.6;
 const double _kHalfPixel = 0.5;
 const double _kSupersampleDiameterThreshold = 10.0;
@@ -86,10 +89,7 @@ class BitmapSurface {
         }
         final int argb = color.toARGB32();
         final int baseAlpha = (argb >> 24) & 0xff;
-        final int adjustedAlpha = (baseAlpha * coverage).round().clamp(
-          0,
-          255,
-        );
+        final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
         if (adjustedAlpha == 0) {
           continue;
         }
@@ -179,9 +179,158 @@ class BitmapSurface {
     }
   }
 
+  void drawBrushStamp({
+    required Offset center,
+    required double radius,
+    required Color color,
+    required BrushShape shape,
+    Uint8List? mask,
+    int antialiasLevel = 0,
+  }) {
+    final int level = antialiasLevel.clamp(0, 3);
+    if (shape == BrushShape.circle) {
+      drawCircle(
+        center: center,
+        radius: radius,
+        color: color,
+        mask: mask,
+        antialiasLevel: level,
+      );
+      return;
+    }
+    final double effectiveRadius = math.max(radius.abs(), 0.01);
+    final List<Offset> vertices = BrushShapeGeometry.polygonFor(
+      shape,
+      center,
+      effectiveRadius,
+    );
+    if (vertices.length < 3) {
+      drawCircle(
+        center: center,
+        radius: effectiveRadius,
+        color: color,
+        mask: mask,
+        antialiasLevel: level,
+      );
+      return;
+    }
+    final Rect bounds = BrushShapeGeometry.boundsFor(
+      shape,
+      center,
+      effectiveRadius,
+    ).inflate(_featherForLevel(level) + 1.5);
+    _drawPolygonStamp(
+      vertices: vertices,
+      bounds: bounds,
+      radius: effectiveRadius,
+      color: color,
+      mask: mask,
+      antialiasLevel: level,
+    );
+  }
+
   double _featherForLevel(int level) {
     const List<double> feather = <double>[0.0, 0.7, 1.1, 1.6];
     return feather[level.clamp(0, feather.length - 1)];
+  }
+
+  void _drawPolygonStamp({
+    required List<Offset> vertices,
+    required Rect bounds,
+    required double radius,
+    required Color color,
+    Uint8List? mask,
+    required int antialiasLevel,
+  }) {
+    if (vertices.length < 3) {
+      return;
+    }
+    final int minX = math.max(0, bounds.left.floor());
+    final int maxX = math.min(width - 1, bounds.right.ceil());
+    final int minY = math.max(0, bounds.top.floor());
+    final int maxY = math.min(height - 1, bounds.bottom.ceil());
+    if (minX > maxX || minY > maxY) {
+      return;
+    }
+    final int supersample = _polygonSupersampleFactor(radius, antialiasLevel);
+    final double step = supersample <= 0 ? 1.0 : 1.0 / supersample;
+    final double start = -0.5 + step * 0.5;
+    final double invSampleCount = supersample <= 0
+        ? 1.0
+        : 1.0 / (supersample * supersample);
+    final int baseAlpha = color.alpha;
+    for (int y = minY; y <= maxY; y++) {
+      final double py = y + 0.5;
+      final int rowIndex = y * width;
+      for (int x = minX; x <= maxX; x++) {
+        if (mask != null && mask[rowIndex + x] == 0) {
+          continue;
+        }
+        if (supersample <= 1) {
+          if (!_isPointInsidePolygon(x + 0.5, py, vertices)) {
+            continue;
+          }
+          blendPixel(x, y, color);
+          continue;
+        }
+        double coverage = 0.0;
+        for (int sy = 0; sy < supersample; sy++) {
+          final double offsetY = start + sy * step;
+          final double samplePy = py + offsetY;
+          for (int sx = 0; sx < supersample; sx++) {
+            final double offsetX = start + sx * step;
+            final double samplePx = x + 0.5 + offsetX;
+            if (_isPointInsidePolygon(samplePx, samplePy, vertices)) {
+              coverage += 1.0;
+            }
+          }
+        }
+        coverage *= invSampleCount;
+        if (coverage <= 0.0) {
+          continue;
+        }
+        if (coverage >= 0.999) {
+          blendPixel(x, y, color);
+          continue;
+        }
+        final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
+        if (adjustedAlpha == 0) {
+          continue;
+        }
+        blendPixel(x, y, color.withAlpha(adjustedAlpha));
+      }
+    }
+  }
+
+  int _polygonSupersampleFactor(double radius, int antialiasLevel) {
+    final int base = _supersampleFactor(radius).clamp(1, 6);
+    return math.max(base, antialiasLevel + 1);
+  }
+
+  bool _isPointInsidePolygon(double px, double py, List<Offset> vertices) {
+    if (vertices.length < 3) {
+      return false;
+    }
+    double? sign;
+    for (int i = 0; i < vertices.length; i++) {
+      final Offset a = vertices[i];
+      final Offset b = vertices[(i + 1) % vertices.length];
+      final double edgeX = b.dx - a.dx;
+      final double edgeY = b.dy - a.dy;
+      final double cross = edgeX * (py - a.dy) - edgeY * (px - a.dx);
+      if (cross == 0) {
+        continue;
+      }
+      final double currentSign = cross > 0 ? 1.0 : -1.0;
+      if (sign == null) {
+        sign = currentSign;
+        continue;
+      }
+      if (currentSign != sign) {
+        return false;
+      }
+    }
+    return true;
   }
 
   void _drawCapsuleSegment({
@@ -279,8 +428,10 @@ class BitmapSurface {
         if (coverage >= 0.999) {
           blendPixel(x, y, color);
         } else {
-          final int adjustedAlpha =
-              (baseAlpha * coverage).round().clamp(0, 255);
+          final int adjustedAlpha = (baseAlpha * coverage).round().clamp(
+            0,
+            255,
+          );
           if (adjustedAlpha == 0) {
             continue;
           }
@@ -514,8 +665,9 @@ class BitmapSurface {
         final double offsetX = start + sx * step;
         final double sampleDx = dx + offsetX;
         final double sampleDy = dy + offsetY;
-        final double distance =
-            math.sqrt(sampleDx * sampleDx + sampleDy * sampleDy);
+        final double distance = math.sqrt(
+          sampleDx * sampleDx + sampleDy * sampleDy,
+        );
         accumulated += _radialCoverage(
           distance,
           radius,
@@ -621,7 +773,9 @@ class BitmapSurface {
     final double dxp = px - closestX;
     final double dyp = py - closestY;
     final double distance = math.sqrt(dxp * dxp + dyp * dyp);
-    double radius = variableRadius ? startRadius + radiusDelta * t : startRadius;
+    double radius = variableRadius
+        ? startRadius + radiusDelta * t
+        : startRadius;
     radius = radius.abs();
     if (radius == 0.0 && feather == 0.0) {
       return _CapsuleCoverageSample.zero;
@@ -704,8 +858,7 @@ class _CapsuleCoverageSample {
   final double coverage;
   final double radius;
 
-  static const _CapsuleCoverageSample zero =
-      _CapsuleCoverageSample(0.0, 0.0);
+  static const _CapsuleCoverageSample zero = _CapsuleCoverageSample(0.0, 0.0);
 }
 
 /// High-level helper that orchestrates bitmap painting actions.

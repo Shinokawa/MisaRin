@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../canvas/blend_mode_math.dart';
 import '../canvas/canvas_layer.dart';
+import '../canvas/canvas_tools.dart';
 import 'bitmap_canvas.dart';
 import 'stroke_dynamics.dart';
 import 'stroke_pressure_simulator.dart';
@@ -72,6 +73,7 @@ class BitmapCanvasController extends ChangeNotifier {
   double? _currentStylusLastPressure;
   int _currentStrokeAntialiasLevel = 0;
   bool _currentStrokeHasMoved = false;
+  BrushShape _currentBrushShape = BrushShape.circle;
   final StrokePressureSimulator _strokePressureSimulator =
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
@@ -298,6 +300,7 @@ class BitmapCanvasController extends ChangeNotifier {
     StrokePressureProfile profile = StrokePressureProfile.auto,
     double? timestampMillis,
     int antialiasLevel = 0,
+    BrushShape brushShape = BrushShape.circle,
   }) => _strokeBegin(
     this,
     position,
@@ -312,6 +315,7 @@ class BitmapCanvasController extends ChangeNotifier {
     profile: profile,
     timestampMillis: timestampMillis,
     antialiasLevel: antialiasLevel,
+    brushShape: brushShape,
   );
 
   void extendStroke(

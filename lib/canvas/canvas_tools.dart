@@ -13,3 +13,5 @@ enum CanvasTool {
 enum SelectionShape { rectangle, ellipse, polygon }
 
 enum ShapeToolVariant { rectangle, ellipse, triangle, line }
+
+enum BrushShape { circle, triangle, square }

@@ -395,6 +395,8 @@ mixin _PaintingBoardBuildMixin
                                 penStrokeWidth: _penStrokeWidth,
                                 penStrokeSliderRange: _penStrokeSliderRange,
                                 onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                                brushShape: _brushShape,
+                                onBrushShapeChanged: _updateBrushShape,
                                 strokeStabilizerStrength:
                                     _strokeStabilizerStrength,
                                 onStrokeStabilizerChanged:
@@ -497,6 +499,7 @@ mixin _PaintingBoardBuildMixin
                             PenCursorOverlay(
                               position: _penCursorWorkspacePosition!,
                               diameter: _penStrokeWidth * _viewport.scale,
+                              shape: _brushShape,
                             ),
                           if (_toolCursorPosition != null)
                             Positioned(
