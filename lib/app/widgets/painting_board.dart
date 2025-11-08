@@ -34,9 +34,11 @@ import 'package:flutter/widgets.dart'
     show
         EditableText,
         FocusNode,
+        SingleChildRenderObjectWidget,
+        StrutStyle,
         TextEditingController,
-        WidgetsBinding,
-        SingleChildRenderObjectWidget;
+        TextHeightBehavior,
+        WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 
@@ -143,8 +145,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = 0;
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
-  double _stylusMinFactor = AppPreferences.defaultStylusMinFactor;
-  double _stylusMaxFactor = AppPreferences.defaultStylusMaxFactor;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
@@ -214,8 +214,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _applyStylusSettingsToController() {
     _controller.configureStylusPressure(
       enabled: _stylusPressureEnabled,
-      minFactor: _stylusMinFactor,
-      maxFactor: _stylusMaxFactor,
       curve: _stylusCurve,
     );
   }
@@ -397,15 +395,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     const double epsilon = 0.0001;
     final bool needsUpdate =
         _stylusPressureEnabled != prefs.stylusPressureEnabled ||
-        (_stylusMinFactor - prefs.stylusPressureMinFactor).abs() > epsilon ||
-        (_stylusMaxFactor - prefs.stylusPressureMaxFactor).abs() > epsilon ||
         (_stylusCurve - prefs.stylusPressureCurve).abs() > epsilon;
     if (!needsUpdate) {
       return;
     }
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
-    _stylusMinFactor = prefs.stylusPressureMinFactor;
-    _stylusMaxFactor = prefs.stylusPressureMaxFactor;
     _stylusCurve = prefs.stylusPressureCurve;
     if (mounted) {
       _applyStylusSettingsToController();
@@ -906,8 +900,6 @@ class PaintingBoardState extends _PaintingBoardBase
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
-    _stylusMinFactor = prefs.stylusPressureMinFactor;
-    _stylusMaxFactor = prefs.stylusPressureMaxFactor;
     _stylusCurve = prefs.stylusPressureCurve;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _rememberColor(widget.settings.backgroundColor);

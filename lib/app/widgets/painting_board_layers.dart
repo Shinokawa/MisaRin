@@ -66,6 +66,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
   }
 
   void _beginLayerRename(BitmapLayerState layer) {
+    if (layer.locked) {
+      return;
+    }
     if (_renamingLayerId != null && _renamingLayerId != layer.id) {
       _finalizeLayerRename(cancel: true);
     }
@@ -198,6 +201,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     if (layer.locked == locked) {
       return;
     }
+    if (locked && _renamingLayerId == layer.id) {
+      _finalizeLayerRename(cancel: true);
+    }
     _pushUndoSnapshot();
     _controller.setLayerLocked(layer.id, locked);
     setState(() {});
@@ -268,30 +274,43 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     final TextStyle style =
         (isActive ? theme.typography.bodyStrong : theme.typography.body) ??
             const TextStyle(fontSize: 14);
+    final double fontSize = style.fontSize ?? 14;
+    final double lineHeight = (style.height ?? 1.0) * fontSize;
     final Color cursorColor = theme.accentColor.defaultBrushFor(
       theme.brightness,
     );
     final Color selectionColor = cursorColor.withOpacity(0.35);
     return SizedBox(
-      height: style.fontSize != null ? style.fontSize! * 1.4 : 24,
-      child: EditableText(
-        key: ValueKey<String>('layer-rename-$layerId'),
-        controller: _layerRenameController,
-        focusNode: _layerRenameFocusNode,
-        style: style,
-        cursorColor: cursorColor,
-        backgroundCursorColor: Colors.transparent,
-        selectionColor: selectionColor,
-        maxLines: 1,
-        autofocus: true,
-        cursorWidth: 1.5,
-        cursorRadius: const Radius.circular(1.5),
-        onSubmitted: (_) => _finalizeLayerRename(),
-        onEditingComplete: _finalizeLayerRename,
-        onTapOutside: (_) => _finalizeLayerRename(),
-        inputFormatters: const [],
-        textInputAction: TextInputAction.done,
-        keyboardType: TextInputType.text,
+      height: lineHeight,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: EditableText(
+          key: ValueKey<String>('layer-rename-$layerId'),
+          controller: _layerRenameController,
+          focusNode: _layerRenameFocusNode,
+          style: style,
+          cursorColor: cursorColor,
+          backgroundCursorColor: Colors.transparent,
+          selectionColor: selectionColor,
+          maxLines: 1,
+          autofocus: true,
+          cursorWidth: 1.3,
+          cursorRadius: const Radius.circular(1.5),
+          onSubmitted: (_) => _finalizeLayerRename(),
+          onEditingComplete: _finalizeLayerRename,
+          onTapOutside: (_) => _finalizeLayerRename(),
+          textInputAction: TextInputAction.done,
+          keyboardType: TextInputType.text,
+          strutStyle: StrutStyle(
+            forceStrutHeight: true,
+            height: 1.0,
+            fontSize: fontSize,
+          ),
+          textHeightBehavior: const TextHeightBehavior(
+            applyHeightToFirstAscent: false,
+            applyHeightToLastDescent: false,
+          ),
+        ),
       ),
     );
   }
@@ -346,7 +365,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
       Widget buildLabeledCheckbox({
         required String label,
         required bool value,
-        required ValueChanged<bool> onChanged,
+        ValueChanged<bool>? onChanged,
       }) {
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -356,7 +375,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
             Checkbox(
               checked: value,
               content: const SizedBox.shrink(),
-              onChanged: (checked) => onChanged(checked ?? value),
+              onChanged: onChanged == null
+                  ? null
+                  : (checked) => onChanged(checked ?? value),
             ),
           ],
         );
@@ -375,7 +396,8 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
           buildLabeledCheckbox(
             label: '剪贴蒙版',
             value: activeLayer.clippingMask,
-            onChanged: _updateActiveLayerClipping,
+            onChanged:
+                activeLayer.locked ? null : _updateActiveLayerClipping,
           ),
         ],
       );
@@ -398,11 +420,13 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                         ),
                   )
                   .toList(growable: false),
-              onChanged: (CanvasLayerBlendMode? mode) {
-                if (mode != null) {
-                  _updateActiveLayerBlendMode(mode);
-                }
-              },
+              onChanged: activeLayer.locked
+                  ? null
+                  : (CanvasLayerBlendMode? mode) {
+                      if (mode != null) {
+                        _updateActiveLayerBlendMode(mode);
+                      }
+                    },
             ),
           ),
         ],
@@ -491,6 +515,8 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                     0.6,
                   )!;
 
+                  final bool layerLocked = layer.locked;
+
                   final Widget visibilityButton = LayerVisibilityButton(
                     visible: layer.visible,
                     onChanged: (value) =>
@@ -498,10 +524,10 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                   );
 
                   final Widget lockButton = Tooltip(
-                    message: layer.locked ? '解锁图层' : '锁定图层',
+                    message: layerLocked ? '解锁图层' : '锁定图层',
                     child: IconButton(
                       icon: Icon(
-                        layer.locked
+                        layerLocked
                             ? FluentIcons.lock
                             : FluentIcons.unlock,
                       ),
@@ -509,15 +535,13 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                     ),
                   );
 
-                  final bool canDelete = _layers.length > 1;
+                  final bool canDelete = _layers.length > 1 && !layerLocked;
                   final Widget deleteButton = IconButton(
                     icon: const Icon(FluentIcons.delete),
                     onPressed: canDelete
                         ? () => _handleRemoveLayer(layer.id)
                         : null,
                   );
-                  final bool isRenaming = _renamingLayerId == layer.id;
-
                   return material.ReorderableDragStartListener(
                     key: ValueKey(layer.id),
                     index: index,
@@ -530,6 +554,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                         behavior: HitTestBehavior.opaque,
                         onTap: () => _handleLayerSelected(layer.id),
                         onDoubleTap: () {
+                          if (layerLocked) {
+                            return;
+                          }
                           _handleLayerSelected(layer.id);
                           _beginLayerRename(layer);
                         },
@@ -557,37 +584,27 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                       child: Row(
                                         children: [
                                           Expanded(
-                                            child: isRenaming
-                                                ? _buildInlineLayerRenameField(
-                                                    theme,
-                                                    isActive: isActive,
-                                                    layerId: layer.id,
-                                                  )
-                                                : Text(
-                                                    layer.name,
-                                                    style: isActive
-                                                        ? theme
-                                                            .typography.bodyStrong
-                                                        : theme
-                                                            .typography.body,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                          ),
-                                          if (layer.locked) ...[
-                                            const SizedBox(width: 6),
-                                            Icon(
-                                              FluentIcons.lock,
-                                              size: 12,
-                                              color: theme
-                                                  .resources
-                                                  .textFillColorSecondary,
+                                            child: _LayerNameView(
+                                              layer: layer,
+                                              theme: theme,
+                                              isActive: isActive,
+                                              isRenaming:
+                                                  !layerLocked &&
+                                                      _renamingLayerId ==
+                                                          layer.id,
+                                              isLocked: layerLocked,
+                                              buildEditor: () =>
+                                                  _buildInlineLayerRenameField(
+                                                theme,
+                                                isActive: isActive,
+                                                layerId: layer.id,
+                                              ),
                                             ),
-                                          ],
+                                          ),
                                         ],
                                       ),
+                                    ),
                                   ),
-                                ),
                                 lockButton,
                                 const SizedBox(width: 4),
                                 deleteButton,
@@ -765,6 +782,51 @@ class _ClippingMaskIndicator extends StatelessWidget {
         color: color,
         borderRadius: BorderRadius.circular(6),
       ),
+    );
+  }
+}
+
+class _LayerNameView extends StatelessWidget {
+  const _LayerNameView({
+    required this.layer,
+    required this.theme,
+    required this.isActive,
+    required this.isRenaming,
+    required this.isLocked,
+    required this.buildEditor,
+  });
+
+  final BitmapLayerState layer;
+  final FluentThemeData theme;
+  final bool isActive;
+  final bool isRenaming;
+  final bool isLocked;
+  final Widget Function() buildEditor;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle? style =
+        isActive ? theme.typography.bodyStrong : theme.typography.body;
+    final Widget text = Text(
+      layer.name,
+      style: style,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+      softWrap: false,
+    );
+    if (!isRenaming || isLocked) {
+      return text;
+    }
+    return Stack(
+      children: [
+        Opacity(opacity: 0.0, child: text),
+        Positioned.fill(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: buildEditor(),
+          ),
+        ),
+      ],
     );
   }
 }

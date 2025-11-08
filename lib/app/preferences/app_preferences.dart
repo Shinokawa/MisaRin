@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -19,14 +18,12 @@ class AppPreferences {
     required this.penPressureProfile,
     required this.penAntialiasLevel,
     required this.stylusPressureEnabled,
-    required this.stylusPressureMinFactor,
-    required this.stylusPressureMaxFactor,
     required this.stylusPressureCurve,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 7;
+  static const int _version = 8;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -37,26 +34,14 @@ class AppPreferences {
       StrokePressureProfile.auto;
   static const int _defaultPenAntialiasLevel = 0;
   static const bool _defaultStylusPressureEnabled = true;
-  static const double _defaultStylusMinFactor = 0.18;
-  static const double _defaultStylusMaxFactor = 1.28;
   static const double _defaultStylusCurve = 0.85;
 
-  static const double _stylusMinFactorLowerBound = 0.02;
-  static const double _stylusMinFactorUpperBound = 0.6;
-  static const double _stylusMaxFactorLowerBound = 0.5;
-  static const double _stylusMaxFactorUpperBound = 2.6;
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
 
   static const bool defaultStylusPressureEnabled =
       _defaultStylusPressureEnabled;
-  static const double defaultStylusMinFactor = _defaultStylusMinFactor;
-  static const double defaultStylusMaxFactor = _defaultStylusMaxFactor;
   static const double defaultStylusCurve = _defaultStylusCurve;
-  static const double stylusMinFactorLowerBound = _stylusMinFactorLowerBound;
-  static const double stylusMinFactorUpperBound = _stylusMinFactorUpperBound;
-  static const double stylusMaxFactorLowerBound = _stylusMaxFactorLowerBound;
-  static const double stylusMaxFactorUpperBound = _stylusMaxFactorUpperBound;
   static const double stylusCurveLowerBound = _stylusCurveLowerBound;
   static const double stylusCurveUpperBound = _stylusCurveUpperBound;
 
@@ -71,8 +56,6 @@ class AppPreferences {
   StrokePressureProfile penPressureProfile;
   int penAntialiasLevel;
   bool stylusPressureEnabled;
-  double stylusPressureMinFactor;
-  double stylusPressureMaxFactor;
   double stylusPressureCurve;
 
   static AppPreferences get instance {
@@ -93,6 +76,26 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
+          if (version >= 8 && bytes.length >= 12) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
+              stylusPressureEnabled: bytes[10] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[11],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+            );
+            return _instance!;
+          }
           if (version >= 7 && bytes.length >= 14) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             _instance = AppPreferences._(
@@ -105,16 +108,6 @@ class AppPreferences {
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
               stylusPressureEnabled: bytes[10] != 0,
-              stylusPressureMinFactor: _decodeStylusFactor(
-                bytes[11],
-                lower: _stylusMinFactorLowerBound,
-                upper: _stylusMinFactorUpperBound,
-              ),
-              stylusPressureMaxFactor: _decodeStylusFactor(
-                bytes[12],
-                lower: _stylusMaxFactorLowerBound,
-                upper: _stylusMaxFactorUpperBound,
-              ),
               stylusPressureCurve: _decodeStylusFactor(
                 bytes[13],
                 lower: _stylusCurveLowerBound,
@@ -135,8 +128,6 @@ class AppPreferences {
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
               stylusPressureEnabled: _defaultStylusPressureEnabled,
-              stylusPressureMinFactor: _defaultStylusMinFactor,
-              stylusPressureMaxFactor: _defaultStylusMaxFactor,
               stylusPressureCurve: _defaultStylusCurve,
             );
             return _instance!;
@@ -153,8 +144,6 @@ class AppPreferences {
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: bytes[9] != 0 ? 2 : 0,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
-              stylusPressureMinFactor: _defaultStylusMinFactor,
-              stylusPressureMaxFactor: _defaultStylusMaxFactor,
               stylusPressureCurve: _defaultStylusCurve,
             );
             return _instance!;
@@ -171,8 +160,6 @@ class AppPreferences {
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: _defaultPenAntialiasLevel,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
-              stylusPressureMinFactor: _defaultStylusMinFactor,
-              stylusPressureMaxFactor: _defaultStylusMaxFactor,
               stylusPressureCurve: _defaultStylusCurve,
             );
             return _instance!;
@@ -189,8 +176,6 @@ class AppPreferences {
               penPressureProfile: _defaultPenPressureProfile,
               penAntialiasLevel: _defaultPenAntialiasLevel,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
-              stylusPressureMinFactor: _defaultStylusMinFactor,
-              stylusPressureMaxFactor: _defaultStylusMaxFactor,
               stylusPressureCurve: _defaultStylusCurve,
             );
             return _instance!;
@@ -207,8 +192,6 @@ class AppPreferences {
               penPressureProfile: _defaultPenPressureProfile,
               penAntialiasLevel: _defaultPenAntialiasLevel,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
-              stylusPressureMinFactor: _defaultStylusMinFactor,
-              stylusPressureMaxFactor: _defaultStylusMaxFactor,
               stylusPressureCurve: _defaultStylusCurve,
             );
             return _instance!;
@@ -224,8 +207,6 @@ class AppPreferences {
               penPressureProfile: _defaultPenPressureProfile,
               penAntialiasLevel: _defaultPenAntialiasLevel,
               stylusPressureEnabled: _defaultStylusPressureEnabled,
-              stylusPressureMinFactor: _defaultStylusMinFactor,
-              stylusPressureMaxFactor: _defaultStylusMaxFactor,
               stylusPressureCurve: _defaultStylusCurve,
             );
             return _instance!;
@@ -245,8 +226,6 @@ class AppPreferences {
       penPressureProfile: _defaultPenPressureProfile,
       penAntialiasLevel: _defaultPenAntialiasLevel,
       stylusPressureEnabled: _defaultStylusPressureEnabled,
-      stylusPressureMinFactor: _defaultStylusMinFactor,
-      stylusPressureMaxFactor: _defaultStylusMaxFactor,
       stylusPressureCurve: _defaultStylusCurve,
     );
     return _instance!;
@@ -260,37 +239,14 @@ class AppPreferences {
     prefs.historyLimit = history;
     final int strokeWidth = _encodePenStrokeWidth(prefs.penStrokeWidth);
     prefs.penStrokeWidth = strokeWidth.toDouble();
-    final double stylusMin = _clampStylusFactor(
-      prefs.stylusPressureMinFactor,
-      lower: _stylusMinFactorLowerBound,
-      upper: _stylusMinFactorUpperBound,
-    );
-    final double stylusMaxCandidate = _clampStylusFactor(
-      prefs.stylusPressureMaxFactor,
-      lower: _stylusMaxFactorLowerBound,
-      upper: _stylusMaxFactorUpperBound,
-    );
-    final double stylusMax = math.max(stylusMaxCandidate, stylusMin + 0.01);
     final double stylusCurve = _clampStylusFactor(
       prefs.stylusPressureCurve,
       lower: _stylusCurveLowerBound,
       upper: _stylusCurveUpperBound,
     );
 
-    prefs.stylusPressureMinFactor = stylusMin;
-    prefs.stylusPressureMaxFactor = stylusMax;
     prefs.stylusPressureCurve = stylusCurve;
 
-    final int stylusMinEncoded = _encodeStylusFactor(
-      stylusMin,
-      lower: _stylusMinFactorLowerBound,
-      upper: _stylusMinFactorUpperBound,
-    );
-    final int stylusMaxEncoded = _encodeStylusFactor(
-      stylusMax,
-      lower: _stylusMaxFactorLowerBound,
-      upper: _stylusMaxFactorUpperBound,
-    );
     final int stylusCurveEncoded = _encodeStylusFactor(
       stylusCurve,
       lower: _stylusCurveLowerBound,
@@ -309,8 +265,6 @@ class AppPreferences {
       _encodePressureProfile(prefs.penPressureProfile),
       _encodeAntialiasLevel(prefs.penAntialiasLevel),
       prefs.stylusPressureEnabled ? 1 : 0,
-      stylusMinEncoded,
-      stylusMaxEncoded,
       stylusCurveEncoded,
     ]);
     await file.writeAsBytes(payload, flush: true);

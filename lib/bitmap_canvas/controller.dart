@@ -68,20 +68,16 @@ class BitmapCanvasController extends ChangeNotifier {
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
   bool _currentStrokeStylusPressureEnabled = false;
-  double _currentStylusMinFactor = 0.1;
-  double _currentStylusMaxFactor = 1.0;
   double _currentStylusCurve = 1.0;
-  double? _currentStylusSmoothedPressure;
-  static const double _kStylusSmoothing = 0.55;
+  double? _currentStylusLastPressure;
   int _currentStrokeAntialiasLevel = 0;
   bool _currentStrokeHasMoved = false;
   final StrokePressureSimulator _strokePressureSimulator =
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
   bool _stylusPressureEnabled = true;
-  double _stylusMinFactor = 0.18;
-  double _stylusMaxFactor = 1.28;
   double _stylusCurve = 0.85;
+  static const double _kStylusSmoothing = 0.55;
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -153,15 +149,11 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void configureStylusPressure({
     required bool enabled,
-    required double minFactor,
-    required double maxFactor,
     required double curve,
   }) =>
       _strokeConfigureStylusPressure(
         this,
         enabled: enabled,
-        minFactor: minFactor,
-        maxFactor: maxFactor,
         curve: curve,
       );
 
@@ -419,9 +411,6 @@ class BitmapCanvasController extends ChangeNotifier {
         pressureMin,
         pressureMax,
       );
-
-  double _stylusRadiusFromNormalized(double normalized) =>
-      _strokeRadiusFromNormalized(this, normalized);
 
   bool _selectionAllows(Offset position) =>
       _fillSelectionAllows(this, position);

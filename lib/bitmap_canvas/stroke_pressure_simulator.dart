@@ -46,6 +46,7 @@ class StrokePressureSimulator {
 
   StrokePressureProfile _profile = StrokePressureProfile.auto;
   bool _simulatingStroke = false;
+  bool _usesDevicePressure = false;
 
   bool get isSimulatingStroke => _simulatingStroke;
 
@@ -55,13 +56,15 @@ class StrokePressureSimulator {
     required double timestampMillis,
     required double baseRadius,
     required bool simulatePressure,
+    bool useDevicePressure = false,
   }) {
     _strokeSamples.clear();
     _velocitySmoother.reset();
     _strokeSamples.add(position, timestampMillis);
     _velocitySmoother.addSample(position, timestampMillis);
 
-    _simulatingStroke = simulatePressure;
+    _usesDevicePressure = useDevicePressure;
+    _simulatingStroke = simulatePressure || useDevicePressure;
     if (!_simulatingStroke) {
       return null;
     }
@@ -76,6 +79,7 @@ class StrokePressureSimulator {
     required Offset position,
     double? timestampMillis,
     double? deltaTimeMillis,
+    double? normalizedPressure,
   }) {
     if (!_simulatingStroke) {
       return null;
@@ -86,13 +90,17 @@ class StrokePressureSimulator {
       deltaTimeMillis,
     );
     final StrokeSample sample = _strokeSamples.add(position, sampleTimestamp);
-    final double normalizedSpeed =
+    final double computedSpeed =
         _velocitySmoother.addSample(position, sampleTimestamp);
+    final double? intensityOverride =
+        _usesDevicePressure ? normalizedPressure?.clamp(0.0, 1.0) : null;
+    final double metricSignal =
+        intensityOverride ?? computedSpeed;
     final StrokeSampleMetrics? metrics =
         _profile == StrokePressureProfile.auto
             ? StrokeSampleMetrics(
                 sampleIndex: _strokeSamples.length - 1,
-                normalizedSpeed: normalizedSpeed,
+                normalizedSpeed: metricSignal,
                 stationaryDuration: sample.stationaryDuration,
                 totalDistance: _strokeSamples.totalDistance,
                 totalTime: _strokeSamples.totalTime,
@@ -102,6 +110,19 @@ class StrokePressureSimulator {
       distance: delta,
       deltaTimeMillis: deltaTimeMillis,
       metrics: metrics,
+      intensityOverride: intensityOverride,
+    );
+  }
+
+  /// 使用真实笔压时在未移动前先喂一帧压力信号，避免起点过细。
+  double? seedPressureSample(double normalizedPressure) {
+    if (!_simulatingStroke || !_usesDevicePressure) {
+      return null;
+    }
+    final double signal = normalizedPressure.clamp(0.0, 1.0);
+    return _strokeDynamics.sample(
+      distance: 0.0,
+      intensityOverride: signal,
     );
   }
 
@@ -144,15 +165,6 @@ class StrokePressureSimulator {
     );
   }
 
-  /// 控制器仍可在非模拟模式下更新采样，以维持时间戳推算。
-  StrokeSample recordSample(Offset position, double timestampMillis) {
-    return _strokeSamples.add(position, timestampMillis);
-  }
-
-  double recordVelocitySample(Offset position, double timestampMillis) {
-    return _velocitySmoother.addSample(position, timestampMillis);
-  }
-
   double resolveSampleTimestamp(
     double? timestampMillis,
     double? deltaTimeMillis,
@@ -171,6 +183,7 @@ class StrokePressureSimulator {
     _strokeSamples.clear();
     _velocitySmoother.reset();
     _simulatingStroke = false;
+    _usesDevicePressure = false;
   }
 
   void setProfile(StrokePressureProfile profile) {

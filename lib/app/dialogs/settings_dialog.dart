@@ -46,8 +46,6 @@ class _SettingsDialogContent extends StatefulWidget {
 class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late int _historyLimit;
   late bool _stylusPressureEnabled;
-  late double _stylusMinFactor;
-  late double _stylusMaxFactor;
   late double _stylusCurve;
 
   @override
@@ -55,8 +53,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     super.initState();
     _historyLimit = AppPreferences.instance.historyLimit;
     _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
-    _stylusMinFactor = AppPreferences.instance.stylusPressureMinFactor;
-    _stylusMaxFactor = AppPreferences.instance.stylusPressureMaxFactor;
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
   }
 
@@ -127,46 +123,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               ),
               const SizedBox(height: 12),
               _StylusSliderTile(
-                label: '最细倍数',
-                description: '控制笔压最轻时笔刷半径与基础半径的倍数。',
-                value: _stylusMinFactor,
-                min: AppPreferences.stylusMinFactorLowerBound,
-                max: AppPreferences.stylusMinFactorUpperBound,
-                enabled: _stylusPressureEnabled,
-                onChanged: (value) {
-                  setState(() {
-                    _stylusMinFactor = value;
-                    if (_stylusMaxFactor <= _stylusMinFactor) {
-                      _stylusMaxFactor = (_stylusMinFactor + 0.01)
-                          .clamp(
-                            AppPreferences.stylusMaxFactorLowerBound,
-                            AppPreferences.stylusMaxFactorUpperBound,
-                          );
-                    }
-                  });
-                  final AppPreferences prefs = AppPreferences.instance;
-                  prefs.stylusPressureMinFactor = _stylusMinFactor;
-                  prefs.stylusPressureMaxFactor = _stylusMaxFactor;
-                  unawaited(AppPreferences.save());
-                },
-              ),
-              const SizedBox(height: 12),
-              _StylusSliderTile(
-                label: '最粗倍数',
-                description: '控制笔压最重时笔刷半径与基础半径的倍数。',
-                value: _stylusMaxFactor,
-                min: AppPreferences.stylusMaxFactorLowerBound,
-                max: AppPreferences.stylusMaxFactorUpperBound,
-                enabled: _stylusPressureEnabled,
-                onChanged: (value) {
-                  setState(() => _stylusMaxFactor = value);
-                  final AppPreferences prefs = AppPreferences.instance;
-                  prefs.stylusPressureMaxFactor = _stylusMaxFactor;
-                  unawaited(AppPreferences.save());
-                },
-              ),
-              const SizedBox(height: 12),
-              _StylusSliderTile(
                 label: '响应曲线',
                 description: '调整压力与笔触粗细之间的过渡速度。',
                 value: _stylusCurve,
@@ -233,15 +189,11 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     setState(() {
       _historyLimit = defaultHistory;
       _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
-      _stylusMinFactor = AppPreferences.defaultStylusMinFactor;
-      _stylusMaxFactor = AppPreferences.defaultStylusMaxFactor;
       _stylusCurve = AppPreferences.defaultStylusCurve;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
     prefs.stylusPressureEnabled = _stylusPressureEnabled;
-    prefs.stylusPressureMinFactor = _stylusMinFactor;
-    prefs.stylusPressureMaxFactor = _stylusMaxFactor;
     prefs.stylusPressureCurve = _stylusCurve;
     unawaited(AppPreferences.save());
   }

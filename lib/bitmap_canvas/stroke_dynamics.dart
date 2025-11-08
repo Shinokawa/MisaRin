@@ -105,14 +105,18 @@ class StrokeDynamics {
   ///
   /// When [metrics] is provided and the profile is [StrokePressureProfile.auto],
   /// additional history-derived signals influence the simulated pressure.
+  /// When [intensityOverride] is supplied, it is treated as the normalized
+  /// stylus intensity, bypassing the speed-based estimator.
   double sample({
     required double distance,
     double? deltaTimeMillis,
     StrokeSampleMetrics? metrics,
+    double? intensityOverride,
   }) {
     final double clampedDelta = _clampDelta(deltaTimeMillis);
-    final double speed = _computeSpeed(distance, clampedDelta);
-    final double normalized = _normalizeSpeed(speed);
+    final double normalized = intensityOverride != null
+        ? intensityOverride.clamp(0.0, 1.0)
+        : _normalizeSpeed(_computeSpeed(distance, clampedDelta));
     final double previous = _smoothedIntensity ?? normalized;
     _smoothedIntensity = previous + (normalized - previous) * smoothingFactor;
 
