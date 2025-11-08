@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/scheduler.dart' show WidgetsBinding;
 import 'package:flutter/widgets.dart';
 
 class AppNotificationAnchor extends StatefulWidget {
@@ -15,7 +16,7 @@ class AppNotificationAnchor extends StatefulWidget {
 
 class _AppNotificationAnchorState extends State<AppNotificationAnchor> {
   final Object _token = Object();
-  bool _scheduled = false;
+  bool _updateScheduled = false;
 
   @override
   void initState() {
@@ -30,17 +31,17 @@ class _AppNotificationAnchorState extends State<AppNotificationAnchor> {
   }
 
   void _scheduleUpdate() {
-    if (_scheduled) {
+    if (_updateScheduled) {
       return;
     }
-    _scheduled = true;
+    _updateScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateScheduled = false;
       if (!mounted) {
         return;
       }
-      _scheduled = false;
       final RenderObject? renderObject = context.findRenderObject();
-      if (renderObject is! RenderBox || !renderObject.attached) {
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
         return;
       }
       final Offset offset = renderObject.localToGlobal(Offset.zero);
@@ -111,20 +112,19 @@ class _AppNotificationAnchorRegistry {
       _AppNotificationAnchorRegistry._();
 
   Object? _token;
+  Rect? _rect;
 
-  Rect? _anchorRect;
-
-  Rect? get rect => _anchorRect;
+  Rect? get rect => _rect;
 
   void register(Object token, Rect rect) {
     _token = token;
-    _anchorRect = rect;
+    _rect = rect;
   }
 
   void unregister(Object token) {
     if (_token == token) {
       _token = null;
-      _anchorRect = null;
+      _rect = null;
     }
   }
 }
@@ -161,16 +161,6 @@ class _AppNotificationOverlayState extends State<_AppNotificationOverlay>
     curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
   );
-  late final Animation<Offset> _slide = Tween<Offset>(
-    begin: const Offset(0, 0.2),
-    end: Offset.zero,
-  ).animate(
-    CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    ),
-  );
   Timer? _timer;
   bool _isClosing = false;
 
@@ -204,34 +194,16 @@ class _AppNotificationOverlayState extends State<_AppNotificationOverlay>
   Widget build(BuildContext context) {
     final Widget card = FadeTransition(
       opacity: _fade,
-      child: SlideTransition(
-        position: _slide,
-        child: _AppNotificationCard(
-          message: widget.message,
-          severity: widget.severity,
-          onClose: _dismiss,
-        ),
+      child: _AppNotificationCard(
+        message: widget.message,
+        severity: widget.severity,
+        onClose: _dismiss,
       ),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final Size overlaySize = Size(constraints.maxWidth, constraints.maxHeight);
-        final _NotificationPosition position =
-            _NotificationPosition.fromAnchor(widget.anchorRect, overlaySize);
-        return SizedBox.expand(
-          child: Stack(children: [
-            Positioned(
-              left: position.left,
-              bottom: position.bottom,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: card,
-              ),
-            ),
-          ]),
-        );
-      },
+    return CustomSingleChildLayout(
+      delegate: _NotificationLayoutDelegate(anchorRect: widget.anchorRect),
+      child: card,
     );
   }
 }
@@ -254,19 +226,11 @@ class _AppNotificationCard extends StatelessWidget {
         _AppNotificationVisual.resolve(theme, severity);
 
     return Container(
-      constraints: const BoxConstraints(maxWidth: 320),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: visual.background,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: visual.border, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: visual.shadowColor,
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: visual.border, width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -306,7 +270,6 @@ class _AppNotificationVisual {
     required this.border,
     required this.textColor,
     required this.iconColor,
-    required this.shadowColor,
     required this.icon,
   });
 
@@ -314,7 +277,6 @@ class _AppNotificationVisual {
   final Color border;
   final Color textColor;
   final Color iconColor;
-  final Color shadowColor;
   final IconData icon;
 
   static _AppNotificationVisual resolve(
@@ -332,15 +294,12 @@ class _AppNotificationVisual {
         : Colors.black.withOpacity(0.08);
     final Color textColor =
         theme.typography.body?.color ?? theme.resources.textFillColorPrimary;
-    final Color iconColor = _iconColorFor(theme, severity);
-    final Color shadowColor = theme.shadowColor.withOpacity(isDark ? 0.4 : 0.18);
-
+    final Color iconColor = textColor;
     return _AppNotificationVisual(
       background: background,
       border: border,
       textColor: textColor,
       iconColor: iconColor,
-      shadowColor: shadowColor,
       icon: _iconForSeverity(severity),
     );
   }
@@ -358,49 +317,67 @@ class _AppNotificationVisual {
         return FluentIcons.info;
     }
   }
-
-  static Color _iconColorFor(FluentThemeData theme, InfoBarSeverity severity) {
-    final resources = theme.resources;
-    switch (severity) {
-      case InfoBarSeverity.success:
-        return resources.systemFillColorSuccess;
-      case InfoBarSeverity.warning:
-        return resources.systemFillColorCaution;
-      case InfoBarSeverity.error:
-        return resources.systemFillColorCritical;
-      case InfoBarSeverity.info:
-      default:
-        return theme.accentColor.defaultBrushFor(theme.brightness);
-    }
-  }
 }
 
-class _NotificationPosition {
-  const _NotificationPosition({required this.left, required this.bottom});
+class _NotificationLayoutDelegate extends SingleChildLayoutDelegate {
+  const _NotificationLayoutDelegate({required this.anchorRect});
 
-  final double left;
-  final double bottom;
+  final Rect? anchorRect;
 
   static const double _margin = 16;
-  static const double _anchorSpacing = 12;
-  static const double _verticalOffset = 8;
-  static const double _maxWidth = 320;
+  static const double _spacing = 12;
+  static const double _fallbackMaxWidth = 360;
 
-  static _NotificationPosition fromAnchor(Rect? anchor, Size overlaySize) {
-    double left = _margin;
-    double bottom = _margin;
-    if (anchor != null) {
-      left = anchor.right + _anchorSpacing;
-      bottom = overlaySize.height - anchor.bottom + _verticalOffset;
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    final Size biggest = constraints.biggest;
+    final double overlayWidth = biggest.width;
+
+    if (!overlayWidth.isFinite) {
+      return const BoxConstraints(maxWidth: _fallbackMaxWidth);
     }
-    final double maxLeftBound = overlaySize.width.isFinite
-        ? math.max(_margin, overlaySize.width - _maxWidth - _margin)
+
+    final double left = anchorRect != null
+        ? anchorRect!.right + _spacing
         : _margin;
-    left = left.clamp(_margin, maxLeftBound);
-    final double maxBottomBound = overlaySize.height.isFinite
-        ? math.max(_margin, overlaySize.height - _margin)
-        : _margin;
-    bottom = bottom.clamp(_margin, maxBottomBound);
-    return _NotificationPosition(left: left, bottom: bottom);
+    final double availableWidth = math.max(0, overlayWidth - left - _margin);
+
+    double maxWidth = availableWidth;
+    if (maxWidth == 0) {
+      maxWidth = math.max(0, overlayWidth - (_margin * 2));
+    }
+    if (maxWidth == 0) {
+      maxWidth = _fallbackMaxWidth;
+    }
+
+    maxWidth = math.min(maxWidth, overlayWidth);
+
+    return BoxConstraints(maxWidth: maxWidth);
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    double left = _margin;
+    double top = size.height - childSize.height - _margin;
+    if (anchorRect != null) {
+      left = anchorRect!.right + _spacing;
+      top = anchorRect!.center.dy - childSize.height / 2;
+    }
+    final double maxLeft = size.width - childSize.width - _margin;
+    final double maxTop = size.height - childSize.height - _margin;
+    final double safeLeftUpper = maxLeft.isFinite
+        ? math.max(_margin, maxLeft)
+        : double.infinity;
+    final double safeTopUpper = maxTop.isFinite
+        ? math.max(_margin, maxTop)
+        : double.infinity;
+    left = left.clamp(_margin, safeLeftUpper);
+    top = top.clamp(_margin, safeTopUpper);
+    return Offset(left, top);
+  }
+
+  @override
+  bool shouldRelayout(covariant _NotificationLayoutDelegate oldDelegate) {
+    return oldDelegate.anchorRect != anchorRect;
   }
 }

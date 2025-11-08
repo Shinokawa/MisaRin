@@ -403,11 +403,10 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   Widget _buildColorIndicator(FluentThemeData theme) {
-    final Color borderColor = theme.resources.controlStrokeColorDefault;
-    final Color strokeColor = borderColor.withValues(
-      alpha: borderColor.a * 0.6,
-    );
     final bool isDark = theme.brightness.isDark;
+    final Color borderColor = isDark
+        ? const Color(0xFF373737)
+        : const Color(0xFFD6D6D6);
     final Color background = isDark ? const Color(0xFF1B1B1F) : Colors.white;
     return AppNotificationAnchor(
       child: Tooltip(
@@ -417,19 +416,22 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           child: GestureDetector(
             onTap: _handleEditPrimaryColor,
             child: Container(
-              width: _colorIndicatorSize,
-              height: _colorIndicatorSize,
+              width: CanvasToolbar.buttonSize,
+              height: CanvasToolbar.buttonSize,
               decoration: BoxDecoration(
                 color: background,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: strokeColor, width: 1.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: borderColor, width: 1.5),
               ),
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.all(6),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(4),
                 child: SizedBox.expand(
                   child: DecoratedBox(
-                    decoration: BoxDecoration(color: _primaryColor),
+                    decoration: BoxDecoration(
+                      color: _primaryColor,
+                      border: Border.all(color: Colors.black.withOpacity(0.1)),
+                    ),
                   ),
                 ),
               ),
