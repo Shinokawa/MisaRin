@@ -333,6 +333,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
         const TextStyle(fontSize: 12);
 
     Widget opacityRow() {
+      final bool locked = activeLayer.locked;
       return Row(
         children: [
           SizedBox(width: 52, child: Text('不透明度', style: labelStyle)),
@@ -343,9 +344,10 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
               min: 0,
               max: 1,
               divisions: 100,
-              onChangeStart: _handleLayerOpacityChangeStart,
-              onChanged: _handleLayerOpacityChanged,
-              onChangeEnd: _handleLayerOpacityChangeEnd,
+              onChangeStart:
+                  locked ? null : _handleLayerOpacityChangeStart,
+              onChanged: locked ? null : _handleLayerOpacityChanged,
+              onChangeEnd: locked ? null : _handleLayerOpacityChangeEnd,
             ),
           ),
           const SizedBox(width: 8),

@@ -93,9 +93,8 @@ class StrokePressureSimulator {
     final double computedSpeed =
         _velocitySmoother.addSample(position, sampleTimestamp);
     final double? intensityOverride =
-        _usesDevicePressure ? normalizedPressure?.clamp(0.0, 1.0) : null;
-    final double metricSignal =
-        intensityOverride ?? computedSpeed;
+        _usesDevicePressure ? _stylusPressureToIntensity(normalizedPressure) : null;
+    final double metricSignal = intensityOverride ?? computedSpeed;
     final StrokeSampleMetrics? metrics =
         _profile == StrokePressureProfile.auto
             ? StrokeSampleMetrics(
@@ -119,7 +118,7 @@ class StrokePressureSimulator {
     if (!_simulatingStroke || !_usesDevicePressure) {
       return null;
     }
-    final double signal = normalizedPressure.clamp(0.0, 1.0);
+    final double signal = _stylusPressureToIntensity(normalizedPressure) ?? 0.0;
     return _strokeDynamics.sample(
       distance: 0.0,
       intensityOverride: signal,
@@ -192,5 +191,12 @@ class StrokePressureSimulator {
     }
     _profile = profile;
     _strokeDynamics.configure(profile: profile);
+  }
+
+  double? _stylusPressureToIntensity(double? pressure) {
+    if (pressure == null || !pressure.isFinite) {
+      return null;
+    }
+    return (1.0 - pressure.clamp(0.0, 1.0)).clamp(0.0, 1.0);
   }
 }
