@@ -122,6 +122,7 @@ void _strokeExtend(
     final double resolvedRadius = _strokeResolveSimulatedRadius(
       controller,
       nextRadius,
+      preferImmediate: controller._strokePressureSimulator.usesDevicePressure,
     );
     final double segmentLength = (position - last).distance;
     if (_strokeSegmentShouldSnapToPoint(segmentLength, resolvedRadius)) {
@@ -304,8 +305,9 @@ bool _strokeNeedsRestartCaps(double previousRadius, double nextRadius) {
 
 double _strokeResolveSimulatedRadius(
   BitmapCanvasController controller,
-  double candidate,
-) {
+  double candidate, {
+  bool preferImmediate = false,
+}) {
   final double base = math.max(controller._currentStrokeRadius, 0.05);
   final double minimum = math.max(base * 0.12, 0.06);
   final double maximum = math.max(base * 4.0, minimum + 0.01);
@@ -313,8 +315,11 @@ double _strokeResolveSimulatedRadius(
   sanitized = sanitized.clamp(minimum, maximum);
   final double previous = controller._currentStrokeLastRadius;
   if (previous.isFinite && previous > 0.0) {
+    final double smoothing = preferImmediate
+        ? 1.0
+        : BitmapCanvasController._kStylusSmoothing;
     final double smoothed = previous +
-        (sanitized - previous) * BitmapCanvasController._kStylusSmoothing;
+        (sanitized - previous) * smoothing;
     return smoothed.clamp(minimum, maximum);
   }
   return sanitized;

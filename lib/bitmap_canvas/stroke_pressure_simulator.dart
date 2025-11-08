@@ -49,6 +49,7 @@ class StrokePressureSimulator {
   bool _usesDevicePressure = false;
 
   bool get isSimulatingStroke => _simulatingStroke;
+  bool get usesDevicePressure => _usesDevicePressure;
 
   /// 准备一次新的笔压模拟，返回起笔的半径（若处于模拟模式）。
   double? beginStroke({

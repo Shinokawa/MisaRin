@@ -27,7 +27,8 @@ import 'package:flutter/services.dart'
         TextInputType,
         TextEditingValue,
         TextSelection;
-import 'package:flutter/rendering.dart' show RenderBox, RenderProxyBox;
+import 'package:flutter/rendering.dart'
+    show RenderBox, RenderProxyBox, TextPainter;
 import 'package:flutter/scheduler.dart'
     show SingleTickerProviderStateMixin, TickerProvider;
 import 'package:flutter/widgets.dart'

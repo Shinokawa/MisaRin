@@ -136,12 +136,16 @@ class StrokeDynamics {
         factor = _lerp(minRadiusFactor, maxRadiusFactor, easedSpeed);
         break;
       case StrokePressureProfile.auto:
-        final double normalizedSpeed = metrics?.normalizedSpeed ?? easedSpeed;
-        factor = _autoFactor(
-          smoothedSpeed: easedSpeed,
-          normalizedSpeed: normalizedSpeed,
-          metrics: metrics,
-        );
+        if (intensityOverride != null) {
+          factor = _lerp(maxRadiusFactor, minRadiusFactor, easedSpeed);
+        } else {
+          final double normalizedSpeed = metrics?.normalizedSpeed ?? easedSpeed;
+          factor = _autoFactor(
+            smoothedSpeed: easedSpeed,
+            normalizedSpeed: normalizedSpeed,
+            metrics: metrics,
+          );
+        }
         break;
     }
     final double radius = _baseRadius * factor;

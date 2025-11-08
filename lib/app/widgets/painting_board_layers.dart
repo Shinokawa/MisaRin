@@ -270,8 +270,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     FluentThemeData theme, {
     required bool isActive,
     required String layerId,
+    TextStyle? styleOverride,
   }) {
-    final TextStyle style =
+    final TextStyle style = styleOverride ??
         (isActive ? theme.typography.bodyStrong : theme.typography.body) ??
             const TextStyle(fontSize: 14);
     final double fontSize = style.fontSize ?? 14;
@@ -554,14 +555,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                       ),
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () => _handleLayerSelected(layer.id),
-                        onDoubleTap: () {
-                          if (layerLocked) {
-                            return;
-                          }
-                          _handleLayerSelected(layer.id);
-                          _beginLayerRename(layer);
-                        },
+                        onTapDown: (_) => _handleLayerSelected(layer.id),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(
@@ -595,12 +589,21 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                                       _renamingLayerId ==
                                                           layer.id,
                                               isLocked: layerLocked,
-                                              buildEditor: () =>
+                                              buildEditor: (style) =>
                                                   _buildInlineLayerRenameField(
                                                 theme,
                                                 isActive: isActive,
                                                 layerId: layer.id,
+                                                styleOverride: style,
                                               ),
+                                              onRequestRename: layerLocked
+                                                  ? null
+                                                  : () {
+                                                      _handleLayerSelected(
+                                                        layer.id,
+                                                      );
+                                                      _beginLayerRename(layer);
+                                                    },
                                             ),
                                           ),
                                         ],
@@ -796,6 +799,7 @@ class _LayerNameView extends StatelessWidget {
     required this.isRenaming,
     required this.isLocked,
     required this.buildEditor,
+    this.onRequestRename,
   });
 
   final BitmapLayerState layer;
@@ -803,7 +807,8 @@ class _LayerNameView extends StatelessWidget {
   final bool isActive;
   final bool isRenaming;
   final bool isLocked;
-  final Widget Function() buildEditor;
+  final Widget Function(TextStyle? effectiveStyle) buildEditor;
+  final VoidCallback? onRequestRename;
 
   @override
   Widget build(BuildContext context) {
@@ -816,19 +821,35 @@ class _LayerNameView extends StatelessWidget {
       maxLines: 1,
       softWrap: false,
     );
-    if (!isRenaming || isLocked) {
-      return text;
-    }
-    return Stack(
-      children: [
-        Opacity(opacity: 0.0, child: text),
-        Positioned.fill(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: buildEditor(),
-          ),
-        ),
-      ],
+    final Widget display = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onDoubleTap: onRequestRename,
+      child: text,
     );
+    if (!isRenaming || isLocked) {
+      return display;
+    }
+    final double width = _measureWidth(context, style, layer.name) + 6;
+    final double clampedWidth = width.clamp(32.0, 400.0).toDouble();
+    return SizedBox(
+      width: clampedWidth,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: buildEditor(style),
+      ),
+    );
+  }
+
+  double _measureWidth(
+    BuildContext context,
+    TextStyle? style,
+    String text,
+  ) {
+    final TextPainter painter = TextPainter(
+      text: TextSpan(text: text.isEmpty ? ' ' : text, style: style),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width;
   }
 }
