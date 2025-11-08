@@ -4,6 +4,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
   final TextEditingController _layerRenameController = TextEditingController();
   final FocusNode _layerRenameFocusNode = FocusNode();
   String? _renamingLayerId;
+  final FlyoutController _layerContextMenuController = FlyoutController();
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
@@ -74,7 +75,10 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     }
     _layerRenameController
       ..text = layer.name
-      ..selection = TextSelection(baseOffset: 0, extentOffset: layer.name.length);
+      ..selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: layer.name.length,
+      );
     setState(() {
       _renamingLayerId = layer.id;
     });
@@ -221,6 +225,132 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     _applyLayerLockedState(layer, !layer.locked);
   }
 
+  BitmapLayerState? _layerById(String id) {
+    for (final BitmapLayerState candidate in _layers) {
+      if (candidate.id == id) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  bool _canMergeLayerDown(BitmapLayerState layer) {
+    if (layer.locked) {
+      return false;
+    }
+    final int index = _layers.indexWhere(
+      (candidate) => candidate.id == layer.id,
+    );
+    if (index <= 0) {
+      return false;
+    }
+    final BitmapLayerState below = _layers[index - 1];
+    return !below.locked;
+  }
+
+  void _handleMergeLayerDown(BitmapLayerState layer) {
+    if (!_canMergeLayerDown(layer)) {
+      return;
+    }
+    _pushUndoSnapshot();
+    if (!_controller.mergeLayerDown(layer.id)) {
+      return;
+    }
+    setState(() {});
+    _markDirty();
+  }
+
+  void _handleLayerClippingToggle(BitmapLayerState layer) {
+    if (layer.locked) {
+      return;
+    }
+    final bool nextValue = !layer.clippingMask;
+    _pushUndoSnapshot();
+    _controller.setLayerClippingMask(layer.id, nextValue);
+    setState(() {});
+    _markDirty();
+  }
+
+  void _handleDuplicateLayer(BitmapLayerState layer) {
+    final CanvasLayerData? snapshot = _controller.buildClipboardLayer(layer.id);
+    if (snapshot == null) {
+      return;
+    }
+    final String newId = generateLayerId();
+    final String nextName = layer.name.isEmpty ? '复制图层' : '${layer.name} 副本';
+    final CanvasLayerData duplicate = snapshot.copyWith(
+      id: newId,
+      name: nextName,
+      visible: true,
+      locked: false,
+      clippingMask: layer.clippingMask,
+    );
+    _pushUndoSnapshot();
+    _controller.insertLayerFromData(duplicate, aboveLayerId: layer.id);
+    _controller.setActiveLayer(newId);
+    setState(() {});
+    _markDirty();
+  }
+
+  void _showLayerContextMenu(BitmapLayerState layer, Offset position) {
+    _handleLayerSelected(layer.id);
+    _layerContextMenuController.showFlyout(
+      position: position,
+      barrierDismissible: true,
+      builder: (context) {
+        final BitmapLayerState? target = _layerById(layer.id);
+        if (target == null) {
+          return const SizedBox.shrink();
+        }
+        return MenuFlyout(items: _buildLayerContextMenuItems(target));
+      },
+    );
+  }
+
+  List<MenuFlyoutItemBase> _buildLayerContextMenuItems(BitmapLayerState layer) {
+    final bool canDelete = _layers.length > 1 && !layer.locked;
+    final bool canMerge = _canMergeLayerDown(layer);
+    final bool isLocked = layer.locked;
+    final bool isVisible = layer.visible;
+    final bool isClipping = layer.clippingMask;
+
+    return <MenuFlyoutItemBase>[
+      MenuFlyoutItem(
+        leading: Icon(isLocked ? FluentIcons.lock : FluentIcons.unlock),
+        text: Text(isLocked ? '解锁图层' : '锁定图层'),
+        onPressed: () => _handleLayerLockToggle(layer),
+      ),
+      MenuFlyoutItem(
+        leading: const Icon(FluentIcons.combine),
+        text: const Text('向下合并'),
+        onPressed: canMerge ? () => _handleMergeLayerDown(layer) : null,
+      ),
+      MenuFlyoutItem(
+        leading: Icon(
+          isClipping ? FluentIcons.cut : FluentIcons.clipboard_list,
+        ),
+        text: Text(isClipping ? '取消剪贴蒙版' : '创建剪贴蒙版'),
+        onPressed: isLocked ? null : () => _handleLayerClippingToggle(layer),
+      ),
+      MenuFlyoutItem(
+        leading: Icon(isVisible ? FluentIcons.hide3 : FluentIcons.view),
+        text: Text(isVisible ? '隐藏' : '显示'),
+        onPressed: () =>
+            _handleLayerVisibilityChanged(layer.id, !layer.visible),
+      ),
+      MenuFlyoutItem(
+        leading: const Icon(FluentIcons.delete),
+        text: const Text('删除'),
+        onPressed: canDelete ? () => _handleRemoveLayer(layer.id) : null,
+      ),
+      MenuFlyoutItem(
+        leading: const Icon(FluentIcons.copy),
+        text: const Text('复制'),
+        onPressed: () => _handleDuplicateLayer(layer),
+      ),
+    ];
+  }
+
   void _updateActiveLayerClipping(bool clipping) {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null || layer.clippingMask == clipping) {
@@ -272,9 +402,10 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     required String layerId,
     TextStyle? styleOverride,
   }) {
-    final TextStyle style = styleOverride ??
+    final TextStyle style =
+        styleOverride ??
         (isActive ? theme.typography.bodyStrong : theme.typography.body) ??
-            const TextStyle(fontSize: 14);
+        const TextStyle(fontSize: 14);
     final double fontSize = style.fontSize ?? 14;
     final double lineHeight = (style.height ?? 1.0) * fontSize;
     final Color cursorColor = theme.accentColor.defaultBrushFor(
@@ -345,8 +476,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
               min: 0,
               max: 1,
               divisions: 100,
-              onChangeStart:
-                  locked ? null : _handleLayerOpacityChangeStart,
+              onChangeStart: locked ? null : _handleLayerOpacityChangeStart,
               onChanged: locked ? null : _handleLayerOpacityChanged,
               onChangeEnd: locked ? null : _handleLayerOpacityChangeEnd,
             ),
@@ -399,8 +529,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
           buildLabeledCheckbox(
             label: '剪贴蒙版',
             value: activeLayer.clippingMask,
-            onChanged:
-                activeLayer.locked ? null : _updateActiveLayerClipping,
+            onChanged: activeLayer.locked ? null : _updateActiveLayerClipping,
           ),
         ],
       );
@@ -487,152 +616,160 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
           const SizedBox(height: 6),
         ],
         Expanded(
-          child: Scrollbar(
-            controller: _layerScrollController,
-            child: Localizations.override(
-              context: context,
-              delegates: const [GlobalMaterialLocalizations.delegate],
-              child: material.ReorderableListView.builder(
-                scrollController: _layerScrollController,
-                padding: EdgeInsets.zero,
-                buildDefaultDragHandles: false,
-                dragStartBehavior: DragStartBehavior.down,
-                proxyDecorator: (child, index, animation) => child,
-                itemCount: orderedLayers.length,
-                onReorder: _handleLayerReorder,
-                itemBuilder: (context, index) {
-                  final BitmapLayerState layer = orderedLayers[index];
-                  final bool isActive = layer.id == activeLayerId;
-                  final double contentOpacity = layer.visible ? 1.0 : 0.45;
-                  final Color background = isActive
-                      ? Color.alphaBlend(
-                          theme.resources.subtleFillColorSecondary,
-                          tileBaseColor,
-                        )
-                      : tileBaseColor;
-                  final Color borderColor =
-                      theme.resources.controlStrokeColorSecondary;
-                  final Color tileBorder = Color.lerp(
-                    borderColor,
-                    Colors.transparent,
-                    0.6,
-                  )!;
+          child: FlyoutTarget(
+            controller: _layerContextMenuController,
+            child: Scrollbar(
+              controller: _layerScrollController,
+              child: Localizations.override(
+                context: context,
+                delegates: const [GlobalMaterialLocalizations.delegate],
+                child: material.ReorderableListView.builder(
+                  scrollController: _layerScrollController,
+                  padding: EdgeInsets.zero,
+                  buildDefaultDragHandles: false,
+                  dragStartBehavior: DragStartBehavior.down,
+                  proxyDecorator: (child, index, animation) => child,
+                  itemCount: orderedLayers.length,
+                  onReorder: _handleLayerReorder,
+                  itemBuilder: (context, index) {
+                    final BitmapLayerState layer = orderedLayers[index];
+                    final bool isActive = layer.id == activeLayerId;
+                    final double contentOpacity = layer.visible ? 1.0 : 0.45;
+                    final Color background = isActive
+                        ? Color.alphaBlend(
+                            theme.resources.subtleFillColorSecondary,
+                            tileBaseColor,
+                          )
+                        : tileBaseColor;
+                    final Color borderColor =
+                        theme.resources.controlStrokeColorSecondary;
+                    final Color tileBorder = Color.lerp(
+                      borderColor,
+                      Colors.transparent,
+                      0.6,
+                    )!;
 
-                  final bool layerLocked = layer.locked;
+                    final bool layerLocked = layer.locked;
 
-                  final Widget visibilityButton = LayerVisibilityButton(
-                    visible: layer.visible,
-                    onChanged: (value) =>
-                        _handleLayerVisibilityChanged(layer.id, value),
-                  );
+                    final Widget visibilityButton = LayerVisibilityButton(
+                      visible: layer.visible,
+                      onChanged: (value) =>
+                          _handleLayerVisibilityChanged(layer.id, value),
+                    );
 
-                  final Widget lockButton = Tooltip(
-                    message: layerLocked ? '解锁图层' : '锁定图层',
-                    child: IconButton(
-                      icon: Icon(
-                        layerLocked
-                            ? FluentIcons.lock
-                            : FluentIcons.unlock,
+                    final Widget lockButton = Tooltip(
+                      message: layerLocked ? '解锁图层' : '锁定图层',
+                      child: IconButton(
+                        icon: Icon(
+                          layerLocked ? FluentIcons.lock : FluentIcons.unlock,
+                        ),
+                        onPressed: () => _handleLayerLockToggle(layer),
                       ),
-                      onPressed: () => _handleLayerLockToggle(layer),
-                    ),
-                  );
+                    );
 
-                  final bool canDelete = _layers.length > 1 && !layerLocked;
-                  final Widget deleteButton = IconButton(
-                    icon: const Icon(FluentIcons.delete),
-                    onPressed: canDelete
-                        ? () => _handleRemoveLayer(layer.id)
-                        : null,
-                  );
-                  return material.ReorderableDragStartListener(
-                    key: ValueKey(layer.id),
-                    index: index,
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        left: layer.clippingMask ? 18 : 0,
-                        bottom: index == orderedLayers.length - 1 ? 0 : 8,
-                      ),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapDown: (_) => _handleLayerSelected(layer.id),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: background,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: tileBorder),
-                          ),
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Row(
-                                children: [
-                                  visibilityButton,
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Opacity(
-                                      opacity: contentOpacity,
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: _LayerNameView(
-                                              layer: layer,
-                                              theme: theme,
-                                              isActive: isActive,
-                                              isRenaming:
-                                                  !layerLocked &&
-                                                      _renamingLayerId ==
-                                                          layer.id,
-                                              isLocked: layerLocked,
-                                              buildEditor: (style) =>
-                                                  _buildInlineLayerRenameField(
-                                                theme,
+                    final bool canDelete = _layers.length > 1 && !layerLocked;
+                    final Widget deleteButton = IconButton(
+                      icon: const Icon(FluentIcons.delete),
+                      onPressed: canDelete
+                          ? () => _handleRemoveLayer(layer.id)
+                          : null,
+                    );
+                    return material.ReorderableDragStartListener(
+                      key: ValueKey(layer.id),
+                      index: index,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: layer.clippingMask ? 18 : 0,
+                          bottom: index == orderedLayers.length - 1 ? 0 : 8,
+                        ),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapDown: (_) => _handleLayerSelected(layer.id),
+                          onSecondaryTapDown: (details) =>
+                              _showLayerContextMenu(
+                                layer,
+                                details.globalPosition,
+                              ),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: background,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: tileBorder),
+                            ),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Row(
+                                  children: [
+                                    visibilityButton,
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Opacity(
+                                        opacity: contentOpacity,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: _LayerNameView(
+                                                layer: layer,
+                                                theme: theme,
                                                 isActive: isActive,
-                                                layerId: layer.id,
-                                                styleOverride: style,
-                                              ),
-                                              onRequestRename: layerLocked
-                                                  ? null
-                                                  : () {
-                                                      _handleLayerSelected(
+                                                isRenaming:
+                                                    !layerLocked &&
+                                                    _renamingLayerId ==
                                                         layer.id,
-                                                      );
-                                                      _beginLayerRename(layer);
-                                                    },
+                                                isLocked: layerLocked,
+                                                buildEditor: (style) =>
+                                                    _buildInlineLayerRenameField(
+                                                      theme,
+                                                      isActive: isActive,
+                                                      layerId: layer.id,
+                                                      styleOverride: style,
+                                                    ),
+                                                onRequestRename: layerLocked
+                                                    ? null
+                                                    : () {
+                                                        _handleLayerSelected(
+                                                          layer.id,
+                                                        );
+                                                        _beginLayerRename(
+                                                          layer,
+                                                        );
+                                                      },
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    lockButton,
+                                    const SizedBox(width: 4),
+                                    deleteButton,
+                                  ],
+                                ),
+                                if (layer.clippingMask)
+                                  Positioned(
+                                    left: -10,
+                                    top: 6,
+                                    bottom: 6,
+                                    child: _ClippingMaskIndicator(
+                                      color: theme.accentColor.defaultBrushFor(
+                                        theme.brightness,
                                       ),
                                     ),
                                   ),
-                                lockButton,
-                                const SizedBox(width: 4),
-                                deleteButton,
                               ],
                             ),
-                              if (layer.clippingMask)
-                                Positioned(
-                                  left: -10,
-                                  top: 6,
-                                  bottom: 6,
-                                  child: _ClippingMaskIndicator(
-                                    color: theme.accentColor.defaultBrushFor(
-                                      theme.brightness,
-                                    ),
-                                  ),
-                                ),
-                            ],
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -653,118 +790,128 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
           const SizedBox(height: 6),
         ],
         Expanded(
-          child: Scrollbar(
-            controller: _layerScrollController,
-            child: Localizations.override(
-              context: context,
-              delegates: const [GlobalMaterialLocalizations.delegate],
-              child: material.ReorderableListView.builder(
-                scrollController: _layerScrollController,
-                padding: EdgeInsets.zero,
-                buildDefaultDragHandles: false,
-                dragStartBehavior: DragStartBehavior.down,
-                proxyDecorator: (child, index, animation) => child,
-                itemCount: orderedLayers.length,
-                onReorder: _handleLayerReorder,
-                itemBuilder: (context, index) {
-                  final BitmapLayerState layer = orderedLayers[index];
-                  final bool isActive = layer.id == activeLayerId;
-                  final double contentOpacity = layer.visible ? 1.0 : 0.45;
-                  final Color background = isActive
-                      ? Color.alphaBlend(
-                          theme.resources.subtleFillColorSecondary,
-                          tileBaseColor,
-                        )
-                      : tileBaseColor;
-                  final Color borderColor =
-                      theme.resources.controlStrokeColorSecondary;
-                  final Color tileBorder = Color.lerp(
-                    borderColor,
-                    Colors.transparent,
-                    0.6,
-                  )!;
+          child: FlyoutTarget(
+            controller: _layerContextMenuController,
+            child: Scrollbar(
+              controller: _layerScrollController,
+              child: Localizations.override(
+                context: context,
+                delegates: const [GlobalMaterialLocalizations.delegate],
+                child: material.ReorderableListView.builder(
+                  scrollController: _layerScrollController,
+                  padding: EdgeInsets.zero,
+                  buildDefaultDragHandles: false,
+                  dragStartBehavior: DragStartBehavior.down,
+                  proxyDecorator: (child, index, animation) => child,
+                  itemCount: orderedLayers.length,
+                  onReorder: _handleLayerReorder,
+                  itemBuilder: (context, index) {
+                    final BitmapLayerState layer = orderedLayers[index];
+                    final bool isActive = layer.id == activeLayerId;
+                    final double contentOpacity = layer.visible ? 1.0 : 0.45;
+                    final Color background = isActive
+                        ? Color.alphaBlend(
+                            theme.resources.subtleFillColorSecondary,
+                            tileBaseColor,
+                          )
+                        : tileBaseColor;
+                    final Color borderColor =
+                        theme.resources.controlStrokeColorSecondary;
+                    final Color tileBorder = Color.lerp(
+                      borderColor,
+                      Colors.transparent,
+                      0.6,
+                    )!;
 
-                  final Widget visibilityButton = LayerVisibilityButton(
-                    visible: layer.visible,
-                    onChanged: (value) =>
-                        _handleLayerVisibilityChanged(layer.id, value),
-                  );
+                    final Widget visibilityButton = LayerVisibilityButton(
+                      visible: layer.visible,
+                      onChanged: (value) =>
+                          _handleLayerVisibilityChanged(layer.id, value),
+                    );
 
-                  final bool canDelete = _layers.length > 1;
-                  final Widget deleteButton = IconButton(
-                    icon: const Icon(FluentIcons.delete),
-                    onPressed: canDelete
-                        ? () => _handleRemoveLayer(layer.id)
-                        : null,
-                  );
+                    final bool canDelete = _layers.length > 1;
+                    final Widget deleteButton = IconButton(
+                      icon: const Icon(FluentIcons.delete),
+                      onPressed: canDelete
+                          ? () => _handleRemoveLayer(layer.id)
+                          : null,
+                    );
 
-                  return material.ReorderableDragStartListener(
-                    key: ValueKey(layer.id),
-                    index: index,
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        left: layer.clippingMask ? 18 : 0,
-                        bottom: index == orderedLayers.length - 1 ? 0 : 8,
-                      ),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => _handleLayerSelected(layer.id),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: background,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: tileBorder),
-                          ),
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Row(
-                                children: [
-                                  visibilityButton,
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Opacity(
-                                      opacity: contentOpacity,
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              layer.name,
-                                              style: isActive
-                                                  ? theme.typography.bodyStrong
-                                                  : theme.typography.body,
-                                              overflow: TextOverflow.ellipsis,
+                    return material.ReorderableDragStartListener(
+                      key: ValueKey(layer.id),
+                      index: index,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: layer.clippingMask ? 18 : 0,
+                          bottom: index == orderedLayers.length - 1 ? 0 : 8,
+                        ),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _handleLayerSelected(layer.id),
+                          onSecondaryTapDown: (details) =>
+                              _showLayerContextMenu(
+                                layer,
+                                details.globalPosition,
+                              ),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: background,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: tileBorder),
+                            ),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Row(
+                                  children: [
+                                    visibilityButton,
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Opacity(
+                                        opacity: contentOpacity,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                layer.name,
+                                                style: isActive
+                                                    ? theme
+                                                          .typography
+                                                          .bodyStrong
+                                                    : theme.typography.body,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    deleteButton,
+                                  ],
+                                ),
+                                if (layer.clippingMask)
+                                  Positioned(
+                                    left: -18,
+                                    top: 12,
+                                    child: _ClippingMaskIndicator(
+                                      color: theme.accentColor.defaultBrushFor(
+                                        theme.brightness,
                                       ),
                                     ),
                                   ),
-                                  deleteButton,
-                                ],
-                              ),
-                              if (layer.clippingMask)
-                                Positioned(
-                                  left: -18,
-                                  top: 12,
-                                  child: _ClippingMaskIndicator(
-                                    color: theme.accentColor.defaultBrushFor(
-                                      theme.brightness,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -812,8 +959,9 @@ class _LayerNameView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle? style =
-        isActive ? theme.typography.bodyStrong : theme.typography.body;
+    final TextStyle? style = isActive
+        ? theme.typography.bodyStrong
+        : theme.typography.body;
     final Widget text = Text(
       layer.name,
       style: style,
@@ -833,18 +981,11 @@ class _LayerNameView extends StatelessWidget {
     final double clampedWidth = width.clamp(32.0, 400.0).toDouble();
     return SizedBox(
       width: clampedWidth,
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: buildEditor(style),
-      ),
+      child: Align(alignment: Alignment.centerLeft, child: buildEditor(style)),
     );
   }
 
-  double _measureWidth(
-    BuildContext context,
-    TextStyle? style,
-    String text,
-  ) {
+  double _measureWidth(BuildContext context, TextStyle? style, String text) {
     final TextPainter painter = TextPainter(
       text: TextSpan(text: text.isEmpty ? ' ' : text, style: style),
       textDirection: Directionality.of(context),

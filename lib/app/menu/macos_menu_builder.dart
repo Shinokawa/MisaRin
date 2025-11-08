@@ -28,16 +28,23 @@ class MacosMenuBuilder {
     return () => unawaited(Future.sync(action));
   }
 
+  static VoidCallback? _wrapPaletteSelection(
+    MenuPaletteAction? action,
+    String paletteId,
+  ) {
+    if (action == null) {
+      return null;
+    }
+    return () => unawaited(Future.sync(() => action(paletteId)));
+  }
+
   static PlatformMenu _applicationMenu(MenuActionHandler handler) {
     final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
 
     final aboutAction = _wrap(handler.about);
     if (aboutAction != null) {
       menus.add(
-        PlatformMenuItem(
-          label: '关于 Misa Rin',
-          onSelected: aboutAction,
-        ),
+        PlatformMenuItem(label: '关于 Misa Rin', onSelected: aboutAction),
       );
     }
 
@@ -91,10 +98,7 @@ class MacosMenuBuilder {
       ),
     );
 
-    return PlatformMenu(
-      label: 'Misa Rin',
-      menus: menus,
-    );
+    return PlatformMenu(label: 'Misa Rin', menus: menus);
   }
 
   static PlatformMenu? _fileMenu(MenuActionHandler handler) {
@@ -107,10 +111,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '新建…',
           onSelected: newProjectAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyN,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyN, meta: true),
         ),
       );
     }
@@ -120,10 +121,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '打开…',
           onSelected: openAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyO,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyO, meta: true),
         ),
       );
     }
@@ -133,10 +131,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '导入图像…',
           onSelected: importImageAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyI,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyI, meta: true),
         ),
       );
     }
@@ -151,10 +146,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '保存',
           onSelected: saveAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyS,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyS, meta: true),
         ),
       );
     }
@@ -194,10 +186,7 @@ class MacosMenuBuilder {
       return null;
     }
 
-    return PlatformMenu(
-      label: '文件',
-      menus: menus,
-    );
+    return PlatformMenu(label: '文件', menus: menus);
   }
 
   static PlatformMenu? _editMenu(MenuActionHandler handler) {
@@ -210,10 +199,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '撤销',
           onSelected: undoAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyZ,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, meta: true),
         ),
       );
     }
@@ -242,10 +228,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '剪切',
           onSelected: cutAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyX,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyX, meta: true),
         ),
       );
     }
@@ -255,10 +238,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '复制',
           onSelected: copyAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyC,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyC, meta: true),
         ),
       );
     }
@@ -268,10 +248,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '粘贴',
           onSelected: pasteAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.keyV,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyV, meta: true),
         ),
       );
     }
@@ -283,10 +260,7 @@ class MacosMenuBuilder {
       return null;
     }
 
-    return PlatformMenu(
-      label: '编辑',
-      menus: menus,
-    );
+    return PlatformMenu(label: '编辑', menus: menus);
   }
 
   static PlatformMenu? _imageMenu(MenuActionHandler handler) {
@@ -295,37 +269,25 @@ class MacosMenuBuilder {
     final rotate90CW = _wrap(handler.rotateCanvas90Clockwise);
     if (rotate90CW != null) {
       transformItems.add(
-        PlatformMenuItem(
-          label: '顺时针 90 度',
-          onSelected: rotate90CW,
-        ),
+        PlatformMenuItem(label: '顺时针 90 度', onSelected: rotate90CW),
       );
     }
     final rotate90CCW = _wrap(handler.rotateCanvas90CounterClockwise);
     if (rotate90CCW != null) {
       transformItems.add(
-        PlatformMenuItem(
-          label: '逆时针 90 度',
-          onSelected: rotate90CCW,
-        ),
+        PlatformMenuItem(label: '逆时针 90 度', onSelected: rotate90CCW),
       );
     }
     final rotate180CW = _wrap(handler.rotateCanvas180Clockwise);
     if (rotate180CW != null) {
       transformItems.add(
-        PlatformMenuItem(
-          label: '顺时针 180 度',
-          onSelected: rotate180CW,
-        ),
+        PlatformMenuItem(label: '顺时针 180 度', onSelected: rotate180CW),
       );
     }
     final rotate180CCW = _wrap(handler.rotateCanvas180CounterClockwise);
     if (rotate180CCW != null) {
       transformItems.add(
-        PlatformMenuItem(
-          label: '逆时针 180 度',
-          onSelected: rotate180CCW,
-        ),
+        PlatformMenuItem(label: '逆时针 180 度', onSelected: rotate180CCW),
       );
     }
 
@@ -336,10 +298,7 @@ class MacosMenuBuilder {
     return PlatformMenu(
       label: '图像',
       menus: <PlatformMenuItem>[
-        PlatformMenu(
-          label: '图像变换',
-          menus: transformItems,
-        ),
+        PlatformMenu(label: '图像变换', menus: transformItems),
       ],
     );
   }
@@ -370,85 +329,80 @@ class MacosMenuBuilder {
     final List<PlatformMenuItem> antialiasItems = <PlatformMenuItem>[];
     final aa0 = _wrap(handler.applyLayerAntialias0);
     if (aa0 != null) {
-      antialiasItems.add(
-        PlatformMenuItem(
-          label: '0',
-          onSelected: aa0,
-        ),
-      );
+      antialiasItems.add(PlatformMenuItem(label: '0', onSelected: aa0));
     }
     final aa1 = _wrap(handler.applyLayerAntialias1);
     if (aa1 != null) {
-      antialiasItems.add(
-        PlatformMenuItem(
-          label: '1',
-          onSelected: aa1,
-        ),
-      );
+      antialiasItems.add(PlatformMenuItem(label: '1', onSelected: aa1));
     }
     final aa2 = _wrap(handler.applyLayerAntialias2);
     if (aa2 != null) {
-      antialiasItems.add(
-        PlatformMenuItem(
-          label: '2',
-          onSelected: aa2,
-        ),
-      );
+      antialiasItems.add(PlatformMenuItem(label: '2', onSelected: aa2));
     }
     final aa3 = _wrap(handler.applyLayerAntialias3);
     if (aa3 != null) {
-      antialiasItems.add(
-        PlatformMenuItem(
-          label: '3',
-          onSelected: aa3,
-        ),
-      );
+      antialiasItems.add(PlatformMenuItem(label: '3', onSelected: aa3));
     }
     if (antialiasItems.isNotEmpty) {
-      menus.add(
-        PlatformMenu(
-          label: '抗锯齿',
-          menus: antialiasItems,
-        ),
-      );
+      menus.add(PlatformMenu(label: '抗锯齿', menus: antialiasItems));
     }
 
     if (menus.isEmpty) {
       return null;
     }
 
-    return PlatformMenu(
-      label: '图层',
-      menus: menus,
-    );
+    return PlatformMenu(label: '图层', menus: menus);
   }
 
   static PlatformMenu? _toolMenu(MenuActionHandler handler) {
     final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
 
+    final List<PlatformMenuItem> paletteMenus = <PlatformMenuItem>[];
+    final List<PlatformMenuItem> paletteActions = <PlatformMenuItem>[];
+
     final generatePaletteAction = _wrap(handler.generatePalette);
     if (generatePaletteAction != null) {
-      menus.add(
-        PlatformMenu(
-          label: '调色盘',
-          menus: <PlatformMenuItem>[
-            PlatformMenuItem(
-              label: '生成调色盘…',
-              onSelected: generatePaletteAction,
-            ),
-          ],
-        ),
+      paletteActions.add(
+        PlatformMenuItem(label: '生成调色盘…', onSelected: generatePaletteAction),
       );
+    }
+    final importPaletteAction = _wrap(handler.importPalette);
+    if (importPaletteAction != null) {
+      paletteActions.add(
+        PlatformMenuItem(label: '导入调色盘…', onSelected: importPaletteAction),
+      );
+    }
+    if (paletteActions.isNotEmpty) {
+      paletteMenus.add(PlatformMenuItemGroup(members: paletteActions));
+    }
+
+    if (handler.paletteMenuEntries.isNotEmpty &&
+        handler.selectPaletteFromMenu != null) {
+      final List<PlatformMenuItem> paletteLibraryItems = handler
+          .paletteMenuEntries
+          .map((entry) {
+            return PlatformMenuItem(
+              label: entry.label,
+              onSelected: _wrapPaletteSelection(
+                handler.selectPaletteFromMenu,
+                entry.id,
+              ),
+            );
+          })
+          .toList(growable: false);
+      if (paletteLibraryItems.isNotEmpty) {
+        paletteMenus.add(PlatformMenuItemGroup(members: paletteLibraryItems));
+      }
+    }
+    if (paletteMenus.isNotEmpty) {
+      menus.add(PlatformMenu(label: '调色盘', menus: paletteMenus));
     }
 
     if (menus.isEmpty) {
       return null;
     }
 
-    return PlatformMenu(
-      label: '工具',
-      menus: menus,
-    );
+    return PlatformMenu(label: '工具', menus: menus);
   }
 
   static PlatformMenu? _viewMenu(MenuActionHandler handler) {
@@ -460,10 +414,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '放大',
           onSelected: zoomInAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.equal,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.equal, meta: true),
         ),
       );
     }
@@ -473,10 +424,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '缩小',
           onSelected: zoomOutAction,
-          shortcut: const SingleActivator(
-            LogicalKeyboardKey.minus,
-            meta: true,
-          ),
+          shortcut: const SingleActivator(LogicalKeyboardKey.minus, meta: true),
         ),
       );
     }
@@ -485,10 +433,7 @@ class MacosMenuBuilder {
       return null;
     }
 
-    return PlatformMenu(
-      label: '视图',
-      menus: menus,
-    );
+    return PlatformMenu(label: '视图', menus: menus);
   }
 
   static PlatformMenu _windowMenu() {

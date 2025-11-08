@@ -28,7 +28,11 @@ import 'package:flutter/services.dart'
         TextEditingValue,
         TextSelection;
 import 'package:flutter/rendering.dart'
-    show RenderBox, RenderProxyBox, RenderProxyBoxWithHitTestBehavior, TextPainter;
+    show
+        RenderBox,
+        RenderProxyBox,
+        RenderProxyBoxWithHitTestBehavior,
+        TextPainter;
 import 'package:flutter/scheduler.dart'
     show SingleTickerProviderStateMixin, TickerProvider;
 import 'package:flutter/widgets.dart'
@@ -990,6 +994,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
     _layerScrollController.dispose();
+    _layerContextMenuController.dispose();
     _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
     _layerRenameController.dispose();
     _layerRenameFocusNode.dispose();

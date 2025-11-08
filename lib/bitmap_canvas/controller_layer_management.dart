@@ -1,9 +1,6 @@
 part of 'controller.dart';
 
-void _layerManagerSetActiveLayer(
-  BitmapCanvasController controller,
-  String id,
-) {
+void _layerManagerSetActiveLayer(BitmapCanvasController controller, String id) {
   final int index = controller._layers.indexWhere((layer) => layer.id == id);
   if (index < 0 || index == controller._activeIndex) {
     return;
@@ -23,8 +20,10 @@ void _layerManagerUpdateVisibility(
   }
   controller._layers[index].visible = visible;
   if (!visible && controller._activeIndex == index) {
-    controller._activeIndex =
-        _findFallbackActiveIndex(controller, exclude: index);
+    controller._activeIndex = _findFallbackActiveIndex(
+      controller,
+      exclude: index,
+    );
   }
   controller._markDirty();
 }
@@ -122,7 +121,10 @@ void _layerManagerAddLayer(
   final BitmapLayerState layer = BitmapLayerState(
     id: generateLayerId(),
     name: name ?? '图层 ${controller._layers.length + 1}',
-    surface: BitmapSurface(width: controller._width, height: controller._height),
+    surface: BitmapSurface(
+      width: controller._width,
+      height: controller._height,
+    ),
   );
   int insertIndex = controller._layers.length;
   if (aboveLayerId != null) {
@@ -182,6 +184,57 @@ void _layerManagerReorderLayer(
   controller._markDirty();
 }
 
+bool _layerManagerMergeLayerDown(BitmapCanvasController controller, String id) {
+  final List<BitmapLayerState> layers = controller._layers;
+  final int index = layers.indexWhere((layer) => layer.id == id);
+  if (index <= 0) {
+    return false;
+  }
+  final BitmapLayerState upper = layers[index];
+  if (upper.locked) {
+    return false;
+  }
+  final BitmapLayerState lower = layers[index - 1];
+  if (lower.locked) {
+    return false;
+  }
+  final double opacity = upper.visible
+      ? BitmapCanvasController._clampUnit(upper.opacity)
+      : 0.0;
+  final bool hasSurfaceContent = !BitmapCanvasController._isSurfaceEmpty(
+    upper.surface,
+  );
+  final _LayerOverflowStore upperOverflow =
+      controller._layerOverflowStores[upper.id] ?? _LayerOverflowStore();
+  final bool hasOverflowContent = !upperOverflow.isEmpty;
+
+  if (opacity > 0 && (hasSurfaceContent || hasOverflowContent)) {
+    final _LayerOverflowStore lowerOverflow =
+        controller._layerOverflowStores[lower.id] ?? _LayerOverflowStore();
+    _mergeLayerIntoLower(
+      controller,
+      upper,
+      lower,
+      index,
+      opacity,
+      lowerOverflow,
+      upperOverflow,
+    );
+  }
+
+  layers.removeAt(index);
+  controller._layerOverflowStores.remove(upper.id);
+  if (controller._activeIndex >= index) {
+    if (controller._activeIndex == index) {
+      controller._activeIndex = index - 1;
+    } else {
+      controller._activeIndex -= 1;
+    }
+  }
+  controller._markDirty();
+  return true;
+}
+
 void _layerManagerClearAll(BitmapCanvasController controller) {
   for (int i = 0; i < controller._layers.length; i++) {
     final BitmapLayerState layer = controller._layers[i];
@@ -197,6 +250,347 @@ void _layerManagerClearAll(BitmapCanvasController controller) {
   controller._markDirty();
 }
 
+void _mergeLayerIntoLower(
+  BitmapCanvasController controller,
+  BitmapLayerState upper,
+  BitmapLayerState lower,
+  int upperIndex,
+  double opacity,
+  _LayerOverflowStore lowerOverflow,
+  _LayerOverflowStore upperOverflow,
+) {
+  final bool hasClipping = upper.clippingMask;
+  final _ClippingMaskInfo? clippingInfo = hasClipping
+      ? _resolveClippingMaskInfo(controller, upperIndex)
+      : null;
+  if (hasClipping && clippingInfo == null) {
+    return;
+  }
+  _blendOnCanvasPixels(
+    controller,
+    upper.surface.pixels,
+    lower.surface.pixels,
+    opacity,
+    upper.blendMode,
+    clippingInfo,
+  );
+  if (!upperOverflow.isEmpty) {
+    _blendOverflowPixels(
+      controller,
+      upperOverflow,
+      lower,
+      lowerOverflow,
+      opacity,
+      upper.blendMode,
+      clippingInfo,
+    );
+  }
+}
+
+void _blendOnCanvasPixels(
+  BitmapCanvasController controller,
+  Uint32List srcPixels,
+  Uint32List dstPixels,
+  double opacity,
+  CanvasLayerBlendMode blendMode,
+  _ClippingMaskInfo? clippingInfo,
+) {
+  final Rect? bounds = _computePixelBounds(
+    srcPixels,
+    controller._width,
+    controller._height,
+  );
+  if (bounds == null) {
+    return;
+  }
+  final int startX = math.max(0, bounds.left.floor());
+  final int endX = math.min(controller._width, bounds.right.ceil());
+  final int startY = math.max(0, bounds.top.floor());
+  final int endY = math.min(controller._height, bounds.bottom.ceil());
+  if (startX >= endX || startY >= endY) {
+    return;
+  }
+  for (int y = startY; y < endY; y++) {
+    final int rowOffset = y * controller._width;
+    for (int x = startX; x < endX; x++) {
+      final int src = srcPixels[rowOffset + x];
+      final int srcA = (src >> 24) & 0xff;
+      if (srcA == 0) {
+        continue;
+      }
+      double effectiveAlpha = (srcA / 255.0) * opacity;
+      if (effectiveAlpha <= 0) {
+        continue;
+      }
+      if (clippingInfo != null) {
+        final double maskAlpha = _sampleClippingMaskAlpha(
+          controller,
+          clippingInfo,
+          x,
+          y,
+        );
+        if (maskAlpha <= 0) {
+          continue;
+        }
+        effectiveAlpha *= maskAlpha;
+        if (effectiveAlpha <= 0) {
+          continue;
+        }
+      }
+      final int effectiveColor = _colorWithOpacity(src, effectiveAlpha);
+      final int destIndex = rowOffset + x;
+      dstPixels[destIndex] = BitmapCanvasController._blendWithMode(
+        dstPixels[destIndex],
+        effectiveColor,
+        blendMode,
+        destIndex,
+      );
+    }
+  }
+}
+
+void _blendOverflowPixels(
+  BitmapCanvasController controller,
+  _LayerOverflowStore upperOverflow,
+  BitmapLayerState lower,
+  _LayerOverflowStore lowerOverflow,
+  double opacity,
+  CanvasLayerBlendMode blendMode,
+  _ClippingMaskInfo? clippingInfo,
+) {
+  if (upperOverflow.isEmpty) {
+    return;
+  }
+  final _OverflowPixelMap targetMap = _cloneOverflowStore(lowerOverflow);
+  final _OverflowPixelMap sourceMap = _cloneOverflowStore(upperOverflow);
+  sourceMap.forEach((int y, SplayTreeMap<int, int> row) {
+    row.forEach((int x, int src) {
+      final int srcA = (src >> 24) & 0xff;
+      if (srcA == 0) {
+        return;
+      }
+      double effectiveAlpha = (srcA / 255.0) * opacity;
+      if (effectiveAlpha <= 0) {
+        return;
+      }
+      if (clippingInfo != null) {
+        final double maskAlpha = _sampleClippingMaskAlpha(
+          controller,
+          clippingInfo,
+          x,
+          y,
+        );
+        if (maskAlpha <= 0) {
+          return;
+        }
+        effectiveAlpha *= maskAlpha;
+        if (effectiveAlpha <= 0) {
+          return;
+        }
+      }
+      final int effectiveColor = _colorWithOpacity(src, effectiveAlpha);
+      final bool insideCanvas =
+          x >= 0 && x < controller._width && y >= 0 && y < controller._height;
+      if (insideCanvas) {
+        final int index = y * controller._width + x;
+        final int blended = BitmapCanvasController._blendWithMode(
+          lower.surface.pixels[index],
+          effectiveColor,
+          blendMode,
+          index,
+        );
+        lower.surface.pixels[index] = blended;
+        return;
+      }
+      final int pixelIndex = y * controller._width + x;
+      final int dest = _readOverflowPixelFromMap(targetMap, x, y);
+      final int blended = BitmapCanvasController._blendWithMode(
+        dest,
+        effectiveColor,
+        blendMode,
+        pixelIndex,
+      );
+      _writeOverflowPixel(targetMap, x, y, blended);
+    });
+  });
+  final _LayerOverflowStore mergedStore = _overflowStoreFromMap(targetMap);
+  if (mergedStore.isEmpty) {
+    controller._layerOverflowStores.remove(lower.id);
+  } else {
+    controller._layerOverflowStores[lower.id] = mergedStore;
+  }
+}
+
+double _sampleClippingMaskAlpha(
+  BitmapCanvasController controller,
+  _ClippingMaskInfo info,
+  int x,
+  int y,
+) {
+  final int color = _readLayerPixel(
+    controller,
+    info.layer,
+    info.overflow,
+    x,
+    y,
+  );
+  final int alpha = (color >> 24) & 0xff;
+  if (alpha == 0) {
+    return 0.0;
+  }
+  return (alpha / 255.0) * info.opacity;
+}
+
+int _colorWithOpacity(int color, double opacity) {
+  final int alpha = (opacity * 255).round().clamp(0, 255);
+  if (alpha <= 0) {
+    return 0;
+  }
+  return (alpha << 24) | (color & 0x00FFFFFF);
+}
+
+int _readLayerPixel(
+  BitmapCanvasController controller,
+  BitmapLayerState layer,
+  _LayerOverflowStore overflow,
+  int x,
+  int y,
+) {
+  if (x >= 0 && x < controller._width && y >= 0 && y < controller._height) {
+    return layer.surface.pixels[y * controller._width + x];
+  }
+  return _readOverflowPixel(overflow, x, y);
+}
+
+int _readOverflowPixel(_LayerOverflowStore store, int x, int y) {
+  if (store.isEmpty) {
+    return 0;
+  }
+  final List<_LayerOverflowSegment>? segments = store._rows[y];
+  if (segments == null) {
+    return 0;
+  }
+  for (final _LayerOverflowSegment segment in segments) {
+    final int start = segment.startX;
+    final int end = start + segment.length;
+    if (x < start || x >= end) {
+      continue;
+    }
+    return segment.pixels[x - start];
+  }
+  return 0;
+}
+
+typedef _OverflowPixelMap = SplayTreeMap<int, SplayTreeMap<int, int>>;
+
+_OverflowPixelMap _cloneOverflowStore(_LayerOverflowStore store) {
+  final _OverflowPixelMap map = SplayTreeMap<int, SplayTreeMap<int, int>>();
+  if (store.isEmpty) {
+    return map;
+  }
+  store._rows.forEach((int y, List<_LayerOverflowSegment> segments) {
+    final SplayTreeMap<int, int> row = SplayTreeMap<int, int>();
+    for (final _LayerOverflowSegment segment in segments) {
+      for (int i = 0; i < segment.length; i++) {
+        final int color = segment.pixels[i];
+        if ((color >> 24) == 0) {
+          continue;
+        }
+        row[segment.startX + i] = color;
+      }
+    }
+    if (row.isNotEmpty) {
+      map[y] = row;
+    }
+  });
+  return map;
+}
+
+int _readOverflowPixelFromMap(_OverflowPixelMap map, int x, int y) {
+  final SplayTreeMap<int, int>? row = map[y];
+  if (row == null) {
+    return 0;
+  }
+  return row[x] ?? 0;
+}
+
+void _writeOverflowPixel(_OverflowPixelMap map, int x, int y, int color) {
+  final int alpha = (color >> 24) & 0xff;
+  final SplayTreeMap<int, int>? existingRow = map[y];
+  if (alpha == 0) {
+    if (existingRow == null) {
+      return;
+    }
+    existingRow.remove(x);
+    if (existingRow.isEmpty) {
+      map.remove(y);
+    }
+    return;
+  }
+  final SplayTreeMap<int, int> row = existingRow ?? SplayTreeMap<int, int>();
+  row[x] = color;
+  if (existingRow == null) {
+    map[y] = row;
+  }
+}
+
+_LayerOverflowStore _overflowStoreFromMap(_OverflowPixelMap map) {
+  final _LayerOverflowStore store = _LayerOverflowStore();
+  map.forEach((int y, SplayTreeMap<int, int> row) {
+    if (row.isEmpty) {
+      return;
+    }
+    final _OverflowRowBuilder builder = _OverflowRowBuilder();
+    row.forEach((int x, int color) {
+      builder.addPixel(x, color);
+    });
+    final List<_LayerOverflowSegment> segments = builder.build();
+    if (segments.isNotEmpty) {
+      store.addRow(y, segments);
+    }
+  });
+  return store;
+}
+
+class _ClippingMaskInfo {
+  _ClippingMaskInfo({
+    required this.layer,
+    required this.opacity,
+    required this.overflow,
+  });
+
+  final BitmapLayerState layer;
+  final double opacity;
+  final _LayerOverflowStore overflow;
+}
+
+_ClippingMaskInfo? _resolveClippingMaskInfo(
+  BitmapCanvasController controller,
+  int startIndex,
+) {
+  for (int i = startIndex - 1; i >= 0; i--) {
+    final BitmapLayerState candidate = controller._layers[i];
+    if (candidate.clippingMask) {
+      continue;
+    }
+    if (!candidate.visible) {
+      return null;
+    }
+    final double opacity = BitmapCanvasController._clampUnit(candidate.opacity);
+    if (opacity <= 0) {
+      return null;
+    }
+    final _LayerOverflowStore overflow =
+        controller._layerOverflowStores[candidate.id] ?? _LayerOverflowStore();
+    return _ClippingMaskInfo(
+      layer: candidate,
+      opacity: opacity,
+      overflow: overflow,
+    );
+  }
+  return null;
+}
+
 int _findFallbackActiveIndex(
   BitmapCanvasController controller, {
   int? exclude,
@@ -209,7 +603,10 @@ int _findFallbackActiveIndex(
       return i;
     }
   }
-  return math.max(0, math.min(controller._layers.length - 1, controller._activeIndex));
+  return math.max(
+    0,
+    math.min(controller._layers.length - 1, controller._activeIndex),
+  );
 }
 
 void _layerManagerClearRegion(
@@ -280,8 +677,10 @@ String _layerManagerInsertFromData(
   CanvasLayerData data, {
   String? aboveLayerId,
 }) {
-  final BitmapSurface surface =
-      BitmapSurface(width: controller._width, height: controller._height);
+  final BitmapSurface surface = BitmapSurface(
+    width: controller._width,
+    height: controller._height,
+  );
   _LayerOverflowStore overflowStore = _LayerOverflowStore();
   if (data.bitmap != null) {
     overflowStore = _applyBitmapToSurface(controller, surface, data);
@@ -335,8 +734,9 @@ List<CanvasLayerData> _layerManagerSnapshotLayers(
     final BitmapLayerState layer = controller._layers[i];
     final _LayerOverflowStore overflowStore =
         controller._layerOverflowStores[layer.id] ?? _LayerOverflowStore();
-    final bool hasSurface =
-        !BitmapCanvasController._isSurfaceEmpty(layer.surface);
+    final bool hasSurface = !BitmapCanvasController._isSurfaceEmpty(
+      layer.surface,
+    );
     final bool hasOverflow = !overflowStore.isEmpty;
     Uint8List? bitmap;
     int? bitmapWidth;
@@ -456,11 +856,7 @@ void _initializeDefaultLayers(
   );
   controller._layers
     ..add(
-      BitmapLayerState(
-        id: generateLayerId(),
-        name: '背景',
-        surface: background,
-      ),
+      BitmapLayerState(id: generateLayerId(), name: '背景', surface: background),
     )
     ..add(
       BitmapLayerState(
@@ -540,7 +936,8 @@ _LayerOverflowStore _applyBitmapToSurface(
       if (alpha == 0) {
         continue;
       }
-      final int color = (alpha << 24) |
+      final int color =
+          (alpha << 24) |
           (bitmap[rgbaIndex] << 16) |
           (bitmap[rgbaIndex + 1] << 8) |
           bitmap[rgbaIndex + 2];

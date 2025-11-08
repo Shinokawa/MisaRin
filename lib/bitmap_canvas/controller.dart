@@ -97,11 +97,31 @@ class BitmapCanvasController extends ChangeNotifier {
   static const double _kEdgeSmoothStrength = 1.0;
   static const double _kEdgeSmoothGamma = 0.55;
   static const List<int> _kGaussianKernel5x5 = <int>[
-    1, 4, 6, 4, 1,
-    4, 16, 24, 16, 4,
-    6, 24, 36, 24, 6,
-    4, 16, 24, 16, 4,
-    1, 4, 6, 4, 1,
+    1,
+    4,
+    6,
+    4,
+    1,
+    4,
+    16,
+    24,
+    16,
+    4,
+    6,
+    24,
+    36,
+    24,
+    6,
+    4,
+    16,
+    24,
+    16,
+    4,
+    1,
+    4,
+    6,
+    4,
+    1,
   ];
   static const int _kGaussianKernel5x5Weight = 256;
 
@@ -212,10 +232,8 @@ class BitmapCanvasController extends ChangeNotifier {
 
         int totalWeight = _kAntialiasCenterWeight;
         int weightedAlpha = alpha * _kAntialiasCenterWeight;
-        int weightedPremulR =
-            centerR * alpha * _kAntialiasCenterWeight;
-        int weightedPremulG =
-            centerG * alpha * _kAntialiasCenterWeight;
+        int weightedPremulR = centerR * alpha * _kAntialiasCenterWeight;
+        int weightedPremulG = centerG * alpha * _kAntialiasCenterWeight;
         int weightedPremulB = centerB * alpha * _kAntialiasCenterWeight;
 
         for (int i = 0; i < _kAntialiasDx.length; i++) {
@@ -247,8 +265,10 @@ class BitmapCanvasController extends ChangeNotifier {
           continue;
         }
 
-        final int newAlpha = (alpha + (deltaAlpha * factor).round())
-            .clamp(0, 255);
+        final int newAlpha = (alpha + (deltaAlpha * factor).round()).clamp(
+          0,
+          255,
+        );
         if (newAlpha == alpha) {
           continue;
         }
@@ -353,9 +373,9 @@ class BitmapCanvasController extends ChangeNotifier {
     if (gradient <= _kEdgeDetectMin) {
       return 0;
     }
-    final double normalized = ((gradient - _kEdgeDetectMin) /
-            (_kEdgeDetectMax - _kEdgeDetectMin))
-        .clamp(0.0, 1.0);
+    final double normalized =
+        ((gradient - _kEdgeDetectMin) / (_kEdgeDetectMax - _kEdgeDetectMin))
+            .clamp(0.0, 1.0);
     return math.pow(normalized, _kEdgeSmoothGamma) * _kEdgeSmoothStrength;
   }
 
@@ -482,6 +502,8 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void reorderLayer(int fromIndex, int toIndex) =>
       _layerManagerReorderLayer(this, fromIndex, toIndex);
+
+  bool mergeLayerDown(String id) => _layerManagerMergeLayerDown(this, id);
 
   void clear() => _layerManagerClearAll(this);
 

@@ -13,11 +13,13 @@ const double _paletteDuplicateEpsilon = 0.01;
 class _PaletteCardEntry {
   _PaletteCardEntry({
     required this.id,
+    required this.title,
     required this.colors,
     required this.offset,
   });
 
   final int id;
+  final String title;
   final List<Color> colors;
   Offset offset;
   Size? size;
@@ -38,7 +40,6 @@ class _PaletteSelection {
 }
 
 mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
-
   Future<void> showPaletteGenerator() async {
     final int? count = await _showPaletteColorCountDialog();
     if (count == null) {
@@ -54,8 +55,9 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
   void _handlePaletteDragEnd() {}
 
   Future<int?> _showPaletteColorCountDialog() async {
-    final TextEditingController controller =
-        TextEditingController(text: _defaultPaletteChoices[1].toString());
+    final TextEditingController controller = TextEditingController(
+      text: _defaultPaletteChoices[1].toString(),
+    );
     final FocusNode focusNode = FocusNode();
     int selectedCount = _defaultPaletteChoices[1];
 
@@ -88,7 +90,8 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
                   });
                 }
 
-                final bool isValid = selectedCount >= _minPaletteColorCount &&
+                final bool isValid =
+                    selectedCount >= _minPaletteColorCount &&
                     selectedCount <= _maxPaletteColorCount;
 
                 return Column(
@@ -100,35 +103,33 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _defaultPaletteChoices.map((int choice) {
-                        final bool isActive = selectedCount == choice;
-                        final Widget button = isActive
-                            ? FilledButton(
-                                onPressed: () => handlePresetTap(choice),
-                                child: Text('$choice'),
-                              )
-                            : Button(
-                                onPressed: () => handlePresetTap(choice),
-                                child: Text('$choice'),
-                              );
-                        return SizedBox(width: 56, child: button);
-                      }).toList(growable: false),
+                      children: _defaultPaletteChoices
+                          .map((int choice) {
+                            final bool isActive = selectedCount == choice;
+                            final Widget button = isActive
+                                ? FilledButton(
+                                    onPressed: () => handlePresetTap(choice),
+                                    child: Text('$choice'),
+                                  )
+                                : Button(
+                                    onPressed: () => handlePresetTap(choice),
+                                    child: Text('$choice'),
+                                  );
+                            return SizedBox(width: 56, child: button);
+                          })
+                          .toList(growable: false),
                     ),
                     const SizedBox(height: 20),
-                    Text(
-                      '自定义数量',
-                      style: theme.typography.caption,
-                    ),
+                    Text('自定义数量', style: theme.typography.caption),
                     const SizedBox(height: 6),
                     TextBox(
                       controller: controller,
                       focusNode: focusNode,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       keyboardType: TextInputType.number,
                       onChanged: handleTextChanged,
-                      placeholder: '范围 ${_minPaletteColorCount.toString()} - ${_maxPaletteColorCount.toString()}',
+                      placeholder:
+                          '范围 ${_minPaletteColorCount.toString()} - ${_maxPaletteColorCount.toString()}',
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -185,8 +186,9 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       );
       return;
     }
-    final ByteData? bytes =
-        await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final ByteData? bytes = await image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
     if (bytes == null) {
       AppNotifications.show(
         context,
@@ -210,16 +212,60 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       );
       return;
     }
+    _addPaletteCard(palette);
+  }
+
+  void showPaletteFromColors({
+    required String title,
+    required List<Color> colors,
+  }) {
+    if (colors.isEmpty) {
+      AppNotifications.show(
+        context,
+        message: '该调色盘没有可用的颜色。',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    _addPaletteCard(colors, title: title);
+  }
+
+  void _addPaletteCard(List<Color> colors, {String? title}) {
+    final List<Color> sanitized = _sanitizePaletteColors(colors);
+    if (sanitized.length < _minPaletteColorCount) {
+      AppNotifications.show(
+        context,
+        message: '调色盘至少需要 $_minPaletteColorCount 种颜色。',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
     setState(() {
       final Offset offset = _initialPaletteOffset();
       _paletteCards.add(
         _PaletteCardEntry(
           id: _paletteCardSerial++,
-          colors: palette,
+          title: title?.trim().isNotEmpty == true ? title!.trim() : '调色盘',
+          colors: sanitized,
           offset: _clampPaletteOffset(offset),
         ),
       );
     });
+  }
+
+  List<Color> _sanitizePaletteColors(List<Color> colors) {
+    final Set<int> unique = <int>{};
+    final List<Color> sanitized = <Color>[];
+    for (final Color color in colors) {
+      final Color opaque = color.withAlpha(0xFF);
+      if (unique.add(opaque.value)) {
+        sanitized.add(opaque);
+      }
+      if (sanitized.length >= _maxPaletteColorCount) {
+        break;
+      }
+    }
+    return sanitized;
   }
 
   List<Color> _resolvePalette(
@@ -245,8 +291,10 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         continue;
       }
       final int key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-      final _PaletteBucket bucket =
-          buckets.putIfAbsent(key, () => _PaletteBucket());
+      final _PaletteBucket bucket = buckets.putIfAbsent(
+        key,
+        () => _PaletteBucket(),
+      );
       bucket.weight += a;
       bucket.r += r * a;
       bucket.g += g * a;
@@ -314,8 +362,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       used.add(bestIndex);
       selectedColors.add(candidates[bestIndex]);
     }
-    final List<_PaletteSelection> orderedSelections =
-        <_PaletteSelection>[];
+    final List<_PaletteSelection> orderedSelections = <_PaletteSelection>[];
     for (int i = 0; i < selectedColors.length; i++) {
       final Color color = selectedColors[i];
       double minDistance = double.infinity;
@@ -323,8 +370,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         if (i == j) {
           continue;
         }
-        final double distance =
-            _colorDistance(color, selectedColors[j]);
+        final double distance = _colorDistance(color, selectedColors[j]);
         if (distance < minDistance) {
           minDistance = distance;
         }
@@ -394,11 +440,11 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     }
     final double baseLeft =
         (_workspaceSize.width - _paletteCardWidth).clamp(0.0, double.infinity) /
-                2 +
-            (_paletteCards.length * 24);
+            2 +
+        (_paletteCards.length * 24);
     final double baseTop =
         (_workspaceSize.height - 320).clamp(0.0, double.infinity) / 2 +
-            (_paletteCards.length * 24);
+        (_paletteCards.length * 24);
     return Offset(baseLeft, baseTop);
   }
 
@@ -425,26 +471,29 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     }
     return null;
   }
-
 }
 
 class _WorkspacePaletteCard extends StatelessWidget {
   const _WorkspacePaletteCard({
     super.key,
+    required this.title,
     required this.colors,
     required this.onClose,
     required this.onDragUpdate,
     required this.onDragStart,
     required this.onDragEnd,
     required this.onSizeChanged,
+    required this.onColorTap,
   });
 
+  final String title;
   final List<Color> colors;
   final VoidCallback onClose;
   final ValueChanged<Offset> onDragUpdate;
   final VoidCallback onDragStart;
   final VoidCallback onDragEnd;
   final ValueChanged<Size> onSizeChanged;
+  final ValueChanged<Color> onColorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -495,8 +544,9 @@ class _WorkspacePaletteCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            '调色盘',
+                            title,
                             style: theme.typography.subtitle,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         IconButton(
@@ -508,7 +558,7 @@ class _WorkspacePaletteCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  _PaletteSwatches(colors: colors),
+                  _PaletteSwatches(colors: colors, onTap: onColorTap),
                 ],
               ),
             ),
@@ -520,39 +570,46 @@ class _WorkspacePaletteCard extends StatelessWidget {
 }
 
 class _PaletteSwatches extends StatelessWidget {
-  const _PaletteSwatches({required this.colors});
+  const _PaletteSwatches({required this.colors, required this.onTap});
 
   final List<Color> colors;
+  final ValueChanged<Color> onTap;
 
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     if (colors.isEmpty) {
-      return Text(
-        '没有检测到颜色。',
-        style: theme.typography.caption,
-      );
+      return Text('没有检测到颜色。', style: theme.typography.caption);
     }
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: colors.map((Color color) {
-        return Tooltip(
-          message: _hexStringForColor(color),
-          child: Container(
-            width: _paletteSwatchSize,
-            height: _paletteSwatchSize,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.black.withOpacity(0.08),
-                width: 1,
+      children: colors
+          .map((Color color) {
+            return Tooltip(
+              message: _hexStringForColor(color),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onTap(color),
+                  child: Container(
+                    width: _paletteSwatchSize,
+                    height: _paletteSwatchSize,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.black.withOpacity(0.08),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        );
-      }).toList(growable: false),
+            );
+          })
+          .toList(growable: false),
     );
   }
 }

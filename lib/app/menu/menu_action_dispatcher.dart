@@ -4,6 +4,14 @@ import 'dart:collection';
 import 'package:flutter/widgets.dart';
 
 typedef MenuAsyncAction = FutureOr<void> Function();
+typedef MenuPaletteAction = FutureOr<void> Function(String paletteId);
+
+class MenuPaletteMenuEntry {
+  const MenuPaletteMenuEntry({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
 
 class MenuActionHandler {
   const MenuActionHandler({
@@ -32,6 +40,9 @@ class MenuActionHandler {
     this.applyLayerAntialias2,
     this.applyLayerAntialias3,
     this.generatePalette,
+    this.importPalette,
+    this.selectPaletteFromMenu,
+    this.paletteMenuEntries = const <MenuPaletteMenuEntry>[],
   });
 
   const MenuActionHandler.empty()
@@ -59,7 +70,10 @@ class MenuActionHandler {
       applyLayerAntialias1 = null,
       applyLayerAntialias2 = null,
       applyLayerAntialias3 = null,
-      generatePalette = null;
+      generatePalette = null,
+      importPalette = null,
+      selectPaletteFromMenu = null,
+      paletteMenuEntries = const <MenuPaletteMenuEntry>[];
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -86,6 +100,9 @@ class MenuActionHandler {
   final MenuAsyncAction? applyLayerAntialias2;
   final MenuAsyncAction? applyLayerAntialias3;
   final MenuAsyncAction? generatePalette;
+  final MenuAsyncAction? importPalette;
+  final MenuPaletteAction? selectPaletteFromMenu;
+  final List<MenuPaletteMenuEntry> paletteMenuEntries;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

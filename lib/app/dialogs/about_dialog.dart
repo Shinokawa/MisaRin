@@ -1,9 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'misarin_dialog.dart';
 
-Future<void> showAboutMisarinDialog(BuildContext context) {
+Future<void> showAboutMisarinDialog(BuildContext context) async {
   final theme = FluentTheme.of(context);
+  final packageInfo = await PackageInfo.fromPlatform();
   return showMisarinDialog<void>(
     context: context,
     title: const Text('关于 Misa Rin'),
@@ -21,6 +23,22 @@ Future<void> showAboutMisarinDialog(BuildContext context) {
           label: '应用标识',
           child: SelectableText(
             'com.aimessoft.misarin',
+            style: theme.typography.bodyStrong,
+          ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: '应用版本',
+          child: SelectableText(
+            packageInfo.version,
+            style: theme.typography.bodyStrong,
+          ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: '开发者',
+          child: SelectableText(
+            'Aimes Soft',
             style: theme.typography.bodyStrong,
           ),
         ),

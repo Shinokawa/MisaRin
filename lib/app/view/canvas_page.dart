@@ -12,6 +12,7 @@ import '../dialogs/export_dialog.dart';
 import '../dialogs/misarin_dialog.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
+import '../palette/palette_importer.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../widgets/app_notification.dart';
@@ -28,6 +29,18 @@ class CanvasPage extends StatefulWidget {
   State<CanvasPage> createState() => CanvasPageState();
 }
 
+class _ImportedPaletteEntry {
+  const _ImportedPaletteEntry({
+    required this.id,
+    required this.name,
+    required this.colors,
+  });
+
+  final String id;
+  final String name;
+  final List<Color> colors;
+}
+
 class CanvasPageState extends State<CanvasPage> {
   final Map<String, GlobalKey<PaintingBoardState>> _boardKeys =
       <String, GlobalKey<PaintingBoardState>>{};
@@ -35,6 +48,10 @@ class CanvasPageState extends State<CanvasPage> {
   final ProjectRepository _repository = ProjectRepository.instance;
   final CanvasWorkspaceController _workspace =
       CanvasWorkspaceController.instance;
+
+  final List<_ImportedPaletteEntry> _importedPalettes =
+      <_ImportedPaletteEntry>[];
+  int _paletteLibrarySerial = 0;
 
   late ProjectDocument _document;
   bool _hasUnsavedChanges = false;
@@ -77,6 +94,108 @@ class CanvasPageState extends State<CanvasPage> {
 
   void _removeBoardKey(String id) {
     _boardKeys.remove(id);
+  }
+
+  String _fileExtension(String? name) {
+    if (name == null) {
+      return '';
+    }
+    final int dot = name.lastIndexOf('.');
+    if (dot < 0 || dot == name.length - 1) {
+      return '';
+    }
+    return name.substring(dot + 1).toLowerCase();
+  }
+
+  _ImportedPaletteEntry? _paletteById(String id) {
+    for (final _ImportedPaletteEntry entry in _importedPalettes) {
+      if (entry.id == id) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _importPaletteFromDisk() async {
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      dialogTitle: '导入调色盘',
+      type: FileType.custom,
+      allowedExtensions: PaletteFileImporter.supportedExtensions,
+      withData: true,
+    );
+    final PlatformFile? file = result?.files.singleOrNull;
+    if (file == null) {
+      return;
+    }
+    Uint8List? bytes = file.bytes;
+    final String? path = file.path;
+    if (bytes == null && path != null) {
+      bytes = await File(path).readAsBytes();
+    }
+    if (bytes == null) {
+      if (!mounted) {
+        return;
+      }
+      AppNotifications.show(
+        context,
+        message: '无法读取文件内容。',
+        severity: InfoBarSeverity.error,
+      );
+      return;
+    }
+    final String ext = _fileExtension(file.name ?? path);
+    try {
+      final PaletteImportResult palette = PaletteFileImporter.importData(
+        bytes,
+        extension: ext,
+        fileName: file.name,
+      );
+      final _ImportedPaletteEntry entry = _ImportedPaletteEntry(
+        id: 'palette_${_paletteLibrarySerial++}',
+        name: palette.name,
+        colors: palette.colors,
+      );
+      setState(() {
+        _importedPalettes.add(entry);
+      });
+      final PaintingBoardState? board = _activeBoard;
+      board?.showPaletteFromColors(title: entry.name, colors: entry.colors);
+      if (!mounted) {
+        return;
+      }
+      AppNotifications.show(
+        context,
+        message: '已导入调色盘：${entry.name}',
+        severity: InfoBarSeverity.success,
+      );
+    } on PaletteImportException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppNotifications.show(
+        context,
+        message: '导入调色盘失败：${error.message}',
+        severity: InfoBarSeverity.error,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppNotifications.show(
+        context,
+        message: '导入调色盘失败：$error',
+        severity: InfoBarSeverity.error,
+      );
+    }
+  }
+
+  Future<void> _activateImportedPalette(String id) async {
+    final _ImportedPaletteEntry? entry = _paletteById(id);
+    if (entry == null) {
+      return;
+    }
+    final PaintingBoardState? board = _activeBoard;
+    board?.showPaletteFromColors(title: entry.name, colors: entry.colors);
   }
 
   void _handleDirtyChanged(String id, bool dirty) {
@@ -465,11 +584,7 @@ class CanvasPageState extends State<CanvasPage> {
     if (!mounted) {
       return;
     }
-    AppNotifications.show(
-      context,
-      message: message,
-      severity: severity,
-    );
+    AppNotifications.show(context, message: message, severity: severity);
   }
 
   void _applyLayerAntialias(int level) {
@@ -612,6 +727,11 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.addLayerAboveActiveLayer();
       },
+      importPalette: () => _importPaletteFromDisk(),
+      paletteMenuEntries: _importedPalettes
+          .map((entry) => MenuPaletteMenuEntry(id: entry.id, label: entry.name))
+          .toList(growable: false),
+      selectPaletteFromMenu: (id) => _activateImportedPalette(id),
       zoomIn: () {
         final board = _activeBoard;
         board?.zoomIn();
