@@ -31,6 +31,7 @@ class MenuActionHandler {
     this.applyLayerAntialias1,
     this.applyLayerAntialias2,
     this.applyLayerAntialias3,
+    this.generatePalette,
   });
 
   const MenuActionHandler.empty()
@@ -57,7 +58,8 @@ class MenuActionHandler {
       applyLayerAntialias0 = null,
       applyLayerAntialias1 = null,
       applyLayerAntialias2 = null,
-      applyLayerAntialias3 = null;
+      applyLayerAntialias3 = null,
+      generatePalette = null;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -83,6 +85,7 @@ class MenuActionHandler {
   final MenuAsyncAction? applyLayerAntialias1;
   final MenuAsyncAction? applyLayerAntialias2;
   final MenuAsyncAction? applyLayerAntialias3;
+  final MenuAsyncAction? generatePalette;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

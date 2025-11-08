@@ -15,6 +15,7 @@ class MacosMenuBuilder {
       _editMenu(handler),
       _imageMenu(handler),
       _layerMenu(handler),
+      _toolMenu(handler),
       _viewMenu(handler),
       _windowMenu(),
     ].whereType<PlatformMenu>().toList(growable: false);
@@ -418,6 +419,34 @@ class MacosMenuBuilder {
 
     return PlatformMenu(
       label: '图层',
+      menus: menus,
+    );
+  }
+
+  static PlatformMenu? _toolMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
+
+    final generatePaletteAction = _wrap(handler.generatePalette);
+    if (generatePaletteAction != null) {
+      menus.add(
+        PlatformMenu(
+          label: '调色盘',
+          menus: <PlatformMenuItem>[
+            PlatformMenuItem(
+              label: '生成调色盘…',
+              onSelected: generatePaletteAction,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (menus.isEmpty) {
+      return null;
+    }
+
+    return PlatformMenu(
+      label: '工具',
       menus: menus,
     );
   }

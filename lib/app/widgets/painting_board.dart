@@ -28,7 +28,7 @@ import 'package:flutter/services.dart'
         TextEditingValue,
         TextSelection;
 import 'package:flutter/rendering.dart'
-    show RenderBox, RenderProxyBox, TextPainter;
+    show RenderBox, RenderProxyBox, RenderProxyBoxWithHitTestBehavior, TextPainter;
 import 'package:flutter/scheduler.dart'
     show SingleTickerProviderStateMixin, TickerProvider;
 import 'package:flutter/widgets.dart'
@@ -63,6 +63,7 @@ import 'app_notification.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
+part 'painting_board_palette.dart';
 part 'painting_board_marching_ants.dart';
 part 'painting_board_selection.dart';
 part 'painting_board_shapes.dart';
@@ -216,6 +217,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   final List<_CanvasHistoryEntry> _redoStack = <_CanvasHistoryEntry>[];
   bool _historyLocked = false;
   int _historyLimit = AppPreferences.instance.historyLimit;
+  final List<_PaletteCardEntry> _paletteCards = <_PaletteCardEntry>[];
+  int _paletteCardSerial = 0;
 
   Size get _canvasSize => widget.settings.size;
 
@@ -922,6 +925,7 @@ class PaintingBoardState extends _PaintingBoardBase
         SingleTickerProviderStateMixin,
         _PaintingBoardLayerMixin,
         _PaintingBoardColorMixin,
+        _PaintingBoardPaletteMixin,
         _PaintingBoardSelectionMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardClipboardMixin,

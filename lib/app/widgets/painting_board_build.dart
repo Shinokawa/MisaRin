@@ -1,7 +1,8 @@
 part of 'painting_board.dart';
 
-mixin _PaintingBoardBuildMixin
-    on _PaintingBoardBase, _PaintingBoardInteractionMixin {
+mixin _PaintingBoardBuildMixin on _PaintingBoardBase,
+    _PaintingBoardInteractionMixin,
+    _PaintingBoardPaletteMixin {
   @override
   Widget build(BuildContext context) {
     _refreshStylusPreferencesIfNeeded();
@@ -446,11 +447,11 @@ mixin _PaintingBoardBuildMixin
                             right: _toolButtonPadding,
                             top: _toolButtonPadding,
                             bottom: _toolButtonPadding,
-                            child: SizedBox(
-                              width: _sidePanelWidth,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
+                          child: SizedBox(
+                            width: _sidePanelWidth,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
                                   _PanelCard(
                                     width: _sidePanelWidth,
                                     title: '取色',
@@ -477,14 +478,15 @@ mixin _PaintingBoardBuildMixin
                                       child: _buildLayerPanelContent(theme),
                                     ),
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
-                          if (_toolCursorPosition != null &&
-                              cursorStyle != null)
-                            Positioned(
-                              left:
+                        ),
+                        ..._buildPaletteCards(),
+                        if (_toolCursorPosition != null &&
+                            cursorStyle != null)
+                          Positioned(
+                            left:
                                   _toolCursorPosition!.dx -
                                   cursorStyle.anchor.dx +
                                   cursorStyle.iconOffset.dx,
@@ -531,6 +533,26 @@ mixin _PaintingBoardBuildMixin
         );
       },
     );
+  }
+
+  List<Widget> _buildPaletteCards() {
+    if (_paletteCards.isEmpty) {
+      return const <Widget>[];
+    }
+    return _paletteCards.map((entry) {
+      return Positioned(
+        left: entry.offset.dx,
+        top: entry.offset.dy,
+        child: _WorkspacePaletteCard(
+          colors: entry.colors,
+          onClose: () => _closePaletteCard(entry.id),
+          onDragStart: () => _handlePaletteDragStart(entry.id),
+          onDragEnd: _handlePaletteDragEnd,
+          onDragUpdate: (delta) => _updatePaletteCardOffset(entry.id, delta),
+          onSizeChanged: (size) => _updatePaletteCardSize(entry.id, size),
+        ),
+      );
+    }).toList(growable: false);
   }
 }
 

@@ -639,6 +639,10 @@ class CanvasPageState extends State<CanvasPage> {
       applyLayerAntialias1: () => _applyLayerAntialias(1),
       applyLayerAntialias2: () => _applyLayerAntialias(2),
       applyLayerAntialias3: () => _applyLayerAntialias(3),
+      generatePalette: () {
+        final board = _activeBoard;
+        board?.showPaletteGenerator();
+      },
     );
 
     return MenuActionBinding(

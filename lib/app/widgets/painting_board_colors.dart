@@ -153,21 +153,6 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     );
   }
 
-  String _formatColorHex(Color color) {
-    final int a = (color.a * 255.0).round().clamp(0, 255);
-    final int r = (color.r * 255.0).round().clamp(0, 255);
-    final int g = (color.g * 255.0).round().clamp(0, 255);
-    final int b = (color.b * 255.0).round().clamp(0, 255);
-    final String alpha = a.toRadixString(16).padLeft(2, '0').toUpperCase();
-    final String red = r.toRadixString(16).padLeft(2, '0').toUpperCase();
-    final String green = g.toRadixString(16).padLeft(2, '0').toUpperCase();
-    final String blue = b.toRadixString(16).padLeft(2, '0').toUpperCase();
-    if (a == 0xFF) {
-      return '#$red$green$blue';
-    }
-    return '#$alpha$red$green$blue';
-  }
-
   Widget? _buildColorPanelTrailing(FluentThemeData theme) {
     if (_recentColors.isEmpty) {
       return null;
@@ -410,7 +395,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     final Color background = isDark ? const Color(0xFF1B1B1F) : Colors.white;
     return AppNotificationAnchor(
       child: Tooltip(
-        message: '当前颜色 ${_formatColorHex(_primaryColor)}',
+        message: '当前颜色 ${_hexStringForColor(_primaryColor)}',
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
