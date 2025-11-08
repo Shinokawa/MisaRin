@@ -1,5 +1,9 @@
 part of 'controller.dart';
 
+const double _kStylusAbsoluteMinRadius = 0.005;
+const double _kSimulatedAbsoluteMinRadius = 0.01;
+const double _kAbsoluteMaxStrokeRadius = 512.0;
+
 void _strokeConfigureStylusPressure(
   BitmapCanvasController controller, {
   required bool enabled,
@@ -347,13 +351,21 @@ double _strokeResolveSimulatedRadius(
   double candidate, {
   bool preferImmediate = false,
 }) {
-  final double base = math.max(controller._currentStrokeRadius, 0.05);
   final bool stylusActive = controller._currentStrokeStylusPressureEnabled;
-  final double minFactor = stylusActive ? 0.025 : 0.12;
-  final double minClamp = stylusActive ? 0.02 : 0.06;
-  final double minimum = math.max(base * minFactor, minClamp);
-  final double maximum = math.max(base * 4.0, minimum + 0.01);
-  double sanitized = candidate.isFinite ? candidate.abs() : base;
+  final double baseRadius = controller._currentStrokeRadius.isFinite
+      ? controller._currentStrokeRadius.abs()
+      : 0.0;
+  final double minFactor = stylusActive ? 0.01 : 0.12;
+  final double minClamp = stylusActive
+      ? _kStylusAbsoluteMinRadius
+      : _kSimulatedAbsoluteMinRadius;
+  final double minimum = math.max(baseRadius * minFactor, minClamp);
+  final double maxFactor = stylusActive ? 5.0 : 4.5;
+  final double maximum = math.min(
+    math.max(baseRadius * maxFactor, minimum + 0.005),
+    _kAbsoluteMaxStrokeRadius,
+  );
+  double sanitized = candidate.isFinite ? candidate.abs() : baseRadius;
   sanitized = sanitized.clamp(minimum, maximum);
   final double previous = controller._currentStrokeLastRadius;
   if (previous.isFinite && previous > 0.0) {

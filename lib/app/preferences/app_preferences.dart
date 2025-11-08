@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../bitmap_canvas/stroke_dynamics.dart';
+import '../constants/pen_constants.dart';
 
 class AppPreferences {
   AppPreferences._({
@@ -24,7 +26,7 @@ class AppPreferences {
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 9;
+  static const int _version = 10;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -81,6 +83,28 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
+          if (version >= 10 && bytes.length >= 14) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+            );
+            return _instance!;
+          }
           if (version >= 9 && bytes.length >= 13) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             _instance = AppPreferences._(
@@ -88,7 +112,7 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
-              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
               simulatePenPressure: bytes[7] != 0,
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
@@ -109,7 +133,7 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
-              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
               simulatePenPressure: bytes[7] != 0,
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
@@ -130,7 +154,7 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
-              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
               simulatePenPressure: bytes[7] != 0,
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
@@ -151,7 +175,7 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
-              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
               simulatePenPressure: bytes[7] != 0,
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
@@ -168,7 +192,7 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
-              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
               simulatePenPressure: bytes[7] != 0,
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: bytes[9] != 0 ? 2 : 0,
@@ -185,7 +209,7 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
-              penStrokeWidth: _decodePenStrokeWidth(bytes[6]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
               simulatePenPressure: bytes[7] != 0,
               penPressureProfile: _decodePressureProfile(bytes[8]),
               penAntialiasLevel: _defaultPenAntialiasLevel,
@@ -272,8 +296,10 @@ class AppPreferences {
     await file.create(recursive: true);
     final int history = _clampHistoryLimit(prefs.historyLimit);
     prefs.historyLimit = history;
-    final int strokeWidth = _encodePenStrokeWidth(prefs.penStrokeWidth);
-    prefs.penStrokeWidth = strokeWidth.toDouble();
+    final double strokeWidthValue =
+        prefs.penStrokeWidth.clamp(kPenStrokeMin, kPenStrokeMax);
+    prefs.penStrokeWidth = strokeWidthValue;
+    final int strokeWidth = _encodePenStrokeWidth(strokeWidthValue);
     final double stylusCurve = _clampStylusFactor(
       prefs.stylusPressureCurve,
       lower: _stylusCurveLowerBound,
@@ -295,7 +321,8 @@ class AppPreferences {
       history & 0xff,
       (history >> 8) & 0xff,
       _encodeThemeMode(prefs.themeMode),
-      strokeWidth,
+      strokeWidth & 0xff,
+      (strokeWidth >> 8) & 0xff,
       prefs.simulatePenPressure ? 1 : 0,
       _encodePressureProfile(prefs.penPressureProfile),
       _encodeAntialiasLevel(prefs.penAntialiasLevel),
@@ -340,14 +367,36 @@ class AppPreferences {
     }
   }
 
-  static double _decodePenStrokeWidth(int value) {
-    final int clamped = value.clamp(1, 60);
-    return clamped.toDouble();
+  static double _decodePenStrokeWidthLegacy(int value) {
+    final double clamped = value.clamp(1, 60).toDouble();
+    return clamped.clamp(kPenStrokeMin, kPenStrokeMax);
+  }
+
+  static double _decodePenStrokeWidthV10(int value) {
+    final int clamped = value.clamp(0, 0xffff);
+    if (clamped <= 0) {
+      return kPenStrokeMin;
+    }
+    if (clamped >= 0xffff) {
+      return kPenStrokeMax;
+    }
+    final double t = clamped / 65535.0;
+    final double ratio = kPenStrokeMax / kPenStrokeMin;
+    return kPenStrokeMin * math.pow(ratio, t);
   }
 
   static int _encodePenStrokeWidth(double value) {
-    final double clamped = value.clamp(1.0, 60.0);
-    return clamped.round();
+    final double clamped = value.clamp(kPenStrokeMin, kPenStrokeMax);
+    if (clamped <= kPenStrokeMin) {
+      return 0;
+    }
+    if (clamped >= kPenStrokeMax) {
+      return 0xffff;
+    }
+    final double numerator = math.log(clamped / kPenStrokeMin);
+    final double denominator = math.log(kPenStrokeMax / kPenStrokeMin);
+    final double normalized = denominator == 0 ? 0.0 : (numerator / denominator);
+    return (normalized * 65535.0).round().clamp(0, 0xffff);
   }
 
   static double _decodeStylusFactor(

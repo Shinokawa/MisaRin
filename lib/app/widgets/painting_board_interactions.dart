@@ -155,8 +155,11 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _updatePenStrokeWidth(double value) {
-    final double clamped = value.clamp(1.0, 60.0);
-    if ((_penStrokeWidth - clamped).abs() < 0.01) {
+    final double clamped = value.clamp(
+      _ToolSettingsCard._minPenStrokeWidth,
+      _ToolSettingsCard._maxPenStrokeWidth,
+    );
+    if ((_penStrokeWidth - clamped).abs() < 0.0005) {
       return;
     }
     setState(() => _penStrokeWidth = clamped);

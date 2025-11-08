@@ -77,6 +77,18 @@ mixin _PaintingBoardBuildMixin
         _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
           _workspaceSize.height - _toolButtonPadding * 2,
         );
+        final double toolSettingsLeft =
+            _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing;
+        final double sidebarLeft =
+            (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding)
+                .clamp(0.0, double.infinity);
+        final double computedToolSettingsMaxWidth =
+            sidebarLeft - toolSettingsLeft - _toolSettingsSpacing;
+        final double? toolSettingsMaxWidth =
+            computedToolSettingsMaxWidth.isFinite &&
+                    computedToolSettingsMaxWidth > 0
+                ? computedToolSettingsMaxWidth
+                : null;
         final Rect boardRect = _boardRect;
         final ToolCursorStyle? cursorStyle = ToolCursorStyles.styleFor(
           _effectiveActiveTool,
@@ -370,7 +382,13 @@ mixin _PaintingBoardBuildMixin
                                 _toolbarLayout.width +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
-                            child: _ToolSettingsCard(
+                            child: Container(
+                              constraints: toolSettingsMaxWidth != null
+                                  ? BoxConstraints(
+                                      maxWidth: toolSettingsMaxWidth,
+                                    )
+                                  : null,
+                              child: _ToolSettingsCard(
                               activeTool: _activeTool,
                               penStrokeWidth: _penStrokeWidth,
                               onPenStrokeWidthChanged: _updatePenStrokeWidth,
@@ -400,6 +418,7 @@ mixin _PaintingBoardBuildMixin
                               onShapeToolVariantChanged:
                                   _updateShapeToolVariant,
                               onSizeChanged: _updateToolSettingsCardSize,
+                            ),
                             ),
                           ),
                           Positioned(

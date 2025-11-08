@@ -279,7 +279,8 @@ class BitmapSurface {
         if (coverage >= 0.999) {
           blendPixel(x, y, color);
         } else {
-          final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
+          final int adjustedAlpha =
+              (baseAlpha * coverage).round().clamp(0, 255);
           if (adjustedAlpha == 0) {
             continue;
           }
@@ -625,8 +626,14 @@ class BitmapSurface {
     if (radius == 0.0 && feather == 0.0) {
       return _CapsuleCoverageSample.zero;
     }
-    final double coverage =
-        _radialCoverage(distance, radius, feather, antialiasLevel);
+    final double coverage = _computePixelCoverage(
+      dx: dxp,
+      dy: dyp,
+      distance: distance,
+      radius: radius,
+      feather: feather,
+      antialiasLevel: antialiasLevel,
+    );
     if (coverage <= 0.0) {
       return _CapsuleCoverageSample.zero;
     }

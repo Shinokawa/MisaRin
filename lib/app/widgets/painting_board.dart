@@ -55,6 +55,7 @@ import 'canvas_toolbar.dart';
 import 'tool_cursor_overlay.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../preferences/app_preferences.dart';
+import '../constants/pen_constants.dart';
 import '../utils/tablet_input_bridge.dart';
 import 'layer_visibility_button.dart';
 
