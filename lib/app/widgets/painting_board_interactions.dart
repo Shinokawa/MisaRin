@@ -262,6 +262,7 @@ mixin _PaintingBoardInteractionMixin
       _activeStylusPressureMin = null;
       _activeStylusPressureMax = null;
     }
+    _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
     _pushUndoSnapshot();
     _lastPenSampleTimestamp = timestamp;
     setState(() {
@@ -304,6 +305,9 @@ mixin _PaintingBoardInteractionMixin
         _activeStylusPressureMax = candidateMax;
       }
     }
+    if (stylusPressure != null && stylusPressure.isFinite) {
+      _lastStylusPressureValue = stylusPressure.clamp(0.0, 1.0);
+    }
     setState(() {
       _controller.extendStroke(
         clamped,
@@ -324,18 +328,22 @@ mixin _PaintingBoardInteractionMixin
     if (!_activeStrokeUsesStylus) {
       return;
     }
-    final double targetPressure = (pressure ?? 0.0).clamp(0.0, 1.0);
+    double targetPressure = (pressure ?? 0.0).clamp(0.0, 1.0);
+    const double kMinPressure = 0.0001;
+    if ((targetPressure <= kMinPressure || !targetPressure.isFinite) &&
+        (_lastStylusPressureValue ?? 0.0) > kMinPressure) {
+      targetPressure = _lastStylusPressureValue!.clamp(0.0, 1.0);
+    } else if (targetPressure > kMinPressure) {
+      _lastStylusPressureValue = targetPressure;
+    }
     final double? deltaMillis = _registerPenSample(timestamp);
-    setState(() {
-      _controller.extendStroke(
-        boardLocal,
-        deltaTimeMillis: deltaMillis,
-        timestampMillis: timestamp.inMicroseconds / 1000.0,
-        pressure: targetPressure,
-        pressureMin: _activeStylusPressureMin,
-        pressureMax: _activeStylusPressureMax,
-      );
-    });
+    _emitReleaseSamples(
+      anchor: boardLocal,
+      timestampMillis: timestamp.inMicroseconds / 1000.0,
+      initialDeltaMillis: deltaMillis,
+      pressure: targetPressure,
+    );
+    _lastStylusPressureValue = 0.0;
   }
 
   void _finishStroke([Duration? timestamp]) {
@@ -353,6 +361,70 @@ mixin _PaintingBoardInteractionMixin
     _activeStrokeUsesStylus = false;
     _activeStylusPressureMin = null;
     _activeStylusPressureMax = null;
+    _lastStylusPressureValue = null;
+  }
+
+  void _emitReleaseSamples({
+    required Offset anchor,
+    required double timestampMillis,
+    double? initialDeltaMillis,
+    required double pressure,
+  }) {
+    const int kTailSteps = 5;
+    const double kTailDeltaMs = 6.0;
+    final double clampedPressure = pressure.clamp(0.0, 1.0);
+
+    setState(() {
+      _controller.extendStroke(
+        anchor,
+        deltaTimeMillis: initialDeltaMillis,
+        timestampMillis: timestampMillis,
+        pressure: clampedPressure,
+        pressureMin: _activeStylusPressureMin,
+        pressureMax: _activeStylusPressureMax,
+      );
+
+      double nextTimestamp = timestampMillis + (initialDeltaMillis ?? 0.0);
+      if (clampedPressure <= 0.0001) {
+        nextTimestamp += kTailDeltaMs;
+        _controller.extendStroke(
+          anchor,
+          deltaTimeMillis: kTailDeltaMs,
+          timestampMillis: nextTimestamp,
+          pressure: 0.0,
+          pressureMin: _activeStylusPressureMin,
+          pressureMax: _activeStylusPressureMax,
+        );
+        return;
+      }
+
+      for (int i = 0; i < kTailSteps; i++) {
+        final double t = (i + 1) / (kTailSteps + 1);
+        final double virtualPressure = (clampedPressure * (1.0 - t)).clamp(0.0, 1.0);
+        if (virtualPressure <= 0.0001) {
+          break;
+        }
+        nextTimestamp += kTailDeltaMs;
+        _controller.extendStroke(
+          anchor,
+          deltaTimeMillis: kTailDeltaMs,
+          timestampMillis: nextTimestamp,
+          pressure: virtualPressure,
+          pressureMin: _activeStylusPressureMin,
+          pressureMax: _activeStylusPressureMax,
+        );
+      }
+
+      nextTimestamp += kTailDeltaMs;
+      _controller.extendStroke(
+        anchor,
+        deltaTimeMillis: kTailDeltaMs,
+        timestampMillis: nextTimestamp,
+        pressure: 0.0,
+        pressureMin: _activeStylusPressureMin,
+        pressureMax: _activeStylusPressureMax,
+      );
+    });
   }
 
   Offset _sanitizeStrokePosition(Offset position) {

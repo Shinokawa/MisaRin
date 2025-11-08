@@ -151,6 +151,15 @@ void _strokeExtend(
       antialiasLevel: controller._currentStrokeAntialiasLevel,
       includeStartCap: restartCaps,
     );
+    assert(() {
+      _strokeLogDrawnSegment(
+        usesDevicePressure: controller._currentStrokeStylusPressureEnabled,
+        normalizedPressure: stylusPressure,
+        startRadius: startRadius,
+        endRadius: resolvedRadius,
+      );
+      return true;
+    }());
     controller._markDirty(
       region: _strokeDirtyRectForVariableLine(
         last,
@@ -173,11 +182,34 @@ void _strokeExtend(
     antialiasLevel: controller._currentStrokeAntialiasLevel,
     includeStartCap: firstSegment,
   );
+  assert(() {
+    _strokeLogDrawnSegment(
+      usesDevicePressure: false,
+      normalizedPressure: null,
+      startRadius: controller._currentStrokeRadius,
+      endRadius: controller._currentStrokeRadius,
+    );
+    return true;
+  }());
   controller._markDirty(
     region:
         _strokeDirtyRectForLine(last, position, controller._currentStrokeRadius),
   );
   controller._currentStrokeHasMoved = true;
+}
+
+void _strokeLogDrawnSegment({
+  required bool usesDevicePressure,
+  required double? normalizedPressure,
+  required double startRadius,
+  required double endRadius,
+}) {
+  final String pressureLabel = normalizedPressure != null
+      ? normalizedPressure.clamp(0.0, 1.0).toStringAsFixed(3)
+      : (usesDevicePressure ? 'virtual' : 'fixed');
+  debugPrint(
+    '[StrokeDraw] device=$usesDevicePressure pressure=$pressureLabel start=${startRadius.toStringAsFixed(3)} end=${endRadius.toStringAsFixed(3)}',
+  );
 }
 
 void _strokeEnd(BitmapCanvasController controller) {
