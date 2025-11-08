@@ -26,6 +26,11 @@ class MenuActionHandler {
     this.cut,
     this.copy,
     this.paste,
+    this.newLayer,
+    this.applyLayerAntialias0,
+    this.applyLayerAntialias1,
+    this.applyLayerAntialias2,
+    this.applyLayerAntialias3,
   });
 
   const MenuActionHandler.empty()
@@ -47,7 +52,12 @@ class MenuActionHandler {
       rotateCanvas180CounterClockwise = null,
       cut = null,
       copy = null,
-      paste = null;
+      paste = null,
+      newLayer = null,
+      applyLayerAntialias0 = null,
+      applyLayerAntialias1 = null,
+      applyLayerAntialias2 = null,
+      applyLayerAntialias3 = null;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -68,6 +78,11 @@ class MenuActionHandler {
   final MenuAsyncAction? cut;
   final MenuAsyncAction? copy;
   final MenuAsyncAction? paste;
+  final MenuAsyncAction? newLayer;
+  final MenuAsyncAction? applyLayerAntialias0;
+  final MenuAsyncAction? applyLayerAntialias1;
+  final MenuAsyncAction? applyLayerAntialias2;
+  final MenuAsyncAction? applyLayerAntialias3;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

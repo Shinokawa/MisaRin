@@ -27,21 +27,26 @@ import 'package:flutter/services.dart'
         TextInputType,
         TextEditingValue,
         TextSelection;
-import 'package:flutter/rendering.dart' show RenderBox, RenderProxyBox;
+import 'package:flutter/rendering.dart'
+    show RenderBox, RenderProxyBox, TextPainter;
 import 'package:flutter/scheduler.dart'
     show SingleTickerProviderStateMixin, TickerProvider;
 import 'package:flutter/widgets.dart'
     show
+        EditableText,
         FocusNode,
+        SingleChildRenderObjectWidget,
+        StrutStyle,
         TextEditingController,
-        WidgetsBinding,
-        SingleChildRenderObjectWidget;
+        TextHeightBehavior,
+        WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/controller.dart';
 import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
+import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_tools.dart';
@@ -50,6 +55,8 @@ import 'canvas_toolbar.dart';
 import 'tool_cursor_overlay.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../preferences/app_preferences.dart';
+import '../constants/pen_constants.dart';
+import '../utils/tablet_input_bridge.dart';
 import 'layer_visibility_button.dart';
 
 part 'painting_board_layers.dart';
@@ -62,9 +69,26 @@ part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
 part 'painting_board_widgets.dart';
 
+class _SyntheticStrokeSample {
+  const _SyntheticStrokeSample({
+    required this.point,
+    required this.distance,
+    required this.progress,
+  });
+
+  final Offset point;
+  final double distance;
+  final double progress;
+}
+
+enum _SyntheticStrokeTimelineStyle {
+  natural,
+  fastCurve,
+}
+
 const double _toolButtonPadding = 16;
-const double _toolbarButtonSize = 48;
-const double _toolbarSpacing = 9;
+const double _toolbarButtonSize = CanvasToolbar.buttonSize;
+const double _toolbarSpacing = CanvasToolbar.spacing;
 const double _toolSettingsSpacing = 12;
 const double _zoomStep = 1.1;
 const double _defaultPenStrokeWidth = 3;
@@ -74,6 +98,10 @@ const double _colorIndicatorSize = 56;
 const double _colorIndicatorBorder = 3;
 const int _recentColorCapacity = 5;
 const double _initialViewportScaleFactor = 0.8;
+const double _curveStrokeSampleSpacing = 3.4;
+const double _syntheticStrokeMinDeltaMs =
+    3.6; // keep >= StrokeDynamics._minDeltaMs
+const int _strokeStabilizerMaxLevel = 30;
 
 enum CanvasRotation {
   clockwise90,
@@ -123,7 +151,16 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isScalingGesture = false;
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
+  double _strokeStabilizerStrength =
+      AppPreferences.defaultStrokeStabilizerStrength;
   bool _simulatePenPressure = false;
+  int _penAntialiasLevel = 0;
+  bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
+  double _stylusCurve = AppPreferences.defaultStylusCurve;
+  bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
+  BrushShape _brushShape = AppPreferences.defaultBrushShape;
+  PenStrokeSliderRange _penStrokeSliderRange =
+      AppPreferences.defaultPenStrokeSliderRange;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _layerOpacityGestureActive = false;
@@ -133,6 +170,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _layerDragStart;
   int _layerDragAppliedDx = 0;
   int _layerDragAppliedDy = 0;
+  final math.Random _syntheticStrokeRandom = math.Random();
   Offset? _curveAnchor;
   Offset? _curvePendingEnd;
   Offset? _curveDragOrigin;
@@ -146,7 +184,22 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _lastWorkspacePointer;
   Offset? _penCursorWorkspacePosition;
   Duration? _lastPenSampleTimestamp;
+  bool _activeStrokeUsesStylus = false;
+  double? _activeStylusPressureMin;
+  double? _activeStylusPressureMax;
+  double? _lastStylusPressureValue;
+  Offset? _lastStrokeBoardPosition;
+  Offset? _lastStylusDirection;
+  final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
+  CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
+    columns: 1,
+    rows: CanvasToolbar.buttonCount,
+    width: CanvasToolbar.buttonSize,
+    height:
+        CanvasToolbar.buttonSize * CanvasToolbar.buttonCount +
+        CanvasToolbar.spacing * (CanvasToolbar.buttonCount - 1),
+  );
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -168,6 +221,233 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _canvasSize.width * _viewport.scale,
     _canvasSize.height * _viewport.scale,
   );
+
+  bool _isWithinCanvasBounds(Offset position) {
+    final Size size = _canvasSize;
+    return position.dx >= 0 &&
+        position.dy >= 0 &&
+        position.dx <= size.width &&
+        position.dy <= size.height;
+  }
+
+  void _applyStylusSettingsToController() {
+    _controller.configureStylusPressure(
+      enabled: _stylusPressureEnabled,
+      curve: _stylusCurve,
+    );
+    _controller.configureSharpTips(enabled: _autoSharpPeakEnabled);
+  }
+
+  List<_SyntheticStrokeSample> _buildSyntheticStrokeSamples(
+    List<Offset> points,
+    Offset initialPoint,
+  ) {
+    if (points.isEmpty) {
+      return const <_SyntheticStrokeSample>[];
+    }
+    final List<_SyntheticStrokeSample> pending = <_SyntheticStrokeSample>[];
+    double totalDistance = 0.0;
+    Offset previous = initialPoint;
+    for (final Offset point in points) {
+      final double distance = (point - previous).distance;
+      if (distance < 0.001) {
+        previous = point;
+        continue;
+      }
+      pending.add(
+        _SyntheticStrokeSample(point: point, distance: distance, progress: 0.0),
+      );
+      totalDistance += distance;
+      previous = point;
+    }
+    if (pending.isEmpty) {
+      return const <_SyntheticStrokeSample>[];
+    }
+    if (totalDistance <= 0.0001) {
+      final int count = pending.length;
+      for (int i = 0; i < count; i++) {
+        final _SyntheticStrokeSample sample = pending[i];
+        pending[i] = _SyntheticStrokeSample(
+          point: sample.point,
+          distance: sample.distance,
+          progress: (i + 1) / count,
+        );
+      }
+      return pending;
+    }
+    double cumulative = 0.0;
+    for (int i = 0; i < pending.length; i++) {
+      final _SyntheticStrokeSample sample = pending[i];
+      cumulative += sample.distance;
+      pending[i] = _SyntheticStrokeSample(
+        point: sample.point,
+        distance: sample.distance,
+        progress: (cumulative / totalDistance).clamp(0.0, 1.0),
+      );
+    }
+    return pending;
+  }
+
+  void _simulateStrokeWithSyntheticTimeline(
+    List<_SyntheticStrokeSample> samples, {
+    required double totalDistance,
+    required double initialTimestamp,
+    _SyntheticStrokeTimelineStyle style =
+        _SyntheticStrokeTimelineStyle.natural,
+  }) {
+    if (samples.isEmpty) {
+      return;
+    }
+    final bool useFastCurveStyle =
+        style == _SyntheticStrokeTimelineStyle.fastCurve;
+    final double effectiveDistance = totalDistance > 0.0001
+        ? totalDistance
+        : samples.length.toDouble();
+    double targetDuration = _syntheticStrokeTargetDuration(
+      effectiveDistance,
+    ).clamp(160.0, 720.0);
+    if (useFastCurveStyle) {
+      targetDuration *= 0.62;
+    }
+    final double durationJitter =
+        ui.lerpDouble(0.85, 1.25, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
+    targetDuration *= durationJitter;
+    final double minimumTimeline = samples.length * _syntheticStrokeMinDeltaMs;
+    final double resolvedDuration = math.max(targetDuration, minimumTimeline);
+    final List<double> weights = <double>[];
+    double totalWeight = 0.0;
+    for (final _SyntheticStrokeSample sample in samples) {
+      final double baseSpeed = _syntheticStrokeSpeedFactor(
+        sample.progress,
+        _penPressureProfile,
+      );
+      final double styleScale = _syntheticTimelineSpeedScale(
+        sample.progress,
+        style,
+      );
+      final double speed = math.max(baseSpeed * styleScale, 0.05);
+      final double jitter =
+          ui.lerpDouble(0.82, 1.24, _syntheticStrokeRandom.nextDouble()) ?? 1.0;
+      final double normalizedDistance =
+          math.max(sample.distance, 0.02) / speed;
+      final double weight = math.max(0.001, normalizedDistance * jitter);
+      weights.add(weight);
+      totalWeight += weight;
+    }
+    if (totalWeight <= 0.0001) {
+      totalWeight = samples.length.toDouble();
+      for (int i = 0; i < weights.length; i++) {
+        weights[i] = 1.0;
+      }
+    }
+    final double scale = resolvedDuration / totalWeight;
+    double timestamp = initialTimestamp;
+    for (int i = 0; i < samples.length; i++) {
+      final double deltaTime = math.max(
+        _syntheticStrokeMinDeltaMs,
+        weights[i] * scale,
+      );
+      timestamp += deltaTime;
+      _controller.extendStroke(
+        samples[i].point,
+        deltaTimeMillis: deltaTime,
+        timestampMillis: timestamp,
+      );
+    }
+  }
+
+  double _syntheticStrokeTotalDistance(List<_SyntheticStrokeSample> samples) {
+    double total = 0.0;
+    for (final _SyntheticStrokeSample sample in samples) {
+      total += sample.distance;
+    }
+    return total;
+  }
+
+  /// Adds an optional speed bias so synthetic strokes can mimic a faster
+  /// flick, which emphasises the contrast between slow and fast segments.
+  double _syntheticTimelineSpeedScale(
+    double progress,
+    _SyntheticStrokeTimelineStyle style,
+  ) {
+    if (style == _SyntheticStrokeTimelineStyle.natural) {
+      return 1.0;
+    }
+    final double normalized = progress.clamp(0.0, 1.0);
+    final double sine = math.sin(normalized * math.pi).abs();
+    final double eased =
+        math.pow(sine, 0.78).toDouble().clamp(0.0, 1.0);
+    final double scale = ui.lerpDouble(0.24, 4.25, eased) ?? 1.0;
+    return scale.clamp(0.24, 4.25);
+  }
+
+  double _syntheticStrokeTargetDuration(double totalDistance) {
+    final double normalized = (totalDistance / 320.0).clamp(0.0, 1.0);
+    return ui.lerpDouble(200.0, 500.0, normalized) ?? 320.0;
+  }
+
+  double _syntheticStrokeSpeedFactor(
+    double progress,
+    StrokePressureProfile profile,
+  ) {
+    final double normalized = progress.clamp(0.0, 1.0);
+    final double fromCenter = (normalized - 0.5).abs() * 2.0;
+    switch (profile) {
+      case StrokePressureProfile.taperEnds:
+        return ui.lerpDouble(2.8, 0.38, fromCenter) ?? 1.0;
+      case StrokePressureProfile.taperCenter:
+        return ui.lerpDouble(0.42, 2.6, fromCenter) ?? 1.0;
+      case StrokePressureProfile.auto:
+        final double sine = math.sin(normalized * math.pi).abs();
+        final double blend = ui.lerpDouble(1.8, 0.55, sine) ?? 1.0;
+        final double edgeBias = ui.lerpDouble(1.1, 0.75, fromCenter) ?? 1.0;
+        return blend * edgeBias;
+    }
+  }
+
+  List<Offset> _densifyStrokePolyline(
+    List<Offset> points, {
+    double maxSegmentLength = 6.0,
+  }) {
+    if (points.length < 2) {
+      return List<Offset>.from(points);
+    }
+    final double spacing = maxSegmentLength.clamp(0.8, 24.0);
+    final List<Offset> dense = <Offset>[points.first];
+    for (int i = 1; i < points.length; i++) {
+      final Offset from = dense.last;
+      final Offset to = points[i];
+      final double segmentLength = (to - from).distance;
+      if (segmentLength <= spacing + 1e-3) {
+        dense.add(to);
+        continue;
+      }
+      final int segments = math.max(1, (segmentLength / spacing).ceil());
+      for (int s = 1; s <= segments; s++) {
+        final double t = s / segments;
+        final double x = ui.lerpDouble(from.dx, to.dx, t) ?? to.dx;
+        final double y = ui.lerpDouble(from.dy, to.dy, t) ?? to.dy;
+        dense.add(Offset(x, y));
+      }
+    }
+    return dense;
+  }
+
+  void _refreshStylusPreferencesIfNeeded() {
+    final AppPreferences prefs = AppPreferences.instance;
+    const double epsilon = 0.0001;
+    final bool needsUpdate =
+        _stylusPressureEnabled != prefs.stylusPressureEnabled ||
+        (_stylusCurve - prefs.stylusPressureCurve).abs() > epsilon;
+    if (!needsUpdate) {
+      return;
+    }
+    _stylusPressureEnabled = prefs.stylusPressureEnabled;
+    _stylusCurve = prefs.stylusPressureCurve;
+    if (mounted) {
+      _applyStylusSettingsToController();
+    }
+  }
 
   Offset _baseOffsetForScale(double scale) {
     final Size workspace = _workspaceSize;
@@ -338,6 +618,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _updatePenPressureSimulation(bool value);
   void _updatePenPressureProfile(StrokePressureProfile profile);
+  void _updatePenAntialiasLevel(int value);
+  void _updateAutoSharpPeakEnabled(bool value);
 
   void _handleScaleStart(ScaleStartDetails details);
   void _handleScaleUpdate(ScaleUpdateDetails details);
@@ -650,9 +932,20 @@ class PaintingBoardState extends _PaintingBoardBase
   void initState() {
     super.initState();
     initializeSelectionTicker(this);
+    _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
+    _penStrokeSliderRange = prefs.penStrokeSliderRange;
+    _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
+    _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
+    _simulatePenPressure = prefs.simulatePenPressure;
+    _penPressureProfile = prefs.penPressureProfile;
+    _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
+    _stylusPressureEnabled = prefs.stylusPressureEnabled;
+    _stylusCurve = prefs.stylusPressureCurve;
+    _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
+    _brushShape = prefs.brushShape;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
@@ -663,6 +956,7 @@ class PaintingBoardState extends _PaintingBoardBase
       backgroundColor: widget.settings.backgroundColor,
       initialLayers: layers,
     );
+    _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
     _resetHistory();
   }
@@ -673,8 +967,15 @@ class PaintingBoardState extends _PaintingBoardBase
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
     _layerScrollController.dispose();
+    _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
+    _layerRenameController.dispose();
+    _layerRenameFocusNode.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void addLayerAboveActiveLayer() {
+    _handleAddLayer();
   }
 
   @override
@@ -692,6 +993,7 @@ class PaintingBoardState extends _PaintingBoardBase
         backgroundColor: widget.settings.backgroundColor,
         initialLayers: _buildInitialLayers(),
       );
+      _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
       _resetHistory();
       setState(() {
@@ -728,4 +1030,4 @@ class _CanvasHistoryEntry {
   final Path? selectionPath;
 }
 
-StrokePressureProfile _penPressureProfile = StrokePressureProfile.taperEnds;
+StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;

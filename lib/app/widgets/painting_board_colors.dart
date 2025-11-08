@@ -365,6 +365,12 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
   Widget _buildColorIndicator(FluentThemeData theme) {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Color strokeColor =
+        borderColor.withValues(alpha: borderColor.a * 0.6);
+    final bool isDark = theme.brightness.isDark;
+    final Color background = isDark
+        ? const Color(0xFF1B1B1F)
+        : Colors.white;
     return Tooltip(
       message: '当前颜色 ${_formatColorHex(_primaryColor)}',
       child: MouseRegion(
@@ -375,11 +381,20 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
             width: _colorIndicatorSize,
             height: _colorIndicatorSize,
             decoration: BoxDecoration(
-              color: _primaryColor,
-              borderRadius: BorderRadius.circular(10),
+              color: background,
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: borderColor,
-                width: _colorIndicatorBorder,
+                color: strokeColor,
+                width: 1.5,
+              ),
+            ),
+            padding: const EdgeInsets.all(4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox.expand(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(color: _primaryColor),
+                ),
               ),
             ),
           ),

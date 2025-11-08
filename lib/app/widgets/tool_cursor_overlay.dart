@@ -3,6 +3,7 @@ import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../canvas/brush_shape_geometry.dart';
 import '../../canvas/canvas_tools.dart';
 
 class ToolCursorStyle {
@@ -147,10 +148,12 @@ class PenCursorOverlay extends StatelessWidget {
     super.key,
     required this.position,
     required this.diameter,
+    required this.shape,
   });
 
   final Offset position;
   final double diameter;
+  final BrushShape shape;
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +173,7 @@ class PenCursorOverlay extends StatelessWidget {
           width: side,
           height: side,
           child: CustomPaint(
-            painter: _PenCursorPainter(radius: radius),
+            painter: _PenCursorPainter(radius: radius, shape: shape),
             isComplex: false,
             willChange: false,
           ),
@@ -181,9 +184,10 @@ class PenCursorOverlay extends StatelessWidget {
 }
 
 class _PenCursorPainter extends CustomPainter {
-  const _PenCursorPainter({required this.radius});
+  const _PenCursorPainter({required this.radius, required this.shape});
 
   final double radius;
+  final BrushShape shape;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -205,13 +209,24 @@ class _PenCursorPainter extends CustomPainter {
     final double innerRadius = math.max(radius - 1, 0);
 
     if (outerRadius > 0) {
-      canvas.drawCircle(center, outerRadius, whiteStroke);
+      final Path outline = BrushShapeGeometry.pathFor(
+        shape,
+        center,
+        outerRadius,
+      );
+      canvas.drawPath(outline, whiteStroke);
     }
     if (radius > 0) {
-      canvas.drawCircle(center, radius, blackStroke);
+      final Path outline = BrushShapeGeometry.pathFor(shape, center, radius);
+      canvas.drawPath(outline, blackStroke);
     }
     if (innerRadius > 0) {
-      canvas.drawCircle(center, innerRadius, whiteStroke);
+      final Path outline = BrushShapeGeometry.pathFor(
+        shape,
+        center,
+        innerRadius,
+      );
+      canvas.drawPath(outline, whiteStroke);
     } else {
       final Paint centerDot = Paint()
         ..color = Colors.white
@@ -226,7 +241,7 @@ class _PenCursorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PenCursorPainter oldDelegate) =>
-      oldDelegate.radius != radius;
+      oldDelegate.radius != radius || oldDelegate.shape != shape;
 }
 
 class _OutlinedToolCursorIcon extends StatelessWidget {

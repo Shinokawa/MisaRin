@@ -1,8 +1,10 @@
 part of 'painting_board.dart';
 
-mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
+mixin _PaintingBoardBuildMixin
+    on _PaintingBoardBase, _PaintingBoardInteractionMixin {
   @override
   Widget build(BuildContext context) {
+    _refreshStylusPreferencesIfNeeded();
     _refreshHistoryLimit();
     final bool canUndo = this.canUndo;
     final bool canRedo = this.canRedo;
@@ -72,6 +74,23 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
         _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
+        _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
+          _workspaceSize.height - _toolButtonPadding * 2,
+        );
+        final double toolSettingsLeft =
+            _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing;
+        final double sidebarLeft =
+            (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding).clamp(
+              0.0,
+              double.infinity,
+            );
+        final double computedToolSettingsMaxWidth =
+            sidebarLeft - toolSettingsLeft - _toolSettingsSpacing;
+        final double? toolSettingsMaxWidth =
+            computedToolSettingsMaxWidth.isFinite &&
+                computedToolSettingsMaxWidth > 0
+            ? computedToolSettingsMaxWidth
+            : null;
         final Rect boardRect = _boardRect;
         final ToolCursorStyle? cursorStyle = ToolCursorStyles.styleFor(
           _effectiveActiveTool,
@@ -356,36 +375,60 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                               canUndo: canUndo,
                               canRedo: canRedo,
                               onExit: widget.onRequestExit,
+                              layout: _toolbarLayout,
                             ),
                           ),
                           Positioned(
                             left:
                                 _toolButtonPadding +
-                                _toolbarButtonSize +
+                                _toolbarLayout.width +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
-                            child: _ToolSettingsCard(
-                              activeTool: _activeTool,
-                              penStrokeWidth: _penStrokeWidth,
-                              onPenStrokeWidthChanged: _updatePenStrokeWidth,
-                              simulatePenPressure: _simulatePenPressure,
-                              onSimulatePenPressureChanged:
-                                  _updatePenPressureSimulation,
-                              penPressureProfile: _penPressureProfile,
-                              onPenPressureProfileChanged:
-                                  _updatePenPressureProfile,
-                              bucketSampleAllLayers: _bucketSampleAllLayers,
-                              bucketContiguous: _bucketContiguous,
-                              onBucketSampleAllLayersChanged:
-                                  _updateBucketSampleAllLayers,
-                              onBucketContiguousChanged:
-                                  _updateBucketContiguous,
-                              selectionShape: selectionShape,
-                              onSelectionShapeChanged: _updateSelectionShape,
-                              shapeToolVariant: shapeToolVariant,
-                              onShapeToolVariantChanged:
-                                  _updateShapeToolVariant,
-                              onSizeChanged: _updateToolSettingsCardSize,
+                            child: Container(
+                              constraints: toolSettingsMaxWidth != null
+                                  ? BoxConstraints(
+                                      maxWidth: toolSettingsMaxWidth,
+                                    )
+                                  : null,
+                              child: _ToolSettingsCard(
+                                activeTool: _activeTool,
+                                penStrokeWidth: _penStrokeWidth,
+                                penStrokeSliderRange: _penStrokeSliderRange,
+                                onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                                brushShape: _brushShape,
+                                onBrushShapeChanged: _updateBrushShape,
+                                strokeStabilizerStrength:
+                                    _strokeStabilizerStrength,
+                                onStrokeStabilizerChanged:
+                                    _updateStrokeStabilizerStrength,
+                                stylusPressureEnabled: _stylusPressureEnabled,
+                                onStylusPressureEnabledChanged:
+                                    _updateStylusPressureEnabled,
+                                simulatePenPressure: _simulatePenPressure,
+                                onSimulatePenPressureChanged:
+                                    _updatePenPressureSimulation,
+                                penPressureProfile: _penPressureProfile,
+                                onPenPressureProfileChanged:
+                                    _updatePenPressureProfile,
+                                brushAntialiasLevel: _penAntialiasLevel,
+                                onBrushAntialiasChanged:
+                                    _updatePenAntialiasLevel,
+                                autoSharpPeakEnabled: _autoSharpPeakEnabled,
+                                onAutoSharpPeakChanged:
+                                    _updateAutoSharpPeakEnabled,
+                                bucketSampleAllLayers: _bucketSampleAllLayers,
+                                bucketContiguous: _bucketContiguous,
+                                onBucketSampleAllLayersChanged:
+                                    _updateBucketSampleAllLayers,
+                                onBucketContiguousChanged:
+                                    _updateBucketContiguous,
+                                selectionShape: selectionShape,
+                                onSelectionShapeChanged: _updateSelectionShape,
+                                shapeToolVariant: shapeToolVariant,
+                                onShapeToolVariantChanged:
+                                    _updateShapeToolVariant,
+                                onSizeChanged: _updateToolSettingsCardSize,
+                              ),
                             ),
                           ),
                           Positioned(
@@ -456,6 +499,7 @@ mixin _PaintingBoardBuildMixin on _PaintingBoardBase {
                             PenCursorOverlay(
                               position: _penCursorWorkspacePosition!,
                               diameter: _penStrokeWidth * _viewport.scale,
+                              shape: _brushShape,
                             ),
                           if (_toolCursorPosition != null)
                             Positioned(
@@ -503,10 +547,5 @@ Widget _buildTransformedLayerOverlay({
 }
 
 ui.BlendMode? _flutterBlendMode(CanvasLayerBlendMode mode) {
-  switch (mode) {
-    case CanvasLayerBlendMode.normal:
-      return null;
-    case CanvasLayerBlendMode.multiply:
-      return ui.BlendMode.multiply;
-  }
+  return mode.flutterBlendMode;
 }

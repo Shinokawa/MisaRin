@@ -5,7 +5,35 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
-enum CanvasLayerBlendMode { normal, multiply }
+enum CanvasLayerBlendMode {
+  normal,
+  multiply,
+  dissolve,
+  darken,
+  colorBurn,
+  linearBurn,
+  darkerColor,
+  lighten,
+  screen,
+  colorDodge,
+  linearDodge,
+  lighterColor,
+  overlay,
+  softLight,
+  hardLight,
+  vividLight,
+  linearLight,
+  pinLight,
+  hardMix,
+  difference,
+  exclusion,
+  subtract,
+  divide,
+  hue,
+  saturation,
+  color,
+  luminosity,
+}
 
 @immutable
 class CanvasLayerData {

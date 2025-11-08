@@ -7,9 +7,18 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../canvas/blend_mode_math.dart';
 import '../canvas/canvas_layer.dart';
+import '../canvas/canvas_tools.dart';
 import 'bitmap_canvas.dart';
 import 'stroke_dynamics.dart';
+import 'stroke_pressure_simulator.dart';
+
+part 'controller_active_transform.dart';
+part 'controller_layer_management.dart';
+part 'controller_stroke.dart';
+part 'controller_fill.dart';
+part 'controller_composite.dart';
 
 class BitmapLayerState {
   BitmapLayerState({
@@ -43,9 +52,9 @@ class BitmapCanvasController extends ChangeNotifier {
        _height = height,
        _backgroundColor = backgroundColor {
     if (initialLayers != null && initialLayers.isNotEmpty) {
-      _loadFromCanvasLayers(initialLayers, backgroundColor);
+      _loadFromCanvasLayers(this, initialLayers, backgroundColor);
     } else {
-      _initializeDefaultLayers(backgroundColor);
+      _initializeDefaultLayers(this, backgroundColor);
     }
     _scheduleCompositeRefresh();
   }
@@ -59,11 +68,30 @@ class BitmapCanvasController extends ChangeNotifier {
   final List<Offset> _currentStrokePoints = <Offset>[];
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
-  bool _currentStrokePressureEnabled = false;
-  final StrokeDynamics _strokeDynamics = StrokeDynamics();
-  StrokePressureProfile _strokePressureProfile =
-      StrokePressureProfile.taperEnds;
+  bool _currentStrokeStylusPressureEnabled = false;
+  double _currentStylusCurve = 1.0;
+  double? _currentStylusLastPressure;
+  int _currentStrokeAntialiasLevel = 0;
+  bool _currentStrokeHasMoved = false;
+  BrushShape _currentBrushShape = BrushShape.circle;
+  final StrokePressureSimulator _strokePressureSimulator =
+      StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
+  bool _stylusPressureEnabled = true;
+  double _stylusCurve = 0.85;
+  static const double _kStylusSmoothing = 0.55;
+
+  static const int _kAntialiasCenterWeight = 4;
+  static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
+  static const List<int> _kAntialiasDy = <int>[-1, -1, -1, 0, 0, 1, 1, 1];
+  static const List<int> _kAntialiasWeights = <int>[1, 2, 1, 2, 2, 1, 2, 1];
+  static const Map<int, List<double>> _kAntialiasBlendProfiles =
+      <int, List<double>>{
+        0: <double>[0.25],
+        1: <double>[0.35, 0.35],
+        2: <double>[0.45, 0.5, 0.5],
+        3: <double>[0.6, 0.65, 0.7, 0.75],
+      };
 
   ui.Image? _cachedImage;
   bool _compositeDirty = true;
@@ -121,1084 +149,324 @@ class BitmapCanvasController extends ChangeNotifier {
     return false;
   }
 
-  void setSelectionMask(Uint8List? mask) {
-    if (mask != null && mask.length != _width * _height) {
-      throw ArgumentError('Selection mask size mismatch');
-    }
-    _selectionMask = mask;
-  }
+  void configureStylusPressure({
+    required bool enabled,
+    required double curve,
+  }) => _strokeConfigureStylusPressure(this, enabled: enabled, curve: curve);
 
-  void translateActiveLayer(int dx, int dy) {
-    if (_pendingActiveLayerTransformCleanup) {
-      return;
-    }
-    final BitmapLayerState layer = _activeLayer;
-    if (layer.locked) {
-      return;
-    }
-    if (_activeLayerTranslationSnapshot == null) {
-      _startActiveLayerTransformSession(layer);
-    }
-    if (_activeLayerTranslationSnapshot == null) {
-      return;
-    }
-    if (dx == _activeLayerTranslationDx && dy == _activeLayerTranslationDy) {
-      return;
-    }
-    _activeLayerTranslationDx = dx;
-    _activeLayerTranslationDy = dy;
-    _updateActiveLayerTransformDirtyRegion();
-    notifyListeners();
-  }
+  void configureSharpTips({required bool enabled}) =>
+      _strokeConfigureSharpTips(this, enabled: enabled);
 
-  void commitActiveLayerTranslation() {
-    if (_activeLayerTranslationSnapshot == null) {
-      return;
-    }
-    final Rect? dirtyRegion = _activeLayerTransformDirtyRegion;
-    _applyActiveLayerTranslation();
-    _pendingActiveLayerTransformCleanup = true;
-    if (dirtyRegion != null) {
-      _markDirty(region: dirtyRegion);
-    } else {
-      _markDirty();
-    }
-  }
+  void setSelectionMask(Uint8List? mask) => _fillSetSelectionMask(this, mask);
 
-  void cancelActiveLayerTranslation() {
-    if (_activeLayerTranslationSnapshot == null) {
-      return;
+  bool _runAntialiasPass(
+    Uint32List src,
+    Uint32List dest,
+    int width,
+    int height,
+    double blendFactor,
+  ) {
+    dest.setAll(0, src);
+    if (blendFactor <= 0) {
+      return false;
     }
-    final Rect? dirtyRegion = _activeLayerTransformDirtyRegion;
-    _restoreActiveLayerSnapshot();
-    _pendingActiveLayerTransformCleanup = true;
-    if (dirtyRegion != null) {
-      _markDirty(region: dirtyRegion);
-    } else {
-      _markDirty();
-    }
-  }
-
-  Uint32List _ensureTranslationSnapshot(String layerId, Uint32List pixels) {
-    final Uint32List? existing = _activeLayerTranslationSnapshot;
-    if (existing != null && _activeLayerTranslationId == layerId) {
-      return existing;
-    }
-    final Uint32List snapshot = Uint32List.fromList(pixels);
-    _activeLayerTranslationSnapshot = snapshot;
-    _activeLayerTranslationId = layerId;
-    _activeLayerTranslationDx = 0;
-    _activeLayerTranslationDy = 0;
-    return snapshot;
-  }
-
-  void _startActiveLayerTransformSession(BitmapLayerState layer) {
-    if (_pendingActiveLayerTransformCleanup) {
-      return;
-    }
-    final Uint32List snapshot = _ensureTranslationSnapshot(
-      layer.id,
-      layer.surface.pixels,
-    );
-    final int width = layer.surface.width;
-    final int height = layer.surface.height;
-    final Rect? bounds = _computePixelBounds(snapshot, width, height);
-    _activeLayerTransformBounds = bounds;
-    _activeLayerTransformDirtyRegion = bounds;
-    layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
-    if (bounds != null) {
-      _markDirty(region: bounds);
-    } else {
-      _markDirty();
-    }
-    _prepareActiveLayerTransformPreview(layer, snapshot);
-  }
-
-  Rect? _computePixelBounds(Uint32List pixels, int width, int height) {
-    int minX = width;
-    int minY = height;
-    int maxX = -1;
-    int maxY = -1;
+    final double factor = blendFactor.clamp(0.0, 1.0);
+    bool modified = false;
     for (int y = 0; y < height; y++) {
       final int rowOffset = y * width;
       for (int x = 0; x < width; x++) {
-        final int argb = pixels[rowOffset + x];
-        if ((argb >> 24) == 0) {
+        final int index = rowOffset + x;
+        final int center = src[index];
+        final int alpha = (center >> 24) & 0xff;
+
+        int totalWeight = _kAntialiasCenterWeight;
+        int weightedAlpha = alpha * _kAntialiasCenterWeight;
+        int weightedPremulR =
+            ((center >> 16) & 0xff) * alpha * _kAntialiasCenterWeight;
+        int weightedPremulG =
+            ((center >> 8) & 0xff) * alpha * _kAntialiasCenterWeight;
+        int weightedPremulB = (center & 0xff) * alpha * _kAntialiasCenterWeight;
+
+        for (int i = 0; i < _kAntialiasDx.length; i++) {
+          final int nx = x + _kAntialiasDx[i];
+          final int ny = y + _kAntialiasDy[i];
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+            continue;
+          }
+          final int neighbor = src[ny * width + nx];
+          final int neighborAlpha = (neighbor >> 24) & 0xff;
+          final int weight = _kAntialiasWeights[i];
+          totalWeight += weight;
+          if (neighborAlpha == 0) {
+            continue;
+          }
+          weightedAlpha += neighborAlpha * weight;
+          weightedPremulR += ((neighbor >> 16) & 0xff) * neighborAlpha * weight;
+          weightedPremulG += ((neighbor >> 8) & 0xff) * neighborAlpha * weight;
+          weightedPremulB += (neighbor & 0xff) * neighborAlpha * weight;
+        }
+
+        if (totalWeight <= 0) {
           continue;
         }
-        if (x < minX) {
-          minX = x;
-        }
-        if (x > maxX) {
-          maxX = x;
-        }
-        if (y < minY) {
-          minY = y;
-        }
-        if (y > maxY) {
-          maxY = y;
-        }
-      }
-    }
-    if (maxX < minX || maxY < minY) {
-      return null;
-    }
-    return Rect.fromLTRB(
-      minX.toDouble(),
-      minY.toDouble(),
-      (maxX + 1).toDouble(),
-      (maxY + 1).toDouble(),
-    );
-  }
 
-  void _prepareActiveLayerTransformPreview(
-    BitmapLayerState layer,
-    Uint32List snapshot,
-  ) {
-    if (_activeLayerTransformPreparing) {
-      return;
-    }
-    _activeLayerTransformPreparing = true;
-    final Uint8List rgba = _pixelsToRgba(snapshot);
-    _activeLayerTransformImage?.dispose();
-    ui.decodeImageFromPixels(
-      rgba,
-      layer.surface.width,
-      layer.surface.height,
-      ui.PixelFormat.rgba8888,
-      (ui.Image image) {
-        if (_activeLayerTranslationSnapshot == null ||
-            _activeLayerTranslationId != layer.id) {
-          _activeLayerTransformPreparing = false;
-          image.dispose();
-          return;
-        }
-        _activeLayerTransformImage?.dispose();
-        _activeLayerTransformImage = image;
-        _activeLayerTransformPreparing = false;
-        notifyListeners();
-      },
-    );
-  }
-
-  void _applyActiveLayerTranslation() {
-    final Uint32List? snapshot = _activeLayerTranslationSnapshot;
-    final String? id = _activeLayerTranslationId;
-    if (snapshot == null || id == null) {
-      return;
-    }
-    final BitmapLayerState layer = _layers.firstWhere(
-      (candidate) => candidate.id == id,
-      orElse: () => _activeLayer,
-    );
-    final BitmapSurface surface = layer.surface;
-    final Uint32List target = surface.pixels;
-    final int width = surface.width;
-    final int height = surface.height;
-    target.fillRange(0, target.length, 0);
-    final int dx = _activeLayerTranslationDx;
-    final int dy = _activeLayerTranslationDy;
-    for (int y = 0; y < height; y++) {
-      final int destY = y + dy;
-      if (destY < 0 || destY >= height) {
-        continue;
-      }
-      final int srcOffset = y * width;
-      final int dstOffset = destY * width;
-      for (int x = 0; x < width; x++) {
-        final int destX = x + dx;
-        if (destX < 0 || destX >= width) {
+        final int candidateAlpha = (weightedAlpha ~/ totalWeight).clamp(0, 255);
+        if (candidateAlpha <= alpha) {
           continue;
         }
-        target[dstOffset + destX] = snapshot[srcOffset + x];
+
+        final int newAlpha =
+            (alpha + ((candidateAlpha - alpha) * factor).round()).clamp(
+              alpha + 1,
+              255,
+            );
+        if (newAlpha <= alpha) {
+          continue;
+        }
+
+        final int boundedWeightedAlpha = math.max(weightedAlpha, 1);
+        final int neighborColorR = (weightedPremulR ~/ boundedWeightedAlpha)
+            .clamp(0, 255);
+        final int neighborColorG = (weightedPremulG ~/ boundedWeightedAlpha)
+            .clamp(0, 255);
+        final int neighborColorB = (weightedPremulB ~/ boundedWeightedAlpha)
+            .clamp(0, 255);
+
+        final int newR = neighborColorR;
+        final int newG = neighborColorG;
+        final int newB = neighborColorB;
+
+        dest[index] = (newAlpha << 24) | (newR << 16) | (newG << 8) | newB;
+        modified = true;
       }
     }
+    return modified;
   }
 
-  void _restoreActiveLayerSnapshot() {
-    final Uint32List? snapshot = _activeLayerTranslationSnapshot;
-    final String? id = _activeLayerTranslationId;
-    if (snapshot == null || id == null) {
-      return;
-    }
-    final BitmapLayerState layer = _layers.firstWhere(
-      (candidate) => candidate.id == id,
-      orElse: () => _activeLayer,
-    );
-    layer.surface.pixels.setAll(0, snapshot);
-  }
+  void translateActiveLayer(int dx, int dy) =>
+      _translateActiveLayer(this, dx, dy);
 
-  void _updateActiveLayerTransformDirtyRegion() {
-    final Rect? baseBounds = _activeLayerTransformBounds;
-    if (baseBounds == null) {
-      return;
-    }
-    final Rect current = baseBounds.shift(
-      Offset(
-        _activeLayerTranslationDx.toDouble(),
-        _activeLayerTranslationDy.toDouble(),
-      ),
-    );
-    final Rect? existing = _activeLayerTransformDirtyRegion;
-    if (existing == null) {
-      _activeLayerTransformDirtyRegion = current;
-    } else {
-      _activeLayerTransformDirtyRegion = _unionRects(existing, current);
-    }
-  }
+  void commitActiveLayerTranslation() => _commitActiveLayerTranslation(this);
 
-  void _resetActiveLayerTranslationState() {
-    _activeLayerTranslationSnapshot = null;
-    _activeLayerTranslationId = null;
-    _activeLayerTranslationDx = 0;
-    _activeLayerTranslationDy = 0;
-    _disposeActiveLayerTransformImage();
-    _activeLayerTransformPreparing = false;
-    _activeLayerTransformBounds = null;
-    _activeLayerTransformDirtyRegion = null;
-    _pendingActiveLayerTransformCleanup = false;
-  }
-
-  void _disposeActiveLayerTransformImage() {
-    _activeLayerTransformImage?.dispose();
-    _activeLayerTransformImage = null;
-  }
+  void cancelActiveLayerTranslation() => _cancelActiveLayerTranslation(this);
 
   Future<void> disposeController() async {
     _cachedImage?.dispose();
     _cachedImage = null;
-    _disposeActiveLayerTransformImage();
+    _disposeActiveLayerTransformImage(this);
     _activeLayerTransformPreparing = false;
   }
 
-  void setActiveLayer(String id) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0 || index == _activeIndex) {
-      return;
-    }
-    _activeIndex = index;
-    notifyListeners();
-  }
+  void setActiveLayer(String id) => _layerManagerSetActiveLayer(this, id);
 
-  void updateLayerVisibility(String id, bool visible) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return;
-    }
-    _layers[index].visible = visible;
-    if (!visible && _activeIndex == index) {
-      _activeIndex = _findFallbackActiveIndex(exclude: index);
-    }
-    _markDirty();
-  }
+  void updateLayerVisibility(String id, bool visible) =>
+      _layerManagerUpdateVisibility(this, id, visible);
 
-  void setLayerOpacity(String id, double opacity) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return;
-    }
-    final double clamped = _clampUnit(opacity);
-    final BitmapLayerState layer = _layers[index];
-    if ((layer.opacity - clamped).abs() < 1e-4) {
-      return;
-    }
-    layer.opacity = clamped;
-    _markDirty();
-    notifyListeners();
-  }
+  void setLayerOpacity(String id, double opacity) =>
+      _layerManagerSetOpacity(this, id, opacity);
 
-  void setLayerLocked(String id, bool locked) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return;
-    }
-    final BitmapLayerState layer = _layers[index];
-    if (layer.locked == locked) {
-      return;
-    }
-    layer.locked = locked;
-    notifyListeners();
-  }
+  void setLayerLocked(String id, bool locked) =>
+      _layerManagerSetLocked(this, id, locked);
 
-  void setLayerClippingMask(String id, bool clippingMask) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return;
-    }
-    final BitmapLayerState layer = _layers[index];
-    if (layer.clippingMask == clippingMask) {
-      return;
-    }
-    layer.clippingMask = clippingMask;
-    _markDirty();
-    notifyListeners();
-  }
+  void setLayerClippingMask(String id, bool clippingMask) =>
+      _layerManagerSetClippingMask(this, id, clippingMask);
 
-  void setLayerBlendMode(String id, CanvasLayerBlendMode mode) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return;
-    }
-    final BitmapLayerState layer = _layers[index];
-    if (layer.blendMode == mode) {
-      return;
-    }
-    layer.blendMode = mode;
-    _markDirty();
-    notifyListeners();
-  }
+  void setLayerBlendMode(String id, CanvasLayerBlendMode mode) =>
+      _layerManagerSetBlendMode(this, id, mode);
 
-  void renameLayer(String id, String name) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return;
-    }
-    _layers[index].name = name;
-    notifyListeners();
-  }
+  void renameLayer(String id, String name) =>
+      _layerManagerRenameLayer(this, id, name);
 
-  void addLayer({String? aboveLayerId, String? name}) {
-    final BitmapLayerState layer = BitmapLayerState(
-      id: generateLayerId(),
-      name: name ?? '图层 ${_layers.length + 1}',
-      surface: BitmapSurface(width: _width, height: _height),
-    );
-    int insertIndex = _layers.length;
-    if (aboveLayerId != null) {
-      final int index = _layers.indexWhere(
-        (element) => element.id == aboveLayerId,
-      );
-      if (index >= 0) {
-        insertIndex = index + 1;
-      }
-    }
-    _layers.insert(insertIndex, layer);
-    _activeIndex = insertIndex;
-    _markDirty();
-  }
+  void addLayer({String? aboveLayerId, String? name}) =>
+      _layerManagerAddLayer(this, aboveLayerId: aboveLayerId, name: name);
 
-  void removeLayer(String id) {
-    if (_layers.length <= 1) {
-      return;
-    }
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return;
-    }
-    _layers.removeAt(index);
-    if (_activeIndex >= _layers.length) {
-      _activeIndex = _layers.length - 1;
-    }
-    _markDirty();
-  }
+  void removeLayer(String id) => _layerManagerRemoveLayer(this, id);
 
-  void reorderLayer(int fromIndex, int toIndex) {
-    if (fromIndex < 0 || fromIndex >= _layers.length) {
-      return;
-    }
-    int target = toIndex;
-    if (target > fromIndex) {
-      target -= 1;
-    }
-    target = target.clamp(0, _layers.length - 1);
-    final BitmapLayerState layer = _layers.removeAt(fromIndex);
-    _layers.insert(target, layer);
-    if (_activeIndex == fromIndex) {
-      _activeIndex = target;
-    } else if (fromIndex < _activeIndex && target >= _activeIndex) {
-      _activeIndex -= 1;
-    } else if (fromIndex > _activeIndex && target <= _activeIndex) {
-      _activeIndex += 1;
-    }
-    _markDirty();
-  }
+  void reorderLayer(int fromIndex, int toIndex) =>
+      _layerManagerReorderLayer(this, fromIndex, toIndex);
 
-  void clear() {
-    for (int i = 0; i < _layers.length; i++) {
-      final BitmapLayerState layer = _layers[i];
-      if (layer.locked) {
-        continue;
-      }
-      if (i == 0) {
-        layer.surface.fill(_backgroundColor);
-      } else {
-        layer.surface.fill(const Color(0x00000000));
-      }
-    }
-    _markDirty();
-  }
+  void clear() => _layerManagerClearAll(this);
 
   void beginStroke(
     Offset position, {
     required Color color,
     required double radius,
     bool simulatePressure = false,
-    StrokePressureProfile profile = StrokePressureProfile.taperEnds,
-  }) {
-    if (_activeLayer.locked) {
-      return;
-    }
-    if (_selectionMask != null && !_selectionAllows(position)) {
-      return;
-    }
-    setStrokePressureProfile(profile);
-    _currentStrokePoints
-      ..clear()
-      ..add(position);
-    _currentStrokeRadius = radius;
-    _currentStrokePressureEnabled = simulatePressure;
-    if (_currentStrokePressureEnabled) {
-      _strokeDynamics.start(radius, profile: _strokePressureProfile);
-      _currentStrokeLastRadius = _strokeDynamics.initialRadius();
-    } else {
-      _currentStrokeLastRadius = _currentStrokeRadius;
-    }
-    _currentStrokeColor = color;
-    _drawPoint(position, _currentStrokeLastRadius);
-  }
+    bool useDevicePressure = false,
+    double stylusPressureBlend = 1.0,
+    double? pressure,
+    double? pressureMin,
+    double? pressureMax,
+    StrokePressureProfile profile = StrokePressureProfile.auto,
+    double? timestampMillis,
+    int antialiasLevel = 0,
+    BrushShape brushShape = BrushShape.circle,
+    bool enableNeedleTips = false,
+  }) => _strokeBegin(
+    this,
+    position,
+    color: color,
+    radius: radius,
+    simulatePressure: simulatePressure,
+    useDevicePressure: useDevicePressure,
+    stylusPressureBlend: stylusPressureBlend,
+    pressure: pressure,
+    pressureMin: pressureMin,
+    pressureMax: pressureMax,
+    profile: profile,
+    timestampMillis: timestampMillis,
+    antialiasLevel: antialiasLevel,
+    brushShape: brushShape,
+    enableNeedleTips: enableNeedleTips,
+  );
 
-  void extendStroke(Offset position, {double? deltaTimeMillis}) {
-    if (_currentStrokePoints.isEmpty) {
-      return;
-    }
-    if (_activeLayer.locked) {
-      return;
-    }
-    final Offset last = _currentStrokePoints.last;
-    _currentStrokePoints.add(position);
-    if (_currentStrokePressureEnabled) {
-      final double delta = (position - last).distance;
-      final double nextRadius = _strokeDynamics.sample(
-        distance: delta,
-        deltaTimeMillis: deltaTimeMillis,
-      );
-      _activeSurface.drawVariableLine(
-        a: last,
-        b: position,
-        startRadius: _currentStrokeLastRadius,
-        endRadius: nextRadius,
-        color: _currentStrokeColor,
-        mask: _selectionMask,
-      );
-      _markDirty(
-        region: _dirtyRectForVariableLine(
-          last,
-          position,
-          _currentStrokeLastRadius,
-          nextRadius,
-        ),
-      );
-      _currentStrokeLastRadius = nextRadius;
-    } else {
-      _activeSurface.drawLine(
-        a: last,
-        b: position,
-        radius: _currentStrokeRadius,
-        color: _currentStrokeColor,
-        mask: _selectionMask,
-      );
-      _markDirty(
-        region: _dirtyRectForLine(last, position, _currentStrokeRadius),
-      );
-    }
-  }
+  void extendStroke(
+    Offset position, {
+    double? deltaTimeMillis,
+    double? timestampMillis,
+    double? pressure,
+    double? pressureMin,
+    double? pressureMax,
+  }) => _strokeExtend(
+    this,
+    position,
+    deltaTimeMillis: deltaTimeMillis,
+    timestampMillis: timestampMillis,
+    pressure: pressure,
+    pressureMin: pressureMin,
+    pressureMax: pressureMax,
+  );
 
-  void endStroke() {
-    if (_currentStrokePressureEnabled && _currentStrokePoints.isNotEmpty) {
-      final Offset tip = _currentStrokePoints.last;
-      if (_currentStrokePoints.length >= 2) {
-        final Offset prev =
-            _currentStrokePoints[_currentStrokePoints.length - 2];
-        final Offset direction = tip - prev;
-        final double length = direction.distance;
-        if (length > 0.001) {
-          final Offset unit = direction / length;
-          final double base = math.max(_currentStrokeRadius, 0.1);
-          final double taperLength = math.min(base * 6.5, length * 2.4 + 2.0);
-          final Offset extension = tip + unit * taperLength;
-          final double tipRadius = _strokeDynamics.tipRadius();
-          final bool taperEnds =
-              _strokePressureProfile == StrokePressureProfile.taperEnds;
-          final double startRadius = taperEnds
-              ? math.max(_currentStrokeLastRadius, _currentStrokeRadius)
-              : math.min(_currentStrokeLastRadius, _currentStrokeRadius);
-          _activeSurface.drawVariableLine(
-            a: tip,
-            b: extension,
-            startRadius: startRadius,
-            endRadius: tipRadius,
-            color: _currentStrokeColor,
-            mask: _selectionMask,
-          );
-          _markDirty(
-            region: _dirtyRectForVariableLine(
-              tip,
-              extension,
-              startRadius,
-              tipRadius,
-            ),
-          );
-        } else {
-          _drawPoint(tip, _strokeDynamics.tipRadius());
-        }
-      } else {
-        _drawPoint(tip, _strokeDynamics.tipRadius());
+  void endStroke() => _strokeEnd(this);
+
+  bool applyAntialiasToActiveLayer(int level, {bool previewOnly = false}) {
+    if (_layers.isEmpty) {
+      return false;
+    }
+    final BitmapLayerState layer = _activeLayer;
+    if (layer.locked) {
+      return false;
+    }
+    final List<double> profile = List<double>.from(
+      _kAntialiasBlendProfiles[level.clamp(0, 3)] ?? const <double>[0.25],
+    );
+    if (profile.isEmpty) {
+      return false;
+    }
+    final Uint32List pixels = layer.surface.pixels;
+    if (pixels.isEmpty) {
+      return false;
+    }
+    final Uint32List temp = Uint32List(pixels.length);
+    Uint32List src = pixels;
+    Uint32List dest = temp;
+    bool anyChange = false;
+    for (final double factor in profile) {
+      if (factor <= 0) {
+        continue;
       }
+      final bool changed = _runAntialiasPass(
+        src,
+        dest,
+        _width,
+        _height,
+        factor,
+      );
+      if (!changed) {
+        continue;
+      }
+      if (previewOnly) {
+        return true;
+      }
+      anyChange = true;
+      final Uint32List swap = src;
+      src = dest;
+      dest = swap;
     }
-
-    _currentStrokePoints.clear();
-    _currentStrokeRadius = 0;
-    _currentStrokeLastRadius = 0;
-    _currentStrokePressureEnabled = false;
-  }
-
-  void setStrokePressureProfile(StrokePressureProfile profile) {
-    if (_strokePressureProfile == profile) {
-      return;
-    }
-    _strokePressureProfile = profile;
-    _strokeDynamics.configure(profile: profile);
-  }
-
-  bool _selectionAllows(Offset position) {
-    final Uint8List? mask = _selectionMask;
-    if (mask == null) {
-      return true;
-    }
-    final int x = position.dx.floor();
-    final int y = position.dy.floor();
-    if (x < 0 || x >= _width || y < 0 || y >= _height) {
+    if (!anyChange) {
       return false;
     }
-    return mask[y * _width + x] != 0;
-  }
-
-  bool _selectionAllowsInt(int x, int y) {
-    final Uint8List? mask = _selectionMask;
-    if (mask == null) {
+    if (previewOnly) {
       return true;
     }
-    if (x < 0 || x >= _width || y < 0 || y >= _height) {
-      return false;
+    if (!identical(src, pixels)) {
+      pixels.setAll(0, src);
     }
-    return mask[y * _width + x] != 0;
+    _markDirty();
+    notifyListeners();
+    return true;
   }
+
+  void setStrokePressureProfile(StrokePressureProfile profile) =>
+      _strokeSetPressureProfile(this, profile);
+
+  double? _normalizeStylusPressure(
+    double? pressure,
+    double? pressureMin,
+    double? pressureMax,
+  ) => _strokeNormalizeStylusPressure(this, pressure, pressureMin, pressureMax);
+
+  bool _selectionAllows(Offset position) =>
+      _fillSelectionAllows(this, position);
+
+  bool _selectionAllowsInt(int x, int y) => _fillSelectionAllowsInt(this, x, y);
 
   void floodFill(
     Offset position, {
     required Color color,
     bool contiguous = true,
     bool sampleAllLayers = false,
-  }) {
-    if (_activeLayer.locked) {
-      return;
-    }
-    final int x = position.dx.floor();
-    final int y = position.dy.floor();
-    if (x < 0 || x >= _width || y < 0 || y >= _height) {
-      return;
-    }
-    if (!_selectionAllowsInt(x, y)) {
-      return;
-    }
-    Color? baseColor;
-    if (sampleAllLayers) {
-      _floodFillAcrossLayers(x, y, color, contiguous);
-      return;
-    } else {
-      baseColor = _colorAtSurface(_activeSurface, x, y);
-    }
-    _activeSurface.floodFill(
-      start: Offset(x.toDouble(), y.toDouble()),
-      color: color,
-      targetColor: baseColor,
-      contiguous: contiguous,
-      mask: _selectionMask,
-    );
-    _markDirty();
-  }
+  }) => _fillFloodFill(
+    this,
+    position,
+    color: color,
+    contiguous: contiguous,
+    sampleAllLayers: sampleAllLayers,
+  );
 
   Uint8List? computeMagicWandMask(
     Offset position, {
     bool sampleAllLayers = true,
-  }) {
-    final int x = position.dx.floor();
-    final int y = position.dy.floor();
-    if (x < 0 || x >= _width || y < 0 || y >= _height) {
-      return null;
-    }
-    final Uint8List mask = Uint8List(_width * _height);
-    if (sampleAllLayers) {
-      _updateComposite(requiresFullSurface: true, region: null);
-      final Uint32List? composite = _compositePixels;
-      if (composite == null || composite.isEmpty) {
-        return null;
-      }
-      final int target = composite[y * _width + x];
-      final bool filled = _floodFillMask(
-        pixels: composite,
-        targetColor: target,
-        mask: mask,
-        startX: x,
-        startY: y,
+  }) => _fillComputeMagicWandMask(
+    this,
+    position,
+    sampleAllLayers: sampleAllLayers,
+  );
+
+  List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
+
+  CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) =>
+      _layerManagerBuildClipboardLayer(this, id, mask: mask);
+
+  void clearLayerRegion(String id, {Uint8List? mask}) =>
+      _layerManagerClearRegion(this, id, mask: mask);
+
+  String insertLayerFromData(CanvasLayerData data, {String? aboveLayerId}) =>
+      _layerManagerInsertFromData(this, data, aboveLayerId: aboveLayerId);
+
+  void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) =>
+      _layerManagerLoadLayers(this, layers, backgroundColor);
+
+  void _updateComposite({required bool requiresFullSurface, Rect? region}) =>
+      _compositeUpdate(
+        this,
+        requiresFullSurface: requiresFullSurface,
+        region: region,
       );
-      if (!filled) {
-        return null;
-      }
-      return mask;
-    }
 
-    final Uint32List pixels = _activeSurface.pixels;
-    final int target = pixels[y * _width + x];
-    final bool filled = _floodFillMask(
-      pixels: pixels,
-      targetColor: target,
-      mask: mask,
-      startX: x,
-      startY: y,
-    );
-    if (!filled) {
-      return null;
-    }
-    return mask;
-  }
-
-  List<CanvasLayerData> snapshotLayers() {
-    final List<CanvasLayerData> result = <CanvasLayerData>[];
-    for (int i = 0; i < _layers.length; i++) {
-      final BitmapLayerState layer = _layers[i];
-      Uint8List? bitmap;
-      if (!_isSurfaceEmpty(layer.surface)) {
-        bitmap = _surfaceToRgba(layer.surface);
-      }
-      result.add(
-        CanvasLayerData(
-          id: layer.id,
-          name: layer.name,
-          visible: layer.visible,
-          opacity: layer.opacity,
-          locked: layer.locked,
-          clippingMask: layer.clippingMask,
-          blendMode: layer.blendMode,
-          fillColor: i == 0 ? _backgroundColor : null,
-          bitmap: bitmap,
-          bitmapWidth: bitmap != null ? _width : null,
-          bitmapHeight: bitmap != null ? _height : null,
-        ),
-      );
-    }
-    return result;
-  }
-
-  CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return null;
-    }
-    final BitmapLayerState layer = _layers[index];
-    Uint8List? effectiveMask;
-    if (mask != null) {
-      if (mask.length != _width * _height) {
-        throw ArgumentError('Selection mask size mismatch');
-      }
-      if (!_maskHasCoverage(mask)) {
-        return null;
-      }
-      effectiveMask = Uint8List.fromList(mask);
-    }
-    final Uint8List bitmap = effectiveMask == null
-        ? _surfaceToRgba(layer.surface)
-        : _surfaceToMaskedRgba(layer.surface, effectiveMask);
-    return CanvasLayerData(
-      id: layer.id,
-      name: layer.name,
-      visible: true,
-      opacity: layer.opacity,
-      locked: false,
-      clippingMask: false,
-      blendMode: layer.blendMode,
-      fillColor: null,
-      bitmap: bitmap,
-      bitmapWidth: _width,
-      bitmapHeight: _height,
-    );
-  }
-
-  void clearLayerRegion(String id, {Uint8List? mask}) {
-    final int index = _layers.indexWhere((layer) => layer.id == id);
-    if (index < 0) {
-      return;
-    }
-    final BitmapLayerState layer = _layers[index];
-    final Uint32List pixels = layer.surface.pixels;
-    final int replacement = index == 0
-        ? BitmapSurface.encodeColor(_backgroundColor)
-        : 0;
-    if (mask == null) {
-      for (int i = 0; i < pixels.length; i++) {
-        pixels[i] = replacement;
-      }
-      _markDirty();
-      return;
-    }
-    if (mask.length != _width * _height) {
-      throw ArgumentError('Selection mask size mismatch');
-    }
-    int minX = _width;
-    int minY = _height;
-    int maxX = -1;
-    int maxY = -1;
-    for (int y = 0; y < _height; y++) {
-      final int rowOffset = y * _width;
-      for (int x = 0; x < _width; x++) {
-        final int indexInMask = rowOffset + x;
-        if (mask[indexInMask] == 0) {
-          continue;
-        }
-        pixels[indexInMask] = replacement;
-        if (x < minX) {
-          minX = x;
-        }
-        if (x > maxX) {
-          maxX = x;
-        }
-        if (y < minY) {
-          minY = y;
-        }
-        if (y > maxY) {
-          maxY = y;
-        }
-      }
-    }
-    if (maxX < minX || maxY < minY) {
-      return;
-    }
-    _markDirty(
-      region: Rect.fromLTRB(
-        minX.toDouble(),
-        minY.toDouble(),
-        (maxX + 1).toDouble(),
-        (maxY + 1).toDouble(),
-      ),
-    );
-  }
-
-  String insertLayerFromData(CanvasLayerData data, {String? aboveLayerId}) {
-    final BitmapSurface surface = BitmapSurface(width: _width, height: _height);
-    if (data.bitmap != null &&
-        data.bitmapWidth == _width &&
-        data.bitmapHeight == _height) {
-      _writeRgbaToSurface(surface, data.bitmap!);
-    } else if (data.fillColor != null) {
-      surface.fill(data.fillColor!);
-    } else {
-      surface.fill(const Color(0x00000000));
-    }
-    final BitmapLayerState layer = BitmapLayerState(
-      id: data.id,
-      name: data.name,
-      surface: surface,
-      visible: true,
-      opacity: data.opacity,
-      locked: false,
-      clippingMask: false,
-      blendMode: data.blendMode,
-    );
-    int insertIndex = _layers.length;
-    if (aboveLayerId != null) {
-      final int index = _layers.indexWhere(
-        (candidate) => candidate.id == aboveLayerId,
-      );
-      if (index >= 0) {
-        insertIndex = index + 1;
-      }
-    }
-    _layers.insert(insertIndex, layer);
-    _activeIndex = insertIndex;
-    _markDirty();
-    return layer.id;
-  }
-
-  void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) {
-    _layers.clear();
-    _clipMaskBuffer = null;
-    _loadFromCanvasLayers(layers, backgroundColor);
-    _markDirty();
-  }
-
-  void _updateComposite({required bool requiresFullSurface, Rect? region}) {
-    _ensureCompositeBuffers();
-    final _IntRect area = requiresFullSurface
-        ? _IntRect(0, 0, _width, _height)
-        : _clipRectToSurface(region!);
-    if (area.isEmpty) {
-      return;
-    }
-
-    final Uint32List composite = _compositePixels!;
-    final Uint8List rgba = _compositeRgba!;
-    final List<BitmapLayerState> layers = _layers;
-    final int width = _width;
-    final Uint8List clipMask = _ensureClipMask();
-    clipMask.fillRange(0, clipMask.length, 0);
-
-    final String? translatingLayerId =
-        _activeLayerTranslationSnapshot != null &&
-            !_pendingActiveLayerTransformCleanup
-        ? _activeLayerTranslationId
-        : null;
-
-    for (int y = area.top; y < area.bottom; y++) {
-      final int rowOffset = y * width;
-      for (int x = area.left; x < area.right; x++) {
-        final int index = rowOffset + x;
-        int color = 0;
-        bool initialized = false;
-        for (final BitmapLayerState layer in layers) {
-          if (!layer.visible) {
-            continue;
-          }
-          if (translatingLayerId != null && layer.id == translatingLayerId) {
-            continue;
-          }
-          final double rawOpacity = layer.opacity;
-          final double layerOpacity = _clampUnit(rawOpacity);
-          if (layerOpacity <= 0) {
-            if (!layer.clippingMask) {
-              clipMask[index] = 0;
-            }
-            continue;
-          }
-          final int src = layer.surface.pixels[index];
-          final int srcA = (src >> 24) & 0xff;
-          if (!layer.clippingMask && (srcA == 0)) {
-            clipMask[index] = 0;
-          }
-          if (srcA == 0) {
-            continue;
-          }
-
-          double totalOpacity = layerOpacity;
-          if (layer.clippingMask) {
-            final int maskAlpha = clipMask[index];
-            if (maskAlpha == 0) {
-              continue;
-            }
-            totalOpacity *= maskAlpha / 255.0;
-            if (totalOpacity <= 0) {
-              continue;
-            }
-          }
-
-          int effectiveA = (srcA * totalOpacity).round();
-          if (effectiveA <= 0) {
-            if (!layer.clippingMask) {
-              clipMask[index] = 0;
-            }
-            continue;
-          }
-          effectiveA = effectiveA.clamp(0, 255);
-
-          if (!layer.clippingMask) {
-            clipMask[index] = effectiveA;
-          }
-
-          final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
-          if (!initialized) {
-            color = effectiveColor;
-            initialized = true;
-          } else {
-            color = _blendWithMode(color, effectiveColor, layer.blendMode);
-          }
-        }
-
-        if (!initialized) {
-          composite[index] = 0;
-          final int rgbaOffset = index * 4;
-          rgba[rgbaOffset] = 0;
-          rgba[rgbaOffset + 1] = 0;
-          rgba[rgbaOffset + 2] = 0;
-          rgba[rgbaOffset + 3] = 0;
-          continue;
-        }
-
-        composite[index] = color;
-        final int rgbaOffset = index * 4;
-        rgba[rgbaOffset] = (color >> 16) & 0xff;
-        rgba[rgbaOffset + 1] = (color >> 8) & 0xff;
-        rgba[rgbaOffset + 2] = color & 0xff;
-        rgba[rgbaOffset + 3] = (color >> 24) & 0xff;
-      }
-    }
-
-    if (requiresFullSurface) {
-      _compositeInitialized = true;
-    }
-  }
-
-  void _initializeDefaultLayers(Color backgroundColor) {
-    final BitmapSurface background = BitmapSurface(
-      width: _width,
-      height: _height,
-      fillColor: backgroundColor,
-    );
-    final BitmapSurface paintSurface = BitmapSurface(
-      width: _width,
-      height: _height,
-    );
-    _layers
-      ..add(
-        BitmapLayerState(
-          id: generateLayerId(),
-          name: '背景',
-          surface: background,
-        ),
-      )
-      ..add(
-        BitmapLayerState(
-          id: generateLayerId(),
-          name: '图层 2',
-          surface: paintSurface,
-        ),
-      );
-    _activeIndex = _layers.length - 1;
-  }
-
-  void _loadFromCanvasLayers(
-    List<CanvasLayerData> layers,
-    Color backgroundColor,
-  ) {
-    _backgroundColor = backgroundColor;
-    if (layers.isEmpty) {
-      _initializeDefaultLayers(backgroundColor);
-      return;
-    }
-    for (final CanvasLayerData layer in layers) {
-      final BitmapSurface surface = BitmapSurface(
-        width: _width,
-        height: _height,
-      );
-      if (layer.bitmap != null &&
-          layer.bitmapWidth == _width &&
-          layer.bitmapHeight == _height) {
-        _writeRgbaToSurface(surface, layer.bitmap!);
-      } else if (layer.fillColor != null) {
-        surface.fill(layer.fillColor!);
-      }
-      _layers.add(
-        BitmapLayerState(
-          id: layer.id,
-          name: layer.name,
-          visible: layer.visible,
-          opacity: layer.opacity,
-          locked: layer.locked,
-          clippingMask: layer.clippingMask,
-          blendMode: layer.blendMode,
-          surface: surface,
-        ),
-      );
-      if (layer == layers.first && layer.fillColor != null) {
-        _backgroundColor = layer.fillColor!;
-      }
-    }
-    _activeIndex = _layers.length - 1;
-  }
-
-  void _drawPoint(Offset position, double radius) {
-    if (_activeLayer.locked) {
-      return;
-    }
-    _activeSurface.drawCircle(
-      center: position,
-      radius: radius,
-      color: _currentStrokeColor,
-      mask: _selectionMask,
-    );
-    _markDirty(region: _dirtyRectForCircle(position, radius));
-  }
+  void _drawPoint(Offset position, double radius) =>
+      _strokeDrawPoint(this, position, radius);
 
   Rect _dirtyRectForVariableLine(
     Offset a,
     Offset b,
     double startRadius,
     double endRadius,
-  ) {
-    final double maxRadius = math.max(math.max(startRadius, endRadius), 0.5);
-    return Rect.fromPoints(a, b).inflate(maxRadius + 1.5);
-  }
+  ) => _strokeDirtyRectForVariableLine(a, b, startRadius, endRadius);
 
-  void _markDirty({Rect? region}) {
-    _compositeDirty = true;
-    if (region == null || _pendingFullSurface) {
-      _pendingDirtyRect = null;
-      _pendingFullSurface = true;
-    } else if (_pendingDirtyRect == null) {
-      _pendingDirtyRect = region;
-    } else {
-      final Rect current = _pendingDirtyRect!;
-      _pendingDirtyRect = Rect.fromLTRB(
-        math.min(current.left, region.left),
-        math.min(current.top, region.top),
-        math.max(current.right, region.right),
-        math.max(current.bottom, region.bottom),
-      );
-    }
-    _scheduleCompositeRefresh();
-  }
+  void _markDirty({Rect? region}) => _compositeMarkDirty(this, region: region);
 
-  void _scheduleCompositeRefresh() {
-    if (_refreshScheduled) {
-      return;
-    }
-    _refreshScheduled = true;
-    scheduleMicrotask(() {
-      _refreshScheduled = false;
-      if (!_compositeDirty) {
-        return;
-      }
-      final Rect? dirtyRect = _pendingDirtyRect;
-      final bool requiresFullSurface =
-          !_compositeInitialized || _pendingFullSurface || dirtyRect == null;
-
-      _pendingDirtyRect = null;
-      _pendingFullSurface = false;
-
-      _updateComposite(
-        requiresFullSurface: requiresFullSurface,
-        region: requiresFullSurface ? null : dirtyRect,
-      );
-
-      final Uint8List rgba = _compositeRgba ?? Uint8List(_width * _height * 4);
-      ui.decodeImageFromPixels(rgba, _width, _height, ui.PixelFormat.rgba8888, (
-        ui.Image image,
-      ) {
-        _cachedImage?.dispose();
-        _cachedImage = image;
-        if (_pendingActiveLayerTransformCleanup) {
-          _pendingActiveLayerTransformCleanup = false;
-          _resetActiveLayerTranslationState();
-        }
-        _compositeDirty = _pendingFullSurface || _pendingDirtyRect != null;
-        notifyListeners();
-        if (_compositeDirty && !_refreshScheduled) {
-          _scheduleCompositeRefresh();
-        }
-      });
-    });
-    notifyListeners();
-  }
-
-  int _findFallbackActiveIndex({int? exclude}) {
-    for (int i = _layers.length - 1; i >= 0; i--) {
-      if (i == exclude) {
-        continue;
-      }
-      if (_layers[i].visible) {
-        return i;
-      }
-    }
-    return math.max(0, math.min(_layers.length - 1, _activeIndex));
-  }
+  void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 
   BitmapLayerState get _activeLayer => _layers[_activeIndex];
 
@@ -1213,208 +481,14 @@ class BitmapCanvasController extends ChangeNotifier {
     return true;
   }
 
-  Color _colorAtComposite(Offset position) {
-    final int x = position.dx.floor();
-    final int y = position.dy.floor();
-    if (x < 0 || x >= _width || y < 0 || y >= _height) {
-      return const Color(0x00000000);
-    }
-    final int index = y * _width + x;
-    int? color;
-    for (final BitmapLayerState layer in _layers) {
-      if (!layer.visible) {
-        continue;
-      }
-      if (_activeLayerTranslationSnapshot != null &&
-          !_pendingActiveLayerTransformCleanup &&
-          layer.id == _activeLayerTranslationId) {
-        continue;
-      }
-      final int src = layer.surface.pixels[index];
-      if (color == null) {
-        color = src;
-      } else {
-        color = _blendArgb(color, src);
-      }
-    }
-    return BitmapSurface.decodeColor(color ?? 0);
-  }
+  Color _colorAtComposite(Offset position) =>
+      _fillColorAtComposite(this, position);
 
-  Color sampleColor(Offset position, {bool sampleAllLayers = true}) {
-    final int x = position.dx.floor();
-    final int y = position.dy.floor();
-    if (x < 0 || x >= _width || y < 0 || y >= _height) {
-      return const Color(0x00000000);
-    }
-    if (sampleAllLayers) {
-      _updateComposite(requiresFullSurface: true, region: null);
-      return _colorAtComposite(position);
-    }
-    return _colorAtSurface(_activeSurface, x, y);
-  }
+  Color sampleColor(Offset position, {bool sampleAllLayers = true}) =>
+      _fillSampleColor(this, position, sampleAllLayers: sampleAllLayers);
 
-  void _floodFillAcrossLayers(
-    int startX,
-    int startY,
-    Color color,
-    bool contiguous,
-  ) {
-    if (!_selectionAllowsInt(startX, startY)) {
-      return;
-    }
-    _updateComposite(requiresFullSurface: true, region: null);
-    final Uint32List? compositePixels = _compositePixels;
-    if (compositePixels == null || compositePixels.isEmpty) {
-      return;
-    }
-    final int index = startY * _width + startX;
-    if (index < 0 || index >= compositePixels.length) {
-      return;
-    }
-    final int target = compositePixels[index];
-    final int replacement = BitmapSurface.encodeColor(color);
-    final Uint32List surfacePixels = _activeSurface.pixels;
-    final Uint8List? mask = _selectionMask;
-
-    if (!contiguous) {
-      int minX = _width;
-      int minY = _height;
-      int maxX = -1;
-      int maxY = -1;
-      bool changed = false;
-      for (int i = 0; i < compositePixels.length; i++) {
-        if (compositePixels[i] != target) {
-          continue;
-        }
-        if (mask != null && mask[i] == 0) {
-          continue;
-        }
-        if (surfacePixels[i] == replacement) {
-          continue;
-        }
-        surfacePixels[i] = replacement;
-        changed = true;
-        final int px = i % _width;
-        final int py = i ~/ _width;
-        if (px < minX) {
-          minX = px;
-        }
-        if (py < minY) {
-          minY = py;
-        }
-        if (px > maxX) {
-          maxX = px;
-        }
-        if (py > maxY) {
-          maxY = py;
-        }
-      }
-      if (changed) {
-        _markDirty(
-          region: Rect.fromLTRB(
-            minX.toDouble(),
-            minY.toDouble(),
-            (maxX + 1).toDouble(),
-            (maxY + 1).toDouble(),
-          ),
-        );
-      }
-      return;
-    }
-
-    final Uint8List visited = Uint8List(compositePixels.length);
-    final List<int> stack = <int>[index];
-    visited[index] = 1;
-    int minX = startX;
-    int maxX = startX;
-    int minY = startY;
-    int maxY = startY;
-    bool changed = false;
-
-    while (stack.isNotEmpty) {
-      final int current = stack.removeLast();
-      if (compositePixels[current] != target) {
-        continue;
-      }
-      if (mask != null && mask[current] == 0) {
-        continue;
-      }
-      if (surfacePixels[current] != replacement) {
-        surfacePixels[current] = replacement;
-        changed = true;
-      }
-      final int cx = current % _width;
-      final int cy = current ~/ _width;
-      if (cx < minX) {
-        minX = cx;
-      }
-      if (cx > maxX) {
-        maxX = cx;
-      }
-      if (cy < minY) {
-        minY = cy;
-      }
-      if (cy > maxY) {
-        maxY = cy;
-      }
-
-      // left
-      if (cx > 0) {
-        final int leftIndex = current - 1;
-        if (visited[leftIndex] == 0 && compositePixels[leftIndex] == target) {
-          if (mask == null || mask[leftIndex] != 0) {
-            visited[leftIndex] = 1;
-            stack.add(leftIndex);
-          }
-        }
-      }
-      // right
-      if (cx < _width - 1) {
-        final int rightIndex = current + 1;
-        if (visited[rightIndex] == 0 && compositePixels[rightIndex] == target) {
-          if (mask == null || mask[rightIndex] != 0) {
-            visited[rightIndex] = 1;
-            stack.add(rightIndex);
-          }
-        }
-      }
-      // up
-      if (cy > 0) {
-        final int upIndex = current - _width;
-        if (visited[upIndex] == 0 && compositePixels[upIndex] == target) {
-          if (mask == null || mask[upIndex] != 0) {
-            visited[upIndex] = 1;
-            stack.add(upIndex);
-          }
-        }
-      }
-      // down
-      if (cy < _height - 1) {
-        final int downIndex = current + _width;
-        if (visited[downIndex] == 0 && compositePixels[downIndex] == target) {
-          if (mask == null || mask[downIndex] != 0) {
-            visited[downIndex] = 1;
-            stack.add(downIndex);
-          }
-        }
-      }
-    }
-
-    if (changed) {
-      _markDirty(
-        region: Rect.fromLTRB(
-          minX.toDouble(),
-          minY.toDouble(),
-          (maxX + 1).toDouble(),
-          (maxY + 1).toDouble(),
-        ),
-      );
-    }
-  }
-
-  Color _colorAtSurface(BitmapSurface surface, int x, int y) {
-    return BitmapSurface.decodeColor(surface.pixels[y * _width + x]);
-  }
+  Color _colorAtSurface(BitmapSurface surface, int x, int y) =>
+      _fillColorAtSurface(this, surface, x, y);
 
   static Uint8List _surfaceToRgba(BitmapSurface surface) {
     final Uint8List rgba = Uint8List(surface.pixels.length * 4);
@@ -1489,14 +563,9 @@ class BitmapCanvasController extends ChangeNotifier {
     }
   }
 
-  void _ensureCompositeBuffers() {
-    _compositePixels ??= Uint32List(_width * _height);
-    _compositeRgba ??= Uint8List(_width * _height * 4);
-  }
+  void _ensureCompositeBuffers() => _compositeEnsureBuffers(this);
 
-  Uint8List _ensureClipMask() {
-    return _clipMaskBuffer ??= Uint8List(_width * _height);
-  }
+  Uint8List _ensureClipMask() => _compositeEnsureClipMask(this);
 
   static double _clampUnit(double value) {
     if (value <= 0) {
@@ -1508,79 +577,14 @@ class BitmapCanvasController extends ChangeNotifier {
     return value;
   }
 
-  bool _floodFillMask({
-    required Uint32List pixels,
-    required int targetColor,
-    required Uint8List mask,
-    required int startX,
-    required int startY,
-  }) {
-    final int width = _width;
-    final int height = _height;
-    final Queue<int> queue = Queue<int>();
-    final int startIndex = startY * width + startX;
-    mask[startIndex] = 1;
-    queue.add(startIndex);
-    int processed = 0;
+  _IntRect _clipRectToSurface(Rect rect) =>
+      _compositeClipRectToSurface(this, rect);
 
-    bool shouldInclude(int x, int y) {
-      if (x < 0 || x >= width || y < 0 || y >= height) {
-        return false;
-      }
-      final int index = y * width + x;
-      if (mask[index] != 0) {
-        return false;
-      }
-      return pixels[index] == targetColor;
-    }
+  Rect _dirtyRectForCircle(Offset center, double radius) =>
+      _strokeDirtyRectForCircle(center, radius);
 
-    void enqueue(int x, int y) {
-      if (!shouldInclude(x, y)) {
-        return;
-      }
-      final int index = y * width + x;
-      mask[index] = 1;
-      queue.add(index);
-    }
-
-    while (queue.isNotEmpty) {
-      final int index = queue.removeFirst();
-      processed += 1;
-      final int x = index % width;
-      final int y = index ~/ width;
-      enqueue(x + 1, y);
-      enqueue(x - 1, y);
-      enqueue(x, y + 1);
-      enqueue(x, y - 1);
-    }
-
-    return processed > 0;
-  }
-
-  _IntRect _clipRectToSurface(Rect rect) {
-    final double effectiveLeft = rect.left;
-    final double effectiveTop = rect.top;
-    final double effectiveRight = rect.right;
-    final double effectiveBottom = rect.bottom;
-    final int left = math.max(0, effectiveLeft.floor());
-    final int top = math.max(0, effectiveTop.floor());
-    final int right = math.min(_width, effectiveRight.ceil());
-    final int bottom = math.min(_height, effectiveBottom.ceil());
-    if (left >= right || top >= bottom) {
-      return const _IntRect(0, 0, 0, 0);
-    }
-    return _IntRect(left, top, right, bottom);
-  }
-
-  Rect _dirtyRectForCircle(Offset center, double radius) {
-    final double effectiveRadius = math.max(radius, 0.5);
-    return Rect.fromCircle(center: center, radius: effectiveRadius + 1.5);
-  }
-
-  Rect _dirtyRectForLine(Offset a, Offset b, double radius) {
-    final double inflate = math.max(radius, 0.5) + 1.5;
-    return Rect.fromPoints(a, b).inflate(inflate);
-  }
+  Rect _dirtyRectForLine(Offset a, Offset b, double radius) =>
+      _strokeDirtyRectForLine(a, b, radius);
 
   static int _blendArgb(int dst, int src) {
     final int srcA = (src >> 24) & 0xff;
@@ -1623,45 +627,13 @@ class BitmapCanvasController extends ChangeNotifier {
     return (outA << 24) | (outR << 16) | (outG << 8) | outB;
   }
 
-  static int _blendWithMode(int dst, int src, CanvasLayerBlendMode mode) {
-    switch (mode) {
-      case CanvasLayerBlendMode.normal:
-        return _blendArgb(dst, src);
-      case CanvasLayerBlendMode.multiply:
-        return _blendMultiply(dst, src);
-    }
-  }
-
-  static int _blendMultiply(int dst, int src) {
-    final int srcA = (src >> 24) & 0xff;
-    if (srcA == 0) {
-      return dst;
-    }
-
-    final int dstA = (dst >> 24) & 0xff;
-    final double sa = srcA / 255.0;
-    final double da = dstA / 255.0;
-    final double outA = sa + da * (1 - sa);
-
-    final int srcR = (src >> 16) & 0xff;
-    final int srcG = (src >> 8) & 0xff;
-    final int srcB = src & 0xff;
-    final int dstR = (dst >> 16) & 0xff;
-    final int dstG = (dst >> 8) & 0xff;
-    final int dstB = dst & 0xff;
-
-    double blendComponent(int sr, int dr) {
-      final double srcNorm = sr / 255.0;
-      final double dstNorm = dr / 255.0;
-      return dstNorm * (1 - sa) + dstNorm * srcNorm * sa;
-    }
-
-    final int outR = _clampToByte((blendComponent(srcR, dstR) * 255).round());
-    final int outG = _clampToByte((blendComponent(srcG, dstG) * 255).round());
-    final int outB = _clampToByte((blendComponent(srcB, dstB) * 255).round());
-    final int outAlpha = _clampToByte((outA * 255).round());
-
-    return (outAlpha << 24) | (outR << 16) | (outG << 8) | outB;
+  static int _blendWithMode(
+    int dst,
+    int src,
+    CanvasLayerBlendMode mode,
+    int pixelIndex,
+  ) {
+    return CanvasBlendMath.blend(dst, src, mode, pixelIndex: pixelIndex);
   }
 
   static int _mul255(int channel, int alpha) {

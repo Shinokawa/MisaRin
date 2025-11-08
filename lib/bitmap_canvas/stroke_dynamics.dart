@@ -1,6 +1,35 @@
 import 'dart:math' as math;
 
-enum StrokePressureProfile { taperEnds, taperCenter }
+enum StrokePressureProfile { taperEnds, taperCenter, auto }
+
+/// Additional context calculated from pointer history to assist pressure
+/// estimation in automatic mode.
+class StrokeSampleMetrics {
+  const StrokeSampleMetrics({
+    required this.sampleIndex,
+    required this.normalizedSpeed,
+    required this.stationaryDuration,
+    required this.totalDistance,
+    required this.totalTime,
+  });
+
+  /// Index of the current sample within the stroke.
+  final int sampleIndex;
+
+  /// Smoothed speed normalised to [0, 1]. Smaller values indicate slower
+  /// movement.
+  final double normalizedSpeed;
+
+  /// Accumulated milliseconds the pointer has remained within the
+  /// stationary threshold up to the current sample.
+  final double stationaryDuration;
+
+  /// Total distance travelled so far in pixels.
+  final double totalDistance;
+
+  /// Total elapsed time in milliseconds since the stroke began.
+  final double totalTime;
+}
 
 /// Encapsulates speed-based brush radius simulation to mimic stylus pressure.
 class StrokeDynamics {
@@ -38,10 +67,15 @@ class StrokeDynamics {
   static const double _minDeltaMs = 3.5;
   static const double _maxDeltaMs = 140.0;
   static const double _defaultDeltaMs = 16.0;
+  static const double _autoHoldThresholdMs = 110.0;
+  static const double _autoHoldRangeMs = 260.0;
+  static const double _autoProgressDistance = 120.0;
+  static const int _autoRampSamples = 4;
 
   double _baseRadius = 1.0;
   double? _smoothedIntensity;
   double _latestIntensity = 0.0;
+  int _sampleCount = 0;
 
   /// Prepares the dynamics calculator for a new stroke using the provided
   /// baseline radius.
@@ -52,6 +86,7 @@ class StrokeDynamics {
     }
     _smoothedIntensity = null;
     _latestIntensity = 0.0;
+    _sampleCount = 0;
   }
 
   void configure({required StrokePressureProfile profile}) {
@@ -67,26 +102,71 @@ class StrokeDynamics {
 
   /// Computes an interpolated radius for the next sample based on pointer
   /// movement over [distance] pixels within [deltaTimeMillis] milliseconds.
-  double sample({required double distance, double? deltaTimeMillis}) {
+  ///
+  /// When [metrics] is provided and the profile is [StrokePressureProfile.auto],
+  /// additional history-derived signals influence the simulated pressure.
+  /// When [intensityOverride] is supplied, it is treated as the normalized
+  /// stylus intensity; assign [intensityBlend] below 1.0 to mix it with the
+  /// speed-based estimator represented by [speedSignal].
+  double sample({
+    required double distance,
+    double? deltaTimeMillis,
+    StrokeSampleMetrics? metrics,
+    double? intensityOverride,
+    double? speedSignal,
+    double intensityBlend = 1.0,
+  }) {
     final double clampedDelta = _clampDelta(deltaTimeMillis);
-    final double speed = _computeSpeed(distance, clampedDelta);
-    final double normalized = _normalizeSpeed(speed);
-    final double previous = _smoothedIntensity ?? normalized;
-    _smoothedIntensity = previous + (normalized - previous) * smoothingFactor;
+    final double baseSpeed =
+        (speedSignal ?? _normalizeSpeed(_computeSpeed(distance, clampedDelta)))
+            .clamp(0.0, 1.0);
+    final double blend = intensityOverride != null
+        ? intensityBlend.clamp(0.0, 1.0)
+        : 0.0;
+    final double override = intensityOverride?.clamp(0.0, 1.0) ?? 0.0;
+    final double targetIntensity = blend > 0.0
+        ? (override * blend) + (baseSpeed * (1.0 - blend))
+        : (intensityOverride ?? baseSpeed);
+    final double previous = _smoothedIntensity ?? targetIntensity;
+    _smoothedIntensity =
+        previous + (targetIntensity - previous) * smoothingFactor;
 
     // Mix in a bit of the unsmoothed spike to emphasise sudden accelerations.
     final double biased =
         (_smoothedIntensity! * (1 - highSpeedBias)) +
-        (normalized * highSpeedBias);
+        (targetIntensity * highSpeedBias);
     _latestIntensity = biased.clamp(0.0, 1.0);
 
-    final double eased = math.pow(_latestIntensity, 0.6).toDouble();
-    final double factor = profile == StrokePressureProfile.taperEnds
-        ? _lerp(maxRadiusFactor, minRadiusFactor, eased)
-        : _lerp(minRadiusFactor, maxRadiusFactor, eased);
+    final double easedSpeed = math.pow(_latestIntensity, 0.6).toDouble();
+    final double factor;
+    switch (profile) {
+      case StrokePressureProfile.taperEnds:
+        factor = _lerp(maxRadiusFactor, minRadiusFactor, easedSpeed);
+        break;
+      case StrokePressureProfile.taperCenter:
+        factor = _lerp(minRadiusFactor, maxRadiusFactor, easedSpeed);
+        break;
+      case StrokePressureProfile.auto:
+        final bool stylusDominates =
+            intensityOverride != null && blend >= 0.999;
+        if (stylusDominates) {
+          factor = _lerp(maxRadiusFactor, minRadiusFactor, easedSpeed);
+        } else {
+          final double normalizedSpeed = metrics?.normalizedSpeed ?? baseSpeed;
+          factor = _autoFactor(
+            smoothedSpeed: easedSpeed,
+            normalizedSpeed: normalizedSpeed,
+            metrics: metrics,
+          );
+        }
+        break;
+    }
     final double radius = _baseRadius * factor;
-    final double ceiling = maxRadius;
+    final double ceiling = profile == StrokePressureProfile.auto
+        ? maxRadius * 1.05
+        : maxRadius;
     final double floor = minRadius * 0.55;
+    _sampleCount += 1;
     return radius.clamp(floor, ceiling);
   }
 
@@ -121,4 +201,50 @@ class StrokeDynamics {
   }
 
   double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  double _autoFactor({
+    required double smoothedSpeed,
+    required double normalizedSpeed,
+    StrokeSampleMetrics? metrics,
+  }) {
+    final double clampedSpeed = normalizedSpeed.clamp(0.0, 1.0);
+    final double easedSpeed = math.pow(clampedSpeed, 0.85).toDouble();
+    final double easedInverse = math.pow(1.0 - clampedSpeed, 0.9).toDouble();
+
+    double factor = _lerp(
+      minRadiusFactor * 0.92,
+      maxRadiusFactor * 1.04,
+      easedInverse,
+    );
+
+    final int sampleIndex = metrics?.sampleIndex ?? _sampleCount;
+    final double ramp = ((sampleIndex + 1) / _autoRampSamples).clamp(0.0, 1.0);
+    factor = _lerp(minRadiusFactor * 0.82, factor, ramp);
+
+    if (metrics != null) {
+      final double holdRatio =
+          ((metrics.stationaryDuration - _autoHoldThresholdMs) /
+                  _autoHoldRangeMs)
+              .clamp(0.0, 1.0);
+      if (holdRatio > 0.0) {
+        factor = _lerp(factor, maxRadiusFactor * 1.05, holdRatio);
+      }
+
+      final double travel = metrics.totalDistance.clamp(0.0, double.infinity);
+      final double progress = travel / (travel + _autoProgressDistance);
+      factor = _lerp(
+        factor,
+        maxRadiusFactor * 0.98,
+        (progress * 0.65).clamp(0.0, 1.0),
+      );
+    }
+
+    final double flick = math
+        .pow(smoothedSpeed.clamp(0.0, 1.0), 1.3)
+        .toDouble();
+    final double flickBlend = (flick * 0.55).clamp(0.0, 1.0);
+    factor = _lerp(factor, minRadiusFactor * 0.88, flickBlend);
+
+    return factor;
+  }
 }

@@ -1,9 +1,14 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+
+import '../../bitmap_canvas/stroke_dynamics.dart';
+import '../../canvas/canvas_tools.dart';
+import '../constants/pen_constants.dart';
 
 class AppPreferences {
   AppPreferences._({
@@ -11,15 +16,54 @@ class AppPreferences {
     required this.bucketContiguous,
     required this.historyLimit,
     required this.themeMode,
+    required this.penStrokeWidth,
+    required this.simulatePenPressure,
+    required this.penPressureProfile,
+    required this.penAntialiasLevel,
+    required this.stylusPressureEnabled,
+    required this.stylusPressureCurve,
+    required this.autoSharpPeakEnabled,
+    required this.penStrokeSliderRange,
+    required this.strokeStabilizerStrength,
+    required this.brushShape,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 3;
+  static const int _version = 13;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
   static const ThemeMode _defaultThemeMode = ThemeMode.system;
+  static const double _defaultPenStrokeWidth = 3.0;
+  static const bool _defaultSimulatePenPressure = false;
+  static const StrokePressureProfile _defaultPenPressureProfile =
+      StrokePressureProfile.auto;
+  static const int _defaultPenAntialiasLevel = 0;
+  static const bool _defaultStylusPressureEnabled = true;
+  static const double _defaultStylusCurve = 0.85;
+  static const bool _defaultAutoSharpPeakEnabled = false;
+  static const PenStrokeSliderRange _defaultPenStrokeSliderRange =
+      PenStrokeSliderRange.compact;
+  static const double _defaultStrokeStabilizerStrength = 0.0;
+  static const BrushShape _defaultBrushShape = BrushShape.circle;
+  static const double _strokeStabilizerLowerBound = 0.0;
+  static const double _strokeStabilizerUpperBound = 1.0;
+
+  static const double _stylusCurveLowerBound = 0.25;
+  static const double _stylusCurveUpperBound = 3.2;
+
+  static const bool defaultStylusPressureEnabled =
+      _defaultStylusPressureEnabled;
+  static const double defaultStylusCurve = _defaultStylusCurve;
+  static const double stylusCurveLowerBound = _stylusCurveLowerBound;
+  static const double stylusCurveUpperBound = _stylusCurveUpperBound;
+  static const bool defaultAutoSharpPeakEnabled = _defaultAutoSharpPeakEnabled;
+  static const PenStrokeSliderRange defaultPenStrokeSliderRange =
+      _defaultPenStrokeSliderRange;
+  static const double defaultStrokeStabilizerStrength =
+      _defaultStrokeStabilizerStrength;
+  static const BrushShape defaultBrushShape = _defaultBrushShape;
 
   static AppPreferences? _instance;
 
@@ -27,6 +71,16 @@ class AppPreferences {
   bool bucketContiguous;
   int historyLimit;
   ThemeMode themeMode;
+  double penStrokeWidth;
+  bool simulatePenPressure;
+  StrokePressureProfile penPressureProfile;
+  int penAntialiasLevel;
+  bool stylusPressureEnabled;
+  double stylusPressureCurve;
+  bool autoSharpPeakEnabled;
+  PenStrokeSliderRange penStrokeSliderRange;
+  double strokeStabilizerStrength;
+  BrushShape brushShape;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -46,13 +100,259 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
-          if (version >= 3 && bytes.length >= 6) {
+          if (version >= 13 && bytes.length >= 17) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+              strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                bytes[15],
+              ),
+              brushShape: _decodeBrushShape(bytes[16]),
+            );
+            return _instance!;
+          }
+          if (version >= 12 && bytes.length >= 16) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+              strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                bytes[15],
+              ),
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version >= 11 && bytes.length >= 15) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version >= 10 && bytes.length >= 14) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version >= 9 && bytes.length >= 13) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             _instance = AppPreferences._(
               bucketSampleAllLayers: bytes[1] != 0,
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
+              stylusPressureEnabled: bytes[10] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[11],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[12] != 0,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version >= 8 && bytes.length >= 12) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
+              stylusPressureEnabled: bytes[10] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[11],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version >= 7 && bytes.length >= 14) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
+              stylusPressureEnabled: bytes[10] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[13],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version >= 6 && bytes.length >= 10) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[9]),
+              stylusPressureEnabled: _defaultStylusPressureEnabled,
+              stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version == 5 && bytes.length >= 10) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: bytes[9] != 0 ? 2 : 0,
+              stylusPressureEnabled: _defaultStylusPressureEnabled,
+              stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version == 4 && bytes.length >= 9) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthLegacy(bytes[6]),
+              simulatePenPressure: bytes[7] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[8]),
+              penAntialiasLevel: _defaultPenAntialiasLevel,
+              stylusPressureEnabled: _defaultStylusPressureEnabled,
+              stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
+            );
+            return _instance!;
+          }
+          if (version == 3 && bytes.length >= 6) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _defaultPenStrokeWidth,
+              simulatePenPressure: _defaultSimulatePenPressure,
+              penPressureProfile: _defaultPenPressureProfile,
+              penAntialiasLevel: _defaultPenAntialiasLevel,
+              stylusPressureEnabled: _defaultStylusPressureEnabled,
+              stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
             );
             return _instance!;
           }
@@ -63,6 +363,16 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _defaultThemeMode,
+              penStrokeWidth: _defaultPenStrokeWidth,
+              simulatePenPressure: _defaultSimulatePenPressure,
+              penPressureProfile: _defaultPenPressureProfile,
+              penAntialiasLevel: _defaultPenAntialiasLevel,
+              stylusPressureEnabled: _defaultStylusPressureEnabled,
+              stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
             );
             return _instance!;
           }
@@ -72,6 +382,16 @@ class AppPreferences {
               bucketContiguous: bytes[2] != 0,
               historyLimit: _defaultHistoryLimit,
               themeMode: _defaultThemeMode,
+              penStrokeWidth: _defaultPenStrokeWidth,
+              simulatePenPressure: _defaultSimulatePenPressure,
+              penPressureProfile: _defaultPenPressureProfile,
+              penAntialiasLevel: _defaultPenAntialiasLevel,
+              stylusPressureEnabled: _defaultStylusPressureEnabled,
+              stylusPressureCurve: _defaultStylusCurve,
+              autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+              penStrokeSliderRange: _defaultPenStrokeSliderRange,
+              strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+              brushShape: _defaultBrushShape,
             );
             return _instance!;
           }
@@ -85,6 +405,16 @@ class AppPreferences {
       bucketContiguous: true,
       historyLimit: _defaultHistoryLimit,
       themeMode: _defaultThemeMode,
+      penStrokeWidth: _defaultPenStrokeWidth,
+      simulatePenPressure: _defaultSimulatePenPressure,
+      penPressureProfile: _defaultPenPressureProfile,
+      penAntialiasLevel: _defaultPenAntialiasLevel,
+      stylusPressureEnabled: _defaultStylusPressureEnabled,
+      stylusPressureCurve: _defaultStylusCurve,
+      autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
+      penStrokeSliderRange: _defaultPenStrokeSliderRange,
+      strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+      brushShape: _defaultBrushShape,
     );
     return _instance!;
   }
@@ -95,6 +425,35 @@ class AppPreferences {
     await file.create(recursive: true);
     final int history = _clampHistoryLimit(prefs.historyLimit);
     prefs.historyLimit = history;
+    final double strokeWidthValue = prefs.penStrokeWidth.clamp(
+      kPenStrokeMin,
+      kPenStrokeMax,
+    );
+    prefs.penStrokeWidth = strokeWidthValue;
+    final int strokeWidth = _encodePenStrokeWidth(strokeWidthValue);
+    final double stylusCurve = _clampStylusFactor(
+      prefs.stylusPressureCurve,
+      lower: _stylusCurveLowerBound,
+      upper: _stylusCurveUpperBound,
+    );
+
+    prefs.stylusPressureCurve = stylusCurve;
+    prefs.strokeStabilizerStrength = _clampStrokeStabilizerStrength(
+      prefs.strokeStabilizerStrength,
+    );
+
+    final int stylusCurveEncoded = _encodeStylusFactor(
+      stylusCurve,
+      lower: _stylusCurveLowerBound,
+      upper: _stylusCurveUpperBound,
+    );
+    final int sliderRangeEncoded = _encodePenStrokeSliderRange(
+      prefs.penStrokeSliderRange,
+    );
+    final int stabilizerEncoded = _encodeStrokeStabilizerStrength(
+      prefs.strokeStabilizerStrength,
+    );
+
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
       prefs.bucketSampleAllLayers ? 1 : 0,
@@ -102,6 +461,17 @@ class AppPreferences {
       history & 0xff,
       (history >> 8) & 0xff,
       _encodeThemeMode(prefs.themeMode),
+      strokeWidth & 0xff,
+      (strokeWidth >> 8) & 0xff,
+      prefs.simulatePenPressure ? 1 : 0,
+      _encodePressureProfile(prefs.penPressureProfile),
+      _encodeAntialiasLevel(prefs.penAntialiasLevel),
+      prefs.stylusPressureEnabled ? 1 : 0,
+      stylusCurveEncoded,
+      prefs.autoSharpPeakEnabled ? 1 : 0,
+      sliderRangeEncoded,
+      stabilizerEncoded,
+      _encodeBrushShape(prefs.brushShape),
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -140,6 +510,185 @@ class AppPreferences {
     }
   }
 
+  static double _decodePenStrokeWidthLegacy(int value) {
+    final double clamped = value.clamp(1, 60).toDouble();
+    return clamped.clamp(kPenStrokeMin, kPenStrokeMax);
+  }
+
+  static double _decodePenStrokeWidthV10(int value) {
+    final int clamped = value.clamp(0, 0xffff);
+    if (clamped <= 0) {
+      return kPenStrokeMin;
+    }
+    if (clamped >= 0xffff) {
+      return kPenStrokeMax;
+    }
+    final double t = clamped / 65535.0;
+    final double ratio = kPenStrokeMax / kPenStrokeMin;
+    return kPenStrokeMin * math.pow(ratio, t);
+  }
+
+  static int _encodePenStrokeWidth(double value) {
+    final double clamped = value.clamp(kPenStrokeMin, kPenStrokeMax);
+    if (clamped <= kPenStrokeMin) {
+      return 0;
+    }
+    if (clamped >= kPenStrokeMax) {
+      return 0xffff;
+    }
+    final double numerator = math.log(clamped / kPenStrokeMin);
+    final double denominator = math.log(kPenStrokeMax / kPenStrokeMin);
+    final double normalized = denominator == 0
+        ? 0.0
+        : (numerator / denominator);
+    return (normalized * 65535.0).round().clamp(0, 0xffff);
+  }
+
+  static double _decodeStylusFactor(
+    int value, {
+    required double lower,
+    required double upper,
+  }) {
+    final double clamped = value.clamp(0, 255).toDouble();
+    final double t = clamped / 255.0;
+    return lower + (upper - lower) * t;
+  }
+
+  static int _encodeStylusFactor(
+    double value, {
+    required double lower,
+    required double upper,
+  }) {
+    final double clamped = value.clamp(lower, upper);
+    if (upper <= lower) {
+      return 0;
+    }
+    final double normalized = (clamped - lower) / (upper - lower);
+    return (normalized * 255.0).round().clamp(0, 255);
+  }
+
+  static double _clampStylusFactor(
+    double value, {
+    required double lower,
+    required double upper,
+  }) {
+    final double clamped = value.clamp(lower, upper);
+    if (!clamped.isFinite) {
+      return lower;
+    }
+    return clamped;
+  }
+
+  static StrokePressureProfile _decodePressureProfile(int value) {
+    switch (value) {
+      case 0:
+        return StrokePressureProfile.taperEnds;
+      case 1:
+        return StrokePressureProfile.taperCenter;
+      case 2:
+      default:
+        return StrokePressureProfile.auto;
+    }
+  }
+
+  static int _encodePressureProfile(StrokePressureProfile profile) {
+    switch (profile) {
+      case StrokePressureProfile.taperEnds:
+        return 0;
+      case StrokePressureProfile.taperCenter:
+        return 1;
+      case StrokePressureProfile.auto:
+        return 2;
+    }
+  }
+
+  static int _decodeAntialiasLevel(int value) {
+    if (value < 0) {
+      return 0;
+    }
+    if (value > 3) {
+      return 3;
+    }
+    return value;
+  }
+
+  static int _encodeAntialiasLevel(int value) {
+    if (value < 0) {
+      return 0;
+    }
+    if (value > 3) {
+      return 3;
+    }
+    return value;
+  }
+
+  static PenStrokeSliderRange _decodePenStrokeSliderRange(int value) {
+    switch (value) {
+      case 0:
+        return PenStrokeSliderRange.compact;
+      case 1:
+        return PenStrokeSliderRange.medium;
+      case 2:
+      default:
+        return PenStrokeSliderRange.full;
+    }
+  }
+
+  static int _encodePenStrokeSliderRange(PenStrokeSliderRange range) {
+    switch (range) {
+      case PenStrokeSliderRange.compact:
+        return 0;
+      case PenStrokeSliderRange.medium:
+        return 1;
+      case PenStrokeSliderRange.full:
+      default:
+        return 2;
+    }
+  }
+
+  static double _decodeStrokeStabilizerStrength(int value) {
+    final int clamped = value.clamp(0, 255);
+    return clamped / 255.0;
+  }
+
+  static int _encodeStrokeStabilizerStrength(double value) {
+    final double clamped = _clampStrokeStabilizerStrength(value);
+    return (clamped * 255.0).round().clamp(0, 255);
+  }
+
+  static BrushShape _decodeBrushShape(int value) {
+    switch (value) {
+      case 1:
+        return BrushShape.triangle;
+      case 2:
+        return BrushShape.square;
+      case 0:
+      default:
+        return BrushShape.circle;
+    }
+  }
+
+  static int _encodeBrushShape(BrushShape shape) {
+    switch (shape) {
+      case BrushShape.circle:
+        return 0;
+      case BrushShape.triangle:
+        return 1;
+      case BrushShape.square:
+        return 2;
+    }
+  }
+
+  static double _clampStrokeStabilizerStrength(double value) {
+    if (!value.isFinite) {
+      return _defaultStrokeStabilizerStrength;
+    }
+    return value.clamp(
+      _strokeStabilizerLowerBound,
+      _strokeStabilizerUpperBound,
+    );
+  }
+
   static ThemeMode get defaultThemeMode => _defaultThemeMode;
   static int get defaultHistoryLimit => _defaultHistoryLimit;
 
@@ -150,5 +699,21 @@ class AppPreferences {
       await directory.create(recursive: true);
     }
     return File(p.join(directory.path, _fileName));
+  }
+}
+
+enum PenStrokeSliderRange {
+  compact(min: 1.0, max: 60.0),
+  medium(min: 0.1, max: 500.0),
+  full(min: 0.01, max: 1000.0);
+
+  const PenStrokeSliderRange({required this.min, required this.max});
+
+  final double min;
+  final double max;
+
+  double clamp(double value) {
+    final num clamped = value.clamp(min, max);
+    return clamped.toDouble();
   }
 }

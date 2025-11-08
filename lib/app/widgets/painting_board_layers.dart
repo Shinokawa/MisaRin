@@ -1,6 +1,10 @@
 part of 'painting_board.dart';
 
 mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
+  final TextEditingController _layerRenameController = TextEditingController();
+  final FocusNode _layerRenameFocusNode = FocusNode();
+  String? _renamingLayerId;
+
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
     if (provided != null && provided.isNotEmpty) {
@@ -55,9 +59,66 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
+  void _handleLayerRenameFocusChange() {
+    if (!_layerRenameFocusNode.hasFocus && _renamingLayerId != null) {
+      _finalizeLayerRename();
+    }
+  }
+
+  void _beginLayerRename(BitmapLayerState layer) {
+    if (layer.locked) {
+      return;
+    }
+    if (_renamingLayerId != null && _renamingLayerId != layer.id) {
+      _finalizeLayerRename(cancel: true);
+    }
+    _layerRenameController
+      ..text = layer.name
+      ..selection = TextSelection(baseOffset: 0, extentOffset: layer.name.length);
+    setState(() {
+      _renamingLayerId = layer.id;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _renamingLayerId != layer.id) {
+        return;
+      }
+      if (!_layerRenameFocusNode.hasFocus) {
+        _layerRenameFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _finalizeLayerRename({bool cancel = false}) {
+    final String? targetId = _renamingLayerId;
+    if (targetId == null) {
+      return;
+    }
+    final String nextName = _layerRenameController.text.trim();
+    setState(() {
+      _renamingLayerId = null;
+    });
+    if (cancel || nextName.isEmpty) {
+      return;
+    }
+    BitmapLayerState? target;
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id == targetId) {
+        target = layer;
+        break;
+      }
+    }
+    if (target == null || target.name == nextName) {
+      return;
+    }
+    _pushUndoSnapshot();
+    _controller.renameLayer(target.id, nextName);
+    setState(() {});
+    _markDirty();
+  }
+
   void _handleAddLayer() {
     _pushUndoSnapshot();
-    _controller.addLayer();
+    _controller.addLayer(aboveLayerId: _activeLayerId);
     setState(() {});
     _markDirty();
   }
@@ -136,14 +197,28 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
-  void _updateActiveLayerLocked(bool locked) {
-    final BitmapLayerState? layer = _currentActiveLayer();
-    if (layer == null || layer.locked == locked) {
+  void _applyLayerLockedState(BitmapLayerState layer, bool locked) {
+    if (layer.locked == locked) {
       return;
+    }
+    if (locked && _renamingLayerId == layer.id) {
+      _finalizeLayerRename(cancel: true);
     }
     _pushUndoSnapshot();
     _controller.setLayerLocked(layer.id, locked);
     setState(() {});
+  }
+
+  void _updateActiveLayerLocked(bool locked) {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null) {
+      return;
+    }
+    _applyLayerLockedState(layer, locked);
+  }
+
+  void _handleLayerLockToggle(BitmapLayerState layer) {
+    _applyLayerLockedState(layer, !layer.locked);
   }
 
   void _updateActiveLayerClipping(bool clipping) {
@@ -166,13 +241,77 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     setState(() {});
   }
 
+  bool applyLayerAntialiasLevel(int level) {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null || layer.locked) {
+      return false;
+    }
+    final int clamped = level.clamp(0, 3);
+    if (!_controller.applyAntialiasToActiveLayer(clamped, previewOnly: true)) {
+      return false;
+    }
+    _pushUndoSnapshot();
+    _controller.applyAntialiasToActiveLayer(clamped);
+    setState(() {});
+    _markDirty();
+    return true;
+  }
+
   Widget _buildPanelDivider(FluentThemeData theme) {
-    final Color dividerColor =
-        theme.resources.controlStrokeColorDefault.withOpacity(0.35);
+    final Color dividerColor = theme.resources.controlStrokeColorDefault
+        .withOpacity(0.35);
     return SizedBox(
       height: 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(color: dividerColor),
+      child: DecoratedBox(decoration: BoxDecoration(color: dividerColor)),
+    );
+  }
+
+  Widget _buildInlineLayerRenameField(
+    FluentThemeData theme, {
+    required bool isActive,
+    required String layerId,
+    TextStyle? styleOverride,
+  }) {
+    final TextStyle style = styleOverride ??
+        (isActive ? theme.typography.bodyStrong : theme.typography.body) ??
+            const TextStyle(fontSize: 14);
+    final double fontSize = style.fontSize ?? 14;
+    final double lineHeight = (style.height ?? 1.0) * fontSize;
+    final Color cursorColor = theme.accentColor.defaultBrushFor(
+      theme.brightness,
+    );
+    final Color selectionColor = cursorColor.withOpacity(0.35);
+    return SizedBox(
+      height: lineHeight,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: EditableText(
+          key: ValueKey<String>('layer-rename-$layerId'),
+          controller: _layerRenameController,
+          focusNode: _layerRenameFocusNode,
+          style: style,
+          cursorColor: cursorColor,
+          backgroundCursorColor: Colors.transparent,
+          selectionColor: selectionColor,
+          maxLines: 1,
+          autofocus: true,
+          cursorWidth: 1.3,
+          cursorRadius: const Radius.circular(1.5),
+          onSubmitted: (_) => _finalizeLayerRename(),
+          onEditingComplete: _finalizeLayerRename,
+          onTapOutside: (_) => _finalizeLayerRename(),
+          textInputAction: TextInputAction.done,
+          keyboardType: TextInputType.text,
+          strutStyle: StrutStyle(
+            forceStrutHeight: true,
+            height: 1.0,
+            fontSize: fontSize,
+          ),
+          textHeightBehavior: const TextHeightBehavior(
+            applyHeightToFirstAscent: false,
+            applyHeightToLastDescent: false,
+          ),
+        ),
       ),
     );
   }
@@ -185,20 +324,20 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
       return null;
     }
 
-    final double clampedOpacity =
-        activeLayer.opacity.clamp(0.0, 1.0).toDouble();
+    final double clampedOpacity = activeLayer.opacity
+        .clamp(0.0, 1.0)
+        .toDouble();
     final int opacityPercent = (clampedOpacity * 100).round();
-    final TextStyle labelStyle = theme.typography.caption ??
+    final TextStyle labelStyle =
+        theme.typography.caption ??
         theme.typography.body?.copyWith(fontSize: 12) ??
         const TextStyle(fontSize: 12);
 
     Widget opacityRow() {
+      final bool locked = activeLayer.locked;
       return Row(
         children: [
-          SizedBox(
-            width: 52,
-            child: Text('不透明度', style: labelStyle),
-          ),
+          SizedBox(width: 52, child: Text('不透明度', style: labelStyle)),
           const SizedBox(width: 8),
           Expanded(
             child: Slider(
@@ -206,9 +345,10 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
               min: 0,
               max: 1,
               divisions: 100,
-              onChangeStart: _handleLayerOpacityChangeStart,
-              onChanged: _handleLayerOpacityChanged,
-              onChangeEnd: _handleLayerOpacityChangeEnd,
+              onChangeStart:
+                  locked ? null : _handleLayerOpacityChangeStart,
+              onChanged: locked ? null : _handleLayerOpacityChanged,
+              onChangeEnd: locked ? null : _handleLayerOpacityChangeEnd,
             ),
           ),
           const SizedBox(width: 8),
@@ -228,7 +368,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
       Widget buildLabeledCheckbox({
         required String label,
         required bool value,
-        required ValueChanged<bool> onChanged,
+        ValueChanged<bool>? onChanged,
       }) {
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -238,7 +378,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
             Checkbox(
               checked: value,
               content: const SizedBox.shrink(),
-              onChanged: (checked) => onChanged(checked ?? value),
+              onChanged: onChanged == null
+                  ? null
+                  : (checked) => onChanged(checked ?? value),
             ),
           ],
         );
@@ -257,7 +399,8 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
           buildLabeledCheckbox(
             label: '剪贴蒙版',
             value: activeLayer.clippingMask,
-            onChanged: _updateActiveLayerClipping,
+            onChanged:
+                activeLayer.locked ? null : _updateActiveLayerClipping,
           ),
         ],
       );
@@ -266,27 +409,27 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     Widget blendRow() {
       return Row(
         children: [
-          SizedBox(
-            width: 52,
-            child: Text('混合模式', style: labelStyle),
-          ),
+          SizedBox(width: 52, child: Text('混合模式', style: labelStyle)),
           const SizedBox(width: 8),
           Expanded(
             child: ComboBox<CanvasLayerBlendMode>(
               value: activeLayer.blendMode,
-              items: CanvasLayerBlendMode.values
+              items: kCanvasBlendModeDisplayOrder
                   .map(
-                    (mode) => ComboBoxItem<CanvasLayerBlendMode>(
-                      value: mode,
-                      child: Text(_blendModeLabel(mode)),
-                    ),
+                    (CanvasLayerBlendMode mode) =>
+                        ComboBoxItem<CanvasLayerBlendMode>(
+                          value: mode,
+                          child: Text(mode.label),
+                        ),
                   )
                   .toList(growable: false),
-              onChanged: (mode) {
-                if (mode != null) {
-                  _updateActiveLayerBlendMode(mode);
-                }
-              },
+              onChanged: activeLayer.locked
+                  ? null
+                  : (CanvasLayerBlendMode? mode) {
+                      if (mode != null) {
+                        _updateActiveLayerBlendMode(mode);
+                      }
+                    },
             ),
           ),
         ],
@@ -303,15 +446,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
         blendRow(),
       ],
     );
-  }
-
-  String _blendModeLabel(CanvasLayerBlendMode mode) {
-    switch (mode) {
-      case CanvasLayerBlendMode.normal:
-        return '正常';
-      case CanvasLayerBlendMode.multiply:
-        return '正片叠底';
-    }
   }
 
   Widget _buildLayerPanelContent(FluentThemeData theme) {
@@ -384,20 +518,33 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                     0.6,
                   )!;
 
+                  final bool layerLocked = layer.locked;
+
                   final Widget visibilityButton = LayerVisibilityButton(
                     visible: layer.visible,
                     onChanged: (value) =>
                         _handleLayerVisibilityChanged(layer.id, value),
                   );
 
-                  final bool canDelete = _layers.length > 1;
+                  final Widget lockButton = Tooltip(
+                    message: layerLocked ? '解锁图层' : '锁定图层',
+                    child: IconButton(
+                      icon: Icon(
+                        layerLocked
+                            ? FluentIcons.lock
+                            : FluentIcons.unlock,
+                      ),
+                      onPressed: () => _handleLayerLockToggle(layer),
+                    ),
+                  );
+
+                  final bool canDelete = _layers.length > 1 && !layerLocked;
                   final Widget deleteButton = IconButton(
                     icon: const Icon(FluentIcons.delete),
                     onPressed: canDelete
                         ? () => _handleRemoveLayer(layer.id)
                         : null,
                   );
-
                   return material.ReorderableDragStartListener(
                     key: ValueKey(layer.id),
                     index: index,
@@ -408,7 +555,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                       ),
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () => _handleLayerSelected(layer.id),
+                        onTapDown: (_) => _handleLayerSelected(layer.id),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(
@@ -433,40 +580,52 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                       child: Row(
                                         children: [
                                           Expanded(
-                                            child: Text(
-                                              layer.name,
-                                              style: isActive
-                                                  ? theme.typography.bodyStrong
-                                                  : theme.typography.body,
-                                              overflow: TextOverflow.ellipsis,
+                                            child: _LayerNameView(
+                                              layer: layer,
+                                              theme: theme,
+                                              isActive: isActive,
+                                              isRenaming:
+                                                  !layerLocked &&
+                                                      _renamingLayerId ==
+                                                          layer.id,
+                                              isLocked: layerLocked,
+                                              buildEditor: (style) =>
+                                                  _buildInlineLayerRenameField(
+                                                theme,
+                                                isActive: isActive,
+                                                layerId: layer.id,
+                                                styleOverride: style,
+                                              ),
+                                              onRequestRename: layerLocked
+                                                  ? null
+                                                  : () {
+                                                      _handleLayerSelected(
+                                                        layer.id,
+                                                      );
+                                                      _beginLayerRename(layer);
+                                                    },
                                             ),
                                           ),
-                                          if (layer.locked) ...[
-                                            const SizedBox(width: 6),
-                                            Icon(
-                                              FluentIcons.lock,
-                                              size: 12,
-                                              color: theme.resources
-                                                  .textFillColorSecondary,
-                                            ),
-                                          ],
                                         ],
                                       ),
                                     ),
                                   ),
-                                  deleteButton,
-                                ],
-                              ),
-                            if (layer.clippingMask)
-                              Positioned(
-                                left: -10,
-                                top: 6,
-                                bottom: 6,
-                                child: _ClippingMaskIndicator(
-                                  color: theme.accentColor
-                                      .defaultBrushFor(theme.brightness),
+                                lockButton,
+                                const SizedBox(width: 4),
+                                deleteButton,
+                              ],
+                            ),
+                              if (layer.clippingMask)
+                                Positioned(
+                                  left: -10,
+                                  top: 6,
+                                  bottom: 6,
+                                  child: _ClippingMaskIndicator(
+                                    color: theme.accentColor.defaultBrushFor(
+                                      theme.brightness,
+                                    ),
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -582,15 +741,6 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          if (layer.locked) ...[
-                                            const SizedBox(width: 6),
-                                            Icon(
-                                              FluentIcons.lock,
-                                              size: 12,
-                                              color: theme.resources
-                                                  .textFillColorSecondary,
-                                            ),
-                                          ],
                                         ],
                                       ),
                                     ),
@@ -603,8 +753,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
                                   left: -18,
                                   top: 12,
                                   child: _ClippingMaskIndicator(
-                                    color: theme.accentColor
-                                        .defaultBrushFor(theme.brightness),
+                                    color: theme.accentColor.defaultBrushFor(
+                                      theme.brightness,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -637,5 +788,68 @@ class _ClippingMaskIndicator extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
     );
+  }
+}
+
+class _LayerNameView extends StatelessWidget {
+  const _LayerNameView({
+    required this.layer,
+    required this.theme,
+    required this.isActive,
+    required this.isRenaming,
+    required this.isLocked,
+    required this.buildEditor,
+    this.onRequestRename,
+  });
+
+  final BitmapLayerState layer;
+  final FluentThemeData theme;
+  final bool isActive;
+  final bool isRenaming;
+  final bool isLocked;
+  final Widget Function(TextStyle? effectiveStyle) buildEditor;
+  final VoidCallback? onRequestRename;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle? style =
+        isActive ? theme.typography.bodyStrong : theme.typography.body;
+    final Widget text = Text(
+      layer.name,
+      style: style,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+      softWrap: false,
+    );
+    final Widget display = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onDoubleTap: onRequestRename,
+      child: text,
+    );
+    if (!isRenaming || isLocked) {
+      return display;
+    }
+    final double width = _measureWidth(context, style, layer.name) + 6;
+    final double clampedWidth = width.clamp(32.0, 400.0).toDouble();
+    return SizedBox(
+      width: clampedWidth,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: buildEditor(style),
+      ),
+    );
+  }
+
+  double _measureWidth(
+    BuildContext context,
+    TextStyle? style,
+    String text,
+  ) {
+    final TextPainter painter = TextPainter(
+      text: TextSpan(text: text.isEmpty ? ' ' : text, style: style),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width;
   }
 }
