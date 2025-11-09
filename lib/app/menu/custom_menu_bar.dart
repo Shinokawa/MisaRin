@@ -187,8 +187,15 @@ class _MenuButtonState extends State<_MenuButton> {
       _flyoutController
           .showFlyout(
             barrierDismissible: true,
+            barrierColor: Colors.transparent,
             placementMode: FlyoutPlacementMode.bottomLeft,
             navigatorKey: navigator,
+            additionalOffset: 0,
+            margin: 0,
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+            transitionBuilder: (context, animation, placementMode, flyout) =>
+                flyout,
             builder: (context) {
               return MenuFlyout(
                 items: _buildMenuItems(context, widget.definition.entries),
