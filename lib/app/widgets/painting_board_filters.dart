@@ -67,6 +67,9 @@ mixin _PaintingBoardFilterMixin
   int _filterPreviewLastIssuedToken = 0;
   bool _filterPreviewRequestInFlight = false;
   bool _filterPreviewPendingChange = false;
+  static const Duration _filterPreviewDebounceDuration =
+      Duration(milliseconds: 50);
+  Timer? _filterPreviewDebounceTimer;
   bool _antialiasCardVisible = false;
   Offset _antialiasCardOffset = Offset.zero;
   Size? _antialiasCardSize;
@@ -228,7 +231,7 @@ mixin _PaintingBoardFilterMixin
       },
     );
     overlay.insert(_filterOverlayEntry!);
-    _applyFilterPreview();
+    _requestFilterPreview(immediate: true);
   }
 
   void _initializeFilterWorker() {
@@ -271,7 +274,7 @@ mixin _PaintingBoardFilterMixin
       ..brightness = 0
       ..contrast = 0;
     session.gaussianBlur.radius = 0;
-    _applyFilterPreview();
+    _requestFilterPreview(immediate: true);
     _filterOverlayEntry?.markNeedsBuild();
   }
 
@@ -288,7 +291,7 @@ mixin _PaintingBoardFilterMixin
       ..hue = hue ?? session.hueSaturation.hue
       ..saturation = saturation ?? session.hueSaturation.saturation
       ..lightness = lightness ?? session.hueSaturation.lightness;
-    _applyFilterPreview();
+    _requestFilterPreview();
     _filterOverlayEntry?.markNeedsBuild();
   }
 
@@ -300,7 +303,7 @@ mixin _PaintingBoardFilterMixin
     session.brightnessContrast
       ..brightness = brightness ?? session.brightnessContrast.brightness
       ..contrast = contrast ?? session.brightnessContrast.contrast;
-    _applyFilterPreview();
+    _requestFilterPreview();
     _filterOverlayEntry?.markNeedsBuild();
   }
 
@@ -310,8 +313,25 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     session.gaussianBlur.radius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
-    _applyFilterPreview();
+    _requestFilterPreview();
     _filterOverlayEntry?.markNeedsBuild();
+  }
+
+  void _requestFilterPreview({bool immediate = false}) {
+    if (immediate) {
+      _filterPreviewDebounceTimer?.cancel();
+      _filterPreviewDebounceTimer = null;
+      _applyFilterPreview();
+      return;
+    }
+    _filterPreviewDebounceTimer?.cancel();
+    _filterPreviewDebounceTimer = Timer(
+      _filterPreviewDebounceDuration,
+      () {
+        _filterPreviewDebounceTimer = null;
+        _applyFilterPreview();
+      },
+    );
   }
 
   void _applyFilterPreview() {
@@ -486,6 +506,8 @@ mixin _PaintingBoardFilterMixin
     _filterWorker?.discardPendingResult();
     _filterPreviewPendingChange = false;
     _filterPreviewRequestInFlight = false;
+    _filterPreviewDebounceTimer?.cancel();
+    _filterPreviewDebounceTimer = null;
   }
 
   void _removeFilterOverlay({bool restoreOriginal = true}) {
