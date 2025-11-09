@@ -5,9 +5,10 @@ import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
 
 class CustomMenuShell extends StatelessWidget {
-  const CustomMenuShell({super.key, required this.child});
+  const CustomMenuShell({super.key, required this.child, this.navigatorKey});
 
   final Widget child;
+  final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +21,7 @@ class CustomMenuShell extends StatelessWidget {
         );
         return Column(
           children: [
-            CustomMenuBar(menus: menus),
+            CustomMenuBar(menus: menus, navigatorKey: navigatorKey),
             Expanded(child: menuChild!),
           ],
         );

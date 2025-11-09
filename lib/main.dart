@@ -5,7 +5,6 @@ import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
-import 'app/menu/custom_menu_shell.dart';
 import 'app/menu/macos_menu_shell.dart';
 import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
@@ -33,18 +32,12 @@ Future<void> main() async {
     });
   }
 
-  const app = MisarinApp();
-
-  if (!kIsWeb && Platform.isMacOS) {
-    runApp(const MacosMenuShell(child: app));
-    return;
-  }
-
   final bool needsCustomMenu =
       kIsWeb || (!kIsWeb && (Platform.isWindows || Platform.isLinux));
+  final app = MisarinApp(showCustomMenu: needsCustomMenu);
 
-  if (needsCustomMenu) {
-    runApp(const CustomMenuShell(child: app));
+  if (!kIsWeb && Platform.isMacOS) {
+    runApp(MacosMenuShell(child: app));
     return;
   }
 

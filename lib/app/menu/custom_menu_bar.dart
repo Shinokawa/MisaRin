@@ -3,15 +3,17 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import '../widgets/window_drag_area.dart';
 import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
 
 class CustomMenuBar extends StatelessWidget {
-  const CustomMenuBar({super.key, required this.menus});
+  const CustomMenuBar({super.key, required this.menus, this.navigatorKey});
 
   final List<MenuDefinition> menus;
+  final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +56,10 @@ class CustomMenuBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (int i = 0; i < visibleMenus.length; i++) ...[
-                _MenuButton(definition: visibleMenus[i]),
+                _MenuButton(
+                  definition: visibleMenus[i],
+                  navigatorKey: navigatorKey,
+                ),
                 if (i != visibleMenus.length - 1) const SizedBox(width: 4),
               ],
               dragArea,
@@ -112,9 +117,10 @@ class CustomMenuBar extends StatelessWidget {
 }
 
 class _MenuButton extends StatefulWidget {
-  const _MenuButton({required this.definition});
+  const _MenuButton({required this.definition, this.navigatorKey});
 
   final MenuDefinition definition;
+  final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
   State<_MenuButton> createState() => _MenuButtonState();
@@ -134,9 +140,15 @@ class _MenuButtonState extends State<_MenuButton> {
     if (widget.definition.entries.isEmpty) {
       return;
     }
+    final NavigatorState? navigator =
+        widget.navigatorKey?.currentState ?? Navigator.maybeOf(context);
+    if (navigator == null) {
+      return;
+    }
     _flyoutController.showFlyout(
       barrierDismissible: true,
       placementMode: FlyoutPlacementMode.bottomLeft,
+      navigatorKey: navigator,
       builder: (context) {
         return MenuFlyout(
           items: _buildMenuItems(context, widget.definition.entries),
