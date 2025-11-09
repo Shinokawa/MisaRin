@@ -5,7 +5,6 @@ const double _kFilterPanelMinHeight = 180;
 const double _kAntialiasPanelWidth = 280;
 const double _kAntialiasPanelMinHeight = 140;
 const double _kGaussianBlurMaxRadius = 1000.0;
-const double _kGaussianBlurSinglePassLimit = 128.0;
 const List<String> _kAntialiasLevelDescriptions = <String>[
   '0 级（关闭）：保留像素硬边，不进行平滑处理。',
   '1 级（轻度）：轻微柔化锯齿，适合线稿与像素边缘。',
@@ -1250,90 +1249,159 @@ void _filterApplyGaussianBlurToBitmap(
   if (clampedRadius <= 0) {
     return;
   }
-  int passes = math.max(
-    1,
-    (clampedRadius / _kGaussianBlurSinglePassLimit).ceil(),
-  );
-  double passRadius = clampedRadius / math.sqrt(passes);
-  while (passRadius > _kGaussianBlurSinglePassLimit && passes < 512) {
-    passes += 1;
-    passRadius = clampedRadius / math.sqrt(passes);
-  }
-  final int kernelRadius = math.max(1, passRadius.round());
-  final List<double> kernel = _filterBuildGaussianKernel(
-    passRadius,
-    kernelRadius,
-  );
-  final Uint8List temp = Uint8List(bitmap.length);
-  for (int i = 0; i < passes; i++) {
-    _filterGaussianBlurPass(
+  // Approximate a gaussian blur with three fast box blur passes so very large
+  // radii (e.g. 1000px) stay responsive during preview.
+  final double sigma = math.max(0.1, clampedRadius * 0.5);
+  final List<int> boxSizes = _filterComputeBoxSizes(sigma, 3);
+  final Uint8List scratch = Uint8List(bitmap.length);
+  for (final int boxSize in boxSizes) {
+    final int passRadius = math.max(0, (boxSize - 1) >> 1);
+    if (passRadius <= 0) {
+      continue;
+    }
+    _filterBoxBlurPass(
       source: bitmap,
-      destination: temp,
+      destination: scratch,
       width: width,
       height: height,
-      kernel: kernel,
+      radius: passRadius,
       horizontal: true,
     );
-    _filterGaussianBlurPass(
-      source: temp,
+    _filterBoxBlurPass(
+      source: scratch,
       destination: bitmap,
       width: width,
       height: height,
-      kernel: kernel,
+      radius: passRadius,
       horizontal: false,
     );
   }
 }
 
-List<double> _filterBuildGaussianKernel(double radius, int kernelRadius) {
-  final double sigma = math.max(0.1, radius * 0.5);
-  final double twoSigmaSq = 2 * sigma * sigma;
-  final List<double> kernel = List<double>.filled(kernelRadius * 2 + 1, 0);
-  double sum = 0;
-  for (int i = -kernelRadius; i <= kernelRadius; i++) {
-    final double weight = math.exp(-(i * i) / twoSigmaSq);
-    kernel[i + kernelRadius] = weight;
-    sum += weight;
+List<int> _filterComputeBoxSizes(double sigma, int boxCount) {
+  final double idealWidth = math.sqrt((12 * sigma * sigma / boxCount) + 1);
+  int lowerWidth = idealWidth.floor();
+  if (lowerWidth.isEven) {
+    lowerWidth = math.max(1, lowerWidth - 1);
   }
-  if (sum == 0) {
-    return kernel;
+  if (lowerWidth < 1) {
+    lowerWidth = 1;
   }
-  for (int i = 0; i < kernel.length; i++) {
-    kernel[i] /= sum;
-  }
-  return kernel;
+  final int upperWidth = lowerWidth + 2;
+  final double mIdeal = (12 * sigma * sigma -
+          boxCount * lowerWidth * lowerWidth -
+          4 * boxCount * lowerWidth -
+          3 * boxCount) /
+      (-4 * lowerWidth - 4);
+  final int m = mIdeal.round();
+  final int clampedM = m.clamp(0, boxCount).toInt();
+  return List<int>.generate(
+    boxCount,
+    (int i) => i < clampedM ? lowerWidth : upperWidth,
+  );
 }
 
-void _filterGaussianBlurPass({
+void _filterBoxBlurPass({
   required Uint8List source,
   required Uint8List destination,
   required int width,
   required int height,
-  required List<double> kernel,
+  required int radius,
   required bool horizontal,
 }) {
-  final int radius = (kernel.length - 1) >> 1;
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
+  if (radius <= 0) {
+    destination.setRange(0, source.length, source);
+    return;
+  }
+  final int kernelSize = radius * 2 + 1;
+  if (horizontal) {
+    for (int y = 0; y < height; y++) {
+      final int rowOffset = y * width;
       double sumR = 0;
       double sumG = 0;
       double sumB = 0;
       double sumA = 0;
       for (int k = -radius; k <= radius; k++) {
-        final int sampleX = horizontal ? (x + k).clamp(0, width - 1) : x;
-        final int sampleY = horizontal ? y : (y + k).clamp(0, height - 1);
-        final int sampleIndex = (sampleY * width + sampleX) * 4;
-        final double weight = kernel[k + radius];
-        sumR += source[sampleIndex] * weight;
-        sumG += source[sampleIndex + 1] * weight;
-        sumB += source[sampleIndex + 2] * weight;
-        sumA += source[sampleIndex + 3] * weight;
+        final int sampleX = _filterClampIndex(k, width);
+        final int sampleIndex = ((rowOffset + sampleX) << 2);
+        sumR += source[sampleIndex];
+        sumG += source[sampleIndex + 1];
+        sumB += source[sampleIndex + 2];
+        sumA += source[sampleIndex + 3];
       }
-      final int offset = (y * width + x) * 4;
-      destination[offset] = sumR.clamp(0, 255).round();
-      destination[offset + 1] = sumG.clamp(0, 255).round();
-      destination[offset + 2] = sumB.clamp(0, 255).round();
-      destination[offset + 3] = sumA.clamp(0, 255).round();
+      for (int x = 0; x < width; x++) {
+        final int destIndex = ((rowOffset + x) << 2);
+        destination[destIndex] = _filterRoundChannel(sumR / kernelSize);
+        destination[destIndex + 1] = _filterRoundChannel(sumG / kernelSize);
+        destination[destIndex + 2] = _filterRoundChannel(sumB / kernelSize);
+        destination[destIndex + 3] = _filterRoundChannel(sumA / kernelSize);
+        final int removeX = x - radius;
+        final int addX = x + radius + 1;
+        final int removeIndex =
+            ((rowOffset + _filterClampIndex(removeX, width)) << 2);
+        final int addIndex =
+            ((rowOffset + _filterClampIndex(addX, width)) << 2);
+        sumR += source[addIndex] - source[removeIndex];
+        sumG += source[addIndex + 1] - source[removeIndex + 1];
+        sumB += source[addIndex + 2] - source[removeIndex + 2];
+        sumA += source[addIndex + 3] - source[removeIndex + 3];
+      }
+    }
+    return;
+  }
+  for (int x = 0; x < width; x++) {
+    double sumR = 0;
+    double sumG = 0;
+    double sumB = 0;
+    double sumA = 0;
+    for (int k = -radius; k <= radius; k++) {
+      final int sampleY = _filterClampIndex(k, height);
+      final int sampleIndex = (((sampleY * width) + x) << 2);
+      sumR += source[sampleIndex];
+      sumG += source[sampleIndex + 1];
+      sumB += source[sampleIndex + 2];
+      sumA += source[sampleIndex + 3];
+    }
+    for (int y = 0; y < height; y++) {
+      final int destIndex = (((y * width) + x) << 2);
+      destination[destIndex] = _filterRoundChannel(sumR / kernelSize);
+      destination[destIndex + 1] = _filterRoundChannel(sumG / kernelSize);
+      destination[destIndex + 2] = _filterRoundChannel(sumB / kernelSize);
+      destination[destIndex + 3] = _filterRoundChannel(sumA / kernelSize);
+      final int removeY = y - radius;
+      final int addY = y + radius + 1;
+      final int removeIndex =
+          (((_filterClampIndex(removeY, height) * width) + x) << 2);
+      final int addIndex =
+          (((_filterClampIndex(addY, height) * width) + x) << 2);
+      sumR += source[addIndex] - source[removeIndex];
+      sumG += source[addIndex + 1] - source[removeIndex + 1];
+      sumB += source[addIndex + 2] - source[removeIndex + 2];
+      sumA += source[addIndex + 3] - source[removeIndex + 3];
     }
   }
+}
+
+int _filterRoundChannel(double value) {
+  final int rounded = value.round();
+  if (rounded < 0) {
+    return 0;
+  }
+  if (rounded > 255) {
+    return 255;
+  }
+  return rounded;
+}
+
+int _filterClampIndex(int value, int maxExclusive) {
+  if (maxExclusive <= 1) {
+    return 0;
+  }
+  if (value < 0) {
+    return 0;
+  }
+  if (value >= maxExclusive) {
+    return maxExclusive - 1;
+  }
+  return value;
 }
