@@ -25,8 +25,14 @@ class CanvasTitleBar extends StatelessWidget {
         CanvasWorkspaceController.instance;
     final bool showNativeMacButtons =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+    const EdgeInsets padding = EdgeInsets.only(
+      left: 12,
+      right: 12,
+      top: 6,
+      bottom: 6,
+    );
     return Container(
-      padding: const EdgeInsets.only(left: 12, right: 12, top: 6, bottom: 6),
+      padding: padding,
       decoration: BoxDecoration(
         color: theme.micaBackgroundColor,
         border: Border(
@@ -38,8 +44,10 @@ class CanvasTitleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (showNativeMacButtons) const SizedBox(width: 72),
-          const SizedBox(width: 12),
+          if (showNativeMacButtons) ...[
+            const SizedBox(width: 72),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: AnimatedBuilder(
               animation: controller,
