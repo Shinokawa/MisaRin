@@ -1,7 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
-import 'package:window_manager/window_manager.dart';
 import '../workspace/canvas_workspace_controller.dart';
 import 'window_drag_area.dart';
 
@@ -39,13 +38,8 @@ class CanvasTitleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (showNativeMacButtons)
-            const SizedBox(width: 72)
-          else ...[
-            const _MacWindowControls(),
-            const SizedBox(width: 12),
-          ],
-          if (showNativeMacButtons) const SizedBox(width: 12),
+          if (showNativeMacButtons) const SizedBox(width: 72),
+          const SizedBox(width: 12),
           Expanded(
             child: AnimatedBuilder(
               animation: controller,
@@ -233,68 +227,6 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MacWindowControls extends StatelessWidget {
-  const _MacWindowControls();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 60,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          _MacWindowButton(
-            color: const Color(0xFFFF5F57),
-            onTap: () async {
-              await windowManager.close();
-            },
-          ),
-          const SizedBox(width: 8),
-          _MacWindowButton(
-            color: const Color(0xFFFEBC2E),
-            onTap: () async {
-              await windowManager.minimize();
-            },
-          ),
-          const SizedBox(width: 8),
-          _MacWindowButton(
-            color: const Color(0xFF28C840),
-            onTap: () async {
-              if (await windowManager.isMaximized()) {
-                await windowManager.unmaximize();
-              } else {
-                await windowManager.maximize();
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MacWindowButton extends StatelessWidget {
-  const _MacWindowButton({required this.color, required this.onTap});
-
-  final Color color;
-  final Future<void> Function() onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        onTap();
-      },
-      child: Container(
-        width: 14,
-        height: 14,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
   }
