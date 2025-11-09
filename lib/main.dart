@@ -15,13 +15,23 @@ Future<void> main() async {
 
   await AppPreferences.load();
 
-  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+  final bool isDesktop =
+      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+  if (isDesktop) {
     await windowManager.ensureInitialized();
 
-    const windowOptions = WindowOptions(
+    final bool isWindowsDesktop = !kIsWeb && Platform.isWindows;
+    final Color windowBackgroundColor = isWindowsDesktop
+        ? const Color(0xFF0F0F0F)
+        : const Color(0x00000000);
+    if (isWindowsDesktop) {
+      await windowManager.setBackgroundColor(windowBackgroundColor);
+    }
+
+    final windowOptions = WindowOptions(
       titleBarStyle: TitleBarStyle.hidden,
       windowButtonVisibility: true,
-      backgroundColor: Color(0x00000000),
+      backgroundColor: windowBackgroundColor,
       skipTaskbar: false,
     );
 
