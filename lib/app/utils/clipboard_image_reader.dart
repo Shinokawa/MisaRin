@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:super_clipboard/super_clipboard.dart';
+import 'package:pasteboard/pasteboard.dart';
 
 class ClipboardImageData {
   const ClipboardImageData({required this.bytes, this.fileName});
@@ -14,31 +14,54 @@ class ClipboardImageReader {
   const ClipboardImageReader._();
 
   static Future<ClipboardImageData?> readImage() async {
-    final SystemClipboard? clipboard = SystemClipboard.instance;
-    if (clipboard == null) {
-      return null;
-    }
-    final ClipboardReader reader = await clipboard.read();
-    if (!reader.canProvide(Formats.png)) {
-      return null;
-    }
-    final Completer<Uint8List?> completer = Completer<Uint8List?>();
-    final progress = reader.getFile(Formats.png, (file) async {
-      try {
-        final Uint8List data = await file.readAll();
-        completer.complete(data);
-      } catch (error) {
-        completer.completeError(error);
+    try {
+      final Uint8List? bytes = await Pasteboard.image;
+      if (bytes == null || bytes.isEmpty) {
+        return null;
       }
-    });
-    if (progress == null) {
+      return ClipboardImageData(
+        bytes: bytes,
+        fileName: _buildFileName(bytes),
+      );
+    } catch (_) {
       return null;
     }
-    final Uint8List? bytes = await completer.future;
-    if (bytes == null || bytes.isEmpty) {
-      return null;
+  }
+
+  static String _buildFileName(Uint8List bytes) {
+    return '剪贴板图像.${_extensionFromBytes(bytes)}';
+  }
+
+  static String _extensionFromBytes(Uint8List bytes) {
+    if (_matches(bytes, const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) {
+      return 'png';
     }
-    final String? suggestedName = await reader.getSuggestedName();
-    return ClipboardImageData(bytes: bytes, fileName: suggestedName);
+    if (_matches(bytes, const [0xFF, 0xD8, 0xFF])) {
+      return 'jpg';
+    }
+    if (_matches(bytes, const [0x47, 0x49, 0x46, 0x38])) {
+      return 'gif';
+    }
+    if (_matches(bytes, const [0x42, 0x4D])) {
+      return 'bmp';
+    }
+    if (bytes.length >= 12 &&
+        _matches(bytes, const [0x52, 0x49, 0x46, 0x46]) &&
+        _matches(bytes, const [0x57, 0x45, 0x42, 0x50], offset: 8)) {
+      return 'webp';
+    }
+    return 'png';
+  }
+
+  static bool _matches(Uint8List bytes, List<int> signature, {int offset = 0}) {
+    if (bytes.length < signature.length + offset) {
+      return false;
+    }
+    for (int i = 0; i < signature.length; i++) {
+      if (bytes[offset + i] != signature[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 }

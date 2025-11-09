@@ -124,12 +124,15 @@ class BitmapCanvasController extends ChangeNotifier {
     1,
   ];
   static const int _kGaussianKernel5x5Weight = 256;
+  static const int _kCompositeTileSize = 256;
 
   ui.Image? _cachedImage;
   bool _compositeDirty = true;
   bool _refreshScheduled = false;
   bool _pendingFullSurface = false;
-  Rect? _pendingDirtyRect;
+  Rect? _pendingDirtyBounds;
+  final List<_IntRect> _pendingDirtyTiles = <_IntRect>[];
+  final Set<int> _pendingDirtyTileKeys = <int>{};
   bool _compositeInitialized = false;
   Uint32List? _compositePixels;
   Uint8List? _compositeRgba;
@@ -690,12 +693,17 @@ class BitmapCanvasController extends ChangeNotifier {
   void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) =>
       _layerManagerLoadLayers(this, layers, backgroundColor);
 
-  void _updateComposite({required bool requiresFullSurface, Rect? region}) =>
-      _compositeUpdate(
-        this,
-        requiresFullSurface: requiresFullSurface,
-        region: region,
-      );
+  void _updateComposite({required bool requiresFullSurface, Rect? region}) {
+    _compositeUpdate(
+      this,
+      requiresFullSurface: requiresFullSurface,
+      regions: requiresFullSurface || region == null
+          ? null
+          : <_IntRect>[
+              _compositeClipRectToSurface(this, region),
+            ],
+    );
+  }
 
   void _drawPoint(Offset position, double radius) =>
       _strokeDrawPoint(this, position, radius);
