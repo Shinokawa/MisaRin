@@ -226,6 +226,33 @@ class ProjectRepository {
       throw Exception('文件不存在：$path');
     }
     final Uint8List bytes = await file.readAsBytes();
+    final _DecodedImage decoded = await _decodeImageBytes(bytes);
+    final String resolvedName = _resolveImageName(
+      name ?? p.basenameWithoutExtension(path),
+      fallback: '导入图像',
+    );
+    return _buildDocumentFromDecodedImage(decoded, resolvedName);
+  }
+
+  Future<ProjectDocument> createDocumentFromImageBytes(
+    Uint8List bytes, {
+    String? name,
+  }) async {
+    await _ensureProjectDirectory();
+    final _DecodedImage decoded = await _decodeImageBytes(bytes);
+    final String resolvedName = _resolveImageName(name, fallback: '剪贴板图像');
+    return _buildDocumentFromDecodedImage(decoded, resolvedName);
+  }
+
+  String _resolveImageName(String? raw, {required String fallback}) {
+    final String? trimmed = raw?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return fallback;
+    }
+    return trimmed;
+  }
+
+  Future<_DecodedImage> _decodeImageBytes(Uint8List bytes) async {
     final ui.Codec codec = await ui.instantiateImageCodec(bytes);
     final ui.FrameInfo frame = await codec.getNextFrame();
     final ui.Image image = frame.image;
@@ -238,46 +265,63 @@ class ProjectRepository {
       throw Exception('无法读取图像像素数据');
     }
     final Uint8List rgba = Uint8List.fromList(pixelData.buffer.asUint8List());
+    final _DecodedImage result = _DecodedImage(
+      width: image.width,
+      height: image.height,
+      rgba: rgba,
+    );
     image.dispose();
+    return result;
+  }
 
-    final int width = frame.image.width;
-    final int height = frame.image.height;
+  ProjectDocument _buildDocumentFromDecodedImage(
+    _DecodedImage decoded,
+    String name,
+  ) {
     final CanvasSettings settings = CanvasSettings(
-      width: width.toDouble(),
-      height: height.toDouble(),
+      width: decoded.width.toDouble(),
+      height: decoded.height.toDouble(),
       backgroundColor: const ui.Color(0xFFFFFFFF),
     );
 
-    final String resolvedName =
-        (name ?? p.basenameWithoutExtension(path)).trim().isEmpty
-        ? '导入图像'
-        : (name ?? p.basenameWithoutExtension(path));
     final ProjectDocument base = ProjectDocument.newProject(
       settings: settings,
-      name: resolvedName,
+      name: name,
     );
 
     final List<CanvasLayerData> layers = <CanvasLayerData>[
       base.layers.first,
       base.layers.length > 1
           ? base.layers[1].copyWith(
-              name: '导入图像',
-              bitmap: rgba,
-              bitmapWidth: width,
-              bitmapHeight: height,
+              name: name,
+              bitmap: decoded.rgba,
+              bitmapWidth: decoded.width,
+              bitmapHeight: decoded.height,
               clearFill: true,
             )
           : CanvasLayerData(
               id: generateLayerId(),
-              name: resolvedName,
-              bitmap: rgba,
-              bitmapWidth: width,
-              bitmapHeight: height,
+              name: name,
+              bitmap: decoded.rgba,
+              bitmapWidth: decoded.width,
+              bitmapHeight: decoded.height,
             ),
     ];
 
     return base.copyWith(layers: layers);
   }
+}
+
+class _DecodedImage {
+  const _DecodedImage({
+    required this.width,
+    required this.height,
+    required this.rgba,
+  });
+
+  final int width;
+  final int height;
+  final Uint8List rgba;
 }
 
 class _IndexedEntry {

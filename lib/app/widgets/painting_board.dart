@@ -61,6 +61,8 @@ import '../shortcuts/toolbar_shortcuts.dart';
 import '../constants/color_line_presets.dart';
 import '../preferences/app_preferences.dart';
 import '../constants/pen_constants.dart';
+import '../models/canvas_resize_anchor.dart';
+import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
@@ -75,6 +77,7 @@ part 'painting_board_clipboard.dart';
 part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
 part 'painting_board_widgets.dart';
+part 'painting_board_filters.dart';
 
 class _SyntheticStrokeSample {
   const _SyntheticStrokeSample({
@@ -116,6 +119,18 @@ enum CanvasRotation {
 
 class CanvasRotationResult {
   const CanvasRotationResult({
+    required this.layers,
+    required this.width,
+    required this.height,
+  });
+
+  final List<CanvasLayerData> layers;
+  final int width;
+  final int height;
+}
+
+class CanvasResizeResult {
+  const CanvasResizeResult({
     required this.layers,
     required this.width,
     required this.height,
@@ -802,6 +817,354 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     return output;
   }
 
+  CanvasLayerData _scaleLayerData(
+    CanvasLayerData layer,
+    int sourceCanvasWidth,
+    int sourceCanvasHeight,
+    int targetWidth,
+    int targetHeight,
+    ImageResizeSampling sampling,
+  ) {
+    final Uint8List? bitmap = layer.bitmap;
+    final int? bitmapWidth = layer.bitmapWidth;
+    final int? bitmapHeight = layer.bitmapHeight;
+    if (bitmap == null || bitmapWidth == null || bitmapHeight == null) {
+      return layer;
+    }
+    final double scaleX = targetWidth / sourceCanvasWidth;
+    final double scaleY = targetHeight / sourceCanvasHeight;
+    final int scaledWidth = math.max(1, (bitmapWidth * scaleX).round());
+    final int scaledHeight = math.max(1, (bitmapHeight * scaleY).round());
+    final int scaledLeft = (scaleX == 0)
+        ? 0
+        : ((layer.bitmapLeft ?? 0) * scaleX).round();
+    final int scaledTop = (scaleY == 0)
+        ? 0
+        : ((layer.bitmapTop ?? 0) * scaleY).round();
+    final Uint8List scaledBitmap = _scaleBitmapRgba(
+      bitmap,
+      bitmapWidth,
+      bitmapHeight,
+      scaledWidth,
+      scaledHeight,
+      sampling,
+    );
+    if (!_hasVisiblePixels(scaledBitmap)) {
+      return layer.copyWith(clearBitmap: true);
+    }
+    return layer.copyWith(
+      bitmap: scaledBitmap,
+      bitmapWidth: scaledWidth,
+      bitmapHeight: scaledHeight,
+      bitmapLeft: scaledLeft,
+      bitmapTop: scaledTop,
+    );
+  }
+
+  CanvasLayerData _reframeLayerData(
+    CanvasLayerData layer,
+    int sourceCanvasWidth,
+    int sourceCanvasHeight,
+    int targetWidth,
+    int targetHeight,
+    CanvasResizeAnchor anchor,
+  ) {
+    final Uint8List? bitmap = layer.bitmap;
+    final int? bitmapWidth = layer.bitmapWidth;
+    final int? bitmapHeight = layer.bitmapHeight;
+    final int offsetX = _anchorOffsetValue(
+      sourceCanvasWidth,
+      targetWidth,
+      _horizontalAnchorFactor(anchor),
+    );
+    final int offsetY = _anchorOffsetValue(
+      sourceCanvasHeight,
+      targetHeight,
+      _verticalAnchorFactor(anchor),
+    );
+    if (bitmap == null || bitmapWidth == null || bitmapHeight == null) {
+      if (layer.bitmapLeft == null && layer.bitmapTop == null) {
+        return layer;
+      }
+      return layer.copyWith(
+        bitmapLeft: layer.bitmapLeft == null
+            ? null
+            : layer.bitmapLeft! + offsetX,
+        bitmapTop: layer.bitmapTop == null ? null : layer.bitmapTop! + offsetY,
+      );
+    }
+    int newLeft = (layer.bitmapLeft ?? 0) + offsetX;
+    int newTop = (layer.bitmapTop ?? 0) + offsetY;
+    int visibleWidth = bitmapWidth;
+    int visibleHeight = bitmapHeight;
+    int cropLeft = 0;
+    int cropTop = 0;
+    if (newLeft < 0) {
+      cropLeft = -newLeft;
+      visibleWidth -= cropLeft;
+      newLeft = 0;
+    }
+    if (newTop < 0) {
+      cropTop = -newTop;
+      visibleHeight -= cropTop;
+      newTop = 0;
+    }
+    final int rightOverflow = newLeft + visibleWidth - targetWidth;
+    if (rightOverflow > 0) {
+      visibleWidth -= rightOverflow;
+    }
+    final int bottomOverflow = newTop + visibleHeight - targetHeight;
+    if (bottomOverflow > 0) {
+      visibleHeight -= bottomOverflow;
+    }
+    if (visibleWidth <= 0 || visibleHeight <= 0) {
+      return layer.copyWith(clearBitmap: true);
+    }
+    Uint8List nextBitmap = bitmap;
+    if (cropLeft != 0 ||
+        cropTop != 0 ||
+        visibleWidth != bitmapWidth ||
+        visibleHeight != bitmapHeight) {
+      nextBitmap = _cropBitmapRgba(
+        bitmap,
+        bitmapWidth,
+        bitmapHeight,
+        cropLeft,
+        cropTop,
+        visibleWidth,
+        visibleHeight,
+      );
+    }
+    if (!_hasVisiblePixels(nextBitmap)) {
+      return layer.copyWith(clearBitmap: true);
+    }
+    return layer.copyWith(
+      bitmap: nextBitmap,
+      bitmapWidth: visibleWidth,
+      bitmapHeight: visibleHeight,
+      bitmapLeft: newLeft,
+      bitmapTop: newTop,
+    );
+  }
+
+  int _anchorOffsetValue(int sourceSize, int targetSize, double factor) {
+    final double delta = (targetSize - sourceSize) * factor;
+    return delta.round();
+  }
+
+  double _horizontalAnchorFactor(CanvasResizeAnchor anchor) {
+    switch (anchor) {
+      case CanvasResizeAnchor.topLeft:
+      case CanvasResizeAnchor.centerLeft:
+      case CanvasResizeAnchor.bottomLeft:
+        return 0;
+      case CanvasResizeAnchor.topCenter:
+      case CanvasResizeAnchor.center:
+      case CanvasResizeAnchor.bottomCenter:
+        return 0.5;
+      case CanvasResizeAnchor.topRight:
+      case CanvasResizeAnchor.centerRight:
+      case CanvasResizeAnchor.bottomRight:
+        return 1.0;
+    }
+  }
+
+  double _verticalAnchorFactor(CanvasResizeAnchor anchor) {
+    switch (anchor) {
+      case CanvasResizeAnchor.topLeft:
+      case CanvasResizeAnchor.topCenter:
+      case CanvasResizeAnchor.topRight:
+        return 0;
+      case CanvasResizeAnchor.centerLeft:
+      case CanvasResizeAnchor.center:
+      case CanvasResizeAnchor.centerRight:
+        return 0.5;
+      case CanvasResizeAnchor.bottomLeft:
+      case CanvasResizeAnchor.bottomCenter:
+      case CanvasResizeAnchor.bottomRight:
+        return 1.0;
+    }
+  }
+
+  Uint8List _scaleBitmapRgba(
+    Uint8List source,
+    int sourceWidth,
+    int sourceHeight,
+    int targetWidth,
+    int targetHeight,
+    ImageResizeSampling sampling,
+  ) {
+    if (sourceWidth <= 0 ||
+        sourceHeight <= 0 ||
+        targetWidth <= 0 ||
+        targetHeight <= 0) {
+      return Uint8List(0);
+    }
+    switch (sampling) {
+      case ImageResizeSampling.nearest:
+        return _scaleBitmapNearest(
+          source,
+          sourceWidth,
+          sourceHeight,
+          targetWidth,
+          targetHeight,
+        );
+      case ImageResizeSampling.bilinear:
+        return _scaleBitmapBilinear(
+          source,
+          sourceWidth,
+          sourceHeight,
+          targetWidth,
+          targetHeight,
+        );
+    }
+  }
+
+  Uint8List _scaleBitmapNearest(
+    Uint8List source,
+    int sourceWidth,
+    int sourceHeight,
+    int targetWidth,
+    int targetHeight,
+  ) {
+    final Uint8List output = Uint8List(targetWidth * targetHeight * 4);
+    final double scaleX = sourceWidth / targetWidth;
+    final double scaleY = sourceHeight / targetHeight;
+    int destIndex = 0;
+    for (int y = 0; y < targetHeight; y++) {
+      final int srcY = math.min(sourceHeight - 1, (y * scaleY).floor());
+      for (int x = 0; x < targetWidth; x++) {
+        final int srcX = math.min(sourceWidth - 1, (x * scaleX).floor());
+        final int srcIndex = (srcY * sourceWidth + srcX) * 4;
+        output[destIndex] = source[srcIndex];
+        output[destIndex + 1] = source[srcIndex + 1];
+        output[destIndex + 2] = source[srcIndex + 2];
+        output[destIndex + 3] = source[srcIndex + 3];
+        destIndex += 4;
+      }
+    }
+    return output;
+  }
+
+  Uint8List _scaleBitmapBilinear(
+    Uint8List source,
+    int sourceWidth,
+    int sourceHeight,
+    int targetWidth,
+    int targetHeight,
+  ) {
+    final Uint8List output = Uint8List(targetWidth * targetHeight * 4);
+    final double scaleX = sourceWidth / targetWidth;
+    final double scaleY = sourceHeight / targetHeight;
+    int destIndex = 0;
+    for (int y = 0; y < targetHeight; y++) {
+      final double rawY = (y + 0.5) * scaleY - 0.5;
+      double clampedY = rawY;
+      if (clampedY < 0) {
+        clampedY = 0;
+      } else if (clampedY > sourceHeight - 1) {
+        clampedY = (sourceHeight - 1).toDouble();
+      }
+      final int y0 = clampedY.floor();
+      final int y1 = math.min(y0 + 1, sourceHeight - 1);
+      final double wy = clampedY - y0;
+      final double wy0 = 1 - wy;
+      final double wy1 = wy;
+      for (int x = 0; x < targetWidth; x++) {
+        final double rawX = (x + 0.5) * scaleX - 0.5;
+        double clampedX = rawX;
+        if (clampedX < 0) {
+          clampedX = 0;
+        } else if (clampedX > sourceWidth - 1) {
+          clampedX = (sourceWidth - 1).toDouble();
+        }
+        final int x0 = clampedX.floor();
+        final int x1 = math.min(x0 + 1, sourceWidth - 1);
+        final double wx = clampedX - x0;
+        final double wx0 = 1 - wx;
+        final double wx1 = wx;
+        final double w00 = wx0 * wy0;
+        final double w01 = wx1 * wy0;
+        final double w10 = wx0 * wy1;
+        final double w11 = wx1 * wy1;
+        final int index00 = (y0 * sourceWidth + x0) * 4;
+        final int index01 = (y0 * sourceWidth + x1) * 4;
+        final int index10 = (y1 * sourceWidth + x0) * 4;
+        final int index11 = (y1 * sourceWidth + x1) * 4;
+        final double red =
+            source[index00] * w00 +
+            source[index01] * w01 +
+            source[index10] * w10 +
+            source[index11] * w11;
+        final double green =
+            source[index00 + 1] * w00 +
+            source[index01 + 1] * w01 +
+            source[index10 + 1] * w10 +
+            source[index11 + 1] * w11;
+        final double blue =
+            source[index00 + 2] * w00 +
+            source[index01 + 2] * w01 +
+            source[index10 + 2] * w10 +
+            source[index11 + 2] * w11;
+        final double alpha =
+            source[index00 + 3] * w00 +
+            source[index01 + 3] * w01 +
+            source[index10 + 3] * w10 +
+            source[index11 + 3] * w11;
+        output[destIndex] = _clampChannel(red);
+        output[destIndex + 1] = _clampChannel(green);
+        output[destIndex + 2] = _clampChannel(blue);
+        output[destIndex + 3] = _clampChannel(alpha);
+        destIndex += 4;
+      }
+    }
+    return output;
+  }
+
+  int _clampChannel(double value) {
+    if (value <= 0) {
+      return 0;
+    }
+    if (value >= 255) {
+      return 255;
+    }
+    return value.round();
+  }
+
+  Uint8List _cropBitmapRgba(
+    Uint8List source,
+    int sourceWidth,
+    int sourceHeight,
+    int left,
+    int top,
+    int width,
+    int height,
+  ) {
+    if (width <= 0 || height <= 0) {
+      return Uint8List(0);
+    }
+    final Uint8List output = Uint8List(width * height * 4);
+    for (int row = 0; row < height; row++) {
+      final int srcY = top + row;
+      if (srcY < 0 || srcY >= sourceHeight) {
+        continue;
+      }
+      final int srcStart = ((srcY * sourceWidth) + left) * 4;
+      final int destStart = row * width * 4;
+      output.setRange(destStart, destStart + width * 4, source, srcStart);
+    }
+    return output;
+  }
+
+  bool _hasVisiblePixels(Uint8List bitmap) {
+    for (int i = 3; i < bitmap.length; i += 4) {
+      if (bitmap[i] != 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void _markDirty() {
     if (_isDirty) {
       return;
@@ -950,6 +1313,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardShapeMixin,
         _PaintingBoardClipboardMixin,
         _PaintingBoardInteractionMixin,
+        _PaintingBoardFilterMixin,
         _PaintingBoardBuildMixin {
   @override
   void initState() {
@@ -990,6 +1354,7 @@ class PaintingBoardState extends _PaintingBoardBase
 
   @override
   void dispose() {
+    _removeFilterOverlay(restoreOriginal: false);
     disposeSelectionTicker();
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
@@ -1004,6 +1369,80 @@ class PaintingBoardState extends _PaintingBoardBase
 
   void addLayerAboveActiveLayer() {
     _handleAddLayer();
+  }
+
+  void mergeActiveLayerDown() {
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      return;
+    }
+    _handleMergeLayerDown(layer);
+  }
+
+  Future<CanvasResizeResult?> resizeImage(
+    int width,
+    int height,
+    ImageResizeSampling sampling,
+  ) {
+    if (width <= 0 || height <= 0) {
+      return Future.value(null);
+    }
+    _controller.commitActiveLayerTranslation();
+    final int sourceWidth = _controller.width;
+    final int sourceHeight = _controller.height;
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return Future.value(null);
+    }
+    final List<CanvasLayerData> layers = _controller.snapshotLayers();
+    final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
+      for (final CanvasLayerData layer in layers)
+        _scaleLayerData(
+          layer,
+          sourceWidth,
+          sourceHeight,
+          width,
+          height,
+          sampling,
+        ),
+    ];
+    return Future.value(
+      CanvasResizeResult(layers: resizedLayers, width: width, height: height),
+    );
+  }
+
+  Future<CanvasResizeResult?> resizeCanvas(
+    int width,
+    int height,
+    CanvasResizeAnchor anchor,
+  ) {
+    if (width <= 0 || height <= 0) {
+      return Future.value(null);
+    }
+    _controller.commitActiveLayerTranslation();
+    final int sourceWidth = _controller.width;
+    final int sourceHeight = _controller.height;
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return Future.value(null);
+    }
+    final List<CanvasLayerData> layers = _controller.snapshotLayers();
+    final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
+      for (final CanvasLayerData layer in layers)
+        _reframeLayerData(
+          layer,
+          sourceWidth,
+          sourceHeight,
+          width,
+          height,
+          anchor,
+        ),
+    ];
+    return Future.value(
+      CanvasResizeResult(layers: resizedLayers, width: width, height: height),
+    );
   }
 
   @override

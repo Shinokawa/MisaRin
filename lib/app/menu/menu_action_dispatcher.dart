@@ -18,6 +18,7 @@ class MenuActionHandler {
     this.newProject,
     this.open,
     this.importImage,
+    this.importImageFromClipboard,
     this.preferences,
     this.about,
     this.save,
@@ -43,12 +44,18 @@ class MenuActionHandler {
     this.importPalette,
     this.selectPaletteFromMenu,
     this.paletteMenuEntries = const <MenuPaletteMenuEntry>[],
+    this.resizeImage,
+    this.resizeCanvas,
+    this.mergeLayerDown,
+    this.adjustHueSaturation,
+    this.adjustBrightnessContrast,
   });
 
   const MenuActionHandler.empty()
     : newProject = null,
       open = null,
       importImage = null,
+      importImageFromClipboard = null,
       preferences = null,
       about = null,
       save = null,
@@ -73,11 +80,17 @@ class MenuActionHandler {
       generatePalette = null,
       importPalette = null,
       selectPaletteFromMenu = null,
+      resizeImage = null,
+      resizeCanvas = null,
+      mergeLayerDown = null,
+      adjustHueSaturation = null,
+      adjustBrightnessContrast = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[];
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
   final MenuAsyncAction? importImage;
+  final MenuAsyncAction? importImageFromClipboard;
   final MenuAsyncAction? preferences;
   final MenuAsyncAction? about;
   final MenuAsyncAction? save;
@@ -103,6 +116,11 @@ class MenuActionHandler {
   final MenuAsyncAction? importPalette;
   final MenuPaletteAction? selectPaletteFromMenu;
   final List<MenuPaletteMenuEntry> paletteMenuEntries;
+  final MenuAsyncAction? resizeImage;
+  final MenuAsyncAction? resizeCanvas;
+  final MenuAsyncAction? mergeLayerDown;
+  final MenuAsyncAction? adjustHueSaturation;
+  final MenuAsyncAction? adjustBrightnessContrast;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

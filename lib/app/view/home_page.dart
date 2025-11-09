@@ -69,6 +69,8 @@ class MisarinHomePage extends StatelessWidget {
     final handler = MenuActionHandler(
       newProject: () => AppMenuActions.createProject(context),
       importImage: () => AppMenuActions.importImage(context),
+      importImageFromClipboard: () =>
+          AppMenuActions.importImageFromClipboard(context),
       preferences: () => AppMenuActions.openSettings(context),
       about: () => AppMenuActions.showAbout(context),
     );

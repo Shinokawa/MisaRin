@@ -6,6 +6,7 @@ import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
+import '../utils/clipboard_image_reader.dart';
 import '../view/canvas_page.dart';
 import '../widgets/app_notification.dart';
 
@@ -111,6 +112,45 @@ class AppMenuActions {
     }
   }
 
+  static Future<void> importImageFromClipboard(BuildContext context) async {
+    final ClipboardImageData? payload = await ClipboardImageReader.readImage();
+    if (payload == null) {
+      if (!context.mounted) {
+        return;
+      }
+      _showInfoBar(
+        context,
+        '剪贴板中没有找到可以导入的位图。',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    try {
+      final ProjectDocument document = await ProjectRepository.instance
+          .createDocumentFromImageBytes(
+            payload.bytes,
+            name: payload.fileName ?? '剪贴板图像',
+          );
+      if (!context.mounted) {
+        return;
+      }
+      await _showProject(context, document);
+      if (!context.mounted) {
+        return;
+      }
+      _showInfoBar(context, '已导入剪贴板图像', severity: InfoBarSeverity.success);
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      _showInfoBar(
+        context,
+        '导入剪贴板图像失败：$error',
+        severity: InfoBarSeverity.error,
+      );
+    }
+  }
+
   static Future<void> openProject(
     BuildContext context,
     ProjectDocument document,
@@ -145,10 +185,6 @@ class AppMenuActions {
     String message, {
     InfoBarSeverity severity = InfoBarSeverity.info,
   }) {
-    AppNotifications.show(
-      context,
-      message: message,
-      severity: severity,
-    );
+    AppNotifications.show(context, message: message, severity: severity);
   }
 }

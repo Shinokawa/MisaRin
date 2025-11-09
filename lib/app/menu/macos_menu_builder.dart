@@ -15,6 +15,7 @@ class MacosMenuBuilder {
       _editMenu(handler),
       _imageMenu(handler),
       _layerMenu(handler),
+      _filterMenu(handler),
       _toolMenu(handler),
       _viewMenu(handler),
       _windowMenu(),
@@ -133,6 +134,12 @@ class MacosMenuBuilder {
           onSelected: importImageAction,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyI, meta: true),
         ),
+      );
+    }
+    final importClipboardAction = _wrap(handler.importImageFromClipboard);
+    if (importClipboardAction != null) {
+      creationItems.add(
+        PlatformMenuItem(label: '从剪贴板导入图像', onSelected: importClipboardAction),
       );
     }
     if (creationItems.isNotEmpty) {
@@ -264,6 +271,8 @@ class MacosMenuBuilder {
   }
 
   static PlatformMenu? _imageMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> menus = <PlatformMenuItem>[];
+
     final List<PlatformMenuItem> transformItems = <PlatformMenuItem>[];
 
     final rotate90CW = _wrap(handler.rotateCanvas90Clockwise);
@@ -290,17 +299,32 @@ class MacosMenuBuilder {
         PlatformMenuItem(label: '逆时针 180 度', onSelected: rotate180CCW),
       );
     }
+    if (transformItems.isNotEmpty) {
+      menus.add(PlatformMenu(label: '图像变换', menus: transformItems));
+    }
 
-    if (transformItems.isEmpty) {
+    final List<PlatformMenuItem> sizeItems = <PlatformMenuItem>[];
+    final resizeImageAction = _wrap(handler.resizeImage);
+    if (resizeImageAction != null) {
+      sizeItems.add(
+        PlatformMenuItem(label: '图像大小…', onSelected: resizeImageAction),
+      );
+    }
+    final resizeCanvasAction = _wrap(handler.resizeCanvas);
+    if (resizeCanvasAction != null) {
+      sizeItems.add(
+        PlatformMenuItem(label: '画布大小…', onSelected: resizeCanvasAction),
+      );
+    }
+    if (sizeItems.isNotEmpty) {
+      menus.add(PlatformMenuItemGroup(members: sizeItems));
+    }
+
+    if (menus.isEmpty) {
       return null;
     }
 
-    return PlatformMenu(
-      label: '图像',
-      menus: <PlatformMenuItem>[
-        PlatformMenu(label: '图像变换', menus: transformItems),
-      ],
-    );
+    return PlatformMenu(label: '图像', menus: menus);
   }
 
   static PlatformMenu? _layerMenu(MenuActionHandler handler) {
@@ -345,6 +369,13 @@ class MacosMenuBuilder {
     }
     if (antialiasItems.isNotEmpty) {
       menus.add(PlatformMenu(label: '抗锯齿', menus: antialiasItems));
+    }
+
+    final mergeLayerDownAction = _wrap(handler.mergeLayerDown);
+    if (mergeLayerDownAction != null) {
+      menus.add(
+        PlatformMenuItem(label: '向下合并', onSelected: mergeLayerDownAction),
+      );
     }
 
     if (menus.isEmpty) {
@@ -454,6 +485,30 @@ class MacosMenuBuilder {
           ],
         ),
       ],
+    );
+  }
+
+  static PlatformMenu? _filterMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> items = <PlatformMenuItem>[];
+    final hueSatAction = _wrap(handler.adjustHueSaturation);
+    if (hueSatAction != null) {
+      items.add(PlatformMenuItem(label: '色相/饱和度…', onSelected: hueSatAction));
+    }
+    final brightnessContrastAction = _wrap(handler.adjustBrightnessContrast);
+    if (brightnessContrastAction != null) {
+      items.add(
+        PlatformMenuItem(
+          label: '亮度/对比度…',
+          onSelected: brightnessContrastAction,
+        ),
+      );
+    }
+    if (items.isEmpty) {
+      return null;
+    }
+    return PlatformMenu(
+      label: '滤镜',
+      menus: <PlatformMenuItem>[PlatformMenuItemGroup(members: items)],
     );
   }
 }

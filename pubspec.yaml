@@ -37,6 +37,7 @@ dependencies:
   path_provider: ^2.1.4
   archive: ^3.6.1
   package_info_plus: ^8.0.0
+  super_clipboard: ^0.8.10
   flutter_localizations:
     sdk: flutter
 

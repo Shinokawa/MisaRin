@@ -8,11 +8,15 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_settings.dart';
+import '../dialogs/canvas_size_dialog.dart';
 import '../dialogs/export_dialog.dart';
+import '../dialogs/image_size_dialog.dart';
 import '../dialogs/misarin_dialog.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
+import '../models/canvas_resize_anchor.dart';
 import '../palette/palette_importer.dart';
+import '../preferences/app_preferences.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../widgets/app_notification.dart';
@@ -48,10 +52,15 @@ class CanvasPageState extends State<CanvasPage> {
   final ProjectRepository _repository = ProjectRepository.instance;
   final CanvasWorkspaceController _workspace =
       CanvasWorkspaceController.instance;
+  final Map<String, List<ProjectDocument>> _documentUndoStacks =
+      <String, List<ProjectDocument>>{};
+  final Map<String, List<ProjectDocument>> _documentRedoStacks =
+      <String, List<ProjectDocument>>{};
 
   final List<_ImportedPaletteEntry> _importedPalettes =
       <_ImportedPaletteEntry>[];
   int _paletteLibrarySerial = 0;
+  CanvasResizeAnchor _lastCanvasAnchor = CanvasResizeAnchor.center;
 
   late ProjectDocument _document;
   bool _hasUnsavedChanges = false;
@@ -60,6 +69,82 @@ class CanvasPageState extends State<CanvasPage> {
   Timer? _autoSaveTimer;
 
   PaintingBoardState? get _activeBoard => _boardFor(_document.id);
+
+  List<ProjectDocument> _undoStackFor(String id) {
+    return _documentUndoStacks.putIfAbsent(id, () => <ProjectDocument>[]);
+  }
+
+  List<ProjectDocument> _redoStackFor(String id) {
+    return _documentRedoStacks.putIfAbsent(id, () => <ProjectDocument>[]);
+  }
+
+  void _removeDocumentHistory(String id) {
+    _documentUndoStacks.remove(id);
+    _documentRedoStacks.remove(id);
+  }
+
+  void _pushDocumentHistorySnapshot() {
+    final String id = _document.id;
+    final List<ProjectDocument> undoStack = _undoStackFor(id);
+    undoStack.add(_document.copyWith());
+    _documentRedoStacks[id]?.clear();
+    _trimDocumentHistoryStacks(id);
+  }
+
+  void _trimDocumentHistoryStacks(String id) {
+    final int limit = _documentHistoryLimit;
+    final List<ProjectDocument>? undoStack = _documentUndoStacks[id];
+    final List<ProjectDocument>? redoStack = _documentRedoStacks[id];
+    if (undoStack != null) {
+      while (undoStack.length > limit) {
+        undoStack.removeAt(0);
+      }
+    }
+    if (redoStack != null) {
+      while (redoStack.length > limit) {
+        redoStack.removeAt(0);
+      }
+    }
+  }
+
+  bool _undoDocumentChange() {
+    final String id = _document.id;
+    final List<ProjectDocument>? undoStack = _documentUndoStacks[id];
+    if (undoStack == null || undoStack.isEmpty) {
+      return false;
+    }
+    final ProjectDocument previous = undoStack.removeLast();
+    final List<ProjectDocument> redoStack = _redoStackFor(id);
+    redoStack.add(_document.copyWith());
+    _trimDocumentHistoryStacks(id);
+    _applyDocumentState(previous);
+    return true;
+  }
+
+  bool _redoDocumentChange() {
+    final String id = _document.id;
+    final List<ProjectDocument>? redoStack = _documentRedoStacks[id];
+    if (redoStack == null || redoStack.isEmpty) {
+      return false;
+    }
+    final ProjectDocument next = redoStack.removeLast();
+    final List<ProjectDocument> undoStack = _undoStackFor(id);
+    undoStack.add(_document.copyWith());
+    _trimDocumentHistoryStacks(id);
+    _applyDocumentState(next);
+    return true;
+  }
+
+  void _applyDocumentState(ProjectDocument entry) {
+    setState(() {
+      _document = entry;
+      _hasUnsavedChanges = true;
+    });
+    _workspace.updateDocument(entry);
+    _workspace.markDirty(entry.id, true);
+  }
+
+  int get _documentHistoryLimit => AppPreferences.instance.historyLimit;
 
   String _timestamp() {
     final DateTime now = DateTime.now();
@@ -94,6 +179,7 @@ class CanvasPageState extends State<CanvasPage> {
 
   void _removeBoardKey(String id) {
     _boardKeys.remove(id);
+    _removeDocumentHistory(id);
   }
 
   String _fileExtension(String? name) {
@@ -481,6 +567,7 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
 
+    _pushDocumentHistorySnapshot();
     final CanvasSettings updatedSettings = _document.settings.copyWith(
       width: result.width.toDouble(),
       height: result.height.toDouble(),
@@ -493,12 +580,77 @@ class CanvasPageState extends State<CanvasPage> {
       previewBytes: null,
     );
 
-    setState(() {
-      _document = updated;
-      _hasUnsavedChanges = true;
-    });
-    _workspace.updateDocument(updated);
-    _workspace.markDirty(updated.id, true);
+    _applyDocumentState(updated);
+  }
+
+  Future<void> _handleResizeImage() async {
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null) {
+      _showInfoBar('画布尚未准备好，无法调整图像大小。', severity: InfoBarSeverity.warning);
+      return;
+    }
+    final ImageResizeConfig? config = await showImageSizeDialog(
+      context,
+      initialWidth: _document.settings.width.round(),
+      initialHeight: _document.settings.height.round(),
+    );
+    if (config == null) {
+      return;
+    }
+    final CanvasResizeResult? result = await board.resizeImage(
+      config.width,
+      config.height,
+      config.sampling,
+    );
+    if (result == null) {
+      _showInfoBar('调整图像大小失败。', severity: InfoBarSeverity.error);
+      return;
+    }
+    _applyCanvasResizeResult(result);
+  }
+
+  void _handleUndo() {
+    final PaintingBoardState? board = _activeBoard;
+    if (board != null && board.undo()) {
+      return;
+    }
+    _undoDocumentChange();
+  }
+
+  void _handleRedo() {
+    final PaintingBoardState? board = _activeBoard;
+    if (board != null && board.redo()) {
+      return;
+    }
+    _redoDocumentChange();
+  }
+
+  Future<void> _handleResizeCanvas() async {
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null) {
+      _showInfoBar('画布尚未准备好，无法调整画布大小。', severity: InfoBarSeverity.warning);
+      return;
+    }
+    final CanvasSizeConfig? config = await showCanvasSizeDialog(
+      context,
+      initialWidth: _document.settings.width.round(),
+      initialHeight: _document.settings.height.round(),
+      initialAnchor: _lastCanvasAnchor,
+    );
+    if (config == null) {
+      return;
+    }
+    _lastCanvasAnchor = config.anchor;
+    final CanvasResizeResult? result = await board.resizeCanvas(
+      config.width,
+      config.height,
+      config.anchor,
+    );
+    if (result == null) {
+      _showInfoBar('调整画布大小失败。', severity: InfoBarSeverity.error);
+      return;
+    }
+    _applyCanvasResizeResult(result);
   }
 
   Future<void> _handleExitRequest() async {
@@ -675,6 +827,21 @@ class CanvasPageState extends State<CanvasPage> {
     });
   }
 
+  void _applyCanvasResizeResult(CanvasResizeResult result) {
+    _pushDocumentHistorySnapshot();
+    final CanvasSettings updatedSettings = _document.settings.copyWith(
+      width: result.width.toDouble(),
+      height: result.height.toDouble(),
+    );
+    final ProjectDocument updated = _document.copyWith(
+      settings: updatedSettings,
+      layers: result.layers,
+      updatedAt: DateTime.now(),
+      previewBytes: null,
+    );
+    _applyDocumentState(updated);
+  }
+
   Widget _buildBoard(CanvasWorkspaceEntry entry) {
     return PaintingBoard(
       key: _ensureBoardKey(entry.id),
@@ -691,6 +858,8 @@ class CanvasPageState extends State<CanvasPage> {
       newProject: () => AppMenuActions.createProject(context),
       open: () => AppMenuActions.openProjectFromDisk(context),
       importImage: () => AppMenuActions.importImage(context),
+      importImageFromClipboard: () =>
+          AppMenuActions.importImageFromClipboard(context),
       preferences: () => AppMenuActions.openSettings(context),
       about: () => AppMenuActions.showAbout(context),
       save: () async {
@@ -703,14 +872,8 @@ class CanvasPageState extends State<CanvasPage> {
       saveAs: () async {
         await _saveProjectAs();
       },
-      undo: () {
-        final board = _activeBoard;
-        board?.undo();
-      },
-      redo: () {
-        final board = _activeBoard;
-        board?.redo();
-      },
+      undo: _handleUndo,
+      redo: _handleRedo,
       cut: () {
         final board = _activeBoard;
         board?.cut();
@@ -762,6 +925,34 @@ class CanvasPageState extends State<CanvasPage> {
       generatePalette: () {
         final board = _activeBoard;
         board?.showPaletteGenerator();
+      },
+      resizeImage: _handleResizeImage,
+      resizeCanvas: _handleResizeCanvas,
+      mergeLayerDown: () {
+        final board = _activeBoard;
+        board?.mergeActiveLayerDown();
+      },
+      adjustHueSaturation: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar(
+            '画布尚未准备好，无法调节色相/饱和度。',
+            severity: InfoBarSeverity.warning,
+          );
+          return;
+        }
+        board.showHueSaturationAdjustments();
+      },
+      adjustBrightnessContrast: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar(
+            '画布尚未准备好，无法调节亮度/对比度。',
+            severity: InfoBarSeverity.warning,
+          );
+          return;
+        }
+        board.showBrightnessContrastAdjustments();
       },
     );
 
