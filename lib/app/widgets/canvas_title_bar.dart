@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:window_manager/window_manager.dart';
 import '../workspace/canvas_workspace_controller.dart';
 import 'window_drag_area.dart';
 
@@ -25,6 +26,8 @@ class CanvasTitleBar extends StatelessWidget {
         CanvasWorkspaceController.instance;
     final bool showNativeMacButtons =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+    final bool showLinuxControls =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
     const EdgeInsets padding = EdgeInsets.only(
       left: 12,
       right: 12,
@@ -90,6 +93,10 @@ class CanvasTitleBar extends StatelessWidget {
               },
             ),
           ),
+          if (showLinuxControls) ...[
+            const SizedBox(width: 12),
+            const _LinuxWindowControls(),
+          ],
         ],
       ),
     );
@@ -164,6 +171,98 @@ class _WorkspaceTab extends StatefulWidget {
 
   @override
   State<_WorkspaceTab> createState() => _WorkspaceTabState();
+}
+
+class _LinuxWindowControls extends StatelessWidget {
+  const _LinuxWindowControls();
+
+  Future<void> _handleClose() async {
+    await windowManager.close();
+  }
+
+  Future<void> _handleMinimize() async {
+    await windowManager.minimize();
+  }
+
+  Future<void> _handleToggleMaximize() async {
+    final bool isMaximized = await windowManager.isMaximized();
+    if (isMaximized) {
+      await windowManager.unmaximize();
+    } else {
+      await windowManager.maximize();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color hoverColor = FluentTheme.of(
+      context,
+    ).resources.subtleFillColorSecondary;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _WindowControlButton(
+          tooltip: '最小化',
+          icon: FluentIcons.chrome_minimize,
+          onPressed: _handleMinimize,
+          hoverColor: hoverColor,
+        ),
+        const SizedBox(width: 6),
+        _WindowControlButton(
+          tooltip: '最大化/还原',
+          icon: FluentIcons.chrome_restore,
+          onPressed: _handleToggleMaximize,
+          hoverColor: hoverColor,
+        ),
+        const SizedBox(width: 6),
+        _WindowControlButton(
+          tooltip: '关闭',
+          icon: FluentIcons.chrome_close,
+          onPressed: _handleClose,
+          hoverColor: hoverColor,
+        ),
+      ],
+    );
+  }
+}
+
+class _WindowControlButton extends StatelessWidget {
+  const _WindowControlButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    required this.hoverColor,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Future<void> Function() onPressed;
+  final Color hoverColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Button(
+        onPressed: () {
+          onPressed();
+        },
+        style: ButtonStyle(
+          padding: WidgetStateProperty.all<EdgeInsets>(const EdgeInsets.all(6)),
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.hovered)
+                ? hoverColor
+                : Colors.transparent,
+          ),
+          shape: WidgetStateProperty.all<OutlinedBorder>(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          ),
+        ),
+        child: Icon(icon, size: 12),
+      ),
+    );
+  }
 }
 
 class _WorkspaceTabState extends State<_WorkspaceTab> {

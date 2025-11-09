@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../widgets/window_drag_area.dart';
 import 'menu_action_dispatcher.dart';
@@ -62,6 +63,14 @@ class CustomMenuBar extends StatefulWidget {
     return defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
   }
+
+  static bool _shouldShowWindowControls() {
+    if (kIsWeb) {
+      return false;
+    }
+    return defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux;
+  }
 }
 
 class _CustomMenuBarState extends State<CustomMenuBar> {
@@ -94,6 +103,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
     }
     final theme = FluentTheme.of(context);
     final bool canDrag = CustomMenuBar._supportsWindowDragArea();
+    final bool showWindowControls = CustomMenuBar._shouldShowWindowControls();
     final Widget dragArea = canDrag
         ? Expanded(
             child: Padding(
@@ -133,6 +143,10 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
                 if (i != visibleMenus.length - 1) const SizedBox(width: 4),
               ],
               dragArea,
+              if (showWindowControls) ...[
+                const SizedBox(width: 8),
+                const _WindowControlButtons(),
+              ],
             ],
           ),
         ),
@@ -304,6 +318,110 @@ class _MenuButtonState extends State<_MenuButton> {
       );
     }
     return null;
+  }
+}
+
+class _WindowControlButtons extends StatelessWidget {
+  const _WindowControlButtons();
+
+  void _minimize() {
+    unawaited(windowManager.minimize());
+  }
+
+  void _toggleMaximize() {
+    unawaited(_toggle());
+  }
+
+  Future<void> _toggle() async {
+    final bool isMaximized = await windowManager.isMaximized();
+    if (isMaximized) {
+      await windowManager.unmaximize();
+    } else {
+      await windowManager.maximize();
+    }
+  }
+
+  void _close() {
+    unawaited(windowManager.close());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final Color iconColor =
+        theme.typography.body?.color ?? theme.resources.textFillColorPrimary;
+    final Color hoverColor = theme.resources.subtleFillColorSecondary
+        .withOpacity(0.8);
+    final Color closeHoverColor = const Color(0xFFD13438).withOpacity(0.85);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _CaptionButton(
+          tooltip: '最小化',
+          icon: FluentIcons.chrome_minimize,
+          iconColor: iconColor,
+          hoverColor: hoverColor,
+          onPressed: _minimize,
+        ),
+        const SizedBox(width: 4),
+        _CaptionButton(
+          tooltip: '最大化/还原',
+          icon: FluentIcons.chrome_restore,
+          iconColor: iconColor,
+          hoverColor: hoverColor,
+          onPressed: _toggleMaximize,
+        ),
+        const SizedBox(width: 4),
+        _CaptionButton(
+          tooltip: '关闭',
+          icon: FluentIcons.chrome_close,
+          iconColor: iconColor,
+          hoverColor: closeHoverColor,
+          onPressed: _close,
+        ),
+      ],
+    );
+  }
+}
+
+class _CaptionButton extends StatelessWidget {
+  const _CaptionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.iconColor,
+    required this.hoverColor,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color iconColor;
+  final Color hoverColor;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Button(
+        onPressed: onPressed,
+        style: ButtonStyle(
+          padding: WidgetStateProperty.all<EdgeInsets>(
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.hovered)
+                ? hoverColor
+                : Colors.transparent,
+          ),
+          shape: WidgetStateProperty.all<OutlinedBorder>(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          ),
+        ),
+        child: Icon(icon, size: 12, color: iconColor),
+      ),
+    );
   }
 }
 
