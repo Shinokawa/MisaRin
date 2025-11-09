@@ -502,7 +502,7 @@ class _FilterPanelShell extends StatelessWidget {
       width: _kFilterPanelWidth,
       constraints: const BoxConstraints(minHeight: _kFilterPanelMinHeight),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: theme.cardColor.withAlpha(0xFF),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: theme.resources.controlStrokeColorDefault),
         boxShadow: const [
