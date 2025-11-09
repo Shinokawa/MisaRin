@@ -4,7 +4,8 @@ mixin _PaintingBoardBuildMixin
     on
         _PaintingBoardBase,
         _PaintingBoardInteractionMixin,
-        _PaintingBoardPaletteMixin {
+        _PaintingBoardPaletteMixin,
+        _PaintingBoardFilterMixin {
   @override
   Widget build(BuildContext context) {
     _refreshStylusPreferencesIfNeeded();
@@ -24,6 +25,14 @@ mixin _PaintingBoardBuildMixin
         ToolbarAction.resizeCanvas,
       ).shortcuts)
         key: const ResizeCanvasIntent(),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.adjustHueSaturation,
+      ).shortcuts)
+        key: const AdjustHueSaturationIntent(),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.adjustBrightnessContrast,
+      ).shortcuts)
+        key: const AdjustBrightnessContrastIntent(),
       for (final key in ToolbarShortcuts.of(
         ToolbarAction.layerAdjustTool,
       ).shortcuts)
@@ -222,6 +231,20 @@ mixin _PaintingBoardBuildMixin
                   return null;
                 },
               ),
+              AdjustHueSaturationIntent:
+                  CallbackAction<AdjustHueSaturationIntent>(
+                    onInvoke: (intent) {
+                      showHueSaturationAdjustments();
+                      return null;
+                    },
+                  ),
+              AdjustBrightnessContrastIntent:
+                  CallbackAction<AdjustBrightnessContrastIntent>(
+                    onInvoke: (intent) {
+                      showBrightnessContrastAdjustments();
+                      return null;
+                    },
+                  ),
             },
             child: Focus(
               focusNode: _focusNode,

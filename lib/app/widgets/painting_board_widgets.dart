@@ -30,6 +30,14 @@ class ResizeCanvasIntent extends Intent {
   const ResizeCanvasIntent();
 }
 
+class AdjustHueSaturationIntent extends Intent {
+  const AdjustHueSaturationIntent();
+}
+
+class AdjustBrightnessContrastIntent extends Intent {
+  const AdjustBrightnessContrastIntent();
+}
+
 class CutIntent extends Intent {
   const CutIntent();
 }

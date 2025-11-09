@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
@@ -7,7 +8,7 @@ import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/foundation.dart'
-    show compute, debugPrint, defaultTargetPlatform, TargetPlatform;
+    show debugPrint, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material

@@ -438,12 +438,14 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (_workspaceSize.isEmpty) {
       return Offset(_toolButtonPadding + 48.0, _toolButtonPadding + 48.0);
     }
-    final double baseLeft =
-        (_workspaceSize.width - _paletteCardWidth).clamp(0.0, double.infinity) /
-            2 +
-        (_paletteCards.length * 24);
+    const double margin = 16.0;
+    const double rightInset = 32.0;
+    final double baseLeft = math.max(
+      margin,
+      _workspaceSize.width - _paletteCardWidth - rightInset,
+    );
     final double baseTop =
-        (_workspaceSize.height - 320).clamp(0.0, double.infinity) / 2 +
+        math.max(margin, _workspaceSize.height * 0.2) +
         (_paletteCards.length * 24);
     return Offset(baseLeft, baseTop);
   }

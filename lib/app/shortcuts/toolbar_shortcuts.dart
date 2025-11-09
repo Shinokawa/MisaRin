@@ -16,6 +16,8 @@ enum ToolbarAction {
   redo,
   resizeImage,
   resizeCanvas,
+  adjustHueSaturation,
+  adjustBrightnessContrast,
   deselect,
 }
 
@@ -137,6 +139,22 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+Alt+C',
       macLabel: 'Command+Option+C',
+    ),
+    ToolbarAction.adjustHueSaturation: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyU),
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyU),
+      ],
+      primaryLabel: 'Ctrl+U',
+      macLabel: 'Command+U',
+    ),
+    ToolbarAction.adjustBrightnessContrast: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyM),
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyM),
+      ],
+      primaryLabel: 'Ctrl+M',
+      macLabel: 'Command+M',
     ),
     ToolbarAction.deselect: ShortcutInfo(
       shortcuts: <LogicalKeySet>[

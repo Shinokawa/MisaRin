@@ -47,8 +47,7 @@ mixin _PaintingBoardFilterMixin
   OverlayEntry? _filterOverlayEntry;
   _FilterSession? _filterSession;
   Offset _filterPanelOffset = const Offset(420, 140);
-  Map<String, Object?>? _pendingFilterComputeMessage;
-  bool _filterPreviewComputeRunning = false;
+  _FilterPreviewWorker? _filterWorker;
   int _filterPreviewLastIssuedToken = 0;
 
   void showHueSaturationAdjustments() {
@@ -89,6 +88,7 @@ mixin _PaintingBoardFilterMixin
       activeLayerIndex: layerIndex,
       activeLayerId: activeLayerId,
     );
+    _initializeFilterWorker();
     _insertFilterOverlay();
   }
 
@@ -153,6 +153,23 @@ mixin _PaintingBoardFilterMixin
     _applyFilterPreview();
   }
 
+  void _initializeFilterWorker() {
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    final CanvasLayerData baseLayer =
+        session.originalLayers[session.activeLayerIndex];
+    _filterWorker?.dispose();
+    _filterWorker = _FilterPreviewWorker(
+      type: session.type,
+      layerId: session.activeLayerId,
+      baseLayer: baseLayer,
+      onResult: _handleFilterPreviewResult,
+      onError: _handleFilterWorkerError,
+    );
+  }
+
   void _handleFilterPanelDrag(Offset delta) {
     _filterPanelOffset = Offset(
       _filterPanelOffset.dx + delta.dx,
@@ -211,19 +228,25 @@ mixin _PaintingBoardFilterMixin
     if (session == null) {
       return;
     }
-    if (_isFilterSessionIdentity(session)) {
-      _pendingFilterComputeMessage = null;
+    if (_filterWorker == null) {
+      _initializeFilterWorker();
+    }
+    final bool isIdentity = _isFilterSessionIdentity(session);
+    if (isIdentity) {
       _filterPreviewLastIssuedToken++;
       _restoreFilterPreviewToOriginal(session);
       return;
     }
-    final CanvasLayerData original =
-        session.originalLayers[session.activeLayerIndex];
-    _pendingFilterComputeMessage = _buildFilterPreviewMessage(
-      session,
-      original,
-    );
-    _processNextFilterPreviewTask();
+    final _FilterPreviewWorker? worker = _filterWorker;
+    if (worker == null) {
+      return;
+    }
+    final int token = ++_filterPreviewLastIssuedToken;
+    unawaited(worker.requestPreview(
+      token: token,
+      hueSaturation: session.hueSaturation,
+      brightnessContrast: session.brightnessContrast,
+    ));
   }
 
   void _confirmFilterChanges() {
@@ -263,76 +286,26 @@ mixin _PaintingBoardFilterMixin
     }
   }
 
-  Map<String, Object?> _buildFilterPreviewMessage(
-    _FilterSession session,
-    CanvasLayerData layer,
-  ) {
-    return <String, Object?>{
-      'token': ++_filterPreviewLastIssuedToken,
-      'layerId': session.activeLayerId,
-      'type': session.type.index,
-      'layer': <String, Object?>{
-        'bitmap': layer.bitmap,
-        'fillColor': layer.fillColor?.value,
-      },
-      'hue': <double>[
-        session.hueSaturation.hue,
-        session.hueSaturation.saturation,
-        session.hueSaturation.lightness,
-      ],
-      'brightness': <double>[
-        session.brightnessContrast.brightness,
-        session.brightnessContrast.contrast,
-      ],
-    };
-  }
-
-  void _processNextFilterPreviewTask() {
-    if (_filterPreviewComputeRunning) {
-      return;
-    }
-    final Map<String, Object?>? message = _pendingFilterComputeMessage;
-    if (message == null) {
-      return;
-    }
-    _pendingFilterComputeMessage = null;
-    _filterPreviewComputeRunning = true;
-    compute<Map<String, Object?>, Map<String, Object?>>(
-      _runFilterPreviewIsolate,
-      message,
-    ).then((Map<String, Object?> result) {
-      _filterPreviewComputeRunning = false;
-      _handleFilterPreviewResult(result);
-      _processNextFilterPreviewTask();
-    }).catchError((Object error, StackTrace stackTrace) {
-      _filterPreviewComputeRunning = false;
-      debugPrint('Filter preview failed: $error');
-      _processNextFilterPreviewTask();
-    });
-  }
-
-  void _handleFilterPreviewResult(Map<String, Object?> result) {
+  void _handleFilterPreviewResult(_FilterPreviewResult result) {
     if (!mounted) {
       return;
     }
-    final int token = result['token'] as int? ?? -1;
-    if (token != _filterPreviewLastIssuedToken) {
+    if (result.token != _filterPreviewLastIssuedToken) {
       return;
     }
     final _FilterSession? session = _filterSession;
     if (session == null) {
       return;
     }
-    final String? layerId = result['layerId'] as String?;
-    if (layerId == null || layerId != session.activeLayerId) {
+    if (result.layerId != session.activeLayerId) {
       return;
     }
     final CanvasLayerData original =
         session.originalLayers[session.activeLayerIndex];
-    final Uint8List? bitmap = result['bitmap'] as Uint8List?;
-    final Object? fillValue = result['fillColor'];
+    final Uint8List? bitmap = result.bitmapBytes;
+    final int? fillValue = result.fillColor;
     Color? fillColor = original.fillColor;
-    if (fillValue is int) {
+    if (fillValue != null) {
       fillColor = Color(fillValue);
     }
     final bool hasBitmap = bitmap != null;
@@ -358,6 +331,10 @@ mixin _PaintingBoardFilterMixin
     setState(() {});
   }
 
+  void _handleFilterWorkerError(Object error, StackTrace stackTrace) {
+    debugPrint('Filter preview worker error: $error');
+  }
+
   void _restoreFilterPreviewToOriginal(_FilterSession session) {
     if (session.previewLayer == null) {
       return;
@@ -374,8 +351,8 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _cancelFilterPreviewTasks() {
-    _pendingFilterComputeMessage = null;
     _filterPreviewLastIssuedToken++;
+    _filterWorker?.discardPendingResult();
   }
 
   void _removeFilterOverlay({bool restoreOriginal = true}) {
@@ -386,6 +363,8 @@ mixin _PaintingBoardFilterMixin
     if (restoreOriginal && session != null) {
       _restoreFilterPreviewToOriginal(session);
     }
+    _filterWorker?.dispose();
+    _filterWorker = null;
     _filterSession = null;
   }
 
@@ -623,68 +602,255 @@ class _FilterSlider extends StatelessWidget {
 const int _kFilterTypeHueSaturation = 0;
 const int _kFilterTypeBrightnessContrast = 1;
 
-@pragma('vm:entry-point')
-Map<String, Object?> _runFilterPreviewIsolate(
-  Map<String, Object?> message,
-) {
-  final int type = message['type'] as int? ?? _kFilterTypeHueSaturation;
-  final Map<String, Object?> layer =
-      (message['layer'] as Map<String, Object?>?) ?? const <String, Object?>{};
-  Uint8List? bitmap = layer['bitmap'] as Uint8List?;
-  final int? fillColorValue = layer['fillColor'] as int?;
-  final List<dynamic>? rawHue = message['hue'] as List<dynamic>?;
-  final List<dynamic>? rawBrightness =
-      message['brightness'] as List<dynamic>?;
-  final double hueDelta = _filterReadListValue(rawHue, 0);
-  final double saturationPercent = _filterReadListValue(rawHue, 1);
-  final double lightnessPercent = _filterReadListValue(rawHue, 2);
-  final double brightnessPercent = _filterReadListValue(rawBrightness, 0);
-  final double contrastPercent = _filterReadListValue(rawBrightness, 1);
-
-  if (bitmap != null) {
-    if (type == _kFilterTypeHueSaturation) {
-      _filterApplyHueSaturationToBitmap(
-        bitmap,
-        hueDelta,
-        saturationPercent,
-        lightnessPercent,
-      );
-    } else {
-      _filterApplyBrightnessContrastToBitmap(
-        bitmap,
-        brightnessPercent,
-        contrastPercent,
-      );
-    }
-    if (!_filterBitmapHasVisiblePixels(bitmap)) {
-      bitmap = null;
-    }
+class _FilterPreviewWorker {
+  _FilterPreviewWorker({
+    required _FilterPanelType type,
+    required String layerId,
+    required CanvasLayerData baseLayer,
+    required ValueChanged<_FilterPreviewResult> onResult,
+    required void Function(Object error, StackTrace stackTrace) onError,
+  })  : _type = type,
+        _layerId = layerId,
+        _onResult = onResult,
+        _onError = onError {
+    _start(baseLayer);
   }
 
-  int? adjustedFill = fillColorValue;
-  if (fillColorValue != null) {
-    final Color source = Color(fillColorValue);
-    final Color adjusted = type == _kFilterTypeHueSaturation
-        ? _filterApplyHueSaturationToColor(
-            source,
-            hueDelta,
-            saturationPercent,
-            lightnessPercent,
-          )
-        : _filterApplyBrightnessContrastToColor(
-            source,
-            brightnessPercent,
-            contrastPercent,
+  final _FilterPanelType _type;
+  final String _layerId;
+  final ValueChanged<_FilterPreviewResult> _onResult;
+  final void Function(Object error, StackTrace stackTrace) _onError;
+
+  Isolate? _isolate;
+  ReceivePort? _receivePort;
+  SendPort? _sendPort;
+  StreamSubscription<dynamic>? _subscription;
+  final Completer<void> _readyCompleter = Completer<void>();
+  bool _disposed = false;
+
+  Future<void> _start(CanvasLayerData layer) async {
+    final TransferableTypedData? bitmapData = layer.bitmap != null
+        ? TransferableTypedData.fromList(<Uint8List>[layer.bitmap!])
+        : null;
+    final Map<String, Object?> initData = <String, Object?>{
+      'type': _type == _FilterPanelType.hueSaturation
+          ? _kFilterTypeHueSaturation
+          : _kFilterTypeBrightnessContrast,
+      'layerId': _layerId,
+      'layer': <String, Object?>{
+        'bitmap': bitmapData,
+        'bitmapWidth': layer.bitmapWidth,
+        'bitmapHeight': layer.bitmapHeight,
+        'bitmapLeft': layer.bitmapLeft,
+        'bitmapTop': layer.bitmapTop,
+        'fillColor': layer.fillColor?.value,
+      },
+    };
+    final ReceivePort port = ReceivePort();
+    _receivePort = port;
+    _subscription = port.listen(
+      (dynamic message) {
+        if (message is SendPort) {
+          _sendPort = message;
+          if (!_readyCompleter.isCompleted) {
+            _readyCompleter.complete();
+          }
+          return;
+        }
+        if (message is Map<String, Object?>) {
+          final _FilterPreviewResult result = _FilterPreviewResult(
+            token: message['token'] as int? ?? -1,
+            layerId: message['layerId'] as String? ?? _layerId,
+            bitmapData:
+                message['bitmap'] as TransferableTypedData?,
+            fillColor: message['fillColor'] as int?,
           );
-    adjustedFill = adjusted.value;
+          if (!_disposed) {
+            _onResult(result);
+          }
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!_readyCompleter.isCompleted) {
+          _readyCompleter.completeError(error, stackTrace);
+        }
+        _onError(error, stackTrace);
+      },
+    );
+    _isolate = await Isolate.spawn<List<Object?>>(
+      _filterPreviewWorkerMain,
+      <Object?>[port.sendPort, initData],
+      debugName: 'FilterPreviewWorker',
+      errorsAreFatal: false,
+    );
   }
 
-  return <String, Object?>{
-    'token': message['token'],
-    'layerId': message['layerId'],
-    'bitmap': bitmap,
-    'fillColor': adjustedFill,
-  };
+  Future<void> requestPreview({
+    required int token,
+    required _HueSaturationSettings hueSaturation,
+    required _BrightnessContrastSettings brightnessContrast,
+  }) async {
+    if (_disposed) {
+      return;
+    }
+    try {
+      await _readyCompleter.future;
+    } catch (_) {
+      return;
+    }
+    final SendPort? port = _sendPort;
+    if (port == null) {
+      return;
+    }
+    port.send(<String, Object?>{
+      'kind': 'preview',
+      'token': token,
+      'hue': <double>[
+        hueSaturation.hue,
+        hueSaturation.saturation,
+        hueSaturation.lightness,
+      ],
+      'brightness': <double>[
+        brightnessContrast.brightness,
+        brightnessContrast.contrast,
+      ],
+    });
+  }
+
+  void discardPendingResult() {}
+
+  void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    final SendPort? port = _sendPort;
+    port?.send(const <String, Object?>{'kind': 'dispose'});
+    _subscription?.cancel();
+    _receivePort?.close();
+    _isolate?.kill(priority: Isolate.immediate);
+    _sendPort = null;
+    if (!_readyCompleter.isCompleted) {
+      _readyCompleter.complete();
+    }
+  }
+}
+
+class _FilterPreviewResult {
+  _FilterPreviewResult({
+    required this.token,
+    required this.layerId,
+    TransferableTypedData? bitmapData,
+    this.fillColor,
+  }) : _bitmapData = bitmapData;
+
+  final int token;
+  final String layerId;
+  final int? fillColor;
+  TransferableTypedData? _bitmapData;
+  Uint8List? _bytes;
+
+  Uint8List? get bitmapBytes {
+    if (_bytes != null) {
+      return _bytes;
+    }
+    final TransferableTypedData? data = _bitmapData;
+    if (data == null) {
+      return null;
+    }
+    _bitmapData = null;
+    _bytes = data.materialize().asUint8List();
+    return _bytes;
+  }
+}
+
+@pragma('vm:entry-point')
+void _filterPreviewWorkerMain(List<Object?> initialMessage) {
+  final SendPort parent = initialMessage[0] as SendPort;
+  final Map<String, Object?> initData =
+      (initialMessage[1] as Map<String, Object?>?) ?? const <String, Object?>{};
+  final int type = initData['type'] as int? ?? _kFilterTypeHueSaturation;
+  final String layerId = initData['layerId'] as String? ?? '';
+  final Map<String, Object?> layer =
+      (initData['layer'] as Map<String, Object?>?) ?? const <String, Object?>{};
+  final TransferableTypedData? bitmapData =
+      layer['bitmap'] as TransferableTypedData?;
+  final Uint8List? baseBitmap =
+      bitmapData != null ? bitmapData.materialize().asUint8List() : null;
+  final int? fillColorValue = layer['fillColor'] as int?;
+  final ReceivePort port = ReceivePort();
+  parent.send(port.sendPort);
+  port.listen((dynamic message) {
+    if (message is! Map<String, Object?>) {
+      return;
+    }
+    final String kind = message['kind'] as String? ?? '';
+    if (kind == 'dispose') {
+      port.close();
+      return;
+    }
+    if (kind != 'preview') {
+      return;
+    }
+    final int token = message['token'] as int? ?? -1;
+    final List<dynamic>? rawHue = message['hue'] as List<dynamic>?;
+    final List<dynamic>? rawBrightness =
+        message['brightness'] as List<dynamic>?;
+    final double hueDelta = _filterReadListValue(rawHue, 0);
+    final double saturationPercent = _filterReadListValue(rawHue, 1);
+    final double lightnessPercent = _filterReadListValue(rawHue, 2);
+    final double brightnessPercent = _filterReadListValue(rawBrightness, 0);
+    final double contrastPercent = _filterReadListValue(rawBrightness, 1);
+
+    Uint8List? bitmap;
+    if (baseBitmap != null) {
+      bitmap = Uint8List.fromList(baseBitmap);
+      if (type == _kFilterTypeHueSaturation) {
+        _filterApplyHueSaturationToBitmap(
+          bitmap,
+          hueDelta,
+          saturationPercent,
+          lightnessPercent,
+        );
+      } else {
+        _filterApplyBrightnessContrastToBitmap(
+          bitmap,
+          brightnessPercent,
+          contrastPercent,
+        );
+      }
+      if (!_filterBitmapHasVisiblePixels(bitmap)) {
+        bitmap = null;
+      }
+    }
+
+    int? adjustedFill = fillColorValue;
+    if (fillColorValue != null) {
+      final Color source = Color(fillColorValue);
+      final Color adjusted = type == _kFilterTypeHueSaturation
+          ? _filterApplyHueSaturationToColor(
+              source,
+              hueDelta,
+              saturationPercent,
+              lightnessPercent,
+            )
+          : _filterApplyBrightnessContrastToColor(
+              source,
+              brightnessPercent,
+              contrastPercent,
+            );
+      adjustedFill = adjusted.value;
+    }
+
+    parent.send(<String, Object?>{
+      'token': token,
+      'layerId': layerId,
+      'bitmap': bitmap != null
+          ? TransferableTypedData.fromList(<Uint8List>[bitmap])
+          : null,
+      'fillColor': adjustedFill,
+    });
+  });
 }
 
 double _filterReadListValue(List<dynamic>? values, int index) {

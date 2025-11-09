@@ -508,7 +508,13 @@ class MacosMenuBuilder {
     final List<PlatformMenuItem> items = <PlatformMenuItem>[];
     final hueSatAction = _wrap(handler.adjustHueSaturation);
     if (hueSatAction != null) {
-      items.add(PlatformMenuItem(label: '色相/饱和度…', onSelected: hueSatAction));
+      items.add(
+        PlatformMenuItem(
+          label: '色相/饱和度…',
+          onSelected: hueSatAction,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyU, meta: true),
+        ),
+      );
     }
     final brightnessContrastAction = _wrap(handler.adjustBrightnessContrast);
     if (brightnessContrastAction != null) {
@@ -516,6 +522,7 @@ class MacosMenuBuilder {
         PlatformMenuItem(
           label: '亮度/对比度…',
           onSelected: brightnessContrastAction,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyM, meta: true),
         ),
       );
     }
