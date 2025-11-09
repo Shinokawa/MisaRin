@@ -864,6 +864,8 @@ class CanvasPageState extends State<CanvasPage> {
       onRedoFallback: _redoDocumentChange,
       externalCanUndo: _canUndoDocumentFor(id),
       externalCanRedo: _canRedoDocumentFor(id),
+      onResizeImage: _handleResizeImage,
+      onResizeCanvas: _handleResizeCanvas,
     );
   }
 

@@ -715,6 +715,37 @@ String _layerManagerInsertFromData(
   return layer.id;
 }
 
+void _layerManagerReplaceLayer(
+  BitmapCanvasController controller,
+  String id,
+  CanvasLayerData data,
+) {
+  final int index = controller._layers.indexWhere((layer) => layer.id == id);
+  if (index < 0) {
+    return;
+  }
+  final BitmapLayerState layer = controller._layers[index];
+  layer
+    ..name = data.name
+    ..visible = data.visible
+    ..opacity = data.opacity
+    ..locked = data.locked
+    ..clippingMask = data.clippingMask
+    ..blendMode = data.blendMode;
+  layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
+  _LayerOverflowStore overflowStore = _LayerOverflowStore();
+  if (data.bitmap != null) {
+    overflowStore = _applyBitmapToSurface(controller, layer.surface, data);
+  } else if (data.fillColor != null) {
+    layer.surface.fill(data.fillColor!);
+    if (index == 0) {
+      controller._backgroundColor = data.fillColor!;
+    }
+  }
+  controller._layerOverflowStores[layer.id] = overflowStore;
+  controller._markDirty();
+}
+
 void _layerManagerLoadLayers(
   BitmapCanvasController controller,
   List<CanvasLayerData> layers,

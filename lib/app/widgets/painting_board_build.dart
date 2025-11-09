@@ -17,6 +17,14 @@ mixin _PaintingBoardBuildMixin
       for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
         key: const RedoIntent(),
       for (final key in ToolbarShortcuts.of(
+        ToolbarAction.resizeImage,
+      ).shortcuts)
+        key: const ResizeImageIntent(),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.resizeCanvas,
+      ).shortcuts)
+        key: const ResizeCanvasIntent(),
+      for (final key in ToolbarShortcuts.of(
         ToolbarAction.layerAdjustTool,
       ).shortcuts)
         key: const SelectToolIntent(CanvasTool.layerAdjust),
@@ -199,6 +207,18 @@ mixin _PaintingBoardBuildMixin
               PasteIntent: CallbackAction<PasteIntent>(
                 onInvoke: (intent) {
                   paste();
+                  return null;
+                },
+              ),
+              ResizeImageIntent: CallbackAction<ResizeImageIntent>(
+                onInvoke: (intent) {
+                  widget.onResizeImage?.call();
+                  return null;
+                },
+              ),
+              ResizeCanvasIntent: CallbackAction<ResizeCanvasIntent>(
+                onInvoke: (intent) {
+                  widget.onResizeCanvas?.call();
                   return null;
                 },
               ),

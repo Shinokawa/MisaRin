@@ -39,6 +39,7 @@ class _FilterSession {
   final _HueSaturationSettings hueSaturation = _HueSaturationSettings();
   final _BrightnessContrastSettings brightnessContrast =
       _BrightnessContrastSettings();
+  CanvasLayerData? previewLayer;
 }
 
 mixin _PaintingBoardFilterMixin
@@ -46,6 +47,9 @@ mixin _PaintingBoardFilterMixin
   OverlayEntry? _filterOverlayEntry;
   _FilterSession? _filterSession;
   Offset _filterPanelOffset = const Offset(420, 140);
+  Map<String, Object?>? _pendingFilterComputeMessage;
+  bool _filterPreviewComputeRunning = false;
+  int _filterPreviewLastIssuedToken = 0;
 
   void showHueSaturationAdjustments() {
     _openFilterPanel(_FilterPanelType.hueSaturation);
@@ -207,28 +211,19 @@ mixin _PaintingBoardFilterMixin
     if (session == null) {
       return;
     }
-    final List<CanvasLayerData> previewLayers = List<CanvasLayerData>.from(
-      session.originalLayers,
-      growable: false,
-    );
+    if (_isFilterSessionIdentity(session)) {
+      _pendingFilterComputeMessage = null;
+      _filterPreviewLastIssuedToken++;
+      _restoreFilterPreviewToOriginal(session);
+      return;
+    }
     final CanvasLayerData original =
         session.originalLayers[session.activeLayerIndex];
-    CanvasLayerData adjusted;
-    switch (session.type) {
-      case _FilterPanelType.hueSaturation:
-        adjusted = _applyHueSaturationToLayer(original, session.hueSaturation);
-        break;
-      case _FilterPanelType.brightnessContrast:
-        adjusted = _applyBrightnessContrastToLayer(
-          original,
-          session.brightnessContrast,
-        );
-        break;
-    }
-    previewLayers[session.activeLayerIndex] = adjusted;
-    _controller.loadLayers(previewLayers, _controller.backgroundColor);
-    _controller.setActiveLayer(session.activeLayerId);
-    setState(() {});
+    _pendingFilterComputeMessage = _buildFilterPreviewMessage(
+      session,
+      original,
+    );
+    _processNextFilterPreviewTask();
   }
 
   void _confirmFilterChanges() {
@@ -236,236 +231,164 @@ mixin _PaintingBoardFilterMixin
     if (session == null) {
       return;
     }
-    final List<CanvasLayerData> previewLayers = List<CanvasLayerData>.from(
-      session.originalLayers,
-      growable: false,
-    );
+    final CanvasLayerData? previewLayer = session.previewLayer;
+    if (previewLayer == null) {
+      _removeFilterOverlay();
+      return;
+    }
+    _cancelFilterPreviewTasks();
     final CanvasLayerData original =
         session.originalLayers[session.activeLayerIndex];
-    CanvasLayerData adjusted;
-    switch (session.type) {
-      case _FilterPanelType.hueSaturation:
-        adjusted = _applyHueSaturationToLayer(original, session.hueSaturation);
-        break;
-      case _FilterPanelType.brightnessContrast:
-        adjusted = _applyBrightnessContrastToLayer(
-          original,
-          session.brightnessContrast,
-        );
-        break;
-    }
-    previewLayers[session.activeLayerIndex] = adjusted;
-    _controller.loadLayers(session.originalLayers, _controller.backgroundColor);
+    _controller.replaceLayer(session.activeLayerId, original);
     _controller.setActiveLayer(session.activeLayerId);
     _pushUndoSnapshot();
-    _controller.loadLayers(previewLayers, _controller.backgroundColor);
+    _controller.replaceLayer(session.activeLayerId, previewLayer);
     _controller.setActiveLayer(session.activeLayerId);
+    session.previewLayer = null;
     setState(() {});
     _markDirty();
     _removeFilterOverlay(restoreOriginal: false);
   }
 
+  bool _isFilterSessionIdentity(_FilterSession session) {
+    switch (session.type) {
+      case _FilterPanelType.hueSaturation:
+        final _HueSaturationSettings settings = session.hueSaturation;
+        return settings.hue == 0 &&
+            settings.saturation == 0 &&
+            settings.lightness == 0;
+      case _FilterPanelType.brightnessContrast:
+        final _BrightnessContrastSettings settings = session.brightnessContrast;
+        return settings.brightness == 0 && settings.contrast == 0;
+    }
+  }
+
+  Map<String, Object?> _buildFilterPreviewMessage(
+    _FilterSession session,
+    CanvasLayerData layer,
+  ) {
+    return <String, Object?>{
+      'token': ++_filterPreviewLastIssuedToken,
+      'layerId': session.activeLayerId,
+      'type': session.type.index,
+      'layer': <String, Object?>{
+        'bitmap': layer.bitmap,
+        'fillColor': layer.fillColor?.value,
+      },
+      'hue': <double>[
+        session.hueSaturation.hue,
+        session.hueSaturation.saturation,
+        session.hueSaturation.lightness,
+      ],
+      'brightness': <double>[
+        session.brightnessContrast.brightness,
+        session.brightnessContrast.contrast,
+      ],
+    };
+  }
+
+  void _processNextFilterPreviewTask() {
+    if (_filterPreviewComputeRunning) {
+      return;
+    }
+    final Map<String, Object?>? message = _pendingFilterComputeMessage;
+    if (message == null) {
+      return;
+    }
+    _pendingFilterComputeMessage = null;
+    _filterPreviewComputeRunning = true;
+    compute<Map<String, Object?>, Map<String, Object?>>(
+      _runFilterPreviewIsolate,
+      message,
+    ).then((Map<String, Object?> result) {
+      _filterPreviewComputeRunning = false;
+      _handleFilterPreviewResult(result);
+      _processNextFilterPreviewTask();
+    }).catchError((Object error, StackTrace stackTrace) {
+      _filterPreviewComputeRunning = false;
+      debugPrint('Filter preview failed: $error');
+      _processNextFilterPreviewTask();
+    });
+  }
+
+  void _handleFilterPreviewResult(Map<String, Object?> result) {
+    if (!mounted) {
+      return;
+    }
+    final int token = result['token'] as int? ?? -1;
+    if (token != _filterPreviewLastIssuedToken) {
+      return;
+    }
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    final String? layerId = result['layerId'] as String?;
+    if (layerId == null || layerId != session.activeLayerId) {
+      return;
+    }
+    final CanvasLayerData original =
+        session.originalLayers[session.activeLayerIndex];
+    final Uint8List? bitmap = result['bitmap'] as Uint8List?;
+    final Object? fillValue = result['fillColor'];
+    Color? fillColor = original.fillColor;
+    if (fillValue is int) {
+      fillColor = Color(fillValue);
+    }
+    final bool hasBitmap = bitmap != null;
+    final CanvasLayerData adjusted = CanvasLayerData(
+      id: original.id,
+      name: original.name,
+      visible: original.visible,
+      opacity: original.opacity,
+      locked: original.locked,
+      clippingMask: original.clippingMask,
+      blendMode: original.blendMode,
+      fillColor: fillColor,
+      bitmap: bitmap,
+      bitmapWidth: hasBitmap ? original.bitmapWidth : null,
+      bitmapHeight: hasBitmap ? original.bitmapHeight : null,
+      bitmapLeft: hasBitmap ? original.bitmapLeft : null,
+      bitmapTop: hasBitmap ? original.bitmapTop : null,
+      cloneBitmap: false,
+    );
+    session.previewLayer = adjusted;
+    _controller.replaceLayer(session.activeLayerId, adjusted);
+    _controller.setActiveLayer(session.activeLayerId);
+    setState(() {});
+  }
+
+  void _restoreFilterPreviewToOriginal(_FilterSession session) {
+    if (session.previewLayer == null) {
+      return;
+    }
+    final bool shouldNotify = mounted;
+    final CanvasLayerData original =
+        session.originalLayers[session.activeLayerIndex];
+    _controller.replaceLayer(session.activeLayerId, original);
+    _controller.setActiveLayer(session.activeLayerId);
+    session.previewLayer = null;
+    if (shouldNotify) {
+      setState(() {});
+    }
+  }
+
+  void _cancelFilterPreviewTasks() {
+    _pendingFilterComputeMessage = null;
+    _filterPreviewLastIssuedToken++;
+  }
+
   void _removeFilterOverlay({bool restoreOriginal = true}) {
     _filterOverlayEntry?.remove();
     _filterOverlayEntry = null;
-    if (restoreOriginal) {
-      final _FilterSession? session = _filterSession;
-      if (session != null) {
-        _controller.loadLayers(
-          session.originalLayers,
-          _controller.backgroundColor,
-        );
-        _controller.setActiveLayer(session.activeLayerId);
-        setState(() {});
-      }
+    _cancelFilterPreviewTasks();
+    final _FilterSession? session = _filterSession;
+    if (restoreOriginal && session != null) {
+      _restoreFilterPreviewToOriginal(session);
     }
     _filterSession = null;
   }
 
-  CanvasLayerData _applyHueSaturationToLayer(
-    CanvasLayerData layer,
-    _HueSaturationSettings settings,
-  ) {
-    Uint8List? adjustedBitmap;
-    if (layer.bitmap != null) {
-      adjustedBitmap = Uint8List.fromList(layer.bitmap!);
-      _applyHueSaturationToBitmap(adjustedBitmap, settings);
-      if (!_hasVisiblePixels(adjustedBitmap)) {
-        adjustedBitmap = null;
-      }
-    }
-    Color? fill = layer.fillColor;
-    if (fill != null) {
-      fill = _applyHueSaturationToColor(fill, settings);
-    }
-    return layer.copyWith(
-      fillColor: fill,
-      bitmap: adjustedBitmap,
-      bitmapWidth: layer.bitmapWidth,
-      bitmapHeight: layer.bitmapHeight,
-      bitmapLeft: layer.bitmapLeft,
-      bitmapTop: layer.bitmapTop,
-      clearBitmap: adjustedBitmap == null && layer.bitmap != null,
-    );
-  }
-
-  CanvasLayerData _applyBrightnessContrastToLayer(
-    CanvasLayerData layer,
-    _BrightnessContrastSettings settings,
-  ) {
-    Uint8List? adjustedBitmap;
-    if (layer.bitmap != null) {
-      adjustedBitmap = Uint8List.fromList(layer.bitmap!);
-      _applyBrightnessContrastToBitmap(adjustedBitmap, settings);
-      if (!_hasVisiblePixels(adjustedBitmap)) {
-        adjustedBitmap = null;
-      }
-    }
-    Color? fill = layer.fillColor;
-    if (fill != null) {
-      fill = _applyBrightnessContrastToColor(fill, settings);
-    }
-    return layer.copyWith(
-      fillColor: fill,
-      bitmap: adjustedBitmap,
-      bitmapWidth: layer.bitmapWidth,
-      bitmapHeight: layer.bitmapHeight,
-      bitmapLeft: layer.bitmapLeft,
-      bitmapTop: layer.bitmapTop,
-      clearBitmap: adjustedBitmap == null && layer.bitmap != null,
-    );
-  }
-
-  void _applyHueSaturationToBitmap(
-    Uint8List bitmap,
-    _HueSaturationSettings settings,
-  ) {
-    final double hueDelta = settings.hue;
-    final double saturationDelta = settings.saturation / 100.0;
-    final double lightnessDelta = settings.lightness / 100.0;
-    for (int i = 0; i < bitmap.length; i += 4) {
-      final int alpha = bitmap[i + 3];
-      if (alpha == 0) {
-        continue;
-      }
-      final Color source = Color.fromARGB(
-        alpha,
-        bitmap[i],
-        bitmap[i + 1],
-        bitmap[i + 2],
-      );
-      final HSVColor hsv = HSVColor.fromColor(source);
-      double hue = (hsv.hue + hueDelta) % 360.0;
-      if (hue < 0) {
-        hue += 360.0;
-      }
-      final double saturation = (hsv.saturation + saturationDelta).clamp(
-        0.0,
-        1.0,
-      );
-      final double value = (hsv.value + lightnessDelta).clamp(0.0, 1.0);
-      final Color adjusted = HSVColor.fromAHSV(
-        hsv.alpha,
-        hue,
-        saturation,
-        value,
-      ).toColor();
-      bitmap[i] = adjusted.red;
-      bitmap[i + 1] = adjusted.green;
-      bitmap[i + 2] = adjusted.blue;
-      bitmap[i + 3] = adjusted.alpha;
-    }
-  }
-
-  void _applyBrightnessContrastToBitmap(
-    Uint8List bitmap,
-    _BrightnessContrastSettings settings,
-  ) {
-    final double brightnessOffset = settings.brightness / 100.0 * 255.0;
-    final double contrastFactor = math.max(
-      0.0,
-      1.0 + settings.contrast / 100.0,
-    );
-    for (int i = 0; i < bitmap.length; i += 4) {
-      final int alpha = bitmap[i + 3];
-      if (alpha == 0) {
-        continue;
-      }
-      bitmap[i] = _applyBrightnessContrastChannel(
-        bitmap[i],
-        brightnessOffset,
-        contrastFactor,
-      );
-      bitmap[i + 1] = _applyBrightnessContrastChannel(
-        bitmap[i + 1],
-        brightnessOffset,
-        contrastFactor,
-      );
-      bitmap[i + 2] = _applyBrightnessContrastChannel(
-        bitmap[i + 2],
-        brightnessOffset,
-        contrastFactor,
-      );
-    }
-  }
-
-  Color _applyHueSaturationToColor(
-    Color color,
-    _HueSaturationSettings settings,
-  ) {
-    final HSVColor hsv = HSVColor.fromColor(color);
-    double hue = (hsv.hue + settings.hue) % 360.0;
-    if (hue < 0) {
-      hue += 360.0;
-    }
-    final double saturation = (hsv.saturation + settings.saturation / 100.0)
-        .clamp(0.0, 1.0);
-    final double value = (hsv.value + settings.lightness / 100.0).clamp(
-      0.0,
-      1.0,
-    );
-    return HSVColor.fromAHSV(hsv.alpha, hue, saturation, value).toColor();
-  }
-
-  Color _applyBrightnessContrastToColor(
-    Color color,
-    _BrightnessContrastSettings settings,
-  ) {
-    final double brightnessOffset = settings.brightness / 100.0 * 255.0;
-    final double contrastFactor = math.max(
-      0.0,
-      1.0 + settings.contrast / 100.0,
-    );
-    final int r = _applyBrightnessContrastChannel(
-      color.red,
-      brightnessOffset,
-      contrastFactor,
-    );
-    final int g = _applyBrightnessContrastChannel(
-      color.green,
-      brightnessOffset,
-      contrastFactor,
-    );
-    final int b = _applyBrightnessContrastChannel(
-      color.blue,
-      brightnessOffset,
-      contrastFactor,
-    );
-    return Color.fromARGB(color.alpha, r, g, b);
-  }
-
-  int _applyBrightnessContrastChannel(
-    int channel,
-    double brightnessOffset,
-    double contrastFactor,
-  ) {
-    final double adjusted =
-        ((channel - 128) * contrastFactor + 128 + brightnessOffset).clamp(
-          0.0,
-          255.0,
-        );
-    return adjusted.round();
-  }
 }
 
 class _FilterPanelShell extends StatelessWidget {
@@ -695,4 +618,212 @@ class _FilterSlider extends StatelessWidget {
       ),
     );
   }
+}
+
+const int _kFilterTypeHueSaturation = 0;
+const int _kFilterTypeBrightnessContrast = 1;
+
+@pragma('vm:entry-point')
+Map<String, Object?> _runFilterPreviewIsolate(
+  Map<String, Object?> message,
+) {
+  final int type = message['type'] as int? ?? _kFilterTypeHueSaturation;
+  final Map<String, Object?> layer =
+      (message['layer'] as Map<String, Object?>?) ?? const <String, Object?>{};
+  Uint8List? bitmap = layer['bitmap'] as Uint8List?;
+  final int? fillColorValue = layer['fillColor'] as int?;
+  final List<dynamic>? rawHue = message['hue'] as List<dynamic>?;
+  final List<dynamic>? rawBrightness =
+      message['brightness'] as List<dynamic>?;
+  final double hueDelta = _filterReadListValue(rawHue, 0);
+  final double saturationPercent = _filterReadListValue(rawHue, 1);
+  final double lightnessPercent = _filterReadListValue(rawHue, 2);
+  final double brightnessPercent = _filterReadListValue(rawBrightness, 0);
+  final double contrastPercent = _filterReadListValue(rawBrightness, 1);
+
+  if (bitmap != null) {
+    if (type == _kFilterTypeHueSaturation) {
+      _filterApplyHueSaturationToBitmap(
+        bitmap,
+        hueDelta,
+        saturationPercent,
+        lightnessPercent,
+      );
+    } else {
+      _filterApplyBrightnessContrastToBitmap(
+        bitmap,
+        brightnessPercent,
+        contrastPercent,
+      );
+    }
+    if (!_filterBitmapHasVisiblePixels(bitmap)) {
+      bitmap = null;
+    }
+  }
+
+  int? adjustedFill = fillColorValue;
+  if (fillColorValue != null) {
+    final Color source = Color(fillColorValue);
+    final Color adjusted = type == _kFilterTypeHueSaturation
+        ? _filterApplyHueSaturationToColor(
+            source,
+            hueDelta,
+            saturationPercent,
+            lightnessPercent,
+          )
+        : _filterApplyBrightnessContrastToColor(
+            source,
+            brightnessPercent,
+            contrastPercent,
+          );
+    adjustedFill = adjusted.value;
+  }
+
+  return <String, Object?>{
+    'token': message['token'],
+    'layerId': message['layerId'],
+    'bitmap': bitmap,
+    'fillColor': adjustedFill,
+  };
+}
+
+double _filterReadListValue(List<dynamic>? values, int index) {
+  if (values == null || index < 0 || index >= values.length) {
+    return 0.0;
+  }
+  final Object value = values[index];
+  if (value is num) {
+    return value.toDouble();
+  }
+  return 0.0;
+}
+
+void _filterApplyHueSaturationToBitmap(
+  Uint8List bitmap,
+  double hueDelta,
+  double saturationPercent,
+  double lightnessPercent,
+) {
+  for (int i = 0; i < bitmap.length; i += 4) {
+    final int alpha = bitmap[i + 3];
+    if (alpha == 0) {
+      continue;
+    }
+    final Color source = Color.fromARGB(
+      alpha,
+      bitmap[i],
+      bitmap[i + 1],
+      bitmap[i + 2],
+    );
+    final Color adjusted = _filterApplyHueSaturationToColor(
+      source,
+      hueDelta,
+      saturationPercent,
+      lightnessPercent,
+    );
+    bitmap[i] = adjusted.red;
+    bitmap[i + 1] = adjusted.green;
+    bitmap[i + 2] = adjusted.blue;
+    bitmap[i + 3] = adjusted.alpha;
+  }
+}
+
+void _filterApplyBrightnessContrastToBitmap(
+  Uint8List bitmap,
+  double brightnessPercent,
+  double contrastPercent,
+) {
+  final double brightnessOffset = brightnessPercent / 100.0 * 255.0;
+  final double contrastFactor = math.max(
+    0.0,
+    1.0 + contrastPercent / 100.0,
+  );
+  for (int i = 0; i < bitmap.length; i += 4) {
+    final int alpha = bitmap[i + 3];
+    if (alpha == 0) {
+      continue;
+    }
+    bitmap[i] = _filterApplyBrightnessContrastChannel(
+      bitmap[i],
+      brightnessOffset,
+      contrastFactor,
+    );
+    bitmap[i + 1] = _filterApplyBrightnessContrastChannel(
+      bitmap[i + 1],
+      brightnessOffset,
+      contrastFactor,
+    );
+    bitmap[i + 2] = _filterApplyBrightnessContrastChannel(
+      bitmap[i + 2],
+      brightnessOffset,
+      contrastFactor,
+    );
+  }
+}
+
+Color _filterApplyHueSaturationToColor(
+  Color color,
+  double hueDelta,
+  double saturationPercent,
+  double lightnessPercent,
+) {
+  final HSVColor hsv = HSVColor.fromColor(color);
+  double hue = (hsv.hue + hueDelta) % 360.0;
+  if (hue < 0) {
+    hue += 360.0;
+  }
+  final double saturation = (hsv.saturation + saturationPercent / 100.0)
+      .clamp(0.0, 1.0);
+  final double value = (hsv.value + lightnessPercent / 100.0).clamp(0.0, 1.0);
+  return HSVColor.fromAHSV(hsv.alpha, hue, saturation, value).toColor();
+}
+
+Color _filterApplyBrightnessContrastToColor(
+  Color color,
+  double brightnessPercent,
+  double contrastPercent,
+) {
+  final double brightnessOffset = brightnessPercent / 100.0 * 255.0;
+  final double contrastFactor = math.max(
+    0.0,
+    1.0 + contrastPercent / 100.0,
+  );
+  final int r = _filterApplyBrightnessContrastChannel(
+    color.red,
+    brightnessOffset,
+    contrastFactor,
+  );
+  final int g = _filterApplyBrightnessContrastChannel(
+    color.green,
+    brightnessOffset,
+    contrastFactor,
+  );
+  final int b = _filterApplyBrightnessContrastChannel(
+    color.blue,
+    brightnessOffset,
+    contrastFactor,
+  );
+  return Color.fromARGB(color.alpha, r, g, b);
+}
+
+int _filterApplyBrightnessContrastChannel(
+  int channel,
+  double brightnessOffset,
+  double contrastFactor,
+) {
+  final double adjusted =
+      ((channel - 128) * contrastFactor + 128 + brightnessOffset).clamp(
+        0.0,
+        255.0,
+      );
+  return adjusted.round();
+}
+
+bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
+  for (int i = 3; i < bitmap.length; i += 4) {
+    if (bitmap[i] != 0) {
+      return true;
+    }
+  }
+  return false;
 }

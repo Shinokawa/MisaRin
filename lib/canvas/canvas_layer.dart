@@ -51,8 +51,11 @@ class CanvasLayerData {
     int? bitmapHeight,
     int? bitmapLeft,
     int? bitmapTop,
+    bool cloneBitmap = true,
   }) : fillColor = fillColor,
-       bitmap = bitmap != null ? Uint8List.fromList(bitmap) : null,
+       bitmap = bitmap != null
+           ? (cloneBitmap ? Uint8List.fromList(bitmap) : bitmap)
+           : null,
        bitmapWidth = bitmap != null ? bitmapWidth : null,
        bitmapHeight = bitmap != null ? bitmapHeight : null,
        bitmapLeft = bitmap != null ? bitmapLeft ?? 0 : null,
@@ -92,15 +95,16 @@ class CanvasLayerData {
     int? bitmapLeft,
     int? bitmapTop,
     bool clearBitmap = false,
+    bool cloneBitmap = true,
   }) {
     final Uint8List? resolvedBitmap;
     if (clearBitmap) {
       resolvedBitmap = null;
     } else if (bitmap != null) {
-      resolvedBitmap = Uint8List.fromList(bitmap);
+      resolvedBitmap = cloneBitmap ? Uint8List.fromList(bitmap) : bitmap;
     } else {
       resolvedBitmap = this.bitmap != null
-          ? Uint8List.fromList(this.bitmap!)
+          ? (cloneBitmap ? Uint8List.fromList(this.bitmap!) : this.bitmap!)
           : null;
     }
     final int? resolvedWidth;

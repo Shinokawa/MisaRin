@@ -684,6 +684,9 @@ class BitmapCanvasController extends ChangeNotifier {
   String insertLayerFromData(CanvasLayerData data, {String? aboveLayerId}) =>
       _layerManagerInsertFromData(this, data, aboveLayerId: aboveLayerId);
 
+  void replaceLayer(String id, CanvasLayerData data) =>
+      _layerManagerReplaceLayer(this, id, data);
+
   void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) =>
       _layerManagerLoadLayers(this, layers, backgroundColor);
 

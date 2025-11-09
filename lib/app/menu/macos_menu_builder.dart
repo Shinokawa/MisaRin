@@ -307,13 +307,29 @@ class MacosMenuBuilder {
     final resizeImageAction = _wrap(handler.resizeImage);
     if (resizeImageAction != null) {
       sizeItems.add(
-        PlatformMenuItem(label: '图像大小…', onSelected: resizeImageAction),
+        PlatformMenuItem(
+          label: '图像大小…',
+          onSelected: resizeImageAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyI,
+            meta: true,
+            alt: true,
+          ),
+        ),
       );
     }
     final resizeCanvasAction = _wrap(handler.resizeCanvas);
     if (resizeCanvasAction != null) {
       sizeItems.add(
-        PlatformMenuItem(label: '画布大小…', onSelected: resizeCanvasAction),
+        PlatformMenuItem(
+          label: '画布大小…',
+          onSelected: resizeCanvasAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyC,
+            meta: true,
+            alt: true,
+          ),
+        ),
       );
     }
     if (sizeItems.isNotEmpty) {

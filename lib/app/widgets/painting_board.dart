@@ -7,7 +7,7 @@ import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
+    show compute, debugPrint, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -152,6 +152,8 @@ class PaintingBoard extends StatefulWidget {
     this.onRedoFallback,
     this.externalCanUndo = false,
     this.externalCanRedo = false,
+    this.onResizeImage,
+    this.onResizeCanvas,
   });
 
   final CanvasSettings settings;
@@ -162,6 +164,8 @@ class PaintingBoard extends StatefulWidget {
   final VoidCallback? onRedoFallback;
   final bool externalCanUndo;
   final bool externalCanRedo;
+  final Future<void> Function()? onResizeImage;
+  final Future<void> Function()? onResizeCanvas;
 
   @override
   State<PaintingBoard> createState() => PaintingBoardState();

@@ -14,6 +14,8 @@ enum ToolbarAction {
   handTool,
   undo,
   redo,
+  resizeImage,
+  resizeCanvas,
   deselect,
 }
 
@@ -103,6 +105,38 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+Shift+Z',
       macLabel: 'Command+Shift+Z',
+    ),
+    ToolbarAction.resizeImage: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyI,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyI,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+I',
+      macLabel: 'Command+Option+I',
+    ),
+    ToolbarAction.resizeCanvas: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyC,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyC,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+C',
+      macLabel: 'Command+Option+C',
     ),
     ToolbarAction.deselect: ShortcutInfo(
       shortcuts: <LogicalKeySet>[

@@ -22,6 +22,14 @@ class DeselectIntent extends Intent {
   const DeselectIntent();
 }
 
+class ResizeImageIntent extends Intent {
+  const ResizeImageIntent();
+}
+
+class ResizeCanvasIntent extends Intent {
+  const ResizeCanvasIntent();
+}
+
 class CutIntent extends Intent {
   const CutIntent();
 }
