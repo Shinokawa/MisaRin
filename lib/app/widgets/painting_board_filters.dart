@@ -65,6 +65,8 @@ mixin _PaintingBoardFilterMixin
   Offset _filterPanelOffset = const Offset(420, 140);
   _FilterPreviewWorker? _filterWorker;
   int _filterPreviewLastIssuedToken = 0;
+  bool _filterPreviewRequestInFlight = false;
+  bool _filterPreviewPendingChange = false;
   bool _antialiasCardVisible = false;
   Offset _antialiasCardOffset = Offset.zero;
   Size? _antialiasCardSize;
@@ -320,8 +322,22 @@ mixin _PaintingBoardFilterMixin
     if (_filterWorker == null) {
       _initializeFilterWorker();
     }
+    _filterPreviewPendingChange = true;
+    _tryDispatchFilterPreview();
+  }
+
+  void _tryDispatchFilterPreview() {
+    if (!_filterPreviewPendingChange || _filterPreviewRequestInFlight) {
+      return;
+    }
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      _filterPreviewPendingChange = false;
+      return;
+    }
     final bool isIdentity = _isFilterSessionIdentity(session);
     if (isIdentity) {
+      _filterPreviewPendingChange = false;
       _filterPreviewLastIssuedToken++;
       _restoreFilterPreviewToOriginal(session);
       return;
@@ -330,6 +346,8 @@ mixin _PaintingBoardFilterMixin
     if (worker == null) {
       return;
     }
+    _filterPreviewPendingChange = false;
+    _filterPreviewRequestInFlight = true;
     final int token = ++_filterPreviewLastIssuedToken;
     unawaited(
       worker.requestPreview(
@@ -339,6 +357,16 @@ mixin _PaintingBoardFilterMixin
         blurRadius: session.gaussianBlur.radius,
       ),
     );
+  }
+
+  void _onFilterPreviewRequestComplete() {
+    if (!_filterPreviewRequestInFlight) {
+      return;
+    }
+    _filterPreviewRequestInFlight = false;
+    if (_filterPreviewPendingChange) {
+      _tryDispatchFilterPreview();
+    }
   }
 
   void _confirmFilterChanges() {
@@ -430,10 +458,12 @@ mixin _PaintingBoardFilterMixin
     _controller.replaceLayer(session.activeLayerId, adjusted);
     _controller.setActiveLayer(session.activeLayerId);
     setState(() {});
+    _onFilterPreviewRequestComplete();
   }
 
   void _handleFilterWorkerError(Object error, StackTrace stackTrace) {
     debugPrint('Filter preview worker error: $error');
+    _onFilterPreviewRequestComplete();
   }
 
   void _restoreFilterPreviewToOriginal(_FilterSession session) {
@@ -454,6 +484,8 @@ mixin _PaintingBoardFilterMixin
   void _cancelFilterPreviewTasks() {
     _filterPreviewLastIssuedToken++;
     _filterWorker?.discardPendingResult();
+    _filterPreviewPendingChange = false;
+    _filterPreviewRequestInFlight = false;
   }
 
   void _removeFilterOverlay({bool restoreOriginal = true}) {
