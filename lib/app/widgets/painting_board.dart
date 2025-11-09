@@ -1397,6 +1397,67 @@ class PaintingBoardState extends _PaintingBoardBase
     _handleMergeLayerDown(layer);
   }
 
+  void selectEntireCanvas() {
+    final int width = _controller.width;
+    final int height = _controller.height;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    final int length = width * height;
+    final Uint8List mask = Uint8List(length)..fillRange(0, length, 1);
+    final Path selectionPath = Path()
+      ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()));
+    _prepareSelectionUndo();
+    setState(() {
+      clearSelectionArtifacts();
+      setSelectionState(path: selectionPath, mask: mask);
+    });
+    _updateSelectionAnimation();
+    _finishSelectionUndo();
+  }
+
+  void invertSelection() {
+    final int width = _controller.width;
+    final int height = _controller.height;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    final int length = width * height;
+    final Uint8List? currentMask = _selectionMask;
+    final Uint8List inverted = Uint8List(length);
+    if (currentMask == null) {
+      inverted.fillRange(0, length, 1);
+    } else {
+      if (currentMask.length != length) {
+        return;
+      }
+      for (int i = 0; i < length; i++) {
+        inverted[i] = currentMask[i] == 0 ? 1 : 0;
+      }
+    }
+    if (!_maskHasCoverage(inverted)) {
+      _prepareSelectionUndo();
+      setState(() {
+        clearSelectionArtifacts();
+        setSelectionState(path: null, mask: null);
+      });
+      _updateSelectionAnimation();
+      _finishSelectionUndo();
+      return;
+    }
+    final Path? path = currentMask == null
+        ? (Path()
+          ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble())))
+        : _pathFromMask(inverted, width);
+    _prepareSelectionUndo();
+    setState(() {
+      clearSelectionArtifacts();
+      setSelectionState(path: path, mask: inverted);
+    });
+    _updateSelectionAnimation();
+    _finishSelectionUndo();
+  }
+
   Future<CanvasResizeResult?> resizeImage(
     int width,
     int height,

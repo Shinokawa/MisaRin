@@ -49,6 +49,8 @@ class MenuActionHandler {
     this.mergeLayerDown,
     this.adjustHueSaturation,
     this.adjustBrightnessContrast,
+    this.selectAll,
+    this.invertSelection,
   });
 
   const MenuActionHandler.empty()
@@ -85,6 +87,8 @@ class MenuActionHandler {
       mergeLayerDown = null,
       adjustHueSaturation = null,
       adjustBrightnessContrast = null,
+      selectAll = null,
+      invertSelection = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[];
 
   final MenuAsyncAction? newProject;
@@ -121,6 +125,8 @@ class MenuActionHandler {
   final MenuAsyncAction? mergeLayerDown;
   final MenuAsyncAction? adjustHueSaturation;
   final MenuAsyncAction? adjustBrightnessContrast;
+  final MenuAsyncAction? selectAll;
+  final MenuAsyncAction? invertSelection;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

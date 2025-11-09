@@ -949,6 +949,14 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.mergeActiveLayerDown();
       },
+      selectAll: () {
+        final board = _activeBoard;
+        board?.selectEntireCanvas();
+      },
+      invertSelection: () {
+        final board = _activeBoard;
+        board?.invertSelection();
+      },
       adjustHueSaturation: () {
         final board = _activeBoard;
         if (board == null) {

@@ -15,6 +15,7 @@ class MacosMenuBuilder {
       _editMenu(handler),
       _imageMenu(handler),
       _layerMenu(handler),
+      _selectionMenu(handler),
       _filterMenu(handler),
       _toolMenu(handler),
       _viewMenu(handler),
@@ -399,6 +400,42 @@ class MacosMenuBuilder {
     }
 
     return PlatformMenu(label: '图层', menus: menus);
+  }
+
+  static PlatformMenu? _selectionMenu(MenuActionHandler handler) {
+    final List<PlatformMenuItem> items = <PlatformMenuItem>[];
+
+    final selectAllAction = _wrap(handler.selectAll);
+    if (selectAllAction != null) {
+      items.add(
+        PlatformMenuItem(
+          label: '全选',
+          onSelected: selectAllAction,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyA, meta: true),
+        ),
+      );
+    }
+
+    final invertSelectionAction = _wrap(handler.invertSelection);
+    if (invertSelectionAction != null) {
+      items.add(
+        PlatformMenuItem(
+          label: '反选',
+          onSelected: invertSelectionAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyI,
+            meta: true,
+            shift: true,
+          ),
+        ),
+      );
+    }
+
+    if (items.isEmpty) {
+      return null;
+    }
+
+    return PlatformMenu(label: '选择', menus: items);
   }
 
   static PlatformMenu? _toolMenu(MenuActionHandler handler) {
