@@ -321,8 +321,37 @@ class _MenuButtonState extends State<_MenuButton> {
   }
 }
 
-class _WindowControlButtons extends StatelessWidget {
+class _WindowControlButtons extends StatefulWidget {
   const _WindowControlButtons();
+
+  @override
+  State<_WindowControlButtons> createState() => _WindowControlButtonsState();
+}
+
+class _WindowControlButtonsState extends State<_WindowControlButtons>
+    with WindowListener {
+  bool _isMaximized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    unawaited(_syncMaximizeState());
+  }
+
+  Future<void> _syncMaximizeState() async {
+    final bool value = await windowManager.isMaximized();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _isMaximized = value);
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
 
   void _minimize() {
     unawaited(windowManager.minimize());
@@ -336,13 +365,32 @@ class _WindowControlButtons extends StatelessWidget {
     final bool isMaximized = await windowManager.isMaximized();
     if (isMaximized) {
       await windowManager.unmaximize();
+      _updateMaximizeState(false);
     } else {
       await windowManager.maximize();
+      _updateMaximizeState(true);
     }
   }
 
   void _close() {
     unawaited(windowManager.close());
+  }
+
+  void _updateMaximizeState(bool value) {
+    if (!mounted || _isMaximized == value) {
+      return;
+    }
+    setState(() => _isMaximized = value);
+  }
+
+  @override
+  void onWindowMaximize() {
+    _updateMaximizeState(true);
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    _updateMaximizeState(false);
   }
 
   @override
@@ -353,6 +401,10 @@ class _WindowControlButtons extends StatelessWidget {
     final Color hoverColor = theme.resources.subtleFillColorSecondary
         .withOpacity(0.8);
     final Color closeHoverColor = const Color(0xFFD13438).withOpacity(0.85);
+    final IconData maximizeIcon = _isMaximized
+        ? FluentIcons.chrome_restore
+        : FluentIcons.square_shape;
+    final String maximizeTooltip = _isMaximized ? '还原' : '最大化';
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -362,14 +414,16 @@ class _WindowControlButtons extends StatelessWidget {
           icon: FluentIcons.chrome_minimize,
           iconColor: iconColor,
           hoverColor: hoverColor,
+          hoverIconColor: Colors.white,
           onPressed: _minimize,
         ),
         const SizedBox(width: 4),
         _CaptionButton(
-          tooltip: '最大化/还原',
-          icon: FluentIcons.chrome_restore,
+          tooltip: maximizeTooltip,
+          icon: maximizeIcon,
           iconColor: iconColor,
           hoverColor: hoverColor,
+          hoverIconColor: Colors.white,
           onPressed: _toggleMaximize,
         ),
         const SizedBox(width: 4),
@@ -378,6 +432,7 @@ class _WindowControlButtons extends StatelessWidget {
           icon: FluentIcons.chrome_close,
           iconColor: iconColor,
           hoverColor: closeHoverColor,
+          hoverIconColor: Colors.white,
           onPressed: _close,
         ),
       ],
@@ -385,12 +440,13 @@ class _WindowControlButtons extends StatelessWidget {
   }
 }
 
-class _CaptionButton extends StatelessWidget {
+class _CaptionButton extends StatefulWidget {
   const _CaptionButton({
     required this.tooltip,
     required this.icon,
     required this.iconColor,
     required this.hoverColor,
+    required this.hoverIconColor,
     required this.onPressed,
   });
 
@@ -398,28 +454,50 @@ class _CaptionButton extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Color hoverColor;
+  final Color hoverIconColor;
   final VoidCallback onPressed;
 
   @override
+  State<_CaptionButton> createState() => _CaptionButtonState();
+}
+
+class _CaptionButtonState extends State<_CaptionButton> {
+  bool _hovered = false;
+
+  void _setHovered(bool hovered) {
+    if (_hovered == hovered) {
+      return;
+    }
+    setState(() => _hovered = hovered);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final Color background = _hovered ? widget.hoverColor : Colors.transparent;
+    final Color iconColor = _hovered ? widget.hoverIconColor : widget.iconColor;
+    const EdgeInsets padding = EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 6,
+    );
+
     return Tooltip(
-      message: tooltip,
-      child: Button(
-        onPressed: onPressed,
-        style: ButtonStyle(
-          padding: WidgetStateProperty.all<EdgeInsets>(
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          ),
-          backgroundColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.hovered)
-                ? hoverColor
-                : Colors.transparent,
-          ),
-          shape: WidgetStateProperty.all<OutlinedBorder>(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => _setHovered(true),
+        onExit: (_) => _setHovered(false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: padding,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(widget.icon, size: 12, color: iconColor),
           ),
         ),
-        child: Icon(icon, size: 12, color: iconColor),
       ),
     );
   }
