@@ -211,10 +211,26 @@ void _compositeUpdate(
 
         composite[index] = color;
         final int rgbaOffset = index * 4;
-        rgba[rgbaOffset] = (color >> 16) & 0xff;
-        rgba[rgbaOffset + 1] = (color >> 8) & 0xff;
-        rgba[rgbaOffset + 2] = color & 0xff;
-        rgba[rgbaOffset + 3] = (color >> 24) & 0xff;
+        final int alpha = (color >> 24) & 0xff;
+        if (alpha == 0) {
+          rgba[rgbaOffset] = 0;
+          rgba[rgbaOffset + 1] = 0;
+          rgba[rgbaOffset + 2] = 0;
+          rgba[rgbaOffset + 3] = 0;
+        } else if (alpha == 255) {
+          rgba[rgbaOffset] = (color >> 16) & 0xff;
+          rgba[rgbaOffset + 1] = (color >> 8) & 0xff;
+          rgba[rgbaOffset + 2] = color & 0xff;
+          rgba[rgbaOffset + 3] = 255;
+        } else {
+          final int red = (color >> 16) & 0xff;
+          final int green = (color >> 8) & 0xff;
+          final int blue = color & 0xff;
+          rgba[rgbaOffset] = _premultiplyChannel(red, alpha);
+          rgba[rgbaOffset + 1] = _premultiplyChannel(green, alpha);
+          rgba[rgbaOffset + 2] = _premultiplyChannel(blue, alpha);
+          rgba[rgbaOffset + 3] = alpha;
+        }
       }
     }
   }
@@ -282,6 +298,10 @@ void _compositeEnqueueDirtyTiles(
           .add(_IntRect(tileLeft, tileTop, tileRight, tileBottom));
     }
   }
+}
+
+int _premultiplyChannel(int channel, int alpha) {
+  return (channel * alpha + 127) ~/ 255;
 }
 
 Color _compositeColorAtComposite(
