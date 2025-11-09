@@ -9,8 +9,8 @@ mixin _PaintingBoardBuildMixin
   Widget build(BuildContext context) {
     _refreshStylusPreferencesIfNeeded();
     _refreshHistoryLimit();
-    final bool canUndo = this.canUndo;
-    final bool canRedo = this.canRedo;
+    final bool canUndo = this.canUndo || widget.externalCanUndo;
+    final bool canRedo = this.canRedo || widget.externalCanRedo;
     final Map<LogicalKeySet, Intent> shortcutBindings = {
       for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
         key: const UndoIntent(),

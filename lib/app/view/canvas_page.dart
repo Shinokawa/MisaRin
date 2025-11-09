@@ -107,6 +107,16 @@ class CanvasPageState extends State<CanvasPage> {
     }
   }
 
+  bool _canUndoDocumentFor(String id) {
+    final List<ProjectDocument>? undoStack = _documentUndoStacks[id];
+    return undoStack != null && undoStack.isNotEmpty;
+  }
+
+  bool _canRedoDocumentFor(String id) {
+    final List<ProjectDocument>? redoStack = _documentRedoStacks[id];
+    return redoStack != null && redoStack.isNotEmpty;
+  }
+
   bool _undoDocumentChange() {
     final String id = _document.id;
     final List<ProjectDocument>? undoStack = _documentUndoStacks[id];
@@ -843,12 +853,17 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   Widget _buildBoard(CanvasWorkspaceEntry entry) {
+    final String id = entry.id;
     return PaintingBoard(
-      key: _ensureBoardKey(entry.id),
+      key: _ensureBoardKey(id),
       settings: entry.document.settings,
       onRequestExit: _handleExitRequest,
-      onDirtyChanged: (dirty) => _handleDirtyChanged(entry.id, dirty),
+      onDirtyChanged: (dirty) => _handleDirtyChanged(id, dirty),
       initialLayers: entry.document.layers,
+      onUndoFallback: _undoDocumentChange,
+      onRedoFallback: _redoDocumentChange,
+      externalCanUndo: _canUndoDocumentFor(id),
+      externalCanRedo: _canRedoDocumentFor(id),
     );
   }
 

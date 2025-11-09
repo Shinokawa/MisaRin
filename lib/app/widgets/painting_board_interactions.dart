@@ -1411,11 +1411,15 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handleUndo() {
-    undo();
+    if (!undo()) {
+      widget.onUndoFallback?.call();
+    }
   }
 
   void _handleRedo() {
-    redo();
+    if (!redo()) {
+      widget.onRedoFallback?.call();
+    }
   }
 
   bool undo() {

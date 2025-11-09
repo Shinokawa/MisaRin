@@ -148,12 +148,20 @@ class PaintingBoard extends StatefulWidget {
     required this.onRequestExit,
     this.onDirtyChanged,
     this.initialLayers,
+    this.onUndoFallback,
+    this.onRedoFallback,
+    this.externalCanUndo = false,
+    this.externalCanRedo = false,
   });
 
   final CanvasSettings settings;
   final VoidCallback onRequestExit;
   final ValueChanged<bool>? onDirtyChanged;
   final List<CanvasLayerData>? initialLayers;
+  final VoidCallback? onUndoFallback;
+  final VoidCallback? onRedoFallback;
+  final bool externalCanUndo;
+  final bool externalCanRedo;
 
   @override
   State<PaintingBoard> createState() => PaintingBoardState();
