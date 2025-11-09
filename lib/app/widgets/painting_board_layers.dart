@@ -183,9 +183,20 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     _layerOpacityGestureLayerId = layer.id;
   }
 
-  void _handleLayerOpacityChangeEnd(double _) {
+  void _handleLayerOpacityChangeEnd(double value) {
     _layerOpacityGestureActive = false;
+    final String? targetLayerId =
+        _layerOpacityPreviewLayerId ?? _layerOpacityGestureLayerId;
+    final double? targetValue = _layerOpacityPreviewValue ?? value;
     _layerOpacityGestureLayerId = null;
+    _flushLayerOpacityCommit(
+      forceLayerId: targetLayerId,
+      forceValue: targetValue,
+    );
+    setState(() {
+      _layerOpacityPreviewLayerId = null;
+      _layerOpacityPreviewValue = null;
+    });
   }
 
   void _handleLayerOpacityChanged(double value) {
@@ -194,11 +205,53 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
       return;
     }
     final double clamped = value.clamp(0.0, 1.0);
+    final bool previewChanged =
+        _layerOpacityPreviewLayerId != layer.id ||
+        _layerOpacityPreviewValue == null ||
+        (_layerOpacityPreviewValue! - clamped).abs() >= 1e-4;
+    if (previewChanged) {
+      setState(() {
+        _layerOpacityPreviewLayerId = layer.id;
+        _layerOpacityPreviewValue = clamped;
+      });
+    }
+    _scheduleLayerOpacityCommit(layer.id, clamped);
+  }
+
+  void _applyLayerOpacityValue(String? layerId, double? value) {
+    if (layerId == null || value == null) {
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(layerId);
+    if (layer == null) {
+      return;
+    }
+    final double clamped = value.clamp(0.0, 1.0);
     if ((layer.opacity - clamped).abs() < 1e-4) {
       return;
     }
-    _controller.setLayerOpacity(layer.id, clamped);
+    _controller.setLayerOpacity(layerId, clamped);
     setState(() {});
+  }
+
+  void _scheduleLayerOpacityCommit(String layerId, double value) {
+    _pendingLayerOpacityLayerId = layerId;
+    _pendingLayerOpacityValue = value;
+    _layerOpacityCommitTimer?.cancel();
+    _layerOpacityCommitTimer = Timer(
+      _layerOpacityCommitDelay,
+      _flushLayerOpacityCommit,
+    );
+  }
+
+  void _flushLayerOpacityCommit({String? forceLayerId, double? forceValue}) {
+    _layerOpacityCommitTimer?.cancel();
+    _layerOpacityCommitTimer = null;
+    final String? layerId = forceLayerId ?? _pendingLayerOpacityLayerId;
+    final double? value = forceValue ?? _pendingLayerOpacityValue;
+    _pendingLayerOpacityLayerId = null;
+    _pendingLayerOpacityValue = null;
+    _applyLayerOpacityValue(layerId, value);
   }
 
   void _applyLayerLockedState(BitmapLayerState layer, bool locked) {
@@ -455,9 +508,11 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
       return null;
     }
 
-    final double clampedOpacity = activeLayer.opacity
-        .clamp(0.0, 1.0)
-        .toDouble();
+    double clampedOpacity = activeLayer.opacity.clamp(0.0, 1.0).toDouble();
+    if (_layerOpacityPreviewLayerId == activeLayer.id &&
+        _layerOpacityPreviewValue != null) {
+      clampedOpacity = _layerOpacityPreviewValue!;
+    }
     final int opacityPercent = (clampedOpacity * 100).round();
     final TextStyle labelStyle =
         theme.typography.caption ??

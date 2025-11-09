@@ -203,6 +203,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _layerAdjustCropOutside = false;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
+  String? _layerOpacityPreviewLayerId;
+  double? _layerOpacityPreviewValue;
+  final Duration _layerOpacityCommitDelay =
+      const Duration(milliseconds: 50);
+  Timer? _layerOpacityCommitTimer;
+  String? _pendingLayerOpacityLayerId;
+  double? _pendingLayerOpacityValue;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
   Offset? _layerDragStart;
@@ -1375,6 +1382,7 @@ class PaintingBoardState extends _PaintingBoardBase
     disposeSelectionTicker();
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
+    _layerOpacityCommitTimer?.cancel();
     _layerScrollController.dispose();
     _layerContextMenuController.dispose();
     _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
