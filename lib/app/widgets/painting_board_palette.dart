@@ -22,6 +22,12 @@ const List<_PaletteExportFormatOption> _paletteExportFormatOptions =
     extension: 'ase',
     format: PaletteExportFormat.aseprite,
   ),
+  _PaletteExportFormatOption(
+    name: 'Aseprite ASEPRITE',
+    description: '使用 .aseprite 后缀，方便直接在 Aseprite 中打开。',
+    extension: 'aseprite',
+    format: PaletteExportFormat.aseprite,
+  ),
 ];
 
 class _PaletteCardEntry {

@@ -165,6 +165,18 @@ class _AsepritePaletteParser extends _PaletteFileParser {
             name: fileName ?? 'Aseprite 调色盘',
             colors: colors,
           );
+        } else if (chunkType == 0x0004 || chunkType == 0x0011) {
+          colors.clear();
+          colors.addAll(
+            _readOldPaletteChunk(
+              reader,
+              isSixBit: chunkType == 0x0011,
+            ),
+          );
+          return PaletteImportResult(
+            name: fileName ?? 'Aseprite 调色盘',
+            colors: colors,
+          );
         }
         reader.seek(chunkDataEnd);
       }
@@ -193,6 +205,48 @@ class _AsepritePaletteParser extends _PaletteFileParser {
       throw PaletteImportException('Aseprite 调色盘为空。');
     }
     return colors;
+  }
+
+  List<Color> _readOldPaletteChunk(
+    _ByteReader reader, {
+    required bool isSixBit,
+  }) {
+    final int packetCount = reader.readUint16();
+    final List<Color?> entries = List<Color?>.filled(256, null);
+    int index = 0;
+    for (int packet = 0; packet < packetCount; packet++) {
+      final int skip = reader.readUint8();
+      index = math.min(entries.length, index + skip);
+      int colorCount = reader.readUint8();
+      if (colorCount == 0) {
+        colorCount = 256;
+      }
+      for (int i = 0; i < colorCount; i++) {
+        final int r = reader.readUint8();
+        final int g = reader.readUint8();
+        final int b = reader.readUint8();
+        if (index >= entries.length) {
+          continue;
+        }
+        entries[index] = Color.fromARGB(
+          0xFF,
+          isSixBit ? _expand6BitChannel(r) : r,
+          isSixBit ? _expand6BitChannel(g) : g,
+          isSixBit ? _expand6BitChannel(b) : b,
+        );
+        index++;
+      }
+    }
+    final List<Color> colors = entries.whereType<Color>().toList(growable: false);
+    if (colors.isEmpty) {
+      throw PaletteImportException('该 Aseprite 调色盘没有有效颜色。');
+    }
+    return colors;
+  }
+
+  int _expand6BitChannel(int value) {
+    final int scaled = (value & 0x3F) * 255 ~/ 63;
+    return scaled.clamp(0, 255);
   }
 }
 

@@ -52,27 +52,46 @@ class PaletteFileExporter {
   }
 
   static Uint8List _encodeAsepritePalette(List<Color> colors) {
-    final BytesBuilder builder = BytesBuilder();
-    final Uint8List header = Uint8List(128);
-    final ByteData headerData = ByteData.sublistView(header);
-    headerData.setUint32(0, 0, Endian.little); // file size placeholder
-    headerData.setUint16(4, 0xA5E0, Endian.little);
-    headerData.setUint16(6, 1, Endian.little); // frame count
-    builder.add(header);
-
     final int paletteSize = colors.length;
-    final int chunkDataSize = 4 + 4 + 4 + 8 + paletteSize * 6;
-    final int chunkSize = chunkDataSize + 6;
-    final int frameBytes = 20 + chunkSize;
+    final int canvasWidth = math.max(1, paletteSize);
 
-    final ByteData frameHeader = ByteData(20);
+    final BytesBuilder builder = BytesBuilder();
+    final ByteData headerData = ByteData(128);
+    headerData.setUint32(0, 0, Endian.little); // Placeholder for file size
+    headerData.setUint16(4, 0xA5E0, Endian.little); // Magic
+    headerData.setUint16(6, 1, Endian.little); // Frame count
+    headerData.setUint16(8, canvasWidth.clamp(1, 0xFFFF), Endian.little); // Width
+    headerData.setUint16(10, 1, Endian.little); // Height
+    headerData.setUint16(12, 32, Endian.little); // Color depth (RGBA)
+    headerData.setUint32(14, 1, Endian.little); // Flags (layer opacity valid)
+    headerData.setUint16(18, 1, Endian.little); // Speed (ms)
+    headerData.setUint32(20, 0, Endian.little); // Reserved
+    headerData.setUint32(24, 0, Endian.little); // Reserved
+    headerData.setUint8(28, 0); // Transparent color index
+    headerData.setUint8(29, 0);
+    headerData.setUint8(30, 0);
+    headerData.setUint8(31, 0);
+    headerData.setUint16(32, paletteSize.clamp(0, 0xFFFF), Endian.little);
+    headerData.setUint8(34, 1); // Pixel width
+    headerData.setUint8(35, 1); // Pixel height
+    headerData.setInt16(36, 0); // Grid x
+    headerData.setInt16(38, 0); // Grid y
+    headerData.setUint16(40, canvasWidth.clamp(1, 0xFFFF), Endian.little);
+    headerData.setUint16(42, 1, Endian.little);
+    builder.add(headerData.buffer.asUint8List());
+
+    final int entryCount = paletteSize;
+    final int chunkDataSize = 4 + 4 + 4 + 8 + entryCount * 6;
+    final int chunkSize = chunkDataSize + 6;
+    final int frameBytes = 16 + chunkSize;
+
+    final ByteData frameHeader = ByteData(16);
     frameHeader.setUint32(0, frameBytes, Endian.little);
     frameHeader.setUint16(4, 0xF1FA, Endian.little);
-    frameHeader.setUint16(6, 1, Endian.little); // old chunk count
-    frameHeader.setUint16(8, 0, Endian.little); // frame duration
-    frameHeader.setUint16(10, 0, Endian.little); // reserved
-    frameHeader.setUint32(12, 1, Endian.little); // chunk count
-    frameHeader.setUint32(16, 0, Endian.little); // reserved
+    frameHeader.setUint16(6, 1, Endian.little); // Old chunk count
+    frameHeader.setUint16(8, 0, Endian.little); // Frame duration
+    frameHeader.setUint16(10, 0, Endian.little); // Reserved
+    frameHeader.setUint32(12, 1, Endian.little); // New chunk count
     builder.add(frameHeader.buffer.asUint8List());
 
     final ByteData chunkHeader = ByteData(6);
@@ -81,10 +100,9 @@ class PaletteFileExporter {
     builder.add(chunkHeader.buffer.asUint8List());
 
     final ByteData chunkFixed = ByteData(20);
-    chunkFixed.setUint32(0, paletteSize, Endian.little);
-    chunkFixed.setUint32(4, 0, Endian.little); // first color index
-    chunkFixed.setUint32(8, math.max(0, paletteSize - 1), Endian.little);
-    // The remaining 8 bytes are reserved zeros.
+    chunkFixed.setUint32(0, entryCount, Endian.little);
+    chunkFixed.setUint32(4, 0, Endian.little); // First color index
+    chunkFixed.setUint32(8, entryCount == 0 ? 0 : entryCount - 1, Endian.little);
     builder.add(chunkFixed.buffer.asUint8List());
 
     for (final Color color in colors) {
@@ -92,14 +110,13 @@ class PaletteFileExporter {
       final int g = _componentToUint8(color.g);
       final int b = _componentToUint8(color.b);
       final int a = _componentToUint8(color.a);
-      final Uint8List entry = Uint8List(6);
-      final ByteData entryData = ByteData.sublistView(entry);
-      entryData.setUint16(0, 0, Endian.little); // flags
-      entryData.setUint8(2, r);
-      entryData.setUint8(3, g);
-      entryData.setUint8(4, b);
-      entryData.setUint8(5, a);
-      builder.add(entry);
+      final ByteData entry = ByteData(6);
+      entry.setUint16(0, 0, Endian.little); // Flags
+      entry.setUint8(2, r);
+      entry.setUint8(3, g);
+      entry.setUint8(4, b);
+      entry.setUint8(5, a);
+      builder.add(entry.buffer.asUint8List());
     }
 
     final Uint8List bytes = builder.toBytes();

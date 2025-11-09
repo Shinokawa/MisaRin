@@ -5,6 +5,7 @@ const double _kFilterPanelMinHeight = 180;
 const double _kAntialiasPanelWidth = 280;
 const double _kAntialiasPanelMinHeight = 140;
 const double _kGaussianBlurMaxRadius = 1000.0;
+const double _kGaussianBlurSinglePassLimit = 128.0;
 const List<String> _kAntialiasLevelDescriptions = <String>[
   '0 级（关闭）：保留像素硬边，不进行平滑处理。',
   '1 级（轻度）：轻微柔化锯齿，适合线稿与像素边缘。',
@@ -241,6 +242,8 @@ mixin _PaintingBoardFilterMixin
       type: session.type,
       layerId: session.activeLayerId,
       baseLayer: baseLayer,
+      canvasWidth: _controller.width,
+      canvasHeight: _controller.height,
       onResult: _handleFilterPreviewResult,
       onError: _handleFilterWorkerError,
     );
@@ -697,7 +700,7 @@ class _GaussianBlurControls extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '调节模糊强度（0-1000 px），较大的半径会产生更柔和的边缘。',
+          '调节模糊强度（0 - 1000 px），较大的值会产生更柔和的边缘。',
           style: theme.typography.caption,
         ),
       ],
@@ -811,17 +814,23 @@ class _FilterPreviewWorker {
     required _FilterPanelType type,
     required String layerId,
     required CanvasLayerData baseLayer,
+    required int canvasWidth,
+    required int canvasHeight,
     required ValueChanged<_FilterPreviewResult> onResult,
     required void Function(Object error, StackTrace stackTrace) onError,
-  }) : _type = type,
-       _layerId = layerId,
-       _onResult = onResult,
-       _onError = onError {
+  })  : _type = type,
+        _layerId = layerId,
+        _canvasWidth = canvasWidth,
+        _canvasHeight = canvasHeight,
+        _onResult = onResult,
+        _onError = onError {
     _start(baseLayer);
   }
 
   final _FilterPanelType _type;
   final String _layerId;
+  final int _canvasWidth;
+  final int _canvasHeight;
   final ValueChanged<_FilterPreviewResult> _onResult;
   final void Function(Object error, StackTrace stackTrace) _onError;
 
@@ -858,6 +867,8 @@ class _FilterPreviewWorker {
         'bitmapLeft': layer.bitmapLeft,
         'bitmapTop': layer.bitmapTop,
         'fillColor': layer.fillColor?.value,
+        'canvasWidth': _canvasWidth,
+        'canvasHeight': _canvasHeight,
       },
     };
     final ReceivePort port = ReceivePort();
@@ -994,8 +1005,10 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
       ? bitmapData.materialize().asUint8List()
       : null;
   final int? fillColorValue = layer['fillColor'] as int?;
-  final int bitmapWidth = layer['bitmapWidth'] as int? ?? 0;
-  final int bitmapHeight = layer['bitmapHeight'] as int? ?? 0;
+  final int canvasWidth = layer['canvasWidth'] as int? ?? 0;
+  final int canvasHeight = layer['canvasHeight'] as int? ?? 0;
+  final int bitmapWidth = layer['bitmapWidth'] as int? ?? canvasWidth;
+  final int bitmapHeight = layer['bitmapHeight'] as int? ?? canvasHeight;
   final ReceivePort port = ReceivePort();
   parent.send(port.sendPort);
   port.listen((dynamic message) {
@@ -1237,8 +1250,15 @@ void _filterApplyGaussianBlurToBitmap(
   if (clampedRadius <= 0) {
     return;
   }
-  final int passes = math.max(1, (clampedRadius / 50).ceil());
-  final double passRadius = clampedRadius / passes;
+  int passes = math.max(
+    1,
+    (clampedRadius / _kGaussianBlurSinglePassLimit).ceil(),
+  );
+  double passRadius = clampedRadius / math.sqrt(passes);
+  while (passRadius > _kGaussianBlurSinglePassLimit && passes < 512) {
+    passes += 1;
+    passRadius = clampedRadius / math.sqrt(passes);
+  }
   final int kernelRadius = math.max(1, passRadius.round());
   final List<double> kernel = _filterBuildGaussianKernel(
     passRadius,
