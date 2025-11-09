@@ -9,66 +9,14 @@ import '../widgets/window_drag_area.dart';
 import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
 
-class CustomMenuBar extends StatelessWidget {
+class CustomMenuBar extends StatefulWidget {
   const CustomMenuBar({super.key, required this.menus, this.navigatorKey});
 
   final List<MenuDefinition> menus;
   final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
-  Widget build(BuildContext context) {
-    final List<MenuDefinition> visibleMenus = menus
-        .map(_pruneMenu)
-        .whereType<MenuDefinition>()
-        .toList(growable: false);
-    if (visibleMenus.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final theme = FluentTheme.of(context);
-    final bool canDrag = _supportsWindowDragArea();
-    final Widget dragArea = canDrag
-        ? Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: WindowDragArea(
-                enableDoubleClickToMaximize: true,
-                canDragAtPosition: (_) => true,
-                child: const SizedBox.expand(),
-              ),
-            ),
-          )
-        : const Spacer();
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.micaBackgroundColor,
-        border: Border(
-          bottom: BorderSide(
-            color: theme.resources.controlStrokeColorDefault,
-            width: 1,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: 36,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (int i = 0; i < visibleMenus.length; i++) ...[
-                _MenuButton(
-                  definition: visibleMenus[i],
-                  navigatorKey: navigatorKey,
-                ),
-                if (i != visibleMenus.length - 1) const SizedBox(width: 4),
-              ],
-              dragArea,
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  State<CustomMenuBar> createState() => _CustomMenuBarState();
 
   static MenuDefinition? _pruneMenu(MenuDefinition menu) {
     final List<MenuEntry> entries = _pruneEntries(menu.entries);
@@ -116,11 +64,95 @@ class CustomMenuBar extends StatelessWidget {
   }
 }
 
+class _CustomMenuBarState extends State<CustomMenuBar> {
+  FlyoutController? _openController;
+
+  void _handleMenuWillOpen(FlyoutController controller) {
+    if (_openController == controller) {
+      return;
+    }
+    if (_openController?.isOpen ?? false) {
+      _openController!.forceClose();
+    }
+    _openController = controller;
+  }
+
+  void _handleMenuClosed(FlyoutController controller) {
+    if (_openController == controller) {
+      _openController = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<MenuDefinition> visibleMenus = widget.menus
+        .map(CustomMenuBar._pruneMenu)
+        .whereType<MenuDefinition>()
+        .toList(growable: false);
+    if (visibleMenus.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final theme = FluentTheme.of(context);
+    final bool canDrag = CustomMenuBar._supportsWindowDragArea();
+    final Widget dragArea = canDrag
+        ? Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: WindowDragArea(
+                enableDoubleClickToMaximize: true,
+                canDragAtPosition: (_) => true,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          )
+        : const Spacer();
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.micaBackgroundColor,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.resources.controlStrokeColorDefault,
+            width: 1,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 36,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (int i = 0; i < visibleMenus.length; i++) ...[
+                _MenuButton(
+                  definition: visibleMenus[i],
+                  navigatorKey: widget.navigatorKey,
+                  onMenuWillOpen: _handleMenuWillOpen,
+                  onMenuClosed: _handleMenuClosed,
+                ),
+                if (i != visibleMenus.length - 1) const SizedBox(width: 4),
+              ],
+              dragArea,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MenuButton extends StatefulWidget {
-  const _MenuButton({required this.definition, this.navigatorKey});
+  const _MenuButton({
+    required this.definition,
+    this.navigatorKey,
+    this.onMenuWillOpen,
+    this.onMenuClosed,
+  });
 
   final MenuDefinition definition;
   final GlobalKey<NavigatorState>? navigatorKey;
+  final ValueChanged<FlyoutController>? onMenuWillOpen;
+  final ValueChanged<FlyoutController>? onMenuClosed;
 
   @override
   State<_MenuButton> createState() => _MenuButtonState();
@@ -145,15 +177,25 @@ class _MenuButtonState extends State<_MenuButton> {
     if (navigator == null) {
       return;
     }
-    _flyoutController.showFlyout(
-      barrierDismissible: true,
-      placementMode: FlyoutPlacementMode.bottomLeft,
-      navigatorKey: navigator,
-      builder: (context) {
-        return MenuFlyout(
-          items: _buildMenuItems(context, widget.definition.entries),
-        );
-      },
+    if (_flyoutController.isOpen) {
+      _flyoutController.close();
+      widget.onMenuClosed?.call(_flyoutController);
+      return;
+    }
+    widget.onMenuWillOpen?.call(_flyoutController);
+    unawaited(
+      _flyoutController
+          .showFlyout(
+            barrierDismissible: true,
+            placementMode: FlyoutPlacementMode.bottomLeft,
+            navigatorKey: navigator,
+            builder: (context) {
+              return MenuFlyout(
+                items: _buildMenuItems(context, widget.definition.entries),
+              );
+            },
+          )
+          .whenComplete(() => widget.onMenuClosed?.call(_flyoutController)),
     );
   }
 
