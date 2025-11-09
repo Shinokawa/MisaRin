@@ -48,6 +48,7 @@ class MenuActionHandler {
     this.selectAll,
     this.invertSelection,
     this.showLayerAntialiasPanel,
+    this.gaussianBlur,
   });
 
   const MenuActionHandler.empty()
@@ -83,6 +84,7 @@ class MenuActionHandler {
       selectAll = null,
       invertSelection = null,
       showLayerAntialiasPanel = null,
+      gaussianBlur = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[];
 
   final MenuAsyncAction? newProject;
@@ -118,6 +120,7 @@ class MenuActionHandler {
   final MenuAsyncAction? selectAll;
   final MenuAsyncAction? invertSelection;
   final MenuAsyncAction? showLayerAntialiasPanel;
+  final MenuAsyncAction? gaussianBlur;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

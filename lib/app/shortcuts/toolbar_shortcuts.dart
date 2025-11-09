@@ -18,6 +18,7 @@ enum ToolbarAction {
   resizeCanvas,
   adjustHueSaturation,
   adjustBrightnessContrast,
+  gaussianBlur,
   layerAntialiasPanel,
   deselect,
 }
@@ -156,6 +157,22 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+M',
       macLabel: 'Command+M',
+    ),
+    ToolbarAction.gaussianBlur: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyG,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyG,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+G',
+      macLabel: 'Command+Option+G',
     ),
     ToolbarAction.layerAntialiasPanel: ShortcutInfo(
       shortcuts: <LogicalKeySet>[

@@ -4,6 +4,7 @@ const double _kFilterPanelWidth = 320;
 const double _kFilterPanelMinHeight = 180;
 const double _kAntialiasPanelWidth = 280;
 const double _kAntialiasPanelMinHeight = 140;
+const double _kGaussianBlurMaxRadius = 1000.0;
 const List<String> _kAntialiasLevelDescriptions = <String>[
   '0 级（关闭）：保留像素硬边，不进行平滑处理。',
   '1 级（轻度）：轻微柔化锯齿，适合线稿与像素边缘。',
@@ -11,7 +12,7 @@ const List<String> _kAntialiasLevelDescriptions = <String>[
   '3 级（强力）：最强平滑效果，用于柔和、放大的边缘。',
 ];
 
-enum _FilterPanelType { hueSaturation, brightnessContrast }
+enum _FilterPanelType { hueSaturation, brightnessContrast, gaussianBlur }
 
 class _HueSaturationSettings {
   _HueSaturationSettings({
@@ -32,6 +33,12 @@ class _BrightnessContrastSettings {
   double contrast;
 }
 
+class _GaussianBlurSettings {
+  _GaussianBlurSettings({this.radius = 0});
+
+  double radius;
+}
+
 class _FilterSession {
   _FilterSession({
     required this.type,
@@ -47,6 +54,7 @@ class _FilterSession {
   final _HueSaturationSettings hueSaturation = _HueSaturationSettings();
   final _BrightnessContrastSettings brightnessContrast =
       _BrightnessContrastSettings();
+  final _GaussianBlurSettings gaussianBlur = _GaussianBlurSettings();
   CanvasLayerData? previewLayer;
 }
 
@@ -68,6 +76,10 @@ mixin _PaintingBoardFilterMixin
 
   void showBrightnessContrastAdjustments() {
     _openFilterPanel(_FilterPanelType.brightnessContrast);
+  }
+
+  void showGaussianBlurAdjustments() {
+    _openFilterPanel(_FilterPanelType.gaussianBlur);
   }
 
   void _openFilterPanel(_FilterPanelType type) {
@@ -138,15 +150,45 @@ mixin _PaintingBoardFilterMixin
           math.max(16.0, bounds.height - _kFilterPanelMinHeight - 16.0),
         );
         _filterPanelOffset = Offset(clampedX, clampedY);
+        final String panelTitle;
+        final Widget panelBody;
+        switch (session.type) {
+          case _FilterPanelType.hueSaturation:
+            panelTitle = '色相/饱和度';
+            panelBody = _HueSaturationControls(
+              settings: session.hueSaturation,
+              onHueChanged: (value) => _updateHueSaturation(hue: value),
+              onSaturationChanged: (value) =>
+                  _updateHueSaturation(saturation: value),
+              onLightnessChanged: (value) =>
+                  _updateHueSaturation(lightness: value),
+            );
+            break;
+          case _FilterPanelType.brightnessContrast:
+            panelTitle = '亮度/对比度';
+            panelBody = _BrightnessContrastControls(
+              settings: session.brightnessContrast,
+              onBrightnessChanged: (value) =>
+                  _updateBrightnessContrast(brightness: value),
+              onContrastChanged: (value) =>
+                  _updateBrightnessContrast(contrast: value),
+            );
+            break;
+          case _FilterPanelType.gaussianBlur:
+            panelTitle = '高斯模糊';
+            panelBody = _GaussianBlurControls(
+              radius: session.gaussianBlur.radius,
+              onRadiusChanged: _updateGaussianBlur,
+            );
+            break;
+        }
         return Positioned(
           left: _filterPanelOffset.dx,
           top: _filterPanelOffset.dy,
           child: WorkspaceFloatingPanel(
             width: _kFilterPanelWidth,
             minHeight: _kFilterPanelMinHeight,
-            title: session.type == _FilterPanelType.hueSaturation
-                ? '色相/饱和度'
-                : '亮度/对比度',
+            title: panelTitle,
             onClose: () => _removeFilterOverlay(),
             onDragUpdate: _handleFilterPanelDrag,
             headerPadding: const EdgeInsets.symmetric(
@@ -160,22 +202,7 @@ mixin _PaintingBoardFilterMixin
             ),
             bodySpacing: 0,
             footerSpacing: 12,
-            child: session.type == _FilterPanelType.hueSaturation
-                ? _HueSaturationControls(
-                    settings: session.hueSaturation,
-                    onHueChanged: (value) => _updateHueSaturation(hue: value),
-                    onSaturationChanged: (value) =>
-                        _updateHueSaturation(saturation: value),
-                    onLightnessChanged: (value) =>
-                        _updateHueSaturation(lightness: value),
-                  )
-                : _BrightnessContrastControls(
-                    settings: session.brightnessContrast,
-                    onBrightnessChanged: (value) =>
-                        _updateBrightnessContrast(brightness: value),
-                    onContrastChanged: (value) =>
-                        _updateBrightnessContrast(contrast: value),
-                  ),
+            child: panelBody,
             footer: Row(
               children: [
                 Button(
@@ -239,6 +266,7 @@ mixin _PaintingBoardFilterMixin
     session.brightnessContrast
       ..brightness = 0
       ..contrast = 0;
+    session.gaussianBlur.radius = 0;
     _applyFilterPreview();
     _filterOverlayEntry?.markNeedsBuild();
   }
@@ -272,6 +300,16 @@ mixin _PaintingBoardFilterMixin
     _filterOverlayEntry?.markNeedsBuild();
   }
 
+  void _updateGaussianBlur(double radius) {
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    session.gaussianBlur.radius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
+    _applyFilterPreview();
+    _filterOverlayEntry?.markNeedsBuild();
+  }
+
   void _applyFilterPreview() {
     final _FilterSession? session = _filterSession;
     if (session == null) {
@@ -296,6 +334,7 @@ mixin _PaintingBoardFilterMixin
         token: token,
         hueSaturation: session.hueSaturation,
         brightnessContrast: session.brightnessContrast,
+        blurRadius: session.gaussianBlur.radius,
       ),
     );
   }
@@ -334,6 +373,15 @@ mixin _PaintingBoardFilterMixin
       case _FilterPanelType.brightnessContrast:
         final _BrightnessContrastSettings settings = session.brightnessContrast;
         return settings.brightness == 0 && settings.contrast == 0;
+      case _FilterPanelType.gaussianBlur:
+        final double radius = session.gaussianBlur.radius;
+        final CanvasLayerData layer =
+            session.originalLayers[session.activeLayerIndex];
+        final bool hasBitmap =
+            layer.bitmap != null &&
+            (layer.bitmapWidth ?? 0) > 0 &&
+            (layer.bitmapHeight ?? 0) > 0;
+        return radius <= 0 || !hasBitmap;
     }
   }
 
@@ -614,6 +662,49 @@ class _BrightnessContrastControls extends StatelessWidget {
   }
 }
 
+class _GaussianBlurControls extends StatelessWidget {
+  const _GaussianBlurControls({
+    required this.radius,
+    required this.onRadiusChanged,
+  });
+
+  final double radius;
+  final ValueChanged<double> onRadiusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final double clamped = radius.clamp(0, _kGaussianBlurMaxRadius);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text('模糊半径', style: theme.typography.bodyStrong),
+            const Spacer(),
+            Text(
+              '${clamped.toStringAsFixed(1)} px',
+              style: theme.typography.caption,
+            ),
+          ],
+        ),
+        Slider(
+          min: 0,
+          max: _kGaussianBlurMaxRadius,
+          value: clamped,
+          onChanged: onRadiusChanged,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '调节模糊强度（0-1000 px），较大的半径会产生更柔和的边缘。',
+          style: theme.typography.caption,
+        ),
+      ],
+    );
+  }
+}
+
 class _AntialiasPanelBody extends StatelessWidget {
   const _AntialiasPanelBody({
     required this.level,
@@ -713,6 +804,7 @@ class _FilterSlider extends StatelessWidget {
 
 const int _kFilterTypeHueSaturation = 0;
 const int _kFilterTypeBrightnessContrast = 1;
+const int _kFilterTypeGaussianBlur = 2;
 
 class _FilterPreviewWorker {
   _FilterPreviewWorker({
@@ -744,10 +836,20 @@ class _FilterPreviewWorker {
     final TransferableTypedData? bitmapData = layer.bitmap != null
         ? TransferableTypedData.fromList(<Uint8List>[layer.bitmap!])
         : null;
+    int filterType;
+    switch (_type) {
+      case _FilterPanelType.hueSaturation:
+        filterType = _kFilterTypeHueSaturation;
+        break;
+      case _FilterPanelType.brightnessContrast:
+        filterType = _kFilterTypeBrightnessContrast;
+        break;
+      case _FilterPanelType.gaussianBlur:
+        filterType = _kFilterTypeGaussianBlur;
+        break;
+    }
     final Map<String, Object?> initData = <String, Object?>{
-      'type': _type == _FilterPanelType.hueSaturation
-          ? _kFilterTypeHueSaturation
-          : _kFilterTypeBrightnessContrast,
+      'type': filterType,
       'layerId': _layerId,
       'layer': <String, Object?>{
         'bitmap': bitmapData,
@@ -800,6 +902,7 @@ class _FilterPreviewWorker {
     required int token,
     required _HueSaturationSettings hueSaturation,
     required _BrightnessContrastSettings brightnessContrast,
+    required double blurRadius,
   }) async {
     if (_disposed) {
       return;
@@ -825,6 +928,7 @@ class _FilterPreviewWorker {
         brightnessContrast.brightness,
         brightnessContrast.contrast,
       ],
+      'blur': blurRadius,
     });
   }
 
@@ -890,6 +994,8 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
       ? bitmapData.materialize().asUint8List()
       : null;
   final int? fillColorValue = layer['fillColor'] as int?;
+  final int bitmapWidth = layer['bitmapWidth'] as int? ?? 0;
+  final int bitmapHeight = layer['bitmapHeight'] as int? ?? 0;
   final ReceivePort port = ReceivePort();
   parent.send(port.sendPort);
   port.listen((dynamic message) {
@@ -913,6 +1019,9 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
     final double lightnessPercent = _filterReadListValue(rawHue, 2);
     final double brightnessPercent = _filterReadListValue(rawBrightness, 0);
     final double contrastPercent = _filterReadListValue(rawBrightness, 1);
+    final double blurRadius = (message['blur'] is num)
+        ? (message['blur'] as num).toDouble()
+        : 0.0;
 
     Uint8List? bitmap;
     if (baseBitmap != null) {
@@ -924,11 +1033,21 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
           saturationPercent,
           lightnessPercent,
         );
-      } else {
+      } else if (type == _kFilterTypeBrightnessContrast) {
         _filterApplyBrightnessContrastToBitmap(
           bitmap,
           brightnessPercent,
           contrastPercent,
+        );
+      } else if (type == _kFilterTypeGaussianBlur &&
+          blurRadius > 0 &&
+          bitmapWidth > 0 &&
+          bitmapHeight > 0) {
+        _filterApplyGaussianBlurToBitmap(
+          bitmap,
+          bitmapWidth,
+          bitmapHeight,
+          blurRadius,
         );
       }
       if (!_filterBitmapHasVisiblePixels(bitmap)) {
@@ -939,18 +1058,21 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
     int? adjustedFill = fillColorValue;
     if (fillColorValue != null) {
       final Color source = Color(fillColorValue);
-      final Color adjusted = type == _kFilterTypeHueSaturation
-          ? _filterApplyHueSaturationToColor(
-              source,
-              hueDelta,
-              saturationPercent,
-              lightnessPercent,
-            )
-          : _filterApplyBrightnessContrastToColor(
-              source,
-              brightnessPercent,
-              contrastPercent,
-            );
+      Color adjusted = source;
+      if (type == _kFilterTypeHueSaturation) {
+        adjusted = _filterApplyHueSaturationToColor(
+          source,
+          hueDelta,
+          saturationPercent,
+          lightnessPercent,
+        );
+      } else if (type == _kFilterTypeBrightnessContrast) {
+        adjusted = _filterApplyBrightnessContrastToColor(
+          source,
+          brightnessPercent,
+          contrastPercent,
+        );
+      }
       adjustedFill = adjusted.value;
     }
 
@@ -1100,4 +1222,98 @@ bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
     }
   }
   return false;
+}
+
+void _filterApplyGaussianBlurToBitmap(
+  Uint8List bitmap,
+  int width,
+  int height,
+  double radius,
+) {
+  if (bitmap.isEmpty || width <= 0 || height <= 0) {
+    return;
+  }
+  final double clampedRadius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
+  if (clampedRadius <= 0) {
+    return;
+  }
+  final int passes = math.max(1, (clampedRadius / 50).ceil());
+  final double passRadius = clampedRadius / passes;
+  final int kernelRadius = math.max(1, passRadius.round());
+  final List<double> kernel = _filterBuildGaussianKernel(
+    passRadius,
+    kernelRadius,
+  );
+  final Uint8List temp = Uint8List(bitmap.length);
+  for (int i = 0; i < passes; i++) {
+    _filterGaussianBlurPass(
+      source: bitmap,
+      destination: temp,
+      width: width,
+      height: height,
+      kernel: kernel,
+      horizontal: true,
+    );
+    _filterGaussianBlurPass(
+      source: temp,
+      destination: bitmap,
+      width: width,
+      height: height,
+      kernel: kernel,
+      horizontal: false,
+    );
+  }
+}
+
+List<double> _filterBuildGaussianKernel(double radius, int kernelRadius) {
+  final double sigma = math.max(0.1, radius * 0.5);
+  final double twoSigmaSq = 2 * sigma * sigma;
+  final List<double> kernel = List<double>.filled(kernelRadius * 2 + 1, 0);
+  double sum = 0;
+  for (int i = -kernelRadius; i <= kernelRadius; i++) {
+    final double weight = math.exp(-(i * i) / twoSigmaSq);
+    kernel[i + kernelRadius] = weight;
+    sum += weight;
+  }
+  if (sum == 0) {
+    return kernel;
+  }
+  for (int i = 0; i < kernel.length; i++) {
+    kernel[i] /= sum;
+  }
+  return kernel;
+}
+
+void _filterGaussianBlurPass({
+  required Uint8List source,
+  required Uint8List destination,
+  required int width,
+  required int height,
+  required List<double> kernel,
+  required bool horizontal,
+}) {
+  final int radius = (kernel.length - 1) >> 1;
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      double sumR = 0;
+      double sumG = 0;
+      double sumB = 0;
+      double sumA = 0;
+      for (int k = -radius; k <= radius; k++) {
+        final int sampleX = horizontal ? (x + k).clamp(0, width - 1) : x;
+        final int sampleY = horizontal ? y : (y + k).clamp(0, height - 1);
+        final int sampleIndex = (sampleY * width + sampleX) * 4;
+        final double weight = kernel[k + radius];
+        sumR += source[sampleIndex] * weight;
+        sumG += source[sampleIndex + 1] * weight;
+        sumB += source[sampleIndex + 2] * weight;
+        sumA += source[sampleIndex + 3] * weight;
+      }
+      final int offset = (y * width + x) * 4;
+      destination[offset] = sumR.clamp(0, 255).round();
+      destination[offset + 1] = sumG.clamp(0, 255).round();
+      destination[offset + 2] = sumB.clamp(0, 255).round();
+      destination[offset + 3] = sumA.clamp(0, 255).round();
+    }
+  }
 }

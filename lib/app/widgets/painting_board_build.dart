@@ -34,6 +34,10 @@ mixin _PaintingBoardBuildMixin
       ).shortcuts)
         key: const AdjustBrightnessContrastIntent(),
       for (final key in ToolbarShortcuts.of(
+        ToolbarAction.gaussianBlur,
+      ).shortcuts)
+        key: const AdjustGaussianBlurIntent(),
+      for (final key in ToolbarShortcuts.of(
         ToolbarAction.layerAntialiasPanel,
       ).shortcuts)
         key: const ShowLayerAntialiasIntent(),
@@ -247,6 +251,13 @@ mixin _PaintingBoardBuildMixin
                   CallbackAction<AdjustBrightnessContrastIntent>(
                     onInvoke: (intent) {
                       showBrightnessContrastAdjustments();
+                      return null;
+                    },
+                  ),
+              AdjustGaussianBlurIntent:
+                  CallbackAction<AdjustGaussianBlurIntent>(
+                    onInvoke: (intent) {
+                      showGaussianBlurAdjustments();
                       return null;
                     },
                   ),
@@ -605,6 +616,7 @@ mixin _PaintingBoardBuildMixin
             child: _WorkspacePaletteCard(
               title: entry.title,
               colors: entry.colors,
+              onExport: () => _exportPaletteCard(entry.id),
               onClose: () => _closePaletteCard(entry.id),
               onDragStart: () => _handlePaletteDragStart(entry.id),
               onDragEnd: _handlePaletteDragEnd,

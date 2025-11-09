@@ -536,6 +536,20 @@ class MacosMenuBuilder {
         ),
       );
     }
+    final gaussianBlurAction = _wrap(handler.gaussianBlur);
+    if (gaussianBlurAction != null) {
+      items.add(
+        PlatformMenuItem(
+          label: '高斯模糊…',
+          onSelected: gaussianBlurAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyG,
+            meta: true,
+            alt: true,
+          ),
+        ),
+      );
+    }
     final hueSatAction = _wrap(handler.adjustHueSaturation);
     if (hueSatAction != null) {
       items.add(

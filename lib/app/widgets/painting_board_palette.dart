@@ -8,6 +8,21 @@ const double _paletteCardPadding = 12;
 const double _paletteSwatchSize = 32;
 const double _paletteMinimumColorDistance = 0.12;
 const double _paletteDuplicateEpsilon = 0.01;
+const List<_PaletteExportFormatOption> _paletteExportFormatOptions =
+    <_PaletteExportFormatOption>[
+  _PaletteExportFormatOption(
+    name: 'GIMP GPL',
+    description: '文本格式，兼容 GIMP、Krita、Clip Studio Paint 等软件。',
+    extension: 'gpl',
+    format: PaletteExportFormat.gimp,
+  ),
+  _PaletteExportFormatOption(
+    name: 'Aseprite ASE',
+    description: '适用于 Aseprite、LibreSprite 等像素绘图软件。',
+    extension: 'ase',
+    format: PaletteExportFormat.aseprite,
+  ),
+];
 
 class _PaletteCardEntry {
   _PaletteCardEntry({
@@ -22,6 +37,20 @@ class _PaletteCardEntry {
   final List<Color> colors;
   Offset offset;
   Size? size;
+}
+
+class _PaletteExportFormatOption {
+  const _PaletteExportFormatOption({
+    required this.name,
+    required this.description,
+    required this.extension,
+    required this.format,
+  });
+
+  final String name;
+  final String description;
+  final String extension;
+  final PaletteExportFormat format;
 }
 
 class _PaletteBucket {
@@ -252,12 +281,151 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     });
   }
 
+  Future<void> _exportPaletteCard(int id) async {
+    final _PaletteCardEntry? entry = _paletteCardById(id);
+    if (entry == null) {
+      return;
+    }
+    if (entry.colors.isEmpty) {
+      AppNotifications.show(
+        context,
+        message: '该调色盘没有可导出的颜色。',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    final _PaletteExportFormatOption? option =
+        await _showPaletteExportFormatDialog();
+    if (option == null) {
+      return;
+    }
+    final String? outputPath = await FilePicker.platform.saveFile(
+      dialogTitle: '导出调色盘',
+      fileName: _suggestPaletteFileName(entry.title, option.extension),
+      type: FileType.custom,
+      allowedExtensions: <String>[option.extension],
+    );
+    if (outputPath == null) {
+      return;
+    }
+    final String normalizedPath =
+        _normalizePaletteExportPath(outputPath, option.extension);
+    try {
+      final Uint8List bytes = PaletteFileExporter.encode(
+        format: option.format,
+        paletteName: entry.title,
+        colors: entry.colors,
+      );
+      final File file = File(normalizedPath);
+      await file.writeAsBytes(bytes, flush: true);
+      if (!mounted) {
+        return;
+      }
+      AppNotifications.show(
+        context,
+        message: '调色盘已导出到 $normalizedPath',
+        severity: InfoBarSeverity.success,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppNotifications.show(
+        context,
+        message: '导出调色盘失败：$error',
+        severity: InfoBarSeverity.error,
+      );
+    }
+  }
+
+  Future<_PaletteExportFormatOption?> _showPaletteExportFormatDialog() async {
+    if (_paletteExportFormatOptions.isEmpty) {
+      return null;
+    }
+    _PaletteExportFormatOption selected = _paletteExportFormatOptions.first;
+    return showDialog<_PaletteExportFormatOption>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        final FluentThemeData theme = FluentTheme.of(context);
+        return ContentDialog(
+          title: const Text('选择导出格式'),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('请选择要导出的调色盘格式。'),
+                  const SizedBox(height: 12),
+                  ..._paletteExportFormatOptions.map((option) {
+                    final bool isActive = option == selected;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: RadioButton(
+                        checked: isActive,
+                        onChanged: (checked) {
+                          if (checked != true) {
+                            return;
+                          }
+                          setState(() => selected = option);
+                        },
+                        content: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${option.name} (.${option.extension.toUpperCase()})'),
+                            const SizedBox(height: 2),
+                            Text(
+                              option.description,
+                              style: theme.typography.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              );
+            },
+          ),
+          actions: [
+            Button(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(selected),
+              child: const Text('下一步'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _suggestPaletteFileName(String title, String extension) {
+    final String trimmed = title.trim();
+    final String fallback = trimmed.isEmpty ? 'palette' : trimmed;
+    final String sanitized = fallback.replaceAll(
+      RegExp(r'[\\/:*?"<>|]'),
+      '_',
+    );
+    final String safeName = sanitized.trim().isEmpty ? 'palette' : sanitized.trim();
+    return '$safeName.${extension.toLowerCase()}';
+  }
+
+  String _normalizePaletteExportPath(String raw, String extension) {
+    final String lower = raw.toLowerCase();
+    final String suffix = '.${extension.toLowerCase()}';
+    return lower.endsWith(suffix) ? raw : '$raw$suffix';
+  }
+
   List<Color> _sanitizePaletteColors(List<Color> colors) {
     final Set<int> unique = <int>{};
     final List<Color> sanitized = <Color>[];
     for (final Color color in colors) {
       final Color opaque = color.withAlpha(0xFF);
-      if (unique.add(opaque.value)) {
+      if (unique.add(opaque.toARGB32())) {
         sanitized.add(opaque);
       }
       if (sanitized.length >= _maxPaletteColorCount) {
@@ -479,6 +647,7 @@ class _WorkspacePaletteCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.colors,
+    this.onExport,
     required this.onClose,
     required this.onDragUpdate,
     required this.onDragStart,
@@ -489,6 +658,7 @@ class _WorkspacePaletteCard extends StatelessWidget {
 
   final String title;
   final List<Color> colors;
+  final VoidCallback? onExport;
   final VoidCallback onClose;
   final ValueChanged<Offset> onDragUpdate;
   final VoidCallback onDragStart;
@@ -508,6 +678,23 @@ class _WorkspacePaletteCard extends StatelessWidget {
             child: _PaletteSwatches(colors: colors, onTap: onColorTap),
             width: _paletteCardWidth,
             onClose: onClose,
+            headerActions: onExport == null
+                ? null
+                : <Widget>[
+                    Tooltip(
+                      message: '导出调色盘',
+                      child: IconButton(
+                        icon: const Icon(FluentIcons.save, size: 14),
+                        iconButtonMode: IconButtonMode.small,
+                        style: ButtonStyle(
+                          padding: WidgetStateProperty.all(
+                            const EdgeInsets.all(4),
+                          ),
+                        ),
+                        onPressed: onExport,
+                      ),
+                    ),
+                  ],
             onDragStart: onDragStart,
             onDragUpdate: onDragUpdate,
             onDragEnd: onDragEnd,
@@ -564,7 +751,7 @@ class _PaletteSwatches extends StatelessWidget {
                       color: color,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: Colors.black.withOpacity(0.08),
+                        color: Colors.black.withValues(alpha: 0.08),
                         width: 1,
                       ),
                     ),
@@ -592,17 +779,18 @@ class _PaletteHitTestRender extends RenderProxyBoxWithHitTestBehavior {
 }
 
 double _colorDistance(Color a, Color b) {
-  final double dr = (a.red - b.red) / 255.0;
-  final double dg = (a.green - b.green) / 255.0;
-  final double db = (a.blue - b.blue) / 255.0;
+  final double dr = a.r - b.r;
+  final double dg = a.g - b.g;
+  final double db = a.b - b.b;
   return math.sqrt(dr * dr + dg * dg + db * db);
 }
 
 String _hexStringForColor(Color color) {
-  final int a = color.alpha;
-  final int r = color.red;
-  final int g = color.green;
-  final int b = color.blue;
+  final int argb = color.toARGB32();
+  final int a = (argb >> 24) & 0xFF;
+  final int r = (argb >> 16) & 0xFF;
+  final int g = (argb >> 8) & 0xFF;
+  final int b = argb & 0xFF;
   final String alpha = a.toRadixString(16).padLeft(2, '0').toUpperCase();
   final String red = r.toRadixString(16).padLeft(2, '0').toUpperCase();
   final String green = g.toRadixString(16).padLeft(2, '0').toUpperCase();

@@ -38,6 +38,10 @@ class AdjustBrightnessContrastIntent extends Intent {
   const AdjustBrightnessContrastIntent();
 }
 
+class AdjustGaussianBlurIntent extends Intent {
+  const AdjustGaussianBlurIntent();
+}
+
 class ShowLayerAntialiasIntent extends Intent {
   const ShowLayerAntialiasIntent();
 }

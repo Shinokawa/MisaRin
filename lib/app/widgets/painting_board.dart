@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/animation.dart' show AnimationController;
@@ -47,6 +48,7 @@ import 'package:flutter/widgets.dart'
         WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
+import 'package:file_picker/file_picker.dart';
 
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/controller.dart';
@@ -65,6 +67,7 @@ import '../constants/pen_constants.dart';
 import '../models/canvas_resize_anchor.dart';
 import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
+import '../palette/palette_exporter.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 

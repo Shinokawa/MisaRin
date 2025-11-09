@@ -926,6 +926,10 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.showLayerAntialiasPanel();
       },
+      gaussianBlur: () {
+        final board = _activeBoard;
+        board?.showGaussianBlurAdjustments();
+      },
       resizeImage: _handleResizeImage,
       resizeCanvas: _handleResizeCanvas,
       mergeLayerDown: () {
