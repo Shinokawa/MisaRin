@@ -414,7 +414,6 @@ class _WindowControlButtonsState extends State<_WindowControlButtons>
           icon: FluentIcons.chrome_minimize,
           iconColor: iconColor,
           hoverColor: hoverColor,
-          hoverIconColor: Colors.white,
           onPressed: _minimize,
         ),
         const SizedBox(width: 4),
@@ -423,7 +422,6 @@ class _WindowControlButtonsState extends State<_WindowControlButtons>
           icon: maximizeIcon,
           iconColor: iconColor,
           hoverColor: hoverColor,
-          hoverIconColor: Colors.white,
           onPressed: _toggleMaximize,
         ),
         const SizedBox(width: 4),
@@ -432,7 +430,6 @@ class _WindowControlButtonsState extends State<_WindowControlButtons>
           icon: FluentIcons.chrome_close,
           iconColor: iconColor,
           hoverColor: closeHoverColor,
-          hoverIconColor: Colors.white,
           onPressed: _close,
         ),
       ],
@@ -446,7 +443,6 @@ class _CaptionButton extends StatefulWidget {
     required this.icon,
     required this.iconColor,
     required this.hoverColor,
-    required this.hoverIconColor,
     required this.onPressed,
   });
 
@@ -454,7 +450,6 @@ class _CaptionButton extends StatefulWidget {
   final IconData icon;
   final Color iconColor;
   final Color hoverColor;
-  final Color hoverIconColor;
   final VoidCallback onPressed;
 
   @override
@@ -474,7 +469,9 @@ class _CaptionButtonState extends State<_CaptionButton> {
   @override
   Widget build(BuildContext context) {
     final Color background = _hovered ? widget.hoverColor : Colors.transparent;
-    final Color iconColor = _hovered ? widget.hoverIconColor : widget.iconColor;
+    final Color iconColor = _hovered
+        ? _contrastingColor(widget.hoverColor)
+        : widget.iconColor;
     const EdgeInsets padding = EdgeInsets.symmetric(
       horizontal: 10,
       vertical: 6,
@@ -500,6 +497,10 @@ class _CaptionButtonState extends State<_CaptionButton> {
         ),
       ),
     );
+  }
+
+  Color _contrastingColor(Color background) {
+    return background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
   }
 }
 
