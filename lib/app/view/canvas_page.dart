@@ -749,23 +749,6 @@ class CanvasPageState extends State<CanvasPage> {
     AppNotifications.show(context, message: message, severity: severity);
   }
 
-  void _applyLayerAntialias(int level) {
-    final PaintingBoardState? board = _activeBoard;
-    if (board == null) {
-      _showInfoBar('当前没有可操作的画布', severity: InfoBarSeverity.warning);
-      return;
-    }
-    final bool applied = board.applyLayerAntialiasLevel(level);
-    if (!applied) {
-      _showInfoBar(
-        '无法对当前图层应用抗锯齿，图层可能为空或已锁定。',
-        severity: InfoBarSeverity.warning,
-      );
-      return;
-    }
-    _workspace.markDirty(_document.id, true);
-  }
-
   Future<void> _closePage() async {
     if (!mounted) {
       return;
@@ -935,13 +918,13 @@ class CanvasPageState extends State<CanvasPage> {
       export: () async {
         await _exportProject();
       },
-      applyLayerAntialias0: () => _applyLayerAntialias(0),
-      applyLayerAntialias1: () => _applyLayerAntialias(1),
-      applyLayerAntialias2: () => _applyLayerAntialias(2),
-      applyLayerAntialias3: () => _applyLayerAntialias(3),
       generatePalette: () {
         final board = _activeBoard;
         board?.showPaletteGenerator();
+      },
+      showLayerAntialiasPanel: () {
+        final board = _activeBoard;
+        board?.showLayerAntialiasPanel();
       },
       resizeImage: _handleResizeImage,
       resizeCanvas: _handleResizeCanvas,

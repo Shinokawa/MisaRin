@@ -38,6 +38,10 @@ class AdjustBrightnessContrastIntent extends Intent {
   const AdjustBrightnessContrastIntent();
 }
 
+class ShowLayerAntialiasIntent extends Intent {
+  const ShowLayerAntialiasIntent();
+}
+
 class CutIntent extends Intent {
   const CutIntent();
 }

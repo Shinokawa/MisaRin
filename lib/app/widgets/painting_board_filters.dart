@@ -2,6 +2,14 @@ part of 'painting_board.dart';
 
 const double _kFilterPanelWidth = 320;
 const double _kFilterPanelMinHeight = 180;
+const double _kAntialiasPanelWidth = 280;
+const double _kAntialiasPanelMinHeight = 140;
+const List<String> _kAntialiasLevelDescriptions = <String>[
+  '0 级（关闭）：保留像素硬边，不进行平滑处理。',
+  '1 级（轻度）：轻微柔化锯齿，适合线稿与像素边缘。',
+  '2 级（标准）：平衡锐度与平滑度，适合大多数上色场景。',
+  '3 级（强力）：最强平滑效果，用于柔和、放大的边缘。',
+];
 
 enum _FilterPanelType { hueSaturation, brightnessContrast }
 
@@ -49,6 +57,10 @@ mixin _PaintingBoardFilterMixin
   Offset _filterPanelOffset = const Offset(420, 140);
   _FilterPreviewWorker? _filterWorker;
   int _filterPreviewLastIssuedToken = 0;
+  bool _antialiasCardVisible = false;
+  Offset _antialiasCardOffset = Offset.zero;
+  Size? _antialiasCardSize;
+  int _antialiasCardLevel = 2;
 
   void showHueSaturationAdjustments() {
     _openFilterPanel(_FilterPanelType.hueSaturation);
@@ -406,6 +418,121 @@ mixin _PaintingBoardFilterMixin
     _filterWorker = null;
     _filterSession = null;
   }
+
+  void showLayerAntialiasPanel() {
+    if (!_ensureAntialiasLayerReady()) {
+      return;
+    }
+    setState(() {
+      if (_antialiasCardOffset == Offset.zero) {
+        _antialiasCardOffset = _initialAntialiasCardOffset();
+      } else {
+        _antialiasCardOffset = _clampAntialiasCardOffset(
+          _antialiasCardOffset,
+          _antialiasCardSize,
+        );
+      }
+      _antialiasCardVisible = true;
+    });
+  }
+
+  void hideLayerAntialiasPanel() {
+    if (!_antialiasCardVisible) {
+      return;
+    }
+    setState(() {
+      _antialiasCardVisible = false;
+    });
+  }
+
+  void _handleAntialiasLevelChanged(int level) {
+    final int clamped = level.clamp(0, 3);
+    if (_antialiasCardLevel == clamped) {
+      return;
+    }
+    setState(() {
+      _antialiasCardLevel = clamped;
+    });
+  }
+
+  void _applyAntialiasFromCard() {
+    if (!_ensureAntialiasLayerReady()) {
+      return;
+    }
+    final bool applied = applyLayerAntialiasLevel(_antialiasCardLevel);
+    if (!applied) {
+      _showFilterMessage('无法对当前图层应用抗锯齿，图层可能为空或已锁定。');
+      return;
+    }
+    setState(() {
+      _antialiasCardVisible = false;
+    });
+  }
+
+  void _updateAntialiasCardOffset(Offset delta) {
+    if (!_antialiasCardVisible) {
+      return;
+    }
+    setState(() {
+      _antialiasCardOffset = _clampAntialiasCardOffset(
+        _antialiasCardOffset + delta,
+        _antialiasCardSize,
+      );
+    });
+  }
+
+  void _handleAntialiasCardSizeChanged(Size size) {
+    if (_antialiasCardSize == size) {
+      return;
+    }
+    setState(() {
+      _antialiasCardSize = size;
+      _antialiasCardOffset = _clampAntialiasCardOffset(
+        _antialiasCardOffset,
+        size,
+      );
+    });
+  }
+
+  bool _ensureAntialiasLayerReady() {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null) {
+      _showFilterMessage('请先选择一个可编辑的图层。');
+      return false;
+    }
+    if (layer.locked) {
+      _showFilterMessage('当前图层已锁定，无法应用抗锯齿。');
+      return false;
+    }
+    return true;
+  }
+
+  Offset _initialAntialiasCardOffset() {
+    if (_workspaceSize.isEmpty) {
+      return const Offset(420, 160);
+    }
+    const double margin = 16.0;
+    final double baseLeft = math.max(
+      margin,
+      _workspaceSize.width - _kAntialiasPanelWidth - margin,
+    );
+    final double baseTop = math.max(margin, _workspaceSize.height * 0.25);
+    return Offset(baseLeft, baseTop);
+  }
+
+  Offset _clampAntialiasCardOffset(Offset value, Size? size) {
+    if (_workspaceSize.isEmpty) {
+      return value;
+    }
+    final double width = size?.width ?? _kAntialiasPanelWidth;
+    final double height = size?.height ?? _kAntialiasPanelMinHeight;
+    const double margin = 12.0;
+    final double minX = margin;
+    final double minY = margin;
+    final double maxX = math.max(minX, _workspaceSize.width - width - margin);
+    final double maxY = math.max(minY, _workspaceSize.height - height - margin);
+    return Offset(value.dx.clamp(minX, maxX), value.dy.clamp(minY, maxY));
+  }
 }
 
 class _HueSaturationControls extends StatelessWidget {
@@ -481,6 +608,61 @@ class _BrightnessContrastControls extends StatelessWidget {
           min: -100,
           max: 100,
           onChanged: onContrastChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _AntialiasPanelBody extends StatelessWidget {
+  const _AntialiasPanelBody({
+    required this.level,
+    required this.onLevelChanged,
+  });
+
+  final int level;
+  final ValueChanged<int> onLevelChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final int safeLevel = level.clamp(0, 3).toInt();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('选择抗锯齿级别', style: theme.typography.bodyStrong),
+        const SizedBox(height: 12),
+        Slider(
+          value: safeLevel.toDouble(),
+          min: 0,
+          max: 3,
+          divisions: 3,
+          label: '等级 $safeLevel',
+          onChanged: (value) => onLevelChanged(value.round()),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _kAntialiasLevelDescriptions[safeLevel],
+          style: theme.typography.caption,
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: List<Widget>.generate(4, (index) {
+            final bool selected = index == safeLevel;
+            final Widget button = selected
+                ? FilledButton(
+                    onPressed: () => onLevelChanged(index),
+                    child: Text('等级 $index'),
+                  )
+                : Button(
+                    onPressed: () => onLevelChanged(index),
+                    child: Text('等级 $index'),
+                  );
+            return SizedBox(width: 72, child: button);
+          }),
         ),
       ],
     );

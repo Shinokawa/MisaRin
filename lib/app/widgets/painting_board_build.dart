@@ -34,6 +34,10 @@ mixin _PaintingBoardBuildMixin
       ).shortcuts)
         key: const AdjustBrightnessContrastIntent(),
       for (final key in ToolbarShortcuts.of(
+        ToolbarAction.layerAntialiasPanel,
+      ).shortcuts)
+        key: const ShowLayerAntialiasIntent(),
+      for (final key in ToolbarShortcuts.of(
         ToolbarAction.layerAdjustTool,
       ).shortcuts)
         key: const SelectToolIntent(CanvasTool.layerAdjust),
@@ -125,6 +129,7 @@ mixin _PaintingBoardBuildMixin
             hideCursorBecauseToolOverlay || hideCursorBecausePen;
         final bool isLayerAdjustDragging =
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
+        final Widget? antialiasCard = _buildAntialiasCard();
 
         final MouseCursor boardCursor;
         if (hideCursorBecauseToolOverlay || hideCursorBecausePen) {
@@ -242,6 +247,13 @@ mixin _PaintingBoardBuildMixin
                   CallbackAction<AdjustBrightnessContrastIntent>(
                     onInvoke: (intent) {
                       showBrightnessContrastAdjustments();
+                      return null;
+                    },
+                  ),
+              ShowLayerAntialiasIntent:
+                  CallbackAction<ShowLayerAntialiasIntent>(
+                    onInvoke: (intent) {
+                      showLayerAntialiasPanel();
                       return null;
                     },
                   ),
@@ -528,6 +540,7 @@ mixin _PaintingBoardBuildMixin
                             ),
                           ),
                           ..._buildPaletteCards(),
+                          if (antialiasCard != null) antialiasCard,
                           if (_toolCursorPosition != null &&
                               cursorStyle != null)
                             Positioned(
@@ -603,6 +616,54 @@ mixin _PaintingBoardBuildMixin
           );
         })
         .toList(growable: false);
+  }
+
+  Widget? _buildAntialiasCard() {
+    if (!_antialiasCardVisible) {
+      return null;
+    }
+    return Positioned(
+      left: _antialiasCardOffset.dx,
+      top: _antialiasCardOffset.dy,
+      child: _MeasureSize(
+        onChanged: _handleAntialiasCardSizeChanged,
+        child: WorkspaceFloatingPanel(
+          width: _kAntialiasPanelWidth,
+          minHeight: _kAntialiasPanelMinHeight,
+          title: '抗锯齿',
+          onClose: hideLayerAntialiasPanel,
+          onDragUpdate: _updateAntialiasCardOffset,
+          bodyPadding: const EdgeInsets.symmetric(horizontal: 16),
+          headerPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          footerPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+          bodySpacing: 0,
+          footerSpacing: 10,
+          child: _AntialiasPanelBody(
+            level: _antialiasCardLevel,
+            onLevelChanged: _handleAntialiasLevelChanged,
+          ),
+          footer: Row(
+            children: [
+              Button(
+                onPressed: hideLayerAntialiasPanel,
+                child: const Text('取消'),
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: _applyAntialiasFromCard,
+                child: const Text('应用'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -18,6 +18,7 @@ enum ToolbarAction {
   resizeCanvas,
   adjustHueSaturation,
   adjustBrightnessContrast,
+  layerAntialiasPanel,
   deselect,
 }
 
@@ -155,6 +156,22 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+M',
       macLabel: 'Command+M',
+    ),
+    ToolbarAction.layerAntialiasPanel: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyA,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyA,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+A',
+      macLabel: 'Command+Option+A',
     ),
     ToolbarAction.deselect: ShortcutInfo(
       shortcuts: <LogicalKeySet>[

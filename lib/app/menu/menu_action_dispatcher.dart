@@ -36,10 +36,6 @@ class MenuActionHandler {
     this.copy,
     this.paste,
     this.newLayer,
-    this.applyLayerAntialias0,
-    this.applyLayerAntialias1,
-    this.applyLayerAntialias2,
-    this.applyLayerAntialias3,
     this.generatePalette,
     this.importPalette,
     this.selectPaletteFromMenu,
@@ -51,6 +47,7 @@ class MenuActionHandler {
     this.adjustBrightnessContrast,
     this.selectAll,
     this.invertSelection,
+    this.showLayerAntialiasPanel,
   });
 
   const MenuActionHandler.empty()
@@ -75,10 +72,6 @@ class MenuActionHandler {
       copy = null,
       paste = null,
       newLayer = null,
-      applyLayerAntialias0 = null,
-      applyLayerAntialias1 = null,
-      applyLayerAntialias2 = null,
-      applyLayerAntialias3 = null,
       generatePalette = null,
       importPalette = null,
       selectPaletteFromMenu = null,
@@ -89,6 +82,7 @@ class MenuActionHandler {
       adjustBrightnessContrast = null,
       selectAll = null,
       invertSelection = null,
+      showLayerAntialiasPanel = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[];
 
   final MenuAsyncAction? newProject;
@@ -112,10 +106,6 @@ class MenuActionHandler {
   final MenuAsyncAction? copy;
   final MenuAsyncAction? paste;
   final MenuAsyncAction? newLayer;
-  final MenuAsyncAction? applyLayerAntialias0;
-  final MenuAsyncAction? applyLayerAntialias1;
-  final MenuAsyncAction? applyLayerAntialias2;
-  final MenuAsyncAction? applyLayerAntialias3;
   final MenuAsyncAction? generatePalette;
   final MenuAsyncAction? importPalette;
   final MenuPaletteAction? selectPaletteFromMenu;
@@ -127,6 +117,7 @@ class MenuActionHandler {
   final MenuAsyncAction? adjustBrightnessContrast;
   final MenuAsyncAction? selectAll;
   final MenuAsyncAction? invertSelection;
+  final MenuAsyncAction? showLayerAntialiasPanel;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

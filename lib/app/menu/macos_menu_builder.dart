@@ -367,27 +367,6 @@ class MacosMenuBuilder {
       );
     }
 
-    final List<PlatformMenuItem> antialiasItems = <PlatformMenuItem>[];
-    final aa0 = _wrap(handler.applyLayerAntialias0);
-    if (aa0 != null) {
-      antialiasItems.add(PlatformMenuItem(label: '0', onSelected: aa0));
-    }
-    final aa1 = _wrap(handler.applyLayerAntialias1);
-    if (aa1 != null) {
-      antialiasItems.add(PlatformMenuItem(label: '1', onSelected: aa1));
-    }
-    final aa2 = _wrap(handler.applyLayerAntialias2);
-    if (aa2 != null) {
-      antialiasItems.add(PlatformMenuItem(label: '2', onSelected: aa2));
-    }
-    final aa3 = _wrap(handler.applyLayerAntialias3);
-    if (aa3 != null) {
-      antialiasItems.add(PlatformMenuItem(label: '3', onSelected: aa3));
-    }
-    if (antialiasItems.isNotEmpty) {
-      menus.add(PlatformMenu(label: '抗锯齿', menus: antialiasItems));
-    }
-
     final mergeLayerDownAction = _wrap(handler.mergeLayerDown);
     if (mergeLayerDownAction != null) {
       menus.add(
@@ -543,6 +522,20 @@ class MacosMenuBuilder {
 
   static PlatformMenu? _filterMenu(MenuActionHandler handler) {
     final List<PlatformMenuItem> items = <PlatformMenuItem>[];
+    final antialiasPanelAction = _wrap(handler.showLayerAntialiasPanel);
+    if (antialiasPanelAction != null) {
+      items.add(
+        PlatformMenuItem(
+          label: '抗锯齿…',
+          onSelected: antialiasPanelAction,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyA,
+            meta: true,
+            alt: true,
+          ),
+        ),
+      );
+    }
     final hueSatAction = _wrap(handler.adjustHueSaturation);
     if (hueSatAction != null) {
       items.add(
