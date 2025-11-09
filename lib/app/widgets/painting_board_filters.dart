@@ -129,22 +129,59 @@ mixin _PaintingBoardFilterMixin
         return Positioned(
           left: _filterPanelOffset.dx,
           top: _filterPanelOffset.dy,
-          child: _FilterPanelShell(
-            session: session,
-            onDrag: _handleFilterPanelDrag,
+          child: WorkspaceFloatingPanel(
+            width: _kFilterPanelWidth,
+            minHeight: _kFilterPanelMinHeight,
+            title: session.type == _FilterPanelType.hueSaturation
+                ? '色相/饱和度'
+                : '亮度/对比度',
             onClose: () => _removeFilterOverlay(),
-            onCancel: () => _removeFilterOverlay(),
-            onApply: _confirmFilterChanges,
-            onReset: _resetFilterSettings,
-            onHueChanged: (value) => _updateHueSaturation(hue: value),
-            onSaturationChanged: (value) =>
-                _updateHueSaturation(saturation: value),
-            onLightnessChanged: (value) =>
-                _updateHueSaturation(lightness: value),
-            onBrightnessChanged: (value) =>
-                _updateBrightnessContrast(brightness: value),
-            onContrastChanged: (value) =>
-                _updateBrightnessContrast(contrast: value),
+            onDragUpdate: _handleFilterPanelDrag,
+            headerPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+            bodyPadding: const EdgeInsets.symmetric(horizontal: 16),
+            footerPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            bodySpacing: 0,
+            footerSpacing: 12,
+            child: session.type == _FilterPanelType.hueSaturation
+                ? _HueSaturationControls(
+                    settings: session.hueSaturation,
+                    onHueChanged: (value) => _updateHueSaturation(hue: value),
+                    onSaturationChanged: (value) =>
+                        _updateHueSaturation(saturation: value),
+                    onLightnessChanged: (value) =>
+                        _updateHueSaturation(lightness: value),
+                  )
+                : _BrightnessContrastControls(
+                    settings: session.brightnessContrast,
+                    onBrightnessChanged: (value) =>
+                        _updateBrightnessContrast(brightness: value),
+                    onContrastChanged: (value) =>
+                        _updateBrightnessContrast(contrast: value),
+                  ),
+            footer: Row(
+              children: [
+                Button(
+                  onPressed: _resetFilterSettings,
+                  child: const Text('重置'),
+                ),
+                const Spacer(),
+                Button(
+                  onPressed: () => _removeFilterOverlay(),
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _confirmFilterChanges,
+                  child: const Text('应用'),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -242,11 +279,13 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     final int token = ++_filterPreviewLastIssuedToken;
-    unawaited(worker.requestPreview(
-      token: token,
-      hueSaturation: session.hueSaturation,
-      brightnessContrast: session.brightnessContrast,
-    ));
+    unawaited(
+      worker.requestPreview(
+        token: token,
+        hueSaturation: session.hueSaturation,
+        brightnessContrast: session.brightnessContrast,
+      ),
+    );
   }
 
   void _confirmFilterChanges() {
@@ -366,115 +405,6 @@ mixin _PaintingBoardFilterMixin
     _filterWorker?.dispose();
     _filterWorker = null;
     _filterSession = null;
-  }
-
-}
-
-class _FilterPanelShell extends StatelessWidget {
-  const _FilterPanelShell({
-    required this.session,
-    required this.onDrag,
-    required this.onClose,
-    required this.onApply,
-    required this.onReset,
-    required this.onCancel,
-    required this.onHueChanged,
-    required this.onSaturationChanged,
-    required this.onLightnessChanged,
-    required this.onBrightnessChanged,
-    required this.onContrastChanged,
-  });
-
-  final _FilterSession session;
-  final ValueChanged<Offset> onDrag;
-  final VoidCallback onClose;
-  final VoidCallback onApply;
-  final VoidCallback onReset;
-  final VoidCallback onCancel;
-  final ValueChanged<double> onHueChanged;
-  final ValueChanged<double> onSaturationChanged;
-  final ValueChanged<double> onLightnessChanged;
-  final ValueChanged<double> onBrightnessChanged;
-  final ValueChanged<double> onContrastChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    return Container(
-      width: _kFilterPanelWidth,
-      constraints: const BoxConstraints(minHeight: _kFilterPanelMinHeight),
-      decoration: BoxDecoration(
-        color: theme.cardColor.withAlpha(0xFF),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.resources.controlStrokeColorDefault),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F000000),
-            blurRadius: 12,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onPanUpdate: (details) => onDrag(details.delta),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      session.type == _FilterPanelType.hueSaturation
-                          ? '色相/饱和度'
-                          : '亮度/对比度',
-                      style: theme.typography.subtitle,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(FluentIcons.chrome_close),
-                    onPressed: onClose,
-                    style: ButtonStyle(
-                      padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: session.type == _FilterPanelType.hueSaturation
-                ? _HueSaturationControls(
-                    settings: session.hueSaturation,
-                    onHueChanged: onHueChanged,
-                    onSaturationChanged: onSaturationChanged,
-                    onLightnessChanged: onLightnessChanged,
-                  )
-                : _BrightnessContrastControls(
-                    settings: session.brightnessContrast,
-                    onBrightnessChanged: onBrightnessChanged,
-                    onContrastChanged: onContrastChanged,
-                  ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: [
-                Button(onPressed: onReset, child: const Text('重置')),
-                const Spacer(),
-                Button(onPressed: onCancel, child: const Text('取消')),
-                const SizedBox(width: 8),
-                FilledButton(onPressed: onApply, child: const Text('应用')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -609,10 +539,10 @@ class _FilterPreviewWorker {
     required CanvasLayerData baseLayer,
     required ValueChanged<_FilterPreviewResult> onResult,
     required void Function(Object error, StackTrace stackTrace) onError,
-  })  : _type = type,
-        _layerId = layerId,
-        _onResult = onResult,
-        _onError = onError {
+  }) : _type = type,
+       _layerId = layerId,
+       _onResult = onResult,
+       _onError = onError {
     _start(baseLayer);
   }
 
@@ -661,8 +591,7 @@ class _FilterPreviewWorker {
           final _FilterPreviewResult result = _FilterPreviewResult(
             token: message['token'] as int? ?? -1,
             layerId: message['layerId'] as String? ?? _layerId,
-            bitmapData:
-                message['bitmap'] as TransferableTypedData?,
+            bitmapData: message['bitmap'] as TransferableTypedData?,
             fillColor: message['fillColor'] as int?,
           );
           if (!_disposed) {
@@ -775,8 +704,9 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
       (initData['layer'] as Map<String, Object?>?) ?? const <String, Object?>{};
   final TransferableTypedData? bitmapData =
       layer['bitmap'] as TransferableTypedData?;
-  final Uint8List? baseBitmap =
-      bitmapData != null ? bitmapData.materialize().asUint8List() : null;
+  final Uint8List? baseBitmap = bitmapData != null
+      ? bitmapData.materialize().asUint8List()
+      : null;
   final int? fillColorValue = layer['fillColor'] as int?;
   final ReceivePort port = ReceivePort();
   parent.send(port.sendPort);
@@ -900,10 +830,7 @@ void _filterApplyBrightnessContrastToBitmap(
   double contrastPercent,
 ) {
   final double brightnessOffset = brightnessPercent / 100.0 * 255.0;
-  final double contrastFactor = math.max(
-    0.0,
-    1.0 + contrastPercent / 100.0,
-  );
+  final double contrastFactor = math.max(0.0, 1.0 + contrastPercent / 100.0);
   for (int i = 0; i < bitmap.length; i += 4) {
     final int alpha = bitmap[i + 3];
     if (alpha == 0) {
@@ -938,8 +865,10 @@ Color _filterApplyHueSaturationToColor(
   if (hue < 0) {
     hue += 360.0;
   }
-  final double saturation = (hsv.saturation + saturationPercent / 100.0)
-      .clamp(0.0, 1.0);
+  final double saturation = (hsv.saturation + saturationPercent / 100.0).clamp(
+    0.0,
+    1.0,
+  );
   final double value = (hsv.value + lightnessPercent / 100.0).clamp(0.0, 1.0);
   return HSVColor.fromAHSV(hsv.alpha, hue, saturation, value).toColor();
 }
@@ -950,10 +879,7 @@ Color _filterApplyBrightnessContrastToColor(
   double contrastPercent,
 ) {
   final double brightnessOffset = brightnessPercent / 100.0 * 255.0;
-  final double contrastFactor = math.max(
-    0.0,
-    1.0 + contrastPercent / 100.0,
-  );
+  final double contrastFactor = math.max(0.0, 1.0 + contrastPercent / 100.0);
   final int r = _filterApplyBrightnessContrastChannel(
     color.red,
     brightnessOffset,

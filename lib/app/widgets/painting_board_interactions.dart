@@ -1060,7 +1060,9 @@ mixin _PaintingBoardInteractionMixin
     final CanvasTool tool = _effectiveActiveTool;
     final Rect boardRect = _boardRect;
     final bool pointerInsideBoard = boardRect.contains(pointer);
-    if (!pointerInsideBoard && tool != CanvasTool.curvePen) {
+    final bool toolCanStartOutsideCanvas =
+        tool == CanvasTool.curvePen || tool == CanvasTool.selection;
+    if (!pointerInsideBoard && !toolCanStartOutsideCanvas) {
       return;
     }
     final Offset boardLocal = _toBoardLocal(pointer);
@@ -1255,11 +1257,6 @@ mixin _PaintingBoardInteractionMixin
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
     if (_effectiveActiveTool != CanvasTool.selection) {
-      return;
-    }
-    final Rect boardRect = _boardRect;
-    if (!boardRect.contains(event.localPosition)) {
-      _clearSelectionHover();
       return;
     }
     final Offset boardLocal = _toBoardLocal(event.localPosition);

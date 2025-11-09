@@ -78,6 +78,7 @@ part 'painting_board_clipboard.dart';
 part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
 part 'painting_board_widgets.dart';
+part 'painting_board_workspace_panel.dart';
 part 'painting_board_filters.dart';
 
 class _SyntheticStrokeSample {

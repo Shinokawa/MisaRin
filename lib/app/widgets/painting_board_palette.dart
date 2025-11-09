@@ -5,7 +5,6 @@ const int _minPaletteColorCount = 2;
 const int _maxPaletteColorCount = 32;
 const double _paletteCardWidth = 184;
 const double _paletteCardPadding = 12;
-const double _paletteCardShadowBlur = 12;
 const double _paletteSwatchSize = 32;
 const double _paletteMinimumColorDistance = 0.12;
 const double _paletteDuplicateEpsilon = 0.01;
@@ -499,71 +498,34 @@ class _WorkspacePaletteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final FluentThemeData theme = FluentTheme.of(context);
-    final BorderRadius radius = BorderRadius.circular(16);
-    Color background = theme.cardColor;
-    if (background.alpha != 0xFF) {
-      background = theme.brightness.isDark
-          ? const Color(0xFF1F1F1F)
-          : Colors.white;
-    }
     return MouseRegion(
       cursor: SystemMouseCursors.basic,
       child: _PaletteHitTestBlocker(
         child: _MeasureSize(
           onChanged: onSizeChanged,
-          child: Container(
+          child: WorkspaceFloatingPanel(
+            title: title,
+            child: _PaletteSwatches(colors: colors, onTap: onColorTap),
             width: _paletteCardWidth,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: radius,
-              border: Border.all(
-                color: theme.brightness.isDark
-                    ? Colors.white.withOpacity(0.12)
-                    : Colors.black.withOpacity(0.08),
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x1A000000),
-                  blurRadius: _paletteCardShadowBlur,
-                  offset: Offset(0, 6),
-                ),
-              ],
+            onClose: onClose,
+            onDragStart: onDragStart,
+            onDragUpdate: onDragUpdate,
+            onDragEnd: onDragEnd,
+            headerPadding: const EdgeInsets.fromLTRB(
+              _paletteCardPadding,
+              _paletteCardPadding,
+              _paletteCardPadding,
+              0,
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(_paletteCardPadding),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onPanStart: (_) => onDragStart(),
-                    onPanUpdate: (details) => onDragUpdate(details.delta),
-                    onPanEnd: (_) => onDragEnd(),
-                    onPanCancel: onDragEnd,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: theme.typography.subtitle,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(FluentIcons.chrome_close, size: 12),
-                          iconButtonMode: IconButtonMode.small,
-                          onPressed: onClose,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _PaletteSwatches(colors: colors, onTap: onColorTap),
-                ],
-              ),
+            bodyPadding: const EdgeInsets.fromLTRB(
+              _paletteCardPadding,
+              0,
+              _paletteCardPadding,
+              _paletteCardPadding,
             ),
+            bodySpacing: 10,
+            footerSpacing: 0,
+            closeIconSize: 12,
           ),
         ),
       ),
