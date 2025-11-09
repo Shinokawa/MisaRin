@@ -151,7 +151,6 @@ class _AsepritePaletteParser extends _PaletteFileParser {
       reader.readUint16(); // frame duration
       reader.skip(2);
       final int chunkCount = reader.readUint32();
-      reader.skip(4);
       final int actualChunkCount = chunkCount == 0 ? oldChunkCount : chunkCount;
       for (int chunk = 0; chunk < actualChunkCount; chunk++) {
         final int chunkSize = reader.readUint32();

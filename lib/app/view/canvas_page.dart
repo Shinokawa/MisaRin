@@ -203,6 +203,24 @@ class CanvasPageState extends State<CanvasPage> {
     return name.substring(dot + 1).toLowerCase();
   }
 
+  String _displayPaletteName(String raw) {
+    final String trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return '调色盘';
+    }
+    final int dot = trimmed.lastIndexOf('.');
+    if (dot > 0 && dot < trimmed.length - 1) {
+      final String ext = trimmed.substring(dot + 1).toLowerCase();
+      if (PaletteFileImporter.supportedExtensions.contains(ext)) {
+        final String base = trimmed.substring(0, dot).trim();
+        if (base.isNotEmpty) {
+          return base;
+        }
+      }
+    }
+    return trimmed;
+  }
+
   _ImportedPaletteEntry? _paletteById(String id) {
     for (final _ImportedPaletteEntry entry in _importedPalettes) {
       if (entry.id == id) {
@@ -239,16 +257,17 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
-    final String ext = _fileExtension(file.name ?? path);
+    final String ext = _fileExtension(file.name);
     try {
       final PaletteImportResult palette = PaletteFileImporter.importData(
         bytes,
         extension: ext,
         fileName: file.name,
       );
+      final String displayName = _displayPaletteName(palette.name);
       final _ImportedPaletteEntry entry = _ImportedPaletteEntry(
         id: 'palette_${_paletteLibrarySerial++}',
-        name: palette.name,
+        name: displayName,
         colors: palette.colors,
       );
       setState(() {
