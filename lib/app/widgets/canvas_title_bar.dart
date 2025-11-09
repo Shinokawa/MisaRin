@@ -65,6 +65,7 @@ class CanvasTitleBar extends StatelessWidget {
                         activeId: activeId,
                         onSelectTab: onSelectTab,
                         onCloseTab: onCloseTab,
+                        onCreateTab: onCreateTab,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -89,19 +90,6 @@ class CanvasTitleBar extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(width: 12),
-          Button(
-            onPressed: onCreateTab,
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all<EdgeInsets>(
-                const EdgeInsets.all(6),
-              ),
-              shape: WidgetStateProperty.all<OutlinedBorder>(
-                const CircleBorder(),
-              ),
-            ),
-            child: const Icon(FluentIcons.add, size: 14),
-          ),
         ],
       ),
     );
@@ -114,12 +102,14 @@ class _WorkspaceTabStrip extends StatelessWidget {
     required this.activeId,
     required this.onSelectTab,
     required this.onCloseTab,
+    required this.onCreateTab,
   });
 
   final List<CanvasWorkspaceEntry> entries;
   final String? activeId;
   final CanvasTabCallback onSelectTab;
   final CanvasTabCallback onCloseTab;
+  final VoidCallback onCreateTab;
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +127,21 @@ class _WorkspaceTabStrip extends StatelessWidget {
                 onSelect: onSelectTab,
                 onClose: onCloseTab,
               ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Button(
+                onPressed: onCreateTab,
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all<EdgeInsets>(
+                    const EdgeInsets.all(6),
+                  ),
+                  shape: WidgetStateProperty.all<OutlinedBorder>(
+                    const CircleBorder(),
+                  ),
+                ),
+                child: const Icon(FluentIcons.add, size: 14),
+              ),
+            ),
           ],
         ),
       ),
