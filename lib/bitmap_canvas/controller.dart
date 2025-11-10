@@ -8,40 +8,25 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-import '../canvas/blend_mode_math.dart';
+import '../backend/canvas_raster_backend.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_tools.dart';
+import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
+import 'bitmap_layer_state.dart';
+import 'raster_frame.dart';
+import 'raster_tile_cache.dart';
+import 'raster_int_rect.dart';
 import 'stroke_dynamics.dart';
 import 'stroke_pressure_simulator.dart';
+
+export 'bitmap_layer_state.dart';
 
 part 'controller_active_transform.dart';
 part 'controller_layer_management.dart';
 part 'controller_stroke.dart';
 part 'controller_fill.dart';
 part 'controller_composite.dart';
-
-class BitmapLayerState {
-  BitmapLayerState({
-    required this.id,
-    required this.name,
-    required this.surface,
-    this.visible = true,
-    this.opacity = 1.0,
-    this.locked = false,
-    this.clippingMask = false,
-    this.blendMode = CanvasLayerBlendMode.normal,
-  });
-
-  final String id;
-  String name;
-  bool visible;
-  double opacity;
-  bool locked;
-  bool clippingMask;
-  CanvasLayerBlendMode blendMode;
-  final BitmapSurface surface;
-}
 
 class BitmapCanvasController extends ChangeNotifier {
   BitmapCanvasController({
@@ -51,7 +36,13 @@ class BitmapCanvasController extends ChangeNotifier {
     List<CanvasLayerData>? initialLayers,
   }) : _width = width,
        _height = height,
-       _backgroundColor = backgroundColor {
+       _backgroundColor = backgroundColor,
+       _rasterBackend = CanvasRasterBackend(width: width, height: height) {
+    _tileCache = RasterTileCache(
+      surfaceWidth: _width,
+      surfaceHeight: _height,
+      tileSize: _rasterBackend.tileSize,
+    );
     if (initialLayers != null && initialLayers.isNotEmpty) {
       _loadFromCanvasLayers(this, initialLayers, backgroundColor);
     } else {
@@ -125,20 +116,15 @@ class BitmapCanvasController extends ChangeNotifier {
     1,
   ];
   static const int _kGaussianKernel5x5Weight = 256;
-  static const int _kCompositeTileSize = 256;
 
-  ui.Image? _cachedImage;
-  bool _compositeDirty = true;
   bool _refreshScheduled = false;
-  bool _pendingFullSurface = false;
-  Rect? _pendingDirtyBounds;
-  final List<_IntRect> _pendingDirtyTiles = <_IntRect>[];
-  final Set<int> _pendingDirtyTileKeys = <int>{};
-  bool _compositeInitialized = false;
-  Uint32List? _compositePixels;
-  Uint8List? _compositeRgba;
+  bool _compositeProcessing = false;
   Uint8List? _selectionMask;
-  Uint8List? _clipMaskBuffer;
+  final CanvasRasterBackend _rasterBackend;
+  late final RasterTileCache _tileCache;
+  BitmapCanvasFrame? _currentFrame;
+  final List<ui.Image> _pendingTileDisposals = <ui.Image>[];
+  bool _tileDisposalScheduled = false;
   Uint32List? _activeLayerTranslationSnapshot;
   String? _activeLayerTranslationId;
   int _activeLayerTranslationDx = 0;
@@ -156,13 +142,23 @@ class BitmapCanvasController extends ChangeNotifier {
   final Map<String, _LayerOverflowStore> _layerOverflowStores =
       <String, _LayerOverflowStore>{};
 
+  Uint32List? get _compositePixels => _rasterBackend.compositePixels;
+
+  String? get _translatingLayerIdForComposite {
+    if (_activeLayerTranslationSnapshot != null &&
+        !_pendingActiveLayerTransformCleanup) {
+      return _activeLayerTranslationId;
+    }
+    return null;
+  }
+
   UnmodifiableListView<BitmapLayerState> get layers =>
       UnmodifiableListView<BitmapLayerState>(_layers);
 
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
 
-  ui.Image? get image => _cachedImage;
+  BitmapCanvasFrame? get frame => _currentFrame;
   Color get backgroundColor => _backgroundColor;
   int get width => _width;
   int get height => _height;
@@ -472,9 +468,20 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void cancelActiveLayerTranslation() => _cancelActiveLayerTranslation(this);
 
+  Future<ui.Image> snapshotImage() async {
+    _rasterBackend.composite(
+      layers: _layers,
+      requiresFullSurface: true,
+      regions: null,
+      translatingLayerId: _translatingLayerIdForComposite,
+    );
+    final Uint8List rgba = _rasterBackend.copySurfaceRgba();
+    return _decodeRgbaImage(rgba, _width, _height);
+  }
+
   Future<void> disposeController() async {
-    _cachedImage?.dispose();
-    _cachedImage = null;
+    _tileCache.dispose();
+    _disposePendingTileImages();
     _disposeActiveLayerTransformImage(this);
     _activeLayerTransformPreparing = false;
   }
@@ -700,9 +707,7 @@ class BitmapCanvasController extends ChangeNotifier {
       requiresFullSurface: requiresFullSurface,
       regions: requiresFullSurface || region == null
           ? null
-          : <_IntRect>[
-              _compositeClipRectToSurface(this, region),
-            ],
+          : <RasterIntRect>[_rasterBackend.clipRectToSurface(region)],
     );
   }
 
@@ -719,6 +724,35 @@ class BitmapCanvasController extends ChangeNotifier {
   void _markDirty({Rect? region}) => _compositeMarkDirty(this, region: region);
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
+
+  void _scheduleTileImageDisposal() {
+    if (_pendingTileDisposals.isEmpty || _tileDisposalScheduled) {
+      return;
+    }
+    _tileDisposalScheduled = true;
+    final SchedulerBinding? scheduler = SchedulerBinding.instance;
+    if (scheduler == null) {
+      scheduleMicrotask(_flushTileImageDisposals);
+    } else {
+      scheduler.addPostFrameCallback((_) => _flushTileImageDisposals());
+    }
+  }
+
+  void _flushTileImageDisposals() {
+    for (final ui.Image image in _pendingTileDisposals) {
+      image.dispose();
+    }
+    _pendingTileDisposals.clear();
+    _tileDisposalScheduled = false;
+  }
+
+  void _disposePendingTileImages() {
+    for (final ui.Image image in _pendingTileDisposals) {
+      image.dispose();
+    }
+    _pendingTileDisposals.clear();
+    _tileDisposalScheduled = false;
+  }
 
   BitmapLayerState get _activeLayer => _layers[_activeIndex];
 
@@ -815,10 +849,6 @@ class BitmapCanvasController extends ChangeNotifier {
     }
   }
 
-  void _ensureCompositeBuffers() => _compositeEnsureBuffers(this);
-
-  Uint8List _ensureClipMask() => _compositeEnsureClipMask(this);
-
   static double _clampUnit(double value) {
     if (value <= 0) {
       return 0;
@@ -829,87 +859,28 @@ class BitmapCanvasController extends ChangeNotifier {
     return value;
   }
 
-  _IntRect _clipRectToSurface(Rect rect) =>
-      _compositeClipRectToSurface(this, rect);
+  Future<ui.Image> _decodeRgbaImage(
+    Uint8List bytes,
+    int width,
+    int height,
+  ) {
+    final Completer<ui.Image> completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+      bytes,
+      width,
+      height,
+      ui.PixelFormat.rgba8888,
+      completer.complete,
+    );
+    return completer.future;
+  }
+
+  RasterIntRect _clipRectToSurface(Rect rect) =>
+      _rasterBackend.clipRectToSurface(rect);
 
   Rect _dirtyRectForCircle(Offset center, double radius) =>
       _strokeDirtyRectForCircle(center, radius);
 
   Rect _dirtyRectForLine(Offset a, Offset b, double radius) =>
       _strokeDirtyRectForLine(a, b, radius);
-
-  static int _blendArgb(int dst, int src) {
-    final int srcA = (src >> 24) & 0xff;
-    if (srcA == 0) {
-      return dst;
-    }
-    if (srcA == 255) {
-      return src;
-    }
-
-    final int dstA = (dst >> 24) & 0xff;
-    final int invSrcA = 255 - srcA;
-    final int outA = srcA + _mul255(dstA, invSrcA);
-    if (outA == 0) {
-      return 0;
-    }
-
-    final int srcR = (src >> 16) & 0xff;
-    final int srcG = (src >> 8) & 0xff;
-    final int srcB = src & 0xff;
-    final int dstR = (dst >> 16) & 0xff;
-    final int dstG = (dst >> 8) & 0xff;
-    final int dstB = dst & 0xff;
-
-    final int srcPremR = _mul255(srcR, srcA);
-    final int srcPremG = _mul255(srcG, srcA);
-    final int srcPremB = _mul255(srcB, srcA);
-    final int dstPremR = _mul255(dstR, dstA);
-    final int dstPremG = _mul255(dstG, dstA);
-    final int dstPremB = _mul255(dstB, dstA);
-
-    final int outPremR = srcPremR + _mul255(dstPremR, invSrcA);
-    final int outPremG = srcPremG + _mul255(dstPremG, invSrcA);
-    final int outPremB = srcPremB + _mul255(dstPremB, invSrcA);
-
-    final int outR = _clampToByte(((outPremR * 255) + (outA >> 1)) ~/ outA);
-    final int outG = _clampToByte(((outPremG * 255) + (outA >> 1)) ~/ outA);
-    final int outB = _clampToByte(((outPremB * 255) + (outA >> 1)) ~/ outA);
-
-    return (outA << 24) | (outR << 16) | (outG << 8) | outB;
-  }
-
-  static int _blendWithMode(
-    int dst,
-    int src,
-    CanvasLayerBlendMode mode,
-    int pixelIndex,
-  ) {
-    return CanvasBlendMath.blend(dst, src, mode, pixelIndex: pixelIndex);
-  }
-
-  static int _mul255(int channel, int alpha) {
-    return (channel * alpha + 127) ~/ 255;
-  }
-
-  static int _clampToByte(int value) {
-    if (value <= 0) {
-      return 0;
-    }
-    if (value >= 255) {
-      return 255;
-    }
-    return value;
-  }
-}
-
-class _IntRect {
-  const _IntRect(this.left, this.top, this.right, this.bottom);
-
-  final int left;
-  final int top;
-  final int right;
-  final int bottom;
-
-  bool get isEmpty => left >= right || top >= bottom;
 }

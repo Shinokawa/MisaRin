@@ -52,6 +52,7 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'package:file_picker/file_picker.dart';
 
 import '../../bitmap_canvas/bitmap_canvas.dart';
+import '../../bitmap_canvas/raster_frame.dart';
 import '../../bitmap_canvas/controller.dart';
 import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../canvas/blend_mode_utils.dart';
@@ -62,6 +63,7 @@ import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import 'canvas_toolbar.dart';
 import 'tool_cursor_overlay.dart';
+import 'bitmap_canvas_surface.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../constants/color_line_presets.dart';
 import '../preferences/app_preferences.dart';
