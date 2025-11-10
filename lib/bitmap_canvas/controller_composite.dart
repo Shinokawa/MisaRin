@@ -24,43 +24,57 @@ void _compositeScheduleRefresh(BitmapCanvasController controller) {
 
 void _compositeProcessScheduled(BitmapCanvasController controller) {
   controller._refreshScheduled = false;
-  _compositeProcessPending(controller);
-}
-
-void _compositeProcessPending(BitmapCanvasController controller) {
-  final RasterCompositeWork work = controller._rasterBackend
-      .dequeueCompositeWork();
-  if (!work.hasWork) {
+  if (controller._compositeProcessing) {
     return;
   }
+  controller._compositeProcessing = true;
+  unawaited(_compositeProcessPending(controller));
+}
 
-  _compositeUpdate(
-    controller,
-    requiresFullSurface: work.requiresFullSurface,
-    regions: work.regions,
-  );
+Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
+  try {
+    final RasterCompositeWork work = controller._rasterBackend
+        .dequeueCompositeWork();
+    if (!work.hasWork) {
+      return;
+    }
 
-  final Uint8List rgba = controller._rasterBackend.ensureRgbaBuffer();
-  ui.decodeImageFromPixels(
-    rgba,
-    controller._width,
-    controller._height,
-    ui.PixelFormat.rgba8888,
-    (ui.Image image) {
-      controller._cachedImage?.dispose();
-      controller._cachedImage = image;
-      if (controller._pendingActiveLayerTransformCleanup) {
-        controller._pendingActiveLayerTransformCleanup = false;
-        _resetActiveLayerTranslationState(controller);
-      }
-      controller._rasterBackend.completeCompositePass();
-      controller.notifyListeners();
-      if (controller._rasterBackend.isCompositeDirty &&
-          !controller._refreshScheduled) {
-        _compositeScheduleRefresh(controller);
-      }
-    },
-  );
+    _compositeUpdate(
+      controller,
+      requiresFullSurface: work.requiresFullSurface,
+      regions: work.regions,
+    );
+
+    final List<RasterIntRect> dirtyRegions = work.requiresFullSurface
+        ? controller._rasterBackend.fullSurfaceTileRects()
+        : (work.regions ?? const <RasterIntRect>[]);
+    final BitmapCanvasFrame? frame = await controller._tileCache.updateTiles(
+      backend: controller._rasterBackend,
+      dirtyRegions: dirtyRegions,
+      fullSurface: work.requiresFullSurface,
+    );
+    if (frame != null) {
+      controller._currentFrame = frame;
+    }
+    final List<ui.Image> pendingDisposals =
+        controller._tileCache.takePendingDisposals();
+    if (pendingDisposals.isNotEmpty) {
+      controller._pendingTileDisposals.addAll(pendingDisposals);
+      controller._scheduleTileImageDisposal();
+    }
+    if (controller._pendingActiveLayerTransformCleanup) {
+      controller._pendingActiveLayerTransformCleanup = false;
+      _resetActiveLayerTranslationState(controller);
+    }
+    controller._rasterBackend.completeCompositePass();
+    controller.notifyListeners();
+  } finally {
+    controller._compositeProcessing = false;
+    if (controller._rasterBackend.isCompositeDirty &&
+        !controller._refreshScheduled) {
+      _compositeScheduleRefresh(controller);
+    }
+  }
 }
 
 void _compositeUpdate(

@@ -14,6 +14,8 @@ import '../canvas/canvas_tools.dart';
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
+import 'raster_frame.dart';
+import 'raster_tile_cache.dart';
 import 'raster_int_rect.dart';
 import 'stroke_dynamics.dart';
 import 'stroke_pressure_simulator.dart';
@@ -36,6 +38,11 @@ class BitmapCanvasController extends ChangeNotifier {
        _height = height,
        _backgroundColor = backgroundColor,
        _rasterBackend = CanvasRasterBackend(width: width, height: height) {
+    _tileCache = RasterTileCache(
+      surfaceWidth: _width,
+      surfaceHeight: _height,
+      tileSize: _rasterBackend.tileSize,
+    );
     if (initialLayers != null && initialLayers.isNotEmpty) {
       _loadFromCanvasLayers(this, initialLayers, backgroundColor);
     } else {
@@ -110,10 +117,14 @@ class BitmapCanvasController extends ChangeNotifier {
   ];
   static const int _kGaussianKernel5x5Weight = 256;
 
-  ui.Image? _cachedImage;
   bool _refreshScheduled = false;
+  bool _compositeProcessing = false;
   Uint8List? _selectionMask;
   final CanvasRasterBackend _rasterBackend;
+  late final RasterTileCache _tileCache;
+  BitmapCanvasFrame? _currentFrame;
+  final List<ui.Image> _pendingTileDisposals = <ui.Image>[];
+  bool _tileDisposalScheduled = false;
   Uint32List? _activeLayerTranslationSnapshot;
   String? _activeLayerTranslationId;
   int _activeLayerTranslationDx = 0;
@@ -147,7 +158,7 @@ class BitmapCanvasController extends ChangeNotifier {
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
 
-  ui.Image? get image => _cachedImage;
+  BitmapCanvasFrame? get frame => _currentFrame;
   Color get backgroundColor => _backgroundColor;
   int get width => _width;
   int get height => _height;
@@ -457,9 +468,20 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void cancelActiveLayerTranslation() => _cancelActiveLayerTranslation(this);
 
+  Future<ui.Image> snapshotImage() async {
+    _rasterBackend.composite(
+      layers: _layers,
+      requiresFullSurface: true,
+      regions: null,
+      translatingLayerId: _translatingLayerIdForComposite,
+    );
+    final Uint8List rgba = _rasterBackend.copySurfaceRgba();
+    return _decodeRgbaImage(rgba, _width, _height);
+  }
+
   Future<void> disposeController() async {
-    _cachedImage?.dispose();
-    _cachedImage = null;
+    _tileCache.dispose();
+    _disposePendingTileImages();
     _disposeActiveLayerTransformImage(this);
     _activeLayerTransformPreparing = false;
   }
@@ -703,6 +725,35 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 
+  void _scheduleTileImageDisposal() {
+    if (_pendingTileDisposals.isEmpty || _tileDisposalScheduled) {
+      return;
+    }
+    _tileDisposalScheduled = true;
+    final SchedulerBinding? scheduler = SchedulerBinding.instance;
+    if (scheduler == null) {
+      scheduleMicrotask(_flushTileImageDisposals);
+    } else {
+      scheduler.addPostFrameCallback((_) => _flushTileImageDisposals());
+    }
+  }
+
+  void _flushTileImageDisposals() {
+    for (final ui.Image image in _pendingTileDisposals) {
+      image.dispose();
+    }
+    _pendingTileDisposals.clear();
+    _tileDisposalScheduled = false;
+  }
+
+  void _disposePendingTileImages() {
+    for (final ui.Image image in _pendingTileDisposals) {
+      image.dispose();
+    }
+    _pendingTileDisposals.clear();
+    _tileDisposalScheduled = false;
+  }
+
   BitmapLayerState get _activeLayer => _layers[_activeIndex];
 
   BitmapSurface get _activeSurface => _activeLayer.surface;
@@ -806,6 +857,22 @@ class BitmapCanvasController extends ChangeNotifier {
       return 1;
     }
     return value;
+  }
+
+  Future<ui.Image> _decodeRgbaImage(
+    Uint8List bytes,
+    int width,
+    int height,
+  ) {
+    final Completer<ui.Image> completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+      bytes,
+      width,
+      height,
+      ui.PixelFormat.rgba8888,
+      completer.complete,
+    );
+    return completer.future;
   }
 
   RasterIntRect _clipRectToSurface(Rect rect) =>

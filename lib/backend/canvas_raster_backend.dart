@@ -50,12 +50,12 @@ class CanvasRasterBackend {
   final List<RasterIntRect> _pendingDirtyTiles = <RasterIntRect>[];
   final Set<int> _pendingDirtyTileKeys = <int>{};
   Uint32List? _compositePixels;
-  Uint8List? _compositeRgba;
   Uint8List? _clipMaskBuffer;
 
   bool get isCompositeDirty => _compositeDirty;
   Uint32List? get compositePixels => _compositePixels;
-  Uint8List? get compositeRgba => _compositeRgba;
+  int get width => _width;
+  int get height => _height;
 
   void markDirty({Rect? region}) {
     _compositeDirty = true;
@@ -131,7 +131,6 @@ class CanvasRasterBackend {
     }
 
     final Uint32List composite = _compositePixels!;
-    final Uint8List rgba = _compositeRgba!;
     final Uint8List clipMask = _ensureClipMask();
     clipMask.fillRange(0, clipMask.length, 0);
 
@@ -209,36 +208,10 @@ class CanvasRasterBackend {
 
           if (!initialized) {
             composite[index] = 0;
-            final int rgbaOffset = index * 4;
-            rgba[rgbaOffset] = 0;
-            rgba[rgbaOffset + 1] = 0;
-            rgba[rgbaOffset + 2] = 0;
-            rgba[rgbaOffset + 3] = 0;
             continue;
           }
 
           composite[index] = color;
-          final int rgbaOffset = index * 4;
-          final int alpha = (color >> 24) & 0xff;
-          if (alpha == 0) {
-            rgba[rgbaOffset] = 0;
-            rgba[rgbaOffset + 1] = 0;
-            rgba[rgbaOffset + 2] = 0;
-            rgba[rgbaOffset + 3] = 0;
-          } else if (alpha == 255) {
-            rgba[rgbaOffset] = (color >> 16) & 0xff;
-            rgba[rgbaOffset + 1] = (color >> 8) & 0xff;
-            rgba[rgbaOffset + 2] = color & 0xff;
-            rgba[rgbaOffset + 3] = 255;
-          } else {
-            final int red = (color >> 16) & 0xff;
-            final int green = (color >> 8) & 0xff;
-            final int blue = color & 0xff;
-            rgba[rgbaOffset] = blend_utils.premultiplyChannel(red, alpha);
-            rgba[rgbaOffset + 1] = blend_utils.premultiplyChannel(green, alpha);
-            rgba[rgbaOffset + 2] = blend_utils.premultiplyChannel(blue, alpha);
-            rgba[rgbaOffset + 3] = alpha;
-          }
         }
       }
     }
@@ -252,11 +225,6 @@ class CanvasRasterBackend {
     _compositeDirty = _pendingFullSurface || _pendingDirtyBounds != null;
   }
 
-  Uint8List ensureRgbaBuffer() {
-    _ensureBuffers();
-    return _compositeRgba!;
-  }
-
   Uint32List ensureCompositePixels() {
     _ensureBuffers();
     return _compositePixels!;
@@ -268,6 +236,57 @@ class CanvasRasterBackend {
 
   void resetClipMask() {
     _clipMaskBuffer = null;
+  }
+
+  Uint8List copyTileRgba(RasterIntRect rect) {
+    final Uint32List pixels = ensureCompositePixels();
+    final int tileWidth = rect.width;
+    final int tileHeight = rect.height;
+    final Uint8List rgba = Uint8List(tileWidth * tileHeight * 4);
+    for (int row = 0; row < tileHeight; row++) {
+      final int srcRow =
+          (rect.top + row) * _width + rect.left;
+      final int dstRow = row * tileWidth;
+      for (int col = 0; col < tileWidth; col++) {
+        final int argb = pixels[srcRow + col];
+        final int offset = (dstRow + col) * 4;
+        rgba[offset] = (argb >> 16) & 0xff;
+        rgba[offset + 1] = (argb >> 8) & 0xff;
+        rgba[offset + 2] = argb & 0xff;
+        rgba[offset + 3] = (argb >> 24) & 0xff;
+      }
+    }
+    return rgba;
+  }
+
+  Uint8List copySurfaceRgba() {
+    final Uint32List pixels = ensureCompositePixels();
+    final Uint8List rgba = Uint8List(pixels.length * 4);
+    for (int i = 0; i < pixels.length; i++) {
+      final int argb = pixels[i];
+      final int offset = i * 4;
+      rgba[offset] = (argb >> 16) & 0xff;
+      rgba[offset + 1] = (argb >> 8) & 0xff;
+      rgba[offset + 2] = argb & 0xff;
+      rgba[offset + 3] = (argb >> 24) & 0xff;
+    }
+    return rgba;
+  }
+
+  List<RasterIntRect> fullSurfaceTileRects() {
+    final List<RasterIntRect> tiles = <RasterIntRect>[];
+    final int horizontalTiles = (_width + tileSize - 1) ~/ tileSize;
+    final int verticalTiles = (_height + tileSize - 1) ~/ tileSize;
+    for (int ty = 0; ty < verticalTiles; ty++) {
+      for (int tx = 0; tx < horizontalTiles; tx++) {
+        final int left = tx * tileSize;
+        final int top = ty * tileSize;
+        final int right = math.min(left + tileSize, _width);
+        final int bottom = math.min(top + tileSize, _height);
+        tiles.add(RasterIntRect(left, top, right, bottom));
+      }
+    }
+    return tiles;
   }
 
   RasterIntRect clipRectToSurface(Rect rect) {
@@ -320,7 +339,6 @@ class CanvasRasterBackend {
 
   void _ensureBuffers() {
     _compositePixels ??= Uint32List(_width * _height);
-    _compositeRgba ??= Uint8List(_width * _height * 4);
   }
 
   void _enqueueDirtyTiles(Rect region) {

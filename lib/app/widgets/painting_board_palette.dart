@@ -1,4 +1,4 @@
-part of 'painting_board.dart';
+﻿part of 'painting_board.dart';
 
 const List<int> _defaultPaletteChoices = <int>[4, 8, 12, 16];
 const int _minPaletteColorCount = 2;
@@ -211,22 +211,25 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
   }
 
   Future<void> _generatePaletteCard(int colorCount) async {
-    final ui.Image? image = _controller.image;
-    if (image == null) {
+    ui.Image image;
+    try {
+      image = await _controller.snapshotImage();
+    } catch (_) {
       AppNotifications.show(
         context,
-        message: '当前画布还没有可以采样的颜色。',
-        severity: InfoBarSeverity.warning,
+        message: '暂时无法生成调色盘，请重试',
+        severity: InfoBarSeverity.error,
       );
       return;
     }
     final ByteData? bytes = await image.toByteData(
       format: ui.ImageByteFormat.rawRgba,
     );
+    image.dispose();
     if (bytes == null) {
       AppNotifications.show(
         context,
-        message: '暂时无法生成调色盘，请重试。',
+        message: '暂时无法生成调色盘，请重试',
         severity: InfoBarSeverity.error,
       );
       return;
@@ -241,14 +244,13 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (palette.isEmpty) {
       AppNotifications.show(
         context,
-        message: '未找到有效颜色，请确认画布中已有内容。',
+        message: '未找到有效颜色，请确认画布中已有内容',
         severity: InfoBarSeverity.warning,
       );
       return;
     }
     _addPaletteCard(palette);
   }
-
   void showPaletteFromColors({
     required String title,
     required List<Color> colors,
@@ -800,3 +802,6 @@ String _hexStringForColor(Color color) {
   }
   return '#$alpha$red$green$blue';
 }
+
+
+

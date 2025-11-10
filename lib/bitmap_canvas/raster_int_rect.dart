@@ -7,5 +7,8 @@ class RasterIntRect {
   final int right;
   final int bottom;
 
+  int get width => right - left;
+  int get height => bottom - top;
+
   bool get isEmpty => left >= right || top >= bottom;
 }

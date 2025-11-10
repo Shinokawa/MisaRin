@@ -327,9 +327,9 @@ mixin _PaintingBoardBuildMixin
                                         child: AnimatedBuilder(
                                           animation: _controller,
                                           builder: (context, _) {
-                                            final ui.Image? image =
-                                                _controller.image;
-                                            if (image == null) {
+                                            final BitmapCanvasFrame? frame =
+                                                _controller.frame;
+                                            if (frame == null) {
                                               return const SizedBox.shrink();
                                             }
                                             final bool isTransforming =
@@ -359,10 +359,8 @@ mixin _PaintingBoardBuildMixin
                                               fit: StackFit.expand,
                                               children: [
                                                 const _CheckboardBackground(),
-                                                RawImage(
-                                                  image: image,
-                                                  filterQuality:
-                                                      FilterQuality.none,
+                                                BitmapCanvasSurface(
+                                                  frame: frame,
                                                 ),
                                                 if (isTransforming &&
                                                     transformedActiveLayerImage !=
