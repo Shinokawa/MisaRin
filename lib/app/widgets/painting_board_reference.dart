@@ -571,13 +571,15 @@ class _ResizeHandleIndicatorPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final Color solidFillColor = color.withAlpha(0xFF);
+    final Color solidOutlineColor = outlineColor.withAlpha(0xFF);
     final Paint outlinePaint = Paint()
-      ..color = outlineColor
+      ..color = solidOutlineColor
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
     final Paint fillPaint = Paint()
-      ..color = color
+      ..color = solidFillColor
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
