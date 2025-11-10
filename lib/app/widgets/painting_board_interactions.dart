@@ -3,7 +3,10 @@ part of 'painting_board.dart';
 const double _kStylusSimulationBlend = 0.68;
 
 mixin _PaintingBoardInteractionMixin
-    on _PaintingBoardBase, _PaintingBoardShapeMixin {
+    on
+        _PaintingBoardBase,
+        _PaintingBoardShapeMixin,
+        _PaintingBoardReferenceMixin {
   void clear() {
     _pushUndoSnapshot();
     _controller.clear();
@@ -1054,7 +1057,9 @@ mixin _PaintingBoardInteractionMixin
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
     final Offset pointer = event.localPosition;
-    if (_isInsideToolArea(pointer) || _isInsidePaletteCardArea(pointer)) {
+    if (_isInsideToolArea(pointer) ||
+        _isInsidePaletteCardArea(pointer) ||
+        _isInsideReferenceCardArea(pointer)) {
       return;
     }
     final CanvasTool tool = _effectiveActiveTool;

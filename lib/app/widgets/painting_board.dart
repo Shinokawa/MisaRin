@@ -48,6 +48,7 @@ import 'package:flutter/widgets.dart'
         WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
+import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'package:file_picker/file_picker.dart';
 
 import '../../bitmap_canvas/bitmap_canvas.dart';
@@ -207,8 +208,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   String? _layerOpacityGestureLayerId;
   String? _layerOpacityPreviewLayerId;
   double? _layerOpacityPreviewValue;
-  final Duration _layerOpacityCommitDelay =
-      const Duration(milliseconds: 50);
+  final Duration _layerOpacityCommitDelay = const Duration(milliseconds: 50);
   Timer? _layerOpacityCommitTimer;
   String? _pendingLayerOpacityLayerId;
   double? _pendingLayerOpacityValue;
@@ -1462,7 +1462,7 @@ class PaintingBoardState extends _PaintingBoardBase
     }
     final Path? path = currentMask == null
         ? (Path()
-          ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble())))
+            ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble())))
         : _pathFromMask(inverted, width);
     _prepareSelectionUndo();
     setState(() {

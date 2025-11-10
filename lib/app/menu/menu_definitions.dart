@@ -364,7 +364,15 @@ class MenuDefinitionBuilder {
     }
     if (handler.createReferenceImage != null) {
       entries.add(
-        MenuActionEntry(label: '创建参考图像', action: handler.createReferenceImage),
+        MenuActionEntry(
+          label: '创建参考图像',
+          action: handler.createReferenceImage,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyR,
+            meta: true,
+            shift: true,
+          ),
+        ),
       );
     }
     if (entries.isEmpty) {

@@ -636,6 +636,7 @@ mixin _PaintingBoardBuildMixin
     if (_referenceCards.isEmpty) {
       return const <Widget>[];
     }
+    final bool eyedropperActive = _effectiveActiveTool == CanvasTool.eyedropper;
     return _referenceCards
         .map((entry) {
           return Positioned(
@@ -643,6 +644,12 @@ mixin _PaintingBoardBuildMixin
             top: entry.offset.dy,
             child: _ReferenceImageCard(
               image: entry.image,
+              bodySize: entry.bodySize,
+              pixelBytes: entry.pixelBytes,
+              enableEyedropperSampling: eyedropperActive,
+              onSamplePreview: (color) =>
+                  _setPrimaryColor(color, remember: false),
+              onSampleCommit: (color) => _setPrimaryColor(color),
               onClose: () => _closeReferenceCard(entry.id),
               onDragStart: () => _focusReferenceCard(entry.id),
               onDragEnd: () {},
