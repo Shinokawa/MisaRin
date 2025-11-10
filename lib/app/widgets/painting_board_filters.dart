@@ -616,6 +616,21 @@ mixin _PaintingBoardFilterMixin
     });
   }
 
+  bool _isInsideAntialiasCardArea(Offset workspacePosition) {
+    if (!_antialiasCardVisible) {
+      return false;
+    }
+    final Size size = _antialiasCardSize ??
+        const Size(_kAntialiasPanelWidth, _kAntialiasPanelMinHeight);
+    final Rect rect = Rect.fromLTWH(
+      _antialiasCardOffset.dx,
+      _antialiasCardOffset.dy,
+      size.width,
+      size.height,
+    );
+    return rect.contains(workspacePosition);
+  }
+
   bool _ensureAntialiasLayerReady() {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null) {

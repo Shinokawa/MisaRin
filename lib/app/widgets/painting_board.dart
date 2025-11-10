@@ -282,6 +282,16 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     return false;
   }
 
+  bool _isInsideReferenceCardArea(Offset workspacePosition);
+
+  bool _isInsideAntialiasCardArea(Offset workspacePosition);
+
+  bool _isInsideWorkspacePanelArea(Offset workspacePosition) {
+    return _isInsidePaletteCardArea(workspacePosition) ||
+        _isInsideReferenceCardArea(workspacePosition) ||
+        _isInsideAntialiasCardArea(workspacePosition);
+  }
+
   Size get _canvasSize => widget.settings.size;
 
   Size get _scaledBoardSize => Size(

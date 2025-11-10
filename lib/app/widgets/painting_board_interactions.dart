@@ -672,7 +672,8 @@ mixin _PaintingBoardInteractionMixin
       }
       return;
     }
-    if (_isInsideToolArea(workspacePosition)) {
+    if (_isInsideToolArea(workspacePosition) ||
+        _isInsideWorkspacePanelArea(workspacePosition)) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {
           _toolCursorPosition = null;
@@ -683,15 +684,6 @@ mixin _PaintingBoardInteractionMixin
     }
     final Rect boardRect = _boardRect;
     if (!boardRect.contains(workspacePosition)) {
-      if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
-        setState(() {
-          _toolCursorPosition = null;
-          _penCursorWorkspacePosition = null;
-        });
-      }
-      return;
-    }
-    if (_isInsideReferenceCardArea(workspacePosition)) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {
           _toolCursorPosition = null;
@@ -1076,8 +1068,7 @@ mixin _PaintingBoardInteractionMixin
     _updateToolCursorOverlay(event.localPosition);
     final Offset pointer = event.localPosition;
     if (_isInsideToolArea(pointer) ||
-        _isInsidePaletteCardArea(pointer) ||
-        _isInsideReferenceCardArea(pointer)) {
+        _isInsideWorkspacePanelArea(pointer)) {
       return;
     }
     final CanvasTool tool = _effectiveActiveTool;
