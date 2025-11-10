@@ -614,34 +614,11 @@ Color _fillColorAtComposite(
   BitmapCanvasController controller,
   Offset position,
 ) {
-  final int x = position.dx.floor();
-  final int y = position.dy.floor();
-  if (x < 0 || x >= controller._width || y < 0 || y >= controller._height) {
-    return const Color(0x00000000);
-  }
-  final int index = y * controller._width + x;
-  final Uint32List? compositePixels = controller._compositePixels;
-  if (compositePixels != null && compositePixels.length > index) {
-    return BitmapSurface.decodeColor(compositePixels[index]);
-  }
-  int? color;
-  for (final BitmapLayerState layer in controller._layers) {
-    if (!layer.visible) {
-      continue;
-    }
-    if (controller._activeLayerTranslationSnapshot != null &&
-        !controller._pendingActiveLayerTransformCleanup &&
-        layer.id == controller._activeLayerTranslationId) {
-      continue;
-    }
-    final int src = layer.surface.pixels[index];
-    if (color == null) {
-      color = src;
-    } else {
-      color = BitmapCanvasController._blendArgb(color, src);
-    }
-  }
-  return BitmapSurface.decodeColor(color ?? 0);
+  return controller._rasterBackend.colorAtComposite(
+    position,
+    controller._layers,
+    translatingLayerId: controller._translatingLayerIdForComposite,
+  );
 }
 
 Color _fillColorAtSurface(

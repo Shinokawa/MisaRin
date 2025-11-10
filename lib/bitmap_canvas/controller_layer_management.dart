@@ -339,7 +339,7 @@ void _blendOnCanvasPixels(
       }
       final int effectiveColor = _colorWithOpacity(src, effectiveAlpha);
       final int destIndex = rowOffset + x;
-      dstPixels[destIndex] = BitmapCanvasController._blendWithMode(
+      dstPixels[destIndex] = blend_utils.blendWithMode(
         dstPixels[destIndex],
         effectiveColor,
         blendMode,
@@ -393,7 +393,7 @@ void _blendOverflowPixels(
           x >= 0 && x < controller._width && y >= 0 && y < controller._height;
       if (insideCanvas) {
         final int index = y * controller._width + x;
-        final int blended = BitmapCanvasController._blendWithMode(
+        final int blended = blend_utils.blendWithMode(
           lower.surface.pixels[index],
           effectiveColor,
           blendMode,
@@ -404,7 +404,7 @@ void _blendOverflowPixels(
       }
       final int pixelIndex = y * controller._width + x;
       final int dest = _readOverflowPixelFromMap(targetMap, x, y);
-      final int blended = BitmapCanvasController._blendWithMode(
+      final int blended = blend_utils.blendWithMode(
         dest,
         effectiveColor,
         blendMode,
@@ -752,7 +752,7 @@ void _layerManagerLoadLayers(
   Color backgroundColor,
 ) {
   controller._layers.clear();
-  controller._clipMaskBuffer = null;
+  controller._rasterBackend.resetClipMask();
   _loadFromCanvasLayers(controller, layers, backgroundColor);
   controller._markDirty();
 }
