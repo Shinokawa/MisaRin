@@ -704,48 +704,37 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     );
   }
 
-  Rect? _bodyRect() {
-    final Size panelSize = _panelSizeOrDefault();
-    final double width = widget.bodySize.width;
-    final double height = widget.bodySize.height;
-    if (panelSize.width <= 0 || panelSize.height <= 0 ||
-        width <= 0 || height <= 0) {
-      return null;
-    }
-    final double left = _referenceCardBodyPaddingLeft;
-    final double right = panelSize.width - _referenceCardBodyPaddingRight;
-    final double bottom = panelSize.height - _referenceCardBodyPaddingBottom;
-    final double top = bottom - height;
-    return Rect.fromLTRB(left, top, right, bottom);
-  }
-
   _ReferenceCardResizeEdge? _resolveResizeEdge(Offset position) {
     if (_interactionLocked) {
       return null;
     }
-    final Rect? bodyRect = _bodyRect();
-    if (bodyRect == null) {
+    final Size panelSize = _panelSizeOrDefault();
+    if (panelSize.width <= 0 || panelSize.height <= 0) {
       return null;
     }
+    final Rect panelRect = Rect.fromLTWH(0, 0, panelSize.width, panelSize.height);
     final double edgeTolerance = _referenceCardResizeEdgeHitExtent;
     final double cornerTolerance = _referenceCardResizeCornerHitExtent;
+    final bool withinVerticalBounds =
+        position.dy >= panelRect.top - edgeTolerance &&
+            position.dy <= panelRect.bottom + edgeTolerance;
+    final bool withinHorizontalBounds =
+        position.dx >= panelRect.left - edgeTolerance &&
+            position.dx <= panelRect.right + edgeTolerance;
     final bool nearLeft =
-        (position.dx - bodyRect.left).abs() <= edgeTolerance &&
-            position.dy >= bodyRect.top - edgeTolerance &&
-            position.dy <= bodyRect.bottom + edgeTolerance;
+        withinVerticalBounds &&
+            (position.dx - panelRect.left).abs() <= edgeTolerance;
     final bool nearRight =
-        (position.dx - bodyRect.right).abs() <= edgeTolerance &&
-            position.dy >= bodyRect.top - edgeTolerance &&
-            position.dy <= bodyRect.bottom + edgeTolerance;
+        withinVerticalBounds &&
+            (position.dx - panelRect.right).abs() <= edgeTolerance;
     final bool nearBottom =
-        (position.dy - bodyRect.bottom).abs() <= edgeTolerance &&
-            position.dx >= bodyRect.left - edgeTolerance &&
-            position.dx <= bodyRect.right + edgeTolerance;
+        withinHorizontalBounds &&
+            (position.dy - panelRect.bottom).abs() <= edgeTolerance;
 
     final bool nearBottomLeft =
-        (position - bodyRect.bottomLeft).distance <= cornerTolerance;
+        (position - panelRect.bottomLeft).distance <= cornerTolerance;
     final bool nearBottomRight =
-        (position - bodyRect.bottomRight).distance <= cornerTolerance;
+        (position - panelRect.bottomRight).distance <= cornerTolerance;
 
     if (nearBottomLeft) {
       return _ReferenceCardResizeEdge.bottomLeft;
