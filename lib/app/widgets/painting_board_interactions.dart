@@ -654,6 +654,15 @@ mixin _PaintingBoardInteractionMixin
         tool == CanvasTool.pen ||
         tool == CanvasTool.curvePen ||
         tool == CanvasTool.shape;
+    if (_isReferenceCardResizing) {
+      if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
+        setState(() {
+          _toolCursorPosition = null;
+          _penCursorWorkspacePosition = null;
+        });
+      }
+      return;
+    }
     if (!overlayTool && !isPenLike) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {

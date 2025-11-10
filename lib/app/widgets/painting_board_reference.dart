@@ -373,6 +373,27 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     });
   }
 
+  void _beginReferenceCardResize(int id) {
+    _focusReferenceCard(id);
+    if (_referenceCardResizeInProgress) {
+      return;
+    }
+    setState(() {
+      _referenceCardResizeInProgress = true;
+      _toolCursorPosition = null;
+      _penCursorWorkspacePosition = null;
+    });
+  }
+
+  void _endReferenceCardResize() {
+    if (!_referenceCardResizeInProgress) {
+      return;
+    }
+    setState(() {
+      _referenceCardResizeInProgress = false;
+    });
+  }
+
   Offset _initialReferenceCardOffset(Size panelSize) {
     final double stackOffset = _referenceCards.length * 28.0;
     return _workspacePanelSpawnOffset(

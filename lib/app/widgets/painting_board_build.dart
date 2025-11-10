@@ -130,14 +130,18 @@ mixin _PaintingBoardBuildMixin
             cursorStyle.hideSystemCursor;
         final bool hideCursorBecausePen =
             _penRequiresOverlay && _penCursorWorkspacePosition != null;
+        final bool hideCursorBecauseReferenceResize =
+            _isReferenceCardResizing;
         final bool shouldHideCursor =
-            hideCursorBecauseToolOverlay || hideCursorBecausePen;
+            hideCursorBecauseToolOverlay ||
+            hideCursorBecausePen ||
+            hideCursorBecauseReferenceResize;
         final bool isLayerAdjustDragging =
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
         final Widget? antialiasCard = _buildAntialiasCard();
 
         final MouseCursor boardCursor;
-        if (hideCursorBecauseToolOverlay || hideCursorBecausePen) {
+        if (shouldHideCursor) {
           boardCursor = SystemMouseCursors.none;
         } else if (_effectiveActiveTool == CanvasTool.layerAdjust) {
           boardCursor = _isLayerDragging
@@ -657,10 +661,10 @@ mixin _PaintingBoardBuildMixin
                   _updateReferenceCardOffset(entry.id, delta),
               onSizeChanged: (size) =>
                   _handleReferenceCardSizeChanged(entry.id, size),
-              onResizeStart: () => _focusReferenceCard(entry.id),
+              onResizeStart: () => _beginReferenceCardResize(entry.id),
               onResize: (edge, delta) =>
                   _resizeReferenceCard(entry.id, edge, delta),
-              onResizeEnd: () {},
+              onResizeEnd: _endReferenceCardResize,
             ),
           );
         })

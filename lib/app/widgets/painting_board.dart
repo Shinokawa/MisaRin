@@ -264,6 +264,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   int _historyLimit = AppPreferences.instance.historyLimit;
   final List<_PaletteCardEntry> _paletteCards = <_PaletteCardEntry>[];
   int _paletteCardSerial = 0;
+  bool _referenceCardResizeInProgress = false;
 
   bool _isInsidePaletteCardArea(Offset workspacePosition) {
     for (final _PaletteCardEntry entry in _paletteCards) {
@@ -604,6 +605,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     }
     return _activeTool;
   }
+
+  bool get _isReferenceCardResizing => _referenceCardResizeInProgress;
 
   bool get _cursorRequiresOverlay =>
       ToolCursorStyles.hasOverlay(_effectiveActiveTool);
