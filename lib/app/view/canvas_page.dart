@@ -918,6 +918,10 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         unawaited(board?.createReferenceImageCard());
       },
+      importReferenceImage: () {
+        final board = _activeBoard;
+        unawaited(board?.importReferenceImageCard());
+      },
       zoomIn: () {
         final board = _activeBoard;
         board?.zoomIn();

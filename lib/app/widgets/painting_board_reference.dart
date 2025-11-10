@@ -36,6 +36,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
   final List<_ReferenceCardEntry> _referenceCards = <_ReferenceCardEntry>[];
   int _referenceCardSerial = 0;
   bool _isCreatingReferenceCard = false;
+  bool _isImportingReferenceCard = false;
 
   Future<void> createReferenceImageCard() async {
     if (_isCreatingReferenceCard) {
@@ -96,6 +97,86 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
       );
     } finally {
       _isCreatingReferenceCard = false;
+    }
+  }
+
+  Future<void> importReferenceImageCard() async {
+    if (_isImportingReferenceCard) {
+      AppNotifications.show(
+        context,
+        message: '正在导入参考图像，请稍候…',
+        severity: InfoBarSeverity.info,
+      );
+      return;
+    }
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      dialogTitle: '选择参考图像',
+      type: FileType.custom,
+      allowedExtensions: const <String>['png', 'jpg', 'jpeg', 'bmp', 'webp'],
+    );
+    final PlatformFile? file = result?.files.singleOrNull;
+    Uint8List? bytes = file?.bytes;
+    if (bytes == null) {
+      final String? path = file?.path;
+      if (path == null) {
+        return;
+      }
+      try {
+        bytes = await File(path).readAsBytes();
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+        AppNotifications.show(
+          context,
+          message: '读取图像失败：$error',
+          severity: InfoBarSeverity.error,
+        );
+        return;
+      }
+    }
+    if (bytes.isEmpty) {
+      return;
+    }
+    _isImportingReferenceCard = true;
+    try {
+      final ui.Codec codec = await ui.instantiateImageCodec(bytes);
+      final ui.FrameInfo frame = await codec.getNextFrame();
+      codec.dispose();
+      final ui.Image image = frame.image;
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      final Uint8List? pixelBytes = byteData?.buffer.asUint8List();
+      if (!mounted) {
+        image.dispose();
+        return;
+      }
+      final Size bodySize = _referenceCardBodySize(image);
+      final Size panelSize = _referencePanelSize(bodySize);
+      _insertReferenceCard(
+        image: image,
+        pixelBytes: pixelBytes,
+        bodySize: bodySize,
+        panelSize: panelSize,
+      );
+      AppNotifications.show(
+        context,
+        message: '已导入参考图像${file?.name != null ? '：${file!.name}' : ''}',
+        severity: InfoBarSeverity.success,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to import reference image: $error\n$stackTrace');
+      if (!mounted) {
+        return;
+      }
+      AppNotifications.show(
+        context,
+        message: '导入参考图像失败。',
+        severity: InfoBarSeverity.error,
+      );
+    } finally {
+      _isImportingReferenceCard = false;
     }
   }
 

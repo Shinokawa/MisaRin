@@ -50,6 +50,7 @@ class MenuActionHandler {
     this.showLayerAntialiasPanel,
     this.gaussianBlur,
     this.createReferenceImage,
+    this.importReferenceImage,
   });
 
   const MenuActionHandler.empty()
@@ -87,6 +88,7 @@ class MenuActionHandler {
       showLayerAntialiasPanel = null,
       gaussianBlur = null,
       createReferenceImage = null,
+      importReferenceImage = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[];
 
   final MenuAsyncAction? newProject;
@@ -124,6 +126,7 @@ class MenuActionHandler {
   final MenuAsyncAction? showLayerAntialiasPanel;
   final MenuAsyncAction? gaussianBlur;
   final MenuAsyncAction? createReferenceImage;
+  final MenuAsyncAction? importReferenceImage;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

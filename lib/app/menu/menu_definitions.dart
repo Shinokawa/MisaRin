@@ -362,8 +362,8 @@ class MenuDefinitionBuilder {
     if (paletteEntries.isNotEmpty) {
       entries.add(MenuSubmenuEntry(label: '调色盘', entries: paletteEntries));
     }
-    if (handler.createReferenceImage != null) {
-      entries.add(
+    final List<MenuEntry> referenceEntries = <MenuEntry>[
+      if (handler.createReferenceImage != null)
         MenuActionEntry(
           label: '创建参考图像',
           action: handler.createReferenceImage,
@@ -373,7 +373,14 @@ class MenuDefinitionBuilder {
             shift: true,
           ),
         ),
-      );
+      if (handler.importReferenceImage != null)
+        MenuActionEntry(
+          label: '导入图片作为参考图像…',
+          action: handler.importReferenceImage,
+        ),
+    ];
+    if (referenceEntries.isNotEmpty) {
+      entries.add(MenuSubmenuEntry(label: '参考图像', entries: referenceEntries));
     }
     if (entries.isEmpty) {
       return null;
