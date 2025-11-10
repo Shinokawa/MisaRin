@@ -5,6 +5,7 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardBase,
         _PaintingBoardInteractionMixin,
         _PaintingBoardPaletteMixin,
+        _PaintingBoardReferenceMixin,
         _PaintingBoardFilterMixin {
   @override
   Widget build(BuildContext context) {
@@ -550,6 +551,7 @@ mixin _PaintingBoardBuildMixin
                               ),
                             ),
                           ),
+                          ..._buildReferenceCards(),
                           ..._buildPaletteCards(),
                           if (antialiasCard != null) antialiasCard,
                           if (_toolCursorPosition != null &&
@@ -624,6 +626,30 @@ mixin _PaintingBoardBuildMixin
                   _updatePaletteCardOffset(entry.id, delta),
               onSizeChanged: (size) => _updatePaletteCardSize(entry.id, size),
               onColorTap: _setPrimaryColor,
+            ),
+          );
+        })
+        .toList(growable: false);
+  }
+
+  List<Widget> _buildReferenceCards() {
+    if (_referenceCards.isEmpty) {
+      return const <Widget>[];
+    }
+    return _referenceCards
+        .map((entry) {
+          return Positioned(
+            left: entry.offset.dx,
+            top: entry.offset.dy,
+            child: _ReferenceImageCard(
+              image: entry.image,
+              onClose: () => _closeReferenceCard(entry.id),
+              onDragStart: () => _focusReferenceCard(entry.id),
+              onDragEnd: () {},
+              onDragUpdate: (delta) =>
+                  _updateReferenceCardOffset(entry.id, delta),
+              onSizeChanged: (size) =>
+                  _handleReferenceCardSizeChanged(entry.id, size),
             ),
           );
         })

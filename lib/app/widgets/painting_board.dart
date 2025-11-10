@@ -56,6 +56,7 @@ import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
+import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import 'canvas_toolbar.dart';
@@ -83,6 +84,7 @@ part 'painting_board_build.dart';
 part 'painting_board_widgets.dart';
 part 'painting_board_workspace_panel.dart';
 part 'painting_board_filters.dart';
+part 'painting_board_reference.dart';
 
 class _SyntheticStrokeSample {
   const _SyntheticStrokeSample({
@@ -1333,6 +1335,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardLayerMixin,
         _PaintingBoardColorMixin,
         _PaintingBoardPaletteMixin,
+        _PaintingBoardReferenceMixin,
         _PaintingBoardSelectionMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardClipboardMixin,
@@ -1379,6 +1382,7 @@ class PaintingBoardState extends _PaintingBoardBase
   @override
   void dispose() {
     _removeFilterOverlay(restoreOriginal: false);
+    _disposeReferenceCards();
     disposeSelectionTicker();
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());

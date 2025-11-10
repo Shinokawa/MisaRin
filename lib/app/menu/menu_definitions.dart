@@ -358,16 +358,19 @@ class MenuDefinitionBuilder {
       );
     }
 
-    if (paletteEntries.isEmpty) {
+    final List<MenuEntry> entries = <MenuEntry>[];
+    if (paletteEntries.isNotEmpty) {
+      entries.add(MenuSubmenuEntry(label: '调色盘', entries: paletteEntries));
+    }
+    if (handler.createReferenceImage != null) {
+      entries.add(
+        MenuActionEntry(label: '创建参考图像', action: handler.createReferenceImage),
+      );
+    }
+    if (entries.isEmpty) {
       return null;
     }
-
-    return MenuDefinition(
-      label: '工具',
-      entries: <MenuEntry>[
-        MenuSubmenuEntry(label: '调色盘', entries: paletteEntries),
-      ],
-    );
+    return MenuDefinition(label: '工具', entries: entries);
   }
 
   static MenuDefinition? _viewMenu(MenuActionHandler handler) {

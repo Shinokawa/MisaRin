@@ -914,6 +914,10 @@ class CanvasPageState extends State<CanvasPage> {
           .map((entry) => MenuPaletteMenuEntry(id: entry.id, label: entry.name))
           .toList(growable: false),
       selectPaletteFromMenu: (id) => _activateImportedPalette(id),
+      createReferenceImage: () {
+        final board = _activeBoard;
+        unawaited(board?.createReferenceImageCard());
+      },
       zoomIn: () {
         final board = _activeBoard;
         board?.zoomIn();
