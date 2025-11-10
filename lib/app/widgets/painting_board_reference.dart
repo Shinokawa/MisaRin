@@ -10,6 +10,25 @@ const double _referenceCardWorkspaceHorizontalPadding = 220;
 const double _referenceCardWorkspaceVerticalPadding = 200;
 const double _referenceCardMinScale = 0.35;
 const double _referenceCardMaxScale = 8.0;
+const double _referenceCardBodyPaddingLeft = 12;
+const double _referenceCardBodyPaddingRight = 12;
+const double _referenceCardBodyPaddingTop = 0;
+const double _referenceCardBodyPaddingBottom = 12;
+const double _referenceCardResizeEdgeHitExtent = 14.0;
+const double _referenceCardResizeCornerHitExtent = 18.0;
+
+enum _ReferenceCardResizeEdge {
+  left,
+  right,
+  bottom,
+  bottomLeft,
+  bottomRight,
+}
+
+typedef _ReferenceCardResizeCallback = void Function(
+  _ReferenceCardResizeEdge edge,
+  Offset delta,
+);
 
 class _ReferenceCardEntry {
   _ReferenceCardEntry({
@@ -24,7 +43,7 @@ class _ReferenceCardEntry {
   final int id;
   ui.Image image;
   Offset offset;
-  final Size bodySize;
+  Size bodySize;
   final Size initialPanelSize;
   final Uint8List? pixelBytes;
   Size? size;
@@ -231,6 +250,103 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     });
   }
 
+  void _resizeReferenceCard(
+    int id,
+    _ReferenceCardResizeEdge edge,
+    Offset delta,
+  ) {
+    if (delta == Offset.zero) {
+      return;
+    }
+    final _ReferenceCardEntry? entry = _referenceCardById(id);
+    if (entry == null) {
+      return;
+    }
+    final _ReferenceCardBodyConstraints limits =
+        _referenceCardBodyConstraints();
+    double width = entry.bodySize.width;
+    double height = entry.bodySize.height;
+    Offset offset = entry.offset;
+    bool widthChanged = false;
+    bool heightChanged = false;
+
+    void resizeFromRight(double dx) {
+      if (dx == 0) {
+        return;
+      }
+      final double clampedWidth = (width + dx)
+          .clamp(limits.minWidth, limits.maxWidth)
+          .toDouble();
+      if (clampedWidth == width) {
+        return;
+      }
+      width = clampedWidth;
+      widthChanged = true;
+    }
+
+    void resizeFromLeft(double dx) {
+      if (dx == 0) {
+        return;
+      }
+      final double clampedWidth = (width - dx)
+          .clamp(limits.minWidth, limits.maxWidth)
+          .toDouble();
+      final double appliedShift = width - clampedWidth;
+      if (appliedShift == 0) {
+        return;
+      }
+      width = clampedWidth;
+      offset = offset.translate(appliedShift, 0);
+      widthChanged = true;
+    }
+
+    void resizeFromBottom(double dy) {
+      if (dy == 0) {
+        return;
+      }
+      final double clampedHeight = (height + dy)
+          .clamp(limits.minHeight, limits.maxHeight)
+          .toDouble();
+      if (clampedHeight == height) {
+        return;
+      }
+      height = clampedHeight;
+      heightChanged = true;
+    }
+
+    switch (edge) {
+      case _ReferenceCardResizeEdge.right:
+        resizeFromRight(delta.dx);
+        break;
+      case _ReferenceCardResizeEdge.left:
+        resizeFromLeft(delta.dx);
+        break;
+      case _ReferenceCardResizeEdge.bottom:
+        resizeFromBottom(delta.dy);
+        break;
+      case _ReferenceCardResizeEdge.bottomLeft:
+        resizeFromLeft(delta.dx);
+        resizeFromBottom(delta.dy);
+        break;
+      case _ReferenceCardResizeEdge.bottomRight:
+        resizeFromRight(delta.dx);
+        resizeFromBottom(delta.dy);
+        break;
+    }
+
+    if (!widthChanged && !heightChanged) {
+      return;
+    }
+    final Size nextBodySize = Size(width, height);
+    setState(() {
+      entry.bodySize = nextBodySize;
+      entry.offset = _clampReferenceCardOffset(
+        offset,
+        _referencePanelSize(nextBodySize),
+      );
+    });
+  }
+
   void _handleReferenceCardSizeChanged(int id, Size size) {
     final _ReferenceCardEntry? entry = _referenceCardById(id);
     if (entry == null) {
@@ -374,12 +490,57 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     );
   }
 
+  _ReferenceCardBodyConstraints _referenceCardBodyConstraints() {
+    double maxWidth = _referenceCardMaxBodyWidth;
+    double maxHeight = _referenceCardMaxBodyHeight;
+    if (!_workspaceSize.isEmpty) {
+      final double availableWidth =
+          _workspaceSize.width - _referenceCardWorkspaceHorizontalPadding;
+      if (availableWidth.isFinite && availableWidth > 0) {
+        maxWidth = math.min(maxWidth, availableWidth);
+      }
+      final double availableHeight =
+          _workspaceSize.height - _referenceCardWorkspaceVerticalPadding;
+      if (availableHeight.isFinite && availableHeight > 0) {
+        maxHeight = math.min(maxHeight, availableHeight);
+      }
+    }
+    if (!maxWidth.isFinite || maxWidth <= 0) {
+      maxWidth = _referenceCardMinBodyWidth;
+    }
+    if (!maxHeight.isFinite || maxHeight <= 0) {
+      maxHeight = _referenceCardMinBodyHeight;
+    }
+    final double minWidth = math.min(_referenceCardMinBodyWidth, maxWidth);
+    final double minHeight = math.min(_referenceCardMinBodyHeight, maxHeight);
+    return _ReferenceCardBodyConstraints(
+      minWidth: minWidth,
+      maxWidth: maxWidth,
+      minHeight: minHeight,
+      maxHeight: maxHeight,
+    );
+  }
+
   void _disposeReferenceCards() {
     for (final _ReferenceCardEntry entry in _referenceCards) {
       entry.image.dispose();
     }
     _referenceCards.clear();
   }
+}
+
+class _ReferenceCardBodyConstraints {
+  const _ReferenceCardBodyConstraints({
+    required this.minWidth,
+    required this.maxWidth,
+    required this.minHeight,
+    required this.maxHeight,
+  });
+
+  final double minWidth;
+  final double maxWidth;
+  final double minHeight;
+  final double maxHeight;
 }
 
 class _ReferenceImageCard extends StatefulWidget {
@@ -395,6 +556,9 @@ class _ReferenceImageCard extends StatefulWidget {
     required this.onDragUpdate,
     required this.onDragEnd,
     required this.onSizeChanged,
+    required this.onResizeStart,
+    required this.onResize,
+    required this.onResizeEnd,
   });
 
   final ui.Image image;
@@ -408,6 +572,9 @@ class _ReferenceImageCard extends StatefulWidget {
   final VoidCallback onDragEnd;
   final ValueChanged<Offset> onDragUpdate;
   final ValueChanged<Size> onSizeChanged;
+  final VoidCallback onResizeStart;
+  final _ReferenceCardResizeCallback onResize;
+  final VoidCallback onResizeEnd;
 
   @override
   State<_ReferenceImageCard> createState() => _ReferenceImageCardState();
@@ -417,6 +584,10 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   late final TransformationController _transformController;
   bool _samplingActive = false;
   Offset? _cursorPosition;
+  Size? _panelSize;
+  _ReferenceCardResizeEdge? _hoveredResizeEdge;
+  _ReferenceCardResizeEdge? _activeResizeEdge;
+  Offset? _lastResizePointer;
 
   @override
   void initState() {
@@ -444,6 +615,27 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
       widget.enableEyedropperSampling && widget.pixelBytes != null;
 
   bool get _interactionLocked => widget.enableEyedropperSampling;
+
+  bool get _isResizing => _activeResizeEdge != null;
+
+  MouseCursor get _currentResizeCursor {
+    final _ReferenceCardResizeEdge? edge =
+        _activeResizeEdge ?? _hoveredResizeEdge;
+    if (edge == null) {
+      return MouseCursor.defer;
+    }
+    switch (edge) {
+      case _ReferenceCardResizeEdge.left:
+      case _ReferenceCardResizeEdge.right:
+        return SystemMouseCursors.resizeLeftRight;
+      case _ReferenceCardResizeEdge.bottom:
+        return SystemMouseCursors.resizeUpDown;
+      case _ReferenceCardResizeEdge.bottomLeft:
+        return SystemMouseCursors.resizeDownLeft;
+      case _ReferenceCardResizeEdge.bottomRight:
+        return SystemMouseCursors.resizeDownRight;
+    }
+  }
 
   double get _currentScale {
     final Matrix4 matrix = _transformController.value;
@@ -501,7 +693,156 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     _updateScale(target, event.localPosition);
   }
 
+  Size _panelSizeOrDefault() {
+    final Size? measured = _panelSize;
+    if (measured != null && !measured.isEmpty) {
+      return measured;
+    }
+    return Size(
+      widget.bodySize.width + _referenceCardBodyHorizontalPadding,
+      widget.bodySize.height + _referenceCardPanelChromeHeight,
+    );
+  }
+
+  Rect? _bodyRect() {
+    final Size panelSize = _panelSizeOrDefault();
+    final double width = widget.bodySize.width;
+    final double height = widget.bodySize.height;
+    if (panelSize.width <= 0 || panelSize.height <= 0 ||
+        width <= 0 || height <= 0) {
+      return null;
+    }
+    final double left = _referenceCardBodyPaddingLeft;
+    final double right = panelSize.width - _referenceCardBodyPaddingRight;
+    final double bottom = panelSize.height - _referenceCardBodyPaddingBottom;
+    final double top = bottom - height;
+    return Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  _ReferenceCardResizeEdge? _resolveResizeEdge(Offset position) {
+    if (_interactionLocked) {
+      return null;
+    }
+    final Rect? bodyRect = _bodyRect();
+    if (bodyRect == null) {
+      return null;
+    }
+    final double edgeTolerance = _referenceCardResizeEdgeHitExtent;
+    final double cornerTolerance = _referenceCardResizeCornerHitExtent;
+    final bool nearLeft =
+        (position.dx - bodyRect.left).abs() <= edgeTolerance &&
+            position.dy >= bodyRect.top - edgeTolerance &&
+            position.dy <= bodyRect.bottom + edgeTolerance;
+    final bool nearRight =
+        (position.dx - bodyRect.right).abs() <= edgeTolerance &&
+            position.dy >= bodyRect.top - edgeTolerance &&
+            position.dy <= bodyRect.bottom + edgeTolerance;
+    final bool nearBottom =
+        (position.dy - bodyRect.bottom).abs() <= edgeTolerance &&
+            position.dx >= bodyRect.left - edgeTolerance &&
+            position.dx <= bodyRect.right + edgeTolerance;
+
+    final bool nearBottomLeft =
+        (position - bodyRect.bottomLeft).distance <= cornerTolerance;
+    final bool nearBottomRight =
+        (position - bodyRect.bottomRight).distance <= cornerTolerance;
+
+    if (nearBottomLeft) {
+      return _ReferenceCardResizeEdge.bottomLeft;
+    }
+    if (nearBottomRight) {
+      return _ReferenceCardResizeEdge.bottomRight;
+    }
+    if (nearLeft) {
+      return _ReferenceCardResizeEdge.left;
+    }
+    if (nearRight) {
+      return _ReferenceCardResizeEdge.right;
+    }
+    if (nearBottom) {
+      return _ReferenceCardResizeEdge.bottom;
+    }
+    return null;
+  }
+
+  void _handleResizeHover(PointerHoverEvent event) {
+    if (_activeResizeEdge != null || _interactionLocked) {
+      return;
+    }
+    final _ReferenceCardResizeEdge? edge =
+        _resolveResizeEdge(event.localPosition);
+    if (edge == _hoveredResizeEdge) {
+      return;
+    }
+    setState(() {
+      _hoveredResizeEdge = edge;
+    });
+  }
+
+  void _handleResizeHoverExit() {
+    if (_activeResizeEdge != null || _hoveredResizeEdge == null) {
+      return;
+    }
+    setState(() {
+      _hoveredResizeEdge = null;
+    });
+  }
+
+  void _handleResizePointerDown(PointerDownEvent event) {
+    if (_interactionLocked || event.buttons == 0) {
+      return;
+    }
+    final _ReferenceCardResizeEdge? edge =
+        _resolveResizeEdge(event.localPosition);
+    if (edge == null) {
+      return;
+    }
+    setState(() {
+      _activeResizeEdge = edge;
+      _hoveredResizeEdge = edge;
+    });
+    _lastResizePointer = event.localPosition;
+    widget.onResizeStart();
+  }
+
+  void _handleResizePointerMove(PointerMoveEvent event) {
+    final _ReferenceCardResizeEdge? edge = _activeResizeEdge;
+    if (edge == null) {
+      return;
+    }
+    final Offset previous = _lastResizePointer ?? event.localPosition;
+    final Offset delta = event.localPosition - previous;
+    if (delta == Offset.zero) {
+      return;
+    }
+    _lastResizePointer = event.localPosition;
+    widget.onResize(edge, delta);
+  }
+
+  void _handleResizePointerUp(PointerUpEvent event) {
+    _finishResize();
+  }
+
+  void _handleResizePointerCancel(PointerCancelEvent event) {
+    _finishResize();
+  }
+
+  void _finishResize() {
+    if (_activeResizeEdge == null) {
+      return;
+    }
+    widget.onResizeEnd();
+    setState(() {
+      _activeResizeEdge = null;
+      _hoveredResizeEdge = null;
+    });
+    _lastResizePointer = null;
+  }
+
   void _handlePointerDown(PointerDownEvent event) {
+    if (_isResizing) {
+      return;
+    }
     _updateCursorOverlay(event.localPosition);
     if (!_shouldHandleSample(event)) {
       return;
@@ -510,6 +851,9 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
+    if (_isResizing) {
+      return;
+    }
     _updateCursorOverlay(event.localPosition);
     if (!_samplingActive) {
       return;
@@ -518,6 +862,9 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   }
 
   void _handlePointerUp(PointerUpEvent event) {
+    if (_isResizing) {
+      return;
+    }
     if (!_samplingActive) {
       return;
     }
@@ -526,6 +873,9 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
+    if (_isResizing) {
+      return;
+    }
     if (!_samplingActive) {
       return;
     }
@@ -533,6 +883,9 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   }
 
   void _handleHover(PointerHoverEvent event) {
+    if (_isResizing) {
+      return;
+    }
     _updateCursorOverlay(event.localPosition);
   }
 
@@ -691,22 +1044,38 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   @override
   Widget build(BuildContext context) {
     final Size bodySize = widget.bodySize;
-    return MouseRegion(
-      cursor: SystemMouseCursors.basic,
-      child: _MeasureSize(
-        onChanged: widget.onSizeChanged,
-        child: WorkspaceFloatingPanel(
-          title: '参考图像',
-          width: bodySize.width + _referenceCardBodyHorizontalPadding,
-          onClose: widget.onClose,
-          onDragStart: widget.onDragStart,
-          onDragEnd: widget.onDragEnd,
-          onDragUpdate: widget.onDragUpdate,
-          headerPadding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-          bodyPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          bodySpacing: 10,
-          headerActions: _buildHeaderActions(),
-          child: _buildBody(),
+    final double panelWidth = bodySize.width + _referenceCardBodyHorizontalPadding;
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: _handleResizePointerDown,
+      onPointerMove: _handleResizePointerMove,
+      onPointerUp: _handleResizePointerUp,
+      onPointerCancel: _handleResizePointerCancel,
+      child: MouseRegion(
+        cursor: _currentResizeCursor,
+        onHover: _handleResizeHover,
+        onExit: (_) => _handleResizeHoverExit(),
+        child: IgnorePointer(
+          ignoring: _isResizing,
+          child: _MeasureSize(
+            onChanged: (size) {
+              _panelSize = size;
+              widget.onSizeChanged(size);
+            },
+            child: WorkspaceFloatingPanel(
+              title: '参考图像',
+              width: panelWidth,
+              onClose: widget.onClose,
+              onDragStart: widget.onDragStart,
+              onDragEnd: widget.onDragEnd,
+              onDragUpdate: widget.onDragUpdate,
+              headerPadding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              bodyPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              bodySpacing: 10,
+              headerActions: _buildHeaderActions(),
+              child: _buildBody(),
+            ),
+          ),
         ),
       ),
     );

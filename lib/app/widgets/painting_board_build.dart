@@ -657,6 +657,10 @@ mixin _PaintingBoardBuildMixin
                   _updateReferenceCardOffset(entry.id, delta),
               onSizeChanged: (size) =>
                   _handleReferenceCardSizeChanged(entry.id, size),
+              onResizeStart: () => _focusReferenceCard(entry.id),
+              onResize: (edge, delta) =>
+                  _resizeReferenceCard(entry.id, edge, delta),
+              onResizeEnd: () {},
             ),
           );
         })

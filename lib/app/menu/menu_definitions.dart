@@ -375,7 +375,7 @@ class MenuDefinitionBuilder {
         ),
       if (handler.importReferenceImage != null)
         MenuActionEntry(
-          label: '导入图片作为参考图像…',
+          label: '导入参考图像…',
           action: handler.importReferenceImage,
         ),
     ];
