@@ -335,11 +335,22 @@ class _ReferenceImageCard extends StatefulWidget {
 class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   late final TransformationController _transformController;
   bool _samplingActive = false;
+  Offset? _cursorPosition;
 
   @override
   void initState() {
     super.initState();
     _transformController = TransformationController();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReferenceImageCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final bool previouslyCouldSample =
+        oldWidget.enableEyedropperSampling && oldWidget.pixelBytes != null;
+    if (previouslyCouldSample && !_canSampleColor && _cursorPosition != null) {
+      setState(() => _cursorPosition = null);
+    }
   }
 
   @override
@@ -410,6 +421,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    _updateCursorOverlay(event.localPosition);
     if (!_shouldHandleSample(event)) {
       return;
     }
@@ -417,6 +429,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
+    _updateCursorOverlay(event.localPosition);
     if (!_samplingActive) {
       return;
     }
@@ -436,6 +449,10 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
       return;
     }
     _samplingActive = false;
+  }
+
+  void _handleHover(PointerHoverEvent event) {
+    _updateCursorOverlay(event.localPosition);
   }
 
   bool _shouldHandleSample(PointerEvent event) {
@@ -502,6 +519,24 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     return Color.fromARGB(a, r, g, b);
   }
 
+  void _updateCursorOverlay(Offset localPosition) {
+    if (!_canSampleColor) {
+      return;
+    }
+    final Offset? current = _cursorPosition;
+    if (current != null && (current - localPosition).distanceSquared < 0.25) {
+      return;
+    }
+    setState(() => _cursorPosition = localPosition);
+  }
+
+  void _clearCursorOverlay() {
+    if (_cursorPosition == null) {
+      return;
+    }
+    setState(() => _cursorPosition = null);
+  }
+
   List<Widget> _buildHeaderActions() {
     final bool disabled = _interactionLocked;
     return [
@@ -530,6 +565,46 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
         ),
       ),
     ];
+  }
+
+  List<Widget> _buildCursorOverlayWidgets() {
+    if (!_canSampleColor) {
+      return const <Widget>[];
+    }
+    final Offset? position = _cursorPosition;
+    if (position == null) {
+      return const <Widget>[];
+    }
+    final List<Widget> overlays = <Widget>[];
+    final ToolCursorStyle? style = ToolCursorStyles.styleFor(
+      CanvasTool.eyedropper,
+    );
+    if (style != null) {
+      overlays.add(
+        Positioned(
+          left: position.dx - style.anchor.dx + style.iconOffset.dx,
+          top: position.dy - style.anchor.dy + style.iconOffset.dy,
+          child: IgnorePointer(
+            ignoring: true,
+            child: ToolCursorStyles.iconFor(
+              CanvasTool.eyedropper,
+              isDragging: false,
+            ),
+          ),
+        ),
+      );
+    }
+    overlays.add(
+      Positioned(
+        left: position.dx - ToolCursorStyles.crosshairSize / 2,
+        top: position.dy - ToolCursorStyles.crosshairSize / 2,
+        child: const IgnorePointer(
+          ignoring: true,
+          child: ToolCursorCrosshair(),
+        ),
+      ),
+    );
+    return overlays;
   }
 
   @override
@@ -574,25 +649,33 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
           onPointerSignal: _handlePointerSignal,
           child: MouseRegion(
             cursor: _canSampleColor
-                ? SystemMouseCursors.precise
+                ? SystemMouseCursors.none
                 : MouseCursor.defer,
-            child: SizedBox(
-              width: widget.bodySize.width,
-              height: widget.bodySize.height,
-              child: InteractiveViewer(
-                transformationController: _transformController,
-                minScale: _referenceCardMinScale,
-                maxScale: _referenceCardMaxScale,
-                panEnabled: !_interactionLocked,
-                scaleEnabled: !_interactionLocked,
-                boundaryMargin: const EdgeInsets.all(240),
-                clipBehavior: Clip.hardEdge,
-                alignment: Alignment.topLeft,
-                child: RawImage(
-                  image: widget.image,
-                  filterQuality: FilterQuality.high,
+            onHover: _handleHover,
+            onExit: (_) => _clearCursorOverlay(),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                SizedBox(
+                  width: widget.bodySize.width,
+                  height: widget.bodySize.height,
+                  child: InteractiveViewer(
+                    transformationController: _transformController,
+                    minScale: _referenceCardMinScale,
+                    maxScale: _referenceCardMaxScale,
+                    panEnabled: !_interactionLocked,
+                    scaleEnabled: !_interactionLocked,
+                    boundaryMargin: const EdgeInsets.all(240),
+                    clipBehavior: Clip.hardEdge,
+                    alignment: Alignment.topLeft,
+                    child: RawImage(
+                      image: widget.image,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
                 ),
-              ),
+                ..._buildCursorOverlayWidgets(),
+              ],
             ),
           ),
         ),
