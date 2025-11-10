@@ -63,6 +63,9 @@ class BitmapSurface {
     final int maxY = math.min(height - 1, (center.dy + radius + 1).ceil());
     final int level = antialiasLevel.clamp(0, 3);
     final double feather = _featherForLevel(level);
+    final int baseColor = color.toARGB32();
+    final int baseAlpha = (baseColor >> 24) & 0xff;
+    final int baseRgb = baseColor & 0x00ffffff;
 
     for (int y = minY; y <= maxY; y++) {
       final double dy = y + 0.5 - center.dy;
@@ -84,16 +87,15 @@ class BitmapSurface {
           continue;
         }
         if (coverage >= 0.999) {
-          blendPixel(x, y, color);
+          _blendPixelWithArgb(x, y, baseColor);
           continue;
         }
-        final int argb = color.toARGB32();
-        final int baseAlpha = (argb >> 24) & 0xff;
         final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
         if (adjustedAlpha == 0) {
           continue;
         }
-        blendPixel(x, y, color.withAlpha(adjustedAlpha));
+        final int encoded = (adjustedAlpha << 24) | baseRgb;
+        _blendPixelWithArgb(x, y, encoded);
       }
     }
   }
@@ -276,6 +278,8 @@ class BitmapSurface {
       invSampleCount = 1.0 / (supersample * supersample);
     }
     final int baseAlpha = color.alpha;
+    final int baseColor = color.toARGB32();
+    final int baseRgb = baseColor & 0x00FFFFFF;
     for (int y = minY; y <= maxY; y++) {
       final double py = y + 0.5;
       final int rowIndex = y * width;
@@ -313,14 +317,15 @@ class BitmapSurface {
           continue;
         }
         if (coverage >= 0.999) {
-          blendPixel(x, y, color);
+          _blendPixelWithArgb(x, y, baseColor);
           continue;
         }
         final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
         if (adjustedAlpha == 0) {
           continue;
         }
-        blendPixel(x, y, color.withAlpha(adjustedAlpha));
+        final int encoded = (adjustedAlpha << 24) | baseRgb;
+        _blendPixelWithArgb(x, y, encoded);
       }
     }
   }
@@ -434,6 +439,8 @@ class BitmapSurface {
     final bool variableRadius = (startRadius - endRadius).abs() > 1e-6;
     final double radiusDelta = endRadius - startRadius;
     final int baseAlpha = color.alpha;
+    final int baseColor = color.toARGB32();
+    final int baseRgb = baseColor & 0x00FFFFFF;
     for (int y = minY; y <= maxY; y++) {
       final double py = y + 0.5;
       final int rowIndex = y * width;
@@ -483,17 +490,18 @@ class BitmapSurface {
           }
         }
         if (coverage >= 0.999) {
-          blendPixel(x, y, color);
-        } else {
-          final int adjustedAlpha = (baseAlpha * coverage).round().clamp(
-            0,
-            255,
-          );
-          if (adjustedAlpha == 0) {
-            continue;
-          }
-          blendPixel(x, y, color.withAlpha(adjustedAlpha));
+          _blendPixelWithArgb(x, y, baseColor);
+          continue;
         }
+        final int adjustedAlpha = (baseAlpha * coverage).round().clamp(
+          0,
+          255,
+        );
+        if (adjustedAlpha == 0) {
+          continue;
+        }
+        final int encoded = (adjustedAlpha << 24) | baseRgb;
+        _blendPixelWithArgb(x, y, encoded);
       }
     }
   }
@@ -852,12 +860,15 @@ class BitmapSurface {
   }
 
   void blendPixel(int x, int y, Color color) {
+    _blendPixelWithArgb(x, y, color.toARGB32());
+  }
+
+  void _blendPixelWithArgb(int x, int y, int src) {
     if (!_inBounds(x, y)) {
       return;
     }
     final int index = y * width + x;
     final int dst = pixels[index];
-    final int src = encodeColor(color);
 
     final int srcA = (src >> 24) & 0xff;
     if (srcA == 0) {
