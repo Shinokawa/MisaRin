@@ -682,6 +682,15 @@ mixin _PaintingBoardInteractionMixin
       }
       return;
     }
+    if (_isInsideReferenceCardArea(workspacePosition)) {
+      if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
+        setState(() {
+          _toolCursorPosition = null;
+          _penCursorWorkspacePosition = null;
+        });
+      }
+      return;
+    }
     if (overlayTool) {
       final Offset? current = _toolCursorPosition;
       if (current != null &&

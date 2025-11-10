@@ -529,6 +529,99 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
   }
 }
 
+class _ResizeHandleIndicator extends StatelessWidget {
+  const _ResizeHandleIndicator({
+    required this.angle,
+    required this.color,
+    required this.outlineColor,
+  });
+
+  final double angle;
+  final Color color;
+  final Color outlineColor;
+
+  static const double size = 26;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _ResizeHandleIndicatorPainter(
+          angle: angle,
+          color: color,
+          outlineColor: outlineColor,
+        ),
+      ),
+    );
+  }
+}
+
+class _ResizeHandleIndicatorPainter extends CustomPainter {
+  _ResizeHandleIndicatorPainter({
+    required this.angle,
+    required this.color,
+    required this.outlineColor,
+  });
+
+  final double angle;
+  final Color color;
+  final Color outlineColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint outlinePaint = Paint()
+      ..color = outlineColor
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    final Paint fillPaint = Paint()
+      ..color = color
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.rotate(angle);
+    final double length = math.min(size.width, size.height) * 0.75;
+    final double half = length / 2;
+    final double head = 5;
+    void drawArrow(Paint paint) {
+      canvas.drawLine(Offset(-half, 0), Offset(half, 0), paint);
+      canvas.drawLine(
+        Offset(half, 0),
+        Offset(half - head, head),
+        paint,
+      );
+      canvas.drawLine(
+        Offset(half, 0),
+        Offset(half - head, -head),
+        paint,
+      );
+      canvas.drawLine(
+        Offset(-half, 0),
+        Offset(-half + head, head),
+        paint,
+      );
+      canvas.drawLine(
+        Offset(-half, 0),
+        Offset(-half + head, -head),
+        paint,
+      );
+    }
+
+    drawArrow(outlinePaint);
+    drawArrow(fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ResizeHandleIndicatorPainter oldDelegate) {
+    return oldDelegate.angle != angle ||
+        oldDelegate.color != color ||
+        oldDelegate.outlineColor != outlineColor;
+  }
+}
+
 class _ReferenceCardBodyConstraints {
   const _ReferenceCardBodyConstraints({
     required this.minWidth,
@@ -588,6 +681,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   _ReferenceCardResizeEdge? _hoveredResizeEdge;
   _ReferenceCardResizeEdge? _activeResizeEdge;
   Offset? _lastResizePointer;
+  Offset? _resizeCursorPosition;
 
   @override
   void initState() {
@@ -619,22 +713,10 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   bool get _isResizing => _activeResizeEdge != null;
 
   MouseCursor get _currentResizeCursor {
-    final _ReferenceCardResizeEdge? edge =
-        _activeResizeEdge ?? _hoveredResizeEdge;
-    if (edge == null) {
-      return MouseCursor.defer;
+    if (_activeResizeEdge != null || _hoveredResizeEdge != null) {
+      return SystemMouseCursors.none;
     }
-    switch (edge) {
-      case _ReferenceCardResizeEdge.left:
-      case _ReferenceCardResizeEdge.right:
-        return SystemMouseCursors.resizeLeftRight;
-      case _ReferenceCardResizeEdge.bottom:
-        return SystemMouseCursors.resizeUpDown;
-      case _ReferenceCardResizeEdge.bottomLeft:
-        return SystemMouseCursors.resizeDownLeft;
-      case _ReferenceCardResizeEdge.bottomRight:
-        return SystemMouseCursors.resizeDownRight;
-    }
+    return MouseCursor.defer;
   }
 
   double get _currentScale {
@@ -760,11 +842,19 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     }
     final _ReferenceCardResizeEdge? edge =
         _resolveResizeEdge(event.localPosition);
-    if (edge == _hoveredResizeEdge) {
+    if (edge == null) {
+      if (_hoveredResizeEdge == null) {
+        return;
+      }
+      setState(() {
+        _hoveredResizeEdge = null;
+        _resizeCursorPosition = null;
+      });
       return;
     }
     setState(() {
       _hoveredResizeEdge = edge;
+      _resizeCursorPosition = event.localPosition;
     });
   }
 
@@ -774,6 +864,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     }
     setState(() {
       _hoveredResizeEdge = null;
+      _resizeCursorPosition = null;
     });
   }
 
@@ -791,6 +882,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
       _hoveredResizeEdge = edge;
     });
     _lastResizePointer = event.localPosition;
+    _resizeCursorPosition = event.localPosition;
     widget.onResizeStart();
   }
 
@@ -805,6 +897,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
       return;
     }
     _lastResizePointer = event.localPosition;
+    _resizeCursorPosition = event.localPosition;
     widget.onResize(edge, delta);
   }
 
@@ -826,6 +919,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
       _hoveredResizeEdge = null;
     });
     _lastResizePointer = null;
+    _resizeCursorPosition = null;
   }
 
   void _handlePointerDown(PointerDownEvent event) {
@@ -1030,40 +1124,84 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     return overlays;
   }
 
+  List<Widget> _buildResizeHandleIndicators(FluentThemeData theme) {
+    final _ReferenceCardResizeEdge? edge =
+        _activeResizeEdge ?? _hoveredResizeEdge;
+    final Offset? position = _resizeCursorPosition;
+    if (edge == null || position == null) {
+      return const <Widget>[];
+    }
+    final double angle = switch (edge) {
+      _ReferenceCardResizeEdge.left => 0,
+      _ReferenceCardResizeEdge.right => 0,
+      _ReferenceCardResizeEdge.bottom => math.pi / 2,
+      _ReferenceCardResizeEdge.bottomLeft => -math.pi / 4,
+      _ReferenceCardResizeEdge.bottomRight => math.pi / 4,
+    };
+    final Color color = _activeResizeEdge != null
+        ? theme.resources.textFillColorPrimary
+        : theme.resources.textFillColorSecondary;
+    final Color outlineColor = theme.brightness.isDark
+        ? Colors.black
+        : Colors.white;
+    const double indicatorSize = _ResizeHandleIndicator.size;
+    return <Widget>[
+      Positioned(
+        left: position.dx - indicatorSize / 2,
+        top: position.dy - indicatorSize / 2,
+        child: IgnorePointer(
+          ignoring: true,
+          child: _ResizeHandleIndicator(
+            angle: angle,
+            color: color,
+            outlineColor: outlineColor,
+          ),
+        ),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final Size bodySize = widget.bodySize;
     final double panelWidth = bodySize.width + _referenceCardBodyHorizontalPadding;
+    final FluentThemeData theme = FluentTheme.of(context);
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: _handleResizePointerDown,
       onPointerMove: _handleResizePointerMove,
       onPointerUp: _handleResizePointerUp,
       onPointerCancel: _handleResizePointerCancel,
+      onPointerHover: _handleResizeHover,
       child: MouseRegion(
         cursor: _currentResizeCursor,
-        onHover: _handleResizeHover,
         onExit: (_) => _handleResizeHoverExit(),
         child: IgnorePointer(
           ignoring: _isResizing,
-          child: _MeasureSize(
-            onChanged: (size) {
-              _panelSize = size;
-              widget.onSizeChanged(size);
-            },
-            child: WorkspaceFloatingPanel(
-              title: '参考图像',
-              width: panelWidth,
-              onClose: widget.onClose,
-              onDragStart: widget.onDragStart,
-              onDragEnd: widget.onDragEnd,
-              onDragUpdate: widget.onDragUpdate,
-              headerPadding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-              bodyPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              bodySpacing: 10,
-              headerActions: _buildHeaderActions(),
-              child: _buildBody(),
-            ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _MeasureSize(
+                onChanged: (size) {
+                  _panelSize = size;
+                  widget.onSizeChanged(size);
+                },
+                child: WorkspaceFloatingPanel(
+                  title: '参考图像',
+                  width: panelWidth,
+                  onClose: widget.onClose,
+                  onDragStart: widget.onDragStart,
+                  onDragEnd: widget.onDragEnd,
+                  onDragUpdate: widget.onDragUpdate,
+                  headerPadding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                  bodyPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  bodySpacing: 10,
+                  headerActions: _buildHeaderActions(),
+                  child: _buildBody(),
+                ),
+              ),
+              ..._buildResizeHandleIndicators(theme),
+            ],
           ),
         ),
       ),
