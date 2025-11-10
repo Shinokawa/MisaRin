@@ -431,8 +431,9 @@ bool _strokeSegmentShouldSnapToPoint(double length, double radius) {
 void _strokeDrawPoint(
   BitmapCanvasController controller,
   Offset position,
-  double radius,
-) {
+  double radius, {
+  bool markDirty = true,
+}) {
   if (controller._activeLayer.locked) {
     return;
   }
@@ -456,9 +457,11 @@ void _strokeDrawPoint(
       antialiasLevel: controller._currentStrokeAntialiasLevel,
     );
   }
-  controller._markDirty(
-    region: _strokeDirtyRectForCircle(position, resolvedRadius),
-  );
+  if (markDirty) {
+    controller._markDirty(
+      region: _strokeDirtyRectForCircle(position, resolvedRadius),
+    );
+  }
 }
 
 void _strokeStampSegment(
@@ -481,14 +484,26 @@ void _strokeStampSegment(
   final double spacing = _strokeStampSpacing(maxRadius);
   final int samples = math.max(1, (distance / spacing).ceil());
   final int startIndex = includeStart ? 0 : 1;
+  final Rect dirtyRegion = _strokeDirtyRectForVariableLine(
+    start,
+    end,
+    startRadius,
+    endRadius,
+  );
   for (int i = startIndex; i <= samples; i++) {
     final double t = samples == 0 ? 1.0 : (i / samples);
     final double lerpRadius =
         ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
     final double sampleX = ui.lerpDouble(start.dx, end.dx, t) ?? end.dx;
     final double sampleY = ui.lerpDouble(start.dy, end.dy, t) ?? end.dy;
-    _strokeDrawPoint(controller, Offset(sampleX, sampleY), lerpRadius);
+    _strokeDrawPoint(
+      controller,
+      Offset(sampleX, sampleY),
+      lerpRadius,
+      markDirty: false,
+    );
   }
+  controller._markDirty(region: dirtyRegion);
 }
 
 double _strokeStampSpacing(double radius) {

@@ -41,57 +41,71 @@ void _compositeScheduleRefresh(BitmapCanvasController controller) {
     return;
   }
   controller._refreshScheduled = true;
-  scheduleMicrotask(() {
-    controller._refreshScheduled = false;
-    if (!controller._compositeDirty) {
-      return;
-    }
-    final Rect? dirtyBounds = controller._pendingDirtyBounds;
-    final bool requiresFullSurface =
-        !controller._compositeInitialized ||
-        controller._pendingFullSurface ||
-        dirtyBounds == null;
-
-    final List<_IntRect> dirtyTiles = requiresFullSurface
-        ? const <_IntRect>[]
-        : List<_IntRect>.from(controller._pendingDirtyTiles);
-
-    controller._pendingDirtyBounds = null;
-    controller._pendingDirtyTiles.clear();
-    controller._pendingDirtyTileKeys.clear();
-    controller._pendingFullSurface = false;
-
-    _compositeUpdate(
-      controller,
-      requiresFullSurface: requiresFullSurface,
-      regions: requiresFullSurface ? null : dirtyTiles,
-    );
-
-    final Uint8List rgba = controller._compositeRgba ??
-        Uint8List(controller._width * controller._height * 4);
-    ui.decodeImageFromPixels(
-      rgba,
-      controller._width,
-      controller._height,
-      ui.PixelFormat.rgba8888,
-      (ui.Image image) {
-        controller._cachedImage?.dispose();
-        controller._cachedImage = image;
-        if (controller._pendingActiveLayerTransformCleanup) {
-          controller._pendingActiveLayerTransformCleanup = false;
-          _resetActiveLayerTranslationState(controller);
-        }
-        controller._compositeDirty =
-            controller._pendingFullSurface ||
-            controller._pendingDirtyBounds != null;
-        controller.notifyListeners();
-        if (controller._compositeDirty && !controller._refreshScheduled) {
-          _compositeScheduleRefresh(controller);
-        }
-      },
-    );
-  });
+  final SchedulerBinding? scheduler = SchedulerBinding.instance;
+  if (scheduler == null) {
+    scheduleMicrotask(() => _compositeProcessScheduled(controller));
+  } else {
+    scheduler.ensureVisualUpdate();
+    scheduler.scheduleFrameCallback((_) {
+      _compositeProcessScheduled(controller);
+    });
+  }
   controller.notifyListeners();
+}
+
+void _compositeProcessScheduled(BitmapCanvasController controller) {
+  controller._refreshScheduled = false;
+  _compositeProcessPending(controller);
+}
+
+void _compositeProcessPending(BitmapCanvasController controller) {
+  if (!controller._compositeDirty) {
+    return;
+  }
+  final Rect? dirtyBounds = controller._pendingDirtyBounds;
+  final bool requiresFullSurface =
+      !controller._compositeInitialized ||
+      controller._pendingFullSurface ||
+      dirtyBounds == null;
+
+  final List<_IntRect> dirtyTiles = requiresFullSurface
+      ? const <_IntRect>[]
+      : List<_IntRect>.from(controller._pendingDirtyTiles);
+
+  controller._pendingDirtyBounds = null;
+  controller._pendingDirtyTiles.clear();
+  controller._pendingDirtyTileKeys.clear();
+  controller._pendingFullSurface = false;
+
+  _compositeUpdate(
+    controller,
+    requiresFullSurface: requiresFullSurface,
+    regions: requiresFullSurface ? null : dirtyTiles,
+  );
+
+  final Uint8List rgba = controller._compositeRgba ??
+      Uint8List(controller._width * controller._height * 4);
+  ui.decodeImageFromPixels(
+    rgba,
+    controller._width,
+    controller._height,
+    ui.PixelFormat.rgba8888,
+    (ui.Image image) {
+      controller._cachedImage?.dispose();
+      controller._cachedImage = image;
+      if (controller._pendingActiveLayerTransformCleanup) {
+        controller._pendingActiveLayerTransformCleanup = false;
+        _resetActiveLayerTranslationState(controller);
+      }
+      controller._compositeDirty =
+          controller._pendingFullSurface ||
+          controller._pendingDirtyBounds != null;
+      controller.notifyListeners();
+      if (controller._compositeDirty && !controller._refreshScheduled) {
+        _compositeScheduleRefresh(controller);
+      }
+    },
+  );
 }
 
 void _compositeUpdate(
