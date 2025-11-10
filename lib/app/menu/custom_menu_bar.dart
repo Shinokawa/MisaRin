@@ -83,12 +83,12 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
     if (_openController?.isOpen ?? false) {
       _openController!.forceClose();
     }
-    _openController = controller;
+    setState(() => _openController = controller);
   }
 
   void _handleMenuClosed(FlyoutController controller) {
     if (_openController == controller) {
-      _openController = null;
+      setState(() => _openController = null);
     }
   }
 
@@ -116,6 +116,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
             ),
           )
         : const Spacer();
+    final bool anyMenuOpen = _openController?.isOpen ?? false;
     return Container(
       decoration: BoxDecoration(
         color: theme.micaBackgroundColor,
@@ -139,6 +140,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
                   navigatorKey: widget.navigatorKey,
                   onMenuWillOpen: _handleMenuWillOpen,
                   onMenuClosed: _handleMenuClosed,
+                  isAnyMenuOpen: anyMenuOpen,
                 ),
                 if (i != visibleMenus.length - 1) const SizedBox(width: 4),
               ],
@@ -161,12 +163,14 @@ class _MenuButton extends StatefulWidget {
     this.navigatorKey,
     this.onMenuWillOpen,
     this.onMenuClosed,
+    this.isAnyMenuOpen = false,
   });
 
   final MenuDefinition definition;
   final GlobalKey<NavigatorState>? navigatorKey;
   final ValueChanged<FlyoutController>? onMenuWillOpen;
   final ValueChanged<FlyoutController>? onMenuClosed;
+  final bool isAnyMenuOpen;
 
   @override
   State<_MenuButton> createState() => _MenuButtonState();
@@ -182,7 +186,7 @@ class _MenuButtonState extends State<_MenuButton> {
     super.dispose();
   }
 
-  void _showMenu() {
+  void _openMenu({bool toggleIfOpen = true}) {
     if (widget.definition.entries.isEmpty) {
       return;
     }
@@ -192,8 +196,10 @@ class _MenuButtonState extends State<_MenuButton> {
       return;
     }
     if (_flyoutController.isOpen) {
-      _flyoutController.close();
-      widget.onMenuClosed?.call(_flyoutController);
+      if (toggleIfOpen) {
+        _flyoutController.close();
+        widget.onMenuClosed?.call(_flyoutController);
+      }
       return;
     }
     widget.onMenuWillOpen?.call(_flyoutController);
@@ -220,6 +226,13 @@ class _MenuButtonState extends State<_MenuButton> {
     );
   }
 
+  void _handlePointerEnter(PointerEnterEvent event) {
+    setState(() => _hovered = true);
+    if (widget.isAnyMenuOpen && !_flyoutController.isOpen) {
+      _openMenu(toggleIfOpen: false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
@@ -234,11 +247,11 @@ class _MenuButtonState extends State<_MenuButton> {
       controller: _flyoutController,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
+        onEnter: _handlePointerEnter,
         onExit: (_) => setState(() => _hovered = false),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: _showMenu,
+          onTap: () => _openMenu(toggleIfOpen: true),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             padding: const EdgeInsets.symmetric(horizontal: 8),

@@ -62,13 +62,14 @@ mixin _PaintingBoardFilterMixin
     on _PaintingBoardBase, _PaintingBoardLayerMixin {
   OverlayEntry? _filterOverlayEntry;
   _FilterSession? _filterSession;
-  Offset _filterPanelOffset = const Offset(420, 140);
+  Offset _filterPanelOffset = Offset.zero;
   _FilterPreviewWorker? _filterWorker;
   int _filterPreviewLastIssuedToken = 0;
   bool _filterPreviewRequestInFlight = false;
   bool _filterPreviewPendingChange = false;
-  static const Duration _filterPreviewDebounceDuration =
-      Duration(milliseconds: 50);
+  static const Duration _filterPreviewDebounceDuration = Duration(
+    milliseconds: 50,
+  );
   Timer? _filterPreviewDebounceTimer;
   bool _antialiasCardVisible = false;
   Offset _antialiasCardOffset = Offset.zero;
@@ -117,6 +118,13 @@ mixin _PaintingBoardFilterMixin
       activeLayerIndex: layerIndex,
       activeLayerId: activeLayerId,
     );
+    if (_filterPanelOffset == Offset.zero) {
+      _filterPanelOffset = _workspacePanelSpawnOffset(
+        this,
+        panelWidth: _kFilterPanelWidth,
+        panelHeight: _kFilterPanelMinHeight,
+      );
+    }
     _initializeFilterWorker();
     _insertFilterOverlay();
   }
@@ -135,10 +143,12 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     final Size size = MediaQuery.sizeOf(context);
-    _filterPanelOffset = Offset(
-      math.max(16, size.width - _kFilterPanelWidth - 32),
-      math.max(16, size.height * 0.2),
-    );
+    if (_filterPanelOffset == Offset.zero) {
+      _filterPanelOffset = Offset(
+        math.max(16, size.width - _kFilterPanelWidth - 32),
+        math.max(16, size.height * 0.2),
+      );
+    }
     _filterOverlayEntry = OverlayEntry(
       builder: (overlayContext) {
         final _FilterSession? session = _filterSession;
@@ -325,13 +335,10 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     _filterPreviewDebounceTimer?.cancel();
-    _filterPreviewDebounceTimer = Timer(
-      _filterPreviewDebounceDuration,
-      () {
-        _filterPreviewDebounceTimer = null;
-        _applyFilterPreview();
-      },
-    );
+    _filterPreviewDebounceTimer = Timer(_filterPreviewDebounceDuration, () {
+      _filterPreviewDebounceTimer = null;
+      _applyFilterPreview();
+    });
   }
 
   void _applyFilterPreview() {
@@ -612,16 +619,12 @@ mixin _PaintingBoardFilterMixin
   }
 
   Offset _initialAntialiasCardOffset() {
-    if (_workspaceSize.isEmpty) {
-      return const Offset(420, 160);
-    }
-    const double margin = 16.0;
-    final double baseLeft = math.max(
-      margin,
-      _workspaceSize.width - _kAntialiasPanelWidth - margin,
+    return _workspacePanelSpawnOffset(
+      this,
+      panelWidth: _kAntialiasPanelWidth,
+      panelHeight: _kAntialiasPanelMinHeight,
+      additionalDy: 24,
     );
-    final double baseTop = math.max(margin, _workspaceSize.height * 0.25);
-    return Offset(baseLeft, baseTop);
   }
 
   Offset _clampAntialiasCardOffset(Offset value, Size? size) {
@@ -718,6 +721,92 @@ class _BrightnessContrastControls extends StatelessWidget {
   }
 }
 
+class _GaussianBlurStepSegment {
+  _GaussianBlurStepSegment({
+    required this.start,
+    required this.end,
+    required this.step,
+  }) : assert(end > start),
+       assert(step > 0),
+       assert(() {
+         final double count = (end - start) / step;
+         return (count - count.round()).abs() < 1e-6;
+       }());
+
+  final double start;
+  final double end;
+  final double step;
+
+  int get stepCount => ((end - start) / step).round();
+}
+
+class _GaussianBlurSliderScale {
+  _GaussianBlurSliderScale(this.segments)
+    : assert(segments.isNotEmpty),
+      assert(segments.last.end >= _kGaussianBlurMaxRadius);
+
+  final List<_GaussianBlurStepSegment> segments;
+
+  int get totalSteps => _totalSteps ??= _computeTotalSteps();
+  int? _totalSteps;
+
+  int _computeTotalSteps() {
+    int steps = 0;
+    for (final _GaussianBlurStepSegment segment in segments) {
+      steps += segment.stepCount;
+    }
+    return steps;
+  }
+
+  double sliderValueFromRadius(double radius) {
+    final double clamped = radius.clamp(0.0, _kGaussianBlurMaxRadius);
+    if (clamped <= 0) {
+      return 0;
+    }
+    double sliderPosition = 0;
+    for (final _GaussianBlurStepSegment segment in segments) {
+      if (clamped <= segment.end) {
+        final double offset = clamped - segment.start;
+        final double steps = (offset / segment.step).clamp(
+          0.0,
+          segment.stepCount.toDouble(),
+        );
+        return (sliderPosition + steps).clamp(0.0, totalSteps.toDouble());
+      }
+      sliderPosition += segment.stepCount;
+    }
+    return totalSteps.toDouble();
+  }
+
+  double radiusFromSliderValue(double sliderValue) {
+    final int stepIndex = sliderValue.round().clamp(0, totalSteps);
+    if (stepIndex == 0) {
+      return 0;
+    }
+    int remaining = stepIndex;
+    for (final _GaussianBlurStepSegment segment in segments) {
+      if (remaining <= segment.stepCount) {
+        return (segment.start + remaining * segment.step).clamp(
+          0.0,
+          _kGaussianBlurMaxRadius,
+        );
+      }
+      remaining -= segment.stepCount;
+    }
+    return _kGaussianBlurMaxRadius;
+  }
+}
+
+final _GaussianBlurSliderScale _gaussianBlurSliderScale =
+    _GaussianBlurSliderScale(<_GaussianBlurStepSegment>[
+      _GaussianBlurStepSegment(start: 0, end: 2, step: 0.1),
+      _GaussianBlurStepSegment(start: 2, end: 10, step: 0.2),
+      _GaussianBlurStepSegment(start: 10, end: 50, step: 1),
+      _GaussianBlurStepSegment(start: 50, end: 200, step: 5),
+      _GaussianBlurStepSegment(start: 200, end: 500, step: 10),
+      _GaussianBlurStepSegment(start: 500, end: 1000, step: 20),
+    ]);
+
 class _GaussianBlurControls extends StatelessWidget {
   const _GaussianBlurControls({
     required this.radius,
@@ -731,6 +820,10 @@ class _GaussianBlurControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final double clamped = radius.clamp(0, _kGaussianBlurMaxRadius);
+    final double sliderValue = _gaussianBlurSliderScale.sliderValueFromRadius(
+      clamped,
+    );
+    final int sliderDivisions = _gaussianBlurSliderScale.totalSteps;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -747,13 +840,16 @@ class _GaussianBlurControls extends StatelessWidget {
         ),
         Slider(
           min: 0,
-          max: _kGaussianBlurMaxRadius,
-          value: clamped,
-          onChanged: onRadiusChanged,
+          max: sliderDivisions.toDouble(),
+          divisions: sliderDivisions,
+          value: sliderValue,
+          onChanged: (value) => onRadiusChanged(
+            _gaussianBlurSliderScale.radiusFromSliderValue(value),
+          ),
         ),
         const SizedBox(height: 8),
         Text(
-          '调节模糊强度（0 - 1000 px），较大的值会产生更柔和的边缘。',
+          '调节模糊强度（0 - 1000 px）。滑块前段拥有更高的分辨率，向右拖动时步进会逐渐增大。',
           style: theme.typography.caption,
         ),
       ],
@@ -871,12 +967,12 @@ class _FilterPreviewWorker {
     required int canvasHeight,
     required ValueChanged<_FilterPreviewResult> onResult,
     required void Function(Object error, StackTrace stackTrace) onError,
-  })  : _type = type,
-        _layerId = layerId,
-        _canvasWidth = canvasWidth,
-        _canvasHeight = canvasHeight,
-        _onResult = onResult,
-        _onError = onError {
+  }) : _type = type,
+       _layerId = layerId,
+       _canvasWidth = canvasWidth,
+       _canvasHeight = canvasHeight,
+       _onResult = onResult,
+       _onError = onError {
     _start(baseLayer);
   }
 
@@ -1342,7 +1438,8 @@ List<int> _filterComputeBoxSizes(double sigma, int boxCount) {
     lowerWidth = 1;
   }
   final int upperWidth = lowerWidth + 2;
-  final double mIdeal = (12 * sigma * sigma -
+  final double mIdeal =
+      (12 * sigma * sigma -
           boxCount * lowerWidth * lowerWidth -
           4 * boxCount * lowerWidth -
           3 * boxCount) /

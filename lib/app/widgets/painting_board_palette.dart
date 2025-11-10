@@ -608,19 +608,13 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
   }
 
   Offset _initialPaletteOffset() {
-    if (_workspaceSize.isEmpty) {
-      return Offset(_toolButtonPadding + 48.0, _toolButtonPadding + 48.0);
-    }
-    const double margin = 16.0;
-    const double rightInset = 32.0;
-    final double baseLeft = math.max(
-      margin,
-      _workspaceSize.width - _paletteCardWidth - rightInset,
+    final double stackOffset = _paletteCards.length * 24.0;
+    return _workspacePanelSpawnOffset(
+      this,
+      panelWidth: _paletteCardWidth,
+      panelHeight: 220,
+      additionalDy: stackOffset,
     );
-    final double baseTop =
-        math.max(margin, _workspaceSize.height * 0.2) +
-        (_paletteCards.length * 24);
-    return Offset(baseLeft, baseTop);
   }
 
   Offset _clampPaletteOffset(Offset value, [Size? size]) {

@@ -125,3 +125,36 @@ class WorkspaceFloatingPanel extends StatelessWidget {
     );
   }
 }
+
+Offset _workspacePanelSpawnOffset(
+  _PaintingBoardBase host, {
+  required double panelWidth,
+  required double panelHeight,
+  double additionalDx = 0,
+  double additionalDy = 0,
+  double margin = 16,
+  double verticalGap = 12,
+}) {
+  final double settingsLeft =
+      _toolButtonPadding + host._toolbarLayout.width + _toolSettingsSpacing;
+  final double baseLeft = math.max(margin, settingsLeft);
+  final double settingsBottom =
+      _toolButtonPadding + host._toolSettingsCardSize.height;
+  final double baseTop = math.max(margin, settingsBottom + verticalGap);
+  double targetLeft = baseLeft + additionalDx;
+  double targetTop = baseTop + additionalDy;
+  final Size workspaceSize = host._workspaceSize;
+  if (!workspaceSize.isEmpty) {
+    final double maxLeft = math.max(
+      margin,
+      workspaceSize.width - panelWidth - margin,
+    );
+    final double maxTop = math.max(
+      margin,
+      workspaceSize.height - panelHeight - margin,
+    );
+    targetLeft = targetLeft.clamp(margin, maxLeft);
+    targetTop = targetTop.clamp(margin, maxTop);
+  }
+  return Offset(targetLeft, targetTop);
+}
