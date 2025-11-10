@@ -505,20 +505,29 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   List<Widget> _buildHeaderActions() {
     final bool disabled = _interactionLocked;
     return [
-      IconButton(
-        icon: const Icon(FluentIcons.subtract_shape),
-        iconButtonMode: IconButtonMode.small,
-        onPressed: disabled ? null : () => _zoomByFactor(0.9),
+      Tooltip(
+        message: '缩小',
+        child: IconButton(
+          icon: const Icon(FluentIcons.calculator_subtract),
+          iconButtonMode: IconButtonMode.small,
+          onPressed: disabled ? null : () => _zoomByFactor(0.9),
+        ),
       ),
-      IconButton(
-        icon: const Icon(FluentIcons.circle_addition),
-        iconButtonMode: IconButtonMode.small,
-        onPressed: disabled ? null : () => _zoomByFactor(1.1),
+      Tooltip(
+        message: '放大',
+        child: IconButton(
+          icon: const Icon(FluentIcons.add),
+          iconButtonMode: IconButtonMode.small,
+          onPressed: disabled ? null : () => _zoomByFactor(1.1),
+        ),
       ),
-      IconButton(
-        icon: const Icon(FluentIcons.refresh),
-        iconButtonMode: IconButtonMode.small,
-        onPressed: disabled ? null : _resetView,
+      Tooltip(
+        message: '重置视图',
+        child: IconButton(
+          icon: const Icon(FluentIcons.refresh),
+          iconButtonMode: IconButtonMode.small,
+          onPressed: disabled ? null : _resetView,
+        ),
       ),
     ];
   }
