@@ -158,3 +158,15 @@ Offset _workspacePanelSpawnOffset(
   }
   return Offset(targetLeft, targetTop);
 }
+
+Offset _workspaceToOverlayOffset(
+  _PaintingBoardBase host,
+  Offset workspaceOffset,
+) {
+  final RenderObject? renderObject = host.context.findRenderObject();
+  if (renderObject is RenderBox) {
+    final Offset origin = renderObject.localToGlobal(Offset.zero);
+    return origin + workspaceOffset;
+  }
+  return workspaceOffset;
+}

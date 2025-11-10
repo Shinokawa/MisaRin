@@ -63,6 +63,7 @@ mixin _PaintingBoardFilterMixin
   OverlayEntry? _filterOverlayEntry;
   _FilterSession? _filterSession;
   Offset _filterPanelOffset = Offset.zero;
+  bool _filterPanelOffsetIsOverlay = false;
   _FilterPreviewWorker? _filterWorker;
   int _filterPreviewLastIssuedToken = 0;
   bool _filterPreviewRequestInFlight = false;
@@ -119,11 +120,16 @@ mixin _PaintingBoardFilterMixin
       activeLayerId: activeLayerId,
     );
     if (_filterPanelOffset == Offset.zero) {
-      _filterPanelOffset = _workspacePanelSpawnOffset(
+      final Offset workspaceOffset = _workspacePanelSpawnOffset(
         this,
         panelWidth: _kFilterPanelWidth,
         panelHeight: _kFilterPanelMinHeight,
       );
+      _filterPanelOffset = _workspaceToOverlayOffset(this, workspaceOffset);
+      _filterPanelOffsetIsOverlay = true;
+    } else if (!_filterPanelOffsetIsOverlay) {
+      _filterPanelOffset = _workspaceToOverlayOffset(this, _filterPanelOffset);
+      _filterPanelOffsetIsOverlay = true;
     }
     _initializeFilterWorker();
     _insertFilterOverlay();
@@ -148,6 +154,7 @@ mixin _PaintingBoardFilterMixin
         math.max(16, size.width - _kFilterPanelWidth - 32),
         math.max(16, size.height * 0.2),
       );
+      _filterPanelOffsetIsOverlay = true;
     }
     _filterOverlayEntry = OverlayEntry(
       builder: (overlayContext) {
@@ -268,6 +275,7 @@ mixin _PaintingBoardFilterMixin
       _filterPanelOffset.dx + delta.dx,
       _filterPanelOffset.dy + delta.dy,
     );
+    _filterPanelOffsetIsOverlay = true;
     _filterOverlayEntry?.markNeedsBuild();
   }
 
@@ -528,6 +536,9 @@ mixin _PaintingBoardFilterMixin
     _filterWorker?.dispose();
     _filterWorker = null;
     _filterSession = null;
+    if (_filterPanelOffset == Offset.zero) {
+      _filterPanelOffsetIsOverlay = false;
+    }
   }
 
   void showLayerAntialiasPanel() {
@@ -623,7 +634,6 @@ mixin _PaintingBoardFilterMixin
       this,
       panelWidth: _kAntialiasPanelWidth,
       panelHeight: _kAntialiasPanelMinHeight,
-      additionalDy: 24,
     );
   }
 

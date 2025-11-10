@@ -75,6 +75,7 @@ class CustomMenuBar extends StatefulWidget {
 
 class _CustomMenuBarState extends State<CustomMenuBar> {
   FlyoutController? _openController;
+  final ValueNotifier<bool> _menuOpenNotifier = ValueNotifier<bool>(false);
 
   void _handleMenuWillOpen(FlyoutController controller) {
     if (_openController == controller) {
@@ -83,13 +84,25 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
     if (_openController?.isOpen ?? false) {
       _openController!.forceClose();
     }
-    setState(() => _openController = controller);
+    _openController = controller;
+    if (!_menuOpenNotifier.value) {
+      _menuOpenNotifier.value = true;
+    }
   }
 
   void _handleMenuClosed(FlyoutController controller) {
     if (_openController == controller) {
-      setState(() => _openController = null);
+      _openController = null;
+      if (_menuOpenNotifier.value) {
+        _menuOpenNotifier.value = false;
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _menuOpenNotifier.dispose();
+    super.dispose();
   }
 
   @override
@@ -116,7 +129,6 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
             ),
           )
         : const Spacer();
-    final bool anyMenuOpen = _openController?.isOpen ?? false;
     return Container(
       decoration: BoxDecoration(
         color: theme.micaBackgroundColor,
@@ -131,25 +143,30 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
         bottom: false,
         child: SizedBox(
           height: 36,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (int i = 0; i < visibleMenus.length; i++) ...[
-                _MenuButton(
-                  definition: visibleMenus[i],
-                  navigatorKey: widget.navigatorKey,
-                  onMenuWillOpen: _handleMenuWillOpen,
-                  onMenuClosed: _handleMenuClosed,
-                  isAnyMenuOpen: anyMenuOpen,
-                ),
-                if (i != visibleMenus.length - 1) const SizedBox(width: 4),
-              ],
-              dragArea,
-              if (showWindowControls) ...[
-                const SizedBox(width: 8),
-                const _WindowControlButtons(),
-              ],
-            ],
+          child: ValueListenableBuilder<bool>(
+            valueListenable: _menuOpenNotifier,
+            builder: (context, anyMenuOpen, _) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (int i = 0; i < visibleMenus.length; i++) ...[
+                    _MenuButton(
+                      definition: visibleMenus[i],
+                      navigatorKey: widget.navigatorKey,
+                      onMenuWillOpen: _handleMenuWillOpen,
+                      onMenuClosed: _handleMenuClosed,
+                      isAnyMenuOpen: anyMenuOpen,
+                    ),
+                    if (i != visibleMenus.length - 1) const SizedBox(width: 4),
+                  ],
+                  dragArea,
+                  if (showWindowControls) ...[
+                    const SizedBox(width: 8),
+                    const _WindowControlButtons(),
+                  ],
+                ],
+              );
+            },
           ),
         ),
       ),
