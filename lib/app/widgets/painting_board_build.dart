@@ -501,12 +501,15 @@ mixin _PaintingBoardBuildMixin
                                 bucketSampleAllLayers: _bucketSampleAllLayers,
                                 bucketContiguous: _bucketContiguous,
                                 bucketSwallowColorLine: _bucketSwallowColorLine,
+                                bucketAntialiasLevel: _bucketAntialiasLevel,
                                 onBucketSampleAllLayersChanged:
                                     _updateBucketSampleAllLayers,
                                 onBucketContiguousChanged:
                                     _updateBucketContiguous,
                                 onBucketSwallowColorLineChanged:
                                     _updateBucketSwallowColorLine,
+                                onBucketAntialiasChanged:
+                                    _updateBucketAntialiasLevel,
                                 bucketTolerance: _bucketTolerance,
                                 onBucketToleranceChanged:
                                     _updateBucketTolerance,

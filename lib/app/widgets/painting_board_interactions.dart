@@ -237,6 +237,17 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateBucketAntialiasLevel(int value) {
+    final int clamped = value.clamp(0, 3);
+    if (_bucketAntialiasLevel == clamped) {
+      return;
+    }
+    setState(() => _bucketAntialiasLevel = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketAntialiasLevel = clamped;
+    unawaited(AppPreferences.save());
+  }
+
   @override
   void _updateAutoSharpPeakEnabled(bool value) {
     if (_autoSharpPeakEnabled == value) {

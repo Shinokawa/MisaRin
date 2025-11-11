@@ -215,9 +215,11 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.bucketSwallowColorLine,
+    required this.bucketAntialiasLevel,
     required this.onBucketSampleAllLayersChanged,
     required this.onBucketContiguousChanged,
     required this.onBucketSwallowColorLineChanged,
+    required this.onBucketAntialiasChanged,
     required this.bucketTolerance,
     required this.onBucketToleranceChanged,
     required this.layerAdjustCropOutside,
@@ -254,9 +256,11 @@ class _ToolSettingsCard extends StatefulWidget {
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final bool bucketSwallowColorLine;
+  final int bucketAntialiasLevel;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
   final ValueChanged<bool> onBucketContiguousChanged;
   final ValueChanged<bool> onBucketSwallowColorLineChanged;
+  final ValueChanged<int> onBucketAntialiasChanged;
   final int bucketTolerance;
   final ValueChanged<int> onBucketToleranceChanged;
   final bool layerAdjustCropOutside;
@@ -385,6 +389,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               value: widget.bucketTolerance,
               onChanged: widget.onBucketToleranceChanged,
             ),
+            _buildBucketAntialiasRow(theme),
             _BucketOptionTile(
               title: '跨图层',
               value: widget.bucketSampleAllLayers,
@@ -676,6 +681,26 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
   }
 
   Widget _buildBrushAntialiasRow(FluentThemeData theme) {
+    return _buildAntialiasRow(
+      theme,
+      value: widget.brushAntialiasLevel,
+      onChanged: widget.onBrushAntialiasChanged,
+    );
+  }
+
+  Widget _buildBucketAntialiasRow(FluentThemeData theme) {
+    return _buildAntialiasRow(
+      theme,
+      value: widget.bucketAntialiasLevel,
+      onChanged: widget.onBucketAntialiasChanged,
+    );
+  }
+
+  Widget _buildAntialiasRow(
+    FluentThemeData theme, {
+    required int value,
+    required ValueChanged<int> onChanged,
+  }) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -684,16 +709,16 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
         SizedBox(
           width: 140,
           child: Slider(
-            value: widget.brushAntialiasLevel.toDouble(),
+            value: value.toDouble(),
             min: 0,
             max: 3,
             divisions: 3,
-            onChanged: (value) => widget.onBrushAntialiasChanged(value.round()),
+            onChanged: (raw) => onChanged(raw.round()),
           ),
         ),
         const SizedBox(width: 8),
         Text(
-          '等级 ${widget.brushAntialiasLevel}',
+          '等级 $value',
           style: theme.typography.caption,
         ),
       ],

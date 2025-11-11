@@ -196,6 +196,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       AppPreferences.defaultStrokeStabilizerStrength;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = 0;
+  int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
@@ -1379,6 +1380,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
+    _bucketAntialiasLevel = prefs.bucketAntialiasLevel.clamp(0, 3);
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;

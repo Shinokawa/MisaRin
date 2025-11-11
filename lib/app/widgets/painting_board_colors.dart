@@ -69,6 +69,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       sampleAllLayers: _bucketSampleAllLayers,
       swallowColors: _bucketSwallowColorLine ? kColorLinePresets : null,
       tolerance: _bucketTolerance,
+      antialiasLevel: _bucketAntialiasLevel,
     );
     setState(() {});
     _markDirty();

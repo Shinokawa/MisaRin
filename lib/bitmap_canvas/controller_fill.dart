@@ -15,6 +15,7 @@ void _fillFloodFill(
   bool sampleAllLayers = false,
   List<Color>? swallowColors,
   int tolerance = 0,
+  int antialiasLevel = 0,
 }) {
   if (controller._activeLayer.locked) {
     return;
@@ -35,7 +36,11 @@ void _fillFloodFill(
             .toList(growable: false)
       : null;
   final int clampedTolerance = tolerance.clamp(0, 255);
-  final bool requiresMaskFill = shouldSwallow || clampedTolerance > 0;
+  final int clampedAntialias = antialiasLevel.clamp(0, 3);
+  final bool hasAntialias = clampedAntialias > 0;
+  final bool requiresMaskFill =
+      shouldSwallow || clampedTolerance > 0 || hasAntialias;
+  final bool needsRegionMask = shouldSwallow || hasAntialias;
 
   Uint8List? regionMask;
   if (sampleAllLayers) {
@@ -46,9 +51,9 @@ void _fillFloodFill(
       color,
       contiguous,
       tolerance: clampedTolerance,
-      collectMask: shouldSwallow,
+      collectMask: needsRegionMask,
     );
-    if (!shouldSwallow || regionMask == null) {
+    if (needsRegionMask && regionMask == null) {
       return;
     }
   } else {
@@ -81,13 +86,16 @@ void _fillFloodFill(
       contiguous,
       tolerance: clampedTolerance,
     );
-    if (!shouldSwallow || regionMask == null) {
+    if (regionMask == null) {
       return;
     }
   }
 
-  if (shouldSwallow && regionMask != null) {
-    _fillSwallowColorLines(controller, regionMask, swallowArgb!, color);
+  if (shouldSwallow && regionMask != null && swallowArgb != null) {
+    _fillSwallowColorLines(controller, regionMask, swallowArgb, color);
+  }
+  if (hasAntialias && regionMask != null) {
+    _fillApplyAntialiasToMask(controller, regionMask, clampedAntialias);
   }
 }
 
@@ -568,6 +576,176 @@ void _fillSwallowColorLines(
       ),
     );
   }
+}
+
+void _fillApplyAntialiasToMask(
+  BitmapCanvasController controller,
+  Uint8List regionMask,
+  int level,
+) {
+  if (regionMask.isEmpty || level <= 0) {
+    return;
+  }
+  final List<double>? profile =
+      BitmapCanvasController._kAntialiasBlendProfiles[level];
+  if (profile == null || profile.isEmpty) {
+    return;
+  }
+  final Uint32List pixels = controller._activeSurface.pixels;
+  if (pixels.isEmpty) {
+    return;
+  }
+  final Uint8List expandedMask = _fillExpandMask(
+    regionMask,
+    controller._width,
+    controller._height,
+  );
+  final Uint32List temp = Uint32List(pixels.length);
+  Uint32List src = pixels;
+  Uint32List dest = temp;
+  bool anyChange = false;
+  for (final double factor in profile) {
+    if (factor <= 0) {
+      continue;
+    }
+    final bool changed = _fillRunMaskedAntialiasPass(
+      controller,
+      src,
+      dest,
+      expandedMask,
+      blendFactor: factor,
+    );
+    if (!changed) {
+      continue;
+    }
+    anyChange = true;
+    final Uint32List swap = src;
+    src = dest;
+    dest = swap;
+  }
+  if (!anyChange) {
+    return;
+  }
+  if (!identical(src, pixels)) {
+    pixels.setAll(0, src);
+  }
+  final Rect? bounds = _fillMaskBounds(controller, expandedMask);
+  controller._markDirty(region: bounds);
+}
+
+bool _fillRunMaskedAntialiasPass(
+  BitmapCanvasController controller,
+  Uint32List src,
+  Uint32List dest,
+  Uint8List mask, {
+  required double blendFactor,
+}) {
+  final bool changed = controller._runAntialiasPass(
+    src,
+    dest,
+    controller._width,
+    controller._height,
+    blendFactor,
+  );
+  if (!changed) {
+    return false;
+  }
+  bool maskChanged = false;
+  final int limit = math.min(mask.length, src.length);
+  for (int i = 0; i < limit; i++) {
+    if (mask[i] == 0) {
+      dest[i] = src[i];
+      continue;
+    }
+    if (!maskChanged && dest[i] != src[i]) {
+      maskChanged = true;
+    }
+  }
+  return maskChanged;
+}
+
+Rect? _fillMaskBounds(
+  BitmapCanvasController controller,
+  Uint8List mask,
+) {
+  if (mask.isEmpty) {
+    return null;
+  }
+  int minX = controller._width;
+  int minY = controller._height;
+  int maxX = -1;
+  int maxY = -1;
+  int index = 0;
+  for (int y = 0; y < controller._height; y++) {
+    for (int x = 0; x < controller._width; x++, index++) {
+      if (index >= mask.length) {
+        break;
+      }
+      if (mask[index] == 0) {
+        continue;
+      }
+      if (x < minX) {
+        minX = x;
+      }
+      if (y < minY) {
+        minY = y;
+      }
+      if (x > maxX) {
+        maxX = x;
+      }
+      if (y > maxY) {
+        maxY = y;
+      }
+    }
+    if (index >= mask.length) {
+      break;
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    return null;
+  }
+  return Rect.fromLTRB(
+    minX.toDouble(),
+    minY.toDouble(),
+    (maxX + 1).toDouble(),
+    (maxY + 1).toDouble(),
+  );
+}
+
+Uint8List _fillExpandMask(
+  Uint8List mask,
+  int width,
+  int height, {
+  int radius = 1,
+}) {
+  if (mask.isEmpty || width <= 0 || height <= 0 || radius <= 0) {
+    return mask;
+  }
+  final Uint8List expanded = Uint8List(mask.length);
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      final int index = y * width + x;
+      if (index >= mask.length) {
+        break;
+      }
+      if (mask[index] == 0) {
+        continue;
+      }
+      final int minX = math.max(0, x - radius);
+      final int maxX = math.min(width - 1, x + radius);
+      final int minY = math.max(0, y - radius);
+      final int maxY = math.min(height - 1, y + radius);
+      for (int ny = minY; ny <= maxY; ny++) {
+        for (int nx = minX; nx <= maxX; nx++) {
+          final int expandedIndex = ny * width + nx;
+          if (expandedIndex < expanded.length) {
+            expanded[expandedIndex] = 1;
+          }
+        }
+      }
+    }
+  }
+  return expanded;
 }
 
 bool _fillFloodFillMask(
