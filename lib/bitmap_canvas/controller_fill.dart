@@ -14,6 +14,7 @@ void _fillFloodFill(
   bool contiguous = true,
   bool sampleAllLayers = false,
   List<Color>? swallowColors,
+  int tolerance = 0,
 }) {
   if (controller._activeLayer.locked) {
     return;
@@ -33,6 +34,8 @@ void _fillFloodFill(
             .map((color) => BitmapSurface.encodeColor(color))
             .toList(growable: false)
       : null;
+  final int clampedTolerance = tolerance.clamp(0, 255);
+  final bool requiresMaskFill = shouldSwallow || clampedTolerance > 0;
 
   Uint8List? regionMask;
   if (sampleAllLayers) {
@@ -42,8 +45,12 @@ void _fillFloodFill(
       y,
       color,
       contiguous,
+      tolerance: clampedTolerance,
       collectMask: shouldSwallow,
     );
+    if (!shouldSwallow || regionMask == null) {
+      return;
+    }
   } else {
     final Color baseColor = _fillColorAtSurface(
       controller,
@@ -51,7 +58,7 @@ void _fillFloodFill(
       x,
       y,
     );
-    if (!shouldSwallow) {
+    if (!requiresMaskFill) {
       controller._activeSurface.floodFill(
         start: Offset(x.toDouble(), y.toDouble()),
         color: color,
@@ -62,7 +69,7 @@ void _fillFloodFill(
       controller._markDirty();
       return;
     }
-    if (baseColor.value == color.value) {
+    if (baseColor.value == color.value && !shouldSwallow) {
       return;
     }
     regionMask = _fillFloodFillSingleLayerWithMask(
@@ -72,7 +79,11 @@ void _fillFloodFill(
       color,
       baseColor,
       contiguous,
+      tolerance: clampedTolerance,
     );
+    if (!shouldSwallow || regionMask == null) {
+      return;
+    }
   }
 
   if (shouldSwallow && regionMask != null) {
@@ -84,6 +95,7 @@ Uint8List? _fillComputeMagicWandMask(
   BitmapCanvasController controller,
   Offset position, {
   bool sampleAllLayers = true,
+  int tolerance = 0,
 }) {
   final int x = position.dx.floor();
   final int y = position.dy.floor();
@@ -107,6 +119,7 @@ Uint8List? _fillComputeMagicWandMask(
       startY: y,
       width: controller._width,
       height: controller._height,
+      tolerance: tolerance,
     );
     if (!filled) {
       return null;
@@ -125,6 +138,7 @@ Uint8List? _fillComputeMagicWandMask(
     startY: y,
     width: controller._width,
     height: controller._height,
+    tolerance: tolerance,
   );
   if (!filled) {
     return null;
@@ -180,6 +194,7 @@ Uint8List? _fillFloodFillAcrossLayers(
   Color color,
   bool contiguous, {
   bool collectMask = false,
+  int tolerance = 0,
 }) {
   if (!_fillSelectionAllowsInt(controller, startX, startY)) {
     return null;
@@ -209,7 +224,7 @@ Uint8List? _fillFloodFillAcrossLayers(
     bool changed = false;
     for (int i = 0; i < compositePixels.length; i++) {
       final int pixel = compositePixels[i];
-      if (pixel != target) {
+      if (!_fillColorsWithinTolerance(pixel, target, tolerance)) {
         continue;
       }
       if (selectionMask != null && selectionMask[i] == 0) {
@@ -265,6 +280,7 @@ Uint8List? _fillFloodFillAcrossLayers(
     startY: startY,
     width: controller._width,
     height: controller._height,
+    tolerance: tolerance,
   );
   if (!filled) {
     return null;
@@ -320,8 +336,9 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
   int startY,
   Color fillColor,
   Color baseColor,
-  bool contiguous,
-) {
+  bool contiguous, {
+  int tolerance = 0,
+}) {
   final Uint32List pixels = controller._activeSurface.pixels;
   final Uint8List? selectionMask = controller._selectionMask;
   final int width = controller._width;
@@ -340,7 +357,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
       if (selectionMask != null && selectionMask[i] == 0) {
         continue;
       }
-      if (pixels[i] != target) {
+      if (!_fillColorsWithinTolerance(pixels[i], target, tolerance)) {
         continue;
       }
       pixels[i] = replacement;
@@ -384,6 +401,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
     startY: startY,
     width: width,
     height: height,
+    tolerance: tolerance,
   );
   if (!filled) {
     return null;
@@ -561,6 +579,7 @@ bool _fillFloodFillMask(
   required int startY,
   required int width,
   required int height,
+  int tolerance = 0,
 }) {
   if (pixels.isEmpty || mask.isEmpty) {
     return false;
@@ -582,7 +601,7 @@ bool _fillFloodFillMask(
         controller._selectionMask![index] == 0) {
       return false;
     }
-    return pixels[index] == targetColor;
+    return _fillColorsWithinTolerance(pixels[index], targetColor, tolerance);
   }
 
   void enqueue(int x, int y) {
@@ -608,6 +627,27 @@ bool _fillFloodFillMask(
   }
 
   return processed > 0;
+}
+
+bool _fillColorsWithinTolerance(int candidate, int target, int tolerance) {
+  if (tolerance <= 0) {
+    return candidate == target;
+  }
+  final int ca = (candidate >> 24) & 0xff;
+  final int cr = (candidate >> 16) & 0xff;
+  final int cg = (candidate >> 8) & 0xff;
+  final int cb = candidate & 0xff;
+  final int ta = (target >> 24) & 0xff;
+  final int tr = (target >> 16) & 0xff;
+  final int tg = (target >> 8) & 0xff;
+  final int tb = target & 0xff;
+  final int diffA = (ca - ta).abs();
+  final int diffR = (cr - tr).abs();
+  final int diffG = (cg - tg).abs();
+  final int diffB = (cb - tb).abs();
+  final int maxRgb = math.max(math.max(diffR, diffG), diffB);
+  final int maxDiff = math.max(maxRgb, diffA);
+  return maxDiff <= tolerance;
 }
 
 Color _fillColorAtComposite(

@@ -103,15 +103,18 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     final Offset strokeStart = effectivePoints.first;
+    final bool erase = _shapeEraserMode;
+    final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     _controller.beginStroke(
       strokeStart,
-      color: _primaryColor,
+      color: strokeColor,
       radius: _penStrokeWidth / 2,
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
       timestampMillis: initialTimestamp,
       antialiasLevel: _penAntialiasLevel,
       brushShape: _brushShape,
+      erase: erase,
     );
     if (simulatePressure) {
       final List<Offset> samplePoints = effectivePoints.length > 1

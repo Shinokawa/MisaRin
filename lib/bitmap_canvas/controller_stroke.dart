@@ -36,6 +36,7 @@ void _strokeBegin(
   int antialiasLevel = 0,
   BrushShape brushShape = BrushShape.circle,
   bool enableNeedleTips = false,
+  bool erase = false,
 }) {
   if (controller._activeLayer.locked) {
     return;
@@ -99,6 +100,7 @@ void _strokeBegin(
     controller._currentStrokeLastRadius = controller._currentStrokeRadius;
   }
   controller._currentStrokeColor = color;
+  controller._currentStrokeEraseMode = erase;
 }
 
 void _strokeExtend(
@@ -178,6 +180,7 @@ void _strokeExtend(
         mask: controller._selectionMask,
         antialiasLevel: controller._currentStrokeAntialiasLevel,
         includeStartCap: restartCaps,
+        erase: controller._currentStrokeEraseMode,
       );
     } else {
       _strokeStampSegment(
@@ -300,6 +303,7 @@ void _strokeEnd(BitmapCanvasController controller) {
           mask: controller._selectionMask,
           antialiasLevel: controller._currentStrokeAntialiasLevel,
           includeStartCap: true,
+          erase: controller._currentStrokeEraseMode,
         );
         controller._markDirty(
           region: _strokeDirtyRectForVariableLine(
@@ -334,6 +338,7 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeAntialiasLevel = 0;
   controller._currentStrokeHasMoved = false;
   controller._strokePressureSimulator.resetTracking();
+  controller._currentStrokeEraseMode = false;
 }
 
 void _strokeSetPressureProfile(
@@ -439,6 +444,7 @@ void _strokeDrawPoint(
   }
   final double resolvedRadius = math.max(radius.abs(), 0.01);
   final BrushShape brushShape = controller._currentBrushShape;
+  final bool erase = controller._currentStrokeEraseMode;
   if (brushShape == BrushShape.circle) {
     controller._activeSurface.drawCircle(
       center: position,
@@ -446,6 +452,7 @@ void _strokeDrawPoint(
       color: controller._currentStrokeColor,
       mask: controller._selectionMask,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
+      erase: erase,
     );
   } else {
     controller._activeSurface.drawBrushStamp(
@@ -455,6 +462,7 @@ void _strokeDrawPoint(
       shape: brushShape,
       mask: controller._selectionMask,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
+      erase: erase,
     );
   }
   if (markDirty) {

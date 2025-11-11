@@ -145,6 +145,9 @@ class _WorkspaceTabStrip extends StatelessWidget {
                   shape: WidgetStateProperty.all<OutlinedBorder>(
                     const CircleBorder(),
                   ),
+                  backgroundColor: WidgetStateProperty.resolveWith<Color?>(
+                    (states) => Colors.transparent,
+                  ),
                 ),
                 child: const Icon(FluentIcons.add, size: 14),
               ),

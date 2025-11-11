@@ -279,6 +279,58 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateBucketTolerance(int value) {
+    final int clamped = value.clamp(0, 255).toInt();
+    if (_bucketTolerance == clamped) {
+      return;
+    }
+    setState(() => _bucketTolerance = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketTolerance = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateMagicWandTolerance(int value) {
+    final int clamped = value.clamp(0, 255).toInt();
+    if (_magicWandTolerance == clamped) {
+      return;
+    }
+    setState(() => _magicWandTolerance = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.magicWandTolerance = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updatePenEraserMode(bool value) {
+    if (_penEraserMode == value) {
+      return;
+    }
+    setState(() => _penEraserMode = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.penToolEraserMode = value;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateCurvePenEraserMode(bool value) {
+    if (_curvePenEraserMode == value) {
+      return;
+    }
+    setState(() => _curvePenEraserMode = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.curvePenToolEraserMode = value;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateShapeEraserMode(bool value) {
+    if (_shapeEraserMode == value) {
+      return;
+    }
+    setState(() => _shapeEraserMode = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.shapeToolEraserMode = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateLayerAdjustCropOutside(bool value) {
     if (_layerAdjustCropOutside == value) {
       return;
@@ -329,6 +381,8 @@ mixin _PaintingBoardInteractionMixin
       _activeStylusPressureMin = null;
       _activeStylusPressureMax = null;
     }
+    final bool erase = _penEraserMode;
+    final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     _lastStrokeBoardPosition = start;
     _lastStylusDirection = null;
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
@@ -339,7 +393,7 @@ mixin _PaintingBoardInteractionMixin
       _isDrawing = true;
       _controller.beginStroke(
         start,
-        color: _primaryColor,
+        color: strokeColor,
         radius: _penStrokeWidth / 2,
         simulatePressure: _simulatePenPressure,
         useDevicePressure: _activeStrokeUsesStylus,
@@ -351,6 +405,7 @@ mixin _PaintingBoardInteractionMixin
         timestampMillis: timestamp.inMicroseconds / 1000.0,
         antialiasLevel: _penAntialiasLevel,
         brushShape: _brushShape,
+        erase: erase,
       );
     });
     _markDirty();
@@ -842,14 +897,19 @@ mixin _PaintingBoardInteractionMixin
       }
       if (insideCanvas) {
         _pushUndoSnapshot();
+        final bool erase = _curvePenEraserMode;
+        final Color strokeColor = erase
+            ? const Color(0xFFFFFFFF)
+            : _primaryColor;
         _controller.beginStroke(
           boardLocal,
-          color: _primaryColor,
+          color: strokeColor,
           radius: _penStrokeWidth / 2,
           simulatePressure: _simulatePenPressure,
           profile: _penPressureProfile,
           antialiasLevel: _penAntialiasLevel,
           brushShape: _brushShape,
+          erase: erase,
         );
         _controller.endStroke();
         _markDirty();
@@ -972,10 +1032,12 @@ mixin _PaintingBoardInteractionMixin
     final bool enableNeedleTips =
         simulatePressure &&
         _penPressureProfile == StrokePressureProfile.taperCenter;
+    final bool erase = _curvePenEraserMode;
+    final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
       strokeStart,
-      color: _primaryColor,
+      color: strokeColor,
       radius: _penStrokeWidth / 2,
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
@@ -983,6 +1045,7 @@ mixin _PaintingBoardInteractionMixin
       antialiasLevel: _penAntialiasLevel,
       brushShape: _brushShape,
       enableNeedleTips: enableNeedleTips,
+      erase: erase,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,
@@ -1067,8 +1130,7 @@ mixin _PaintingBoardInteractionMixin
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
     final Offset pointer = event.localPosition;
-    if (_isInsideToolArea(pointer) ||
-        _isInsideWorkspacePanelArea(pointer)) {
+    if (_isInsideToolArea(pointer) || _isInsideWorkspacePanelArea(pointer)) {
       return;
     }
     final CanvasTool tool = _effectiveActiveTool;

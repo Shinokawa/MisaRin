@@ -21,6 +21,7 @@ enum ToolbarAction {
   gaussianBlur,
   layerAntialiasPanel,
   deselect,
+  importReferenceImage,
 }
 
 class ShortcutInfo {
@@ -197,6 +198,22 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+D',
       macLabel: 'Command+D',
+    ),
+    ToolbarAction.importReferenceImage: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyR,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyR,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+R',
+      macLabel: 'Command+Option+R',
     ),
   };
 

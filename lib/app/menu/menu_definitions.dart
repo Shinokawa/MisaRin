@@ -377,6 +377,11 @@ class MenuDefinitionBuilder {
         MenuActionEntry(
           label: '导入参考图像…',
           action: handler.importReferenceImage,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyR,
+            meta: true,
+            alt: true,
+          ),
         ),
     ];
     if (referenceEntries.isNotEmpty) {

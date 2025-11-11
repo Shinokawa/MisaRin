@@ -53,6 +53,7 @@ class BitmapSurface {
     required Color color,
     Uint8List? mask,
     int antialiasLevel = 0,
+    bool erase = false,
   }) {
     if (radius <= 0) {
       return;
@@ -87,7 +88,7 @@ class BitmapSurface {
           continue;
         }
         if (coverage >= 0.999) {
-          _blendPixelWithArgb(x, y, baseColor);
+          _blendPixelWithArgb(x, y, baseColor, erase: erase);
           continue;
         }
         final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
@@ -95,7 +96,7 @@ class BitmapSurface {
           continue;
         }
         final int encoded = (adjustedAlpha << 24) | baseRgb;
-        _blendPixelWithArgb(x, y, encoded);
+        _blendPixelWithArgb(x, y, encoded, erase: erase);
       }
     }
   }
@@ -109,6 +110,7 @@ class BitmapSurface {
     Uint8List? mask,
     int antialiasLevel = 0,
     bool includeStartCap = true,
+    bool erase = false,
   }) {
     _drawCapsuleSegment(
       a: a,
@@ -119,6 +121,7 @@ class BitmapSurface {
       mask: mask,
       antialiasLevel: antialiasLevel.clamp(0, 3),
       includeStartCap: includeStartCap,
+      erase: erase,
     );
   }
 
@@ -132,6 +135,7 @@ class BitmapSurface {
     Uint8List? mask,
     int antialiasLevel = 0,
     bool includeStartCap = true,
+    bool erase = false,
   }) {
     _drawCapsuleSegment(
       a: a,
@@ -142,6 +146,7 @@ class BitmapSurface {
       mask: mask,
       antialiasLevel: antialiasLevel.clamp(0, 3),
       includeStartCap: includeStartCap,
+      erase: erase,
     );
   }
 
@@ -152,6 +157,7 @@ class BitmapSurface {
     required Color color,
     Uint8List? mask,
     int antialiasLevel = 0,
+    bool erase = false,
   }) {
     if (points.isEmpty) {
       return;
@@ -163,6 +169,7 @@ class BitmapSurface {
         color: color,
         mask: mask,
         antialiasLevel: antialiasLevel,
+        erase: erase,
       );
       return;
     }
@@ -176,6 +183,7 @@ class BitmapSurface {
         mask: mask,
         antialiasLevel: antialiasLevel,
         includeStartCap: includeStartCap,
+        erase: erase,
       );
       includeStartCap = false;
     }
@@ -188,6 +196,7 @@ class BitmapSurface {
     required BrushShape shape,
     Uint8List? mask,
     int antialiasLevel = 0,
+    bool erase = false,
   }) {
     final int level = antialiasLevel.clamp(0, 3);
     if (shape == BrushShape.circle) {
@@ -197,6 +206,7 @@ class BitmapSurface {
         color: color,
         mask: mask,
         antialiasLevel: level,
+        erase: erase,
       );
       return;
     }
@@ -228,6 +238,7 @@ class BitmapSurface {
       color: color,
       mask: mask,
       antialiasLevel: level,
+      erase: erase,
     );
   }
 
@@ -243,6 +254,7 @@ class BitmapSurface {
     required Color color,
     Uint8List? mask,
     required int antialiasLevel,
+    bool erase = false,
   }) {
     if (vertices.length < 3) {
       return;
@@ -317,7 +329,7 @@ class BitmapSurface {
           continue;
         }
         if (coverage >= 0.999) {
-          _blendPixelWithArgb(x, y, baseColor);
+          _blendPixelWithArgb(x, y, baseColor, erase: erase);
           continue;
         }
         final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
@@ -325,7 +337,7 @@ class BitmapSurface {
           continue;
         }
         final int encoded = (adjustedAlpha << 24) | baseRgb;
-        _blendPixelWithArgb(x, y, encoded);
+        _blendPixelWithArgb(x, y, encoded, erase: erase);
       }
     }
   }
@@ -404,6 +416,7 @@ class BitmapSurface {
     Uint8List? mask,
     required int antialiasLevel,
     bool includeStartCap = true,
+    bool erase = false,
   }) {
     final double maxRadius = math.max(math.max(startRadius, endRadius), 0.0);
     if (maxRadius <= 0.0) {
@@ -423,6 +436,7 @@ class BitmapSurface {
         color: color,
         mask: mask,
         antialiasLevel: antialiasLevel,
+        erase: erase,
       );
       return;
     }
@@ -490,18 +504,15 @@ class BitmapSurface {
           }
         }
         if (coverage >= 0.999) {
-          _blendPixelWithArgb(x, y, baseColor);
+          _blendPixelWithArgb(x, y, baseColor, erase: erase);
           continue;
         }
-        final int adjustedAlpha = (baseAlpha * coverage).round().clamp(
-          0,
-          255,
-        );
+        final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
         if (adjustedAlpha == 0) {
           continue;
         }
         final int encoded = (adjustedAlpha << 24) | baseRgb;
-        _blendPixelWithArgb(x, y, encoded);
+        _blendPixelWithArgb(x, y, encoded, erase: erase);
       }
     }
   }
@@ -859,11 +870,11 @@ class BitmapSurface {
     return _CapsuleCoverageSample(coverage, radius);
   }
 
-  void blendPixel(int x, int y, Color color) {
-    _blendPixelWithArgb(x, y, color.toARGB32());
+  void blendPixel(int x, int y, Color color, {bool erase = false}) {
+    _blendPixelWithArgb(x, y, color.toARGB32(), erase: erase);
   }
 
-  void _blendPixelWithArgb(int x, int y, int src) {
+  void _blendPixelWithArgb(int x, int y, int src, {bool erase = false}) {
     if (!_inBounds(x, y)) {
       return;
     }
@@ -885,6 +896,29 @@ class BitmapSurface {
 
     final double srcAlpha = srcA / 255.0;
     final double dstAlpha = dstA / 255.0;
+
+    if (erase) {
+      if (dstAlpha <= 0.0) {
+        return;
+      }
+      final double eraseAmount = srcAlpha.clamp(0.0, 1.0);
+      if (eraseAmount <= 0.0) {
+        return;
+      }
+      final double remainingAlpha = dstAlpha * (1 - eraseAmount);
+      if (remainingAlpha <= 0.0001) {
+        pixels[index] = 0;
+        return;
+      }
+      final double scale = remainingAlpha / dstAlpha;
+      final int eraseA = (remainingAlpha * 255.0).round().clamp(0, 255);
+      final int eraseR = (dstR * scale).round().clamp(0, 255);
+      final int eraseG = (dstG * scale).round().clamp(0, 255);
+      final int eraseB = (dstB * scale).round().clamp(0, 255);
+      pixels[index] = (eraseA << 24) | (eraseR << 16) | (eraseG << 8) | eraseB;
+      return;
+    }
+
     final double outAlpha = srcAlpha + dstAlpha * (1 - srcAlpha);
 
     int outA;

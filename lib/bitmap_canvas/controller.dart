@@ -69,6 +69,7 @@ class BitmapCanvasController extends ChangeNotifier {
   final StrokePressureSimulator _strokePressureSimulator =
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
+  bool _currentStrokeEraseMode = false;
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
   static const double _kStylusSmoothing = 0.55;
@@ -533,6 +534,7 @@ class BitmapCanvasController extends ChangeNotifier {
     int antialiasLevel = 0,
     BrushShape brushShape = BrushShape.circle,
     bool enableNeedleTips = false,
+    bool erase = false,
   }) => _strokeBegin(
     this,
     position,
@@ -549,6 +551,7 @@ class BitmapCanvasController extends ChangeNotifier {
     antialiasLevel: antialiasLevel,
     brushShape: brushShape,
     enableNeedleTips: enableNeedleTips,
+    erase: erase,
   );
 
   void extendStroke(
@@ -666,6 +669,7 @@ class BitmapCanvasController extends ChangeNotifier {
     bool contiguous = true,
     bool sampleAllLayers = false,
     List<Color>? swallowColors,
+    int tolerance = 0,
   }) => _fillFloodFill(
     this,
     position,
@@ -673,15 +677,18 @@ class BitmapCanvasController extends ChangeNotifier {
     contiguous: contiguous,
     sampleAllLayers: sampleAllLayers,
     swallowColors: swallowColors,
+    tolerance: tolerance,
   );
 
   Uint8List? computeMagicWandMask(
     Offset position, {
     bool sampleAllLayers = true,
+    int tolerance = 0,
   }) => _fillComputeMagicWandMask(
     this,
     position,
     sampleAllLayers: sampleAllLayers,
+    tolerance: tolerance,
   );
 
   List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
@@ -859,11 +866,7 @@ class BitmapCanvasController extends ChangeNotifier {
     return value;
   }
 
-  Future<ui.Image> _decodeRgbaImage(
-    Uint8List bytes,
-    int width,
-    int height,
-  ) {
+  Future<ui.Image> _decodeRgbaImage(Uint8List bytes, int width, int height) {
     final Completer<ui.Image> completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
       bytes,

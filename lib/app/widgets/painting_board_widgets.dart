@@ -58,6 +58,10 @@ class PasteIntent extends Intent {
   const PasteIntent();
 }
 
+class ImportReferenceImageIntent extends Intent {
+  const ImportReferenceImageIntent();
+}
+
 class _CheckboardBackground extends StatelessWidget {
   const _CheckboardBackground({
     this.cellSize = 16.0,
@@ -214,6 +218,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.onBucketSampleAllLayersChanged,
     required this.onBucketContiguousChanged,
     required this.onBucketSwallowColorLineChanged,
+    required this.bucketTolerance,
+    required this.onBucketToleranceChanged,
     required this.layerAdjustCropOutside,
     required this.onLayerAdjustCropOutsideChanged,
     required this.selectionShape,
@@ -221,6 +227,14 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.shapeToolVariant,
     required this.onShapeToolVariantChanged,
     required this.onSizeChanged,
+    required this.magicWandTolerance,
+    required this.onMagicWandToleranceChanged,
+    required this.penEraserMode,
+    required this.onPenEraserModeChanged,
+    required this.curvePenEraserMode,
+    required this.onCurvePenEraserModeChanged,
+    required this.shapeEraserMode,
+    required this.onShapeEraserModeChanged,
   });
 
   final CanvasTool activeTool;
@@ -247,6 +261,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
   final ValueChanged<bool> onBucketContiguousChanged;
   final ValueChanged<bool> onBucketSwallowColorLineChanged;
+  final int bucketTolerance;
+  final ValueChanged<int> onBucketToleranceChanged;
   final bool layerAdjustCropOutside;
   final ValueChanged<bool> onLayerAdjustCropOutsideChanged;
   final SelectionShape selectionShape;
@@ -254,6 +270,14 @@ class _ToolSettingsCard extends StatefulWidget {
   final ShapeToolVariant shapeToolVariant;
   final ValueChanged<ShapeToolVariant> onShapeToolVariantChanged;
   final ValueChanged<Size> onSizeChanged;
+  final int magicWandTolerance;
+  final ValueChanged<int> onMagicWandToleranceChanged;
+  final bool penEraserMode;
+  final ValueChanged<bool> onPenEraserModeChanged;
+  final bool curvePenEraserMode;
+  final ValueChanged<bool> onCurvePenEraserModeChanged;
+  final bool shapeEraserMode;
+  final ValueChanged<bool> onShapeEraserModeChanged;
 
   @override
   State<_ToolSettingsCard> createState() => _ToolSettingsCardState();
@@ -363,6 +387,12 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           runSpacing: 12,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            _buildToleranceSlider(
+              theme,
+              label: '容差',
+              value: widget.bucketTolerance,
+              onChanged: widget.onBucketToleranceChanged,
+            ),
             _BucketOptionTile(
               title: '跨图层',
               value: widget.bucketSampleAllLayers,
@@ -377,6 +407,21 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
               title: '吞并色线',
               value: widget.bucketSwallowColorLine,
               onChanged: widget.onBucketSwallowColorLineChanged,
+            ),
+          ],
+        );
+        break;
+      case CanvasTool.magicWand:
+        content = Wrap(
+          spacing: 16,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _buildToleranceSlider(
+              theme,
+              label: '容差',
+              value: widget.magicWandTolerance,
+              onChanged: widget.onMagicWandToleranceChanged,
             ),
           ],
         );
@@ -485,6 +530,34 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           onChanged: widget.onSimulatePenPressureChanged,
         ),
       );
+      ValueChanged<bool>? eraserHandler;
+      bool? eraserValue;
+      switch (widget.activeTool) {
+        case CanvasTool.pen:
+          eraserHandler = widget.onPenEraserModeChanged;
+          eraserValue = widget.penEraserMode;
+          break;
+        case CanvasTool.curvePen:
+          eraserHandler = widget.onCurvePenEraserModeChanged;
+          eraserValue = widget.curvePenEraserMode;
+          break;
+        case CanvasTool.shape:
+          eraserHandler = widget.onShapeEraserModeChanged;
+          eraserValue = widget.shapeEraserMode;
+          break;
+        default:
+          break;
+      }
+      if (eraserHandler != null && eraserValue != null) {
+        wrapChildren.add(
+          _buildToggleSwitchRow(
+            theme,
+            label: '转换为擦除',
+            value: eraserValue,
+            onChanged: eraserHandler!,
+          ),
+        );
+      }
       if (widget.simulatePenPressure) {
         wrapChildren.add(
           SizedBox(
@@ -544,6 +617,36 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
             },
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildToleranceSlider(
+    FluentThemeData theme, {
+    required String label,
+    required int value,
+    required ValueChanged<int> onChanged,
+    int max = 100,
+  }) {
+    final double sliderValue = value.clamp(0, max).toDouble();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(label, style: theme.typography.bodyStrong),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 220,
+          child: Slider(
+            value: sliderValue,
+            min: 0,
+            max: max.toDouble(),
+            divisions: max,
+            onChanged: (raw) => onChanged(raw.round()),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text('$value', style: theme.typography.caption),
       ],
     );
   }

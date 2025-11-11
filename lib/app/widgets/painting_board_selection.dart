@@ -127,8 +127,11 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   void _applyMagicWandPreview(Offset position) {
-    final Uint8List? mask =
-        _controller.computeMagicWandMask(position, sampleAllLayers: true);
+    final Uint8List? mask = _controller.computeMagicWandMask(
+      position,
+      sampleAllLayers: true,
+      tolerance: _magicWandTolerance,
+    );
     setState(() {
       if (mask == null) {
         _clearMagicWandPreview();
@@ -151,7 +154,9 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     }
     _prepareSelectionUndo();
     final bool additive =
-        _isShiftPressed && _selectionMask != null && _selectionShape != SelectionShape.polygon;
+        _isShiftPressed &&
+        _selectionMask != null &&
+        _selectionShape != SelectionShape.polygon;
     _beginDragSelection(position, additive: additive);
     _updateSelectionAnimation();
   }
@@ -222,8 +227,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     }
     setState(() {
       _polygonHoverPoint = position;
-      _selectionPreviewPath =
-          _buildPolygonPath(points: _polygonPoints, hover: _polygonHoverPoint);
+      _selectionPreviewPath = _buildPolygonPath(
+        points: _polygonPoints,
+        hover: _polygonHoverPoint,
+      );
     });
     _updateSelectionAnimation();
   }
@@ -238,8 +245,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     }
     setState(() {
       _polygonHoverPoint = null;
-      _selectionPreviewPath =
-          _buildPolygonPath(points: _polygonPoints, hover: null);
+      _selectionPreviewPath = _buildPolygonPath(
+        points: _polygonPoints,
+        hover: null,
+      );
     });
     _updateSelectionAnimation();
   }
@@ -318,9 +327,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     if (dragPath == null) {
       return _isAdditiveSelection ? _selectionPath : null;
     }
-    if (_isAdditiveSelection && (_selectionPath != null || _selectionMask != null)) {
-      final Path? base = _selectionPath ??
-          _pathFromMask(_selectionMask!, _controller.width);
+    if (_isAdditiveSelection &&
+        (_selectionPath != null || _selectionMask != null)) {
+      final Path? base =
+          _selectionPath ?? _pathFromMask(_selectionMask!, _controller.width);
       if (base != null) {
         return Path.combine(ui.PathOperation.union, base, dragPath);
       }
@@ -335,8 +345,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       setState(() {
         setSelectionState(path: null, mask: null);
         _polygonPoints.add(position);
-        _selectionPreviewPath =
-            _buildPolygonPath(points: _polygonPoints, hover: _polygonHoverPoint);
+        _selectionPreviewPath = _buildPolygonPath(
+          points: _polygonPoints,
+          hover: _polygonHoverPoint,
+        );
       });
       _lastPolygonTapTime = timestamp;
       _lastPolygonTapPosition = position;
@@ -352,8 +364,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
         if (!closeToFirst) {
           _polygonPoints.add(position);
         }
-        finalizedPath =
-            _buildPolygonPath(points: _polygonPoints, close: true);
+        finalizedPath = _buildPolygonPath(points: _polygonPoints, close: true);
         _selectionPreviewPath = null;
         _polygonPoints.clear();
         _polygonHoverPoint = null;
@@ -368,8 +379,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
     setState(() {
       _polygonPoints.add(position);
-      _selectionPreviewPath =
-          _buildPolygonPath(points: _polygonPoints, hover: _polygonHoverPoint);
+      _selectionPreviewPath = _buildPolygonPath(
+        points: _polygonPoints,
+        hover: _polygonHoverPoint,
+      );
     });
     _lastPolygonTapTime = timestamp;
     _lastPolygonTapPosition = position;
@@ -438,30 +451,32 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
   @override
   void initializeSelectionTicker(TickerProvider provider) {
-    _selectionDashController = AnimationController(
-      vsync: provider,
-      duration: const Duration(milliseconds: 550),
-    )..addListener(() {
-        final AnimationController controller = _selectionDashController!;
-        final double value = controller.value;
-        double delta = value - _selectionDashValue;
-        if (delta < 0) {
-          delta += 1.0;
-        }
-        _selectionDashValue = value;
-        if (!_hasSelectionOverlay) {
-          return;
-        }
-        _selectionDashPhase +=
-            delta * (_kSelectionDashLength + _kSelectionDashGap);
-        if (_selectionDashPhase > 1e6) {
-          _selectionDashPhase =
-              _selectionDashPhase % (_kSelectionDashLength + _kSelectionDashGap);
-        }
-        if (mounted) {
-          setState(() {});
-        }
-      });
+    _selectionDashController =
+        AnimationController(
+          vsync: provider,
+          duration: const Duration(milliseconds: 550),
+        )..addListener(() {
+          final AnimationController controller = _selectionDashController!;
+          final double value = controller.value;
+          double delta = value - _selectionDashValue;
+          if (delta < 0) {
+            delta += 1.0;
+          }
+          _selectionDashValue = value;
+          if (!_hasSelectionOverlay) {
+            return;
+          }
+          _selectionDashPhase +=
+              delta * (_kSelectionDashLength + _kSelectionDashGap);
+          if (_selectionDashPhase > 1e6) {
+            _selectionDashPhase =
+                _selectionDashPhase %
+                (_kSelectionDashLength + _kSelectionDashGap);
+          }
+          if (mounted) {
+            setState(() {});
+          }
+        });
     _updateSelectionAnimation();
   }
 
@@ -494,8 +509,11 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     return path;
   }
 
-  void _applySelectionPathInternal(Path? path,
-      {Uint8List? mask, bool additive = false}) {
+  void _applySelectionPathInternal(
+    Path? path, {
+    Uint8List? mask,
+    bool additive = false,
+  }) {
     Uint8List? effectiveMask = mask;
     Path? effectivePath = path;
     if (effectiveMask == null && effectivePath != null) {
@@ -519,11 +537,15 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
         setSelectionState(path: null, mask: null);
         return;
       }
-      final Path basePath = _selectionPath ??
+      final Path basePath =
+          _selectionPath ??
           (_pathFromMask(_selectionMask!, _controller.width) ?? Path());
       if (effectivePath != null) {
-        final Path combinedPath =
-            Path.combine(ui.PathOperation.union, basePath, effectivePath);
+        final Path combinedPath = Path.combine(
+          ui.PathOperation.union,
+          basePath,
+          effectivePath,
+        );
         setSelectionState(path: combinedPath, mask: merged);
         return;
       }
@@ -575,12 +597,13 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     final int width = _controller.width;
     final int height = _controller.height;
     final Uint8List mask = Uint8List(width * height);
-    final Rect canvasRect =
-        Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble());
-    final Rect bounds = path
-        .getBounds()
-        .inflate(1)
-        .intersect(canvasRect);
+    final Rect canvasRect = Rect.fromLTWH(
+      0,
+      0,
+      width.toDouble(),
+      height.toDouble(),
+    );
+    final Rect bounds = path.getBounds().inflate(1).intersect(canvasRect);
     if (bounds.isEmpty) {
       return mask;
     }
@@ -628,8 +651,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
     void addEdge(int startX, int startY, int direction) {
       final int vertex = _encodeVertex(startX, startY);
-      final Set<int> directions =
-          adjacency.putIfAbsent(vertex, () => <int>{});
+      final Set<int> directions = adjacency.putIfAbsent(vertex, () => <int>{});
       if (directions.add(direction)) {
         edges.add(_encodeEdge(vertex, direction));
       }

@@ -205,6 +205,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _bucketSwallowColorLine = AppPreferences.defaultBucketSwallowColorLine;
+  int _bucketTolerance = AppPreferences.defaultBucketTolerance;
+  int _magicWandTolerance = AppPreferences.defaultMagicWandTolerance;
+  bool _penEraserMode = AppPreferences.defaultPenToolEraserMode;
+  bool _curvePenEraserMode = AppPreferences.defaultCurvePenToolEraserMode;
+  bool _shapeEraserMode = AppPreferences.defaultShapeToolEraserMode;
   bool _layerAdjustCropOutside = false;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
@@ -1366,6 +1371,11 @@ class PaintingBoardState extends _PaintingBoardBase
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
     _bucketSwallowColorLine = prefs.bucketSwallowColorLine;
+    _bucketTolerance = prefs.bucketTolerance;
+    _magicWandTolerance = prefs.magicWandTolerance;
+    _penEraserMode = prefs.penToolEraserMode;
+    _curvePenEraserMode = prefs.curvePenToolEraserMode;
+    _shapeEraserMode = prefs.shapeToolEraserMode;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);

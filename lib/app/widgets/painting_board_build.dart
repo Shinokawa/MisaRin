@@ -74,6 +74,10 @@ mixin _PaintingBoardBuildMixin
         key: const ExitBoardIntent(),
       for (final key in ToolbarShortcuts.of(ToolbarAction.deselect).shortcuts)
         key: const DeselectIntent(),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.importReferenceImage,
+      ).shortcuts)
+        key: const ImportReferenceImageIntent(),
       LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyX):
           const CutIntent(),
       LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyX):
@@ -130,8 +134,7 @@ mixin _PaintingBoardBuildMixin
             cursorStyle.hideSystemCursor;
         final bool hideCursorBecausePen =
             _penRequiresOverlay && _penCursorWorkspacePosition != null;
-        final bool hideCursorBecauseReferenceResize =
-            _isReferenceCardResizing;
+        final bool hideCursorBecauseReferenceResize = _isReferenceCardResizing;
         final bool shouldHideCursor =
             hideCursorBecauseToolOverlay ||
             hideCursorBecausePen ||
@@ -270,6 +273,13 @@ mixin _PaintingBoardBuildMixin
                   CallbackAction<ShowLayerAntialiasIntent>(
                     onInvoke: (intent) {
                       showLayerAntialiasPanel();
+                      return null;
+                    },
+                  ),
+              ImportReferenceImageIntent:
+                  CallbackAction<ImportReferenceImageIntent>(
+                    onInvoke: (intent) {
+                      unawaited(importReferenceImageCard());
                       return null;
                     },
                   ),
@@ -497,6 +507,9 @@ mixin _PaintingBoardBuildMixin
                                     _updateBucketContiguous,
                                 onBucketSwallowColorLineChanged:
                                     _updateBucketSwallowColorLine,
+                                bucketTolerance: _bucketTolerance,
+                                onBucketToleranceChanged:
+                                    _updateBucketTolerance,
                                 layerAdjustCropOutside: _layerAdjustCropOutside,
                                 onLayerAdjustCropOutsideChanged:
                                     _updateLayerAdjustCropOutside,
@@ -506,6 +519,17 @@ mixin _PaintingBoardBuildMixin
                                 onShapeToolVariantChanged:
                                     _updateShapeToolVariant,
                                 onSizeChanged: _updateToolSettingsCardSize,
+                                magicWandTolerance: _magicWandTolerance,
+                                onMagicWandToleranceChanged:
+                                    _updateMagicWandTolerance,
+                                penEraserMode: _penEraserMode,
+                                onPenEraserModeChanged: _updatePenEraserMode,
+                                curvePenEraserMode: _curvePenEraserMode,
+                                onCurvePenEraserModeChanged:
+                                    _updateCurvePenEraserMode,
+                                shapeEraserMode: _shapeEraserMode,
+                                onShapeEraserModeChanged:
+                                    _updateShapeEraserMode,
                               ),
                             ),
                           ),

@@ -30,11 +30,16 @@ class AppPreferences {
     required this.layerAdjustCropOutside,
     required this.colorLineColor,
     required this.bucketSwallowColorLine,
+    this.bucketTolerance = _defaultBucketTolerance,
+    this.magicWandTolerance = _defaultMagicWandTolerance,
+    this.penToolEraserMode = _defaultPenToolEraserMode,
+    this.curvePenToolEraserMode = _defaultCurvePenToolEraserMode,
+    this.shapeToolEraserMode = _defaultShapeToolEraserMode,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 15;
+  static const int _version = 16;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -55,6 +60,11 @@ class AppPreferences {
   static const double _strokeStabilizerUpperBound = 1.0;
   static const Color _defaultColorLineColor = kDefaultColorLineColor;
   static const bool _defaultBucketSwallowColorLine = false;
+  static const int _defaultBucketTolerance = 0;
+  static const int _defaultMagicWandTolerance = 0;
+  static const bool _defaultPenToolEraserMode = false;
+  static const bool _defaultCurvePenToolEraserMode = false;
+  static const bool _defaultShapeToolEraserMode = false;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -74,6 +84,12 @@ class AppPreferences {
   static const Color defaultColorLineColor = _defaultColorLineColor;
   static const bool defaultBucketSwallowColorLine =
       _defaultBucketSwallowColorLine;
+  static const int defaultBucketTolerance = _defaultBucketTolerance;
+  static const int defaultMagicWandTolerance = _defaultMagicWandTolerance;
+  static const bool defaultPenToolEraserMode = _defaultPenToolEraserMode;
+  static const bool defaultCurvePenToolEraserMode =
+      _defaultCurvePenToolEraserMode;
+  static const bool defaultShapeToolEraserMode = _defaultShapeToolEraserMode;
 
   static AppPreferences? _instance;
 
@@ -94,6 +110,11 @@ class AppPreferences {
   bool layerAdjustCropOutside;
   Color colorLineColor;
   bool bucketSwallowColorLine;
+  int bucketTolerance;
+  int magicWandTolerance;
+  bool penToolEraserMode;
+  bool curvePenToolEraserMode;
+  bool shapeToolEraserMode;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -120,6 +141,41 @@ class AppPreferences {
           final bool decodedBucketSwallowColorLine = hasColorLinePayload
               ? bytes[19] != 0
               : _defaultBucketSwallowColorLine;
+          if (version >= 16 && bytes.length >= 25) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+              strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                bytes[15],
+              ),
+              brushShape: _decodeBrushShape(bytes[16]),
+              layerAdjustCropOutside: bytes[17] != 0,
+              colorLineColor: decodedColorLineColor,
+              bucketSwallowColorLine: decodedBucketSwallowColorLine,
+              bucketTolerance: _clampToleranceValue(bytes[20]),
+              magicWandTolerance: _clampToleranceValue(bytes[21]),
+              penToolEraserMode: bytes[22] != 0,
+              curvePenToolEraserMode: bytes[23] != 0,
+              shapeToolEraserMode: bytes[24] != 0,
+            );
+            return _instance!;
+          }
           if (version >= 15 && bytes.length >= 20) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
@@ -610,6 +666,11 @@ class AppPreferences {
       prefs.layerAdjustCropOutside ? 1 : 0,
       colorLineEncoded,
       prefs.bucketSwallowColorLine ? 1 : 0,
+      _clampToleranceValue(prefs.bucketTolerance),
+      _clampToleranceValue(prefs.magicWandTolerance),
+      prefs.penToolEraserMode ? 1 : 0,
+      prefs.curvePenToolEraserMode ? 1 : 0,
+      prefs.shapeToolEraserMode ? 1 : 0,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -622,6 +683,10 @@ class AppPreferences {
       return maxHistoryLimit;
     }
     return value;
+  }
+
+  static int _clampToleranceValue(int value) {
+    return value.clamp(0, 255).toInt();
   }
 
   static ThemeMode _decodeThemeMode(int value) {
