@@ -522,14 +522,9 @@ mixin _PaintingBoardBuildMixin
                                 magicWandTolerance: _magicWandTolerance,
                                 onMagicWandToleranceChanged:
                                     _updateMagicWandTolerance,
-                                penEraserMode: _penEraserMode,
-                                onPenEraserModeChanged: _updatePenEraserMode,
-                                curvePenEraserMode: _curvePenEraserMode,
-                                onCurvePenEraserModeChanged:
-                                    _updateCurvePenEraserMode,
-                                shapeEraserMode: _shapeEraserMode,
-                                onShapeEraserModeChanged:
-                                    _updateShapeEraserMode,
+                                brushToolsEraserMode: _brushToolsEraserMode,
+                                onBrushToolsEraserModeChanged:
+                                    _updateBrushToolsEraserMode,
                               ),
                             ),
                           ),

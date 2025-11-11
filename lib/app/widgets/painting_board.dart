@@ -207,9 +207,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _bucketSwallowColorLine = AppPreferences.defaultBucketSwallowColorLine;
   int _bucketTolerance = AppPreferences.defaultBucketTolerance;
   int _magicWandTolerance = AppPreferences.defaultMagicWandTolerance;
-  bool _penEraserMode = AppPreferences.defaultPenToolEraserMode;
-  bool _curvePenEraserMode = AppPreferences.defaultCurvePenToolEraserMode;
-  bool _shapeEraserMode = AppPreferences.defaultShapeToolEraserMode;
+  bool _brushToolsEraserMode = AppPreferences.defaultBrushToolsEraserMode;
   bool _layerAdjustCropOutside = false;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
@@ -1373,9 +1371,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _bucketSwallowColorLine = prefs.bucketSwallowColorLine;
     _bucketTolerance = prefs.bucketTolerance;
     _magicWandTolerance = prefs.magicWandTolerance;
-    _penEraserMode = prefs.penToolEraserMode;
-    _curvePenEraserMode = prefs.curvePenToolEraserMode;
-    _shapeEraserMode = prefs.shapeToolEraserMode;
+    _brushToolsEraserMode = prefs.brushToolsEraserMode;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);

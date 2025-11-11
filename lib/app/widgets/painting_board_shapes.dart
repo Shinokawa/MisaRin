@@ -103,7 +103,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     final Offset strokeStart = effectivePoints.first;
-    final bool erase = _shapeEraserMode;
+    final bool erase = _brushToolsEraserMode;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     _controller.beginStroke(
       strokeStart,

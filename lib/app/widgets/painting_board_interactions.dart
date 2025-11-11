@@ -301,33 +301,13 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
-  void _updatePenEraserMode(bool value) {
-    if (_penEraserMode == value) {
+  void _updateBrushToolsEraserMode(bool value) {
+    if (_brushToolsEraserMode == value) {
       return;
     }
-    setState(() => _penEraserMode = value);
+    setState(() => _brushToolsEraserMode = value);
     final AppPreferences prefs = AppPreferences.instance;
-    prefs.penToolEraserMode = value;
-    unawaited(AppPreferences.save());
-  }
-
-  void _updateCurvePenEraserMode(bool value) {
-    if (_curvePenEraserMode == value) {
-      return;
-    }
-    setState(() => _curvePenEraserMode = value);
-    final AppPreferences prefs = AppPreferences.instance;
-    prefs.curvePenToolEraserMode = value;
-    unawaited(AppPreferences.save());
-  }
-
-  void _updateShapeEraserMode(bool value) {
-    if (_shapeEraserMode == value) {
-      return;
-    }
-    setState(() => _shapeEraserMode = value);
-    final AppPreferences prefs = AppPreferences.instance;
-    prefs.shapeToolEraserMode = value;
+    prefs.brushToolsEraserMode = value;
     unawaited(AppPreferences.save());
   }
 
@@ -381,7 +361,7 @@ mixin _PaintingBoardInteractionMixin
       _activeStylusPressureMin = null;
       _activeStylusPressureMax = null;
     }
-    final bool erase = _penEraserMode;
+    final bool erase = _brushToolsEraserMode;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     _lastStrokeBoardPosition = start;
     _lastStylusDirection = null;
@@ -897,7 +877,7 @@ mixin _PaintingBoardInteractionMixin
       }
       if (insideCanvas) {
         _pushUndoSnapshot();
-        final bool erase = _curvePenEraserMode;
+        final bool erase = _brushToolsEraserMode;
         final Color strokeColor = erase
             ? const Color(0xFFFFFFFF)
             : _primaryColor;
@@ -1032,7 +1012,7 @@ mixin _PaintingBoardInteractionMixin
     final bool enableNeedleTips =
         simulatePressure &&
         _penPressureProfile == StrokePressureProfile.taperCenter;
-    final bool erase = _curvePenEraserMode;
+    final bool erase = _brushToolsEraserMode;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(

@@ -229,12 +229,8 @@ class _ToolSettingsCard extends StatefulWidget {
     required this.onSizeChanged,
     required this.magicWandTolerance,
     required this.onMagicWandToleranceChanged,
-    required this.penEraserMode,
-    required this.onPenEraserModeChanged,
-    required this.curvePenEraserMode,
-    required this.onCurvePenEraserModeChanged,
-    required this.shapeEraserMode,
-    required this.onShapeEraserModeChanged,
+    required this.brushToolsEraserMode,
+    required this.onBrushToolsEraserModeChanged,
   });
 
   final CanvasTool activeTool;
@@ -272,12 +268,8 @@ class _ToolSettingsCard extends StatefulWidget {
   final ValueChanged<Size> onSizeChanged;
   final int magicWandTolerance;
   final ValueChanged<int> onMagicWandToleranceChanged;
-  final bool penEraserMode;
-  final ValueChanged<bool> onPenEraserModeChanged;
-  final bool curvePenEraserMode;
-  final ValueChanged<bool> onCurvePenEraserModeChanged;
-  final bool shapeEraserMode;
-  final ValueChanged<bool> onShapeEraserModeChanged;
+  final bool brushToolsEraserMode;
+  final ValueChanged<bool> onBrushToolsEraserModeChanged;
 
   @override
   State<_ToolSettingsCard> createState() => _ToolSettingsCardState();
@@ -530,34 +522,14 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           onChanged: widget.onSimulatePenPressureChanged,
         ),
       );
-      ValueChanged<bool>? eraserHandler;
-      bool? eraserValue;
-      switch (widget.activeTool) {
-        case CanvasTool.pen:
-          eraserHandler = widget.onPenEraserModeChanged;
-          eraserValue = widget.penEraserMode;
-          break;
-        case CanvasTool.curvePen:
-          eraserHandler = widget.onCurvePenEraserModeChanged;
-          eraserValue = widget.curvePenEraserMode;
-          break;
-        case CanvasTool.shape:
-          eraserHandler = widget.onShapeEraserModeChanged;
-          eraserValue = widget.shapeEraserMode;
-          break;
-        default:
-          break;
-      }
-      if (eraserHandler != null && eraserValue != null) {
-        wrapChildren.add(
-          _buildToggleSwitchRow(
-            theme,
-            label: '转换为擦除',
-            value: eraserValue,
-            onChanged: eraserHandler!,
-          ),
-        );
-      }
+      wrapChildren.add(
+        _buildToggleSwitchRow(
+          theme,
+          label: '转换为擦除',
+          value: widget.brushToolsEraserMode,
+          onChanged: widget.onBrushToolsEraserModeChanged,
+        ),
+      );
       if (widget.simulatePenPressure) {
         wrapChildren.add(
           SizedBox(
@@ -626,7 +598,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
     required String label,
     required int value,
     required ValueChanged<int> onChanged,
-    int max = 100,
+    int max = 255,
   }) {
     final double sliderValue = value.clamp(0, max).toDouble();
     return Row(
