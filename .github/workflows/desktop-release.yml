@@ -16,8 +16,8 @@ jobs:
   prepare:
     name: 准备版本信息
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/main' && github.event.head_commit.message != '' && github.event.head_commit.message matches format('.*{0}.*', env.DATE_PATTERN) }}
     outputs:
+      should_run: ${{ steps.gate.outputs.should_run }}
       release_version: ${{ steps.versions.outputs.release_version }}
       release_build: ${{ steps.versions.outputs.release_build }}
       next_version: ${{ steps.versions.outputs.next_version }}
@@ -25,7 +25,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: 校验提交信息
+        id: gate
+        run: |
+          if [[ -z "$COMMIT_MESSAGE" ]]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$COMMIT_MESSAGE" | grep -Eq "$DATE_PATTERN"; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          DATE_PATTERN: ${{ env.DATE_PATTERN }}
       - name: 读取版本
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
         id: versions
         run: |
           bash ci/scripts/get_versions.sh >> "$GITHUB_OUTPUT"
@@ -34,7 +50,7 @@ jobs:
     name: 构建桌面产物
     runs-on: ${{ matrix.runner }}
     needs: prepare
-    if: ${{ needs.prepare.result == 'success' }}
+    if: ${{ needs.prepare.outputs.should_run == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +114,7 @@ jobs:
     needs:
       - prepare
       - build
-    if: ${{ needs.prepare.result == 'success' && needs.build.result == 'success' }}
+    if: ${{ needs.prepare.outputs.should_run == 'true' && needs.build.result == 'success' }}
     env:
       RELEASE_VERSION: ${{ needs.prepare.outputs.release_version }}
       RELEASE_BUILD: ${{ needs.prepare.outputs.release_build }}
