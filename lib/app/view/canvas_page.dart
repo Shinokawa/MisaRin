@@ -963,6 +963,10 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.mergeActiveLayerDown();
       },
+      layerFreeTransform: () {
+        final board = _activeBoard;
+        board?.toggleLayerFreeTransform();
+      },
       selectAll: () {
         final board = _activeBoard;
         board?.selectEntireCanvas();

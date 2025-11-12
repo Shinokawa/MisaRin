@@ -298,11 +298,7 @@ mixin _PaintingBoardBuildMixin
               LayerFreeTransformIntent:
                   CallbackAction<LayerFreeTransformIntent>(
                     onInvoke: (intent) {
-                      if (_layerTransformModeActive) {
-                        _cancelLayerFreeTransform();
-                      } else {
-                        _startLayerFreeTransform();
-                      }
+                      toggleLayerFreeTransform();
                       return null;
                     },
                   ),

@@ -306,6 +306,16 @@ class MenuDefinitionBuilder {
       );
     }
 
+    if (handler.layerFreeTransform != null) {
+      entries.add(
+        MenuActionEntry(
+          label: '变换',
+          action: handler.layerFreeTransform,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyT, meta: true),
+        ),
+      );
+    }
+
     if (entries.isEmpty) {
       return null;
     }

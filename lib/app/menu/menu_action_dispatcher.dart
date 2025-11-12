@@ -43,6 +43,7 @@ class MenuActionHandler {
     this.resizeImage,
     this.resizeCanvas,
     this.mergeLayerDown,
+    this.layerFreeTransform,
     this.adjustHueSaturation,
     this.adjustBrightnessContrast,
     this.selectAll,
@@ -81,6 +82,7 @@ class MenuActionHandler {
       resizeImage = null,
       resizeCanvas = null,
       mergeLayerDown = null,
+      layerFreeTransform = null,
       adjustHueSaturation = null,
       adjustBrightnessContrast = null,
       selectAll = null,
@@ -119,6 +121,7 @@ class MenuActionHandler {
   final MenuAsyncAction? resizeImage;
   final MenuAsyncAction? resizeCanvas;
   final MenuAsyncAction? mergeLayerDown;
+  final MenuAsyncAction? layerFreeTransform;
   final MenuAsyncAction? adjustHueSaturation;
   final MenuAsyncAction? adjustBrightnessContrast;
   final MenuAsyncAction? selectAll;

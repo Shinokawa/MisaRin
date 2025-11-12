@@ -328,6 +328,14 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
 
   bool get _shouldHideCursorForLayerTransform => _layerTransformCursorVisible;
 
+  void toggleLayerFreeTransform() {
+    if (_layerTransformModeActive) {
+      _cancelLayerFreeTransform();
+    } else {
+      _startLayerFreeTransform();
+    }
+  }
+
   bool _maybeInitializeLayerTransformStateFromController() {
     if (!_layerTransformModeActive || _layerTransformState != null) {
       return false;
