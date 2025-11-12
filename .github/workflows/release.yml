@@ -1,0 +1,122 @@
+name: Cross Platform Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.meta.outputs.should_run }}
+      version: ${{ steps.meta.outputs.version }}
+      next_version: ${{ steps.meta.outputs.next_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Collect metadata
+        id: meta
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        shell: python
+        run: |
+          import os
+          import re
+          from pathlib import Path
+
+          msg = os.environ.get('COMMIT_MESSAGE', '')
+          pattern = re.compile(r"\b\d{4}\.\d{4}\b")
+          should_run = bool(pattern.search(msg))
+          text = Path('pubspec.yaml').read_text(encoding='utf-8')
+          match = re.search(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', text, re.MULTILINE)
+          if not match:
+              raise SystemExit('无法在 pubspec.yaml 中找到版本号')
+          current_version = match.group(1)
+          parts = [int(p) for p in current_version.split('.')]
+          if len(parts) != 3:
+              raise SystemExit('版本号不是三段式，无法自动递增')
+          parts[2] += 1
+          next_version = '.'.join(str(p) for p in parts)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              fh.write(f"should_run={'true' if should_run else 'false'}\n")
+              fh.write(f"version={current_version}\n")
+              fh.write(f"next_version={next_version}\n")
+          print(f"commit message: {msg}")
+          print(f"pattern matched: {should_run}")
+          print(f"current version: {current_version}")
+          print(f"next version: {next_version}")
+      - name: 提示未匹配的提交信息
+        if: ${{ steps.meta.outputs.should_run != 'true' }}
+        run: echo "提交信息未包含形如 2025.1112 的标记，后续构建被跳过。"
+
+  macos:
+    needs: prepare
+    if: ${{ needs.prepare.outputs.should_run == 'true' }}
+    uses: ./.github/workflows/macos-build.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      arch: universal
+      runner: macos-latest
+    secrets: inherit
+
+  windows:
+    needs: prepare
+    if: ${{ needs.prepare.outputs.should_run == 'true' }}
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      arch: x64
+    secrets: inherit
+
+  linux:
+    needs: prepare
+    if: ${{ needs.prepare.outputs.should_run == 'true' }}
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      arch: x64
+    secrets: inherit
+
+  publish_release:
+    needs:
+      - prepare
+      - macos
+      - windows
+      - linux
+    if: ${{ needs.prepare.outputs.should_run == 'true' && needs.macos.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: 发布 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          name: Misa Rin ${{ needs.prepare.outputs.version }}
+          body: |
+            自动发布版本：${{ needs.prepare.outputs.version }}
+
+            - macOS 通用 DMG
+            - Windows x64 ZIP
+            - Linux x64 TAR.GZ
+          files: dist/*
+
+  version_bump:
+    needs:
+      - prepare
+      - macos
+      - windows
+      - linux
+      - publish_release
+    if: ${{ needs.prepare.outputs.should_run == 'true' && needs.publish_release.result == 'success' }}
+    uses: ./.github/workflows/version-bump.yml
+    with:
+      next_version: ${{ needs.prepare.outputs.next_version }}
+    secrets: inherit
