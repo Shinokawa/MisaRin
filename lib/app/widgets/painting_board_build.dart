@@ -140,14 +140,20 @@ mixin _PaintingBoardBuildMixin
         final bool hideCursorBecausePen =
             _penRequiresOverlay && _penCursorWorkspacePosition != null;
         final bool hideCursorBecauseReferenceResize = _isReferenceCardResizing;
+        final bool hideCursorBecauseLayerTransform =
+            _shouldHideCursorForLayerTransform;
         final bool shouldHideCursor =
             hideCursorBecauseToolOverlay ||
             hideCursorBecausePen ||
-            hideCursorBecauseReferenceResize;
+            hideCursorBecauseReferenceResize ||
+            hideCursorBecauseLayerTransform;
         final bool isLayerAdjustDragging =
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
         final Widget? antialiasCard = _buildAntialiasCard();
         final Widget? transformPanel = buildLayerTransformPanel();
+        final Widget? transformCursorOverlay = buildLayerTransformCursorOverlay(
+          theme,
+        );
 
         final bool transformActive = _isLayerFreeTransformActive;
         final MouseCursor boardCursor;
@@ -622,6 +628,8 @@ mixin _PaintingBoardBuildMixin
                           ..._buildPaletteCards(),
                           if (antialiasCard != null) antialiasCard,
                           if (transformPanel != null) transformPanel,
+                          if (transformCursorOverlay != null)
+                            transformCursorOverlay,
                           if (_toolCursorPosition != null &&
                               cursorStyle != null)
                             Positioned(

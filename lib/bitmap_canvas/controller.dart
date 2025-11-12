@@ -170,6 +170,10 @@ class BitmapCanvasController extends ChangeNotifier {
     (_activeLayerTransformOriginX + _activeLayerTranslationDx).toDouble(),
     (_activeLayerTransformOriginY + _activeLayerTranslationDy).toDouble(),
   );
+  Offset get activeLayerTransformOrigin => Offset(
+    _activeLayerTransformOriginX.toDouble(),
+    _activeLayerTransformOriginY.toDouble(),
+  );
   Rect? get activeLayerTransformBounds => _activeLayerTransformBounds;
   double get activeLayerTransformOpacity => _activeLayer.opacity;
   CanvasLayerBlendMode get activeLayerTransformBlendMode =>

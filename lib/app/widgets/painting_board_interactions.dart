@@ -789,6 +789,7 @@ mixin _PaintingBoardInteractionMixin
       _clearSelectionHover();
     }
     _clearToolCursorOverlay();
+    _clearLayerTransformCursorIndicator();
     _lastWorkspacePointer = null;
   }
 

@@ -95,7 +95,13 @@ void _startClippedLayerTransformSession(
   final int width = layer.surface.width;
   final int height = layer.surface.height;
   final Rect? bounds = _computePixelBounds(snapshot, width, height);
-  controller._activeLayerTransformBounds = bounds;
+  final Rect fallbackBounds = Rect.fromLTWH(
+    0,
+    0,
+    width.toDouble(),
+    height.toDouble(),
+  );
+  controller._activeLayerTransformBounds = bounds ?? fallbackBounds;
   controller._activeLayerTransformDirtyRegion = bounds;
   controller._activeLayerTransformSnapshotWidth = width;
   controller._activeLayerTransformSnapshotHeight = height;
@@ -129,14 +135,31 @@ void _startOverflowLayerTransformSession(
   controller._activeLayerTransformSnapshotHeight = snapshot.height;
   controller._activeLayerTransformOriginX = snapshot.originX;
   controller._activeLayerTransformOriginY = snapshot.originY;
-  controller._activeLayerTransformBounds = Rect.fromLTWH(
+  Rect? transformBounds = _computePixelBounds(
+    layer.surface.pixels,
+    controller._width,
+    controller._height,
+  );
+  if (transformBounds == null) {
+    final Rect? snapshotBounds = _computePixelBounds(
+      snapshot.pixels,
+      snapshot.width,
+      snapshot.height,
+    );
+    if (snapshotBounds != null) {
+      transformBounds = snapshotBounds.shift(
+        Offset(snapshot.originX.toDouble(), snapshot.originY.toDouble()),
+      );
+    }
+  }
+  transformBounds ??= Rect.fromLTWH(
     snapshot.originX.toDouble(),
     snapshot.originY.toDouble(),
     snapshot.width.toDouble(),
     snapshot.height.toDouble(),
   );
-  controller._activeLayerTransformDirtyRegion =
-      controller._activeLayerTransformBounds;
+  controller._activeLayerTransformBounds = transformBounds;
+  controller._activeLayerTransformDirtyRegion = transformBounds;
   layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
   controller._markDirty();
   _prepareActiveLayerTransformPreview(controller, layer, snapshot.pixels);

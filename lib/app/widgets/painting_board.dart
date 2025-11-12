@@ -300,6 +300,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         _isInsideAntialiasCardArea(workspacePosition);
   }
 
+  void _clearLayerTransformCursorIndicator() {}
+
   Size get _canvasSize => widget.settings.size;
 
   Size get _scaledBoardSize => Size(

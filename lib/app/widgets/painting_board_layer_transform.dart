@@ -23,26 +23,59 @@ enum _LayerTransformHandle {
 }
 
 class _LayerTransformStateModel {
-  _LayerTransformStateModel({required this.image, required Rect bounds})
-    : imageSize = Size(
-        bounds.width.clamp(1.0, double.infinity),
-        bounds.height.clamp(1.0, double.infinity),
-      ),
-      baseTranslation = bounds.topLeft,
-      translation = bounds.topLeft,
-      rotation = 0.0,
-      scaleX = 1.0,
-      scaleY = 1.0,
-      pivotLocal = Offset(bounds.width / 2, bounds.height / 2);
+  _LayerTransformStateModel({
+    required ui.Image image,
+    required Rect bounds,
+    required Offset imageOrigin,
+  }) : image = image,
+       bounds = bounds,
+       imageOrigin = imageOrigin,
+       fullImageSize = Size(
+         image.width.toDouble().clamp(1.0, double.infinity),
+         image.height.toDouble().clamp(1.0, double.infinity),
+       ),
+       imageSize = Size(
+         bounds.width.clamp(1.0, double.infinity),
+         bounds.height.clamp(1.0, double.infinity),
+       ),
+       clipOffset = _computeClipOffset(
+         bounds,
+         imageOrigin,
+         image.width.toDouble(),
+         image.height.toDouble(),
+       ),
+       baseTranslation = bounds.topLeft,
+       translation = bounds.topLeft,
+       rotation = 0.0,
+       scaleX = 1.0,
+       scaleY = 1.0,
+       pivotLocal = Offset(bounds.width / 2, bounds.height / 2);
 
   final ui.Image image;
+  final Rect bounds;
+  final Offset imageOrigin;
+  final Size fullImageSize;
   final Size imageSize;
+  final Offset clipOffset;
   final Offset baseTranslation;
   Offset translation;
   double rotation;
   double scaleX;
   double scaleY;
   final Offset pivotLocal;
+
+  static Offset _computeClipOffset(
+    Rect bounds,
+    Offset origin,
+    double imageWidth,
+    double imageHeight,
+  ) {
+    final double maxX = math.max(0.0, imageWidth - bounds.width);
+    final double maxY = math.max(0.0, imageHeight - bounds.height);
+    final double dx = (bounds.left - origin.dx).clamp(0.0, maxX);
+    final double dy = (bounds.top - origin.dy).clamp(0.0, maxY);
+    return Offset(dx, dy);
+  }
 
   Matrix4 get matrix {
     final Matrix4 result = Matrix4.identity();
@@ -282,9 +315,18 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   );
   bool _layerTransformApplying = false;
   int _layerTransformRevision = 0;
+  Offset? _layerTransformCursorWorkspacePosition;
+  _LayerTransformHandle? _layerTransformCursorHandle;
 
   bool get _isLayerFreeTransformActive =>
       _layerTransformModeActive && _layerTransformState != null;
+
+  bool get _layerTransformCursorVisible =>
+      _isLayerFreeTransformActive &&
+      _layerTransformCursorWorkspacePosition != null &&
+      _layerTransformCursorHandle != null;
+
+  bool get _shouldHideCursorForLayerTransform => _layerTransformCursorVisible;
 
   bool _maybeInitializeLayerTransformStateFromController() {
     if (!_layerTransformModeActive || _layerTransformState != null) {
@@ -292,6 +334,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     }
     final ui.Image? image = _controller.activeLayerTransformImage;
     final Rect? bounds = _controller.activeLayerTransformBounds;
+    final Offset origin = _controller.activeLayerTransformOrigin;
     if (image == null || bounds == null || bounds.isEmpty) {
       return false;
     }
@@ -299,6 +342,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformState = _LayerTransformStateModel(
         image: image,
         bounds: bounds,
+        imageOrigin: origin,
       );
     });
     return true;
@@ -378,6 +422,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformHandleAnchorLocal = null;
       _layerTransformApplying = false;
       _layerTransformRevision = 0;
+      _layerTransformCursorWorkspacePosition = null;
+      _layerTransformCursorHandle = null;
       _layerTransformPanelOffset = _workspacePanelSpawnOffset(
         this,
         panelWidth: _kLayerTransformPanelWidth,
@@ -404,6 +450,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformPointerStartInverse = null;
       _layerTransformHandleAnchorLocal = null;
       _layerTransformRevision = 0;
+      _layerTransformCursorWorkspacePosition = null;
+      _layerTransformCursorHandle = null;
     });
   }
 
@@ -447,6 +495,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         _layerTransformPointerStartInverse = null;
         _layerTransformHandleAnchorLocal = null;
         _layerTransformRevision = 0;
+        _layerTransformCursorWorkspacePosition = null;
+        _layerTransformCursorHandle = null;
       });
       _markDirty();
     } catch (error, stackTrace) {
@@ -526,6 +576,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     _layerTransformInitialScaleY = state.scaleY;
     _layerTransformPointerStartInverse = inverse;
     _layerTransformHandleAnchorLocal = state.localHandlePosition(handle);
+    _updateLayerTransformCursor(boardLocal, handle);
   }
 
   void _handleLayerTransformPointerMove(Offset boardLocal) {
@@ -541,6 +592,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _updateLayerTransformHover(boardLocal);
       return;
     }
+    _updateLayerTransformCursor(boardLocal, handle);
     switch (handle) {
       case _LayerTransformHandle.translate:
         final Offset? start = _layerTransformPointerStartBoard;
@@ -657,6 +709,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     _activeLayerTransformHandle = null;
     _layerTransformPointerStartInverse = null;
     _layerTransformHandleAnchorLocal = null;
+    _updateLayerTransformCursor(null, null);
   }
 
   void _updateLayerTransformHover(Offset boardLocal) {
@@ -664,9 +717,63 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       boardLocal,
     );
     if (handle == _hoverLayerTransformHandle) {
+      _updateLayerTransformCursor(boardLocal, handle);
       return;
     }
-    setState(() => _hoverLayerTransformHandle = handle);
+    setState(() {
+      _hoverLayerTransformHandle = handle;
+    });
+    _updateLayerTransformCursor(boardLocal, handle);
+  }
+
+  void _updateLayerTransformCursor(
+    Offset? boardLocal,
+    _LayerTransformHandle? handle,
+  ) {
+    final bool shouldShow =
+        _isLayerFreeTransformActive &&
+        boardLocal != null &&
+        handle != null &&
+        handle != _LayerTransformHandle.translate &&
+        handle != _LayerTransformHandle.rotation;
+    final Offset? nextPosition = shouldShow
+        ? _boardRect.topLeft +
+              Offset(
+                boardLocal!.dx * _viewport.scale,
+                boardLocal.dy * _viewport.scale,
+              )
+        : null;
+    final _LayerTransformHandle? nextHandle = shouldShow ? handle : null;
+    if (_layerTransformCursorHandle == nextHandle &&
+        _offsetEquals(_layerTransformCursorWorkspacePosition, nextPosition)) {
+      return;
+    }
+    setState(() {
+      _layerTransformCursorWorkspacePosition = nextPosition;
+      _layerTransformCursorHandle = nextHandle;
+    });
+  }
+
+  bool _offsetEquals(Offset? a, Offset? b) {
+    if (identical(a, b)) {
+      return true;
+    }
+    if (a == null || b == null) {
+      return a == b;
+    }
+    return (a - b).distanceSquared < 0.25;
+  }
+
+  @override
+  void _clearLayerTransformCursorIndicator() {
+    if (_layerTransformCursorWorkspacePosition == null &&
+        _layerTransformCursorHandle == null) {
+      return;
+    }
+    setState(() {
+      _layerTransformCursorWorkspacePosition = null;
+      _layerTransformCursorHandle = null;
+    });
   }
 
   _LayerTransformHandle? _hitTestLayerTransformHandles(Offset boardLocal) {
@@ -749,6 +856,20 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (opacity < 0.999) {
       content = Opacity(opacity: opacity.clamp(0.0, 1.0), child: content);
     }
+    content = SizedBox(
+      width: state.imageSize.width,
+      height: state.imageSize.height,
+      child: ClipRect(
+        child: Transform.translate(
+          offset: -state.clipOffset,
+          child: SizedBox(
+            width: state.fullImageSize.width,
+            height: state.fullImageSize.height,
+            child: content,
+          ),
+        ),
+      ),
+    );
     return IgnorePointer(
       ignoring: true,
       child: Transform(
@@ -790,6 +911,67 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         ),
       ),
     );
+  }
+
+  Widget? buildLayerTransformCursorOverlay(FluentThemeData theme) {
+    if (!_layerTransformCursorVisible) {
+      return null;
+    }
+    final Offset? position = _layerTransformCursorWorkspacePosition;
+    final _LayerTransformHandle? handle = _layerTransformCursorHandle;
+    if (position == null || handle == null) {
+      return null;
+    }
+    final double? angle = _layerTransformCursorAngle(handle);
+    if (angle == null) {
+      return null;
+    }
+    final bool isActive = _activeLayerTransformHandle == handle;
+    final bool isHover =
+        _activeLayerTransformHandle == null &&
+        _hoverLayerTransformHandle == handle;
+    final Color color = (isActive || isHover)
+        ? theme.resources.textFillColorPrimary
+        : theme.resources.textFillColorSecondary;
+    final Color outlineColor = theme.brightness.isDark
+        ? Colors.black
+        : Colors.white;
+    const double indicatorSize = _ResizeHandleIndicator.size;
+    return Positioned(
+      left: position.dx - indicatorSize / 2,
+      top: position.dy - indicatorSize / 2,
+      child: IgnorePointer(
+        ignoring: true,
+        child: _ResizeHandleIndicator(
+          angle: angle,
+          color: color,
+          outlineColor: outlineColor,
+        ),
+      ),
+    );
+  }
+
+  double? _layerTransformCursorAngle(_LayerTransformHandle handle) {
+    switch (handle) {
+      case _LayerTransformHandle.top:
+        return -math.pi / 2;
+      case _LayerTransformHandle.bottom:
+        return math.pi / 2;
+      case _LayerTransformHandle.left:
+        return math.pi;
+      case _LayerTransformHandle.right:
+        return 0;
+      case _LayerTransformHandle.topLeft:
+        return -3 * math.pi / 4;
+      case _LayerTransformHandle.topRight:
+        return -math.pi / 4;
+      case _LayerTransformHandle.bottomRight:
+        return math.pi / 4;
+      case _LayerTransformHandle.bottomLeft:
+        return 3 * math.pi / 4;
+      default:
+        return null;
+    }
   }
 
   Widget? buildLayerTransformPanel() {
