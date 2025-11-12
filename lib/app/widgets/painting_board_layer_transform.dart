@@ -539,7 +539,17 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     final Paint paint = Paint()
       ..filterQuality = FilterQuality.high
       ..isAntiAlias = false;
+    final Rect localBounds = Rect.fromLTWH(
+      0.0,
+      0.0,
+      state.imageSize.width,
+      state.imageSize.height,
+    );
+    canvas.save();
+    canvas.clipRect(localBounds);
+    canvas.translate(-state.clipOffset.dx, -state.clipOffset.dy);
     canvas.drawImage(state.image, Offset.zero, paint);
+    canvas.restore();
     final ui.Picture picture = recorder.endRecording();
     final ui.Image rendered = await picture.toImage(width, height);
     picture.dispose();
