@@ -58,21 +58,18 @@ jobs:
           - os_name: linux
             runner: ubuntu-latest
             arch: x64
-            shell: bash
             enable_cmd: flutter config --enable-linux-desktop
             build_cmd: flutter build linux --release
             package_cmd: ci/scripts/build_linux.sh x64
           - os_name: macos
             runner: macos-latest
             arch: universal
-            shell: bash
             enable_cmd: flutter config --enable-macos-desktop
             build_cmd: flutter build macos --release
             package_cmd: ci/scripts/build_macos.sh universal
           - os_name: windows
             runner: windows-latest
             arch: x64
-            shell: pwsh
             enable_cmd: flutter config --enable-windows-desktop
             build_cmd: flutter build windows --release
             package_cmd: ./ci/scripts/build_windows.ps1 -Arch x64
@@ -87,20 +84,16 @@ jobs:
 
       - name: 启用桌面目标
         run: ${{ matrix.enable_cmd }}
-        shell: ${{ matrix.shell }}
 
       - name: 获取依赖
         run: flutter pub get
-        shell: ${{ matrix.shell }}
 
       - name: 构建${{ matrix.os_name }}
         run: ${{ matrix.build_cmd }}
-        shell: ${{ matrix.shell }}
 
       - name: 打包产物
         id: package
         run: ${{ matrix.package_cmd }}
-        shell: ${{ matrix.shell }}
 
       - name: 上传${{ matrix.os_name }}制品
         uses: actions/upload-artifact@v4
