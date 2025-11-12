@@ -1,0 +1,902 @@
+part of 'painting_board.dart';
+
+const double _kLayerTransformPanelWidth = 280;
+const double _kLayerTransformPanelMinHeight = 108;
+const double _kLayerTransformHandleVisualSize = 12;
+const double _kLayerTransformHandleHitSize = 24;
+const double _kLayerTransformRotationHandleDistance = 36;
+const double _kLayerTransformRotationHandleRadius = 6;
+const double _kLayerTransformMinScale = 0.02;
+const double _kLayerTransformMaxScale = 64;
+
+enum _LayerTransformHandle {
+  translate,
+  topLeft,
+  top,
+  topRight,
+  right,
+  bottomRight,
+  bottom,
+  bottomLeft,
+  left,
+  rotation,
+}
+
+class _LayerTransformStateModel {
+  _LayerTransformStateModel({required this.image, required Rect bounds})
+    : imageSize = Size(
+        bounds.width.clamp(1.0, double.infinity),
+        bounds.height.clamp(1.0, double.infinity),
+      ),
+      baseTranslation = bounds.topLeft,
+      translation = bounds.topLeft,
+      rotation = 0.0,
+      scaleX = 1.0,
+      scaleY = 1.0,
+      pivotLocal = Offset(bounds.width / 2, bounds.height / 2);
+
+  final ui.Image image;
+  final Size imageSize;
+  final Offset baseTranslation;
+  Offset translation;
+  double rotation;
+  double scaleX;
+  double scaleY;
+  final Offset pivotLocal;
+
+  Matrix4 get matrix {
+    final Matrix4 result = Matrix4.identity();
+    result.translate(translation.dx, translation.dy);
+    result.translate(pivotLocal.dx, pivotLocal.dy);
+    result.rotateZ(rotation);
+    result.scale(scaleX, scaleY);
+    result.translate(-pivotLocal.dx, -pivotLocal.dy);
+    return result;
+  }
+
+  Matrix4? get inverseMatrix => Matrix4.tryInvert(matrix);
+
+  List<Offset> get corners {
+    final Matrix4 m = matrix;
+    return <Offset>[
+      MatrixUtils.transformPoint(m, Offset.zero),
+      MatrixUtils.transformPoint(m, Offset(imageSize.width, 0)),
+      MatrixUtils.transformPoint(m, Offset(imageSize.width, imageSize.height)),
+      MatrixUtils.transformPoint(m, Offset(0, imageSize.height)),
+    ];
+  }
+
+  Offset transformPoint(Offset localPoint) =>
+      MatrixUtils.transformPoint(matrix, localPoint);
+
+  Offset toLocal(Offset globalPoint) {
+    final Matrix4? inverse = inverseMatrix;
+    if (inverse == null) {
+      return globalPoint;
+    }
+    return MatrixUtils.transformPoint(inverse, globalPoint);
+  }
+
+  Rect get boundingBox {
+    final List<Offset> points = corners;
+    double minX = points.first.dx;
+    double maxX = minX;
+    double minY = points.first.dy;
+    double maxY = minY;
+    for (final Offset point in points.skip(1)) {
+      if (point.dx < minX) {
+        minX = point.dx;
+      }
+      if (point.dx > maxX) {
+        maxX = point.dx;
+      }
+      if (point.dy < minY) {
+        minY = point.dy;
+      }
+      if (point.dy > maxY) {
+        maxY = point.dy;
+      }
+    }
+    return Rect.fromLTRB(minX, minY, maxX, maxY);
+  }
+
+  Offset localHandlePosition(_LayerTransformHandle handle) {
+    switch (handle) {
+      case _LayerTransformHandle.topLeft:
+        return Offset.zero;
+      case _LayerTransformHandle.top:
+        return Offset(imageSize.width / 2, 0);
+      case _LayerTransformHandle.topRight:
+        return Offset(imageSize.width, 0);
+      case _LayerTransformHandle.right:
+        return Offset(imageSize.width, imageSize.height / 2);
+      case _LayerTransformHandle.bottomRight:
+        return Offset(imageSize.width, imageSize.height);
+      case _LayerTransformHandle.bottom:
+        return Offset(imageSize.width / 2, imageSize.height);
+      case _LayerTransformHandle.bottomLeft:
+        return Offset(0, imageSize.height);
+      case _LayerTransformHandle.left:
+        return Offset(0, imageSize.height / 2);
+      case _LayerTransformHandle.translate:
+      case _LayerTransformHandle.rotation:
+        return pivotLocal;
+    }
+  }
+
+  Offset handlePosition(_LayerTransformHandle handle) {
+    switch (handle) {
+      case _LayerTransformHandle.rotation:
+        final Offset topLeft = transformPoint(Offset.zero);
+        final Offset topRight = transformPoint(Offset(imageSize.width, 0));
+        final Offset topCenter = transformPoint(Offset(imageSize.width / 2, 0));
+        final Offset edge = topRight - topLeft;
+        Offset normal = Offset(edge.dy, -edge.dx);
+        final double length = normal.distance;
+        if (length > 0.0001) {
+          normal = normal / length;
+        } else {
+          normal = const Offset(0, -1);
+        }
+        return topCenter + normal * _kLayerTransformRotationHandleDistance;
+      case _LayerTransformHandle.translate:
+        return translation + pivotLocal;
+      default:
+        return transformPoint(localHandlePosition(handle));
+    }
+  }
+
+  void reset() {
+    translation = baseTranslation;
+    rotation = 0.0;
+    scaleX = 1.0;
+    scaleY = 1.0;
+  }
+}
+
+class _LayerTransformRenderResult {
+  const _LayerTransformRenderResult({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+    required this.rgba,
+  });
+
+  final int left;
+  final int top;
+  final int width;
+  final int height;
+  final Uint8List rgba;
+}
+
+class _LayerTransformOverlayPainter extends CustomPainter {
+  _LayerTransformOverlayPainter({
+    required this.state,
+    required this.boardScale,
+    required this.lineColor,
+    required this.highlightColor,
+    required this.revision,
+    this.activeHandle,
+    this.hoverHandle,
+  });
+
+  final _LayerTransformStateModel state;
+  final double boardScale;
+  final Color lineColor;
+  final Color highlightColor;
+  final int revision;
+  final _LayerTransformHandle? activeHandle;
+  final _LayerTransformHandle? hoverHandle;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final List<Offset> points = state.corners;
+    if (points.length != 4) {
+      return;
+    }
+    final Paint outlinePaint = Paint()
+      ..color = lineColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 / boardScale
+      ..isAntiAlias = true;
+    final Path path = Path()..addPolygon(points, true);
+    canvas.drawPath(path, outlinePaint);
+
+    final double handleSize = (_kLayerTransformHandleVisualSize / boardScale)
+        .clamp(6.0, 24.0);
+    final Paint handlePaint = Paint()..isAntiAlias = true;
+    for (final _LayerTransformHandle handle in _LayerTransformHandle.values) {
+      if (handle == _LayerTransformHandle.translate ||
+          handle == _LayerTransformHandle.rotation) {
+        continue;
+      }
+      final Offset position = state.handlePosition(handle);
+      final bool isActive = handle == activeHandle;
+      final bool isHover = handle == hoverHandle;
+      handlePaint.color = isActive || isHover ? highlightColor : lineColor;
+      final Rect rect = Rect.fromCenter(
+        center: position,
+        width: handleSize,
+        height: handleSize,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, Radius.circular(handleSize / 4)),
+        handlePaint,
+      );
+    }
+
+    // Rotation handle
+    final Offset rotateHandle = state.handlePosition(
+      _LayerTransformHandle.rotation,
+    );
+    final Offset topCenter = state.handlePosition(_LayerTransformHandle.top);
+    final Paint rotationPaint = Paint()
+      ..color = lineColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1 / boardScale
+      ..isAntiAlias = true;
+    canvas.drawLine(topCenter, rotateHandle, rotationPaint);
+    final Paint rotationFill = Paint()
+      ..color =
+          (activeHandle == _LayerTransformHandle.rotation ||
+              hoverHandle == _LayerTransformHandle.rotation)
+          ? highlightColor
+          : lineColor
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    canvas.drawCircle(
+      rotateHandle,
+      (_kLayerTransformRotationHandleRadius / boardScale).clamp(3.0, 18.0),
+      rotationFill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LayerTransformOverlayPainter oldDelegate) {
+    return oldDelegate.revision != revision ||
+        oldDelegate.boardScale != boardScale ||
+        oldDelegate.activeHandle != activeHandle ||
+        oldDelegate.hoverHandle != hoverHandle ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.highlightColor != highlightColor;
+  }
+}
+
+mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
+  bool _layerTransformModeActive = false;
+  _LayerTransformStateModel? _layerTransformState;
+  _LayerTransformHandle? _activeLayerTransformHandle;
+  _LayerTransformHandle? _hoverLayerTransformHandle;
+  Offset? _layerTransformPointerStartBoard;
+  Offset? _layerTransformInitialTranslation;
+  double _layerTransformInitialRotation = 0.0;
+  double _layerTransformInitialScaleX = 1.0;
+  double _layerTransformInitialScaleY = 1.0;
+  Matrix4? _layerTransformPointerStartInverse;
+  Offset? _layerTransformHandleAnchorLocal;
+  Offset _layerTransformPanelOffset = Offset.zero;
+  Size _layerTransformPanelSize = const Size(
+    _kLayerTransformPanelWidth,
+    _kLayerTransformPanelMinHeight,
+  );
+  bool _layerTransformApplying = false;
+  int _layerTransformRevision = 0;
+
+  bool get _isLayerFreeTransformActive =>
+      _layerTransformModeActive && _layerTransformState != null;
+
+  bool _maybeInitializeLayerTransformStateFromController() {
+    if (!_layerTransformModeActive || _layerTransformState != null) {
+      return false;
+    }
+    final ui.Image? image = _controller.activeLayerTransformImage;
+    final Rect? bounds = _controller.activeLayerTransformBounds;
+    if (image == null || bounds == null || bounds.isEmpty) {
+      return false;
+    }
+    setState(() {
+      _layerTransformState = _LayerTransformStateModel(
+        image: image,
+        bounds: bounds,
+      );
+    });
+    return true;
+  }
+
+  BitmapLayerState? _activeLayerSnapshot() {
+    final String? activeId = _controller.activeLayerId;
+    if (activeId == null) {
+      return null;
+    }
+    for (final BitmapLayerState layer in _controller.layers) {
+      if (layer.id == activeId) {
+        return layer;
+      }
+    }
+    return null;
+  }
+
+  bool _guardTransformInProgress({String? message}) {
+    if (!_layerTransformModeActive) {
+      return false;
+    }
+    if (message != null) {
+      AppNotifications.show(
+        context,
+        message: message,
+        severity: InfoBarSeverity.warning,
+      );
+    }
+    return true;
+  }
+
+  void _startLayerFreeTransform() {
+    if (_layerTransformModeActive ||
+        _controller.isActiveLayerTransformPendingCleanup) {
+      return;
+    }
+    final BitmapLayerState? activeLayer = _activeLayerSnapshot();
+    if (activeLayer == null) {
+      AppNotifications.show(
+        context,
+        message: '无法定位当前图层。',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    if (activeLayer.locked) {
+      AppNotifications.show(
+        context,
+        message: '当前图层已锁定，无法变换。',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    if (!_controller.isActiveLayerTransforming) {
+      _controller.translateActiveLayer(0, 0);
+    }
+    if (!_controller.isActiveLayerTransforming) {
+      AppNotifications.show(
+        context,
+        message: '无法进入自由变换模式。',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    setState(() {
+      _layerTransformModeActive = true;
+      _layerTransformState = null;
+      _activeLayerTransformHandle = null;
+      _hoverLayerTransformHandle = null;
+      _layerTransformPointerStartBoard = null;
+      _layerTransformInitialTranslation = null;
+      _layerTransformInitialRotation = 0.0;
+      _layerTransformInitialScaleX = 1.0;
+      _layerTransformInitialScaleY = 1.0;
+      _layerTransformPointerStartInverse = null;
+      _layerTransformHandleAnchorLocal = null;
+      _layerTransformApplying = false;
+      _layerTransformRevision = 0;
+      _layerTransformPanelOffset = _workspacePanelSpawnOffset(
+        this,
+        panelWidth: _kLayerTransformPanelWidth,
+        panelHeight: _kLayerTransformPanelMinHeight,
+        additionalDy: 12,
+      );
+    });
+    _toolCursorPosition = null;
+    _penCursorWorkspacePosition = null;
+    _maybeInitializeLayerTransformStateFromController();
+  }
+
+  void _cancelLayerFreeTransform() {
+    if (!_layerTransformModeActive || _layerTransformApplying) {
+      return;
+    }
+    _controller.cancelActiveLayerTranslation();
+    setState(() {
+      _layerTransformModeActive = false;
+      _layerTransformState = null;
+      _activeLayerTransformHandle = null;
+      _hoverLayerTransformHandle = null;
+      _layerTransformApplying = false;
+      _layerTransformPointerStartInverse = null;
+      _layerTransformHandleAnchorLocal = null;
+      _layerTransformRevision = 0;
+    });
+  }
+
+  Future<void> _confirmLayerFreeTransform() async {
+    if (!_isLayerFreeTransformActive || _layerTransformApplying) {
+      return;
+    }
+    final BitmapLayerState? activeLayer = _activeLayerSnapshot();
+    final _LayerTransformStateModel? state = _layerTransformState;
+    if (activeLayer == null || state == null) {
+      return;
+    }
+    setState(() => _layerTransformApplying = true);
+    try {
+      final _LayerTransformRenderResult result =
+          await _renderLayerTransformResult(state);
+      _pushUndoSnapshot();
+      final CanvasLayerData data = CanvasLayerData(
+        id: activeLayer.id,
+        name: activeLayer.name,
+        visible: activeLayer.visible,
+        opacity: activeLayer.opacity,
+        locked: activeLayer.locked,
+        clippingMask: activeLayer.clippingMask,
+        blendMode: activeLayer.blendMode,
+        bitmap: result.rgba,
+        bitmapWidth: result.width,
+        bitmapHeight: result.height,
+        bitmapLeft: result.left,
+        bitmapTop: result.top,
+        cloneBitmap: false,
+      );
+      _controller.replaceLayer(activeLayer.id, data);
+      _controller.disposeActiveLayerTransformSession();
+      setState(() {
+        _layerTransformModeActive = false;
+        _layerTransformState = null;
+        _activeLayerTransformHandle = null;
+        _hoverLayerTransformHandle = null;
+        _layerTransformApplying = false;
+        _layerTransformPointerStartInverse = null;
+        _layerTransformHandleAnchorLocal = null;
+        _layerTransformRevision = 0;
+      });
+      _markDirty();
+    } catch (error, stackTrace) {
+      debugPrint('Failed to apply transform: $error\n$stackTrace');
+      setState(() => _layerTransformApplying = false);
+      AppNotifications.show(
+        context,
+        message: '应用自由变换失败，请重试。',
+        severity: InfoBarSeverity.error,
+      );
+    }
+  }
+
+  Future<_LayerTransformRenderResult> _renderLayerTransformResult(
+    _LayerTransformStateModel state,
+  ) async {
+    final Rect bounds = state.boundingBox;
+    final int left = bounds.left.floor();
+    final int top = bounds.top.floor();
+    final int right = bounds.right.ceil();
+    final int bottom = bounds.bottom.ceil();
+    final int width = math.max(1, right - left);
+    final int height = math.max(1, bottom - top);
+    final ui.PictureRecorder recorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(recorder);
+    final Matrix4 drawMatrix = Matrix4.translationValues(
+      -left.toDouble(),
+      -top.toDouble(),
+      0.0,
+    )..multiply(state.matrix);
+    canvas.transform(drawMatrix.storage);
+    final Paint paint = Paint()
+      ..filterQuality = FilterQuality.high
+      ..isAntiAlias = false;
+    canvas.drawImage(state.image, Offset.zero, paint);
+    final ui.Picture picture = recorder.endRecording();
+    final ui.Image rendered = await picture.toImage(width, height);
+    picture.dispose();
+    final ByteData? byteData = await rendered.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+    rendered.dispose();
+    if (byteData == null) {
+      throw StateError('无法导出自由变换结果');
+    }
+    final Uint8List rgba = byteData.buffer.asUint8List();
+    return _LayerTransformRenderResult(
+      left: left,
+      top: top,
+      width: width,
+      height: height,
+      rgba: rgba,
+    );
+  }
+
+  void _handleLayerTransformPointerDown(Offset boardLocal) {
+    if (!_isLayerFreeTransformActive) {
+      return;
+    }
+    final _LayerTransformStateModel? state = _layerTransformState;
+    if (state == null) {
+      return;
+    }
+    final _LayerTransformHandle? handle = _hitTestLayerTransformHandles(
+      boardLocal,
+    );
+    if (handle == null) {
+      _activeLayerTransformHandle = null;
+      return;
+    }
+    final Matrix4? inverse = state.inverseMatrix;
+    _activeLayerTransformHandle = handle;
+    _layerTransformPointerStartBoard = boardLocal;
+    _layerTransformInitialTranslation = state.translation;
+    _layerTransformInitialRotation = state.rotation;
+    _layerTransformInitialScaleX = state.scaleX;
+    _layerTransformInitialScaleY = state.scaleY;
+    _layerTransformPointerStartInverse = inverse;
+    _layerTransformHandleAnchorLocal = state.localHandlePosition(handle);
+  }
+
+  void _handleLayerTransformPointerMove(Offset boardLocal) {
+    if (!_isLayerFreeTransformActive) {
+      return;
+    }
+    final _LayerTransformStateModel? state = _layerTransformState;
+    final _LayerTransformHandle? handle = _activeLayerTransformHandle;
+    if (state == null) {
+      return;
+    }
+    if (handle == null) {
+      _updateLayerTransformHover(boardLocal);
+      return;
+    }
+    switch (handle) {
+      case _LayerTransformHandle.translate:
+        final Offset? start = _layerTransformPointerStartBoard;
+        final Offset? initial = _layerTransformInitialTranslation;
+        if (start == null || initial == null) {
+          return;
+        }
+        final Offset delta = boardLocal - start;
+        setState(() {
+          state.translation = initial + delta;
+          _layerTransformRevision++;
+        });
+        break;
+      case _LayerTransformHandle.rotation:
+        final Offset pivot = state.translation + state.pivotLocal;
+        final Offset? start = _layerTransformPointerStartBoard;
+        if (start == null) {
+          return;
+        }
+        double startAngle = math.atan2(
+          start.dy - pivot.dy,
+          start.dx - pivot.dx,
+        );
+        double currentAngle = math.atan2(
+          boardLocal.dy - pivot.dy,
+          boardLocal.dx - pivot.dx,
+        );
+        double delta = currentAngle - startAngle;
+        if (_isShiftModifierPressed()) {
+          const double step = math.pi / 12;
+          delta = (delta / step).round() * step;
+        }
+        setState(() {
+          state.rotation = _layerTransformInitialRotation + delta;
+          _layerTransformRevision++;
+        });
+        break;
+      default:
+        final Matrix4? inverse = _layerTransformPointerStartInverse;
+        final Offset? anchorLocal = _layerTransformHandleAnchorLocal;
+        if (inverse == null || anchorLocal == null) {
+          return;
+        }
+        final Offset localPoint = MatrixUtils.transformPoint(
+          inverse,
+          boardLocal,
+        );
+        double nextScaleX = state.scaleX;
+        double nextScaleY = state.scaleY;
+        bool affectX = false;
+        bool affectY = false;
+        Offset handleLocal = anchorLocal;
+        switch (handle) {
+          case _LayerTransformHandle.top:
+          case _LayerTransformHandle.bottom:
+            affectY = true;
+            break;
+          case _LayerTransformHandle.left:
+          case _LayerTransformHandle.right:
+            affectX = true;
+            break;
+          default:
+            affectX = true;
+            affectY = true;
+            break;
+        }
+        final double baseDx = handleLocal.dx - state.pivotLocal.dx;
+        final double baseDy = handleLocal.dy - state.pivotLocal.dy;
+        if (affectX && baseDx.abs() > 0.0001) {
+          final double currentDx = localPoint.dx - state.pivotLocal.dx;
+          nextScaleX = (currentDx / baseDx) * _layerTransformInitialScaleX;
+        }
+        if (affectY && baseDy.abs() > 0.0001) {
+          final double currentDy = localPoint.dy - state.pivotLocal.dy;
+          nextScaleY = (currentDy / baseDy) * _layerTransformInitialScaleY;
+        }
+        if (_isShiftModifierPressed()) {
+          final double uniform = affectX && affectY
+              ? (nextScaleX + nextScaleY) / 2
+              : affectX
+              ? nextScaleX
+              : nextScaleY;
+          if (affectX) {
+            nextScaleX = uniform;
+          }
+          if (affectY) {
+            nextScaleY = uniform;
+          }
+        }
+        nextScaleX = nextScaleX.clamp(
+          _kLayerTransformMinScale,
+          _kLayerTransformMaxScale,
+        );
+        nextScaleY = nextScaleY.clamp(
+          _kLayerTransformMinScale,
+          _kLayerTransformMaxScale,
+        );
+        setState(() {
+          state.scaleX = nextScaleX;
+          state.scaleY = nextScaleY;
+          _layerTransformRevision++;
+        });
+        break;
+    }
+  }
+
+  void _handleLayerTransformPointerUp() {
+    _activeLayerTransformHandle = null;
+    _layerTransformPointerStartInverse = null;
+    _layerTransformHandleAnchorLocal = null;
+  }
+
+  void _handleLayerTransformPointerCancel() {
+    _activeLayerTransformHandle = null;
+    _layerTransformPointerStartInverse = null;
+    _layerTransformHandleAnchorLocal = null;
+  }
+
+  void _updateLayerTransformHover(Offset boardLocal) {
+    final _LayerTransformHandle? handle = _hitTestLayerTransformHandles(
+      boardLocal,
+    );
+    if (handle == _hoverLayerTransformHandle) {
+      return;
+    }
+    setState(() => _hoverLayerTransformHandle = handle);
+  }
+
+  _LayerTransformHandle? _hitTestLayerTransformHandles(Offset boardLocal) {
+    final _LayerTransformStateModel? state = _layerTransformState;
+    if (state == null) {
+      return null;
+    }
+    final double hitRadius = (_kLayerTransformHandleHitSize / _viewport.scale)
+        .clamp(8.0, 48.0);
+    _LayerTransformHandle? pickHandle(_LayerTransformHandle handle) {
+      if (handle == _LayerTransformHandle.translate) {
+        return null;
+      }
+      if (handle == _LayerTransformHandle.rotation) {
+        final Offset position = state.handlePosition(handle);
+        if ((boardLocal - position).distance <= hitRadius) {
+          return handle;
+        }
+        return null;
+      }
+      final Offset position = state.handlePosition(handle);
+      if ((boardLocal - position).distance <= hitRadius) {
+        return handle;
+      }
+      return null;
+    }
+
+    for (final _LayerTransformHandle handle in <_LayerTransformHandle>[
+      _LayerTransformHandle.topLeft,
+      _LayerTransformHandle.top,
+      _LayerTransformHandle.topRight,
+      _LayerTransformHandle.right,
+      _LayerTransformHandle.bottomRight,
+      _LayerTransformHandle.bottom,
+      _LayerTransformHandle.bottomLeft,
+      _LayerTransformHandle.left,
+      _LayerTransformHandle.rotation,
+    ]) {
+      final _LayerTransformHandle? result = pickHandle(handle);
+      if (result != null) {
+        return result;
+      }
+    }
+
+    final Path polygon = Path()..addPolygon(state.corners, true);
+    if (polygon.contains(boardLocal)) {
+      return _LayerTransformHandle.translate;
+    }
+    return null;
+  }
+
+  bool _isShiftModifierPressed() {
+    final Set<LogicalKeyboardKey> keys =
+        HardwareKeyboard.instance.logicalKeysPressed;
+    return keys.contains(LogicalKeyboardKey.shiftLeft) ||
+        keys.contains(LogicalKeyboardKey.shiftRight) ||
+        keys.contains(LogicalKeyboardKey.shift);
+  }
+
+  Widget? buildLayerTransformImageOverlay() {
+    if (!_isLayerFreeTransformActive) {
+      return null;
+    }
+    final _LayerTransformStateModel? state = _layerTransformState;
+    if (state == null) {
+      return null;
+    }
+    final double opacity = _controller.activeLayerTransformOpacity;
+    final ui.BlendMode? blendMode = _flutterBlendMode(
+      _controller.activeLayerTransformBlendMode,
+    );
+    Widget content = RawImage(
+      image: state.image,
+      filterQuality: FilterQuality.high,
+      fit: BoxFit.none,
+      alignment: Alignment.topLeft,
+      colorBlendMode: blendMode,
+      color: blendMode != null ? Colors.white : null,
+    );
+    if (opacity < 0.999) {
+      content = Opacity(opacity: opacity.clamp(0.0, 1.0), child: content);
+    }
+    return IgnorePointer(
+      ignoring: true,
+      child: Transform(
+        alignment: Alignment.topLeft,
+        transform: state.matrix,
+        child: SizedBox(
+          width: state.imageSize.width,
+          height: state.imageSize.height,
+          child: content,
+        ),
+      ),
+    );
+  }
+
+  Widget? buildLayerTransformHandlesOverlay(FluentThemeData theme) {
+    if (!_isLayerFreeTransformActive) {
+      return null;
+    }
+    final _LayerTransformStateModel? state = _layerTransformState;
+    if (state == null) {
+      return null;
+    }
+    final Color lineColor = theme.resources.textFillColorSecondary;
+    final Color highlightColor = theme.accentColor.defaultBrushFor(
+      theme.brightness,
+    );
+    return IgnorePointer(
+      ignoring: true,
+      child: CustomPaint(
+        size: _canvasSize,
+        painter: _LayerTransformOverlayPainter(
+          state: state,
+          boardScale: _viewport.scale,
+          lineColor: lineColor,
+          highlightColor: highlightColor,
+          revision: _layerTransformRevision,
+          activeHandle: _activeLayerTransformHandle,
+          hoverHandle: _hoverLayerTransformHandle,
+        ),
+      ),
+    );
+  }
+
+  Widget? buildLayerTransformPanel() {
+    if (!_layerTransformModeActive) {
+      return null;
+    }
+    final _LayerTransformStateModel? state = _layerTransformState;
+    final bool ready = state != null;
+    final FluentThemeData theme = FluentTheme.of(context);
+    return Positioned(
+      left: _layerTransformPanelOffset.dx,
+      top: _layerTransformPanelOffset.dy,
+      child: _MeasureSize(
+        onChanged: _handleLayerTransformPanelSizeChanged,
+        child: WorkspaceFloatingPanel(
+          width: _kLayerTransformPanelWidth,
+          minHeight: _kLayerTransformPanelMinHeight,
+          title: '自由变换',
+          onDragUpdate: _updateLayerTransformPanelOffset,
+          onClose: _cancelLayerFreeTransform,
+          footerPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+          child: ready
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '旋转：${(state!.rotation * 180 / math.pi).toStringAsFixed(1)}°',
+                      style: theme.typography.body,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '缩放：${(state.scaleX * 100).toStringAsFixed(1)}% × '
+                      '${(state.scaleY * 100).toStringAsFixed(1)}%',
+                      style: theme.typography.body,
+                    ),
+                  ],
+                )
+              : Row(
+                  children: const [
+                    ProgressRing(),
+                    SizedBox(width: 8),
+                    Text('正在准备图层…'),
+                  ],
+                ),
+          footer: Row(
+            children: [
+              Button(
+                onPressed: ready && !_layerTransformApplying
+                    ? () {
+                        setState(() {
+                          state!.reset();
+                          _layerTransformRevision++;
+                        });
+                      }
+                    : null,
+                child: const Text('复位'),
+              ),
+              const Spacer(),
+              Button(
+                onPressed: _layerTransformApplying
+                    ? null
+                    : _cancelLayerFreeTransform,
+                child: const Text('取消'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: ready && !_layerTransformApplying
+                    ? () => _confirmLayerFreeTransform()
+                    : null,
+                child: _layerTransformApplying
+                    ? const ProgressRing()
+                    : const Text('应用'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _updateLayerTransformPanelOffset(Offset delta) {
+    setState(() {
+      final Offset next = _layerTransformPanelOffset + delta;
+      final double maxX = math.max(
+        16,
+        _workspaceSize.width - _layerTransformPanelSize.width - 16,
+      );
+      final double maxY = math.max(
+        16,
+        _workspaceSize.height - _layerTransformPanelSize.height - 16,
+      );
+      _layerTransformPanelOffset = Offset(
+        next.dx.clamp(16.0, maxX),
+        next.dy.clamp(16.0, maxY),
+      );
+    });
+  }
+
+  void _handleLayerTransformPanelSizeChanged(Size size) {
+    if (size.isEmpty) {
+      return;
+    }
+    setState(() {
+      _layerTransformPanelSize = size;
+    });
+  }
+}

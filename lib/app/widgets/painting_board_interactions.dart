@@ -5,6 +5,7 @@ const double _kStylusSimulationBlend = 0.68;
 mixin _PaintingBoardInteractionMixin
     on
         _PaintingBoardBase,
+        _PaintingBoardLayerTransformMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardReferenceMixin {
   void clear() {
@@ -102,6 +103,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _setActiveTool(CanvasTool tool) {
+    if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
+      return;
+    }
     if (_activeTool == tool) {
       return;
     }
@@ -1118,6 +1122,9 @@ mixin _PaintingBoardInteractionMixin
     if (_isScalingGesture) {
       return;
     }
+    if (_layerTransformApplying) {
+      return;
+    }
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
     final Offset pointer = event.localPosition;
@@ -1133,6 +1140,12 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     final Offset boardLocal = _toBoardLocal(pointer);
+    if (_layerTransformModeActive) {
+      if (pointerInsideBoard) {
+        _handleLayerTransformPointerDown(boardLocal);
+      }
+      return;
+    }
     switch (tool) {
       case CanvasTool.layerAdjust:
         _beginLayerAdjustDrag(boardLocal);
@@ -1189,8 +1202,16 @@ mixin _PaintingBoardInteractionMixin
     if (_isScalingGesture) {
       return;
     }
+    if (_layerTransformApplying) {
+      return;
+    }
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
+    if (_layerTransformModeActive) {
+      final Offset boardLocal = _toBoardLocal(event.localPosition);
+      _handleLayerTransformPointerMove(boardLocal);
+      return;
+    }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
@@ -1232,6 +1253,10 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handlePointerUp(PointerUpEvent event) {
+    if (_layerTransformModeActive) {
+      _handleLayerTransformPointerUp();
+      return;
+    }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
@@ -1286,6 +1311,10 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
+    if (_layerTransformModeActive) {
+      _handleLayerTransformPointerCancel();
+      return;
+    }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
         if (_isDrawing) {
@@ -1323,6 +1352,11 @@ mixin _PaintingBoardInteractionMixin
   void _handlePointerHover(PointerHoverEvent event) {
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
+    if (_layerTransformModeActive) {
+      final Offset boardLocal = _toBoardLocal(event.localPosition);
+      _updateLayerTransformHover(boardLocal);
+      return;
+    }
     if (_effectiveActiveTool != CanvasTool.selection) {
       return;
     }
@@ -1333,6 +1367,19 @@ mixin _PaintingBoardInteractionMixin
   @override
   KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event) {
     final LogicalKeyboardKey key = event.logicalKey;
+    if (_layerTransformModeActive) {
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        if (key == LogicalKeyboardKey.escape) {
+          _cancelLayerFreeTransform();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.numpadEnter) {
+          unawaited(_confirmLayerFreeTransform());
+          return KeyEventResult.handled;
+        }
+      }
+    }
     if (_isAltKey(key) && _activeTool != CanvasTool.eyedropper) {
       if (event is KeyDownEvent || event is KeyRepeatEvent) {
         if (_eyedropperOverrideActive) {

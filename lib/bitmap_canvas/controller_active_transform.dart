@@ -1,10 +1,6 @@
 part of 'controller.dart';
 
-void _translateActiveLayer(
-  BitmapCanvasController controller,
-  int dx,
-  int dy,
-) {
+void _translateActiveLayer(BitmapCanvasController controller, int dx, int dy) {
   if (controller._pendingActiveLayerTransformCleanup) {
     return;
   }
@@ -389,8 +385,12 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
     final int startX = overlapLeft - minX;
     final int srcOffset = y * controller._width + overlapLeft;
     final int length = overlapRight - overlapLeft;
-    pixels.setRange(destinationOffset + startX,
-        destinationOffset + startX + length, srcPixels, srcOffset);
+    pixels.setRange(
+      destinationOffset + startX,
+      destinationOffset + startX + length,
+      srcPixels,
+      srcOffset,
+    );
   }
   store.forEachSegment((int rowY, _LayerOverflowSegment segment) {
     final int sy = rowY - minY;
@@ -517,8 +517,10 @@ class _LayerOverflowBuilder {
     if ((color >> 24) == 0) {
       return;
     }
-    final _OverflowRowBuilder builder =
-        _rows.putIfAbsent(y, () => _OverflowRowBuilder());
+    final _OverflowRowBuilder builder = _rows.putIfAbsent(
+      y,
+      () => _OverflowRowBuilder(),
+    );
     builder.addPixel(x, color);
   }
 
@@ -573,10 +575,7 @@ class _OverflowRowBuilder {
       return;
     }
     _segments.add(
-      _LayerOverflowSegment(
-        _currentStart!,
-        Uint32List.fromList(_buffer),
-      ),
+      _LayerOverflowSegment(_currentStart!, Uint32List.fromList(_buffer)),
     );
     _buffer.clear();
     _currentStart = null;
@@ -601,9 +600,15 @@ void _restoreActiveLayerSnapshot(BitmapCanvasController controller) {
   _restoreOverflowLayerSnapshot(controller, snapshot, id);
 }
 
-void _updateActiveLayerTransformDirtyRegion(
-  BitmapCanvasController controller,
-) {
+void _disposeActiveLayerTransformSession(BitmapCanvasController controller) {
+  if (controller._activeLayerTranslationSnapshot == null) {
+    return;
+  }
+  controller._pendingActiveLayerTransformCleanup = true;
+  controller._markDirty();
+}
+
+void _updateActiveLayerTransformDirtyRegion(BitmapCanvasController controller) {
   final Rect? baseBounds = controller._activeLayerTransformBounds;
   if (baseBounds == null) {
     return;
@@ -618,8 +623,8 @@ void _updateActiveLayerTransformDirtyRegion(
   if (existing == null) {
     controller._activeLayerTransformDirtyRegion = current;
   } else {
-    controller._activeLayerTransformDirtyRegion = BitmapCanvasController
-        ._unionRects(existing, current);
+    controller._activeLayerTransformDirtyRegion =
+        BitmapCanvasController._unionRects(existing, current);
   }
 }
 

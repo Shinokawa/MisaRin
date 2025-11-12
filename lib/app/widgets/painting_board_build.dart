@@ -3,6 +3,7 @@ part of 'painting_board.dart';
 mixin _PaintingBoardBuildMixin
     on
         _PaintingBoardBase,
+        _PaintingBoardLayerTransformMixin,
         _PaintingBoardInteractionMixin,
         _PaintingBoardPaletteMixin,
         _PaintingBoardReferenceMixin,
@@ -42,6 +43,10 @@ mixin _PaintingBoardBuildMixin
         ToolbarAction.layerAntialiasPanel,
       ).shortcuts)
         key: const ShowLayerAntialiasIntent(),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.freeTransform,
+      ).shortcuts)
+        key: const LayerFreeTransformIntent(),
       for (final key in ToolbarShortcuts.of(
         ToolbarAction.layerAdjustTool,
       ).shortcuts)
@@ -142,10 +147,14 @@ mixin _PaintingBoardBuildMixin
         final bool isLayerAdjustDragging =
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
         final Widget? antialiasCard = _buildAntialiasCard();
+        final Widget? transformPanel = buildLayerTransformPanel();
 
+        final bool transformActive = _isLayerFreeTransformActive;
         final MouseCursor boardCursor;
         if (shouldHideCursor) {
           boardCursor = SystemMouseCursors.none;
+        } else if (transformActive) {
+          boardCursor = SystemMouseCursors.basic;
         } else if (_effectiveActiveTool == CanvasTool.layerAdjust) {
           boardCursor = _isLayerDragging
               ? SystemMouseCursors.grabbing
@@ -158,29 +167,33 @@ mixin _PaintingBoardBuildMixin
         if (shouldHideCursor) {
           workspaceCursor = SystemMouseCursors.none;
         } else {
-          switch (_effectiveActiveTool) {
-            case CanvasTool.hand:
-              workspaceCursor = _isDraggingBoard
-                  ? SystemMouseCursors.grabbing
-                  : SystemMouseCursors.grab;
-              break;
-            case CanvasTool.layerAdjust:
-              workspaceCursor = _isLayerDragging
-                  ? SystemMouseCursors.grabbing
-                  : SystemMouseCursors.move;
-              break;
-            case CanvasTool.curvePen:
-              workspaceCursor = SystemMouseCursors.precise;
-              break;
-            case CanvasTool.shape:
-              workspaceCursor = SystemMouseCursors.precise;
-              break;
-            case CanvasTool.eyedropper:
-              workspaceCursor = SystemMouseCursors.basic;
-              break;
-            default:
-              workspaceCursor = SystemMouseCursors.basic;
-              break;
+          if (transformActive) {
+            workspaceCursor = SystemMouseCursors.basic;
+          } else {
+            switch (_effectiveActiveTool) {
+              case CanvasTool.hand:
+                workspaceCursor = _isDraggingBoard
+                    ? SystemMouseCursors.grabbing
+                    : SystemMouseCursors.grab;
+                break;
+              case CanvasTool.layerAdjust:
+                workspaceCursor = _isLayerDragging
+                    ? SystemMouseCursors.grabbing
+                    : SystemMouseCursors.move;
+                break;
+              case CanvasTool.curvePen:
+                workspaceCursor = SystemMouseCursors.precise;
+                break;
+              case CanvasTool.shape:
+                workspaceCursor = SystemMouseCursors.precise;
+                break;
+              case CanvasTool.eyedropper:
+                workspaceCursor = SystemMouseCursors.basic;
+                break;
+              default:
+                workspaceCursor = SystemMouseCursors.basic;
+                break;
+            }
           }
         }
 
@@ -276,6 +289,17 @@ mixin _PaintingBoardBuildMixin
                       return null;
                     },
                   ),
+              LayerFreeTransformIntent:
+                  CallbackAction<LayerFreeTransformIntent>(
+                    onInvoke: (intent) {
+                      if (_layerTransformModeActive) {
+                        _cancelLayerFreeTransform();
+                      } else {
+                        _startLayerFreeTransform();
+                      }
+                      return null;
+                    },
+                  ),
               ImportReferenceImageIntent:
                   CallbackAction<ImportReferenceImageIntent>(
                     onInvoke: (intent) {
@@ -365,6 +389,18 @@ mixin _PaintingBoardBuildMixin
                                                 selectionPath != null ||
                                                 selectionPreviewPath != null ||
                                                 magicWandPreviewPath != null;
+                                            final Widget?
+                                            transformImageOverlay =
+                                                _isLayerFreeTransformActive
+                                                ? buildLayerTransformImageOverlay()
+                                                : null;
+                                            final Widget?
+                                            transformHandlesOverlay =
+                                                _isLayerFreeTransformActive
+                                                ? buildLayerTransformHandlesOverlay(
+                                                    theme,
+                                                  )
+                                                : null;
                                             return Stack(
                                               fit: StackFit.expand,
                                               children: [
@@ -372,7 +408,11 @@ mixin _PaintingBoardBuildMixin
                                                 BitmapCanvasSurface(
                                                   frame: frame,
                                                 ),
-                                                if (isTransforming &&
+                                                if (transformImageOverlay !=
+                                                    null)
+                                                  transformImageOverlay
+                                                else if (!_isLayerFreeTransformActive &&
+                                                    isTransforming &&
                                                     transformedActiveLayerImage !=
                                                         null)
                                                   Positioned.fill(
@@ -392,6 +432,9 @@ mixin _PaintingBoardBuildMixin
                                                       ),
                                                     ),
                                                   ),
+                                                if (transformHandlesOverlay !=
+                                                    null)
+                                                  transformHandlesOverlay,
                                                 if (_curvePreviewPath != null)
                                                   Positioned.fill(
                                                     child: CustomPaint(
@@ -578,6 +621,7 @@ mixin _PaintingBoardBuildMixin
                           ..._buildReferenceCards(),
                           ..._buildPaletteCards(),
                           if (antialiasCard != null) antialiasCard,
+                          if (transformPanel != null) transformPanel,
                           if (_toolCursorPosition != null &&
                               cursorStyle != null)
                             Positioned(

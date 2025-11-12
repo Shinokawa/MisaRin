@@ -1,6 +1,7 @@
 part of 'painting_board.dart';
 
-mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
+mixin _PaintingBoardLayerMixin
+    on _PaintingBoardBase, _PaintingBoardLayerTransformMixin {
   final TextEditingController _layerRenameController = TextEditingController();
   final FocusNode _layerRenameFocusNode = FocusNode();
   String? _renamingLayerId;
@@ -56,6 +57,9 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
   }
 
   void _handleLayerSelected(String id) {
+    if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
+      return;
+    }
     _controller.setActiveLayer(id);
     setState(() {});
   }
@@ -350,6 +354,7 @@ mixin _PaintingBoardLayerMixin on _PaintingBoardBase {
     _layerContextMenuController.showFlyout(
       position: position,
       barrierDismissible: true,
+      barrierColor: Colors.transparent,
       builder: (context) {
         final BitmapLayerState? target = _layerById(layer.id);
         if (target == null) {

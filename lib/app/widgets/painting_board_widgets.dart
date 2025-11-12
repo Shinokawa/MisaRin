@@ -46,6 +46,10 @@ class ShowLayerAntialiasIntent extends Intent {
   const ShowLayerAntialiasIntent();
 }
 
+class LayerFreeTransformIntent extends Intent {
+  const LayerFreeTransformIntent();
+}
+
 class CutIntent extends Intent {
   const CutIntent();
 }
@@ -717,10 +721,7 @@ class _ToolSettingsCardState extends State<_ToolSettingsCard> {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          '等级 $value',
-          style: theme.typography.caption,
-        ),
+        Text('等级 $value', style: theme.typography.caption),
       ],
     );
   }

@@ -14,6 +14,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
     show ReorderableDragStartListener, ReorderableListView;
+import 'package:flutter/painting.dart' show MatrixUtils;
 import 'package:flutter/services.dart'
     show
         FilteringTextInputFormatter,
@@ -80,6 +81,7 @@ part 'painting_board_colors.dart';
 part 'painting_board_palette.dart';
 part 'painting_board_marching_ants.dart';
 part 'painting_board_selection.dart';
+part 'painting_board_layer_transform.dart';
 part 'painting_board_shapes.dart';
 part 'painting_board_clipboard.dart';
 part 'painting_board_interactions.dart';
@@ -1351,6 +1353,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 class PaintingBoardState extends _PaintingBoardBase
     with
         SingleTickerProviderStateMixin,
+        _PaintingBoardLayerTransformMixin,
         _PaintingBoardLayerMixin,
         _PaintingBoardColorMixin,
         _PaintingBoardPaletteMixin,
@@ -1588,6 +1591,9 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   void _handleControllerChanged() {
+    if (_maybeInitializeLayerTransformStateFromController()) {
+      return;
+    }
     setState(() {});
   }
 }

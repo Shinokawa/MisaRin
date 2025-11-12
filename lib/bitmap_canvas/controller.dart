@@ -170,6 +170,7 @@ class BitmapCanvasController extends ChangeNotifier {
     (_activeLayerTransformOriginX + _activeLayerTranslationDx).toDouble(),
     (_activeLayerTransformOriginY + _activeLayerTranslationDy).toDouble(),
   );
+  Rect? get activeLayerTransformBounds => _activeLayerTransformBounds;
   double get activeLayerTransformOpacity => _activeLayer.opacity;
   CanvasLayerBlendMode get activeLayerTransformBlendMode =>
       _activeLayer.blendMode;
@@ -468,6 +469,9 @@ class BitmapCanvasController extends ChangeNotifier {
   void commitActiveLayerTranslation() => _commitActiveLayerTranslation(this);
 
   void cancelActiveLayerTranslation() => _cancelActiveLayerTranslation(this);
+
+  void disposeActiveLayerTransformSession() =>
+      _disposeActiveLayerTransformSession(this);
 
   Future<ui.Image> snapshotImage() async {
     _rasterBackend.composite(
