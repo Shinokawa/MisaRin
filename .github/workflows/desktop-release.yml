@@ -28,15 +28,21 @@ jobs:
       - name: 校验提交信息
         id: gate
         run: |
-          if [[ -z "$COMMIT_MESSAGE" ]]; then
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if echo "$COMMIT_MESSAGE" | grep -Eq "$DATE_PATTERN"; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-          fi
+          python <<'PY'
+          import os, re
+
+          message = os.environ.get('COMMIT_MESSAGE', '')
+          pattern = os.environ.get('DATE_PATTERN', '')
+          matched = bool(re.search(pattern, message))
+          value = 'true' if matched else 'false'
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              fh.write(f'should_run={value}\n')
+
+          print(f'[gate] message={message!r}')
+          print(f'[gate] pattern={pattern!r}')
+          print(f'[gate] should_run={value}')
+          PY
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           DATE_PATTERN: ${{ env.DATE_PATTERN }}
