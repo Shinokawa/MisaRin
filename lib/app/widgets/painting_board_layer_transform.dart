@@ -831,11 +831,14 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       return _LayerTransformHandle.translate;
     }
     final double distance = _distanceToPolygon(boardLocal, corners);
-    final double rotationHitRadius =
-        (_kLayerTransformHandleHitSize * 1.35 / _viewport.scale).clamp(
-          12.0,
-          64.0,
-        );
+    final double baseRadius = math.max(
+      _kLayerTransformHandleHitSize * 2.4,
+      _kLayerTransformRotationHandleDistance * 1.1,
+    );
+    final double rotationHitRadius = (baseRadius / _viewport.scale).clamp(
+      24.0,
+      96.0,
+    );
     if (distance <= rotationHitRadius) {
       return _LayerTransformHandle.rotation;
     }
@@ -976,7 +979,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         ? Colors.black
         : Colors.white;
     if (handle == _LayerTransformHandle.rotation) {
-      const double indicatorSize = 28;
+      const double indicatorSize = 20;
       return Positioned(
         left: position.dx - indicatorSize / 2,
         top: position.dy - indicatorSize / 2,
