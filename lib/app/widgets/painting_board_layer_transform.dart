@@ -476,7 +476,9 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     try {
       final _LayerTransformRenderResult result =
           await _renderLayerTransformResult(state);
-      _pushUndoSnapshot();
+      final _CanvasHistoryEntry? undoEntry =
+          await _buildLayerTransformUndoEntry(state);
+      _pushUndoSnapshot(entry: undoEntry);
       final CanvasLayerData data = CanvasLayerData(
         id: activeLayer.id,
         name: activeLayer.name,
@@ -494,6 +496,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       );
       _controller.replaceLayer(activeLayer.id, data);
       _controller.disposeActiveLayerTransformSession();
+      await _waitForLayerTransformComposite();
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _layerTransformModeActive = false;
         _layerTransformState = null;
@@ -515,6 +521,93 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         message: '应用自由变换失败，请重试。',
         severity: InfoBarSeverity.error,
       );
+    }
+  }
+
+  // 捕获自由变换前的图层内容，确保撤销记录包含原始像素。
+  Future<_CanvasHistoryEntry?> _buildLayerTransformUndoEntry(
+    _LayerTransformStateModel state,
+  ) async {
+    final BitmapLayerState? activeLayer = _activeLayerSnapshot();
+    if (activeLayer == null) {
+      return null;
+    }
+    final _CanvasHistoryEntry entry = _createHistoryEntry();
+    final String? activeLayerId = entry.activeLayerId;
+    if (activeLayerId == null) {
+      return entry;
+    }
+    final int index = entry.layers
+        .indexWhere((CanvasLayerData layer) => layer.id == activeLayerId);
+    if (index < 0) {
+      return entry;
+    }
+    final ByteData? byteData = await state.image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+    if (byteData == null) {
+      return entry;
+    }
+    final Uint8List rgba = Uint8List.fromList(
+      byteData.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
+      ),
+    );
+    entry.layers[index] = CanvasLayerData(
+      id: activeLayer.id,
+      name: activeLayer.name,
+      visible: activeLayer.visible,
+      opacity: activeLayer.opacity,
+      locked: activeLayer.locked,
+      clippingMask: activeLayer.clippingMask,
+      blendMode: activeLayer.blendMode,
+      bitmap: rgba,
+      bitmapWidth: state.image.width,
+      bitmapHeight: state.image.height,
+      bitmapLeft: state.imageOrigin.dx.round(),
+      bitmapTop: state.imageOrigin.dy.round(),
+      cloneBitmap: false,
+    );
+    return entry;
+  }
+
+  Future<void> _waitForLayerTransformComposite() async {
+    final Completer<void> completer = Completer<void>();
+    bool completed = false;
+    void listener() {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      _controller.removeListener(listener);
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+
+    _controller.addListener(listener);
+    try {
+      await completer.future.timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () {
+          if (!completed) {
+            completed = true;
+            _controller.removeListener(listener);
+          }
+        },
+      );
+    } finally {
+      if (!completed) {
+        _controller.removeListener(listener);
+      }
+    }
+
+    final SchedulerBinding? scheduler = SchedulerBinding.instance;
+    if (scheduler != null) {
+      await scheduler.endOfFrame;
+    } else {
+      await Future<void>.delayed(Duration.zero);
     }
   }
 

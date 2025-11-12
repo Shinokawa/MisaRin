@@ -37,7 +37,7 @@ import 'package:flutter/rendering.dart'
         RenderProxyBoxWithHitTestBehavior,
         TextPainter;
 import 'package:flutter/scheduler.dart'
-    show SingleTickerProviderStateMixin, TickerProvider;
+    show SchedulerBinding, SingleTickerProviderStateMixin, TickerProvider;
 import 'package:flutter/widgets.dart'
     show
         EditableText,
@@ -1237,13 +1237,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _historyLimit = AppPreferences.instance.historyLimit;
   }
 
-  void _pushUndoSnapshot() {
+  void _pushUndoSnapshot({_CanvasHistoryEntry? entry}) {
     _refreshHistoryLimit();
     if (_historyLocked) {
       return;
     }
-    final _CanvasHistoryEntry entry = _createHistoryEntry();
-    _undoStack.add(entry);
+    final _CanvasHistoryEntry snapshot = entry ?? _createHistoryEntry();
+    _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();
   }
