@@ -742,8 +742,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         _isLayerFreeTransformActive &&
         boardLocal != null &&
         handle != null &&
-        handle != _LayerTransformHandle.translate &&
-        handle != _LayerTransformHandle.rotation;
+        handle != _LayerTransformHandle.translate;
     final Offset? nextPosition = shouldShow
         ? _boardRect.topLeft +
               Offset(
@@ -791,6 +790,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     }
     final double hitRadius = (_kLayerTransformHandleHitSize / _viewport.scale)
         .clamp(8.0, 48.0);
+    final List<Offset> corners = state.corners;
     _LayerTransformHandle? pickHandle(_LayerTransformHandle handle) {
       if (handle == _LayerTransformHandle.translate) {
         return null;
@@ -826,11 +826,46 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       }
     }
 
-    final Path polygon = Path()..addPolygon(state.corners, true);
+    final Path polygon = Path()..addPolygon(corners, true);
     if (polygon.contains(boardLocal)) {
       return _LayerTransformHandle.translate;
     }
+    final double distance = _distanceToPolygon(boardLocal, corners);
+    final double rotationHitRadius =
+        (_kLayerTransformHandleHitSize * 1.35 / _viewport.scale).clamp(
+          12.0,
+          64.0,
+        );
+    if (distance <= rotationHitRadius) {
+      return _LayerTransformHandle.rotation;
+    }
     return null;
+  }
+
+  double _distanceToPolygon(Offset point, List<Offset> polygon) {
+    double minDistance = double.infinity;
+    for (int i = 0; i < polygon.length; i++) {
+      final Offset a = polygon[i];
+      final Offset b = polygon[(i + 1) % polygon.length];
+      final double distance = _distanceToSegment(point, a, b);
+      if (distance < minDistance) {
+        minDistance = distance;
+      }
+    }
+    return minDistance;
+  }
+
+  double _distanceToSegment(Offset point, Offset a, Offset b) {
+    final Offset ab = b - a;
+    final double lengthSquared = ab.distanceSquared;
+    if (lengthSquared <= 1e-6) {
+      return (point - a).distance;
+    }
+    double t =
+        ((point.dx - a.dx) * ab.dx + (point.dy - a.dy) * ab.dy) / lengthSquared;
+    t = t.clamp(0.0, 1.0);
+    final Offset projection = a + ab * t;
+    return (point - projection).distance;
   }
 
   bool _isShiftModifierPressed() {
@@ -930,10 +965,6 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (position == null || handle == null) {
       return null;
     }
-    final double? angle = _layerTransformCursorAngle(handle);
-    if (angle == null) {
-      return null;
-    }
     final bool isActive = _activeLayerTransformHandle == handle;
     final bool isHover =
         _activeLayerTransformHandle == null &&
@@ -944,6 +975,26 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     final Color outlineColor = theme.brightness.isDark
         ? Colors.black
         : Colors.white;
+    if (handle == _LayerTransformHandle.rotation) {
+      const double indicatorSize = 28;
+      return Positioned(
+        left: position.dx - indicatorSize / 2,
+        top: position.dy - indicatorSize / 2,
+        child: IgnorePointer(
+          ignoring: true,
+          child: ToolCursorStyles.buildOutlinedIcon(
+            icon: FluentIcons.sync,
+            size: indicatorSize,
+            outlineColor: outlineColor,
+            fillColor: color,
+          ),
+        ),
+      );
+    }
+    final double? angle = _layerTransformCursorAngle(handle);
+    if (angle == null) {
+      return null;
+    }
     const double indicatorSize = _ResizeHandleIndicator.size;
     return Positioned(
       left: position.dx - indicatorSize / 2,
