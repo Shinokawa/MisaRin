@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_performance_pulse/flutter_performance_pulse.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
@@ -14,6 +15,7 @@ Future<void> main() async {
   TabletInputBridge.instance.ensureInitialized();
 
   await AppPreferences.load();
+  await _initializePerformancePulse();
 
   final bool isDesktop =
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
@@ -52,4 +54,28 @@ Future<void> main() async {
   }
 
   runApp(app);
+}
+
+Future<void> _initializePerformancePulse() async {
+  try {
+    await PerformanceMonitor.instance.initialize(
+      config: MonitorConfig(
+        showMemory: true,
+        showLogs: true,
+        trackStartup: true,
+        interceptNetwork: true,
+        fpsWarningThreshold: 45,
+        memoryWarningThreshold: 500 * 1024 * 1024,
+        diskWarningThreshold: 85.0,
+        enableNetworkMonitoring: true,
+        enableBatteryMonitoring: true,
+        enableDeviceInfo: true,
+        enableDiskMonitoring: true,
+        logLevel: LogLevel.info,
+        exportLogs: false,
+      ),
+    );
+  } catch (error, stackTrace) {
+    debugPrint('Performance monitor init failed: $error\n$stackTrace');
+  }
 }

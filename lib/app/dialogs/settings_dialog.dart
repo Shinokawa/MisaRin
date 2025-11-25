@@ -48,6 +48,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late bool _stylusPressureEnabled;
   late double _stylusCurve;
   late PenStrokeSliderRange _penSliderRange;
+  late bool _fpsOverlayEnabled;
 
   @override
   void initState() {
@@ -56,6 +57,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
+    _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
   }
 
   @override
@@ -198,6 +200,34 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        InfoLabel(
+          label: '开发者选项',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(child: Text('性能监控面板')),
+                  ToggleSwitch(
+                    checked: _fpsOverlayEnabled,
+                    onChanged: (value) {
+                      setState(() => _fpsOverlayEnabled = value);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.updateShowFpsOverlay(value);
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。',
+                style: theme.typography.caption,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -242,12 +272,14 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
       _stylusCurve = AppPreferences.defaultStylusCurve;
       _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
+      _fpsOverlayEnabled = AppPreferences.defaultShowFpsOverlay;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
     prefs.stylusPressureEnabled = _stylusPressureEnabled;
     prefs.stylusPressureCurve = _stylusCurve;
     prefs.penStrokeSliderRange = _penSliderRange;
+    prefs.updateShowFpsOverlay(_fpsOverlayEnabled);
     _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }
