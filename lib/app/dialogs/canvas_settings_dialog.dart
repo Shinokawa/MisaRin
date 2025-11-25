@@ -66,6 +66,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
   late final TextEditingController _heightController;
   late final TextEditingController _nameController;
   late Color _selectedColor;
+  late CanvasCreationLogic _selectedCreationLogic;
   _ResolutionPreset? _selectedPreset;
   String? _errorMessage;
 
@@ -82,6 +83,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     _heightController.addListener(_handleDimensionChanged);
     _nameController = TextEditingController(text: '未命名项目');
     _selectedColor = widget.initialSettings.backgroundColor;
+    _selectedCreationLogic = widget.initialSettings.creationLogic;
     _selectedPreset = _matchPreset(
       widget.initialSettings.width.round(),
       widget.initialSettings.height.round(),
@@ -124,6 +126,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
           width: width.toDouble(),
           height: height.toDouble(),
           backgroundColor: _selectedColor,
+          creationLogic: _selectedCreationLogic,
         ),
       ),
     );
@@ -220,6 +223,27 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
               },
             ),
           ),
+          const SizedBox(height: 12),
+          InfoLabel(
+            label: '画布创建逻辑',
+            child: ComboBox<CanvasCreationLogic>(
+              isExpanded: true,
+              value: _selectedCreationLogic,
+              items: CanvasCreationLogic.values
+                  .map(
+                    (logic) => ComboBoxItem<CanvasCreationLogic>(
+                      value: logic,
+                      child: Text(_creationLogicLabel(logic)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedCreationLogic = value);
+                }
+              },
+            ),
+          ),
           if (_errorMessage != null) ...[
             const SizedBox(height: 12),
             Text(
@@ -237,6 +261,15 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         FilledButton(onPressed: _handleSubmit, child: const Text('创建')),
       ],
     );
+  }
+
+  String _creationLogicLabel(CanvasCreationLogic logic) {
+    switch (logic) {
+      case CanvasCreationLogic.singleThread:
+        return '单线程（稳定）';
+      case CanvasCreationLogic.multiThread:
+        return '多线程（实验性）';
+    }
   }
 
   void _applyPreset(_ResolutionPreset? preset) {

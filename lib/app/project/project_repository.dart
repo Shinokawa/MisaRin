@@ -282,6 +282,7 @@ class ProjectRepository {
       width: decoded.width.toDouble(),
       height: decoded.height.toDouble(),
       backgroundColor: const ui.Color(0xFFFFFFFF),
+      creationLogic: CanvasCreationLogic.singleThread,
     );
 
     final ProjectDocument base = ProjectDocument.newProject(

@@ -8,14 +8,14 @@ import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import 'project_document.dart';
 
-/// `.rin` 二进制编解码器（v5，向后兼容 v4）
+/// `.rin` 二进制编解码器（v6，向后兼容 v4）
 ///
 /// 结构参考 PSD 分块思路：头部 + 文档元数据 + 图层块 + 预览块。
 /// 所有字符串按 UTF-8 存储并携带 32bit 长度前缀；位图数据按需使用
 /// zlib 压缩，避免 JSON 与 Base64 的额外开销。
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
-  static const int _version = 5;
+  static const int _version = 6;
   static const int _minSupportedVersion = 4;
 
   static final ZLibEncoder _encoder = ZLibEncoder();
@@ -37,6 +37,7 @@ class ProjectBinaryCodec {
     writer.writeFloat32(document.settings.width);
     writer.writeFloat32(document.settings.height);
     writer.writeUint32(document.settings.backgroundColor.value);
+    writer.writeUint8(document.settings.creationLogic.index);
 
     writer.writeUint32(document.layers.length);
     for (final CanvasLayerData layer in document.layers) {
@@ -108,10 +109,14 @@ class ProjectBinaryCodec {
     final double width = reader.readFloat32();
     final double height = reader.readFloat32();
     final Color backgroundColor = Color(reader.readUint32());
+    final CanvasCreationLogic creationLogic = version >= 6
+        ? _decodeCreationLogic(reader.readUint8())
+        : CanvasCreationLogic.singleThread;
     final CanvasSettings settings = CanvasSettings(
       width: width,
       height: height,
       backgroundColor: backgroundColor,
+      creationLogic: creationLogic,
     );
 
     final int layerCount = reader.readUint32();
@@ -209,6 +214,9 @@ class ProjectBinaryCodec {
     final double width = reader.readFloat32();
     final double height = reader.readFloat32();
     final Color backgroundColor = Color(reader.readUint32());
+    final CanvasCreationLogic creationLogic = version >= 6
+        ? _decodeCreationLogic(reader.readUint8())
+        : CanvasCreationLogic.singleThread;
 
     final int layerCount = reader.readUint32();
     for (int i = 0; i < layerCount; i++) {
@@ -257,6 +265,7 @@ class ProjectBinaryCodec {
         width: width,
         height: height,
         backgroundColor: backgroundColor,
+        creationLogic: creationLogic,
       ),
       previewBytes: preview,
     );
@@ -267,6 +276,13 @@ class ProjectBinaryCodec {
       return CanvasLayerBlendMode.normal;
     }
     return CanvasLayerBlendMode.values[raw];
+  }
+
+  static CanvasCreationLogic _decodeCreationLogic(int raw) {
+    if (raw < 0 || raw >= CanvasCreationLogic.values.length) {
+      return CanvasCreationLogic.singleThread;
+    }
+    return CanvasCreationLogic.values[raw];
   }
 
   static void _ensureSupportedVersion(int version) {
