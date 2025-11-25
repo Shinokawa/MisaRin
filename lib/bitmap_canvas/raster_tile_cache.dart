@@ -66,12 +66,22 @@ class RasterTileCache {
         ),
     ];
 
-    for (final _PendingTile tile in uploads) {
-      final ui.Image image = await _decodeTile(
-        tile.bytes,
-        tile.rect.width,
-        tile.rect.height,
-      );
+    if (uploads.isEmpty) {
+      return _frame;
+    }
+
+    final List<_DecodedTile> decodedTiles = await Future.wait(
+      uploads.map((_PendingTile tile) async {
+        final ui.Image image = await _decodeTile(
+          tile.bytes,
+          tile.rect.width,
+          tile.rect.height,
+        );
+        return _DecodedTile(rect: tile.rect, image: image);
+      }),
+    );
+
+    for (final _DecodedTile tile in decodedTiles) {
       final int key = _tileKeyForRect(tile.rect);
       final BitmapCanvasTile? previous = _tiles[key];
       if (previous != null) {
@@ -79,7 +89,7 @@ class RasterTileCache {
       }
       final BitmapCanvasTile updated = BitmapCanvasTile(
         rect: tile.rect,
-        image: image,
+        image: tile.image,
       );
       _tiles[key] = updated;
     }
@@ -143,4 +153,14 @@ class _PendingTile {
 
   final RasterIntRect rect;
   final Uint8List bytes;
+}
+
+class _DecodedTile {
+  const _DecodedTile({
+    required this.rect,
+    required this.image,
+  });
+
+  final RasterIntRect rect;
+  final ui.Image image;
 }
