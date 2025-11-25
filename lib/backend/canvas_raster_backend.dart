@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
@@ -6,6 +7,7 @@ import '../bitmap_canvas/bitmap_blend_utils.dart' as blend_utils;
 import '../bitmap_canvas/bitmap_canvas.dart';
 import '../bitmap_canvas/bitmap_layer_state.dart';
 import '../bitmap_canvas/raster_int_rect.dart';
+import 'canvas_composite_worker.dart';
 
 class RasterCompositeWork {
   const RasterCompositeWork._({
@@ -36,12 +38,15 @@ class CanvasRasterBackend {
     required int width,
     required int height,
     this.tileSize = 256,
+    bool multithreaded = false,
   }) : _width = width,
-       _height = height;
+       _height = height,
+       _multithreaded = multithreaded;
 
   int _width;
   int _height;
   final int tileSize;
+  final bool _multithreaded;
 
   bool _compositeDirty = true;
   bool _compositeInitialized = false;
@@ -94,6 +99,7 @@ class CanvasRasterBackend {
       return const RasterCompositeWork.noWork();
     }
     final bool requiresFullSurface =
+        _multithreaded ||
         !_compositeInitialized ||
         _pendingFullSurface ||
         _pendingDirtyBounds == null;
@@ -110,12 +116,19 @@ class CanvasRasterBackend {
     );
   }
 
-  void composite({
+  Future<void> composite({
     required List<BitmapLayerState> layers,
     required bool requiresFullSurface,
     List<RasterIntRect>? regions,
     String? translatingLayerId,
-  }) {
+  }) async {
+    if (_multithreaded) {
+      await _compositeWithWorker(
+        layers: layers,
+        translatingLayerId: translatingLayerId,
+      );
+      return;
+    }
     _ensureBuffers();
     final List<RasterIntRect> areas;
     if (requiresFullSurface) {
@@ -221,6 +234,24 @@ class CanvasRasterBackend {
     }
   }
 
+  Future<void> _compositeWithWorker({
+    required List<BitmapLayerState> layers,
+    String? translatingLayerId,
+  }) async {
+    final CompositeWorkPayload payload = CompositeWorkPayload(
+      width: _width,
+      height: _height,
+      layers: _snapshotLayers(layers),
+      translatingLayerId: translatingLayerId,
+    );
+    final Uint32List result = await Isolate.run(
+      () => runCompositeWork(payload),
+    );
+    _compositePixels = result;
+    _compositeInitialized = true;
+    _clipMaskBuffer = null;
+  }
+
   void completeCompositePass() {
     _compositeDirty = _pendingFullSurface || _pendingDirtyBounds != null;
   }
@@ -236,6 +267,22 @@ class CanvasRasterBackend {
 
   void resetClipMask() {
     _clipMaskBuffer = null;
+  }
+
+  List<CompositeLayerPayload> _snapshotLayers(
+    List<BitmapLayerState> layers,
+  ) {
+    return <CompositeLayerPayload>[
+      for (final BitmapLayerState layer in layers)
+        CompositeLayerPayload(
+          id: layer.id,
+          visible: layer.visible,
+          opacity: layer.opacity,
+          clippingMask: layer.clippingMask,
+          blendModeIndex: layer.blendMode.index,
+          pixels: Uint32List.fromList(layer.surface.pixels),
+        ),
+    ];
   }
 
   Uint8List copyTileRgba(RasterIntRect rect) {

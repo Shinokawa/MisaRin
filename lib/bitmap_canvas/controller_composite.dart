@@ -39,7 +39,7 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
       return;
     }
 
-    _compositeUpdate(
+    await _compositeUpdate(
       controller,
       requiresFullSurface: work.requiresFullSurface,
       regions: work.regions,
@@ -77,12 +77,12 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
   }
 }
 
-void _compositeUpdate(
+Future<void> _compositeUpdate(
   BitmapCanvasController controller, {
   required bool requiresFullSurface,
   List<RasterIntRect>? regions,
 }) {
-  controller._rasterBackend.composite(
+  return controller._rasterBackend.composite(
     layers: controller._layers,
     requiresFullSurface: requiresFullSurface,
     regions: regions,

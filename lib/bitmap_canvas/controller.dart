@@ -10,6 +10,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../backend/canvas_raster_backend.dart';
 import '../canvas/canvas_layer.dart';
+import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
@@ -34,10 +35,16 @@ class BitmapCanvasController extends ChangeNotifier {
     required int height,
     required Color backgroundColor,
     List<CanvasLayerData>? initialLayers,
+    CanvasCreationLogic creationLogic = CanvasCreationLogic.singleThread,
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
-       _rasterBackend = CanvasRasterBackend(width: width, height: height) {
+       _isMultithreaded = creationLogic == CanvasCreationLogic.multiThread,
+       _rasterBackend = CanvasRasterBackend(
+         width: width,
+         height: height,
+         multithreaded: creationLogic == CanvasCreationLogic.multiThread,
+       ) {
     _tileCache = RasterTileCache(
       surfaceWidth: _width,
       surfaceHeight: _height,
@@ -56,6 +63,7 @@ class BitmapCanvasController extends ChangeNotifier {
   Color _backgroundColor;
   final List<BitmapLayerState> _layers = <BitmapLayerState>[];
   int _activeIndex = 0;
+  final bool _isMultithreaded;
 
   final List<Offset> _currentStrokePoints = <Offset>[];
   double _currentStrokeRadius = 0;
@@ -155,6 +163,8 @@ class BitmapCanvasController extends ChangeNotifier {
 
   UnmodifiableListView<BitmapLayerState> get layers =>
       UnmodifiableListView<BitmapLayerState>(_layers);
+
+  bool get isMultithreaded => _isMultithreaded;
 
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
@@ -478,7 +488,7 @@ class BitmapCanvasController extends ChangeNotifier {
       _disposeActiveLayerTransformSession(this);
 
   Future<ui.Image> snapshotImage() async {
-    _rasterBackend.composite(
+    await _rasterBackend.composite(
       layers: _layers,
       requiresFullSurface: true,
       regions: null,

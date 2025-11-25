@@ -1400,6 +1400,7 @@ class PaintingBoardState extends _PaintingBoardBase
       height: widget.settings.height.round(),
       backgroundColor: widget.settings.backgroundColor,
       initialLayers: layers,
+      creationLogic: widget.settings.creationLogic,
     );
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
@@ -1569,7 +1570,9 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
     final bool backgroundChanged =
         widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
-    if (sizeChanged || backgroundChanged) {
+    final bool logicChanged =
+        widget.settings.creationLogic != oldWidget.settings.creationLogic;
+    if (sizeChanged || backgroundChanged || logicChanged) {
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
       _controller = BitmapCanvasController(
@@ -1577,6 +1580,7 @@ class PaintingBoardState extends _PaintingBoardBase
         height: widget.settings.height.round(),
         backgroundColor: widget.settings.backgroundColor,
         initialLayers: _buildInitialLayers(),
+        creationLogic: widget.settings.creationLogic,
       );
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
