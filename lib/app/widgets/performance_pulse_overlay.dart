@@ -13,9 +13,15 @@ class PerformancePulseOverlay extends StatelessWidget {
     final double? left = alignRight ? null : 16;
     final FluentThemeData fluentTheme = FluentTheme.of(context);
 
+    final bool isDarkMode = fluentTheme.brightness == Brightness.dark;
+    final Color defaultTextColor =
+        fluentTheme.typography.body?.color ?? Colors.black;
+    final Color backgroundColor = isDarkMode
+        ? const Color(0xFF1F1F1F).withOpacity(0.92)
+        : Colors.white.withOpacity(0.95);
     final DashboardTheme dashboardTheme = DashboardTheme(
-      backgroundColor: fluentTheme.cardColor.withOpacity(0.92),
-      textColor: fluentTheme.typography.body?.color ?? Colors.black,
+      backgroundColor: backgroundColor,
+      textColor: isDarkMode ? Colors.white : defaultTextColor,
       warningColor: Colors.orange,
       errorColor: Colors.red,
       chartLineColor: fluentTheme.accentColor.light,
@@ -33,9 +39,7 @@ class PerformancePulseOverlay extends StatelessWidget {
             useMaterial3: true,
             colorScheme: material.ColorScheme.fromSeed(
               seedColor: fluentTheme.accentColor.normal,
-              brightness: fluentTheme.brightness == Brightness.dark
-                  ? Brightness.dark
-                  : Brightness.light,
+              brightness: isDarkMode ? Brightness.dark : Brightness.light,
             ),
           ),
           child: material.Material(
