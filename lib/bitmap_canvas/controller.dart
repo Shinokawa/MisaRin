@@ -500,6 +500,7 @@ class BitmapCanvasController extends ChangeNotifier {
 
   Future<void> disposeController() async {
     _tileCache.dispose();
+    await _rasterBackend.dispose();
     _disposePendingTileImages();
     _disposeActiveLayerTransformImage(this);
     _activeLayerTransformPreparing = false;

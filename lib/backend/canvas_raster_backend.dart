@@ -1,4 +1,3 @@
-import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
@@ -47,6 +46,7 @@ class CanvasRasterBackend {
   int _height;
   final int tileSize;
   final bool _multithreaded;
+  CanvasCompositeWorker? _worker;
 
   bool _compositeDirty = true;
   bool _compositeInitialized = false;
@@ -99,7 +99,6 @@ class CanvasRasterBackend {
       return const RasterCompositeWork.noWork();
     }
     final bool requiresFullSurface =
-        _multithreaded ||
         !_compositeInitialized ||
         _pendingFullSurface ||
         _pendingDirtyBounds == null;
@@ -125,6 +124,8 @@ class CanvasRasterBackend {
     if (_multithreaded) {
       await _compositeWithWorker(
         layers: layers,
+        requiresFullSurface: requiresFullSurface,
+        regions: regions,
         translatingLayerId: translatingLayerId,
       );
       return;
@@ -234,22 +235,67 @@ class CanvasRasterBackend {
     }
   }
 
+  Future<void> dispose() async {
+    if (_worker != null) {
+      await _worker!.dispose();
+      _worker = null;
+    }
+  }
+
   Future<void> _compositeWithWorker({
     required List<BitmapLayerState> layers,
+    required bool requiresFullSurface,
+    List<RasterIntRect>? regions,
     String? translatingLayerId,
   }) async {
-    final CompositeWorkPayload payload = CompositeWorkPayload(
-      width: _width,
-      height: _height,
-      layers: _snapshotLayers(layers),
-      translatingLayerId: translatingLayerId,
-    );
-    final Uint32List result = await Isolate.run(
-      () => runCompositeWork(payload),
-    );
-    _compositePixels = result;
-    _compositeInitialized = true;
-    _clipMaskBuffer = null;
+    final List<RasterIntRect> areas = requiresFullSurface
+        ? <RasterIntRect>[RasterIntRect(0, 0, _width, _height)]
+        : (regions ?? const <RasterIntRect>[]);
+    if (areas.isEmpty) {
+      return;
+    }
+    _worker ??= CanvasCompositeWorker();
+    final List<CompositeRegionResult> results =
+        await _worker!.composite(
+          CompositeWorkPayload(
+            width: _width,
+            height: _height,
+            layers: _snapshotLayers(layers),
+            requiresFullSurface: requiresFullSurface,
+            regions: areas,
+            translatingLayerId: translatingLayerId,
+          ),
+        );
+    if (results.isEmpty) {
+      return;
+    }
+    _ensureBuffers();
+    final Uint32List composite = _compositePixels!;
+    for (final CompositeRegionResult region in results) {
+      _writeRegion(region.rect, region.pixels, composite);
+    }
+    if (requiresFullSurface) {
+      _compositeInitialized = true;
+    }
+  }
+
+  void _writeRegion(
+    RasterIntRect rect,
+    Uint32List pixels,
+    Uint32List destination,
+  ) {
+    final int regionWidth = rect.width;
+    final int regionHeight = rect.height;
+    for (int row = 0; row < regionHeight; row++) {
+      final int destOffset = (rect.top + row) * _width + rect.left;
+      final int srcOffset = row * regionWidth;
+      destination.setRange(
+        destOffset,
+        destOffset + regionWidth,
+        pixels,
+        srcOffset,
+      );
+    }
   }
 
   void completeCompositePass() {

@@ -1,7 +1,10 @@
+import 'dart:isolate';
+import 'dart:async';
 import 'dart:typed_data';
 
-import '../canvas/canvas_layer.dart';
 import '../bitmap_canvas/bitmap_blend_utils.dart' as blend_utils;
+import '../bitmap_canvas/raster_int_rect.dart';
+import '../canvas/canvas_layer.dart';
 
 class CompositeLayerPayload {
   const CompositeLayerPayload({
@@ -29,100 +32,254 @@ class CompositeWorkPayload {
     required this.width,
     required this.height,
     required this.layers,
+    required this.requiresFullSurface,
+    this.regions,
     this.translatingLayerId,
   });
 
   final int width;
   final int height;
   final List<CompositeLayerPayload> layers;
+  final bool requiresFullSurface;
+  final List<RasterIntRect>? regions;
   final String? translatingLayerId;
 }
 
-Uint32List runCompositeWork(CompositeWorkPayload payload) {
-  final int width = payload.width;
-  final int height = payload.height;
-  final int length = width * height;
-  final Uint32List composite = Uint32List(length);
-  final Uint8List clipMask = Uint8List(length);
+class CompositeRegionResult {
+  const CompositeRegionResult({
+    required this.rect,
+    required this.pixels,
+  });
 
-  for (int y = 0; y < height; y++) {
-    final int rowOffset = y * width;
-    for (int x = 0; x < width; x++) {
-      final int index = rowOffset + x;
-      int color = 0;
-      bool initialized = false;
-      for (final CompositeLayerPayload layer in payload.layers) {
-        if (!layer.visible) {
-          continue;
-        }
-        if (payload.translatingLayerId != null &&
-            layer.id == payload.translatingLayerId) {
-          continue;
-        }
-        final double layerOpacity = _clampUnit(layer.opacity);
-        if (layerOpacity <= 0) {
-          if (!layer.clippingMask) {
-            clipMask[index] = 0;
-          }
-          continue;
-        }
-        final int src = layer.pixels[index];
-        final int srcA = (src >> 24) & 0xff;
-        if (srcA == 0) {
-          if (!layer.clippingMask) {
-            clipMask[index] = 0;
-          }
-          continue;
-        }
+  final RasterIntRect rect;
+  final Uint32List pixels;
+}
 
-        double totalOpacity = layerOpacity;
-        if (layer.clippingMask) {
-          final int maskAlpha = clipMask[index];
-          if (maskAlpha == 0) {
-            continue;
-          }
-          totalOpacity *= maskAlpha / 255.0;
-          if (totalOpacity <= 0) {
-            continue;
-          }
-        }
-
-        int effectiveA = (srcA * totalOpacity).round();
-        if (effectiveA <= 0) {
-          if (!layer.clippingMask) {
-            clipMask[index] = 0;
-          }
-          continue;
-        }
-        effectiveA = effectiveA.clamp(0, 255);
-
-        if (!layer.clippingMask) {
-          clipMask[index] = effectiveA;
-        }
-
-        final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
-        if (!initialized) {
-          color = effectiveColor;
-          initialized = true;
-        } else {
-          color = blend_utils.blendWithMode(
-            color,
-            effectiveColor,
-            layer.blendMode,
-            index,
-          );
-        }
-      }
-
-      if (!initialized) {
-        composite[index] = 0;
-        continue;
-      }
-      composite[index] = color;
-    }
+class CanvasCompositeWorker {
+  CanvasCompositeWorker()
+      : _receivePort = ReceivePort(),
+        _sendPortCompleter = Completer<SendPort>() {
+    _subscription = _receivePort.listen(_handleMessage);
   }
 
-  return composite;
+  final ReceivePort _receivePort;
+  final Completer<SendPort> _sendPortCompleter;
+  late final StreamSubscription<Object?> _subscription;
+  final Map<int, Completer<List<CompositeRegionResult>>> _pending =
+      <int, Completer<List<CompositeRegionResult>>>{};
+  Isolate? _isolate;
+  SendPort? _sendPort;
+  int _nextRequestId = 0;
+
+  Future<void> _ensureStarted() async {
+    if (_isolate != null) {
+      return;
+    }
+    _isolate = await Isolate.spawn<SendPort>(
+      _compositeWorkerMain,
+      _receivePort.sendPort,
+      debugName: 'CanvasCompositeWorker',
+    );
+    _sendPort = await _sendPortCompleter.future;
+  }
+
+  Future<List<CompositeRegionResult>> composite(
+    CompositeWorkPayload payload,
+  ) async {
+    await _ensureStarted();
+    final SendPort port = _sendPort!;
+    final Completer<List<CompositeRegionResult>> completer =
+        Completer<List<CompositeRegionResult>>();
+    final int requestId = _nextRequestId++;
+    _pending[requestId] = completer;
+    port.send(_CompositeWorkerRequest(id: requestId, payload: payload));
+    return completer.future;
+  }
+
+  Future<void> dispose() async {
+    if (_isolate != null) {
+      _sendPort?.send(null);
+      _isolate?.kill(priority: Isolate.immediate);
+      _isolate = null;
+    }
+    await _subscription.cancel();
+    _receivePort.close();
+    for (final Completer<List<CompositeRegionResult>> completer
+        in _pending.values) {
+      completer.completeError(StateError('Composite worker disposed'));
+    }
+    _pending.clear();
+  }
+
+  void _handleMessage(Object? message) {
+    if (message is SendPort) {
+      if (!_sendPortCompleter.isCompleted) {
+        _sendPortCompleter.complete(message);
+      }
+      return;
+    }
+    if (message is _CompositeWorkerResponse) {
+      final Completer<List<CompositeRegionResult>>? completer =
+          _pending.remove(message.id);
+      completer?.complete(message.regions);
+      return;
+    }
+    if (message is _CompositeWorkerError) {
+      final Completer<List<CompositeRegionResult>>? completer =
+          _pending.remove(message.id);
+      completer?.completeError(
+        Exception('Composite failed: ${message.error}\n${message.stackTrace}'),
+      );
+    }
+  }
+}
+
+void _compositeWorkerMain(SendPort replyPort) {
+  final ReceivePort commandPort = ReceivePort();
+  replyPort.send(commandPort.sendPort);
+  commandPort.listen((Object? message) {
+    if (message is _CompositeWorkerRequest) {
+      try {
+        final List<CompositeRegionResult> regions =
+            runCompositeWork(message.payload);
+        replyPort.send(_CompositeWorkerResponse(message.id, regions));
+      } catch (error, stackTrace) {
+        replyPort.send(
+          _CompositeWorkerError(
+            message.id,
+            error.toString(),
+            stackTrace.toString(),
+          ),
+        );
+      }
+      return;
+    }
+    if (message == null) {
+      commandPort.close();
+    }
+  });
+}
+
+class _CompositeWorkerRequest {
+  const _CompositeWorkerRequest({
+    required this.id,
+    required this.payload,
+  });
+
+  final int id;
+  final CompositeWorkPayload payload;
+}
+
+class _CompositeWorkerResponse {
+  const _CompositeWorkerResponse(this.id, this.regions);
+
+  final int id;
+  final List<CompositeRegionResult> regions;
+}
+
+class _CompositeWorkerError {
+  const _CompositeWorkerError(this.id, this.error, this.stackTrace);
+
+  final int id;
+  final String error;
+  final String stackTrace;
+}
+
+List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
+  final int width = payload.width;
+  final int height = payload.height;
+  final List<RasterIntRect> areas = payload.requiresFullSurface
+      ? <RasterIntRect>[RasterIntRect(0, 0, width, height)]
+      : (payload.regions ?? const <RasterIntRect>[]);
+  if (areas.isEmpty) {
+    return const <CompositeRegionResult>[];
+  }
+  final List<CompositeRegionResult> regions = <CompositeRegionResult>[];
+  for (final RasterIntRect area in areas) {
+    final int areaWidth = area.width;
+    final int areaHeight = area.height;
+    if (areaWidth <= 0 || areaHeight <= 0) {
+      continue;
+    }
+    final Uint32List composite = Uint32List(areaWidth * areaHeight);
+    final Uint8List clipMask = Uint8List(areaWidth * areaHeight);
+    for (int y = area.top; y < area.bottom; y++) {
+      final int rowOffset = y * width;
+      final int localRow = y - area.top;
+      for (int x = area.left; x < area.right; x++) {
+        final int index = rowOffset + x;
+        final int localIndex = localRow * areaWidth + (x - area.left);
+        int color = 0;
+        bool initialized = false;
+        for (final CompositeLayerPayload layer in payload.layers) {
+          if (!layer.visible) {
+            continue;
+          }
+          if (payload.translatingLayerId != null &&
+              layer.id == payload.translatingLayerId) {
+            continue;
+          }
+          final double layerOpacity = _clampUnit(layer.opacity);
+          if (layerOpacity <= 0) {
+            if (!layer.clippingMask) {
+              clipMask[localIndex] = 0;
+            }
+            continue;
+          }
+          final int src = layer.pixels[index];
+          final int srcA = (src >> 24) & 0xff;
+          if (srcA == 0) {
+            if (!layer.clippingMask) {
+              clipMask[localIndex] = 0;
+            }
+            continue;
+          }
+
+          double totalOpacity = layerOpacity;
+          if (layer.clippingMask) {
+            final int maskAlpha = clipMask[localIndex];
+            if (maskAlpha == 0) {
+              continue;
+            }
+            totalOpacity *= maskAlpha / 255.0;
+            if (totalOpacity <= 0) {
+              continue;
+            }
+          }
+
+          int effectiveA = (srcA * totalOpacity).round();
+          if (effectiveA <= 0) {
+            if (!layer.clippingMask) {
+              clipMask[localIndex] = 0;
+            }
+            continue;
+          }
+          effectiveA = effectiveA.clamp(0, 255);
+
+          if (!layer.clippingMask) {
+            clipMask[localIndex] = effectiveA;
+          }
+
+          final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
+          if (!initialized) {
+            color = effectiveColor;
+            initialized = true;
+          } else {
+            color = blend_utils.blendWithMode(
+              color,
+              effectiveColor,
+              layer.blendMode,
+              index,
+            );
+          }
+        }
+
+        composite[localIndex] = initialized ? color : 0;
+      }
+    }
+    regions.add(CompositeRegionResult(rect: area, pixels: composite));
+  }
+  return regions;
 }
 
 double _clampUnit(double value) {
