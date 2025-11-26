@@ -804,13 +804,29 @@ mixin _PaintingBoardLayerMixin
                         onPressed: () => _handleLayerLockToggle(layer),
                       ),
                     );
+                    final Color clippingActiveBackground = Color.alphaBlend(
+                      (theme.brightness.isDark
+                              ? Colors.white
+                              : Colors.black)
+                          .withOpacity(theme.brightness.isDark ? 0.18 : 0.08),
+                      background,
+                    );
                     final Widget clippingButton = Tooltip(
                       message: layerClipping ? '取消剪贴蒙版' : '创建剪贴蒙版',
                       child: IconButton(
-                        icon: Icon(
-                          layerClipping
-                              ? FluentIcons.cut
-                              : FluentIcons.clipboard_list,
+                        icon: const Icon(FluentIcons.fluid_logo),
+                        style: ButtonStyle(
+                          backgroundColor: WidgetStateProperty.resolveWith(
+                            (states) {
+                              if (layerClipping) {
+                                return clippingActiveBackground;
+                              }
+                              if (states.contains(WidgetState.disabled)) {
+                                return theme.resources.controlFillColorDisabled;
+                              }
+                              return null;
+                            },
+                          ),
                         ),
                         onPressed: layerLocked
                             ? null
