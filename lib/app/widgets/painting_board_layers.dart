@@ -793,8 +793,11 @@ mixin _PaintingBoardLayerMixin
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 4),
-        _buildPanelDivider(theme),
-        const SizedBox(height: 6),
+        if (isSai2Layout) ...[
+          _buildPanelDivider(theme),
+          const SizedBox(height: 6),
+        ] else
+          const SizedBox(height: 6),
         if (layerControls != null) ...[
           layerControls,
           const SizedBox(height: 6),
@@ -1017,8 +1020,11 @@ mixin _PaintingBoardLayerMixin
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 4),
-        _buildPanelDivider(theme),
-        const SizedBox(height: 6),
+        if (isSai2Layout) ...[
+          _buildPanelDivider(theme),
+          const SizedBox(height: 6),
+        ] else
+          const SizedBox(height: 6),
         if (layerControls != null) ...[
           layerControls,
           const SizedBox(height: 6),
