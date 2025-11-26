@@ -787,6 +787,7 @@ mixin _PaintingBoardLayerMixin
                     )!;
 
                     final bool layerLocked = layer.locked;
+                    final bool layerClipping = layer.clippingMask;
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
@@ -801,6 +802,19 @@ mixin _PaintingBoardLayerMixin
                           layerLocked ? FluentIcons.lock : FluentIcons.unlock,
                         ),
                         onPressed: () => _handleLayerLockToggle(layer),
+                      ),
+                    );
+                    final Widget clippingButton = Tooltip(
+                      message: layerClipping ? '取消剪贴蒙版' : '创建剪贴蒙版',
+                      child: IconButton(
+                        icon: Icon(
+                          layerClipping
+                              ? FluentIcons.cut
+                              : FluentIcons.clipboard_list,
+                        ),
+                        onPressed: layerLocked
+                            ? null
+                            : () => _handleLayerClippingToggle(layer),
                       ),
                     );
 
@@ -883,6 +897,8 @@ mixin _PaintingBoardLayerMixin
                                         ),
                                       ),
                                     ),
+                                    clippingButton,
+                                    const SizedBox(width: 4),
                                     lockButton,
                                     const SizedBox(width: 4),
                                     deleteButton,
