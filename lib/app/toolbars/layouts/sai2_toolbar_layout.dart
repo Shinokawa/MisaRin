@@ -71,15 +71,7 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       }
 
       Widget buildScrollableContent(Widget child) {
-        return Scrollbar(
-          child: SingleChildScrollView(
-            primary: true,
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: child,
-            ),
-          ),
-        );
+        return _Sai2ToolbarScrollArea(child: child);
       }
 
       Widget buildSection({
@@ -178,6 +170,45 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
     return PaintingToolbarLayoutResult(
       widgets: <Widget>[layout, dockedControls],
       hitRegions: hitRegions,
+    );
+  }
+}
+
+class _Sai2ToolbarScrollArea extends StatefulWidget {
+  const _Sai2ToolbarScrollArea({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_Sai2ToolbarScrollArea> createState() => _Sai2ToolbarScrollAreaState();
+}
+
+class _Sai2ToolbarScrollAreaState extends State<_Sai2ToolbarScrollArea> {
+  late final ScrollController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      controller: _controller,
+      child: SingleChildScrollView(
+        controller: _controller,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: widget.child,
+        ),
+      ),
     );
   }
 }

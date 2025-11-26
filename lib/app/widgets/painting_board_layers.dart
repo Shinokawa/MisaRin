@@ -512,6 +512,8 @@ mixin _PaintingBoardLayerMixin
     if (activeLayer == null) {
       return null;
     }
+    final bool showHistoryButtons =
+        widget.toolbarLayoutStyle == PaintingToolbarLayoutStyle.sai2;
 
     double clampedOpacity = activeLayer.opacity.clamp(0.0, 1.0).toDouble();
     if (_layerOpacityPreviewLayerId == activeLayer.id &&
@@ -693,17 +695,22 @@ mixin _PaintingBoardLayerMixin
       );
     }
 
+    final List<Widget> controls = <Widget>[];
+    if (showHistoryButtons) {
+      controls
+        ..add(historyRow())
+        ..add(const SizedBox(height: 6));
+    }
+    controls
+      ..add(opacityRow())
+      ..add(const SizedBox(height: 6))
+      ..add(toggleRow())
+      ..add(const SizedBox(height: 6))
+      ..add(blendRow());
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        historyRow(),
-        const SizedBox(height: 6),
-        opacityRow(),
-        const SizedBox(height: 6),
-        toggleRow(),
-        const SizedBox(height: 6),
-        blendRow(),
-      ],
+      children: controls,
     );
   }
 
