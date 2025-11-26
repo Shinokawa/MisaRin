@@ -58,6 +58,12 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
     if (frame != null) {
       controller._currentFrame = frame;
     }
+    
+    if (controller._nextFrameCompleter != null && !controller._nextFrameCompleter!.isCompleted) {
+      controller._nextFrameCompleter!.complete();
+      controller._nextFrameCompleter = null;
+    }
+
     final List<ui.Image> pendingDisposals =
         controller._tileCache.takePendingDisposals();
     if (pendingDisposals.isNotEmpty) {

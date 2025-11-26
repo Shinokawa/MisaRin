@@ -107,6 +107,7 @@ class BitmapCanvasController extends ChangeNotifier {
   int _paintingWorkerGeneration = 0;
   final List<Completer<void>> _paintingWorkerIdleWaiters =
       <Completer<void>>[];
+  Completer<void>? _nextFrameCompleter;
   String? _paintingWorkerSyncedLayerId;
   int _paintingWorkerSyncedRevision = -1;
   bool _paintingWorkerSelectionDirty = true;
@@ -332,6 +333,7 @@ class BitmapCanvasController extends ChangeNotifier {
       
       if (patch != null) {
         _applyWorkerPatch(patch);
+        await _waitForNextFrame();
       }
     } else {
       // Fallback for main thread merge?
@@ -930,6 +932,13 @@ class BitmapCanvasController extends ChangeNotifier {
   );
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
+
+  Future<void> _waitForNextFrame() {
+    if (_nextFrameCompleter == null || _nextFrameCompleter!.isCompleted) {
+      _nextFrameCompleter = Completer<void>();
+    }
+    return _nextFrameCompleter!.future;
+  }
 
   void _enqueuePaintingWorkerCommand({
     required Rect region,
