@@ -512,8 +512,9 @@ mixin _PaintingBoardLayerMixin
     if (activeLayer == null) {
       return null;
     }
-    final bool showHistoryButtons =
+    final bool isSai2Layout =
         widget.toolbarLayoutStyle == PaintingToolbarLayoutStyle.sai2;
+    final bool showHistoryButtons = isSai2Layout;
 
     double clampedOpacity = activeLayer.opacity.clamp(0.0, 1.0).toDouble();
     if (_layerOpacityPreviewLayerId == activeLayer.id &&
@@ -596,21 +597,30 @@ mixin _PaintingBoardLayerMixin
 
     Widget opacityRow() {
       final bool locked = activeLayer.locked;
+      final Slider slider = Slider(
+        value: clampedOpacity,
+        min: 0,
+        max: 1,
+        divisions: 100,
+        onChangeStart: locked ? null : _handleLayerOpacityChangeStart,
+        onChanged: locked ? null : _handleLayerOpacityChanged,
+        onChangeEnd: locked ? null : _handleLayerOpacityChangeEnd,
+      );
+      if (isSai2Layout) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('不透明度 $opacityPercent%', style: labelStyle),
+            const SizedBox(height: 8),
+            slider,
+          ],
+        );
+      }
       return Row(
         children: [
           SizedBox(width: 52, child: Text('不透明度', style: labelStyle)),
           const SizedBox(width: 8),
-          Expanded(
-            child: Slider(
-              value: clampedOpacity,
-              min: 0,
-              max: 1,
-              divisions: 100,
-              onChangeStart: locked ? null : _handleLayerOpacityChangeStart,
-              onChanged: locked ? null : _handleLayerOpacityChanged,
-              onChangeEnd: locked ? null : _handleLayerOpacityChangeEnd,
-            ),
-          ),
+          Expanded(child: slider),
           const SizedBox(width: 8),
           SizedBox(
             width: 50,
@@ -646,51 +656,69 @@ mixin _PaintingBoardLayerMixin
         );
       }
 
+      final Widget lockCheckbox = buildLabeledCheckbox(
+        label: '锁定图层',
+        value: activeLayer.locked,
+        onChanged: _updateActiveLayerLocked,
+      );
+      final Widget clipCheckbox = buildLabeledCheckbox(
+        label: '剪贴蒙版',
+        value: activeLayer.clippingMask,
+        onChanged: activeLayer.locked ? null : _updateActiveLayerClipping,
+      );
+      if (isSai2Layout) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            lockCheckbox,
+            const SizedBox(height: 8),
+            clipCheckbox,
+          ],
+        );
+      }
       return Wrap(
         spacing: 16,
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          buildLabeledCheckbox(
-            label: '锁定图层',
-            value: activeLayer.locked,
-            onChanged: _updateActiveLayerLocked,
-          ),
-          buildLabeledCheckbox(
-            label: '剪贴蒙版',
-            value: activeLayer.clippingMask,
-            onChanged: activeLayer.locked ? null : _updateActiveLayerClipping,
-          ),
-        ],
+        children: [lockCheckbox, clipCheckbox],
       );
     }
 
     Widget blendRow() {
+      final Widget comboBox = ComboBox<CanvasLayerBlendMode>(
+        value: activeLayer.blendMode,
+        items: kCanvasBlendModeDisplayOrder
+            .map(
+              (CanvasLayerBlendMode mode) =>
+                  ComboBoxItem<CanvasLayerBlendMode>(
+                    value: mode,
+                    child: Text(mode.label),
+                  ),
+            )
+            .toList(growable: false),
+        onChanged: activeLayer.locked
+            ? null
+            : (CanvasLayerBlendMode? mode) {
+                if (mode != null) {
+                  _updateActiveLayerBlendMode(mode);
+                }
+              },
+      );
+      if (isSai2Layout) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('混合模式', style: labelStyle),
+            const SizedBox(height: 8),
+            comboBox,
+          ],
+        );
+      }
       return Row(
         children: [
           SizedBox(width: 52, child: Text('混合模式', style: labelStyle)),
           const SizedBox(width: 8),
-          Expanded(
-            child: ComboBox<CanvasLayerBlendMode>(
-              value: activeLayer.blendMode,
-              items: kCanvasBlendModeDisplayOrder
-                  .map(
-                    (CanvasLayerBlendMode mode) =>
-                        ComboBoxItem<CanvasLayerBlendMode>(
-                          value: mode,
-                          child: Text(mode.label),
-                        ),
-                  )
-                  .toList(growable: false),
-              onChanged: activeLayer.locked
-                  ? null
-                  : (CanvasLayerBlendMode? mode) {
-                      if (mode != null) {
-                        _updateActiveLayerBlendMode(mode);
-                      }
-                    },
-            ),
-          ),
+          Expanded(child: comboBox),
         ],
       );
     }
@@ -715,6 +743,8 @@ mixin _PaintingBoardLayerMixin
   }
 
   Widget _buildLayerPanelContent(FluentThemeData theme) {
+    final bool isSai2Layout =
+        widget.toolbarLayoutStyle == PaintingToolbarLayoutStyle.sai2;
     final List<BitmapLayerState> orderedLayers = _layers
         .toList(growable: false)
         .reversed
@@ -788,6 +818,7 @@ mixin _PaintingBoardLayerMixin
 
                     final bool layerLocked = layer.locked;
                     final bool layerClipping = layer.clippingMask;
+                    final bool showTileButtons = !isSai2Layout;
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
@@ -795,44 +826,51 @@ mixin _PaintingBoardLayerMixin
                           _handleLayerVisibilityChanged(layer.id, value),
                     );
 
-                    final Widget lockButton = Tooltip(
-                      message: layerLocked ? '解锁图层' : '锁定图层',
-                      child: IconButton(
-                        icon: Icon(
-                          layerLocked ? FluentIcons.lock : FluentIcons.unlock,
-                        ),
-                        onPressed: () => _handleLayerLockToggle(layer),
-                      ),
-                    );
-                    final Color clippingActiveBackground = Color.alphaBlend(
-                      (theme.brightness.isDark
-                              ? Colors.white
-                              : Colors.black)
-                          .withOpacity(theme.brightness.isDark ? 0.18 : 0.08),
-                      background,
-                    );
-                    final Widget clippingButton = Tooltip(
-                      message: layerClipping ? '取消剪贴蒙版' : '创建剪贴蒙版',
-                      child: IconButton(
-                        icon: const Icon(FluentIcons.fluid_logo),
-                        style: ButtonStyle(
-                          backgroundColor: WidgetStateProperty.resolveWith(
-                            (states) {
-                              if (layerClipping) {
-                                return clippingActiveBackground;
-                              }
-                              if (states.contains(WidgetState.disabled)) {
-                                return theme.resources.controlFillColorDisabled;
-                              }
-                              return null;
-                            },
+                    Widget? lockButton;
+                    Widget? clippingButton;
+                    if (showTileButtons) {
+                      lockButton = Tooltip(
+                        message: layerLocked ? '解锁图层' : '锁定图层',
+                        child: IconButton(
+                          icon: Icon(
+                            layerLocked
+                                ? FluentIcons.lock
+                                : FluentIcons.unlock,
                           ),
+                          onPressed: () => _handleLayerLockToggle(layer),
                         ),
-                        onPressed: layerLocked
-                            ? null
-                            : () => _handleLayerClippingToggle(layer),
-                      ),
-                    );
+                      );
+                      final Color clippingActiveBackground = Color.alphaBlend(
+                        (theme.brightness.isDark
+                                ? Colors.white
+                                : Colors.black)
+                            .withOpacity(
+                                theme.brightness.isDark ? 0.18 : 0.08),
+                        background,
+                      );
+                      clippingButton = Tooltip(
+                        message: layerClipping ? '取消剪贴蒙版' : '创建剪贴蒙版',
+                        child: IconButton(
+                          icon: const Icon(FluentIcons.fluid_logo),
+                          style: ButtonStyle(
+                            backgroundColor: WidgetStateProperty.resolveWith(
+                              (states) {
+                                if (layerClipping) {
+                                  return clippingActiveBackground;
+                                }
+                                if (states.contains(WidgetState.disabled)) {
+                                  return theme.resources.controlFillColorDisabled;
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          onPressed: layerLocked
+                              ? null
+                              : () => _handleLayerClippingToggle(layer),
+                        ),
+                      );
+                    }
 
                     final bool canDelete = _layers.length > 1 && !layerLocked;
                     final Widget deleteButton = IconButton(
@@ -841,6 +879,20 @@ mixin _PaintingBoardLayerMixin
                           ? () => _handleRemoveLayer(layer.id)
                           : null,
                     );
+                    final List<Widget> trailingButtons = <Widget>[];
+                    void addTrailingButton(Widget widget) {
+                      if (trailingButtons.isNotEmpty) {
+                        trailingButtons.add(const SizedBox(width: 4));
+                      }
+                      trailingButtons.add(widget);
+                    }
+                    if (clippingButton != null) {
+                      addTrailingButton(clippingButton);
+                    }
+                    if (lockButton != null) {
+                      addTrailingButton(lockButton);
+                    }
+                    addTrailingButton(deleteButton);
                     return material.ReorderableDragStartListener(
                       key: ValueKey(layer.id),
                       index: index,
@@ -913,11 +965,7 @@ mixin _PaintingBoardLayerMixin
                                         ),
                                       ),
                                     ),
-                                    clippingButton,
-                                    const SizedBox(width: 4),
-                                    lockButton,
-                                    const SizedBox(width: 4),
-                                    deleteButton,
+                                    ...trailingButtons,
                                   ],
                                 ),
                                 if (layer.clippingMask)
