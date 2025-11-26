@@ -916,6 +916,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     required this.color,
     this.shape = BrushShape.circle,
     required this.committingStrokes,
+    this.antialiasLevel = 1,
   });
 
   final List<Offset> points;
@@ -923,6 +924,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   final Color color;
   final BrushShape shape;
   final List<PaintingDrawCommand> committingStrokes;
+  final int antialiasLevel;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -935,6 +937,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         radii: command.radii!,
         color: Color(command.color),
         shape: BrushShape.values[command.shapeIndex ?? 0],
+        antialiasLevel: command.antialiasLevel,
       );
     }
 
@@ -946,6 +949,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         radii: radii,
         color: color,
         shape: shape,
+        antialiasLevel: antialiasLevel,
       );
     }
   }
@@ -956,7 +960,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.radii != radii ||
         oldDelegate.color != color ||
         oldDelegate.shape != shape ||
-        oldDelegate.committingStrokes != committingStrokes;
+        oldDelegate.committingStrokes != committingStrokes ||
+        oldDelegate.antialiasLevel != antialiasLevel;
   }
 }
 

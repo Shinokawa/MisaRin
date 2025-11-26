@@ -220,6 +220,7 @@ class BitmapCanvasController extends ChangeNotifier {
     final Color color = _currentStrokeColor;
     final BrushShape shape = _currentBrushShape;
     final bool erase = _currentStrokeEraseMode;
+    final int antialiasLevel = _currentStrokeAntialiasLevel;
 
     // Create a command to persist visual state during async rasterization
     final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
@@ -259,7 +260,7 @@ class BitmapCanvasController extends ChangeNotifier {
     final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(inflate);
 
     // Rasterize vector stroke on main thread (asynchronously) to get pixels
-    _rasterizeVectorStroke(points, radii, color, shape, dirtyRegion, erase).then((_) {
+    _rasterizeVectorStroke(points, radii, color, shape, dirtyRegion, erase, antialiasLevel).then((_) {
       _committingStrokes.remove(vectorCommand);
       notifyListeners(); // Update UI to remove overlay
     });
@@ -272,6 +273,7 @@ class BitmapCanvasController extends ChangeNotifier {
     BrushShape shape,
     Rect bounds,
     bool erase,
+    int antialiasLevel,
   ) async {
     // Create a picture recorder and canvas to draw the stroke
     // We need to crop to the bounds to avoid huge allocations
@@ -298,6 +300,7 @@ class BitmapCanvasController extends ChangeNotifier {
       radii: radii,
       color: color,
       shape: shape,
+      antialiasLevel: antialiasLevel,
     );
     
     final ui.Picture picture = recorder.endRecording();

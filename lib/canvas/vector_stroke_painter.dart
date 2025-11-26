@@ -11,13 +11,22 @@ class VectorStrokePainter {
     required List<double> radii,
     required Color color,
     required BrushShape shape,
+    int antialiasLevel = 1,
   }) {
     if (points.isEmpty) return;
 
     final Paint paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
+      ..isAntiAlias = antialiasLevel > 0;
+
+    if (antialiasLevel > 1) {
+      // Simulate the "softer" look of higher legacy AA levels
+      // Level 2 -> sigma 0.6
+      // Level 3 -> sigma 1.2
+      final double sigma = (antialiasLevel - 1) * 0.6;
+      paint.maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
+    }
 
     if (shape == BrushShape.circle) {
       _paintCircleStroke(canvas, points, radii, paint);
