@@ -55,6 +55,7 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
     );
     if (frame != null) {
       controller._currentFrame = frame;
+      StrokeLatencyMonitor.instance.recordFramePresented();
     }
     final List<ui.Image> pendingDisposals =
         controller._tileCache.takePendingDisposals();

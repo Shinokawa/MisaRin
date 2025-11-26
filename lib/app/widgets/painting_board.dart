@@ -76,6 +76,7 @@ import '../palette/palette_exporter.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 import '../../backend/layout_compute_worker.dart';
+import '../../performance/stroke_latency_monitor.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';

@@ -14,6 +14,7 @@ import '../backend/canvas_raster_backend.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
+import '../performance/stroke_latency_monitor.dart';
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
@@ -144,6 +145,8 @@ class BitmapCanvasController extends ChangeNotifier {
     1,
   ];
   static const int _kGaussianKernel5x5Weight = 256;
+  static const int _kMaxWorkerBatchCommands = 24;
+  static const int _kMaxWorkerBatchPixels = 512 * 512;
 
   bool _refreshScheduled = false;
   bool _compositeProcessing = false;
@@ -784,10 +787,24 @@ class BitmapCanvasController extends ChangeNotifier {
     final _PendingWorkerDrawBatch batch =
         _pendingWorkerDrawBatch ??= _PendingWorkerDrawBatch(region);
     batch.add(region, command);
-    _scheduleWorkerDrawFlush();
+    final bool exceededCommandLimit =
+        batch.commands.length >= _kMaxWorkerBatchCommands;
+    final double batchArea = batch.region.width * batch.region.height;
+    final bool exceededAreaLimit = !batchArea.isFinite ||
+        batchArea >= _kMaxWorkerBatchPixels;
+    if (exceededCommandLimit || exceededAreaLimit) {
+      _scheduleWorkerDrawFlush(forceImmediate: true);
+    } else {
+      _scheduleWorkerDrawFlush();
+    }
   }
 
-  void _scheduleWorkerDrawFlush() {
+  void _scheduleWorkerDrawFlush({bool forceImmediate = false}) {
+    if (forceImmediate) {
+      _pendingWorkerDrawScheduled = false;
+      _processPendingWorkerDrawCommands();
+      return;
+    }
     if (_pendingWorkerDrawScheduled) {
       return;
     }
@@ -796,9 +813,11 @@ class BitmapCanvasController extends ChangeNotifier {
     if (scheduler == null) {
       scheduleMicrotask(_processPendingWorkerDrawCommands);
     } else {
-      scheduler.scheduleFrameCallback((_) {
-        _processPendingWorkerDrawCommands();
-      });
+      scheduler.scheduleTask(
+        _processPendingWorkerDrawCommands,
+        Priority.animation,
+        debugLabel: 'BitmapCanvasController.workerFlush',
+      );
     }
   }
 

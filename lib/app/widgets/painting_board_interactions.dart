@@ -383,6 +383,7 @@ mixin _PaintingBoardInteractionMixin
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
     _pushUndoSnapshot();
+    StrokeLatencyMonitor.instance.recordStrokeStart();
     _lastPenSampleTimestamp = timestamp;
     setState(() {
       _isDrawing = true;
