@@ -121,8 +121,7 @@ mixin _PaintingBoardInteractionMixin
     setState(() {
       if (_activeTool == CanvasTool.magicWand) {
         _convertMagicWandPreviewToSelection();
-      }
-      if (tool != CanvasTool.magicWand) {
+      } else if (tool != CanvasTool.magicWand) {
         _clearMagicWandPreview();
       }
       if (tool != CanvasTool.selection) {

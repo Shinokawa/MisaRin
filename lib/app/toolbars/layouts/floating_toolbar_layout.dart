@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:fluent_ui/fluent_ui.dart' show Divider, FluentTheme;
 import 'package:flutter/widgets.dart';
 
 import '../widgets/toolbar_panel_card.dart';
@@ -15,6 +16,7 @@ class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
     PaintingToolbarMetrics metrics,
   ) {
     final double toolbarPadding = metrics.toolButtonPadding;
+    final theme = FluentTheme.of(context);
     final Widget toolbar = Positioned(
       left: toolbarPadding,
       top: toolbarPadding,
@@ -40,18 +42,65 @@ class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       bottom: toolbarPadding,
       child: elements.colorIndicator,
     );
+    Widget buildCombinedPanel() {
+      Widget buildSectionHeader(String title, {Widget? trailing}) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(title, style: theme.typography.bodyStrong),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing,
+            ],
+          ],
+        );
+      }
 
-    Widget buildPanel(ToolbarPanelData data) {
+      Widget buildColorSection() {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildSectionHeader(
+              elements.colorPanel.title,
+              trailing: elements.colorPanel.trailing,
+            ),
+            const SizedBox(height: 8),
+            elements.colorPanel.child,
+          ],
+        );
+      }
+
+      Widget buildLayerSection() {
+        final Widget content = elements.layerPanel.child;
+        if (elements.layerPanel.expand) {
+          return Expanded(child: content);
+        }
+        return content;
+      }
+
       return ToolbarPanelCard(
         width: metrics.sidePanelWidth,
-        title: data.title,
-        trailing: data.trailing,
-        expand: data.expand,
-        child: data.child,
+        title: elements.layerPanel.title,
+        trailing: elements.layerPanel.trailing,
+        expand: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            buildColorSection(),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(),
+            ),
+            buildLayerSection(),
+          ],
+        ),
       );
     }
 
-    final Widget rightPanels = Positioned(
+    final Widget rightPanel = Positioned(
       right: toolbarPadding,
       top: toolbarPadding,
       bottom: toolbarPadding,
@@ -60,12 +109,7 @@ class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            buildPanel(elements.colorPanel),
-            SizedBox(height: metrics.sidePanelSpacing),
-            if (elements.layerPanel.expand)
-              Expanded(child: buildPanel(elements.layerPanel))
-            else
-              buildPanel(elements.layerPanel),
+            Expanded(child: buildCombinedPanel()),
           ],
         ),
       ),
@@ -105,7 +149,7 @@ class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
     ];
 
     return PaintingToolbarLayoutResult(
-      widgets: <Widget>[toolbar, toolSettings, colorIndicator, rightPanels],
+      widgets: <Widget>[toolbar, toolSettings, colorIndicator, rightPanel],
       hitRegions: hitRegions,
     );
   }

@@ -110,17 +110,23 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
   @override
   void _convertMagicWandPreviewToSelection() async {
-    if (_magicWandPreviewMask == null || _magicWandPreviewPath == null) {
+    final Uint8List? mask = _magicWandPreviewMask;
+    final Path? path = _magicWandPreviewPath;
+    if (mask == null || path == null) {
       return;
     }
     await _prepareSelectionUndo();
     setState(() {
       _applySelectionPathInternal(
-        _magicWandPreviewPath,
-        mask: _magicWandPreviewMask,
+        path,
+        mask: mask,
       );
-      _magicWandPreviewMask = null;
-      _magicWandPreviewPath = null;
+      if (identical(_magicWandPreviewMask, mask)) {
+        _magicWandPreviewMask = null;
+      }
+      if (identical(_magicWandPreviewPath, path)) {
+        _magicWandPreviewPath = null;
+      }
     });
     _updateSelectionAnimation();
     _finishSelectionUndo();
