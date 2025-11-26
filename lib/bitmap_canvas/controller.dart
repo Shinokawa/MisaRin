@@ -808,16 +808,7 @@ class BitmapCanvasController extends ChangeNotifier {
       return;
     }
     _pendingWorkerDrawScheduled = true;
-    final SchedulerBinding? scheduler = SchedulerBinding.instance;
-    if (scheduler == null) {
-      scheduleMicrotask(_processPendingWorkerDrawCommands);
-    } else {
-      scheduler.scheduleTask(
-        _processPendingWorkerDrawCommands,
-        Priority.animation,
-        debugLabel: 'BitmapCanvasController.workerFlush',
-      );
-    }
+    scheduleMicrotask(_processPendingWorkerDrawCommands);
   }
 
   void _processPendingWorkerDrawCommands() {

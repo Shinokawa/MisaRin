@@ -89,6 +89,63 @@ class _CheckboardBackground extends StatelessWidget {
   }
 }
 
+class _StrokePreviewSegment {
+  const _StrokePreviewSegment({
+    required this.start,
+    required this.end,
+    required this.radius,
+  });
+
+  final Offset start;
+  final Offset end;
+  final double radius;
+
+  bool get isPoint => (start - end).distanceSquared <= 1e-4;
+}
+
+class _StrokePreviewPainter extends CustomPainter {
+  _StrokePreviewPainter({
+    required this.segments,
+    required this.color,
+    required this.erase,
+  });
+
+  final List<_StrokePreviewSegment> segments;
+  final Color color;
+  final bool erase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (segments.isEmpty) {
+      return;
+    }
+    final Paint strokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = (erase ? Colors.white : color).withOpacity(0.85);
+    final Paint dotPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = (erase ? Colors.white : color).withOpacity(0.7);
+    for (final _StrokePreviewSegment segment in segments) {
+      final double strokeWidth = (segment.radius * 2).clamp(0.4, 512.0);
+      if (segment.isPoint) {
+        canvas.drawCircle(segment.start, strokeWidth / 2, dotPaint);
+      } else {
+        strokePaint.strokeWidth = strokeWidth;
+        canvas.drawLine(segment.start, segment.end, strokePaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StrokePreviewPainter oldDelegate) {
+    return oldDelegate.segments != segments ||
+        oldDelegate.color != color ||
+        oldDelegate.erase != erase;
+  }
+}
+
 class _CheckboardPainter extends CustomPainter {
   const _CheckboardPainter({
     required this.cellSize,
