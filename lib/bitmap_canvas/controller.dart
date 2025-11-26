@@ -80,6 +80,7 @@ class BitmapCanvasController extends ChangeNotifier {
   final List<Offset> _currentStrokePoints = <Offset>[];
   final List<double> _currentStrokeRadii = <double>[];
   final List<PaintingDrawCommand> _deferredStrokeCommands = <PaintingDrawCommand>[];
+  final List<PaintingDrawCommand> _committingStrokes = <PaintingDrawCommand>[]; // Strokes being rasterized
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
   bool _currentStrokeStylusPressureEnabled = false;
@@ -199,6 +200,7 @@ class BitmapCanvasController extends ChangeNotifier {
   // Active stroke state for client-side prediction
   List<Offset> get activeStrokePoints => UnmodifiableListView(_currentStrokePoints);
   List<double> get activeStrokeRadii => UnmodifiableListView(_currentStrokeRadii);
+  List<PaintingDrawCommand> get committingStrokes => UnmodifiableListView(_committingStrokes);
   Color get activeStrokeColor => _currentStrokeColor;
   double get activeStrokeRadius => _currentStrokeRadius;
   bool get activeStrokeEraseMode => _currentStrokeEraseMode;
@@ -217,6 +219,21 @@ class BitmapCanvasController extends ChangeNotifier {
     final Color color = _currentStrokeColor;
     final BrushShape shape = _currentBrushShape;
     final bool erase = _currentStrokeEraseMode;
+
+    // Create a command to persist visual state during async rasterization
+    final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
+      points: points,
+      radii: radii,
+      colorValue: color.value,
+      shapeIndex: shape.index,
+      erase: erase,
+    );
+    _committingStrokes.add(vectorCommand);
+
+    // Clear active state immediately so next stroke can start
+    _currentStrokePoints.clear();
+    _currentStrokeRadii.clear();
+    _deferredStrokeCommands.clear();
 
     // Calculate bounding box of the entire stroke
     double minX = double.infinity;
@@ -241,9 +258,10 @@ class BitmapCanvasController extends ChangeNotifier {
     final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(inflate);
 
     // Rasterize vector stroke on main thread (asynchronously) to get pixels
-    _rasterizeVectorStroke(points, radii, color, shape, dirtyRegion, erase);
-    
-    _deferredStrokeCommands.clear();
+    _rasterizeVectorStroke(points, radii, color, shape, dirtyRegion, erase).then((_) {
+      _committingStrokes.remove(vectorCommand);
+      notifyListeners(); // Update UI to remove overlay
+    });
   }
 
   Future<void> _rasterizeVectorStroke(

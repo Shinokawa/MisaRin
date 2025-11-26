@@ -405,6 +405,9 @@ mixin _PaintingBoardInteractionMixin
         erase: erase,
       );
     });
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      StrokeLatencyMonitor.instance.recordFramePresented();
+    });
     _markDirty();
   }
 

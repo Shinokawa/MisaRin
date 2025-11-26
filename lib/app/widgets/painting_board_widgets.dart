@@ -915,22 +915,39 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     required this.radii,
     required this.color,
     this.shape = BrushShape.circle,
+    required this.committingStrokes,
   });
 
   final List<Offset> points;
   final List<double> radii;
   final Color color;
   final BrushShape shape;
+  final List<PaintingDrawCommand> committingStrokes;
 
   @override
   void paint(Canvas canvas, Size size) {
-    VectorStrokePainter.paint(
-      canvas: canvas,
-      points: points,
-      radii: radii,
-      color: color,
-      shape: shape,
-    );
+    // Draw committing strokes (fading out/waiting for raster) first
+    for (final PaintingDrawCommand command in committingStrokes) {
+      if (command.points == null || command.radii == null) continue;
+      VectorStrokePainter.paint(
+        canvas: canvas,
+        points: command.points!,
+        radii: command.radii!,
+        color: Color(command.color),
+        shape: BrushShape.values[command.shapeIndex ?? 0],
+      );
+    }
+
+    // Draw active stroke on top
+    if (points.isNotEmpty) {
+      VectorStrokePainter.paint(
+        canvas: canvas,
+        points: points,
+        radii: radii,
+        color: color,
+        shape: shape,
+      );
+    }
   }
 
   @override
@@ -938,7 +955,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     return oldDelegate.points != points ||
         oldDelegate.radii != radii ||
         oldDelegate.color != color ||
-        oldDelegate.shape != shape;
+        oldDelegate.shape != shape ||
+        oldDelegate.committingStrokes != committingStrokes;
   }
 }
 

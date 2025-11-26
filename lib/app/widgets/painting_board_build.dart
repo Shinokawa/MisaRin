@@ -406,13 +406,11 @@ mixin _PaintingBoardBuildMixin
                                                   )
                                                 : null;
                                             
-                                            // 客户端预测：显示当前笔画的实时预览，解决 worker 延迟导致的滞后感
+                                            // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
                                             final bool showActiveStroke = 
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller.isActiveLayerTransforming &&
-                                                _effectiveActiveTool == CanvasTool.pen &&
-                                                !_controller.activeStrokeEraseMode &&
-                                                _controller.activeStrokePoints.isNotEmpty;
+                                                (_effectiveActiveTool == CanvasTool.pen && !_controller.activeStrokeEraseMode && _controller.activeStrokePoints.isNotEmpty || _controller.committingStrokes.isNotEmpty);
 
                                             return Stack(
                                               fit: StackFit.expand,
@@ -428,6 +426,7 @@ mixin _PaintingBoardBuildMixin
                                                         points: _controller.activeStrokePoints,
                                                         radii: _controller.activeStrokeRadii,
                                                         color: _controller.activeStrokeColor,
+                                                        committingStrokes: _controller.committingStrokes,
                                                       ),
                                                     ),
                                                   ),

@@ -330,8 +330,6 @@ void _strokeEnd(BitmapCanvasController controller) {
     controller._flushPendingPaintingCommands();
   }
 
-  controller._currentStrokePoints.clear();
-  controller._currentStrokeRadii.clear();
   controller._currentStrokeRadius = 0;
   controller._currentStrokeLastRadius = 0;
   controller._currentStrokeStylusPressureEnabled = false;
