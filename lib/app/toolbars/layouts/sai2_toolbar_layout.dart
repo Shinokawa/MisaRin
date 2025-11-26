@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:fluent_ui/fluent_ui.dart' show Scrollbar;
+import 'package:fluent_ui/fluent_ui.dart' show Divider, FluentTheme, Scrollbar;
 import 'package:flutter/widgets.dart';
 
 import '../widgets/toolbar_panel_card.dart';
@@ -33,55 +33,92 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       return SizedBox(width: columnWidth, child: card);
     }
 
-    Widget buildColorPanel() {
-      return ToolbarPanelCard(
-        width: columnWidth,
-        title: elements.colorPanel.title,
-        trailing: elements.colorPanel.trailing,
-        expand: true,
-        child: elements.colorPanel.child,
-      );
-    }
+    Widget buildToolsPanel() {
+      final theme = FluentTheme.of(context);
+      Widget buildSectionHeader(String title, {Widget? trailing}) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: Text(title, style: theme.typography.bodyStrong)),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing,
+            ],
+          ],
+        );
+      }
 
-    Widget buildToolbarCard() {
-      return ToolbarPanelCard(
-        width: columnWidth,
-        title: '工具栏',
-        expand: true,
-        child: Scrollbar(
-          child: SingleChildScrollView(
-            primary: false,
-            child: Align(alignment: Alignment.topLeft, child: elements.toolbar),
-          ),
-        ),
-      );
-    }
+      Widget buildDivider() {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Divider(),
+        );
+      }
 
-    Widget buildToolSettingsCard() {
-      return ToolbarPanelCard(
-        width: columnWidth,
-        title: '工具选项',
-        expand: true,
-        child: Scrollbar(
+      Widget buildColorSection() {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildSectionHeader(
+              elements.colorPanel.title,
+              trailing: elements.colorPanel.trailing,
+            ),
+            const SizedBox(height: 8),
+            elements.colorPanel.child,
+          ],
+        );
+      }
+
+      Widget buildScrollableContent(Widget child) {
+        return Scrollbar(
           child: SingleChildScrollView(
             primary: false,
             child: Align(
               alignment: Alignment.topLeft,
-              child: elements.toolSettings,
+              child: child,
             ),
           ),
-        ),
-      );
-    }
+        );
+      }
 
-    Widget buildToolWorkspace() {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: buildToolbarCard()),
-          SizedBox(height: gutter),
-          Expanded(child: buildToolSettingsCard()),
-        ],
+      Widget buildSection({
+        required String title,
+        Widget? trailing,
+        required Widget child,
+      }) {
+        return Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              buildSectionHeader(title, trailing: trailing),
+              const SizedBox(height: 8),
+              Expanded(child: child),
+            ],
+          ),
+        );
+      }
+
+      return ToolbarPanelCard(
+        width: columnWidth,
+        title: '工具面板',
+        expand: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            buildColorSection(),
+            buildDivider(),
+            buildSection(
+              title: '工具栏',
+              child: buildScrollableContent(elements.toolbar),
+            ),
+            buildDivider(),
+            buildSection(
+              title: '工具选项',
+              child: buildScrollableContent(elements.toolSettings),
+            ),
+          ],
+        ),
       );
     }
 
@@ -94,17 +131,7 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
         children: [
           buildLayerPanel(),
           SizedBox(width: gutter),
-          SizedBox(
-            width: columnWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: buildColorPanel()),
-                SizedBox(height: metrics.sidePanelSpacing),
-                Expanded(child: buildToolWorkspace()),
-              ],
-            ),
-          ),
+          buildToolsPanel(),
         ],
       ),
     );

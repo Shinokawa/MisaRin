@@ -296,6 +296,7 @@ mixin _PaintingBoardBuildMixin
           brushToolsEraserMode: _brushToolsEraserMode,
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
+          compactLayout: isSai2Layout,
         );
         final ToolbarPanelData colorPanelData = ToolbarPanelData(
           title: '取色',
