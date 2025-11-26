@@ -141,6 +141,20 @@ mixin _PaintingBoardLayerMixin
     _markDirty();
   }
 
+  Widget _buildAddLayerButton() {
+    return Button(
+      onPressed: _handleAddLayer,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(FluentIcons.add, size: 14),
+          SizedBox(width: 6),
+          Text('新增图层'),
+        ],
+      ),
+    );
+  }
+
   void _handleLayerReorder(int oldIndex, int newIndex) async {
     final int length = _layers.length;
     if (length <= 1) {
@@ -727,6 +741,11 @@ mixin _PaintingBoardLayerMixin
     if (showHistoryButtons) {
       controls
         ..add(historyRow())
+        ..add(const SizedBox(height: 6));
+    }
+    if (!isSai2Layout) {
+      controls
+        ..add(_buildAddLayerButton())
         ..add(const SizedBox(height: 6));
     }
     controls

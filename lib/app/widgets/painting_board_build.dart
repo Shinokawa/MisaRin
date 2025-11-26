@@ -303,19 +303,10 @@ mixin _PaintingBoardBuildMixin
           trailing: _buildColorPanelTrailing(theme),
           child: _buildColorPanelContent(theme),
         );
+        final Widget addLayerButton = _buildAddLayerButton();
         final ToolbarPanelData layerPanelData = ToolbarPanelData(
           title: '图层管理',
-          trailing: Button(
-            onPressed: _handleAddLayer,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(FluentIcons.add, size: 14),
-                SizedBox(width: 6),
-                Text('新增图层'),
-              ],
-            ),
-          ),
+          trailing: isSai2Layout ? addLayerButton : null,
           child: _buildLayerPanelContent(theme),
           expand: true,
         );
