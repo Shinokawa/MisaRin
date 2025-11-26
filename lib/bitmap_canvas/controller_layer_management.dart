@@ -763,7 +763,7 @@ void _layerManagerLoadLayers(
   controller._rasterBackend.resetClipMask();
   _loadFromCanvasLayers(controller, layers, backgroundColor);
   controller._resetWorkerSurfaceSync();
-  controller._markDirty(pixelsDirty: false);
+  controller._markDirty(pixelsDirty: true);
 }
 
 List<CanvasLayerData> _layerManagerSnapshotLayers(
