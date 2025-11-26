@@ -145,15 +145,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
-    final BorderRadius borderRadius = BorderRadius.circular(12);
-    final Color fallbackColor = theme.brightness.isDark
-        ? const Color(0xFF1F1F1F)
-        : Colors.white;
-    Color backgroundColor = theme.cardColor;
-    if (backgroundColor.alpha != 0xFF) {
-      backgroundColor = fallbackColor;
-    }
-
     Widget content;
     switch (widget.activeTool) {
       case CanvasTool.pen:
@@ -267,23 +258,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
     return MeasuredSize(
       onChanged: widget.onSizeChanged,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: borderRadius,
-          border: Border.all(
-            color: theme.brightness.isDark
-                ? Colors.white.withOpacity(0.12)
-                : Colors.black.withOpacity(0.08),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            widthFactor: 1,
-            child: content,
-          ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          widthFactor: 1,
+          child: content,
         ),
       ),
     );
@@ -405,52 +385,29 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       divisions: max,
       onChanged: (raw) => onChanged(raw.round()),
     );
-    if (!widget.compactLayout) {
-      return Row(
-        mainAxisSize: MainAxisSize.max,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(label, style: theme.typography.bodyStrong),
-          const SizedBox(width: 8),
-          Expanded(child: slider),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 44,
-            child: Text(
-              '$value',
-              textAlign: TextAlign.end,
-              style: theme.typography.caption,
-            ),
-          ),
-        ],
-      );
-    }
-    return _buildCompactSliderField(
+    return _buildSliderSection(
       theme,
       label: label,
-      tooltipText: '$label：$value',
+      valueText: '$value',
       slider: slider,
+      tooltipText: '$label：$value',
     );
   }
 
   Widget _buildBrushSizeRow(FluentThemeData theme) {
     final double brushSize =
         widget.penStrokeSliderRange.clamp(widget.penStrokeWidth);
+    final String brushLabel = _formatValue(brushSize);
     final Slider slider = Slider(
       value: brushSize,
       min: _sliderMin,
       max: _sliderMax,
       onChanged: widget.onPenStrokeWidthChanged,
     );
-    if (!widget.compactLayout) {
+    Widget buildStandardAdjustRow() {
       return Row(
         mainAxisSize: MainAxisSize.max,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text('笔刷大小', style: theme.typography.bodyStrong),
-          const SizedBox(width: 8),
-          Expanded(child: slider),
-          const SizedBox(width: 8),
           SizedBox(
             width: 124,
             child: SizedBox(
@@ -488,47 +445,55 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         ],
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildCompactSliderField(
-          theme,
-          label: '笔刷大小',
-          tooltipText: '笔刷大小：${_formatValue(brushSize)} px',
-          slider: slider,
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            _buildStrokeAdjustButton(
-              icon: FluentIcons.calculator_subtract,
-              delta: -1,
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: SizedBox(
-                height: 32,
-                child: TextBox(
-                  focusNode: _focusNode,
-                  controller: _controller,
-                  inputFormatters: _digitInputFormatters,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    signed: false,
-                    decimal: true,
-                  ),
-                  onChanged: _handleTextChanged,
-                  textAlign: TextAlign.center,
+
+    Widget buildCompactAdjustRow() {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          _buildStrokeAdjustButton(
+            icon: FluentIcons.calculator_subtract,
+            delta: -1,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: SizedBox(
+              height: 32,
+              child: TextBox(
+                focusNode: _focusNode,
+                controller: _controller,
+                inputFormatters: _digitInputFormatters,
+                keyboardType: const TextInputType.numberWithOptions(
+                  signed: false,
+                  decimal: true,
                 ),
+                onChanged: _handleTextChanged,
+                textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(width: 4),
-            _buildStrokeAdjustButton(icon: FluentIcons.add, delta: 1),
-            const SizedBox(width: 6),
-            Text('px', style: theme.typography.caption),
-          ],
-        ),
-      ],
+          ),
+          const SizedBox(width: 4),
+          _buildStrokeAdjustButton(icon: FluentIcons.add, delta: 1),
+          const SizedBox(width: 6),
+          Text('px', style: theme.typography.caption),
+        ],
+      );
+    }
+
+    final List<Widget> columnChildren = <Widget>[
+      _buildSliderSection(
+        theme,
+        label: '笔刷大小',
+        valueText: '$brushLabel px',
+        slider: slider,
+        tooltipText: '笔刷大小：$brushLabel px',
+      ),
+      const SizedBox(height: 8),
+      widget.compactLayout ? buildCompactAdjustRow() : buildStandardAdjustRow(),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: columnChildren,
     );
   }
 
@@ -560,30 +525,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       divisions: 3,
       onChanged: (raw) => onChanged(raw.round()),
     );
-    if (!widget.compactLayout) {
-      return Row(
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          Text('抗锯齿', style: theme.typography.bodyStrong),
-          const SizedBox(width: 8),
-          Expanded(child: slider),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 64,
-            child: Text(
-              '等级 $value',
-              style: theme.typography.caption,
-              textAlign: TextAlign.end,
-            ),
-          ),
-        ],
-      );
-    }
-    return _buildCompactSliderField(
+    return _buildSliderSection(
       theme,
       label: '抗锯齿',
-      tooltipText: '抗锯齿：等级 $value',
+      valueText: '等级 $value',
       slider: slider,
+      tooltipText: '抗锯齿：等级 $value',
     );
   }
 
@@ -608,30 +555,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         (raw / widget.strokeStabilizerMaxLevel).clamp(0.0, 1.0),
       ),
     );
-    if (!widget.compactLayout) {
-      return Row(
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          Text('手抖修正', style: theme.typography.bodyStrong),
-          const SizedBox(width: 8),
-          Expanded(child: slider),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 56,
-            child: Text(
-              label,
-              style: theme.typography.caption,
-              textAlign: TextAlign.end,
-            ),
-          ),
-        ],
-      );
-    }
-    return _buildCompactSliderField(
+    return _buildSliderSection(
       theme,
       label: '手抖修正',
-      tooltipText: '手抖修正：$label',
+      valueText: label,
       slider: slider,
+      tooltipText: '手抖修正：$label',
     );
   }
 
@@ -671,6 +600,44 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
+  Widget _buildSliderSection(
+    FluentThemeData theme, {
+    required String label,
+    required String valueText,
+    required Widget slider,
+    String? tooltipText,
+  }) {
+    Widget sliderWidget = LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(width: constraints.maxWidth, child: slider);
+      },
+    );
+    if (widget.compactLayout && tooltipText != null) {
+      sliderWidget = Tooltip(
+        message: tooltipText,
+        style: const TooltipThemeData(waitDuration: Duration.zero),
+        useMousePosition: true,
+        displayHorizontally: true,
+        child: sliderWidget,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(label, style: theme.typography.bodyStrong),
+            const SizedBox(width: 8),
+            Text(valueText, style: theme.typography.caption),
+          ],
+        ),
+        const SizedBox(height: 8),
+        sliderWidget,
+      ],
+    );
+  }
+
   List<Widget> _separateChildren(List<Widget> children, double spacing) {
     if (children.isEmpty) {
       return const <Widget>[];
@@ -683,29 +650,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       }
     }
     return separated;
-  }
-
-  Widget _buildCompactSliderField(
-    FluentThemeData theme, {
-    required String label,
-    required String tooltipText,
-    required Widget slider,
-  }) {
-    final Widget wrappedSlider = Tooltip(
-      message: tooltipText,
-      style: const TooltipThemeData(waitDuration: Duration.zero),
-      useMousePosition: true,
-      displayHorizontally: true,
-      child: SizedBox(width: double.infinity, child: slider),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: theme.typography.bodyStrong),
-        const SizedBox(height: 8),
-        wrappedSlider,
-      ],
-    );
   }
 
   Widget _buildLabeledComboField<T>(
