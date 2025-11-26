@@ -100,6 +100,7 @@ class ToolSettingsCard extends StatefulWidget {
 }
 
 class _ToolSettingsCardState extends State<ToolSettingsCard> {
+  static const double _defaultSliderWidth = 220;
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
   bool _isProgrammaticTextUpdate = false;
@@ -411,12 +412,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
     if (!widget.compactLayout) {
       return Row(
-        mainAxisSize: MainAxisSize.max,
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(label, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          Expanded(child: slider),
+          SizedBox(width: _defaultSliderWidth, child: slider),
           const SizedBox(width: 8),
           SizedBox(
             width: 44,
@@ -450,7 +451,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
     Widget buildStandardAdjustRow() {
       return Row(
-        mainAxisSize: MainAxisSize.max,
+        mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             width: 124,
@@ -525,12 +526,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
     if (!widget.compactLayout) {
       return Row(
-        mainAxisSize: MainAxisSize.max,
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text('笔刷大小', style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          Expanded(child: slider),
+          SizedBox(width: _defaultSliderWidth, child: slider),
           const SizedBox(width: 8),
           buildStandardAdjustRow(),
         ],
@@ -583,11 +584,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
     if (!widget.compactLayout) {
       return Row(
-        mainAxisSize: MainAxisSize.max,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text('抗锯齿', style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          Expanded(child: slider),
+          SizedBox(width: _defaultSliderWidth, child: slider),
           const SizedBox(width: 8),
           SizedBox(
             width: 64,
@@ -632,11 +633,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
     if (!widget.compactLayout) {
       return Row(
-        mainAxisSize: MainAxisSize.max,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text('手抖修正', style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          Expanded(child: slider),
+          SizedBox(width: _defaultSliderWidth, child: slider),
           const SizedBox(width: 8),
           SizedBox(
             width: 56,
