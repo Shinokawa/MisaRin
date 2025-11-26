@@ -51,6 +51,7 @@ class PaintingToolbarMetrics {
     required this.toolSettingsLeft,
     required this.sidebarLeft,
     required this.toolSettingsMaxWidth,
+    this.workspaceSplits,
   });
 
   final CanvasToolbarLayout toolbarLayout;
@@ -64,6 +65,37 @@ class PaintingToolbarMetrics {
   final double toolSettingsLeft;
   final double sidebarLeft;
   final double? toolSettingsMaxWidth;
+  final WorkspaceLayoutSplits? workspaceSplits;
+}
+
+class WorkspaceLayoutSplits {
+  const WorkspaceLayoutSplits({
+    this.floatingColorPanelHeight,
+    this.floatingColorPanelMeasuredHeight,
+    this.onFloatingColorPanelHeightChanged,
+    this.onFloatingColorPanelMeasured,
+    this.sai2ColorPanelHeight,
+    this.sai2ColorPanelMeasuredHeight,
+    this.onSai2ColorPanelHeightChanged,
+    this.onSai2ColorPanelMeasured,
+    required this.sai2ToolbarSectionRatio,
+    required this.onSai2ToolbarSectionRatioChanged,
+    required this.sai2LayerPanelWidthRatio,
+    required this.onSai2LayerPanelWidthRatioChanged,
+  });
+
+  final double? floatingColorPanelHeight;
+  final double? floatingColorPanelMeasuredHeight;
+  final ValueChanged<double?>? onFloatingColorPanelHeightChanged;
+  final ValueChanged<double>? onFloatingColorPanelMeasured;
+  final double? sai2ColorPanelHeight;
+  final double? sai2ColorPanelMeasuredHeight;
+  final ValueChanged<double?>? onSai2ColorPanelHeightChanged;
+  final ValueChanged<double>? onSai2ColorPanelMeasured;
+  final double sai2ToolbarSectionRatio;
+  final ValueChanged<double> onSai2ToolbarSectionRatioChanged;
+  final double sai2LayerPanelWidthRatio;
+  final ValueChanged<double> onSai2LayerPanelWidthRatioChanged;
 }
 
 class PaintingToolbarLayoutResult {

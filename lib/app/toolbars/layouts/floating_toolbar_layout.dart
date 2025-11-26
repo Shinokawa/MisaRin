@@ -1,10 +1,16 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:fluent_ui/fluent_ui.dart' show Divider, FluentTheme;
 import 'package:flutter/widgets.dart';
 
 import '../widgets/toolbar_panel_card.dart';
+import '../widgets/measured_size.dart';
+import '../widgets/workspace_split_handle.dart';
 import 'painting_toolbar_layout.dart';
+
+const double _floatingColorMinHeight = 160;
+const double _floatingLayerMinHeight = 200;
 
 class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
   const FloatingToolbarLayoutDelegate();
@@ -43,6 +49,7 @@ class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       child: elements.colorIndicator,
     );
     Widget buildCombinedPanel() {
+      final WorkspaceLayoutSplits? splits = metrics.workspaceSplits;
       Widget buildSectionHeader(String title, {Widget? trailing}) {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -59,6 +66,19 @@ class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       }
 
       Widget buildColorSection() {
+        Widget content = elements.colorPanel.child;
+        final ValueChanged<double>? onMeasured =
+            splits?.onFloatingColorPanelMeasured;
+        if (onMeasured != null) {
+          content = MeasuredSize(
+            onChanged: (size) => onMeasured(size.height),
+            child: content,
+          );
+        }
+        final double? overrideHeight = splits?.floatingColorPanelHeight;
+        if (overrideHeight != null) {
+          content = SizedBox(height: overrideHeight, child: content);
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -68,7 +88,7 @@ class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
               trailing: elements.colorPanel.trailing,
             ),
             const SizedBox(height: 8),
-            elements.colorPanel.child,
+            content,
           ],
         );
       }
@@ -81,21 +101,61 @@ class FloatingToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
         return content;
       }
 
+      Widget buildResizableDivider(double availableHeight) {
+        final ValueChanged<double?>? onChanged =
+            splits?.onFloatingColorPanelHeightChanged;
+        if (onChanged == null || !availableHeight.isFinite) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: WorkspaceSplitHandle.horizontal(
+            onDragUpdate: (delta) {
+              final double? measured =
+                  splits?.floatingColorPanelMeasuredHeight;
+              final double base = (splits?.floatingColorPanelHeight ?? measured)
+                      ?.clamp(0.0, double.infinity) ??
+                  _floatingColorMinHeight;
+              final double maxHeight = math.max(
+                _floatingColorMinHeight,
+                availableHeight - _floatingLayerMinHeight,
+              );
+              if (maxHeight <= _floatingColorMinHeight) {
+                onChanged(_floatingColorMinHeight);
+                return;
+              }
+              final double next = (base + delta).clamp(
+                _floatingColorMinHeight,
+                maxHeight,
+              );
+              onChanged(next);
+            },
+          ),
+        );
+      }
+
       return ToolbarPanelCard(
         width: metrics.sidePanelWidth,
         title: elements.layerPanel.title,
         trailing: elements.layerPanel.trailing,
         expand: true,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            buildColorSection(),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Divider(),
-            ),
-            buildLayerSection(),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final double availableHeight = constraints.maxHeight.isFinite
+                ? constraints.maxHeight
+                : 0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                buildColorSection(),
+                buildResizableDivider(availableHeight),
+                buildLayerSection(),
+              ],
+            );
+          },
         ),
       );
     }

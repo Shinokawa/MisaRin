@@ -59,6 +59,7 @@ class MenuActionHandler {
     this.importReferenceImage,
     this.workspaceLayoutPreference,
     this.switchWorkspaceLayout,
+    this.resetWorkspaceLayout,
   });
 
   const MenuActionHandler.empty()
@@ -100,7 +101,8 @@ class MenuActionHandler {
       importReferenceImage = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[],
       workspaceLayoutPreference = null,
-      switchWorkspaceLayout = null;
+      switchWorkspaceLayout = null,
+      resetWorkspaceLayout = null;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -141,6 +143,7 @@ class MenuActionHandler {
   final MenuAsyncAction? importReferenceImage;
   final WorkspaceLayoutPreference? workspaceLayoutPreference;
   final MenuWorkspaceLayoutAction? switchWorkspaceLayout;
+  final MenuAsyncAction? resetWorkspaceLayout;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

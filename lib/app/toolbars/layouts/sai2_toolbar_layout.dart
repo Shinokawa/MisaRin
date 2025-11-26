@@ -5,7 +5,15 @@ import 'package:fluent_ui/fluent_ui.dart' show Divider, FluentTheme, Scrollbar;
 import 'package:flutter/widgets.dart';
 
 import '../widgets/toolbar_panel_card.dart';
+import '../widgets/measured_size.dart';
+import '../widgets/workspace_split_handle.dart';
 import 'painting_toolbar_layout.dart';
+
+const double _sai2ColorMinHeight = 160;
+const double _sai2ToolSectionsMinHeight = 320;
+const double _sai2ToolbarMinHeight = 140;
+const double _sai2ToolSettingsMinHeight = 180;
+const double _sai2PanelMinWidth = 200;
 
 class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
   const Sai2ToolbarLayoutDelegate();
@@ -21,20 +29,36 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
     final double gutter = metrics.toolSettingsSpacing;
     final double columnHeight = (metrics.workspaceSize.height - 2 * padding)
         .clamp(0.0, double.infinity);
+    final WorkspaceLayoutSplits? splits = metrics.workspaceSplits;
+    final double sharedWidth = math.max(0.0, columnWidth * 2);
+    final double minWidth = sharedWidth <= 0
+        ? 0.0
+        : math.min(sharedWidth / 2, _sai2PanelMinWidth);
+    final double minRatio = sharedWidth <= 0
+        ? 0.5
+        : (minWidth / sharedWidth).clamp(0.0, 0.5);
+    final double maxRatio = 1 - minRatio;
+    final double requestedRatio = splits?.sai2LayerPanelWidthRatio ?? 0.5;
+    final double normalizedRatio = sharedWidth <= 0
+        ? 0.5
+        : requestedRatio.clamp(minRatio, maxRatio);
+    final double layerWidth = sharedWidth * normalizedRatio;
+    final double toolsWidth = math.max(0.0, sharedWidth - layerWidth);
 
-    Widget buildLayerPanel() {
+    Widget buildLayerPanel(double width) {
       final card = ToolbarPanelCard(
-        width: columnWidth,
+        width: width,
         title: elements.layerPanel.title,
         trailing: elements.layerPanel.trailing,
         expand: true,
         child: elements.layerPanel.child,
       );
-      return SizedBox(width: columnWidth, child: card);
+      return SizedBox(width: width, child: card);
     }
 
-    Widget buildToolsPanel() {
+    Widget buildToolsPanel(double width) {
       final theme = FluentTheme.of(context);
+      final WorkspaceLayoutSplits? currentSplits = splits;
       Widget buildSectionHeader(String title, {Widget? trailing}) {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -48,14 +72,24 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
         );
       }
 
-      Widget buildDivider() {
-        return const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Divider(),
-        );
+      Widget buildScrollableContent(Widget child) {
+        return _Sai2ToolbarScrollArea(child: child);
       }
 
       Widget buildColorSection() {
+        Widget content = elements.colorPanel.child;
+        final ValueChanged<double>? onMeasured =
+            currentSplits?.onSai2ColorPanelMeasured;
+        if (onMeasured != null) {
+          content = MeasuredSize(
+            onChanged: (size) => onMeasured(size.height),
+            child: content,
+          );
+        }
+        final double? overrideHeight = currentSplits?.sai2ColorPanelHeight;
+        if (overrideHeight != null) {
+          content = SizedBox(height: overrideHeight, child: content);
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -65,21 +99,54 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
               trailing: elements.colorPanel.trailing,
             ),
             const SizedBox(height: 8),
-            elements.colorPanel.child,
+            content,
           ],
         );
       }
 
-      Widget buildScrollableContent(Widget child) {
-        return _Sai2ToolbarScrollArea(child: child);
+      Widget buildColorDivider() {
+        final ValueChanged<double?>? onChanged =
+            currentSplits?.onSai2ColorPanelHeightChanged;
+        if (onChanged == null) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: WorkspaceSplitHandle.horizontal(
+            onDragUpdate: (delta) {
+              final double base = (currentSplits?.sai2ColorPanelHeight ??
+                          currentSplits?.sai2ColorPanelMeasuredHeight)
+                      ?.clamp(0.0, double.infinity) ??
+                  _sai2ColorMinHeight;
+              final double maxHeight = math.max(
+                _sai2ColorMinHeight,
+                columnHeight - _sai2ToolSectionsMinHeight,
+              );
+              if (maxHeight <= _sai2ColorMinHeight) {
+                onChanged(_sai2ColorMinHeight);
+                return;
+              }
+              final double next = (base + delta).clamp(
+                _sai2ColorMinHeight,
+                maxHeight,
+              );
+              onChanged(next);
+            },
+          ),
+        );
       }
 
-      Widget buildSection({
+      Widget buildSplitSection({
         required String title,
         Widget? trailing,
         required Widget child,
+        required int flex,
       }) {
         return Expanded(
+          flex: flex,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -91,24 +158,71 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
         );
       }
 
+      Widget buildToolSections() {
+        return Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final double availableHeight = constraints.maxHeight.isFinite
+                  ? constraints.maxHeight
+                  : 0;
+              final double ratio =
+                  currentSplits?.sai2ToolbarSectionRatio.clamp(0.0, 1.0) ??
+                      0.5;
+              final int toolbarFlex = math.max(1, (ratio * 1000).round());
+              final int settingsFlex = math.max(1, 1000 - toolbarFlex);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  buildSplitSection(
+                    title: '工具栏',
+                    child: buildScrollableContent(elements.toolbar),
+                    flex: toolbarFlex,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: WorkspaceSplitHandle.horizontal(
+                      onDragUpdate: (delta) {
+                        if (availableHeight <= 0) {
+                          return;
+                        }
+                        final double minFraction = (_sai2ToolbarMinHeight /
+                                availableHeight)
+                            .clamp(0.0, 0.9);
+                        final double maxFraction = 1 -
+                            (_sai2ToolSettingsMinHeight / availableHeight)
+                                .clamp(0.0, 0.9);
+                        if (maxFraction <= minFraction) {
+                          return;
+                        }
+                        final double next = (ratio + delta / availableHeight)
+                            .clamp(minFraction, maxFraction);
+                        currentSplits
+                            ?.onSai2ToolbarSectionRatioChanged(next);
+                      },
+                    ),
+                  ),
+                  buildSplitSection(
+                    title: '工具选项',
+                    child: buildScrollableContent(elements.toolSettings),
+                    flex: settingsFlex,
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      }
+
       return ToolbarPanelCard(
-        width: columnWidth,
+        width: width,
         title: '工具面板',
         expand: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             buildColorSection(),
-            buildDivider(),
-            buildSection(
-              title: '工具栏',
-              child: buildScrollableContent(elements.toolbar),
-            ),
-            buildDivider(),
-            buildSection(
-              title: '工具选项',
-              child: buildScrollableContent(elements.toolSettings),
-            ),
+            buildColorDivider(),
+            buildToolSections(),
           ],
         ),
       );
@@ -121,9 +235,21 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          buildLayerPanel(),
-          SizedBox(width: gutter),
-          buildToolsPanel(),
+          buildLayerPanel(layerWidth),
+          SizedBox(
+            width: gutter,
+            child: WorkspaceSplitHandle.vertical(
+              onDragUpdate: (delta) {
+                if (sharedWidth <= 0) {
+                  return;
+                }
+                final double next = (normalizedRatio + delta / sharedWidth)
+                    .clamp(minRatio, maxRatio);
+                splits?.onSai2LayerPanelWidthRatioChanged(next);
+              },
+            ),
+          ),
+          buildToolsPanel(toolsWidth),
         ],
       ),
     );
@@ -158,11 +284,16 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       ),
     );
 
-    final double rightColumnLeft = padding + columnWidth + gutter;
+    final double rightColumnLeft = padding + layerWidth + gutter;
 
     final List<Rect> hitRegions = <Rect>[
-      Rect.fromLTWH(padding, padding, columnWidth, columnHeight),
-      Rect.fromLTWH(rightColumnLeft, padding, columnWidth, columnHeight),
+      Rect.fromLTWH(padding, padding, math.max(0, layerWidth), columnHeight),
+      Rect.fromLTWH(
+        rightColumnLeft,
+        padding,
+        math.max(0, toolsWidth),
+        columnHeight,
+      ),
       Rect.fromLTWH(indicatorLeft, indicatorTop, indicatorSize, indicatorSize),
       Rect.fromLTWH(indicatorLeft, exitTop, indicatorSize, indicatorSize),
     ];

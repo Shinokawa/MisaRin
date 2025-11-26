@@ -37,11 +37,15 @@ class AppPreferences {
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
     this.showFpsOverlay = _defaultShowFpsOverlay,
     this.workspaceLayout = _defaultWorkspaceLayout,
+    this.floatingColorPanelHeight,
+    this.sai2ColorPanelHeight,
+    this.sai2ToolPanelSplit = _defaultSai2ToolPanelSplit,
+    this.sai2LayerPanelWidthSplit = _defaultSai2LayerPanelSplit,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 20;
+  static const int _version = 21;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -69,6 +73,8 @@ class AppPreferences {
   static const bool _defaultShowFpsOverlay = false;
   static const WorkspaceLayoutPreference _defaultWorkspaceLayout =
       WorkspaceLayoutPreference.floating;
+  static const double _defaultSai2ToolPanelSplit = 0.5;
+  static const double _defaultSai2LayerPanelSplit = 0.5;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -97,6 +103,9 @@ class AppPreferences {
   static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
   static const WorkspaceLayoutPreference defaultWorkspaceLayout =
       _defaultWorkspaceLayout;
+  static const double defaultSai2ToolPanelSplit = _defaultSai2ToolPanelSplit;
+  static const double defaultSai2LayerPanelSplit =
+      _defaultSai2LayerPanelSplit;
 
   static AppPreferences? _instance;
   static final ValueNotifier<bool> fpsOverlayEnabledNotifier =
@@ -125,6 +134,10 @@ class AppPreferences {
   int bucketAntialiasLevel;
   bool showFpsOverlay;
   WorkspaceLayoutPreference workspaceLayout;
+  double? floatingColorPanelHeight;
+  double? sai2ColorPanelHeight;
+  double sai2ToolPanelSplit;
+  double sai2LayerPanelWidthSplit;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -161,6 +174,21 @@ class AppPreferences {
               ? bytes[19] != 0
               : _defaultBucketSwallowColorLine;
           if (version >= 20 && bytes.length >= 26) {
+            final bool hasWorkspaceSplitPayload =
+                version >= 21 && bytes.length >= 32;
+            final double? decodedFloatingColorHeight =
+                hasWorkspaceSplitPayload
+                    ? _decodePanelExtent(bytes[26], bytes[27])
+                    : null;
+            final double? decodedSai2ColorHeight = hasWorkspaceSplitPayload
+                ? _decodePanelExtent(bytes[28], bytes[29])
+                : null;
+            final double decodedSai2ToolSplit = hasWorkspaceSplitPayload
+                ? _decodeRatioByte(bytes[30])
+                : _defaultSai2ToolPanelSplit;
+            final double decodedSai2LayerSplit = hasWorkspaceSplitPayload
+                ? _decodeRatioByte(bytes[31])
+                : _defaultSai2LayerPanelSplit;
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
             _instance = AppPreferences._(
@@ -193,6 +221,10 @@ class AppPreferences {
               bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
               showFpsOverlay: bytes[24] != 0,
               workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
+              floatingColorPanelHeight: decodedFloatingColorHeight,
+              sai2ColorPanelHeight: decodedSai2ColorHeight,
+              sai2ToolPanelSplit: decodedSai2ToolSplit,
+              sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
             );
             return _finalizeLoadedPreferences();
           }
@@ -228,6 +260,10 @@ class AppPreferences {
               brushToolsEraserMode: bytes[22] != 0,
               bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
               showFpsOverlay: bytes[24] != 0,
+              floatingColorPanelHeight: null,
+              sai2ColorPanelHeight: null,
+              sai2ToolPanelSplit: _defaultSai2ToolPanelSplit,
+              sai2LayerPanelWidthSplit: _defaultSai2LayerPanelSplit,
             );
             return _finalizeLoadedPreferences();
           }
@@ -707,6 +743,10 @@ class AppPreferences {
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
+              floatingColorPanelHeight: null,
+              sai2ColorPanelHeight: null,
+              sai2ToolPanelSplit: _defaultSai2ToolPanelSplit,
+              sai2LayerPanelWidthSplit: _defaultSai2LayerPanelSplit,
             );
             return _finalizeLoadedPreferences();
           }
@@ -729,6 +769,10 @@ class AppPreferences {
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
+              floatingColorPanelHeight: null,
+              sai2ColorPanelHeight: null,
+              sai2ToolPanelSplit: _defaultSai2ToolPanelSplit,
+              sai2LayerPanelWidthSplit: _defaultSai2LayerPanelSplit,
             );
             return _finalizeLoadedPreferences();
           }
@@ -756,6 +800,10 @@ class AppPreferences {
       colorLineColor: _defaultColorLineColor,
       bucketSwallowColorLine: _defaultBucketSwallowColorLine,
       workspaceLayout: _defaultWorkspaceLayout,
+      floatingColorPanelHeight: null,
+      sai2ColorPanelHeight: null,
+      sai2ToolPanelSplit: _defaultSai2ToolPanelSplit,
+      sai2LayerPanelWidthSplit: _defaultSai2LayerPanelSplit,
     );
     return _finalizeLoadedPreferences();
   }
@@ -801,6 +849,14 @@ class AppPreferences {
       prefs.strokeStabilizerStrength,
     );
     final int colorLineEncoded = _encodeColorLineColor(prefs.colorLineColor);
+    final int floatingColorEncoded =
+        _encodePanelExtent(prefs.floatingColorPanelHeight);
+    final int sai2ColorEncoded =
+        _encodePanelExtent(prefs.sai2ColorPanelHeight);
+    final int sai2ToolSplitEncoded =
+        _encodeRatioByte(prefs.sai2ToolPanelSplit);
+    final int sai2LayerSplitEncoded =
+        _encodeRatioByte(prefs.sai2LayerPanelWidthSplit);
 
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
@@ -829,6 +885,12 @@ class AppPreferences {
       _encodeAntialiasLevel(prefs.bucketAntialiasLevel),
       prefs.showFpsOverlay ? 1 : 0,
       _encodeWorkspaceLayoutPreference(prefs.workspaceLayout),
+      floatingColorEncoded & 0xff,
+      (floatingColorEncoded >> 8) & 0xff,
+      sai2ColorEncoded & 0xff,
+      (sai2ColorEncoded >> 8) & 0xff,
+      sai2ToolSplitEncoded,
+      sai2LayerSplitEncoded,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -905,6 +967,32 @@ class AppPreferences {
       default:
         return 0;
     }
+  }
+
+  static double? _decodePanelExtent(int low, int high) {
+    final int raw = (low & 0xff) | ((high & 0xff) << 8);
+    if (raw <= 0) {
+      return null;
+    }
+    return raw.toDouble();
+  }
+
+  static int _encodePanelExtent(double? value) {
+    if (value == null || value.isNaN || value <= 0) {
+      return 0;
+    }
+    final double clamped = value.clamp(0.0, 65535.0);
+    return clamped.round().clamp(0, 0xFFFF);
+  }
+
+  static double _decodeRatioByte(int value) {
+    final int clamped = value.clamp(0, 255);
+    return clamped / 255.0;
+  }
+
+  static int _encodeRatioByte(double value) {
+    final double clamped = value.clamp(0.0, 1.0);
+    return (clamped * 255).round().clamp(0, 255);
   }
 
   static double _decodePenStrokeWidthLegacy(int value) {

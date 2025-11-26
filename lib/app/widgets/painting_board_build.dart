@@ -327,6 +327,20 @@ mixin _PaintingBoardBuildMixin
           layerPanel: layerPanelData,
           exitButton: exitButtonWidget,
         );
+        final WorkspaceLayoutSplits workspaceSplits = WorkspaceLayoutSplits(
+          floatingColorPanelHeight: _floatingColorPanelHeight,
+          floatingColorPanelMeasuredHeight: _floatingColorPanelMeasuredHeight,
+          onFloatingColorPanelHeightChanged: _setFloatingColorPanelHeight,
+          onFloatingColorPanelMeasured: _handleFloatingColorPanelMeasured,
+          sai2ColorPanelHeight: _sai2ColorPanelHeight,
+          sai2ColorPanelMeasuredHeight: _sai2ColorPanelMeasuredHeight,
+          onSai2ColorPanelHeightChanged: _setSai2ColorPanelHeight,
+          onSai2ColorPanelMeasured: _handleSai2ColorPanelMeasured,
+          sai2ToolbarSectionRatio: _sai2ToolSectionRatio,
+          onSai2ToolbarSectionRatioChanged: _setSai2ToolSectionRatio,
+          sai2LayerPanelWidthRatio: _sai2LayerPanelWidthRatio,
+          onSai2LayerPanelWidthRatioChanged: _setSai2LayerPanelWidthRatio,
+        );
         final PaintingToolbarMetrics toolbarMetrics = PaintingToolbarMetrics(
           toolbarLayout: activeToolbarLayout,
           toolSettingsSize: _toolSettingsCardSize,
@@ -339,6 +353,7 @@ mixin _PaintingBoardBuildMixin
           toolSettingsLeft: toolSettingsLeft,
           sidebarLeft: sidebarLeft,
           toolSettingsMaxWidth: toolSettingsMaxWidth,
+          workspaceSplits: workspaceSplits,
         );
         final PaintingToolbarLayoutDelegate toolbarLayoutDelegate =
             toolbarStyle == PaintingToolbarLayoutStyle.sai2

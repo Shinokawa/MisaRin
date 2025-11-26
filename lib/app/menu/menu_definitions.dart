@@ -452,6 +452,13 @@ class MenuDefinitionBuilder {
       label: '工作区',
       entries: <MenuEntry>[
         MenuSubmenuEntry(label: '切换工作区', entries: entries),
+        if (handler.resetWorkspaceLayout != null) ...[
+          const MenuSeparatorEntry(),
+          MenuActionEntry(
+            label: '复位工作区',
+            action: handler.resetWorkspaceLayout,
+          ),
+        ],
       ],
     );
   }

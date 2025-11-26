@@ -287,6 +287,14 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   final List<_PaletteCardEntry> _paletteCards = <_PaletteCardEntry>[];
   int _paletteCardSerial = 0;
   bool _referenceCardResizeInProgress = false;
+  double? _floatingColorPanelHeight;
+  double? _floatingColorPanelMeasuredHeight;
+  double? _sai2ColorPanelHeight;
+  double? _sai2ColorPanelMeasuredHeight;
+  double _sai2ToolSectionRatio =
+      AppPreferences.defaultSai2ToolPanelSplit;
+  double _sai2LayerPanelWidthRatio =
+      AppPreferences.defaultSai2LayerPanelSplit;
 
   bool _isInsidePaletteCardArea(Offset workspacePosition) {
     for (final _PaletteCardEntry entry in _paletteCards) {
@@ -1399,6 +1407,95 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     }
   }
 
+  void _handleFloatingColorPanelMeasured(double height) {
+    if (!height.isFinite || height <= 0) {
+      return;
+    }
+    final double? current = _floatingColorPanelMeasuredHeight;
+    if (current != null && (current - height).abs() < 0.5) {
+      return;
+    }
+    setState(() => _floatingColorPanelMeasuredHeight = height);
+  }
+
+  void _handleSai2ColorPanelMeasured(double height) {
+    if (!height.isFinite || height <= 0) {
+      return;
+    }
+    final double? current = _sai2ColorPanelMeasuredHeight;
+    if (current != null && (current - height).abs() < 0.5) {
+      return;
+    }
+    setState(() => _sai2ColorPanelMeasuredHeight = height);
+  }
+
+  void _setFloatingColorPanelHeight(double? value) {
+    double? sanitized = value;
+    if (sanitized != null && (!sanitized.isFinite || sanitized <= 0)) {
+      sanitized = null;
+    }
+    if (_floatingColorPanelHeight == sanitized) {
+      return;
+    }
+    setState(() => _floatingColorPanelHeight = sanitized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.floatingColorPanelHeight = sanitized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2ColorPanelHeight(double? value) {
+    double? sanitized = value;
+    if (sanitized != null && (!sanitized.isFinite || sanitized <= 0)) {
+      sanitized = null;
+    }
+    if (_sai2ColorPanelHeight == sanitized) {
+      return;
+    }
+    setState(() => _sai2ColorPanelHeight = sanitized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2ColorPanelHeight = sanitized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2ToolSectionRatio(double value) {
+    final double normalized = value.clamp(0.0, 1.0);
+    if ((_sai2ToolSectionRatio - normalized).abs() < 0.0001) {
+      return;
+    }
+    setState(() => _sai2ToolSectionRatio = normalized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2ToolPanelSplit = normalized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2LayerPanelWidthRatio(double value) {
+    final double normalized = value.clamp(0.0, 1.0);
+    if ((_sai2LayerPanelWidthRatio - normalized).abs() < 0.0001) {
+      return;
+    }
+    setState(() => _sai2LayerPanelWidthRatio = normalized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2LayerPanelWidthSplit = normalized;
+    unawaited(AppPreferences.save());
+  }
+
+  void resetWorkspaceLayout() {
+    final AppPreferences prefs = AppPreferences.instance;
+    setState(() {
+      _floatingColorPanelHeight = null;
+      _sai2ColorPanelHeight = null;
+      _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
+      _sai2LayerPanelWidthRatio =
+          AppPreferences.defaultSai2LayerPanelSplit;
+    });
+    prefs.floatingColorPanelHeight = null;
+    prefs.sai2ColorPanelHeight = null;
+    prefs.sai2ToolPanelSplit = AppPreferences.defaultSai2ToolPanelSplit;
+    prefs.sai2LayerPanelWidthSplit =
+        AppPreferences.defaultSai2LayerPanelSplit;
+    unawaited(AppPreferences.save());
+  }
+
   void _initializeViewportIfNeeded() {
     if (_viewportInitialized) {
       return;
@@ -1482,6 +1579,11 @@ class PaintingBoardState extends _PaintingBoardBase
     _brushShape = prefs.brushShape;
     _colorLineColor = prefs.colorLineColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
+    _floatingColorPanelHeight = prefs.floatingColorPanelHeight;
+    _sai2ColorPanelHeight = prefs.sai2ColorPanelHeight;
+    _sai2ToolSectionRatio = prefs.sai2ToolPanelSplit.clamp(0.0, 1.0);
+    _sai2LayerPanelWidthRatio =
+        prefs.sai2LayerPanelWidthSplit.clamp(0.0, 1.0);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();

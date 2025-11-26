@@ -1035,6 +1035,10 @@ class CanvasPageState extends State<CanvasPage> {
       },
       workspaceLayoutPreference: _workspaceLayoutPreference,
       switchWorkspaceLayout: _setWorkspaceLayoutPreference,
+      resetWorkspaceLayout: () {
+        final board = _activeBoard;
+        board?.resetWorkspaceLayout();
+      },
     );
 
     return MenuActionBinding(
