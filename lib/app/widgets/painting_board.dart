@@ -763,6 +763,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _setActiveTool(CanvasTool tool);
   void _convertMagicWandPreviewToSelection();
+  void _convertSelectionToMagicWandPreview();
   void _clearMagicWandPreview();
   void _resetSelectionPreview();
   void _resetPolygonState();

@@ -132,6 +132,30 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _finishSelectionUndo();
   }
 
+  @override
+  void _convertSelectionToMagicWandPreview() {
+    if (_selectionPath == null && _selectionMask == null) {
+      return;
+    }
+    Uint8List? mask = _selectionMask;
+    Path? path = _selectionPath;
+    if (mask == null && path == null) {
+      return;
+    }
+    if (mask == null && path != null) {
+      mask = _maskFromPath(path);
+    }
+    if (path == null && mask != null) {
+      path = _pathFromMask(mask, _controller.width);
+    }
+    if (mask == null || path == null) {
+      return;
+    }
+    _magicWandPreviewMask = mask;
+    _magicWandPreviewPath = path;
+    setSelectionState(path: null, mask: null);
+  }
+
   void _applyMagicWandPreview(Offset position) {
     unawaited(_applyMagicWandPreviewAsync(position));
   }

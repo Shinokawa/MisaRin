@@ -124,6 +124,9 @@ mixin _PaintingBoardInteractionMixin
       } else if (tool != CanvasTool.magicWand) {
         _clearMagicWandPreview();
       }
+      if (tool == CanvasTool.magicWand) {
+        _convertSelectionToMagicWandPreview();
+      }
       if (tool != CanvasTool.selection) {
         _resetSelectionPreview();
         _resetPolygonState();
