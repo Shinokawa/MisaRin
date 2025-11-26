@@ -41,12 +41,19 @@ class BitmapCanvasController extends ChangeNotifier {
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
-       _isMultithreaded = creationLogic == CanvasCreationLogic.multiThread,
+       _isMultithreaded = CanvasSettings.supportsMultithreadedCanvas &&
+            creationLogic == CanvasCreationLogic.multiThread,
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
-         multithreaded: creationLogic == CanvasCreationLogic.multiThread,
+         multithreaded: CanvasSettings.supportsMultithreadedCanvas &&
+              creationLogic == CanvasCreationLogic.multiThread,
        ) {
+    if (creationLogic == CanvasCreationLogic.multiThread && !_isMultithreaded) {
+      debugPrint(
+        'CanvasPaintingWorker 未启用：当前平台不支持多线程画布，已自动回退到单线程。',
+      );
+    }
     _tileCache = RasterTileCache(
       surfaceWidth: _width,
       surfaceHeight: _height,
@@ -84,7 +91,15 @@ class BitmapCanvasController extends ChangeNotifier {
   double _stylusCurve = 0.85;
   static const double _kStylusSmoothing = 0.55;
   CanvasPaintingWorker? _paintingWorker;
-  Future<void> _paintingQueue = Future<void>.value();
+  _PendingWorkerDrawBatch? _pendingWorkerDrawBatch;
+  bool _pendingWorkerDrawScheduled = false;
+  final Map<int, PaintingWorkerPatch?> _pendingWorkerPatches =
+      <int, PaintingWorkerPatch?>{};
+  int _paintingWorkerNextSequence = 0;
+  int _paintingWorkerNextApplySequence = 0;
+  String? _paintingWorkerSyncedLayerId;
+  int _paintingWorkerSyncedRevision = -1;
+  bool _paintingWorkerSelectionDirty = true;
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -759,25 +774,176 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 
-  void _schedulePaintingTask(Future<void> Function() task) {
-    _paintingQueue = _paintingQueue.then((_) async {
-      try {
-        await task();
-      } catch (error, stackTrace) {
-        FlutterError.reportError(
-          FlutterErrorDetails(
-            exception: error,
-            stack: stackTrace,
-            library: 'CanvasPaintingWorker',
-            context: ErrorDescription('while running painting task'),
-          ),
-        );
-      }
-    });
+  void _enqueuePaintingWorkerCommand({
+    required Rect region,
+    required PaintingDrawCommand command,
+  }) {
+    if (region.isEmpty) {
+      return;
+    }
+    final _PendingWorkerDrawBatch batch =
+        _pendingWorkerDrawBatch ??= _PendingWorkerDrawBatch(region);
+    batch.add(region, command);
+    _scheduleWorkerDrawFlush();
+  }
+
+  void _scheduleWorkerDrawFlush() {
+    if (_pendingWorkerDrawScheduled) {
+      return;
+    }
+    _pendingWorkerDrawScheduled = true;
+    final SchedulerBinding? scheduler = SchedulerBinding.instance;
+    if (scheduler == null) {
+      scheduleMicrotask(_processPendingWorkerDrawCommands);
+    } else {
+      scheduler.scheduleFrameCallback((_) {
+        _processPendingWorkerDrawCommands();
+      });
+    }
+  }
+
+  void _processPendingWorkerDrawCommands() {
+    _pendingWorkerDrawScheduled = false;
+    final _PendingWorkerDrawBatch? batch = _pendingWorkerDrawBatch;
+    if (batch == null || batch.commands.isEmpty) {
+      _pendingWorkerDrawBatch = null;
+      return;
+    }
+    _pendingWorkerDrawBatch = null;
+    final Rect region = batch.region;
+    final List<PaintingDrawCommand> commands =
+        List<PaintingDrawCommand>.from(batch.commands);
+    _enqueueWorkerPatchFuture(
+      _executeWorkerDraw(region: region, commands: commands),
+      onError: () => _applyPaintingCommandsSynchronously(region, commands),
+    );
+  }
+
+  void _flushPendingPaintingCommands() {
+    if (_pendingWorkerDrawBatch == null ||
+        _pendingWorkerDrawBatch!.commands.isEmpty) {
+      _pendingWorkerDrawBatch = null;
+      _pendingWorkerDrawScheduled = false;
+      return;
+    }
+    _processPendingWorkerDrawCommands();
   }
 
   CanvasPaintingWorker _ensurePaintingWorker() {
     return _paintingWorker ??= CanvasPaintingWorker();
+  }
+
+  Future<void> _ensureWorkerSurfaceSynced() async {
+    if (!_isMultithreaded) {
+      return;
+    }
+    final CanvasPaintingWorker worker = _ensurePaintingWorker();
+    final BitmapLayerState layer = _activeLayer;
+    if (_paintingWorkerSyncedLayerId == layer.id &&
+        _paintingWorkerSyncedRevision == layer.revision) {
+      return;
+    }
+    final Uint32List snapshot = Uint32List.fromList(layer.surface.pixels);
+    await worker.setSurface(
+      width: _width,
+      height: _height,
+      pixels: snapshot,
+    );
+    _paintingWorkerSyncedLayerId = layer.id;
+    _paintingWorkerSyncedRevision = layer.revision;
+  }
+
+  Future<void> _ensureWorkerSelectionMaskSynced() async {
+    if (!_isMultithreaded || !_paintingWorkerSelectionDirty) {
+      return;
+    }
+    final CanvasPaintingWorker worker = _ensurePaintingWorker();
+    await worker.updateSelectionMask(_selectionMask);
+    _paintingWorkerSelectionDirty = false;
+  }
+
+  void _resetWorkerSurfaceSync() {
+    _paintingWorkerSyncedLayerId = null;
+    _paintingWorkerSyncedRevision = -1;
+    _paintingWorkerSelectionDirty = true;
+  }
+
+  void _enqueueWorkerPatchFuture(
+    Future<PaintingWorkerPatch?> future, {
+    VoidCallback? onError,
+  }) {
+    final int sequence = _paintingWorkerNextSequence++;
+    future.then((PaintingWorkerPatch? patch) {
+      if (patch == null) {
+        onError?.call();
+      }
+      _pendingWorkerPatches[sequence] = patch;
+      _processPendingWorkerPatches();
+    }).catchError((Object error, StackTrace stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'CanvasPaintingWorker',
+          context: ErrorDescription('while running painting task'),
+        ),
+      );
+      onError?.call();
+      _pendingWorkerPatches[sequence] = null;
+      _processPendingWorkerPatches();
+    });
+  }
+
+  void _processPendingWorkerPatches() {
+    while (_pendingWorkerPatches
+        .containsKey(_paintingWorkerNextApplySequence)) {
+      final PaintingWorkerPatch? patch =
+          _pendingWorkerPatches.remove(_paintingWorkerNextApplySequence);
+      if (patch != null) {
+        _applyWorkerPatch(patch);
+      }
+      _paintingWorkerNextApplySequence++;
+    }
+  }
+
+  void _applyWorkerPatch(PaintingWorkerPatch patch) {
+    if (patch.width <= 0 || patch.height <= 0 || patch.pixels.isEmpty) {
+      return;
+    }
+    final int effectiveLeft = math.max(0, math.min(patch.left, _width));
+    final int effectiveTop = math.max(0, math.min(patch.top, _height));
+    final int maxRight = math.min(effectiveLeft + patch.width, _width);
+    final int maxBottom = math.min(effectiveTop + patch.height, _height);
+    if (maxRight <= effectiveLeft || maxBottom <= effectiveTop) {
+      return;
+    }
+    final Uint32List destination = _activeSurface.pixels;
+    final int copyWidth = maxRight - effectiveLeft;
+    final int copyHeight = maxBottom - effectiveTop;
+    final int srcLeftOffset = effectiveLeft - patch.left;
+    final int srcTopOffset = effectiveTop - patch.top;
+    for (int row = 0; row < copyHeight; row++) {
+      final int srcRow = srcTopOffset + row;
+      final int destY = effectiveTop + row;
+      final int srcOffset = srcRow * patch.width + srcLeftOffset;
+      final int destOffset = destY * _width + effectiveLeft;
+      destination.setRange(
+        destOffset,
+        destOffset + copyWidth,
+        patch.pixels,
+        srcOffset,
+      );
+    }
+    _activeLayer.revision += 1;
+    _paintingWorkerSyncedLayerId = _activeLayer.id;
+    _paintingWorkerSyncedRevision = _activeLayer.revision;
+    final Rect dirtyRegion = Rect.fromLTWH(
+      effectiveLeft.toDouble(),
+      effectiveTop.toDouble(),
+      copyWidth.toDouble(),
+      copyHeight.toDouble(),
+    );
+    _markDirty(region: dirtyRegion);
   }
 
   void _scheduleTileImageDisposal() {
@@ -988,59 +1154,215 @@ class BitmapCanvasController extends ChangeNotifier {
     }
   }
 
-  Future<void> _executeDrawCommand({
+  Future<PaintingWorkerPatch?> _executeWorkerDraw({
     required Rect region,
-    required PaintingDrawCommand command,
+    required List<PaintingDrawCommand> commands,
   }) async {
-    final _SurfacePatch? patch = _surfacePatchForRegion(region);
-    if (patch == null) {
-      return;
+    if (commands.isEmpty) {
+      return null;
     }
-    final Uint32List updated = await _ensurePaintingWorker().drawPatch(
-      PaintingDrawPatchRequest(
-        width: patch.width,
-        height: patch.height,
-        pixels: patch.toPixelData(),
-        mask: patch.toMaskData(),
-        command: command,
+    final RasterIntRect bounds = _clipRectToSurface(region);
+    if (bounds.isEmpty) {
+      return null;
+    }
+    await _ensureWorkerSurfaceSynced();
+    await _ensureWorkerSelectionMaskSynced();
+    final PaintingWorkerPatch patch = await _ensurePaintingWorker().drawPatch(
+      PaintingDrawRequest(
+        left: bounds.left,
+        top: bounds.top,
+        width: bounds.width,
+        height: bounds.height,
+        commands: commands,
       ),
     );
-    _applySurfacePatch(patch, updated);
+    return patch;
+  }
+
+  void _applyPaintingCommandsSynchronously(
+    Rect region,
+    List<PaintingDrawCommand> commands,
+  ) {
+    if (commands.isEmpty) {
+      return;
+    }
+    final BitmapSurface surface = _activeSurface;
+    final Uint8List? mask = _selectionMask;
+    bool anyChange = false;
+    for (final PaintingDrawCommand command in commands) {
+      final Color color = Color(command.color);
+      final bool erase = command.erase;
+      switch (command.type) {
+        case PaintingDrawCommandType.brushStamp:
+          final Offset? center = command.center;
+          final double? radius = command.radius;
+          final int? shapeIndex = command.shapeIndex;
+          if (center == null || radius == null || shapeIndex == null) {
+            continue;
+          }
+          final int clampedShape =
+              shapeIndex.clamp(0, BrushShape.values.length - 1);
+          surface.drawBrushStamp(
+            center: center,
+            radius: radius,
+            color: color,
+            shape: BrushShape.values[clampedShape],
+            mask: mask,
+            antialiasLevel: command.antialiasLevel,
+            erase: erase,
+          );
+          anyChange = true;
+          break;
+        case PaintingDrawCommandType.line:
+          final Offset? start = command.start;
+          final Offset? end = command.end;
+          final double? radius = command.radius;
+          if (start == null || end == null || radius == null) {
+            continue;
+          }
+          surface.drawLine(
+            a: start,
+            b: end,
+            radius: radius,
+            color: color,
+            mask: mask,
+            antialiasLevel: command.antialiasLevel,
+            includeStartCap: command.includeStartCap ?? true,
+            erase: erase,
+          );
+          anyChange = true;
+          break;
+        case PaintingDrawCommandType.variableLine:
+          final Offset? start = command.start;
+          final Offset? end = command.end;
+          final double? startRadius = command.startRadius;
+          final double? endRadius = command.endRadius;
+          if (start == null || end == null || startRadius == null ||
+              endRadius == null) {
+            continue;
+          }
+          surface.drawVariableLine(
+            a: start,
+            b: end,
+            startRadius: startRadius,
+            endRadius: endRadius,
+            color: color,
+            mask: mask,
+            antialiasLevel: command.antialiasLevel,
+            includeStartCap: command.includeStartCap ?? true,
+            erase: erase,
+          );
+          anyChange = true;
+          break;
+        case PaintingDrawCommandType.stampSegment:
+          final Offset? start = command.start;
+          final Offset? end = command.end;
+          final double? startRadius = command.startRadius;
+          final double? endRadius = command.endRadius;
+          final int? shapeIndex = command.shapeIndex;
+          if (start == null || end == null || startRadius == null ||
+              endRadius == null || shapeIndex == null) {
+            continue;
+          }
+          final int clampedShape =
+              shapeIndex.clamp(0, BrushShape.values.length - 1);
+          _applyStampSegmentFallback(
+            surface: surface,
+            start: start,
+            end: end,
+            startRadius: startRadius,
+            endRadius: endRadius,
+            includeStart: command.includeStartCap ?? true,
+            shape: BrushShape.values[clampedShape],
+            color: color,
+            mask: mask,
+            antialias: command.antialiasLevel,
+            erase: erase,
+          );
+          anyChange = true;
+          break;
+      }
+    }
+    if (!anyChange) {
+      return;
+    }
+    _resetWorkerSurfaceSync();
+    _activeLayer.revision += 1;
     _markDirty(region: region);
   }
 
-  Future<void> _executeFloodFill({
+  void _applyStampSegmentFallback({
+    required BitmapSurface surface,
+    required Offset start,
+    required Offset end,
+    required double startRadius,
+    required double endRadius,
+    required bool includeStart,
+    required BrushShape shape,
+    required Color color,
+    required Uint8List? mask,
+    required int antialias,
+    required bool erase,
+  }) {
+    final double distance = (end - start).distance;
+    if (!distance.isFinite || distance <= 0.0001) {
+      surface.drawBrushStamp(
+        center: end,
+        radius: endRadius,
+        color: color,
+        shape: shape,
+        mask: mask,
+        antialiasLevel: antialias,
+        erase: erase,
+      );
+      return;
+    }
+    final double maxRadius = math.max(
+      math.max(startRadius.abs(), endRadius.abs()),
+      0.01,
+    );
+    final double spacing = _strokeStampSpacing(maxRadius);
+    final int samples = math.max(1, (distance / spacing).ceil());
+    final int startIndex = includeStart ? 0 : 1;
+    for (int i = startIndex; i <= samples; i++) {
+      final double t = samples == 0 ? 1.0 : (i / samples);
+      final double radius = ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
+      final double sampleX = ui.lerpDouble(start.dx, end.dx, t) ?? end.dx;
+      final double sampleY = ui.lerpDouble(start.dy, end.dy, t) ?? end.dy;
+      surface.drawBrushStamp(
+        center: Offset(sampleX, sampleY),
+        radius: radius,
+        color: color,
+        shape: shape,
+        mask: mask,
+        antialiasLevel: antialias,
+        erase: erase,
+      );
+    }
+  }
+
+  Future<PaintingWorkerPatch?> _executeFloodFill({
     required Offset start,
     required Color color,
     Color? targetColor,
     bool contiguous = true,
   }) async {
-    final Uint32List snapshot = Uint32List.fromList(_activeSurface.pixels);
-    final TransferableTypedData pixelData = TransferableTypedData.fromList(
-      <Uint8List>[Uint8List.view(snapshot.buffer)],
-    );
-    TransferableTypedData? maskData;
-    final Uint8List? selection = _selectionMask;
-    if (selection != null) {
-      maskData = TransferableTypedData.fromList(
-        <Uint8List>[Uint8List.fromList(selection)],
-      );
-    }
-    final Uint32List result = await _ensurePaintingWorker().floodFill(
+    await _ensureWorkerSurfaceSynced();
+    await _ensureWorkerSelectionMaskSynced();
+    final PaintingWorkerPatch patch = await _ensurePaintingWorker().floodFill(
       PaintingFloodFillRequest(
         width: _width,
         height: _height,
-        pixels: pixelData,
+        pixels: null,
         startX: start.dx.floor(),
         startY: start.dy.floor(),
         colorValue: color.value,
         targetColorValue: targetColor?.value,
         contiguous: contiguous,
-        mask: maskData,
+        mask: null,
       ),
     );
-    _activeSurface.pixels.setAll(0, result);
-    _markDirty();
+    return patch;
   }
 
   Future<Uint8List?> _executeSelectionMask({
@@ -1095,5 +1417,22 @@ class _SurfacePatch {
       return null;
     }
     return TransferableTypedData.fromList(<Uint8List>[data]);
+  }
+}
+
+class _PendingWorkerDrawBatch {
+  _PendingWorkerDrawBatch(Rect region) : region = region;
+
+  Rect region;
+  final List<PaintingDrawCommand> commands = <PaintingDrawCommand>[];
+
+  void add(Rect rect, PaintingDrawCommand command) {
+    commands.add(command);
+    region = Rect.fromLTRB(
+      math.min(region.left, rect.left),
+      math.min(region.top, rect.top),
+      math.max(region.right, rect.right),
+      math.max(region.bottom, rect.bottom),
+    );
   }
 }

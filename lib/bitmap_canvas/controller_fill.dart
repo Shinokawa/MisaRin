@@ -5,6 +5,7 @@ void _fillSetSelectionMask(BitmapCanvasController controller, Uint8List? mask) {
     throw ArgumentError('Selection mask size mismatch');
   }
   controller._selectionMask = mask;
+  controller._paintingWorkerSelectionDirty = true;
 }
 
 void _fillFloodFill(
@@ -65,14 +66,25 @@ void _fillFloodFill(
     );
     if (!requiresMaskFill) {
       if (controller.isMultithreaded) {
-        controller._schedulePaintingTask(() async {
-          await controller._executeFloodFill(
+        controller._enqueueWorkerPatchFuture(
+          controller._executeFloodFill(
             start: Offset(x.toDouble(), y.toDouble()),
             color: color,
             targetColor: baseColor,
             contiguous: contiguous,
-          );
-        });
+          ),
+          onError: () {
+            controller._activeSurface.floodFill(
+              start: Offset(x.toDouble(), y.toDouble()),
+              color: color,
+              targetColor: baseColor,
+              contiguous: contiguous,
+              mask: controller._selectionMask,
+            );
+            controller._resetWorkerSurfaceSync();
+            controller._markDirty();
+          },
+        );
       } else {
         controller._activeSurface.floodFill(
           start: Offset(x.toDouble(), y.toDouble()),

@@ -255,14 +255,15 @@ class CanvasRasterBackend {
       return;
     }
     _worker ??= CanvasCompositeWorker();
+    final List<CompositeRegionPayload> payloadRegions =
+        _buildCompositeRegions(areas, layers);
     final List<CompositeRegionResult> results =
         await _worker!.composite(
           CompositeWorkPayload(
             width: _width,
             height: _height,
-            layers: _snapshotLayers(layers),
+            regions: payloadRegions,
             requiresFullSurface: requiresFullSurface,
-            regions: areas,
             translatingLayerId: translatingLayerId,
           ),
         );
@@ -315,20 +316,45 @@ class CanvasRasterBackend {
     _clipMaskBuffer = null;
   }
 
-  List<CompositeLayerPayload> _snapshotLayers(
+  List<CompositeRegionPayload> _buildCompositeRegions(
+    List<RasterIntRect> areas,
     List<BitmapLayerState> layers,
   ) {
-    return <CompositeLayerPayload>[
-      for (final BitmapLayerState layer in layers)
-        CompositeLayerPayload(
-          id: layer.id,
-          visible: layer.visible,
-          opacity: layer.opacity,
-          clippingMask: layer.clippingMask,
-          blendModeIndex: layer.blendMode.index,
-          pixels: Uint32List.fromList(layer.surface.pixels),
+    return <CompositeRegionPayload>[
+      for (final RasterIntRect area in areas)
+        CompositeRegionPayload(
+          rect: area,
+          layers: <CompositeRegionLayerPayload>[
+            for (final BitmapLayerState layer in layers)
+              CompositeRegionLayerPayload(
+                id: layer.id,
+                visible: layer.visible,
+                opacity: layer.opacity,
+                clippingMask: layer.clippingMask,
+                blendModeIndex: layer.blendMode.index,
+                pixels: _copyLayerRegion(layer.surface, area),
+              ),
+          ],
         ),
     ];
+  }
+
+  Uint32List _copyLayerRegion(BitmapSurface surface, RasterIntRect rect) {
+    final int regionWidth = rect.width;
+    final int regionHeight = rect.height;
+    final Uint32List pixels = Uint32List(regionWidth * regionHeight);
+    final Uint32List source = surface.pixels;
+    for (int row = 0; row < regionHeight; row++) {
+      final int srcOffset = (rect.top + row) * _width + rect.left;
+      final int dstOffset = row * regionWidth;
+      pixels.setRange(
+        dstOffset,
+        dstOffset + regionWidth,
+        source,
+        srcOffset,
+      );
+    }
+    return pixels;
   }
 
   Uint8List copyTileRgba(RasterIntRect rect) {

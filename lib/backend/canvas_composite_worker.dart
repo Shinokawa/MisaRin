@@ -6,8 +6,8 @@ import '../bitmap_canvas/bitmap_blend_utils.dart' as blend_utils;
 import '../bitmap_canvas/raster_int_rect.dart';
 import '../canvas/canvas_layer.dart';
 
-class CompositeLayerPayload {
-  const CompositeLayerPayload({
+class CompositeRegionLayerPayload {
+  const CompositeRegionLayerPayload({
     required this.id,
     required this.visible,
     required this.opacity,
@@ -27,21 +27,29 @@ class CompositeLayerPayload {
       CanvasLayerBlendMode.values[blendModeIndex];
 }
 
+class CompositeRegionPayload {
+  const CompositeRegionPayload({
+    required this.rect,
+    required this.layers,
+  });
+
+  final RasterIntRect rect;
+  final List<CompositeRegionLayerPayload> layers;
+}
+
 class CompositeWorkPayload {
   const CompositeWorkPayload({
     required this.width,
     required this.height,
-    required this.layers,
+    required this.regions,
     required this.requiresFullSurface,
-    this.regions,
     this.translatingLayerId,
   });
 
   final int width;
   final int height;
-  final List<CompositeLayerPayload> layers;
+  final List<CompositeRegionPayload> regions;
   final bool requiresFullSurface;
-  final List<RasterIntRect>? regions;
   final String? translatingLayerId;
 }
 
@@ -134,6 +142,7 @@ class CanvasCompositeWorker {
   }
 }
 
+@pragma('vm:entry-point')
 void _compositeWorkerMain(SendPort replyPort) {
   final ReceivePort commandPort = ReceivePort();
   replyPort.send(commandPort.sendPort);
@@ -186,16 +195,13 @@ class _CompositeWorkerError {
 }
 
 List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
-  final int width = payload.width;
-  final int height = payload.height;
-  final List<RasterIntRect> areas = payload.requiresFullSurface
-      ? <RasterIntRect>[RasterIntRect(0, 0, width, height)]
-      : (payload.regions ?? const <RasterIntRect>[]);
-  if (areas.isEmpty) {
+  if (payload.regions.isEmpty) {
     return const <CompositeRegionResult>[];
   }
-  final List<CompositeRegionResult> regions = <CompositeRegionResult>[];
-  for (final RasterIntRect area in areas) {
+  final int surfaceWidth = payload.width;
+  final List<CompositeRegionResult> results = <CompositeRegionResult>[];
+  for (final CompositeRegionPayload region in payload.regions) {
+    final RasterIntRect area = region.rect;
     final int areaWidth = area.width;
     final int areaHeight = area.height;
     if (areaWidth <= 0 || areaHeight <= 0) {
@@ -203,15 +209,16 @@ List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
     }
     final Uint32List composite = Uint32List(areaWidth * areaHeight);
     final Uint8List clipMask = Uint8List(areaWidth * areaHeight);
-    for (int y = area.top; y < area.bottom; y++) {
-      final int rowOffset = y * width;
-      final int localRow = y - area.top;
-      for (int x = area.left; x < area.right; x++) {
-        final int index = rowOffset + x;
-        final int localIndex = localRow * areaWidth + (x - area.left);
+    for (int localY = 0; localY < areaHeight; localY++) {
+      final int globalY = area.top + localY;
+      final int rowOffset = localY * areaWidth;
+      for (int localX = 0; localX < areaWidth; localX++) {
+        final int localIndex = rowOffset + localX;
+        final int globalIndex =
+            (globalY * surfaceWidth) + (area.left + localX);
         int color = 0;
         bool initialized = false;
-        for (final CompositeLayerPayload layer in payload.layers) {
+        for (final CompositeRegionLayerPayload layer in region.layers) {
           if (!layer.visible) {
             continue;
           }
@@ -219,14 +226,14 @@ List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
               layer.id == payload.translatingLayerId) {
             continue;
           }
-          final double layerOpacity = _clampUnit(layer.opacity);
-          if (layerOpacity <= 0) {
+          final double opacity = _clampUnit(layer.opacity);
+          if (opacity <= 0) {
             if (!layer.clippingMask) {
               clipMask[localIndex] = 0;
             }
             continue;
           }
-          final int src = layer.pixels[index];
+          final int src = layer.pixels[localIndex];
           final int srcA = (src >> 24) & 0xff;
           if (srcA == 0) {
             if (!layer.clippingMask) {
@@ -235,7 +242,7 @@ List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
             continue;
           }
 
-          double totalOpacity = layerOpacity;
+          double totalOpacity = opacity;
           if (layer.clippingMask) {
             final int maskAlpha = clipMask[localIndex];
             if (maskAlpha == 0) {
@@ -269,17 +276,16 @@ List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
               color,
               effectiveColor,
               layer.blendMode,
-              index,
+              globalIndex,
             );
           }
         }
-
         composite[localIndex] = initialized ? color : 0;
       }
     }
-    regions.add(CompositeRegionResult(rect: area, pixels: composite));
+    results.add(CompositeRegionResult(rect: area, pixels: composite));
   }
-  return regions;
+  return results;
 }
 
 double _clampUnit(double value) {
