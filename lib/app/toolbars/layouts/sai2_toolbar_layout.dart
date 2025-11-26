@@ -73,7 +73,7 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       Widget buildScrollableContent(Widget child) {
         return Scrollbar(
           child: SingleChildScrollView(
-            primary: false,
+            primary: true,
             child: Align(
               alignment: Alignment.topLeft,
               child: child,

@@ -145,6 +145,15 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
+    final BorderRadius borderRadius = BorderRadius.circular(12);
+    final Color fallbackColor = theme.brightness.isDark
+        ? const Color(0xFF1F1F1F)
+        : Colors.white;
+    Color backgroundColor = theme.cardColor;
+    if (backgroundColor.alpha != 0xFF) {
+      backgroundColor = fallbackColor;
+    }
+
     Widget content;
     switch (widget.activeTool) {
       case CanvasTool.pen:
@@ -256,16 +265,31 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         break;
     }
 
+    Widget padded = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        widthFactor: 1,
+        child: content,
+      ),
+    );
+    if (!widget.compactLayout) {
+      padded = DecoratedBox(
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: borderRadius,
+          border: Border.all(
+            color: theme.brightness.isDark
+                ? Colors.white.withOpacity(0.12)
+                : Colors.black.withOpacity(0.08),
+          ),
+        ),
+        child: padded,
+      );
+    }
     return MeasuredSize(
       onChanged: widget.onSizeChanged,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          widthFactor: 1,
-          child: content,
-        ),
-      ),
+      child: padded,
     );
   }
 
@@ -385,6 +409,26 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       divisions: max,
       onChanged: (raw) => onChanged(raw.round()),
     );
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(label, style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          Expanded(child: slider),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 44,
+            child: Text(
+              '$value',
+              textAlign: TextAlign.end,
+              style: theme.typography.caption,
+            ),
+          ),
+        ],
+      );
+    }
     return _buildSliderSection(
       theme,
       label: label,
@@ -479,21 +523,33 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       );
     }
 
-    final List<Widget> columnChildren = <Widget>[
-      _buildSliderSection(
-        theme,
-        label: '笔刷大小',
-        valueText: '$brushLabel px',
-        slider: slider,
-        tooltipText: '笔刷大小：$brushLabel px',
-      ),
-      const SizedBox(height: 8),
-      widget.compactLayout ? buildCompactAdjustRow() : buildStandardAdjustRow(),
-    ];
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('笔刷大小', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          Expanded(child: slider),
+          const SizedBox(width: 8),
+          buildStandardAdjustRow(),
+        ],
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: columnChildren,
+      children: [
+        _buildSliderSection(
+          theme,
+          label: '笔刷大小',
+          valueText: '$brushLabel px',
+          slider: slider,
+          tooltipText: '笔刷大小：$brushLabel px',
+        ),
+        const SizedBox(height: 8),
+        buildCompactAdjustRow(),
+      ],
     );
   }
 
@@ -525,6 +581,25 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       divisions: 3,
       onChanged: (raw) => onChanged(raw.round()),
     );
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Text('抗锯齿', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          Expanded(child: slider),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 64,
+            child: Text(
+              '等级 $value',
+              style: theme.typography.caption,
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      );
+    }
     return _buildSliderSection(
       theme,
       label: '抗锯齿',
@@ -555,6 +630,25 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         (raw / widget.strokeStabilizerMaxLevel).clamp(0.0, 1.0),
       ),
     );
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Text('手抖修正', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          Expanded(child: slider),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 56,
+            child: Text(
+              label,
+              style: theme.typography.caption,
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      );
+    }
     return _buildSliderSection(
       theme,
       label: '手抖修正',
