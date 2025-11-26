@@ -426,6 +426,7 @@ mixin _PaintingBoardBuildMixin
                                                         points: _controller.activeStrokePoints,
                                                         radii: _controller.activeStrokeRadii,
                                                         color: _controller.activeStrokeColor,
+                                                        shape: _controller.activeStrokeShape,
                                                         committingStrokes: _controller.committingStrokes,
                                                       ),
                                                     ),

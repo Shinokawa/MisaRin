@@ -204,6 +204,7 @@ class BitmapCanvasController extends ChangeNotifier {
   List<PaintingDrawCommand> get committingStrokes => UnmodifiableListView(_committingStrokes);
   Color get activeStrokeColor => _currentStrokeColor;
   double get activeStrokeRadius => _currentStrokeRadius;
+  BrushShape get activeStrokeShape => _currentBrushShape;
   bool get activeStrokeEraseMode => _currentStrokeEraseMode;
 
   String? get activeLayerId =>
