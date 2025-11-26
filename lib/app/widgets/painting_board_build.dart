@@ -209,6 +209,8 @@ mixin _PaintingBoardBuildMixin
             widget.toolbarLayoutStyle;
         final CanvasToolbarLayout activeToolbarLayout =
             _resolveToolbarLayoutForStyle(toolbarStyle, toolbarLayout);
+        final bool detachExitButton =
+            toolbarStyle == PaintingToolbarLayoutStyle.sai2;
         final Widget toolbarWidget = CanvasToolbar(
           activeTool: _activeTool,
           selectionShape: selectionShape,
@@ -220,7 +222,33 @@ mixin _PaintingBoardBuildMixin
           canRedo: canRedo,
           onExit: widget.onRequestExit,
           layout: activeToolbarLayout,
+          includeExitButton: !detachExitButton,
         );
+        Widget buildExitButton() {
+          final String shortcutLabel = ToolbarShortcuts.labelForPlatform(
+            ToolbarAction.exit,
+            defaultTargetPlatform,
+          );
+          final String message = shortcutLabel.isEmpty
+              ? '退出'
+              : '退出 ($shortcutLabel)';
+          const TooltipThemeData tooltipStyle = TooltipThemeData(
+            preferBelow: false,
+            verticalOffset: 24,
+            waitDuration: Duration.zero,
+          );
+          return Tooltip(
+            message: message,
+            displayHorizontally: true,
+            style: tooltipStyle,
+            useMousePosition: false,
+            child: ExitToolButton(onPressed: widget.onRequestExit),
+          );
+        }
+
+        final Widget exitButtonWidget = detachExitButton
+            ? buildExitButton()
+            : const SizedBox.shrink();
         final Widget toolSettingsCard = ToolSettingsCard(
           activeTool: _activeTool,
           penStrokeWidth: _penStrokeWidth,
@@ -290,6 +318,7 @@ mixin _PaintingBoardBuildMixin
           colorIndicator: _buildColorIndicator(theme),
           colorPanel: colorPanelData,
           layerPanel: layerPanelData,
+          exitButton: exitButtonWidget,
         );
         final PaintingToolbarMetrics toolbarMetrics = PaintingToolbarMetrics(
           toolbarLayout: activeToolbarLayout,

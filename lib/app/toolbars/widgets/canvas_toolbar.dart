@@ -31,6 +31,7 @@ class CanvasToolbar extends StatelessWidget {
     required this.canRedo,
     required this.onExit,
     required this.layout,
+    this.includeExitButton = true,
   });
 
   final CanvasTool activeTool;
@@ -43,8 +44,10 @@ class CanvasToolbar extends StatelessWidget {
   final bool canRedo;
   final VoidCallback onExit;
   final CanvasToolbarLayout layout;
+  final bool includeExitButton;
 
   static const int buttonCount = 12;
+  static const int buttonCountWithoutExit = buttonCount - 1;
   static const double buttonSize = 48;
   static const double spacing = 9;
 
@@ -61,6 +64,7 @@ class CanvasToolbar extends StatelessWidget {
         rows: buttonCount,
         width: buttonSize,
         height: singleColumnHeight,
+        buttonExtent: buttonSize,
       );
     }
 
@@ -74,6 +78,7 @@ class CanvasToolbar extends StatelessWidget {
       rows: rows,
       width: width,
       height: height,
+      buttonExtent: buttonSize,
     );
   }
 
@@ -109,14 +114,19 @@ class CanvasToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <Widget>[
-      Tooltip(
-        message: _tooltipMessage('退出', ToolbarAction.exit),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
-        child: ExitToolButton(onPressed: onExit),
-      ),
+    final List<Widget> items = <Widget>[];
+    if (includeExitButton) {
+      items.add(
+        Tooltip(
+          message: _tooltipMessage('退出', ToolbarAction.exit),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: ExitToolButton(onPressed: onExit),
+        ),
+      );
+    }
+    items.addAll([
       Tooltip(
         message: _tooltipMessage('图层调节', ToolbarAction.layerAdjustTool),
         displayHorizontally: true,
@@ -226,7 +236,16 @@ class CanvasToolbar extends StatelessWidget {
         useMousePosition: false,
         child: RedoToolButton(enabled: canRedo, onPressed: onRedo),
       ),
-    ];
+    ]);
+
+    final double buttonExtent = layout.buttonExtent;
+
+    List<Widget> sizedItems(List<Widget> children) {
+      return [
+        for (final Widget child in children)
+          SizedBox(width: buttonExtent, height: buttonExtent, child: child),
+      ];
+    }
 
     List<Widget> withVerticalSpacing(List<Widget> children) {
       if (children.isEmpty) {
@@ -244,7 +263,7 @@ class CanvasToolbar extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: withVerticalSpacing(items),
+        children: withVerticalSpacing(sizedItems(items)),
       );
     }
 
@@ -259,9 +278,8 @@ class CanvasToolbar extends StatelessWidget {
       final int targetCount = column == layout.columns - 1
           ? remaining
           : math.min(layout.rows, remaining);
-      final columnChildren = items.sublist(
-        startIndex,
-        startIndex + targetCount,
+      final columnChildren = sizedItems(
+        items.sublist(startIndex, startIndex + targetCount),
       );
       startIndex += targetCount;
       columnWidgets.add(
@@ -273,7 +291,7 @@ class CanvasToolbar extends StatelessWidget {
       );
     }
 
-    return Row(
+    final Widget multiColumnLayout = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -282,6 +300,24 @@ class CanvasToolbar extends StatelessWidget {
           columnWidgets[index],
         ],
       ],
+    );
+
+    if (!layout.horizontalFlow) {
+      return multiColumnLayout;
+    }
+
+    final wrappedItems = sizedItems(items);
+    return SizedBox(
+      width: layout.width,
+      height: layout.height,
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: wrappedItems,
+        ),
+      ),
     );
   }
 }
@@ -292,12 +328,16 @@ class CanvasToolbarLayout {
     required this.rows,
     required this.width,
     required this.height,
+    this.buttonExtent = CanvasToolbar.buttonSize,
+    this.horizontalFlow = false,
   });
 
   final int columns;
   final int rows;
   final double width;
   final double height;
+  final double buttonExtent;
+  final bool horizontalFlow;
 
   bool get isMultiColumn => columns > 1;
 }

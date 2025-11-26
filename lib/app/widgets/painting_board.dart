@@ -64,6 +64,7 @@ import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/vector_stroke_painter.dart';
 import '../toolbars/widgets/canvas_toolbar.dart';
+import '../toolbars/widgets/exit_tool_button.dart';
 import '../toolbars/widgets/tool_settings_card.dart';
 import '../toolbars/layouts/layouts.dart';
 import '../toolbars/widgets/measured_size.dart';
@@ -662,27 +663,29 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     if (style != PaintingToolbarLayoutStyle.sai2) {
       return base;
     }
-    final double availableWidth = (_sidePanelWidth - 32).clamp(
-      CanvasToolbar.buttonSize,
-      double.infinity,
+    const int targetColumns = 4;
+    final double availableWidth = math.max(0, _sidePanelWidth - 32);
+    final double totalSpacing = CanvasToolbar.spacing * (targetColumns - 1);
+    final double maxExtent = targetColumns > 0
+        ? (availableWidth - totalSpacing) / targetColumns
+        : CanvasToolbar.buttonSize;
+    final double buttonExtent = maxExtent.isFinite && maxExtent > 0
+        ? maxExtent.clamp(36.0, CanvasToolbar.buttonSize)
+        : CanvasToolbar.buttonSize;
+    final int rows = math.max(
+      1,
+      (CanvasToolbar.buttonCountWithoutExit / targetColumns).ceil(),
     );
-    final double step = CanvasToolbar.buttonSize + CanvasToolbar.spacing;
-    final int rawColumns = math.max(1, availableWidth ~/ step);
-    final int columns = math.min(
-      CanvasToolbar.buttonCount,
-      math.max(2, rawColumns),
-    );
-    final int rows = (CanvasToolbar.buttonCount / columns).ceil();
-    final double width =
-        columns * CanvasToolbar.buttonSize +
-        (columns - 1) * CanvasToolbar.spacing;
+    final double width = targetColumns * buttonExtent + totalSpacing;
     final double height =
-        rows * CanvasToolbar.buttonSize + (rows - 1) * CanvasToolbar.spacing;
+        rows * buttonExtent + (rows - 1) * CanvasToolbar.spacing;
     return CanvasToolbarLayout(
-      columns: columns,
+      columns: targetColumns,
       rows: rows,
       width: width,
       height: height,
+      buttonExtent: buttonExtent,
+      horizontalFlow: true,
     );
   }
 
