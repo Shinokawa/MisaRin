@@ -1,9 +1,6 @@
 part of 'painting_board.dart';
 
 const double _kStylusSimulationBlend = 0.68;
-const int _kMaxStrokePreviewSegments = 720;
-const double _kPreviewMinRadius = 0.2;
-const double _kPreviewMaxRadius = 256.0;
 
 mixin _PaintingBoardInteractionMixin
     on
@@ -355,53 +352,6 @@ mixin _PaintingBoardInteractionMixin
     return bound;
   }
 
-  void _initializeStrokePreview(
-    Offset point,
-    double radius,
-    Color color,
-    bool erase,
-  ) {
-    _strokePreviewBaseRadius = radius.clamp(_kPreviewMinRadius, _kPreviewMaxRadius);
-    _strokePreviewColor = color;
-    _strokePreviewErase = erase;
-    _strokePreviewSegments
-      ..clear()
-      ..add(_StrokePreviewSegment(
-        start: point,
-        end: point,
-        radius: _strokePreviewBaseRadius,
-      ));
-  }
-
-  void _addStrokePreviewSegment(
-    Offset start,
-    Offset end,
-    double radius,
-  ) {
-    _strokePreviewSegments.add(_StrokePreviewSegment(
-      start: start,
-      end: end,
-      radius: radius.clamp(_kPreviewMinRadius, _kPreviewMaxRadius),
-    ));
-    if (_strokePreviewSegments.length > _kMaxStrokePreviewSegments) {
-      final int excess =
-          _strokePreviewSegments.length - _kMaxStrokePreviewSegments;
-      _strokePreviewSegments.removeRange(0, excess);
-    }
-  }
-
-  double _previewRadiusForSample(double? stylusPressure) {
-    final double base = _strokePreviewBaseRadius.clamp(
-      _kPreviewMinRadius,
-      _kPreviewMaxRadius,
-    );
-    if (stylusPressure == null || !stylusPressure.isFinite) {
-      return base;
-    }
-    final double normalized = stylusPressure.clamp(0.0, 1.0);
-    final double factor = 0.35 + normalized * 0.95;
-    return (base * factor).clamp(base * 0.45, base * 2.6);
-  }
 
   void _startStroke(
     Offset position,
@@ -436,9 +386,7 @@ mixin _PaintingBoardInteractionMixin
     _pushUndoSnapshot();
     StrokeLatencyMonitor.instance.recordStrokeStart();
     _lastPenSampleTimestamp = timestamp;
-    final double previewRadius = _penStrokeWidth / 2;
     setState(() {
-      _initializeStrokePreview(start, previewRadius, strokeColor, erase);
       _isDrawing = true;
       _controller.beginStroke(
         start,
@@ -490,14 +438,11 @@ mixin _PaintingBoardInteractionMixin
         _lastStylusDirection = delta / delta.distance;
       }
     }
-    final Offset previewStart = previousPoint ?? clamped;
     _lastStrokeBoardPosition = clamped;
     if (stylusPressure != null && stylusPressure.isFinite) {
       _lastStylusPressureValue = stylusPressure.clamp(0.0, 1.0);
     }
-    final double previewRadius = _previewRadiusForSample(stylusPressure);
     setState(() {
-      _addStrokePreviewSegment(previewStart, clamped, previewRadius);
       _controller.extendStroke(
         clamped,
         deltaTimeMillis: deltaMillis,
@@ -547,7 +492,6 @@ mixin _PaintingBoardInteractionMixin
     _controller.endStroke();
     setState(() {
       _isDrawing = false;
-      _strokePreviewSegments.clear();
     });
     _lastPenSampleTimestamp = null;
     _activeStrokeUsesStylus = false;

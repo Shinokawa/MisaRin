@@ -248,11 +248,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _lastStrokeBoardPosition;
   Offset? _lastStylusDirection;
   final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
-  final List<_StrokePreviewSegment> _strokePreviewSegments =
-      <_StrokePreviewSegment>[];
-  Color _strokePreviewColor = Colors.transparent;
-  bool _strokePreviewErase = false;
-  double _strokePreviewBaseRadius = _defaultPenStrokeWidth / 2;
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
   CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
     columns: 1,

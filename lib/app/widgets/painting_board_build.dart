@@ -412,26 +412,6 @@ mixin _PaintingBoardBuildMixin
                                                 BitmapCanvasSurface(
                                                   frame: frame,
                                                 ),
-                                                if (_strokePreviewSegments
-                                                    .isNotEmpty)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter:
-                                                            _StrokePreviewPainter(
-                                                          segments:
-                                                              List<_StrokePreviewSegment>.from(
-                                                            _strokePreviewSegments,
-                                                          ),
-                                                          color:
-                                                              _strokePreviewColor,
-                                                          erase:
-                                                              _strokePreviewErase,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
                                                 if (transformImageOverlay !=
                                                     null)
                                                   transformImageOverlay
