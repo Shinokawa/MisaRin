@@ -184,6 +184,12 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   Widget _buildColorLineSelector(FluentThemeData theme) {
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Color previewBorder = Color.lerp(
+      borderColor,
+      Colors.transparent,
+      0.35,
+    )!;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -198,6 +204,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
                   return _ColorLineSwatch(
                     color: color,
                     selected: color.value == _colorLineColor.value,
+                    borderColor: previewBorder,
                     onTap: () => _handleSelectColorLineColor(color),
                   );
                 })
@@ -566,48 +573,22 @@ class _ColorLineSwatch extends StatelessWidget {
   const _ColorLineSwatch({
     required this.color,
     required this.selected,
+    required this.borderColor,
     required this.onTap,
   });
 
   final Color color;
   final bool selected;
+  final Color borderColor;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final FluentThemeData theme = FluentTheme.of(context);
-    final Color border = theme.resources.controlStrokeColorDefault;
-    final Color highlight = theme.accentColor.defaultBrushFor(theme.brightness);
-    final Color effectiveBorder = selected
-        ? highlight
-        : border.withValues(alpha: border.a * 0.8);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 26,
-          height: 26,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-            border: Border.all(
-              color: effectiveBorder,
-              width: selected ? 2.2 : 1.4,
-            ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-        ),
-      ),
+    return _InlineRecentColorSwatch(
+      color: color,
+      selected: selected,
+      borderColor: borderColor,
+      onTap: onTap,
     );
   }
 }
