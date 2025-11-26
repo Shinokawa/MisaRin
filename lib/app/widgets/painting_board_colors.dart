@@ -75,11 +75,17 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     _markDirty();
   }
 
-  void _updatePrimaryFromSquare(Offset position, double size) {
-    final double x = position.dx.clamp(0.0, size);
-    final double y = position.dy.clamp(0.0, size);
-    final double saturation = (x / size).clamp(0.0, 1.0);
-    final double value = (1 - y / size).clamp(0.0, 1.0);
+  void _updatePrimaryFromSquare(
+    Offset position,
+    double width,
+    double height,
+  ) {
+    final double safeWidth = width <= 0 ? 1 : width;
+    final double safeHeight = height <= 0 ? 1 : height;
+    final double x = position.dx.clamp(0.0, safeWidth);
+    final double y = position.dy.clamp(0.0, safeHeight);
+    final double saturation = (x / safeWidth).clamp(0.0, 1.0);
+    final double value = (1 - y / safeHeight).clamp(0.0, 1.0);
     final HSVColor updated = _primaryHsv
         .withSaturation(saturation)
         .withValue(value);
@@ -237,18 +243,18 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
         final HSVColor hsv = _primaryHsv;
 
-        Widget buildColorSquare(double size) {
+        Widget buildColorSquare({required double width, required double height}) {
           return GestureDetector(
             onPanDown: (details) =>
-                _updatePrimaryFromSquare(details.localPosition, size),
+                _updatePrimaryFromSquare(details.localPosition, width, height),
             onPanUpdate: (details) =>
-                _updatePrimaryFromSquare(details.localPosition, size),
+                _updatePrimaryFromSquare(details.localPosition, width, height),
             onPanEnd: (_) => _rememberCurrentPrimary(),
             onPanCancel: _rememberCurrentPrimary,
             onTapUp: (_) => _rememberCurrentPrimary(),
             child: SizedBox(
-              width: size,
-              height: size,
+              width: width,
+              height: height,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -285,8 +291,8 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
                     ),
                   ),
                   Positioned(
-                    left: (hsv.saturation.clamp(0.0, 1.0)) * size - 8,
-                    top: ((1 - hsv.value.clamp(0.0, 1.0)) * size) - 8,
+                    left: (hsv.saturation.clamp(0.0, 1.0)) * width - 8,
+                    top: ((1 - hsv.value.clamp(0.0, 1.0)) * height) - 8,
                     child: _ColorPickerHandle(color: hsv.toColor()),
                   ),
                 ],
@@ -362,8 +368,51 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           );
         }
 
+        Widget buildInteractiveArea({required bool expanded}) {
+          final Widget layout = LayoutBuilder(
+            builder: (context, areaConstraints) {
+              final double resolvedHeight =
+                  areaConstraints.maxHeight.isFinite &&
+                          areaConstraints.maxHeight > 0
+                      ? areaConstraints.maxHeight
+                      : squareSize;
+              final double colorHeight =
+                  resolvedHeight > 0 ? resolvedHeight : squareSize;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: squareSize,
+                    height: colorHeight,
+                    child: buildColorSquare(
+                      width: squareSize,
+                      height: colorHeight,
+                    ),
+                  ),
+                  if (sliderWidth > 0) ...[
+                    const SizedBox(width: spacing),
+                    SizedBox(
+                      width: sliderWidth,
+                      height: colorHeight,
+                      child: buildHueSlider(colorHeight),
+                    ),
+                  ],
+                ],
+              );
+            },
+          );
+          if (!expanded) {
+            return layout;
+          }
+          return Expanded(child: layout);
+        }
+
+        final bool enforceHeight =
+            constraints.maxHeight.isFinite && constraints.maxHeight > 0;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: enforceHeight ? MainAxisSize.max : MainAxisSize.min,
           children: [
             _buildColorLineSelector(theme),
             const SizedBox(height: 12),
@@ -372,24 +421,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
               buildRecentColors(),
             ],
             const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: squareSize,
-                  height: squareSize,
-                  child: buildColorSquare(squareSize),
-                ),
-                if (sliderWidth > 0) ...[
-                  const SizedBox(width: spacing),
-                  SizedBox(
-                    width: sliderWidth,
-                    height: squareSize,
-                    child: buildHueSlider(squareSize),
-                  ),
-                ],
-              ],
-            ),
+            buildInteractiveArea(expanded: enforceHeight),
           ],
         );
       },
