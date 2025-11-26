@@ -368,7 +368,10 @@ mixin _PaintingBoardBuildMixin
                                             final BitmapCanvasFrame? frame =
                                                 _controller.frame;
                                             if (frame == null) {
-                                              return const SizedBox.shrink();
+                                              return ColoredBox(
+                                                color:
+                                                    _controller.backgroundColor,
+                                              );
                                             }
                                             final bool isTransforming =
                                                 _controller

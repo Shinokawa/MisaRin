@@ -93,14 +93,16 @@ class CanvasCompositeWorker {
     required String id,
     required int width,
     required int height,
-    required Uint32List pixels,
+    Uint32List? pixels,
     RasterIntRect? rect,
   }) async {
     await _ensureStarted();
     final SendPort port = _sendPort!;
-    final TransferableTypedData buffer = TransferableTypedData.fromList(
-      <Uint8List>[Uint8List.view(pixels.buffer)],
-    );
+    final TransferableTypedData? buffer = pixels != null
+        ? TransferableTypedData.fromList(
+            <Uint8List>[Uint8List.view(pixels.buffer)],
+          )
+        : null;
     port.send(_CompositeWorkerRequest(
       id: -1, // No response needed for updates
       type: _CompositeWorkerRequestType.updateLayer,
@@ -227,9 +229,18 @@ void _handleUpdateLayer(
   final String id = payload['id'] as String;
   final int width = payload['width'] as int;
   final int height = payload['height'] as int;
-  final TransferableTypedData pixelsData =
-      payload['pixels'] as TransferableTypedData;
+  final TransferableTypedData? pixelsData =
+      payload['pixels'] as TransferableTypedData?;
   final RasterIntRect? rect = payload['rect'] as RasterIntRect?;
+
+  if (pixelsData == null) {
+    if (rect == null) {
+      // Full initialization with empty buffer
+      state.layers[id] = Uint32List(width * height);
+      state.layerDimensions[id] = _LayerDimensions(width, height);
+    }
+    return;
+  }
 
   final ByteBuffer buffer = pixelsData.materialize();
   final Uint32List incomingPixels = Uint32List.view(

@@ -846,6 +846,7 @@ class BitmapCanvasController extends ChangeNotifier {
     if (!identical(src, pixels)) {
       pixels.setAll(0, src);
     }
+    layer.surface.markDirty();
     _markDirty(layerId: layer.id, pixelsDirty: true);
     notifyListeners();
     return true;

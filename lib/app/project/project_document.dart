@@ -58,9 +58,6 @@ class ProjectDocument {
         CanvasLayerData(
           id: generateLayerId(),
           name: '图层 2',
-          bitmap: Uint8List(width * height * 4),
-          bitmapWidth: width,
-          bitmapHeight: height,
         ),
       ],
     );

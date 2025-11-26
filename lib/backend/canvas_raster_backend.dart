@@ -276,14 +276,17 @@ class CanvasRasterBackend {
     for (final BitmapLayerState layer in layers) {
       if (!_workerKnownLayerIds.contains(layer.id)) {
         // New layer, sync full surface
+        final Uint32List? pixels =
+            layer.surface.isClean ? null : layer.surface.pixels;
         await _worker!.updateLayer(
           id: layer.id,
           width: _width,
           height: _height,
-          pixels: layer.surface.pixels,
+          pixels: pixels,
         );
         _workerKnownLayerIds.add(layer.id);
-      } else if (_pendingAllLayersDirty || _pendingDirtyLayerIds.contains(layer.id)) {
+      } else if (_pendingAllLayersDirty ||
+          _pendingDirtyLayerIds.contains(layer.id)) {
         // Dirty layer, sync patches
         if (areas.isNotEmpty) {
           for (final RasterIntRect area in areas) {

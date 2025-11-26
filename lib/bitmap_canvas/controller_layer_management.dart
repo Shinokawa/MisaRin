@@ -224,6 +224,7 @@ bool _layerManagerMergeLayerDown(BitmapCanvasController controller, String id) {
       lowerOverflow,
       upperOverflow,
     );
+    lower.surface.markDirty();
   }
 
   layers.removeAt(index);
@@ -628,9 +629,7 @@ void _layerManagerClearRegion(
       ? BitmapSurface.encodeColor(controller._backgroundColor)
       : 0;
   if (mask == null) {
-    for (int i = 0; i < pixels.length; i++) {
-      pixels[i] = replacement;
-    }
+    layer.surface.fill(BitmapSurface.decodeColor(replacement));
     controller._markDirty(layerId: id, pixelsDirty: true);
     return;
   }
@@ -662,6 +661,9 @@ void _layerManagerClearRegion(
         maxY = y;
       }
     }
+  }
+  if (replacement != 0) {
+    layer.surface.markDirty();
   }
   if (maxX < minX || maxY < minY) {
     return;
@@ -989,5 +991,6 @@ _LayerOverflowStore _applyBitmapToSurface(
       }
     }
   }
+  surface.markDirty();
   return builder.build();
 }
