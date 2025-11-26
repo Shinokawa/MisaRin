@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
 import '../utils/tablet_input_bridge.dart';
+import '../../performance/stroke_latency_monitor.dart';
 import 'misarin_dialog.dart';
 
 Future<void> showSettingsDialog(BuildContext context) {
@@ -375,6 +376,8 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   DateTime? _lastSample;
   double _estimatedRps = 0;
   bool _isDrawingContact = false;
+  bool _latencyPending = false;
+  bool _latencyFrameScheduled = false;
 
   void _handlePointer(PointerEvent event) {
     if (!_shouldCaptureEvent(event)) {
@@ -404,10 +407,15 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       _lastSample = now;
       if (!inContact) {
         _isDrawingContact = false;
+        _latencyPending = false;
         return;
       }
       final bool isNewStroke = !_isDrawingContact;
       _isDrawingContact = true;
+      if (isNewStroke) {
+        StrokeLatencyMonitor.instance.recordStrokeStart();
+        _latencyPending = true;
+      }
       _points.add(
         _TabletPoint(
           position: pos,
@@ -418,6 +426,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       );
       _sampleCount += 1;
     });
+    _scheduleLatencyFrameReport();
   }
 
   void _clear() {
@@ -431,7 +440,9 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       _latestPointerKind = null;
       _lastSample = null;
       _isDrawingContact = false;
+      _latencyPending = false;
     });
+    _latencyFrameScheduled = false;
   }
 
   bool _shouldCaptureEvent(PointerEvent event) {
@@ -520,6 +531,22 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       _latestPointerKind = event.kind;
       _latestPressure = 0;
       _isDrawingContact = false;
+    });
+    _latencyPending = false;
+  }
+
+  void _scheduleLatencyFrameReport() {
+    if (!_latencyPending || _latencyFrameScheduled) {
+      return;
+    }
+    _latencyFrameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _latencyFrameScheduled = false;
+      if (!_latencyPending) {
+        return;
+      }
+      StrokeLatencyMonitor.instance.recordFramePresented();
+      _latencyPending = false;
     });
   }
 
