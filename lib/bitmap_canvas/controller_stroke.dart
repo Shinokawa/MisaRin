@@ -76,6 +76,10 @@ void _strokeBegin(
   controller._currentStrokePoints
     ..clear()
     ..add(position);
+  controller._currentStrokeRadii
+    ..clear()
+    ..add(radius);
+  controller._deferredStrokeCommands.clear();
   controller._currentStrokeRadius = radius;
   final double effectiveStylusBlend =
       controller._currentStrokeStylusPressureEnabled
@@ -182,6 +186,8 @@ void _strokeExtend(
       nextRadius,
       preferImmediate: controller._strokePressureSimulator.usesDevicePressure,
     );
+    controller._currentStrokeRadii.add(resolvedRadius);
+
     final double segmentLength = (position - last).distance;
     if (_strokeSegmentShouldSnapToPoint(segmentLength, resolvedRadius)) {
       _strokeDrawPoint(controller, position, resolvedRadius);
@@ -197,49 +203,20 @@ void _strokeExtend(
     final bool restartCaps =
         firstSegment || _strokeNeedsRestartCaps(previousRadius, resolvedRadius);
     final double startRadius = restartCaps ? resolvedRadius : previousRadius;
-    final Rect dirty = _strokeDirtyRectForVariableLine(
-      last,
-      position,
-      startRadius,
-      resolvedRadius,
-    );
+    
     if (useCircularBrush) {
-      if (controller.isMultithreaded) {
-        final RasterIntRect bounds = controller._clipRectToSurface(dirty);
-        if (!bounds.isEmpty) {
-          final Rect region = Rect.fromLTWH(
-            bounds.left.toDouble(),
-            bounds.top.toDouble(),
-            bounds.width.toDouble(),
-            bounds.height.toDouble(),
-          );
-          controller._enqueuePaintingWorkerCommand(
-            region: region,
-            command: PaintingDrawCommand.variableLine(
-              start: last,
-              end: position,
-              startRadius: startRadius,
-              endRadius: resolvedRadius,
-              colorValue: controller._currentStrokeColor.value,
-              antialiasLevel: controller._currentStrokeAntialiasLevel,
-              includeStartCap: restartCaps,
-              erase: controller._currentStrokeEraseMode,
-            ),
-          );
-        }
-      } else {
-        controller._activeSurface.drawVariableLine(
-          a: last,
-          b: position,
+      controller._deferredStrokeCommands.add(
+        PaintingDrawCommand.variableLine(
+          start: last,
+          end: position,
           startRadius: startRadius,
           endRadius: resolvedRadius,
-          color: controller._currentStrokeColor,
-          mask: controller._selectionMask,
+          colorValue: controller._currentStrokeColor.value,
           antialiasLevel: controller._currentStrokeAntialiasLevel,
           includeStartCap: restartCaps,
           erase: controller._currentStrokeEraseMode,
-        );
-      }
+        ),
+      );
     } else {
       _strokeStampSegment(
         controller,
@@ -250,67 +227,24 @@ void _strokeExtend(
         includeStart: restartCaps,
       );
     }
-    if (!controller.isMultithreaded) {
-      controller._markDirty(
-        region: _strokeDirtyRectForVariableLine(
-          last,
-          position,
-          startRadius,
-          nextRadius,
-        ),
-        layerId: controller._activeLayer.id,
-        pixelsDirty: true,
-      );
-    }
     controller._currentStrokeHasMoved = true;
     controller._currentStrokeLastRadius = resolvedRadius;
     return;
   }
 
-  final Rect constantDirty = _strokeDirtyRectForLine(
-    last,
-    position,
-    controller._currentStrokeRadius,
-  );
+  controller._currentStrokeRadii.add(controller._currentStrokeRadius);
   if (useCircularBrush) {
-    if (controller.isMultithreaded) {
-      final RasterIntRect bounds = controller._clipRectToSurface(constantDirty);
-      if (!bounds.isEmpty) {
-        final Rect region = Rect.fromLTWH(
-          bounds.left.toDouble(),
-          bounds.top.toDouble(),
-          bounds.width.toDouble(),
-          bounds.height.toDouble(),
-        );
-        controller._enqueuePaintingWorkerCommand(
-          region: region,
-          command: PaintingDrawCommand.line(
-            start: last,
-            end: position,
-            radius: controller._currentStrokeRadius,
-            colorValue: controller._currentStrokeColor.value,
-            antialiasLevel: controller._currentStrokeAntialiasLevel,
-            includeStartCap: firstSegment,
-            erase: controller._currentStrokeEraseMode,
-          ),
-        );
-      }
-    } else {
-      controller._activeSurface.drawLine(
-        a: last,
-        b: position,
+    controller._deferredStrokeCommands.add(
+      PaintingDrawCommand.line(
+        start: last,
+        end: position,
         radius: controller._currentStrokeRadius,
-        color: controller._currentStrokeColor,
-        mask: controller._selectionMask,
+        colorValue: controller._currentStrokeColor.value,
         antialiasLevel: controller._currentStrokeAntialiasLevel,
         includeStartCap: firstSegment,
-      );
-      controller._markDirty(
-        region: constantDirty,
-        layerId: controller._activeLayer.id,
-        pixelsDirty: true,
-      );
-    }
+        erase: controller._currentStrokeEraseMode,
+      ),
+    );
   } else {
     _strokeStampSegment(
       controller,
@@ -319,13 +253,6 @@ void _strokeExtend(
       startRadius: controller._currentStrokeRadius,
       endRadius: controller._currentStrokeRadius,
       includeStart: firstSegment,
-    );
-  }
-  if (!controller.isMultithreaded) {
-    controller._markDirty(
-      region: constantDirty,
-      layerId: controller._activeLayer.id,
-      pixelsDirty: true,
     );
   }
   controller._currentStrokeHasMoved = true;
@@ -361,53 +288,19 @@ void _strokeEnd(BitmapCanvasController controller) {
         final Offset end = tailInstruction.end!;
         final double startRadius = tailInstruction.startRadius!;
         final double endRadius = tailInstruction.endRadius!;
-        final Rect dirtyRegion = _strokeDirtyRectForVariableLine(
-          start,
-          end,
-          startRadius,
-          endRadius,
-        );
-        if (controller.isMultithreaded) {
-          final RasterIntRect bounds = controller._clipRectToSurface(dirtyRegion);
-          if (!bounds.isEmpty) {
-            final Rect region = Rect.fromLTWH(
-              bounds.left.toDouble(),
-              bounds.top.toDouble(),
-              bounds.width.toDouble(),
-              bounds.height.toDouble(),
-            );
-            controller._enqueuePaintingWorkerCommand(
-              region: region,
-              command: PaintingDrawCommand.variableLine(
-                start: start,
-                end: end,
-                startRadius: startRadius,
-                endRadius: endRadius,
-                colorValue: controller._currentStrokeColor.value,
-                antialiasLevel: controller._currentStrokeAntialiasLevel,
-                includeStartCap: true,
-                erase: controller._currentStrokeEraseMode,
-              ),
-            );
-          }
-        } else {
-          controller._activeSurface.drawVariableLine(
-            a: start,
-            b: end,
+        
+        controller._deferredStrokeCommands.add(
+          PaintingDrawCommand.variableLine(
+            start: start,
+            end: end,
             startRadius: startRadius,
             endRadius: endRadius,
-            color: controller._currentStrokeColor,
-            mask: controller._selectionMask,
+            colorValue: controller._currentStrokeColor.value,
             antialiasLevel: controller._currentStrokeAntialiasLevel,
             includeStartCap: true,
             erase: controller._currentStrokeEraseMode,
-          );
-          controller._markDirty(
-            region: dirtyRegion,
-            layerId: controller._activeLayer.id,
-            pixelsDirty: true,
-          );
-        }
+          ),
+        );
       } else if (tailInstruction.isPoint) {
         _strokeDrawPoint(
           controller,
@@ -425,11 +318,14 @@ void _strokeEnd(BitmapCanvasController controller) {
     }
   }
 
+  controller._flushDeferredStrokeCommands();
+
   if (controller.isMultithreaded) {
     controller._flushPendingPaintingCommands();
   }
 
   controller._currentStrokePoints.clear();
+  controller._currentStrokeRadii.clear();
   controller._currentStrokeRadius = 0;
   controller._currentStrokeLastRadius = 0;
   controller._currentStrokeStylusPressureEnabled = false;
@@ -544,50 +440,9 @@ void _strokeDrawPoint(
   final double resolvedRadius = math.max(radius.abs(), 0.01);
   final BrushShape brushShape = controller._currentBrushShape;
   final bool erase = controller._currentStrokeEraseMode;
-  final Rect dirtyRect = _strokeDirtyRectForCircle(position, resolvedRadius);
-  if (!controller.isMultithreaded) {
-    if (brushShape == BrushShape.circle) {
-      controller._activeSurface.drawCircle(
-        center: position,
-        radius: resolvedRadius,
-        color: controller._currentStrokeColor,
-        mask: controller._selectionMask,
-        antialiasLevel: controller._currentStrokeAntialiasLevel,
-        erase: erase,
-      );
-    } else {
-      controller._activeSurface.drawBrushStamp(
-        center: position,
-        radius: resolvedRadius,
-        color: controller._currentStrokeColor,
-        shape: brushShape,
-        mask: controller._selectionMask,
-        antialiasLevel: controller._currentStrokeAntialiasLevel,
-        erase: erase,
-      );
-    }
-    if (markDirty) {
-      controller._markDirty(
-        region: dirtyRect,
-        layerId: controller._activeLayer.id,
-        pixelsDirty: true,
-      );
-    }
-    return;
-  }
-  final RasterIntRect bounds = controller._clipRectToSurface(dirtyRect);
-  if (bounds.isEmpty) {
-    return;
-  }
-  final Rect region = Rect.fromLTWH(
-    bounds.left.toDouble(),
-    bounds.top.toDouble(),
-    bounds.width.toDouble(),
-    bounds.height.toDouble(),
-  );
-  controller._enqueuePaintingWorkerCommand(
-    region: region,
-    command: PaintingDrawCommand.brushStamp(
+
+  controller._deferredStrokeCommands.add(
+    PaintingDrawCommand.brushStamp(
       center: position,
       radius: resolvedRadius,
       colorValue: controller._currentStrokeColor.value,
@@ -606,73 +461,17 @@ void _strokeStampSegment(
   required double endRadius,
   required bool includeStart,
 }) {
-  if (controller.isMultithreaded) {
-    final Rect dirty = _strokeDirtyRectForVariableLine(
-      start,
-      end,
-      startRadius,
-      endRadius,
-    );
-    final RasterIntRect bounds = controller._clipRectToSurface(dirty);
-    if (bounds.isEmpty) {
-      return;
-    }
-    final Rect region = Rect.fromLTWH(
-      bounds.left.toDouble(),
-      bounds.top.toDouble(),
-      bounds.width.toDouble(),
-      bounds.height.toDouble(),
-    );
-    controller._enqueuePaintingWorkerCommand(
-      region: region,
-      command: PaintingDrawCommand.stampSegment(
-        start: start,
-        end: end,
-        startRadius: startRadius,
-        endRadius: endRadius,
-        colorValue: controller._currentStrokeColor.value,
-        shapeIndex: controller._currentBrushShape.index,
-        antialiasLevel: controller._currentStrokeAntialiasLevel,
-        includeStart: includeStart,
-        erase: controller._currentStrokeEraseMode,
-      ),
-    );
-    return;
-  }
-  final double distance = (end - start).distance;
-  if (!distance.isFinite || distance <= 0.0001) {
-    _strokeDrawPoint(controller, end, endRadius);
-    return;
-  }
-  final double maxRadius = math.max(
-    math.max(startRadius.abs(), endRadius.abs()),
-    0.01,
-  );
-  final double spacing = _strokeStampSpacing(maxRadius);
-  final int samples = math.max(1, (distance / spacing).ceil());
-  final int startIndex = includeStart ? 0 : 1;
-  final Rect dirtyRegion = _strokeDirtyRectForVariableLine(
-    start,
-    end,
-    startRadius,
-    endRadius,
-  );
-  for (int i = startIndex; i <= samples; i++) {
-    final double t = samples == 0 ? 1.0 : (i / samples);
-    final double lerpRadius =
-        ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
-    final double sampleX = ui.lerpDouble(start.dx, end.dx, t) ?? end.dx;
-    final double sampleY = ui.lerpDouble(start.dy, end.dy, t) ?? end.dy;
-    _strokeDrawPoint(
-      controller,
-      Offset(sampleX, sampleY),
-      lerpRadius,
-      markDirty: false,
-    );
-  }
-  controller._markDirty(
-    region: dirtyRegion,
-    layerId: controller._activeLayer.id,
-    pixelsDirty: true,
+  controller._deferredStrokeCommands.add(
+    PaintingDrawCommand.stampSegment(
+      start: start,
+      end: end,
+      startRadius: startRadius,
+      endRadius: endRadius,
+      colorValue: controller._currentStrokeColor.value,
+      shapeIndex: controller._currentBrushShape.index,
+      antialiasLevel: controller._currentStrokeAntialiasLevel,
+      includeStart: includeStart,
+      erase: controller._currentStrokeEraseMode,
+    ),
   );
 }

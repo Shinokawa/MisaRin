@@ -909,6 +909,93 @@ class _PreviewPathPainter extends CustomPainter {
   }
 }
 
+class _ActiveStrokeOverlayPainter extends CustomPainter {
+  const _ActiveStrokeOverlayPainter({
+    required this.points,
+    required this.radii,
+    required this.color,
+  });
+
+  final List<Offset> points;
+  final List<double> radii;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+    
+    final Paint paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    if (points.length == 1) {
+      final double radius = radii.isNotEmpty ? radii.first : 1.0;
+      canvas.drawCircle(points.first, radius, paint);
+      return;
+    }
+
+    final Path path = Path();
+    
+    // 简单的变宽笔触构建：连接每段的梯形/圆
+    // 为了性能，这里使用简化的构建方式。
+    // 如果需要更高质量，可以使用 full outline 构建。
+    // 此处为了保证 0 延迟，采用最简单的 variable stroke 模拟：画圆点。
+    // 但画圆点在点很密时效率低。
+    // 更好的方式：Vertices? 
+    
+    // 尝试 Vertices 绘制
+    // 或者直接 drawPoints 但不支持变宽。
+    
+    // 回退方案：使用 Path 构建轮廓。
+    // 如果点太多，构建 Path 也会慢。
+    // 鉴于 points 是 active stroke，通常不会特别长（<1000点）。
+    
+    for (int i = 0; i < points.length - 1; i++) {
+      final Offset p1 = points[i];
+      final Offset p2 = points[i+1];
+      final double r1 = (i < radii.length) ? radii[i] : 1.0;
+      final double r2 = (i + 1 < radii.length) ? radii[i+1] : r1;
+      
+      if ((p1 - p2).distance < 0.5) continue;
+      
+      final Offset direction = (p2 - p1) / (p2 - p1).distance;
+      final Offset normal = Offset(-direction.dy, direction.dx);
+      
+      final Offset startL = p1 + normal * r1;
+      final Offset startR = p1 - normal * r1;
+      final Offset endL = p2 + normal * r2;
+      final Offset endR = p2 - normal * r2;
+      
+      final Path segment = Path()
+        ..moveTo(startL.dx, startL.dy)
+        ..lineTo(endL.dx, endL.dy)
+        ..lineTo(endR.dx, endR.dy)
+        ..lineTo(startR.dx, startR.dy)
+        ..close();
+      
+      path.addPath(segment, Offset.zero);
+      
+      // 补圆角
+      path.addOval(Rect.fromCircle(center: p1, radius: r1));
+    }
+    // 最后一个点的圆角
+    if (points.isNotEmpty) {
+       final double rLast = radii.isNotEmpty ? radii.last : 1.0;
+       path.addOval(Rect.fromCircle(center: points.last, radius: rLast));
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_ActiveStrokeOverlayPainter oldDelegate) {
+    return oldDelegate.points != points ||
+        oldDelegate.radii != radii ||
+        oldDelegate.color != color;
+  }
+}
+
 class _BucketOptionTile extends StatelessWidget {
   const _BucketOptionTile({
     required this.title,

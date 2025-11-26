@@ -405,6 +405,15 @@ mixin _PaintingBoardBuildMixin
                                                     theme,
                                                   )
                                                 : null;
+                                            
+                                            // 客户端预测：显示当前笔画的实时预览，解决 worker 延迟导致的滞后感
+                                            final bool showActiveStroke = 
+                                                !_isLayerFreeTransformActive &&
+                                                !_controller.isActiveLayerTransforming &&
+                                                _effectiveActiveTool == CanvasTool.pen &&
+                                                !_controller.activeStrokeEraseMode &&
+                                                _controller.activeStrokePoints.isNotEmpty;
+
                                             return Stack(
                                               fit: StackFit.expand,
                                               children: [
@@ -412,6 +421,16 @@ mixin _PaintingBoardBuildMixin
                                                 BitmapCanvasSurface(
                                                   frame: frame,
                                                 ),
+                                                if (showActiveStroke)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter: _ActiveStrokeOverlayPainter(
+                                                        points: _controller.activeStrokePoints,
+                                                        radii: _controller.activeStrokeRadii,
+                                                        color: _controller.activeStrokeColor,
+                                                      ),
+                                                    ),
+                                                  ),
                                                 if (transformImageOverlay !=
                                                     null)
                                                   transformImageOverlay

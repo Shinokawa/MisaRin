@@ -76,6 +76,8 @@ class BitmapCanvasController extends ChangeNotifier {
   final bool _isMultithreaded;
 
   final List<Offset> _currentStrokePoints = <Offset>[];
+  final List<double> _currentStrokeRadii = <double>[];
+  final List<PaintingDrawCommand> _deferredStrokeCommands = <PaintingDrawCommand>[];
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
   bool _currentStrokeStylusPressureEnabled = false;
@@ -192,8 +194,60 @@ class BitmapCanvasController extends ChangeNotifier {
 
   bool get isMultithreaded => _isMultithreaded;
 
+  // Active stroke state for client-side prediction
+  List<Offset> get activeStrokePoints => UnmodifiableListView(_currentStrokePoints);
+  List<double> get activeStrokeRadii => UnmodifiableListView(_currentStrokeRadii);
+  Color get activeStrokeColor => _currentStrokeColor;
+  double get activeStrokeRadius => _currentStrokeRadius;
+  bool get activeStrokeEraseMode => _currentStrokeEraseMode;
+
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
+
+  void _flushDeferredStrokeCommands() {
+    if (_deferredStrokeCommands.isEmpty) {
+      return;
+    }
+
+    Rect? dirtyRegion;
+    for (final PaintingDrawCommand command in _deferredStrokeCommands) {
+      Rect commandRect;
+      if (command.type == PaintingDrawCommandType.brushStamp && command.center != null && command.radius != null) {
+        commandRect = _strokeDirtyRectForCircle(command.center!, command.radius!);
+      } else if (command.type == PaintingDrawCommandType.variableLine && command.start != null && command.end != null) {
+         commandRect = _strokeDirtyRectForVariableLine(command.start!, command.end!, command.startRadius!, command.endRadius!);
+      } else if (command.type == PaintingDrawCommandType.line && command.start != null && command.end != null) {
+        commandRect = _strokeDirtyRectForLine(command.start!, command.end!, command.radius!);
+      } else if (command.type == PaintingDrawCommandType.stampSegment && command.start != null && command.end != null) {
+        commandRect = _strokeDirtyRectForVariableLine(command.start!, command.end!, command.startRadius!, command.endRadius!);
+      } else {
+        continue;
+      }
+      
+      if (dirtyRegion == null) {
+        dirtyRegion = commandRect;
+      } else {
+        dirtyRegion = dirtyRegion.expandToInclude(commandRect);
+      }
+      
+      if (_isMultithreaded) {
+        final RasterIntRect bounds = _clipRectToSurface(commandRect);
+        if (!bounds.isEmpty) {
+          final Rect region = Rect.fromLTWH(
+             bounds.left.toDouble(),
+             bounds.top.toDouble(),
+             bounds.width.toDouble(),
+             bounds.height.toDouble(),
+          );
+          _enqueuePaintingWorkerCommand(region: region, command: command);
+        }
+      } else {
+        _applyPaintingCommandsSynchronously(commandRect, [command]);
+      }
+    }
+    _deferredStrokeCommands.clear();
+  }
+
 
   BitmapCanvasFrame? get frame => _currentFrame;
   Color get backgroundColor => _backgroundColor;
