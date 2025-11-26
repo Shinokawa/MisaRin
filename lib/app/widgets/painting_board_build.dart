@@ -112,23 +112,25 @@ mixin _PaintingBoardBuildMixin
         _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
-        _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
-          _workspaceSize.height - _toolButtonPadding * 2,
-        );
+        final BoardLayoutMetrics? layoutMetrics = _layoutMetrics;
+        final CanvasToolbarLayout toolbarLayout =
+            layoutMetrics?.layout ?? _toolbarLayout;
         final double toolSettingsLeft =
-            _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing;
+            layoutMetrics?.toolSettingsLeft ??
+            (_toolButtonPadding + toolbarLayout.width + _toolSettingsSpacing);
         final double sidebarLeft =
+            layoutMetrics?.sidebarLeft ??
             (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding).clamp(
               0.0,
               double.infinity,
             );
-        final double computedToolSettingsMaxWidth =
-            sidebarLeft - toolSettingsLeft - _toolSettingsSpacing;
         final double? toolSettingsMaxWidth =
-            computedToolSettingsMaxWidth.isFinite &&
-                computedToolSettingsMaxWidth > 0
-            ? computedToolSettingsMaxWidth
-            : null;
+            layoutMetrics?.toolSettingsMaxWidth ??
+            (() {
+              final double computed =
+                  sidebarLeft - toolSettingsLeft - _toolSettingsSpacing;
+              return computed.isFinite && computed > 0 ? computed : null;
+            })();
         final Rect boardRect = _boardRect;
         final ToolCursorStyle? cursorStyle = ToolCursorStyles.styleFor(
           _effectiveActiveTool,
@@ -502,13 +504,13 @@ mixin _PaintingBoardBuildMixin
                               canUndo: canUndo,
                               canRedo: canRedo,
                               onExit: widget.onRequestExit,
-                              layout: _toolbarLayout,
+                              layout: toolbarLayout,
                             ),
                           ),
                           Positioned(
                             left:
                                 _toolButtonPadding +
-                                _toolbarLayout.width +
+                                toolbarLayout.width +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
                             child: Container(

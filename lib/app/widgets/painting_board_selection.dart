@@ -127,11 +127,18 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   void _applyMagicWandPreview(Offset position) {
-    final Uint8List? mask = _controller.computeMagicWandMask(
+    unawaited(_applyMagicWandPreviewAsync(position));
+  }
+
+  Future<void> _applyMagicWandPreviewAsync(Offset position) async {
+    final Uint8List? mask = await _controller.computeMagicWandMask(
       position,
       sampleAllLayers: true,
       tolerance: _magicWandTolerance,
     );
+    if (!mounted) {
+      return;
+    }
     setState(() {
       if (mask == null) {
         _clearMagicWandPreview();

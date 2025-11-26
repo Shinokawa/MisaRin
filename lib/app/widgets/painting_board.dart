@@ -75,6 +75,7 @@ import '../utils/tablet_input_bridge.dart';
 import '../palette/palette_exporter.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
+import '../../backend/layout_compute_worker.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
@@ -255,6 +256,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         CanvasToolbar.buttonSize * CanvasToolbar.buttonCount +
         CanvasToolbar.spacing * (CanvasToolbar.buttonCount - 1),
   );
+  BoardLayoutWorker? _layoutWorker;
+  BoardLayoutMetrics? _layoutMetrics;
+  Future<BoardLayoutMetrics>? _pendingLayoutTask;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -597,10 +601,45 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       }
       setState(() {
         _workspaceSize = size;
+        _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
+          _workspaceSize.height - _toolButtonPadding * 2,
+        );
         if (!_viewportInitialized) {
           // 仍需初始化视口，下一帧会根据新尺寸完成初始化
         }
+        _scheduleLayoutMetricsUpdate();
       });
+    });
+  }
+
+  BoardLayoutWorker _layoutWorkerInstance() {
+    return _layoutWorker ??= BoardLayoutWorker();
+  }
+
+  void _scheduleLayoutMetricsUpdate() {
+    if (!mounted) {
+      return;
+    }
+    final BoardLayoutInput input = BoardLayoutInput(
+      workspaceWidth: _workspaceSize.width,
+      workspaceHeight: _workspaceSize.height,
+      toolButtonPadding: _toolButtonPadding,
+      toolSettingsSpacing: _toolSettingsSpacing,
+      sidePanelWidth: _sidePanelWidth,
+    );
+    final Future<BoardLayoutMetrics> task =
+        _layoutWorkerInstance().compute(input);
+    _pendingLayoutTask = task;
+    task.then((BoardLayoutMetrics metrics) {
+      if (!mounted || _pendingLayoutTask != task) {
+        return;
+      }
+      setState(() {
+        _layoutMetrics = metrics;
+        _toolbarLayout = metrics.layout;
+      });
+    }).catchError((Object error, StackTrace stackTrace) {
+      debugPrint('Layout worker failed: $error');
     });
   }
 
@@ -1421,6 +1460,8 @@ class PaintingBoardState extends _PaintingBoardBase
     _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
     _layerRenameController.dispose();
     _layerRenameFocusNode.dispose();
+    _pendingLayoutTask = null;
+    unawaited(_layoutWorker?.dispose());
     _focusNode.dispose();
     super.dispose();
   }

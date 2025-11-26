@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -8,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
@@ -81,6 +83,8 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
   static const double _kStylusSmoothing = 0.55;
+  CanvasPaintingWorker? _paintingWorker;
+  Future<void> _paintingQueue = Future<void>.value();
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -501,6 +505,8 @@ class BitmapCanvasController extends ChangeNotifier {
   Future<void> disposeController() async {
     _tileCache.dispose();
     await _rasterBackend.dispose();
+    await _paintingWorker?.dispose();
+    _paintingWorker = null;
     _disposePendingTileImages();
     _disposeActiveLayerTransformImage(this);
     _activeLayerTransformPreparing = false;
@@ -701,7 +707,7 @@ class BitmapCanvasController extends ChangeNotifier {
     antialiasLevel: antialiasLevel,
   );
 
-  Uint8List? computeMagicWandMask(
+  Future<Uint8List?> computeMagicWandMask(
     Offset position, {
     bool sampleAllLayers = true,
     int tolerance = 0,
@@ -752,6 +758,27 @@ class BitmapCanvasController extends ChangeNotifier {
   void _markDirty({Rect? region}) => _compositeMarkDirty(this, region: region);
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
+
+  void _schedulePaintingTask(Future<void> Function() task) {
+    _paintingQueue = _paintingQueue.then((_) async {
+      try {
+        await task();
+      } catch (error, stackTrace) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'CanvasPaintingWorker',
+            context: ErrorDescription('while running painting task'),
+          ),
+        );
+      }
+    });
+  }
+
+  CanvasPaintingWorker _ensurePaintingWorker() {
+    return _paintingWorker ??= CanvasPaintingWorker();
+  }
 
   void _scheduleTileImageDisposal() {
     if (_pendingTileDisposals.isEmpty || _tileDisposalScheduled) {
@@ -907,4 +934,166 @@ class BitmapCanvasController extends ChangeNotifier {
 
   Rect _dirtyRectForLine(Offset a, Offset b, double radius) =>
       _strokeDirtyRectForLine(a, b, radius);
+
+  _SurfacePatch? _surfacePatchForRegion(Rect region) {
+    final RasterIntRect bounds = _clipRectToSurface(region);
+    if (bounds.isEmpty) {
+      return null;
+    }
+    final int patchWidth = bounds.width;
+    final int patchHeight = bounds.height;
+    final Uint32List pixels = Uint32List(patchWidth * patchHeight);
+    final Uint32List source = _activeSurface.pixels;
+    for (int row = 0; row < patchHeight; row++) {
+      final int srcOffset = (bounds.top + row) * _width + bounds.left;
+      final int dstOffset = row * patchWidth;
+      pixels.setRange(dstOffset, dstOffset + patchWidth, source, srcOffset);
+    }
+    Uint8List? maskPatch;
+    final Uint8List? mask = _selectionMask;
+    if (mask != null) {
+      maskPatch = Uint8List(patchWidth * patchHeight);
+      for (int row = 0; row < patchHeight; row++) {
+        final int srcOffset = (bounds.top + row) * _width + bounds.left;
+        final int dstOffset = row * patchWidth;
+        maskPatch.setRange(
+          dstOffset,
+          dstOffset + patchWidth,
+          mask,
+          srcOffset,
+        );
+      }
+    }
+    return _SurfacePatch(
+      left: bounds.left,
+      top: bounds.top,
+      width: patchWidth,
+      height: patchHeight,
+      pixels: pixels,
+      mask: maskPatch,
+    );
+  }
+
+  void _applySurfacePatch(_SurfacePatch patch, Uint32List pixels) {
+    final Uint32List destination = _activeSurface.pixels;
+    for (int row = 0; row < patch.height; row++) {
+      final int dstOffset = (patch.top + row) * _width + patch.left;
+      final int srcOffset = row * patch.width;
+      destination.setRange(
+        dstOffset,
+        dstOffset + patch.width,
+        pixels,
+        srcOffset,
+      );
+    }
+  }
+
+  Future<void> _executeDrawCommand({
+    required Rect region,
+    required PaintingDrawCommand command,
+  }) async {
+    final _SurfacePatch? patch = _surfacePatchForRegion(region);
+    if (patch == null) {
+      return;
+    }
+    final Uint32List updated = await _ensurePaintingWorker().drawPatch(
+      PaintingDrawPatchRequest(
+        width: patch.width,
+        height: patch.height,
+        pixels: patch.toPixelData(),
+        mask: patch.toMaskData(),
+        command: command,
+      ),
+    );
+    _applySurfacePatch(patch, updated);
+    _markDirty(region: region);
+  }
+
+  Future<void> _executeFloodFill({
+    required Offset start,
+    required Color color,
+    Color? targetColor,
+    bool contiguous = true,
+  }) async {
+    final Uint32List snapshot = Uint32List.fromList(_activeSurface.pixels);
+    final TransferableTypedData pixelData = TransferableTypedData.fromList(
+      <Uint8List>[Uint8List.view(snapshot.buffer)],
+    );
+    TransferableTypedData? maskData;
+    final Uint8List? selection = _selectionMask;
+    if (selection != null) {
+      maskData = TransferableTypedData.fromList(
+        <Uint8List>[Uint8List.fromList(selection)],
+      );
+    }
+    final Uint32List result = await _ensurePaintingWorker().floodFill(
+      PaintingFloodFillRequest(
+        width: _width,
+        height: _height,
+        pixels: pixelData,
+        startX: start.dx.floor(),
+        startY: start.dy.floor(),
+        colorValue: color.value,
+        targetColorValue: targetColor?.value,
+        contiguous: contiguous,
+        mask: maskData,
+      ),
+    );
+    _activeSurface.pixels.setAll(0, result);
+    _markDirty();
+  }
+
+  Future<Uint8List?> _executeSelectionMask({
+    required Offset start,
+    required Uint32List pixels,
+    int tolerance = 0,
+  }) async {
+    final TransferableTypedData pixelData = TransferableTypedData.fromList(
+      <Uint8List>[Uint8List.view(pixels.buffer)],
+    );
+    final Uint8List mask =
+        await _ensurePaintingWorker().computeSelectionMask(
+          PaintingSelectionMaskRequest(
+            width: _width,
+            height: _height,
+            pixels: pixelData,
+            startX: start.dx.floor(),
+            startY: start.dy.floor(),
+            tolerance: tolerance,
+          ),
+        );
+    return mask;
+  }
+}
+
+class _SurfacePatch {
+  _SurfacePatch({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+    required this.pixels,
+    this.mask,
+  });
+
+  final int left;
+  final int top;
+  final int width;
+  final int height;
+  final Uint32List pixels;
+  final Uint8List? mask;
+
+  TransferableTypedData toPixelData() {
+    return TransferableTypedData.fromList(
+      <Uint8List>[Uint8List.view(pixels.buffer)],
+    );
+  }
+
+  TransferableTypedData? toMaskData() {
+    final Uint8List? data = mask;
+    if (data == null) {
+      return null;
+    }
+    return TransferableTypedData.fromList(<Uint8List>[data]);
+  }
 }

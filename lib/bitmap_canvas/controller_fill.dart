@@ -64,14 +64,25 @@ void _fillFloodFill(
       y,
     );
     if (!requiresMaskFill) {
-      controller._activeSurface.floodFill(
-        start: Offset(x.toDouble(), y.toDouble()),
-        color: color,
-        targetColor: baseColor,
-        contiguous: contiguous,
-        mask: controller._selectionMask,
-      );
-      controller._markDirty();
+      if (controller.isMultithreaded) {
+        controller._schedulePaintingTask(() async {
+          await controller._executeFloodFill(
+            start: Offset(x.toDouble(), y.toDouble()),
+            color: color,
+            targetColor: baseColor,
+            contiguous: contiguous,
+          );
+        });
+      } else {
+        controller._activeSurface.floodFill(
+          start: Offset(x.toDouble(), y.toDouble()),
+          color: color,
+          targetColor: baseColor,
+          contiguous: contiguous,
+          mask: controller._selectionMask,
+        );
+        controller._markDirty();
+      }
       return;
     }
     if (baseColor.value == color.value && !shouldSwallow) {
@@ -99,12 +110,12 @@ void _fillFloodFill(
   }
 }
 
-Uint8List? _fillComputeMagicWandMask(
+Future<Uint8List?> _fillComputeMagicWandMask(
   BitmapCanvasController controller,
   Offset position, {
   bool sampleAllLayers = true,
   int tolerance = 0,
-}) {
+}) async {
   final int x = position.dx.floor();
   final int y = position.dy.floor();
   if (x < 0 || x >= controller._width || y < 0 || y >= controller._height) {
@@ -117,10 +128,46 @@ Uint8List? _fillComputeMagicWandMask(
     if (composite == null || composite.isEmpty) {
       return null;
     }
-    final int target = composite[y * controller._width + x];
+    if (controller.isMultithreaded) {
+      final Uint32List copy = Uint32List.fromList(composite);
+      return controller._executeSelectionMask(
+        start: Offset(x.toDouble(), y.toDouble()),
+        pixels: copy,
+        tolerance: tolerance,
+      );
+    } else {
+      final int target = composite[y * controller._width + x];
+      final bool filled = _fillFloodFillMask(
+        controller,
+        pixels: composite,
+        targetColor: target,
+        mask: mask,
+        startX: x,
+        startY: y,
+        width: controller._width,
+        height: controller._height,
+        tolerance: tolerance,
+      );
+      if (!filled) {
+        return null;
+      }
+      return mask;
+    }
+  }
+
+  final Uint32List pixels = controller._activeSurface.pixels;
+  if (controller.isMultithreaded) {
+    final Uint32List copy = Uint32List.fromList(pixels);
+    return controller._executeSelectionMask(
+      start: Offset(x.toDouble(), y.toDouble()),
+      pixels: copy,
+      tolerance: tolerance,
+    );
+  } else {
+    final int target = pixels[y * controller._width + x];
     final bool filled = _fillFloodFillMask(
       controller,
-      pixels: composite,
+      pixels: pixels,
       targetColor: target,
       mask: mask,
       startX: x,
@@ -134,24 +181,6 @@ Uint8List? _fillComputeMagicWandMask(
     }
     return mask;
   }
-
-  final Uint32List pixels = controller._activeSurface.pixels;
-  final int target = pixels[y * controller._width + x];
-  final bool filled = _fillFloodFillMask(
-    controller,
-    pixels: pixels,
-    targetColor: target,
-    mask: mask,
-    startX: x,
-    startY: y,
-    width: controller._width,
-    height: controller._height,
-    tolerance: tolerance,
-  );
-  if (!filled) {
-    return null;
-  }
-  return mask;
 }
 
 Color _fillSampleColor(
