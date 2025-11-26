@@ -1,7 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-class MagicWandToolButton extends StatelessWidget {
-  const MagicWandToolButton({
+class HandToolButton extends StatelessWidget {
+  const HandToolButton({
     super.key,
     required this.isSelected,
     required this.onPressed,
@@ -25,11 +25,7 @@ class MagicWandToolButton extends StatelessWidget {
         ? accent
         : (isDark ? const Color(0xFFE1E1E7) : const Color(0xFF323130));
     final Color shadowColor = isSelected
-        ? Color.lerp(
-            Colors.transparent,
-            accent,
-            isDark ? 0.45 : 0.28,
-          )!
+        ? Color.lerp(Colors.transparent, accent, isDark ? 0.45 : 0.28)!
         : Colors.transparent;
 
     return MouseRegion(
@@ -53,11 +49,7 @@ class MagicWandToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Icon(
-            FluentIcons.auto_enhance_on,
-            color: iconColor,
-            size: 20,
-          ),
+          child: Icon(FluentIcons.hands_free, color: iconColor, size: 20),
         ),
       ),
     );

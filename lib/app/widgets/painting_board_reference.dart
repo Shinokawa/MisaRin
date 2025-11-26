@@ -17,18 +17,10 @@ const double _referenceCardBodyPaddingBottom = 12;
 const double _referenceCardResizeEdgeHitExtent = 14.0;
 const double _referenceCardResizeCornerHitExtent = 18.0;
 
-enum _ReferenceCardResizeEdge {
-  left,
-  right,
-  bottom,
-  bottomLeft,
-  bottomRight,
-}
+enum _ReferenceCardResizeEdge { left, right, bottom, bottomLeft, bottomRight }
 
-typedef _ReferenceCardResizeCallback = void Function(
-  _ReferenceCardResizeEdge edge,
-  Offset delta,
-);
+typedef _ReferenceCardResizeCallback =
+    void Function(_ReferenceCardResizeEdge edge, Offset delta);
 
 class _ReferenceCardEntry {
   _ReferenceCardEntry({
@@ -611,26 +603,10 @@ class _ResizeHandleIndicatorPainter extends CustomPainter {
     final double head = 5;
     void drawArrow(Paint paint) {
       canvas.drawLine(Offset(-half, 0), Offset(half, 0), paint);
-      canvas.drawLine(
-        Offset(half, 0),
-        Offset(half - head, head),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(half, 0),
-        Offset(half - head, -head),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(-half, 0),
-        Offset(-half + head, head),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(-half, 0),
-        Offset(-half + head, -head),
-        paint,
-      );
+      canvas.drawLine(Offset(half, 0), Offset(half - head, head), paint);
+      canvas.drawLine(Offset(half, 0), Offset(half - head, -head), paint);
+      canvas.drawLine(Offset(-half, 0), Offset(-half + head, head), paint);
+      canvas.drawLine(Offset(-half, 0), Offset(-half + head, -head), paint);
     }
 
     drawArrow(outlinePaint);
@@ -817,24 +793,29 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     if (panelSize.width <= 0 || panelSize.height <= 0) {
       return null;
     }
-    final Rect panelRect = Rect.fromLTWH(0, 0, panelSize.width, panelSize.height);
+    final Rect panelRect = Rect.fromLTWH(
+      0,
+      0,
+      panelSize.width,
+      panelSize.height,
+    );
     final double edgeTolerance = _referenceCardResizeEdgeHitExtent;
     final double cornerTolerance = _referenceCardResizeCornerHitExtent;
     final bool withinVerticalBounds =
         position.dy >= panelRect.top - edgeTolerance &&
-            position.dy <= panelRect.bottom + edgeTolerance;
+        position.dy <= panelRect.bottom + edgeTolerance;
     final bool withinHorizontalBounds =
         position.dx >= panelRect.left - edgeTolerance &&
-            position.dx <= panelRect.right + edgeTolerance;
+        position.dx <= panelRect.right + edgeTolerance;
     final bool nearLeft =
         withinVerticalBounds &&
-            (position.dx - panelRect.left).abs() <= edgeTolerance;
+        (position.dx - panelRect.left).abs() <= edgeTolerance;
     final bool nearRight =
         withinVerticalBounds &&
-            (position.dx - panelRect.right).abs() <= edgeTolerance;
+        (position.dx - panelRect.right).abs() <= edgeTolerance;
     final bool nearBottom =
         withinHorizontalBounds &&
-            (position.dy - panelRect.bottom).abs() <= edgeTolerance;
+        (position.dy - panelRect.bottom).abs() <= edgeTolerance;
 
     final bool nearBottomLeft =
         (position - panelRect.bottomLeft).distance <= cornerTolerance;
@@ -863,8 +844,9 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     if (_activeResizeEdge != null || _interactionLocked) {
       return;
     }
-    final _ReferenceCardResizeEdge? edge =
-        _resolveResizeEdge(event.localPosition);
+    final _ReferenceCardResizeEdge? edge = _resolveResizeEdge(
+      event.localPosition,
+    );
     if (edge == null) {
       if (_hoveredResizeEdge == null) {
         return;
@@ -895,8 +877,9 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     if (_interactionLocked || event.buttons == 0) {
       return;
     }
-    final _ReferenceCardResizeEdge? edge =
-        _resolveResizeEdge(event.localPosition);
+    final _ReferenceCardResizeEdge? edge = _resolveResizeEdge(
+      event.localPosition,
+    );
     if (edge == null) {
       return;
     }
@@ -1187,7 +1170,8 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   @override
   Widget build(BuildContext context) {
     final Size bodySize = widget.bodySize;
-    final double panelWidth = bodySize.width + _referenceCardBodyHorizontalPadding;
+    final double panelWidth =
+        bodySize.width + _referenceCardBodyHorizontalPadding;
     final FluentThemeData theme = FluentTheme.of(context);
     return Listener(
       behavior: HitTestBehavior.opaque,
@@ -1204,7 +1188,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              _MeasureSize(
+              MeasuredSize(
                 onChanged: (size) {
                   _panelSize = size;
                   widget.onSizeChanged(size);

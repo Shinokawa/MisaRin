@@ -63,7 +63,10 @@ import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/vector_stroke_painter.dart';
-import 'canvas_toolbar.dart';
+import '../toolbars/widgets/canvas_toolbar.dart';
+import '../toolbars/widgets/tool_settings_card.dart';
+import '../toolbars/layouts/layouts.dart';
+import '../toolbars/widgets/measured_size.dart';
 import 'tool_cursor_overlay.dart';
 import 'bitmap_canvas_surface.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
@@ -170,6 +173,7 @@ class PaintingBoard extends StatefulWidget {
     this.externalCanRedo = false,
     this.onResizeImage,
     this.onResizeCanvas,
+    this.toolbarLayoutStyle = PaintingToolbarLayoutStyle.floating,
   });
 
   final CanvasSettings settings;
@@ -182,6 +186,7 @@ class PaintingBoard extends StatefulWidget {
   final bool externalCanRedo;
   final Future<void> Function()? onResizeImage;
   final Future<void> Function()? onResizeCanvas;
+  final PaintingToolbarLayoutStyle toolbarLayoutStyle;
 
   @override
   State<PaintingBoard> createState() => PaintingBoardState();
@@ -259,6 +264,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         CanvasToolbar.buttonSize * CanvasToolbar.buttonCount +
         CanvasToolbar.spacing * (CanvasToolbar.buttonCount - 1),
   );
+  List<Rect> _toolbarHitRegions = const <Rect>[];
   BoardLayoutWorker? _layoutWorker;
   BoardLayoutMetrics? _layoutMetrics;
   Future<BoardLayoutMetrics>? _pendingLayoutTask;
@@ -630,20 +636,54 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       toolSettingsSpacing: _toolSettingsSpacing,
       sidePanelWidth: _sidePanelWidth,
     );
-    final Future<BoardLayoutMetrics> task =
-        _layoutWorkerInstance().compute(input);
+    final Future<BoardLayoutMetrics> task = _layoutWorkerInstance().compute(
+      input,
+    );
     _pendingLayoutTask = task;
-    task.then((BoardLayoutMetrics metrics) {
-      if (!mounted || _pendingLayoutTask != task) {
-        return;
-      }
-      setState(() {
-        _layoutMetrics = metrics;
-        _toolbarLayout = metrics.layout;
-      });
-    }).catchError((Object error, StackTrace stackTrace) {
-      debugPrint('Layout worker failed: $error');
-    });
+    task
+        .then((BoardLayoutMetrics metrics) {
+          if (!mounted || _pendingLayoutTask != task) {
+            return;
+          }
+          setState(() {
+            _layoutMetrics = metrics;
+            _toolbarLayout = metrics.layout;
+          });
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('Layout worker failed: $error');
+        });
+  }
+
+  CanvasToolbarLayout _resolveToolbarLayoutForStyle(
+    PaintingToolbarLayoutStyle style,
+    CanvasToolbarLayout base,
+  ) {
+    if (style != PaintingToolbarLayoutStyle.sai2) {
+      return base;
+    }
+    final double availableWidth = (_sidePanelWidth - 32).clamp(
+      CanvasToolbar.buttonSize,
+      double.infinity,
+    );
+    final double step = CanvasToolbar.buttonSize + CanvasToolbar.spacing;
+    final int rawColumns = math.max(1, availableWidth ~/ step);
+    final int columns = math.min(
+      CanvasToolbar.buttonCount,
+      math.max(2, rawColumns),
+    );
+    final int rows = (CanvasToolbar.buttonCount / columns).ceil();
+    final double width =
+        columns * CanvasToolbar.buttonSize +
+        (columns - 1) * CanvasToolbar.spacing;
+    final double height =
+        rows * CanvasToolbar.buttonSize + (rows - 1) * CanvasToolbar.spacing;
+    return CanvasToolbarLayout(
+      columns: columns,
+      rows: rows,
+      width: width,
+      height: height,
+    );
   }
 
   Rect get _boardRect {
@@ -1284,8 +1324,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     if (_historyLocked) {
       return;
     }
-    final _CanvasHistoryEntry snapshot =
-        entry ?? await _createHistoryEntry();
+    final _CanvasHistoryEntry snapshot = entry ?? await _createHistoryEntry();
     _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();

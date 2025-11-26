@@ -3,8 +3,8 @@ import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../canvas/canvas_tools.dart';
-import '../shortcuts/toolbar_shortcuts.dart';
+import '../../../canvas/canvas_tools.dart';
+import '../../shortcuts/toolbar_shortcuts.dart';
 import 'exit_tool_button.dart';
 import 'hand_tool_button.dart';
 import 'bucket_tool_button.dart';

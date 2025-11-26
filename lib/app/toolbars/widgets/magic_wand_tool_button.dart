@@ -1,24 +1,14 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-import '../../canvas/canvas_tools.dart';
-
-class SelectionToolButton extends StatelessWidget {
-  const SelectionToolButton({
+class MagicWandToolButton extends StatelessWidget {
+  const MagicWandToolButton({
     super.key,
     required this.isSelected,
-    required this.selectionShape,
     required this.onPressed,
   });
 
   final bool isSelected;
-  final SelectionShape selectionShape;
   final VoidCallback onPressed;
-
-  static const Map<SelectionShape, String> _iconAssetMap = {
-    SelectionShape.rectangle: 'icons/warp1.png',
-    SelectionShape.ellipse: 'icons/warp2.png',
-    SelectionShape.polygon: 'icons/warp3.png',
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -33,13 +23,9 @@ class SelectionToolButton extends StatelessWidget {
         : (isDark ? const Color(0xFF1B1B1F) : const Color(0xFFFFFFFF));
     final Color iconColor = isSelected
         ? accent
-        : (isDark ? Colors.white : const Color(0xFF323130));
+        : (isDark ? const Color(0xFFE1E1E7) : const Color(0xFF323130));
     final Color shadowColor = isSelected
-        ? Color.lerp(
-            Colors.transparent,
-            accent,
-            isDark ? 0.45 : 0.28,
-          )!
+        ? Color.lerp(Colors.transparent, accent, isDark ? 0.45 : 0.28)!
         : Colors.transparent;
 
     return MouseRegion(
@@ -63,15 +49,7 @@ class SelectionToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Center(
-            child: Image.asset(
-              _iconAssetMap[selectionShape]!,
-              width: 24,
-              height: 24,
-              color: iconColor,
-              colorBlendMode: BlendMode.srcIn,
-            ),
-          ),
+          child: Icon(FluentIcons.auto_enhance_on, color: iconColor, size: 20),
         ),
       ),
     );

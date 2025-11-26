@@ -15,10 +15,12 @@ import '../dialogs/misarin_dialog.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
 import '../models/canvas_resize_anchor.dart';
+import '../models/workspace_layout.dart';
 import '../palette/palette_importer.dart';
 import '../preferences/app_preferences.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
+import '../toolbars/layouts/painting_toolbar_layout.dart';
 import '../widgets/app_notification.dart';
 import '../widgets/canvas_title_bar.dart';
 import '../widgets/painting_board.dart';
@@ -67,6 +69,8 @@ class CanvasPageState extends State<CanvasPage> {
   bool _isSaving = false;
   bool _isAutoSaving = false;
   Timer? _autoSaveTimer;
+  WorkspaceLayoutPreference _workspaceLayoutPreference =
+      AppPreferences.instance.workspaceLayout;
 
   PaintingBoardState? get _activeBoard => _boardFor(_document.id);
 
@@ -410,6 +414,31 @@ class CanvasPageState extends State<CanvasPage> {
       return false;
     }
   }
+
+  PaintingToolbarLayoutStyle get _toolbarLayoutStyle {
+    return _workspaceLayoutPreference == WorkspaceLayoutPreference.sai2
+        ? PaintingToolbarLayoutStyle.sai2
+        : PaintingToolbarLayoutStyle.floating;
+  }
+
+  Future<void> _setWorkspaceLayoutPreference(
+    WorkspaceLayoutPreference preference,
+  ) async {
+    if (_workspaceLayoutPreference == preference) {
+      return;
+    }
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.workspaceLayout = preference;
+    if (mounted) {
+      setState(() {
+        _workspaceLayoutPreference = preference;
+      });
+    } else {
+      _workspaceLayoutPreference = preference;
+    }
+    await AppPreferences.save();
+  }
+
 
   Future<bool> _saveProjectAs() async {
     if (!mounted || _isSaving || _isAutoSaving) {
@@ -868,6 +897,7 @@ class CanvasPageState extends State<CanvasPage> {
       externalCanRedo: _canRedoDocumentFor(id),
       onResizeImage: _handleResizeImage,
       onResizeCanvas: _handleResizeCanvas,
+      toolbarLayoutStyle: _toolbarLayoutStyle,
     );
   }
 
@@ -1003,6 +1033,8 @@ class CanvasPageState extends State<CanvasPage> {
         }
         board.showBrightnessContrastAdjustments();
       },
+      workspaceLayoutPreference: _workspaceLayoutPreference,
+      switchWorkspaceLayout: _setWorkspaceLayoutPreference,
     );
 
     return MenuActionBinding(

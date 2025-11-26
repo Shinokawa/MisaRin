@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 
-import '../app/widgets/canvas_toolbar.dart';
+import '../app/toolbars/widgets/canvas_toolbar.dart';
 
 class BoardLayoutInput {
   const BoardLayoutInput({
@@ -35,9 +35,9 @@ class BoardLayoutMetrics {
 
 class BoardLayoutWorker {
   BoardLayoutWorker()
-      : _receivePort = ReceivePort(),
-        _pending = <int, Completer<Map<String, Object?>>>{},
-        _sendPortCompleter = Completer<SendPort>() {
+    : _receivePort = ReceivePort(),
+      _pending = <int, Completer<Map<String, Object?>>>{},
+      _sendPortCompleter = Completer<SendPort>() {
     _subscription = _receivePort.listen(_handleMessage);
   }
 
@@ -77,11 +77,12 @@ class BoardLayoutWorker {
       width: (response['layoutWidth'] as num? ?? 0).toDouble(),
       height: (response['layoutHeight'] as num? ?? 0).toDouble(),
     );
-    final double toolSettingsLeft =
-        (response['toolSettingsLeft'] as num? ?? 0).toDouble();
-    final double sidebarLeft =
-        (response['sidebarLeft'] as num? ?? 0).toDouble();
-    final double? toolSettingsMaxWidth = response['toolSettingsMaxWidth'] == null
+    final double toolSettingsLeft = (response['toolSettingsLeft'] as num? ?? 0)
+        .toDouble();
+    final double sidebarLeft = (response['sidebarLeft'] as num? ?? 0)
+        .toDouble();
+    final double? toolSettingsMaxWidth =
+        response['toolSettingsMaxWidth'] == null
         ? null
         : (response['toolSettingsMaxWidth'] as num).toDouble();
     return BoardLayoutMetrics(
@@ -138,8 +139,7 @@ class BoardLayoutWorker {
     if (!_sendPortCompleter.isCompleted) {
       _sendPortCompleter.completeError(StateError('Worker disposed'));
     }
-    for (final Completer<Map<String, Object?>> completer
-        in _pending.values) {
+    for (final Completer<Map<String, Object?>> completer in _pending.values) {
       completer.completeError(StateError('Layout worker disposed'));
     }
     _pending.clear();
@@ -160,27 +160,28 @@ void _layoutWorkerMain(SendPort replyPort) {
     }
     final int id = message['id'] as int? ?? -1;
     final Map<String, Object?> request =
-        (message['request'] as Map<String, Object?>?) ?? const <String, Object?>{};
+        (message['request'] as Map<String, Object?>?) ??
+        const <String, Object?>{};
     final Map<String, Object?> response = _computeLayoutResponse(request);
     replyPort.send(<String, Object?>{'id': id, 'response': response});
   });
 }
 
 Map<String, Object?> _computeLayoutResponse(Map<String, Object?> request) {
-  final double workspaceWidth =
-      (request['workspaceWidth'] as num? ?? 0).toDouble();
-  final double workspaceHeight =
-      (request['workspaceHeight'] as num? ?? 0).toDouble();
-  final double toolButtonPadding =
-      (request['toolButtonPadding'] as num? ?? 0).toDouble();
+  final double workspaceWidth = (request['workspaceWidth'] as num? ?? 0)
+      .toDouble();
+  final double workspaceHeight = (request['workspaceHeight'] as num? ?? 0)
+      .toDouble();
+  final double toolButtonPadding = (request['toolButtonPadding'] as num? ?? 0)
+      .toDouble();
   final double toolSettingsSpacing =
       (request['toolSettingsSpacing'] as num? ?? 0).toDouble();
-  final double sidePanelWidth =
-      (request['sidePanelWidth'] as num? ?? 0).toDouble();
-  final double availableToolbarHeight =
-      workspaceHeight - toolButtonPadding * 2;
-  final CanvasToolbarLayout layout =
-      CanvasToolbar.layoutForAvailableHeight(availableToolbarHeight);
+  final double sidePanelWidth = (request['sidePanelWidth'] as num? ?? 0)
+      .toDouble();
+  final double availableToolbarHeight = workspaceHeight - toolButtonPadding * 2;
+  final CanvasToolbarLayout layout = CanvasToolbar.layoutForAvailableHeight(
+    availableToolbarHeight,
+  );
   final double toolSettingsLeft =
       toolButtonPadding + layout.width + toolSettingsSpacing;
   final double sidebarLeft =
@@ -190,8 +191,8 @@ Map<String, Object?> _computeLayoutResponse(Map<String, Object?> request) {
       );
   final double computedToolSettingsMaxWidth =
       sidebarLeft - toolSettingsLeft - toolSettingsSpacing;
-  final double? toolSettingsMaxWidth = computedToolSettingsMaxWidth.isFinite &&
-          computedToolSettingsMaxWidth > 0
+  final double? toolSettingsMaxWidth =
+      computedToolSettingsMaxWidth.isFinite && computedToolSettingsMaxWidth > 0
       ? computedToolSettingsMaxWidth
       : null;
   return <String, Object?>{

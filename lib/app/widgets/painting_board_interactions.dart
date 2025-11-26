@@ -46,39 +46,42 @@ mixin _PaintingBoardInteractionMixin
     return false;
   }
 
-  Rect get _toolbarRect => Rect.fromLTWH(
-    _toolButtonPadding,
-    _toolButtonPadding,
-    _toolbarLayout.width,
-    _toolbarLayout.height,
-  );
-
-  Rect get _toolSettingsRect => Rect.fromLTWH(
-    _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing,
-    _toolButtonPadding,
-    _toolSettingsCardSize.width,
-    _toolSettingsCardSize.height,
-  );
-
-  Rect get _colorIndicatorRect {
-    final double top =
+  bool _isInsideToolArea(Offset workspacePosition) {
+    if (_toolbarHitRegions.isNotEmpty) {
+      for (final Rect region in _toolbarHitRegions) {
+        if (region.contains(workspacePosition)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    final Rect toolbarRect = Rect.fromLTWH(
+      _toolButtonPadding,
+      _toolButtonPadding,
+      _toolbarLayout.width,
+      _toolbarLayout.height,
+    );
+    final Rect toolSettingsRect = Rect.fromLTWH(
+      _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing,
+      _toolButtonPadding,
+      _toolSettingsCardSize.width,
+      _toolSettingsCardSize.height,
+    );
+    final double indicatorTop =
         (_workspaceSize.height - _toolButtonPadding - _colorIndicatorSize)
             .clamp(0.0, double.infinity);
-    return Rect.fromLTWH(
+    final Rect colorIndicatorRect = Rect.fromLTWH(
       _toolButtonPadding,
-      top,
+      indicatorTop,
       _colorIndicatorSize,
       _colorIndicatorSize,
     );
-  }
-
-  Rect get _rightSidebarRect {
-    final double left =
+    final double sidebarLeft =
         (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding)
             .clamp(0.0, double.infinity)
             .toDouble();
-    return Rect.fromLTWH(
-      left,
+    final Rect rightSidebarRect = Rect.fromLTWH(
+      sidebarLeft,
       _toolButtonPadding,
       _sidePanelWidth,
       (_workspaceSize.height - 2 * _toolButtonPadding).clamp(
@@ -86,13 +89,10 @@ mixin _PaintingBoardInteractionMixin
         double.infinity,
       ),
     );
-  }
-
-  bool _isInsideToolArea(Offset workspacePosition) {
-    return _toolbarRect.contains(workspacePosition) ||
-        _toolSettingsRect.contains(workspacePosition) ||
-        _rightSidebarRect.contains(workspacePosition) ||
-        _colorIndicatorRect.contains(workspacePosition);
+    return toolbarRect.contains(workspacePosition) ||
+        toolSettingsRect.contains(workspacePosition) ||
+        rightSidebarRect.contains(workspacePosition) ||
+        colorIndicatorRect.contains(workspacePosition);
   }
 
   bool _isWithinCanvas(Offset boardLocal) {
@@ -351,7 +351,6 @@ mixin _PaintingBoardInteractionMixin
     }
     return bound;
   }
-
 
   Future<void> _startStroke(
     Offset position,

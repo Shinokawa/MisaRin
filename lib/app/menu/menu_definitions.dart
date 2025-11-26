@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart'
     show MenuSerializableShortcut, SingleActivator;
 
+import '../models/workspace_layout.dart';
 import 'menu_action_dispatcher.dart';
 
 sealed class MenuEntry {
@@ -13,11 +14,13 @@ class MenuActionEntry extends MenuEntry {
     required this.label,
     required this.action,
     this.shortcut,
+    this.checked = false,
   });
 
   final String label;
   final MenuAsyncAction? action;
   final MenuSerializableShortcut? shortcut;
+  final bool checked;
 }
 
 class MenuSubmenuEntry extends MenuEntry {
@@ -69,6 +72,7 @@ class MenuDefinitionBuilder {
       _filterMenu(handler),
       _toolMenu(handler),
       _viewMenu(handler),
+      _workspaceMenu(handler),
       _windowMenu(),
     ].whereType<MenuDefinition>().toList(growable: false);
   }
@@ -422,6 +426,34 @@ class MenuDefinitionBuilder {
       return null;
     }
     return MenuDefinition(label: '视图', entries: entries);
+  }
+
+  static MenuDefinition? _workspaceMenu(MenuActionHandler handler) {
+    final MenuWorkspaceLayoutAction? switchLayout =
+        handler.switchWorkspaceLayout;
+    if (switchLayout == null) {
+      return null;
+    }
+    final WorkspaceLayoutPreference? current =
+        handler.workspaceLayoutPreference;
+    final List<MenuEntry> entries = <MenuEntry>[
+      MenuActionEntry(
+        label: '默认',
+        action: () => switchLayout(WorkspaceLayoutPreference.floating),
+        checked: current == WorkspaceLayoutPreference.floating,
+      ),
+      MenuActionEntry(
+        label: 'SAI2',
+        action: () => switchLayout(WorkspaceLayoutPreference.sai2),
+        checked: current == WorkspaceLayoutPreference.sai2,
+      ),
+    ];
+    return MenuDefinition(
+      label: '工作区',
+      entries: <MenuEntry>[
+        MenuSubmenuEntry(label: '切换工作区', entries: entries),
+      ],
+    );
   }
 
   static MenuDefinition? _filterMenu(MenuActionHandler handler) {

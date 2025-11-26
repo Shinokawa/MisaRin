@@ -10,6 +10,7 @@ import '../../bitmap_canvas/stroke_dynamics.dart';
 import '../../canvas/canvas_tools.dart';
 import '../constants/color_line_presets.dart';
 import '../constants/pen_constants.dart';
+import '../models/workspace_layout.dart';
 
 class AppPreferences {
   AppPreferences._({
@@ -35,11 +36,12 @@ class AppPreferences {
     this.magicWandTolerance = _defaultMagicWandTolerance,
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
     this.showFpsOverlay = _defaultShowFpsOverlay,
+    this.workspaceLayout = _defaultWorkspaceLayout,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 19;
+  static const int _version = 20;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -65,6 +67,8 @@ class AppPreferences {
   static const bool _defaultBrushToolsEraserMode = false;
   static const int _defaultBucketAntialiasLevel = 0;
   static const bool _defaultShowFpsOverlay = false;
+  static const WorkspaceLayoutPreference _defaultWorkspaceLayout =
+      WorkspaceLayoutPreference.floating;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -91,6 +95,8 @@ class AppPreferences {
   static const int defaultBucketAntialiasLevel =
       _defaultBucketAntialiasLevel;
   static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
+  static const WorkspaceLayoutPreference defaultWorkspaceLayout =
+      _defaultWorkspaceLayout;
 
   static AppPreferences? _instance;
   static final ValueNotifier<bool> fpsOverlayEnabledNotifier =
@@ -118,6 +124,7 @@ class AppPreferences {
   bool brushToolsEraserMode;
   int bucketAntialiasLevel;
   bool showFpsOverlay;
+  WorkspaceLayoutPreference workspaceLayout;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -153,6 +160,42 @@ class AppPreferences {
           final bool decodedBucketSwallowColorLine = hasColorLinePayload
               ? bytes[19] != 0
               : _defaultBucketSwallowColorLine;
+          if (version >= 20 && bytes.length >= 26) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+              strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                bytes[15],
+              ),
+              brushShape: _decodeBrushShape(bytes[16]),
+              layerAdjustCropOutside: bytes[17] != 0,
+              colorLineColor: decodedColorLineColor,
+              bucketSwallowColorLine: decodedBucketSwallowColorLine,
+              bucketTolerance: _clampToleranceValue(bytes[20]),
+              magicWandTolerance: _clampToleranceValue(bytes[21]),
+              brushToolsEraserMode: bytes[22] != 0,
+              bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
+              showFpsOverlay: bytes[24] != 0,
+              workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
+            );
+            return _finalizeLoadedPreferences();
+          }
           if (version >= 19 && bytes.length >= 25) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
@@ -712,6 +755,7 @@ class AppPreferences {
       layerAdjustCropOutside: false,
       colorLineColor: _defaultColorLineColor,
       bucketSwallowColorLine: _defaultBucketSwallowColorLine,
+      workspaceLayout: _defaultWorkspaceLayout,
     );
     return _finalizeLoadedPreferences();
   }
@@ -784,6 +828,7 @@ class AppPreferences {
       prefs.brushToolsEraserMode ? 1 : 0,
       _encodeAntialiasLevel(prefs.bucketAntialiasLevel),
       prefs.showFpsOverlay ? 1 : 0,
+      _encodeWorkspaceLayoutPreference(prefs.workspaceLayout),
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -838,6 +883,28 @@ class AppPreferences {
       (candidate) => candidate.value == color.value,
     );
     return index >= 0 ? index : 0;
+  }
+
+  static WorkspaceLayoutPreference _decodeWorkspaceLayoutPreference(int value) {
+    switch (value) {
+      case 1:
+        return WorkspaceLayoutPreference.sai2;
+      case 0:
+      default:
+        return WorkspaceLayoutPreference.floating;
+    }
+  }
+
+  static int _encodeWorkspaceLayoutPreference(
+    WorkspaceLayoutPreference value,
+  ) {
+    switch (value) {
+      case WorkspaceLayoutPreference.sai2:
+        return 1;
+      case WorkspaceLayoutPreference.floating:
+      default:
+        return 0;
+    }
   }
 
   static double _decodePenStrokeWidthLegacy(int value) {

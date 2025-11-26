@@ -205,6 +205,117 @@ mixin _PaintingBoardBuildMixin
           }
         }
 
+        final PaintingToolbarLayoutStyle toolbarStyle =
+            widget.toolbarLayoutStyle;
+        final CanvasToolbarLayout activeToolbarLayout =
+            _resolveToolbarLayoutForStyle(toolbarStyle, toolbarLayout);
+        final Widget toolbarWidget = CanvasToolbar(
+          activeTool: _activeTool,
+          selectionShape: selectionShape,
+          shapeToolVariant: shapeToolVariant,
+          onToolSelected: _setActiveTool,
+          onUndo: _handleUndo,
+          onRedo: _handleRedo,
+          canUndo: canUndo,
+          canRedo: canRedo,
+          onExit: widget.onRequestExit,
+          layout: activeToolbarLayout,
+        );
+        final Widget toolSettingsCard = ToolSettingsCard(
+          activeTool: _activeTool,
+          penStrokeWidth: _penStrokeWidth,
+          penStrokeSliderRange: _penStrokeSliderRange,
+          onPenStrokeWidthChanged: _updatePenStrokeWidth,
+          brushShape: _brushShape,
+          onBrushShapeChanged: _updateBrushShape,
+          strokeStabilizerStrength: _strokeStabilizerStrength,
+          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
+          stylusPressureEnabled: _stylusPressureEnabled,
+          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+          simulatePenPressure: _simulatePenPressure,
+          onSimulatePenPressureChanged: _updatePenPressureSimulation,
+          penPressureProfile: _penPressureProfile,
+          onPenPressureProfileChanged: _updatePenPressureProfile,
+          brushAntialiasLevel: _penAntialiasLevel,
+          onBrushAntialiasChanged: _updatePenAntialiasLevel,
+          autoSharpPeakEnabled: _autoSharpPeakEnabled,
+          onAutoSharpPeakChanged: _updateAutoSharpPeakEnabled,
+          bucketSampleAllLayers: _bucketSampleAllLayers,
+          bucketContiguous: _bucketContiguous,
+          bucketSwallowColorLine: _bucketSwallowColorLine,
+          bucketAntialiasLevel: _bucketAntialiasLevel,
+          onBucketSampleAllLayersChanged: _updateBucketSampleAllLayers,
+          onBucketContiguousChanged: _updateBucketContiguous,
+          onBucketSwallowColorLineChanged: _updateBucketSwallowColorLine,
+          onBucketAntialiasChanged: _updateBucketAntialiasLevel,
+          bucketTolerance: _bucketTolerance,
+          onBucketToleranceChanged: _updateBucketTolerance,
+          layerAdjustCropOutside: _layerAdjustCropOutside,
+          onLayerAdjustCropOutsideChanged: _updateLayerAdjustCropOutside,
+          selectionShape: selectionShape,
+          onSelectionShapeChanged: _updateSelectionShape,
+          shapeToolVariant: shapeToolVariant,
+          onShapeToolVariantChanged: _updateShapeToolVariant,
+          onSizeChanged: _updateToolSettingsCardSize,
+          magicWandTolerance: _magicWandTolerance,
+          onMagicWandToleranceChanged: _updateMagicWandTolerance,
+          brushToolsEraserMode: _brushToolsEraserMode,
+          onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
+          strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
+        );
+        final ToolbarPanelData colorPanelData = ToolbarPanelData(
+          title: '取色',
+          trailing: _buildColorPanelTrailing(theme),
+          child: _buildColorPanelContent(theme),
+        );
+        final ToolbarPanelData layerPanelData = ToolbarPanelData(
+          title: '图层管理',
+          trailing: Button(
+            onPressed: _handleAddLayer,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(FluentIcons.add, size: 14),
+                SizedBox(width: 6),
+                Text('新增图层'),
+              ],
+            ),
+          ),
+          child: _buildLayerPanelContent(theme),
+          expand: true,
+        );
+        final PaintingToolbarElements toolbarElements = PaintingToolbarElements(
+          toolbar: toolbarWidget,
+          toolSettings: toolSettingsCard,
+          colorIndicator: _buildColorIndicator(theme),
+          colorPanel: colorPanelData,
+          layerPanel: layerPanelData,
+        );
+        final PaintingToolbarMetrics toolbarMetrics = PaintingToolbarMetrics(
+          toolbarLayout: activeToolbarLayout,
+          toolSettingsSize: _toolSettingsCardSize,
+          workspaceSize: _workspaceSize,
+          toolButtonPadding: _toolButtonPadding,
+          toolSettingsSpacing: _toolSettingsSpacing,
+          sidePanelWidth: _sidePanelWidth,
+          sidePanelSpacing: _sidePanelSpacing,
+          colorIndicatorSize: _colorIndicatorSize,
+          toolSettingsLeft: toolSettingsLeft,
+          sidebarLeft: sidebarLeft,
+          toolSettingsMaxWidth: toolSettingsMaxWidth,
+        );
+        final PaintingToolbarLayoutDelegate toolbarLayoutDelegate =
+            toolbarStyle == PaintingToolbarLayoutStyle.sai2
+            ? const Sai2ToolbarLayoutDelegate()
+            : const FloatingToolbarLayoutDelegate();
+        final PaintingToolbarLayoutResult toolbarLayoutResult =
+            toolbarLayoutDelegate.build(
+              context,
+              toolbarElements,
+              toolbarMetrics,
+            );
+        _toolbarHitRegions = toolbarLayoutResult.hitRegions;
+
         return Shortcuts(
           shortcuts: shortcutBindings,
           child: Actions(
@@ -408,12 +519,22 @@ mixin _PaintingBoardBuildMixin
                                                     theme,
                                                   )
                                                 : null;
-                                            
+
                                             // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
-                                            final bool showActiveStroke = 
+                                            final bool showActiveStroke =
                                                 !_isLayerFreeTransformActive &&
-                                                !_controller.isActiveLayerTransforming &&
-                                                (_effectiveActiveTool == CanvasTool.pen && !_controller.activeStrokeEraseMode && _controller.activeStrokePoints.isNotEmpty || _controller.committingStrokes.isNotEmpty);
+                                                !_controller
+                                                    .isActiveLayerTransforming &&
+                                                (_effectiveActiveTool ==
+                                                            CanvasTool.pen &&
+                                                        !_controller
+                                                            .activeStrokeEraseMode &&
+                                                        _controller
+                                                            .activeStrokePoints
+                                                            .isNotEmpty ||
+                                                    _controller
+                                                        .committingStrokes
+                                                        .isNotEmpty);
 
                                             return Stack(
                                               fit: StackFit.expand,
@@ -426,11 +547,17 @@ mixin _PaintingBoardBuildMixin
                                                   Positioned.fill(
                                                     child: CustomPaint(
                                                       painter: _ActiveStrokeOverlayPainter(
-                                                        points: _controller.activeStrokePoints,
-                                                        radii: _controller.activeStrokeRadii,
-                                                        color: _controller.activeStrokeColor,
-                                                        shape: _controller.activeStrokeShape,
-                                                        committingStrokes: _controller.committingStrokes,
+                                                        points: _controller
+                                                            .activeStrokePoints,
+                                                        radii: _controller
+                                                            .activeStrokeRadii,
+                                                        color: _controller
+                                                            .activeStrokeColor,
+                                                        shape: _controller
+                                                            .activeStrokeShape,
+                                                        committingStrokes:
+                                                            _controller
+                                                                .committingStrokes,
                                                       ),
                                                     ),
                                                   ),
@@ -513,137 +640,7 @@ mixin _PaintingBoardBuildMixin
                               ),
                             ),
                           ),
-                          Positioned(
-                            left: _toolButtonPadding,
-                            top: _toolButtonPadding,
-                            child: CanvasToolbar(
-                              activeTool: _activeTool,
-                              selectionShape: selectionShape,
-                              shapeToolVariant: shapeToolVariant,
-                              onToolSelected: _setActiveTool,
-                              onUndo: _handleUndo,
-                              onRedo: _handleRedo,
-                              canUndo: canUndo,
-                              canRedo: canRedo,
-                              onExit: widget.onRequestExit,
-                              layout: toolbarLayout,
-                            ),
-                          ),
-                          Positioned(
-                            left:
-                                _toolButtonPadding +
-                                toolbarLayout.width +
-                                _toolSettingsSpacing,
-                            top: _toolButtonPadding,
-                            child: Container(
-                              constraints: toolSettingsMaxWidth != null
-                                  ? BoxConstraints(
-                                      maxWidth: toolSettingsMaxWidth,
-                                    )
-                                  : null,
-                              child: _ToolSettingsCard(
-                                activeTool: _activeTool,
-                                penStrokeWidth: _penStrokeWidth,
-                                penStrokeSliderRange: _penStrokeSliderRange,
-                                onPenStrokeWidthChanged: _updatePenStrokeWidth,
-                                brushShape: _brushShape,
-                                onBrushShapeChanged: _updateBrushShape,
-                                strokeStabilizerStrength:
-                                    _strokeStabilizerStrength,
-                                onStrokeStabilizerChanged:
-                                    _updateStrokeStabilizerStrength,
-                                stylusPressureEnabled: _stylusPressureEnabled,
-                                onStylusPressureEnabledChanged:
-                                    _updateStylusPressureEnabled,
-                                simulatePenPressure: _simulatePenPressure,
-                                onSimulatePenPressureChanged:
-                                    _updatePenPressureSimulation,
-                                penPressureProfile: _penPressureProfile,
-                                onPenPressureProfileChanged:
-                                    _updatePenPressureProfile,
-                                brushAntialiasLevel: _penAntialiasLevel,
-                                onBrushAntialiasChanged:
-                                    _updatePenAntialiasLevel,
-                                autoSharpPeakEnabled: _autoSharpPeakEnabled,
-                                onAutoSharpPeakChanged:
-                                    _updateAutoSharpPeakEnabled,
-                                bucketSampleAllLayers: _bucketSampleAllLayers,
-                                bucketContiguous: _bucketContiguous,
-                                bucketSwallowColorLine: _bucketSwallowColorLine,
-                                bucketAntialiasLevel: _bucketAntialiasLevel,
-                                onBucketSampleAllLayersChanged:
-                                    _updateBucketSampleAllLayers,
-                                onBucketContiguousChanged:
-                                    _updateBucketContiguous,
-                                onBucketSwallowColorLineChanged:
-                                    _updateBucketSwallowColorLine,
-                                onBucketAntialiasChanged:
-                                    _updateBucketAntialiasLevel,
-                                bucketTolerance: _bucketTolerance,
-                                onBucketToleranceChanged:
-                                    _updateBucketTolerance,
-                                layerAdjustCropOutside: _layerAdjustCropOutside,
-                                onLayerAdjustCropOutsideChanged:
-                                    _updateLayerAdjustCropOutside,
-                                selectionShape: selectionShape,
-                                onSelectionShapeChanged: _updateSelectionShape,
-                                shapeToolVariant: shapeToolVariant,
-                                onShapeToolVariantChanged:
-                                    _updateShapeToolVariant,
-                                onSizeChanged: _updateToolSettingsCardSize,
-                                magicWandTolerance: _magicWandTolerance,
-                                onMagicWandToleranceChanged:
-                                    _updateMagicWandTolerance,
-                                brushToolsEraserMode: _brushToolsEraserMode,
-                                onBrushToolsEraserModeChanged:
-                                    _updateBrushToolsEraserMode,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: _toolButtonPadding,
-                            bottom: _toolButtonPadding,
-                            child: _buildColorIndicator(theme),
-                          ),
-                          Positioned(
-                            right: _toolButtonPadding,
-                            top: _toolButtonPadding,
-                            bottom: _toolButtonPadding,
-                            child: SizedBox(
-                              width: _sidePanelWidth,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _PanelCard(
-                                    width: _sidePanelWidth,
-                                    title: '取色',
-                                    trailing: _buildColorPanelTrailing(theme),
-                                    child: _buildColorPanelContent(theme),
-                                  ),
-                                  const SizedBox(height: _sidePanelSpacing),
-                                  Expanded(
-                                    child: _PanelCard(
-                                      width: _sidePanelWidth,
-                                      title: '图层管理',
-                                      trailing: Button(
-                                        onPressed: _handleAddLayer,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: const [
-                                            Icon(FluentIcons.add, size: 14),
-                                            SizedBox(width: 6),
-                                            Text('新增图层'),
-                                          ],
-                                        ),
-                                      ),
-                                      expand: true,
-                                      child: _buildLayerPanelContent(theme),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          ...toolbarLayoutResult.widgets,
                           ..._buildReferenceCards(),
                           ..._buildPaletteCards(),
                           if (antialiasCard != null) antialiasCard,
@@ -770,7 +767,7 @@ mixin _PaintingBoardBuildMixin
     return Positioned(
       left: _antialiasCardOffset.dx,
       top: _antialiasCardOffset.dy,
-      child: _MeasureSize(
+      child: MeasuredSize(
         onChanged: _handleAntialiasCardSizeChanged,
         child: WorkspaceFloatingPanel(
           width: _kAntialiasPanelWidth,

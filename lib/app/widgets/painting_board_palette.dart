@@ -1,4 +1,4 @@
-﻿part of 'painting_board.dart';
+part of 'painting_board.dart';
 
 const List<int> _defaultPaletteChoices = <int>[4, 8, 12, 16];
 const int _minPaletteColorCount = 2;
@@ -10,25 +10,25 @@ const double _paletteMinimumColorDistance = 0.12;
 const double _paletteDuplicateEpsilon = 0.01;
 const List<_PaletteExportFormatOption> _paletteExportFormatOptions =
     <_PaletteExportFormatOption>[
-  _PaletteExportFormatOption(
-    name: 'GIMP GPL',
-    description: '文本格式，兼容 GIMP、Krita、Clip Studio Paint 等软件。',
-    extension: 'gpl',
-    format: PaletteExportFormat.gimp,
-  ),
-  _PaletteExportFormatOption(
-    name: 'Aseprite ASE',
-    description: '适用于 Aseprite、LibreSprite 等像素绘图软件。',
-    extension: 'ase',
-    format: PaletteExportFormat.aseprite,
-  ),
-  _PaletteExportFormatOption(
-    name: 'Aseprite ASEPRITE',
-    description: '使用 .aseprite 后缀，方便直接在 Aseprite 中打开。',
-    extension: 'aseprite',
-    format: PaletteExportFormat.aseprite,
-  ),
-];
+      _PaletteExportFormatOption(
+        name: 'GIMP GPL',
+        description: '文本格式，兼容 GIMP、Krita、Clip Studio Paint 等软件。',
+        extension: 'gpl',
+        format: PaletteExportFormat.gimp,
+      ),
+      _PaletteExportFormatOption(
+        name: 'Aseprite ASE',
+        description: '适用于 Aseprite、LibreSprite 等像素绘图软件。',
+        extension: 'ase',
+        format: PaletteExportFormat.aseprite,
+      ),
+      _PaletteExportFormatOption(
+        name: 'Aseprite ASEPRITE',
+        description: '使用 .aseprite 后缀，方便直接在 Aseprite 中打开。',
+        extension: 'aseprite',
+        format: PaletteExportFormat.aseprite,
+      ),
+    ];
 
 class _PaletteCardEntry {
   _PaletteCardEntry({
@@ -251,6 +251,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     }
     _addPaletteCard(palette);
   }
+
   void showPaletteFromColors({
     required String title,
     required List<Color> colors,
@@ -316,8 +317,10 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (outputPath == null) {
       return;
     }
-    final String normalizedPath =
-        _normalizePaletteExportPath(outputPath, option.extension);
+    final String normalizedPath = _normalizePaletteExportPath(
+      outputPath,
+      option.extension,
+    );
     try {
       final Uint8List bytes = PaletteFileExporter.encode(
         format: option.format,
@@ -381,7 +384,9 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
                         content: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${option.name} (.${option.extension.toUpperCase()})'),
+                            Text(
+                              '${option.name} (.${option.extension.toUpperCase()})',
+                            ),
                             const SizedBox(height: 2),
                             Text(
                               option.description,
@@ -414,11 +419,10 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
   String _suggestPaletteFileName(String title, String extension) {
     final String trimmed = title.trim();
     final String fallback = trimmed.isEmpty ? 'palette' : trimmed;
-    final String sanitized = fallback.replaceAll(
-      RegExp(r'[\\/:*?"<>|]'),
-      '_',
-    );
-    final String safeName = sanitized.trim().isEmpty ? 'palette' : sanitized.trim();
+    final String sanitized = fallback.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final String safeName = sanitized.trim().isEmpty
+        ? 'palette'
+        : sanitized.trim();
     return '$safeName.${extension.toLowerCase()}';
   }
 
@@ -673,7 +677,7 @@ class _WorkspacePaletteCard extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.basic,
       child: _PaletteHitTestBlocker(
-        child: _MeasureSize(
+        child: MeasuredSize(
           onChanged: onSizeChanged,
           child: WorkspaceFloatingPanel(
             title: title,
@@ -802,6 +806,3 @@ String _hexStringForColor(Color color) {
   }
   return '#$alpha$red$green$blue';
 }
-
-
-

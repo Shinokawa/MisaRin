@@ -135,8 +135,15 @@ Offset _workspacePanelSpawnOffset(
   double margin = 16,
   double verticalGap = 12,
 }) {
-  final double settingsLeft =
-      _toolButtonPadding + host._toolbarLayout.width + _toolSettingsSpacing;
+  final double settingsLeft;
+  if (host._toolbarHitRegions.isNotEmpty) {
+    settingsLeft = host._toolbarHitRegions
+        .map((rect) => rect.right)
+        .fold(margin, math.max);
+  } else {
+    settingsLeft =
+        _toolButtonPadding + host._toolbarLayout.width + _toolSettingsSpacing;
+  }
   final double baseLeft = math.max(margin, settingsLeft);
   final double settingsBottom =
       _toolButtonPadding + host._toolSettingsCardSize.height;

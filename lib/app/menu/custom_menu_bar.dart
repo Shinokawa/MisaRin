@@ -327,6 +327,9 @@ class _MenuButtonState extends State<_MenuButton> {
             color: FluentTheme.of(context).resources.textFillColorSecondary,
           );
       return MenuFlyoutItem(
+        leading: entry.checked
+            ? const Icon(FluentIcons.check_mark, size: 12)
+            : null,
         text: Text(entry.label),
         trailing: shortcutLabel == null
             ? null

@@ -9,14 +9,18 @@ class ExitToolButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final bool isDark = theme.brightness.isDark;
-    final Color borderColor =
-        isDark ? const Color(0xFFEA5F66) : const Color(0xFFD13438);
-    final Color backgroundColor =
-        isDark ? const Color(0xFF3C1C1E) : const Color(0xFFFDE7E9);
-    final Color iconColor =
-        isDark ? const Color(0xFFFFB3B6) : const Color(0xFF8A1414);
-    final Color shadowColor =
-        isDark ? const Color(0x55EA5F66) : const Color(0x1AD13438);
+    final Color borderColor = isDark
+        ? const Color(0xFFEA5F66)
+        : const Color(0xFFD13438);
+    final Color backgroundColor = isDark
+        ? const Color(0xFF3C1C1E)
+        : const Color(0xFFFDE7E9);
+    final Color iconColor = isDark
+        ? const Color(0xFFFFB3B6)
+        : const Color(0xFF8A1414);
+    final Color shadowColor = isDark
+        ? const Color(0x55EA5F66)
+        : const Color(0x1AD13438);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
