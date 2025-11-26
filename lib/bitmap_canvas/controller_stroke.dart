@@ -200,8 +200,14 @@ void _strokeExtend(
             controller._currentStrokeLastRadius > 0.0
         ? controller._currentStrokeLastRadius
         : controller._currentStrokeRadius;
-    final bool restartCaps =
-        firstSegment || _strokeNeedsRestartCaps(previousRadius, resolvedRadius);
+    final bool directionChanged = _strokeDirectionChanged(
+      controller,
+      last,
+      position,
+    );
+    final bool restartCaps = firstSegment ||
+        _strokeNeedsRestartCaps(previousRadius, resolvedRadius) ||
+        directionChanged;
     final double startRadius = restartCaps ? resolvedRadius : previousRadius;
     
     if (useCircularBrush) {
@@ -474,4 +480,41 @@ void _strokeStampSegment(
       erase: controller._currentStrokeEraseMode,
     ),
   );
+}
+
+bool _strokeDirectionChanged(
+  BitmapCanvasController controller,
+  Offset last,
+  Offset current,
+) {
+  if (controller._currentStrokePoints.length < 3) {
+    return false;
+  }
+  // _currentStrokePoints contains [..., prev, last, current] (current was just added)
+  // Wait, _strokeExtend adds 'position' (current) to _currentStrokePoints BEFORE calling this check?
+  // Yes, "controller._currentStrokePoints.add(position);" happens at the top of _strokeExtend.
+  // So points: ..., previous, last, current.
+  // The function args passed are 'last' (the point before current) and 'position' (current).
+  // We need the point before 'last'.
+  
+  final int count = controller._currentStrokePoints.length;
+  // [..., p2, p1, p0]
+  // current = p0
+  // last = p1
+  // previous = p2
+  // We need index count - 3.
+  
+  final Offset previous = controller._currentStrokePoints[count - 3];
+  final Offset v1 = last - previous;
+  final Offset v2 = current - last;
+  
+  if (v1.distanceSquared < 0.0001 || v2.distanceSquared < 0.0001) {
+    return false;
+  }
+  
+  final double dot = v1.dx * v2.dx + v1.dy * v2.dy;
+  final double mag = math.sqrt(v1.distanceSquared * v2.distanceSquared);
+  // cos(theta) = dot / mag
+  // If theta > 20 degrees (0.35 rad), cos(theta) < cos(0.35) ~= 0.94
+  return (dot / mag) < 0.94;
 }

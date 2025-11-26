@@ -62,6 +62,7 @@ import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
+import '../../canvas/vector_stroke_painter.dart';
 import 'canvas_toolbar.dart';
 import 'tool_cursor_overlay.dart';
 import 'bitmap_canvas_surface.dart';

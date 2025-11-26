@@ -2,16 +2,19 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui';
+import 'dart:ui'; // Keep dart:ui for Color, but DO NOT use Canvas/PictureRecorder here.
 
 import '../bitmap_canvas/bitmap_canvas.dart';
 import '../canvas/canvas_tools.dart';
+import '../canvas/brush_shape_geometry.dart';
+// Removed vector_stroke_painter import as we don't draw vectors in worker anymore.
 
 enum PaintingDrawCommandType {
   brushStamp,
   line,
   variableLine,
   stampSegment,
+  vectorStroke, // Kept for enum stability, but unused in worker
 }
 
 class PaintingDrawCommand {
@@ -28,6 +31,8 @@ class PaintingDrawCommand {
     this.startRadius,
     this.endRadius,
     this.includeStartCap,
+    this.points,
+    this.radii,
   });
 
   factory PaintingDrawCommand.brushStamp({
@@ -118,6 +123,24 @@ class PaintingDrawCommand {
     );
   }
 
+  factory PaintingDrawCommand.vectorStroke({
+    required List<Offset> points,
+    required List<double> radii,
+    required int colorValue,
+    required int shapeIndex,
+    required bool erase,
+  }) {
+    return PaintingDrawCommand._(
+      type: PaintingDrawCommandType.vectorStroke,
+      color: colorValue,
+      antialiasLevel: 0,
+      erase: erase,
+      points: points,
+      radii: radii,
+      shapeIndex: shapeIndex,
+    );
+  }
+
   final PaintingDrawCommandType type;
   final int color;
   final int antialiasLevel;
@@ -130,6 +153,8 @@ class PaintingDrawCommand {
   final double? startRadius;
   final double? endRadius;
   final bool? includeStartCap;
+  final List<Offset>? points;
+  final List<double>? radii;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -145,6 +170,8 @@ class PaintingDrawCommand {
       'startRadius': startRadius,
       'endRadius': endRadius,
       'includeStartCap': includeStartCap,
+      'points': points?.map((p) => <double>[p.dx, p.dy]).toList(),
+      'radii': radii,
     };
   }
 }
@@ -183,6 +210,24 @@ class PaintingDrawRequest {
   final List<PaintingDrawCommand> commands;
   final TransferableTypedData? basePixels;
   final TransferableTypedData? mask;
+}
+
+class PaintingMergePatchRequest {
+  PaintingMergePatchRequest({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+    required this.pixels,
+    required this.erase,
+  });
+
+  final int left;
+  final int top;
+  final int width;
+  final int height;
+  final TransferableTypedData pixels;
+  final bool erase;
 }
 
 class PaintingFloodFillRequest {
@@ -319,6 +364,26 @@ class CanvasPaintingWorker {
       'commands': request.commands
           .map((PaintingDrawCommand command) => command.toJson())
           .toList(growable: false),
+    });
+    return _parsePatchResponse(
+      response,
+      fallbackLeft: request.left,
+      fallbackTop: request.top,
+      fallbackWidth: request.width,
+      fallbackHeight: request.height,
+    );
+  }
+
+  Future<PaintingWorkerPatch> mergePatch(PaintingMergePatchRequest request) async {
+    await _ensureStarted();
+    final Object? response = await _sendRequest(<String, Object?>{
+      'kind': 'mergePatch',
+      'left': request.left,
+      'top': request.top,
+      'width': request.width,
+      'height': request.height,
+      'pixels': request.pixels,
+      'erase': request.erase,
     });
     return _parsePatchResponse(
       response,
@@ -491,7 +556,7 @@ void _paintingWorkerMain(SendPort initialReplyTo) {
   final ReceivePort port = ReceivePort();
   final _PaintingWorkerState state = _PaintingWorkerState();
   initialReplyTo.send(port.sendPort);
-  port.listen((Object? message) {
+  port.listen((Object? message) async {
     if (message == null) {
       port.close();
       return;
@@ -506,7 +571,7 @@ void _paintingWorkerMain(SendPort initialReplyTo) {
       return;
     }
     try {
-      final Object? result = _paintingWorkerHandlePayload(state, payload);
+      final Object? result = await _paintingWorkerHandlePayload(state, payload);
       initialReplyTo.send(<String, Object?>{'id': id, 'data': result});
     } catch (error, stackTrace) {
       initialReplyTo.send(<String, Object?>{
@@ -517,10 +582,10 @@ void _paintingWorkerMain(SendPort initialReplyTo) {
   });
 }
 
-Object? _paintingWorkerHandlePayload(
+Future<Object?> _paintingWorkerHandlePayload(
   _PaintingWorkerState state,
   Map<String, Object?> payload,
-) {
+) async {
   final String kind = payload['kind'] as String? ?? '';
   switch (kind) {
     case 'setSurface':
@@ -531,6 +596,8 @@ Object? _paintingWorkerHandlePayload(
       return _paintingWorkerHandleSelection(state, payload);
     case 'draw':
       return _paintingWorkerHandleDraw(state, payload);
+    case 'mergePatch':
+      return _paintingWorkerHandleMergePatch(state, payload);
     case 'floodFill':
       return _paintingWorkerHandleFloodFill(state, payload);
     case 'selectionMask':
@@ -631,7 +698,7 @@ Object? _paintingWorkerHandleDraw(
   }
 
   if (pixelData != null) {
-    // 兼容旧路径：提供基准 patch，由 worker 在局部 surface 上绘制。
+    // Legacy path: Draw on local temporary surface
     final BitmapSurface tempSurface = BitmapSurface(width: width, height: height);
     final ByteBuffer buffer = pixelData.materialize();
     final Uint32List patchPixels = Uint32List.view(
@@ -678,12 +745,131 @@ Object? _paintingWorkerHandleDraw(
   _paintingWorkerRunCommands(
     surface: surface,
     commands: commands,
-    // 在 worker 的主 surface 上绘图时，命令使用的是全局坐标，
-    // 因此不应再减去 patch 的 left/top。
+    // 在 worker 的主 surface 上绘图时，命令使用的是全局坐标
     originX: 0.0,
     originY: 0.0,
     mask: state.selectionMask,
   );
+  return _paintingWorkerExportPatch(
+    surface: surface,
+    left: clampedLeft,
+    top: clampedTop,
+    width: clampedRight - clampedLeft,
+    height: clampedBottom - clampedTop,
+  );
+}
+
+Object? _paintingWorkerHandleMergePatch(
+  _PaintingWorkerState state,
+  Map<String, Object?> payload,
+) {
+  final BitmapSurface? surface = state.surface;
+  final int left = payload['left'] as int? ?? 0;
+  final int top = payload['top'] as int? ?? 0;
+  final int width = payload['width'] as int? ?? 0;
+  final int height = payload['height'] as int? ?? 0;
+
+  if (surface == null) {
+    return _paintingWorkerEmptyPatch(left, top, width, height);
+  }
+  
+  final bool erase = payload['erase'] as bool? ?? false;
+  final TransferableTypedData? pixelData = payload['pixels'] as TransferableTypedData?;
+  
+  if (width <= 0 || height <= 0 || pixelData == null) {
+    return _paintingWorkerEmptyPatch(left, top, width, height);
+  }
+
+  final int clampedLeft = left.clamp(0, surface.width);
+  final int clampedTop = top.clamp(0, surface.height);
+  final int clampedRight = math.min(clampedLeft + width, surface.width);
+  final int clampedBottom = math.min(clampedTop + height, surface.height);
+  
+  if (clampedRight <= clampedLeft || clampedBottom <= clampedTop) {
+    return _paintingWorkerEmptyPatch(left, top, width, height);
+  }
+
+  final ByteBuffer buffer = pixelData.materialize();
+  final Uint8List sourceRgba = buffer.asUint8List();
+  final Uint8List? mask = state.selectionMask;
+  
+  final Uint32List surfacePixels = surface.pixels;
+  final int surfaceWidth = surface.width;
+
+  // We need to blend the incoming RGBA patch into the surface ARGB
+  for (int y = 0; y < height; y++) {
+    final int surfaceY = top + y;
+    if (surfaceY < 0 || surfaceY >= surface.height) continue;
+    
+    final int rowOffset = y * width * 4;
+    final int surfaceRowOffset = surfaceY * surfaceWidth;
+    
+    for (int x = 0; x < width; x++) {
+      final int surfaceX = left + x;
+      if (surfaceX < 0 || surfaceX >= surface.width) continue;
+      
+      // Check mask
+      if (mask != null && mask[surfaceRowOffset + surfaceX] == 0) {
+        continue;
+      }
+
+      final int rgbaIndex = rowOffset + x * 4;
+      if (rgbaIndex + 3 >= sourceRgba.length) continue;
+
+      // Source is RGBA (from Picture.toImage)
+      final int r = sourceRgba[rgbaIndex];
+      final int g = sourceRgba[rgbaIndex + 1];
+      final int b = sourceRgba[rgbaIndex + 2];
+      final int a = sourceRgba[rgbaIndex + 3];
+      
+      if (a == 0) continue;
+
+      final int surfaceIndex = surfaceRowOffset + surfaceX;
+      final int dstColor = surfacePixels[surfaceIndex];
+      
+      final int dstA = (dstColor >> 24) & 0xff;
+      final int dstR = (dstColor >> 16) & 0xff;
+      final int dstG = (dstColor >> 8) & 0xff;
+      final int dstB = dstColor & 0xff;
+
+      if (erase) {
+        // Erase: dst * (1 - srcAlpha)
+        final double alphaFactor = 1.0 - (a / 255.0);
+        final int outA = (dstA * alphaFactor).round();
+        // Preserve color channels? Standard erasing usually does.
+        // But if we want "true" erasure where completely erased becomes transparent black:
+        // If outA becomes 0, color matters less.
+        // Let's just scale alpha.
+        surfacePixels[surfaceIndex] = (outA << 24) | (dstR << 16) | (dstG << 8) | dstB;
+      } else {
+        // Normal blend (Src Over Dst)
+        final double srcAlpha = a / 255.0;
+        final double invSrcAlpha = 1.0 - srcAlpha;
+        
+        final double outAlphaDouble = srcAlpha + (dstA / 255.0) * invSrcAlpha;
+        if (outAlphaDouble <= 0.001) {
+           // If roughly transparent, keep it that way? 
+           // Or just set to 0.
+           continue; 
+        }
+        final int outA = (outAlphaDouble * 255.0).round();
+        
+        // Composite colors
+        // Result = (Src * SrcA + Dst * DstA * (1-SrcA)) / OutA
+        // Note: Src R,G,B from ByteData are NON-premultiplied (straight alpha).
+        
+        final double outR = (r * srcAlpha + dstR * (dstA / 255.0) * invSrcAlpha) / outAlphaDouble;
+        final double outG = (g * srcAlpha + dstG * (dstA / 255.0) * invSrcAlpha) / outAlphaDouble;
+        final double outB = (b * srcAlpha + dstB * (dstA / 255.0) * invSrcAlpha) / outAlphaDouble;
+        
+        surfacePixels[surfaceIndex] = (outA.clamp(0, 255) << 24) |
+                                      (outR.round().clamp(0, 255) << 16) |
+                                      (outG.round().clamp(0, 255) << 8) |
+                                      outB.round().clamp(0, 255);
+      }
+    }
+  }
+
   return _paintingWorkerExportPatch(
     surface: surface,
     left: clampedLeft,
@@ -885,6 +1071,9 @@ void _paintingWorkerApplyCommand({
         antialias: antialias,
         erase: erase,
       );
+      break;
+    case PaintingDrawCommandType.vectorStroke:
+      // Unused in worker now.
       break;
   }
 }
