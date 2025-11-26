@@ -33,7 +33,9 @@ class _BitmapCanvasTilePainter extends CustomPainter {
   _BitmapCanvasTilePainter(this.frame);
 
   final BitmapCanvasFrame frame;
-  final Paint _paint = Paint();
+  final Paint _paint = Paint()
+    ..isAntiAlias = false
+    ..filterQuality = FilterQuality.none; // Avoid sampling gaps between tiles.
 
   @override
   void paint(Canvas canvas, Size size) {
