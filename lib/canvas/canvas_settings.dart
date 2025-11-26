@@ -16,7 +16,7 @@ class CanvasSettings {
     required double width,
     required double height,
     required Color backgroundColor,
-    CanvasCreationLogic creationLogic = CanvasCreationLogic.singleThread,
+    CanvasCreationLogic creationLogic = CanvasCreationLogic.multiThread,
   }) {
     return CanvasSettings._(
       width: width,
@@ -34,13 +34,12 @@ class CanvasSettings {
   static bool get supportsMultithreadedCanvas => !kIsWeb;
 
   static CanvasCreationLogic _resolveCreationLogic(
-    CanvasCreationLogic requested,
+    CanvasCreationLogic _,
   ) {
-    if (!supportsMultithreadedCanvas &&
-        requested == CanvasCreationLogic.multiThread) {
+    if (!supportsMultithreadedCanvas) {
       return CanvasCreationLogic.singleThread;
     }
-    return requested;
+    return CanvasCreationLogic.multiThread;
   }
 
   Size get size => Size(width, height);
@@ -64,6 +63,6 @@ class CanvasSettings {
     width: 1920,
     height: 1080,
     backgroundColor: Color(0xFFFFFFFF),
-    creationLogic: CanvasCreationLogic.singleThread,
+    creationLogic: CanvasCreationLogic.multiThread,
   );
 }

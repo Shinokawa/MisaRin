@@ -753,9 +753,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _handleUndo();
   void _handleRedo();
-  bool cut();
-  bool copy();
-  bool paste();
+  Future<bool> cut();
+  Future<bool> copy();
+  Future<bool> paste();
 
   void _updatePenStrokeWidth(double value);
   void _updateBucketSampleAllLayers(bool value);
@@ -1277,18 +1277,20 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _historyLimit = AppPreferences.instance.historyLimit;
   }
 
-  void _pushUndoSnapshot({_CanvasHistoryEntry? entry}) {
+  Future<void> _pushUndoSnapshot({_CanvasHistoryEntry? entry}) async {
     _refreshHistoryLimit();
     if (_historyLocked) {
       return;
     }
-    final _CanvasHistoryEntry snapshot = entry ?? _createHistoryEntry();
+    final _CanvasHistoryEntry snapshot =
+        entry ?? await _createHistoryEntry();
     _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();
   }
 
-  _CanvasHistoryEntry _createHistoryEntry() {
+  Future<_CanvasHistoryEntry> _createHistoryEntry() async {
+    await _controller.waitForPendingWorkerTasks();
     return _CanvasHistoryEntry(
       layers: _controller.snapshotLayers(),
       backgroundColor: _controller.backgroundColor,
@@ -1303,7 +1305,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     );
   }
 
-  void _applyHistoryEntry(_CanvasHistoryEntry entry) {
+  Future<void> _applyHistoryEntry(_CanvasHistoryEntry entry) async {
+    await _controller.waitForPendingWorkerTasks();
     _historyLocked = true;
     try {
       _controller.loadLayers(entry.layers, entry.backgroundColor);
@@ -1483,7 +1486,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _handleMergeLayerDown(layer);
   }
 
-  void selectEntireCanvas() {
+  void selectEntireCanvas() async {
     final int width = _controller.width;
     final int height = _controller.height;
     if (width <= 0 || height <= 0) {
@@ -1493,7 +1496,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final Uint8List mask = Uint8List(length)..fillRange(0, length, 1);
     final Path selectionPath = Path()
       ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()));
-    _prepareSelectionUndo();
+    await _prepareSelectionUndo();
     setState(() {
       clearSelectionArtifacts();
       setSelectionState(path: selectionPath, mask: mask);
@@ -1502,7 +1505,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _finishSelectionUndo();
   }
 
-  void invertSelection() {
+  void invertSelection() async {
     final int width = _controller.width;
     final int height = _controller.height;
     if (width <= 0 || height <= 0) {
@@ -1522,7 +1525,7 @@ class PaintingBoardState extends _PaintingBoardBase
       }
     }
     if (!_maskHasCoverage(inverted)) {
-      _prepareSelectionUndo();
+      await _prepareSelectionUndo();
       setState(() {
         clearSelectionArtifacts();
         setSelectionState(path: null, mask: null);
@@ -1535,7 +1538,7 @@ class PaintingBoardState extends _PaintingBoardBase
         ? (Path()
             ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble())))
         : _pathFromMask(inverted, width);
-    _prepareSelectionUndo();
+    await _prepareSelectionUndo();
     setState(() {
       clearSelectionArtifacts();
       setSelectionState(path: path, mask: inverted);

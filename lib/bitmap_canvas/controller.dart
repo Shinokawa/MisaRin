@@ -38,7 +38,7 @@ class BitmapCanvasController extends ChangeNotifier {
     required int height,
     required Color backgroundColor,
     List<CanvasLayerData>? initialLayers,
-    CanvasCreationLogic creationLogic = CanvasCreationLogic.singleThread,
+    CanvasCreationLogic creationLogic = CanvasCreationLogic.multiThread,
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
@@ -85,7 +85,7 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _currentStrokeHasMoved = false;
   BrushShape _currentBrushShape = BrushShape.circle;
   final StrokePressureSimulator _strokePressureSimulator =
-      StrokePressureSimulator();
+  StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
   bool _currentStrokeEraseMode = false;
   bool _stylusPressureEnabled = true;
@@ -98,6 +98,10 @@ class BitmapCanvasController extends ChangeNotifier {
       <int, PaintingWorkerPatch?>{};
   int _paintingWorkerNextSequence = 0;
   int _paintingWorkerNextApplySequence = 0;
+  int _paintingWorkerPendingTasks = 0;
+  int _paintingWorkerGeneration = 0;
+  final List<Completer<void>> _paintingWorkerIdleWaiters =
+      <Completer<void>>[];
   String? _paintingWorkerSyncedLayerId;
   int _paintingWorkerSyncedRevision = -1;
   bool _paintingWorkerSelectionDirty = true;
@@ -737,6 +741,8 @@ class BitmapCanvasController extends ChangeNotifier {
   );
 
   List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
+  Future<void> waitForPendingWorkerTasks() =>
+      _waitForPendingWorkerTasks();
 
   CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) =>
       _layerManagerBuildClipboardLayer(this, id, mask: mask);
@@ -838,6 +844,54 @@ class BitmapCanvasController extends ChangeNotifier {
     _processPendingWorkerDrawCommands();
   }
 
+  Future<void> _waitForPendingWorkerTasks() {
+    if (!_isMultithreaded) {
+      return Future<void>.value();
+    }
+    _flushPendingPaintingCommands();
+    if (_paintingWorkerPendingTasks == 0) {
+      return Future<void>.value();
+    }
+    final Completer<void> completer = Completer<void>();
+    _paintingWorkerIdleWaiters.add(completer);
+    return completer.future;
+  }
+
+  void _notifyWorkerIdle() {
+    if (_paintingWorkerPendingTasks > 0) {
+      return;
+    }
+    if (_pendingWorkerDrawBatch != null &&
+        _pendingWorkerDrawBatch!.commands.isNotEmpty) {
+      return;
+    }
+    if (_pendingWorkerDrawScheduled) {
+      return;
+    }
+    if (_paintingWorkerIdleWaiters.isEmpty) {
+      return;
+    }
+    for (final Completer<void> completer in _paintingWorkerIdleWaiters) {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+    _paintingWorkerIdleWaiters.clear();
+  }
+
+  void _cancelPendingWorkerTasks() {
+    if (!_isMultithreaded) {
+      return;
+    }
+    _pendingWorkerDrawBatch = null;
+    _pendingWorkerDrawScheduled = false;
+    _pendingWorkerPatches.clear();
+    _paintingWorkerNextApplySequence = _paintingWorkerNextSequence;
+    _paintingWorkerPendingTasks = 0;
+    _paintingWorkerGeneration++;
+    _notifyWorkerIdle();
+  }
+
   CanvasPaintingWorker _ensurePaintingWorker() {
     return _paintingWorker ??= CanvasPaintingWorker();
   }
@@ -882,7 +936,13 @@ class BitmapCanvasController extends ChangeNotifier {
     VoidCallback? onError,
   }) {
     final int sequence = _paintingWorkerNextSequence++;
+    final int generation = _paintingWorkerGeneration;
+    _paintingWorkerPendingTasks++;
     future.then((PaintingWorkerPatch? patch) {
+      if (generation != _paintingWorkerGeneration ||
+          sequence < _paintingWorkerNextApplySequence) {
+        return;
+      }
       if (patch == null) {
         onError?.call();
       }
@@ -897,9 +957,19 @@ class BitmapCanvasController extends ChangeNotifier {
           context: ErrorDescription('while running painting task'),
         ),
       );
+      if (generation != _paintingWorkerGeneration ||
+          sequence < _paintingWorkerNextApplySequence) {
+        return;
+      }
       onError?.call();
       _pendingWorkerPatches[sequence] = null;
       _processPendingWorkerPatches();
+    }).whenComplete(() {
+      if (generation == _paintingWorkerGeneration &&
+          _paintingWorkerPendingTasks > 0) {
+        _paintingWorkerPendingTasks--;
+      }
+      _notifyWorkerIdle();
     });
   }
 

@@ -8,8 +8,8 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardReferenceMixin {
-  void clear() {
-    _pushUndoSnapshot();
+  void clear() async {
+    await _pushUndoSnapshot();
     _controller.clear();
     _emitClean();
     setState(() {
@@ -353,11 +353,11 @@ mixin _PaintingBoardInteractionMixin
   }
 
 
-  void _startStroke(
+  Future<void> _startStroke(
     Offset position,
     Duration timestamp,
     PointerEvent? rawEvent,
-  ) {
+  ) async {
     final Offset start = _sanitizeStrokePosition(
       position,
       isInitialSample: true,
@@ -383,7 +383,7 @@ mixin _PaintingBoardInteractionMixin
     _lastStylusDirection = null;
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     StrokeLatencyMonitor.instance.recordStrokeStart();
     _lastPenSampleTimestamp = timestamp;
     setState(() {
@@ -838,7 +838,7 @@ mixin _PaintingBoardInteractionMixin
     }
   }
 
-  void _beginLayerAdjustDrag(Offset boardLocal) {
+  Future<void> _beginLayerAdjustDrag(Offset boardLocal) async {
     final BitmapLayerState? layer = _activeLayerForAdjustment();
     if (layer == null || layer.locked) {
       return;
@@ -847,7 +847,7 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     _focusNode.requestFocus();
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _isLayerDragging = true;
     _layerDragStart = boardLocal;
     _layerDragAppliedDx = 0;
@@ -886,7 +886,7 @@ mixin _PaintingBoardInteractionMixin
     _layerDragAppliedDy = 0;
   }
 
-  void _handleCurvePenPointerDown(Offset boardLocal) {
+  Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {
     _focusNode.requestFocus();
     final bool insideCanvas = _isWithinCanvasBounds(boardLocal);
     if (_curveAnchor == null) {
@@ -894,7 +894,7 @@ mixin _PaintingBoardInteractionMixin
         return;
       }
       if (insideCanvas) {
-        _pushUndoSnapshot();
+        await _pushUndoSnapshot();
         final bool erase = _brushToolsEraserMode;
         final Color strokeColor = erase
             ? const Color(0xFFFFFFFF)
@@ -943,7 +943,7 @@ mixin _PaintingBoardInteractionMixin
     });
   }
 
-  void _handleCurvePenPointerUp() {
+  Future<void> _handleCurvePenPointerUp() async {
     if (!_isCurvePlacingSegment) {
       return;
     }
@@ -953,7 +953,7 @@ mixin _PaintingBoardInteractionMixin
       _cancelCurvePenSegment();
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     final Offset control = _computeCurveControlPoint(
       start,
       end,
@@ -1118,7 +1118,7 @@ mixin _PaintingBoardInteractionMixin
     );
   }
 
-  void _handlePointerDown(PointerDownEvent event) {
+  void _handlePointerDown(PointerDownEvent event) async {
     if (!_isPrimaryPointer(event)) {
       return;
     }
@@ -1151,7 +1151,7 @@ mixin _PaintingBoardInteractionMixin
     }
     switch (tool) {
       case CanvasTool.layerAdjust:
-        _beginLayerAdjustDrag(boardLocal);
+        await _beginLayerAdjustDrag(boardLocal);
         break;
       case CanvasTool.pen:
         _focusNode.requestFocus();
@@ -1159,7 +1159,7 @@ mixin _PaintingBoardInteractionMixin
           return;
         }
         _refreshStylusPreferencesIfNeeded();
-        _startStroke(boardLocal, event.timeStamp, event);
+        await _startStroke(boardLocal, event.timeStamp, event);
         break;
       case CanvasTool.curvePen:
         if (_isCurveCancelModifierPressed() &&
@@ -1167,7 +1167,7 @@ mixin _PaintingBoardInteractionMixin
           _resetCurvePenState();
           return;
         }
-        _handleCurvePenPointerDown(boardLocal);
+        await _handleCurvePenPointerDown(boardLocal);
         break;
       case CanvasTool.shape:
         _focusNode.requestFocus();
@@ -1255,7 +1255,7 @@ mixin _PaintingBoardInteractionMixin
     }
   }
 
-  void _handlePointerUp(PointerUpEvent event) {
+  void _handlePointerUp(PointerUpEvent event) async {
     if (_layerTransformModeActive) {
       _handleLayerTransformPointerUp();
       return;
@@ -1283,10 +1283,10 @@ mixin _PaintingBoardInteractionMixin
         }
         break;
       case CanvasTool.curvePen:
-        _handleCurvePenPointerUp();
+        await _handleCurvePenPointerUp();
         break;
       case CanvasTool.shape:
-        _finishShapeDrawing();
+        await _finishShapeDrawing();
         break;
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
@@ -1303,7 +1303,7 @@ mixin _PaintingBoardInteractionMixin
         }
         break;
       case CanvasTool.curvePen:
-        _handleCurvePenPointerUp();
+        await _handleCurvePenPointerUp();
         break;
       case CanvasTool.layerAdjust:
         if (_isLayerDragging) {
@@ -1525,38 +1525,46 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handleUndo() {
-    if (!undo()) {
+    unawaited(_performUndo());
+  }
+
+  Future<void> _performUndo() async {
+    if (!await undo()) {
       widget.onUndoFallback?.call();
     }
   }
 
   void _handleRedo() {
-    if (!redo()) {
+    unawaited(_performRedo());
+  }
+
+  Future<void> _performRedo() async {
+    if (!await redo()) {
       widget.onRedoFallback?.call();
     }
   }
 
-  bool undo() {
+  Future<bool> undo() async {
     _refreshHistoryLimit();
     if (_undoStack.isEmpty) {
       return false;
     }
     final _CanvasHistoryEntry previous = _undoStack.removeLast();
-    _redoStack.add(_createHistoryEntry());
+    _redoStack.add(await _createHistoryEntry());
     _trimHistoryStacks();
-    _applyHistoryEntry(previous);
+    await _applyHistoryEntry(previous);
     return true;
   }
 
-  bool redo() {
+  Future<bool> redo() async {
     _refreshHistoryLimit();
     if (_redoStack.isEmpty) {
       return false;
     }
     final _CanvasHistoryEntry next = _redoStack.removeLast();
-    _undoStack.add(_createHistoryEntry());
+    _undoStack.add(await _createHistoryEntry());
     _trimHistoryStacks();
-    _applyHistoryEntry(next);
+    await _applyHistoryEntry(next);
     return true;
   }
 

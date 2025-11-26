@@ -758,6 +758,7 @@ void _layerManagerLoadLayers(
   List<CanvasLayerData> layers,
   Color backgroundColor,
 ) {
+  controller._cancelPendingWorkerTasks();
   controller._layers.clear();
   controller._rasterBackend.resetClipMask();
   _loadFromCanvasLayers(controller, layers, backgroundColor);

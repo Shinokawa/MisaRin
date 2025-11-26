@@ -404,7 +404,7 @@ mixin _PaintingBoardFilterMixin
     }
   }
 
-  void _confirmFilterChanges() {
+  void _confirmFilterChanges() async {
     final _FilterSession? session = _filterSession;
     if (session == null) {
       return;
@@ -419,7 +419,7 @@ mixin _PaintingBoardFilterMixin
         session.originalLayers[session.activeLayerIndex];
     _controller.replaceLayer(session.activeLayerId, original);
     _controller.setActiveLayer(session.activeLayerId);
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.replaceLayer(session.activeLayerId, previewLayer);
     _controller.setActiveLayer(session.activeLayerId);
     session.previewLayer = null;
@@ -577,11 +577,12 @@ mixin _PaintingBoardFilterMixin
     });
   }
 
-  void _applyAntialiasFromCard() {
+  void _applyAntialiasFromCard() async {
     if (!_ensureAntialiasLayerReady()) {
       return;
     }
-    final bool applied = applyLayerAntialiasLevel(_antialiasCardLevel);
+    final bool applied =
+        await applyLayerAntialiasLevel(_antialiasCardLevel);
     if (!applied) {
       _showFilterMessage('无法对当前图层应用抗锯齿，图层可能为空或已锁定。');
       return;

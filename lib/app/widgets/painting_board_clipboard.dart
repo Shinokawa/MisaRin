@@ -9,21 +9,22 @@ class _ClipboardPayload {
 mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
   _ClipboardPayload? _clipboard;
 
-  bool cut() {
+  Future<bool> cut() {
     return _copyActiveLayer(clearAfter: true);
   }
 
-  bool copy() {
+  Future<bool> copy() {
     return _copyActiveLayer(clearAfter: false);
   }
 
-  bool paste() {
+  Future<bool> paste() {
     return _performPaste();
   }
 
-  bool _copyActiveLayer({required bool clearAfter}) {
+  Future<bool> _copyActiveLayer({required bool clearAfter}) async {
     // 魔棒预览需要先固化为正式选区，否则复制/剪切会忽略选区。
     _convertMagicWandPreviewToSelection();
+    await _controller.waitForPendingWorkerTasks();
 
     final String? activeLayerId = _activeLayerId;
     if (activeLayerId == null) {
@@ -41,7 +42,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     if (!clearAfter) {
       return true;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.clearLayerRegion(activeLayerId, mask: selection);
     setState(() {
       setSelectionState(path: null, mask: null);
@@ -52,7 +53,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     return true;
   }
 
-  bool _performPaste() {
+  Future<bool> _performPaste() async {
     final _ClipboardPayload? payload = _clipboard;
     if (payload == null) {
       return false;
@@ -69,7 +70,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       locked: false,
       clippingMask: false,
     );
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.insertLayerFromData(
       layerData,
       aboveLayerId: _activeLayerId,

@@ -241,19 +241,19 @@ mixin _PaintingBoardBuildMixin
               ),
               CutIntent: CallbackAction<CutIntent>(
                 onInvoke: (intent) {
-                  cut();
+                  unawaited(cut());
                   return null;
                 },
               ),
               CopyIntent: CallbackAction<CopyIntent>(
                 onInvoke: (intent) {
-                  copy();
+                  unawaited(copy());
                   return null;
                 },
               ),
               PasteIntent: CallbackAction<PasteIntent>(
                 onInvoke: (intent) {
-                  paste();
+                  unawaited(paste());
                   return null;
                 },
               ),

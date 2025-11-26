@@ -638,17 +638,17 @@ class CanvasPageState extends State<CanvasPage> {
     _applyCanvasResizeResult(result);
   }
 
-  void _handleUndo() {
+  Future<void> _handleUndo() async {
     final PaintingBoardState? board = _activeBoard;
-    if (board != null && board.undo()) {
+    if (board != null && await board.undo()) {
       return;
     }
     _undoDocumentChange();
   }
 
-  void _handleRedo() {
+  Future<void> _handleRedo() async {
     final PaintingBoardState? board = _activeBoard;
-    if (board != null && board.redo()) {
+    if (board != null && await board.redo()) {
       return;
     }
     _redoDocumentChange();
@@ -893,17 +893,23 @@ class CanvasPageState extends State<CanvasPage> {
       },
       undo: _handleUndo,
       redo: _handleRedo,
-      cut: () {
+      cut: () async {
         final board = _activeBoard;
-        board?.cut();
+        if (board != null) {
+          await board.cut();
+        }
       },
-      copy: () {
+      copy: () async {
         final board = _activeBoard;
-        board?.copy();
+        if (board != null) {
+          await board.copy();
+        }
       },
-      paste: () {
+      paste: () async {
         final board = _activeBoard;
-        board?.paste();
+        if (board != null) {
+          await board.paste();
+        }
       },
       newLayer: () {
         final board = _activeBoard;
