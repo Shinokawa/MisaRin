@@ -207,10 +207,15 @@ mixin _PaintingBoardBuildMixin
 
         final PaintingToolbarLayoutStyle toolbarStyle =
             widget.toolbarLayoutStyle;
-        final CanvasToolbarLayout activeToolbarLayout =
-            _resolveToolbarLayoutForStyle(toolbarStyle, toolbarLayout);
-        final bool detachExitButton =
+        final bool isSai2Layout =
             toolbarStyle == PaintingToolbarLayoutStyle.sai2;
+        final CanvasToolbarLayout activeToolbarLayout =
+            _resolveToolbarLayoutForStyle(
+              toolbarStyle,
+              toolbarLayout,
+              includeHistoryButtons: !isSai2Layout,
+            );
+        final bool detachExitButton = isSai2Layout;
         final Widget toolbarWidget = CanvasToolbar(
           activeTool: _activeTool,
           selectionShape: selectionShape,
@@ -223,6 +228,7 @@ mixin _PaintingBoardBuildMixin
           onExit: widget.onRequestExit,
           layout: activeToolbarLayout,
           includeExitButton: !detachExitButton,
+          includeHistoryButtons: !isSai2Layout,
         );
         Widget buildExitButton() {
           final String shortcutLabel = ToolbarShortcuts.labelForPlatform(

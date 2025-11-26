@@ -32,6 +32,7 @@ class CanvasToolbar extends StatelessWidget {
     required this.onExit,
     required this.layout,
     this.includeExitButton = true,
+    this.includeHistoryButtons = true,
   });
 
   final CanvasTool activeTool;
@@ -45,9 +46,11 @@ class CanvasToolbar extends StatelessWidget {
   final VoidCallback onExit;
   final CanvasToolbarLayout layout;
   final bool includeExitButton;
+  final bool includeHistoryButtons;
 
   static const int buttonCount = 12;
   static const int buttonCountWithoutExit = buttonCount - 1;
+  static const int historyButtonCount = 2;
   static const double buttonSize = 48;
   static const double spacing = 9;
 
@@ -222,21 +225,26 @@ class CanvasToolbar extends StatelessWidget {
           onPressed: () => onToolSelected(CanvasTool.hand),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('撤销', ToolbarAction.undo),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
-        child: UndoToolButton(enabled: canUndo, onPressed: onUndo),
-      ),
-      Tooltip(
-        message: _tooltipMessage('恢复', ToolbarAction.redo),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
-        child: RedoToolButton(enabled: canRedo, onPressed: onRedo),
-      ),
     ]);
+
+    if (includeHistoryButtons) {
+      items.addAll([
+        Tooltip(
+          message: _tooltipMessage('撤销', ToolbarAction.undo),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: UndoToolButton(enabled: canUndo, onPressed: onUndo),
+        ),
+        Tooltip(
+          message: _tooltipMessage('恢复', ToolbarAction.redo),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: RedoToolButton(enabled: canRedo, onPressed: onRedo),
+        ),
+      ]);
+    }
 
     final double buttonExtent = layout.buttonExtent;
 

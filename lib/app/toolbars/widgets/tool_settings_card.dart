@@ -425,13 +425,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   }) {
     final double sliderValue = value.clamp(0, max).toDouble();
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(label, style: theme.typography.bodyStrong),
         const SizedBox(width: 8),
-        SizedBox(
-          width: 220,
+        Expanded(
           child: Slider(
             value: sliderValue,
             min: 0,
@@ -441,20 +440,26 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           ),
         ),
         const SizedBox(width: 8),
-        Text('$value', style: theme.typography.caption),
+        SizedBox(
+          width: 44,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.end,
+            style: theme.typography.caption,
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildBrushSizeRow(FluentThemeData theme) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text('笔刷大小', style: theme.typography.bodyStrong),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 200,
+        const SizedBox(width: 8),
+        Expanded(
           child: Slider(
             value: widget.penStrokeSliderRange.clamp(widget.penStrokeWidth),
             min: _sliderMin,
@@ -462,37 +467,40 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
             onChanged: widget.onPenStrokeWidthChanged,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         SizedBox(
-          height: 32,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildStrokeAdjustButton(
-                icon: FluentIcons.calculator_subtract,
-                delta: -1,
-              ),
-              const SizedBox(width: 4),
-              SizedBox(
-                width: 64,
-                child: TextBox(
-                  focusNode: _focusNode,
-                  controller: _controller,
-                  inputFormatters: _digitInputFormatters,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    signed: false,
-                    decimal: true,
-                  ),
-                  onChanged: _handleTextChanged,
-                  textAlign: TextAlign.center,
+          width: 124,
+          child: SizedBox(
+            height: 32,
+            child: Row(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                _buildStrokeAdjustButton(
+                  icon: FluentIcons.calculator_subtract,
+                  delta: -1,
                 ),
-              ),
-              const SizedBox(width: 4),
-              _buildStrokeAdjustButton(icon: FluentIcons.add, delta: 1),
-            ],
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 56,
+                  child: TextBox(
+                    focusNode: _focusNode,
+                    controller: _controller,
+                    inputFormatters: _digitInputFormatters,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      signed: false,
+                      decimal: true,
+                    ),
+                    onChanged: _handleTextChanged,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                _buildStrokeAdjustButton(icon: FluentIcons.add, delta: 1),
+              ],
+            ),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         Text('px', style: theme.typography.caption),
       ],
     );
@@ -520,12 +528,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required ValueChanged<int> onChanged,
   }) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       children: [
         Text('抗锯齿', style: theme.typography.bodyStrong),
         const SizedBox(width: 8),
-        SizedBox(
-          width: 140,
+        Expanded(
           child: Slider(
             value: value.toDouble(),
             min: 0,
@@ -535,7 +542,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           ),
         ),
         const SizedBox(width: 8),
-        Text('等级 $value', style: theme.typography.caption),
+        SizedBox(
+          width: 64,
+          child: Text(
+            '等级 $value',
+            style: theme.typography.caption,
+            textAlign: TextAlign.end,
+          ),
+        ),
       ],
     );
   }
@@ -553,12 +567,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final double sliderValue = level.toDouble();
     final String label = level == 0 ? '关' : '等级 $level';
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       children: [
         Text('手抖修正', style: theme.typography.bodyStrong),
         const SizedBox(width: 8),
-        SizedBox(
-          width: 200,
+        Expanded(
           child: Slider(
             value: sliderValue,
             min: 0,
@@ -570,7 +583,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           ),
         ),
         const SizedBox(width: 8),
-        Text(label, style: theme.typography.caption),
+        SizedBox(
+          width: 56,
+          child: Text(
+            label,
+            style: theme.typography.caption,
+            textAlign: TextAlign.end,
+          ),
+        ),
       ],
     );
   }
@@ -659,8 +679,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required int delta,
   }) {
     return SizedBox(
-      width: 32,
-      height: 32,
+      width: 28,
+      height: 28,
       child: IconButton(
         icon: Icon(icon, size: 14),
         onPressed: () => _adjustStrokeWidthBy(delta),

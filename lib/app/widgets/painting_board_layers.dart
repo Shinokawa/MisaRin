@@ -524,6 +524,74 @@ mixin _PaintingBoardLayerMixin
         theme.typography.body?.copyWith(fontSize: 12) ??
         const TextStyle(fontSize: 12);
 
+    Color _historyIconColor(bool enabled) {
+      final Color baseColor =
+          theme.typography.body?.color ??
+          theme.typography.bodyStrong?.color ??
+          (theme.brightness.isDark ? Colors.white : const Color(0xFF1F1F1F));
+      if (enabled) {
+        return baseColor;
+      }
+      return baseColor.withOpacity(theme.brightness.isDark ? 0.5 : 0.35);
+    }
+
+    Widget buildHistoryButton({
+      required IconData icon,
+      required String label,
+      required bool enabled,
+      required VoidCallback onPressed,
+    }) {
+      final Color color = _historyIconColor(enabled);
+      return Tooltip(
+        message: label,
+        child: MouseRegion(
+          cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: enabled ? onPressed : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Icon(icon, size: 16, color: color),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget historyRow() {
+      final String undoShortcut = ToolbarShortcuts.labelForPlatform(
+        ToolbarAction.undo,
+        defaultTargetPlatform,
+      );
+      final String redoShortcut = ToolbarShortcuts.labelForPlatform(
+        ToolbarAction.redo,
+        defaultTargetPlatform,
+      );
+      final String undoLabel = undoShortcut.isEmpty
+          ? '撤销'
+          : '撤销 ($undoShortcut)';
+      final String redoLabel = redoShortcut.isEmpty
+          ? '恢复'
+          : '恢复 ($redoShortcut)';
+      return Row(
+        children: [
+          buildHistoryButton(
+            icon: FluentIcons.undo,
+            label: undoLabel,
+            enabled: canUndo,
+            onPressed: _handleUndo,
+          ),
+          const SizedBox(width: 8),
+          buildHistoryButton(
+            icon: FluentIcons.redo,
+            label: redoLabel,
+            enabled: canRedo,
+            onPressed: _handleRedo,
+          ),
+        ],
+      );
+    }
+
     Widget opacityRow() {
       final bool locked = activeLayer.locked;
       return Row(
@@ -628,6 +696,8 @@ mixin _PaintingBoardLayerMixin
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        historyRow(),
+        const SizedBox(height: 6),
         opacityRow(),
         const SizedBox(height: 6),
         toggleRow(),

@@ -658,8 +658,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   CanvasToolbarLayout _resolveToolbarLayoutForStyle(
     PaintingToolbarLayoutStyle style,
-    CanvasToolbarLayout base,
-  ) {
+    CanvasToolbarLayout base, {
+    required bool includeHistoryButtons,
+  }) {
     if (style != PaintingToolbarLayoutStyle.sai2) {
       return base;
     }
@@ -672,10 +673,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final double buttonExtent = maxExtent.isFinite && maxExtent > 0
         ? maxExtent.clamp(36.0, CanvasToolbar.buttonSize)
         : CanvasToolbar.buttonSize;
-    final int rows = math.max(
-      1,
-      (CanvasToolbar.buttonCountWithoutExit / targetColumns).ceil(),
-    );
+    final int toolCount = includeHistoryButtons
+        ? CanvasToolbar.buttonCountWithoutExit
+        : CanvasToolbar.buttonCountWithoutExit -
+              CanvasToolbar.historyButtonCount;
+    final int rows = math.max(1, (toolCount / targetColumns).ceil());
     final double width = targetColumns * buttonExtent + totalSpacing;
     final double height =
         rows * buttonExtent + (rows - 1) * CanvasToolbar.spacing;
