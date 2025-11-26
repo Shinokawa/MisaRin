@@ -1,7 +1,16 @@
 part of 'controller.dart';
 
-void _compositeMarkDirty(BitmapCanvasController controller, {Rect? region}) {
-  controller._rasterBackend.markDirty(region: region);
+void _compositeMarkDirty(
+  BitmapCanvasController controller, {
+  Rect? region,
+  String? layerId,
+  bool pixelsDirty = true,
+}) {
+  controller._rasterBackend.markDirty(
+    region: region,
+    layerId: layerId,
+    pixelsDirty: pixelsDirty,
+  );
   _compositeScheduleRefresh(controller);
 }
 

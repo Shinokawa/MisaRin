@@ -54,6 +54,12 @@ class CanvasRasterBackend {
   Rect? _pendingDirtyBounds;
   final List<RasterIntRect> _pendingDirtyTiles = <RasterIntRect>[];
   final Set<int> _pendingDirtyTileKeys = <int>{};
+  
+  // New state for tracking layer dirtiness
+  final Set<String> _pendingDirtyLayerIds = <String>{};
+  bool _pendingAllLayersDirty = false;
+  final Set<String> _workerKnownLayerIds = <String>{};
+
   Uint32List? _compositePixels;
   Uint8List? _clipMaskBuffer;
 
@@ -62,8 +68,20 @@ class CanvasRasterBackend {
   int get width => _width;
   int get height => _height;
 
-  void markDirty({Rect? region}) {
+  void markDirty({
+    Rect? region,
+    String? layerId,
+    bool pixelsDirty = true,
+  }) {
     _compositeDirty = true;
+    if (pixelsDirty) {
+      if (layerId != null) {
+        _pendingDirtyLayerIds.add(layerId);
+      } else {
+        _pendingAllLayersDirty = true;
+      }
+    }
+
     if (region == null || _pendingFullSurface) {
       _pendingDirtyBounds = null;
       _pendingDirtyTiles.clear();
@@ -251,12 +269,47 @@ class CanvasRasterBackend {
     final List<RasterIntRect> areas = requiresFullSurface
         ? <RasterIntRect>[RasterIntRect(0, 0, _width, _height)]
         : (regions ?? const <RasterIntRect>[]);
+    
+    _worker ??= CanvasCompositeWorker();
+
+    // 1. Sync layers to worker
+    for (final BitmapLayerState layer in layers) {
+      if (!_workerKnownLayerIds.contains(layer.id)) {
+        // New layer, sync full surface
+        await _worker!.updateLayer(
+          id: layer.id,
+          width: _width,
+          height: _height,
+          pixels: layer.surface.pixels,
+        );
+        _workerKnownLayerIds.add(layer.id);
+      } else if (_pendingAllLayersDirty || _pendingDirtyLayerIds.contains(layer.id)) {
+        // Dirty layer, sync patches
+        if (areas.isNotEmpty) {
+          for (final RasterIntRect area in areas) {
+             await _worker!.updateLayer(
+               id: layer.id,
+               width: _width,
+               height: _height,
+               pixels: _copyLayerRegion(layer.surface, area),
+               rect: area,
+             );
+          }
+        }
+      }
+    }
+    
+    // Reset dirtiness
+    _pendingDirtyLayerIds.clear();
+    _pendingAllLayersDirty = false;
+
     if (areas.isEmpty) {
       return;
     }
-    _worker ??= CanvasCompositeWorker();
+
     final List<CompositeRegionPayload> payloadRegions =
-        _buildCompositeRegions(areas, layers);
+        _buildCompositeWork(areas, layers);
+        
     final List<CompositeRegionResult> results =
         await _worker!.composite(
           CompositeWorkPayload(
@@ -316,7 +369,7 @@ class CanvasRasterBackend {
     _clipMaskBuffer = null;
   }
 
-  List<CompositeRegionPayload> _buildCompositeRegions(
+  List<CompositeRegionPayload> _buildCompositeWork(
     List<RasterIntRect> areas,
     List<BitmapLayerState> layers,
   ) {
@@ -324,15 +377,14 @@ class CanvasRasterBackend {
       for (final RasterIntRect area in areas)
         CompositeRegionPayload(
           rect: area,
-          layers: <CompositeRegionLayerPayload>[
+          layers: <CompositeRegionLayerRef>[
             for (final BitmapLayerState layer in layers)
-              CompositeRegionLayerPayload(
+              CompositeRegionLayerRef(
                 id: layer.id,
                 visible: layer.visible,
                 opacity: layer.opacity,
                 clippingMask: layer.clippingMask,
                 blendModeIndex: layer.blendMode.index,
-                pixels: _copyLayerRegion(layer.surface, area),
               ),
           ],
         ),

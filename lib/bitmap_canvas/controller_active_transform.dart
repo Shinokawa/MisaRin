@@ -29,12 +29,17 @@ void _commitActiveLayerTranslation(BitmapCanvasController controller) {
     return;
   }
   final Rect? dirtyRegion = controller._activeLayerTransformDirtyRegion;
+  final String? layerId = controller._activeLayerTranslationId;
   _applyActiveLayerTranslation(controller);
   controller._pendingActiveLayerTransformCleanup = true;
   if (dirtyRegion != null) {
-    controller._markDirty(region: dirtyRegion);
+    controller._markDirty(
+      region: dirtyRegion,
+      layerId: layerId,
+      pixelsDirty: true,
+    );
   } else {
-    controller._markDirty();
+    controller._markDirty(layerId: layerId, pixelsDirty: true);
   }
 }
 
@@ -43,12 +48,17 @@ void _cancelActiveLayerTranslation(BitmapCanvasController controller) {
     return;
   }
   final Rect? dirtyRegion = controller._activeLayerTransformDirtyRegion;
+  final String? layerId = controller._activeLayerTranslationId;
   _restoreActiveLayerSnapshot(controller);
   controller._pendingActiveLayerTransformCleanup = true;
   if (dirtyRegion != null) {
-    controller._markDirty(region: dirtyRegion);
+    controller._markDirty(
+      region: dirtyRegion,
+      layerId: layerId,
+      pixelsDirty: true,
+    );
   } else {
-    controller._markDirty();
+    controller._markDirty(layerId: layerId, pixelsDirty: true);
   }
 }
 
@@ -109,9 +119,13 @@ void _startClippedLayerTransformSession(
   controller._activeLayerTransformOriginY = 0;
   layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
   if (bounds != null) {
-    controller._markDirty(region: bounds);
+    controller._markDirty(
+      region: bounds,
+      layerId: layer.id,
+      pixelsDirty: true,
+    );
   } else {
-    controller._markDirty();
+    controller._markDirty(layerId: layer.id, pixelsDirty: true);
   }
   _prepareActiveLayerTransformPreview(controller, layer, snapshot);
 }
@@ -161,7 +175,7 @@ void _startOverflowLayerTransformSession(
   controller._activeLayerTransformBounds = transformBounds;
   controller._activeLayerTransformDirtyRegion = transformBounds;
   layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
-  controller._markDirty();
+  controller._markDirty(layerId: layer.id, pixelsDirty: true);
   _prepareActiveLayerTransformPreview(controller, layer, snapshot.pixels);
 }
 
@@ -628,7 +642,10 @@ void _disposeActiveLayerTransformSession(BitmapCanvasController controller) {
     return;
   }
   controller._pendingActiveLayerTransformCleanup = true;
-  controller._markDirty();
+  controller._markDirty(
+    layerId: controller._activeLayerTranslationId,
+    pixelsDirty: true,
+  );
 }
 
 void _updateActiveLayerTransformDirtyRegion(BitmapCanvasController controller) {

@@ -687,7 +687,7 @@ class BitmapCanvasController extends ChangeNotifier {
     if (!identical(src, pixels)) {
       pixels.setAll(0, src);
     }
-    _markDirty();
+    _markDirty(layerId: layer.id, pixelsDirty: true);
     notifyListeners();
     return true;
   }
@@ -763,17 +763,16 @@ class BitmapCanvasController extends ChangeNotifier {
     );
   }
 
-  void _drawPoint(Offset position, double radius) =>
-      _strokeDrawPoint(this, position, radius);
-
-  Rect _dirtyRectForVariableLine(
-    Offset a,
-    Offset b,
-    double startRadius,
-    double endRadius,
-  ) => _strokeDirtyRectForVariableLine(a, b, startRadius, endRadius);
-
-  void _markDirty({Rect? region}) => _compositeMarkDirty(this, region: region);
+  void _markDirty({
+    Rect? region,
+    String? layerId,
+    bool pixelsDirty = true,
+  }) => _compositeMarkDirty(
+    this,
+    region: region,
+    layerId: layerId,
+    pixelsDirty: pixelsDirty,
+  );
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 
@@ -962,7 +961,11 @@ class BitmapCanvasController extends ChangeNotifier {
       copyWidth.toDouble(),
       copyHeight.toDouble(),
     );
-    _markDirty(region: dirtyRegion);
+    _markDirty(
+      region: dirtyRegion,
+      layerId: _activeLayer.id,
+      pixelsDirty: true,
+    );
   }
 
   void _scheduleTileImageDisposal() {
@@ -1007,14 +1010,8 @@ class BitmapCanvasController extends ChangeNotifier {
     return true;
   }
 
-  Color _colorAtComposite(Offset position) =>
-      _fillColorAtComposite(this, position);
-
   Color sampleColor(Offset position, {bool sampleAllLayers = true}) =>
       _fillSampleColor(this, position, sampleAllLayers: sampleAllLayers);
-
-  Color _colorAtSurface(BitmapSurface surface, int x, int y) =>
-      _fillColorAtSurface(this, surface, x, y);
 
   static Uint8List _surfaceToRgba(BitmapSurface surface) {
     final Uint8List rgba = Uint8List(surface.pixels.length * 4);
@@ -1077,18 +1074,6 @@ class BitmapCanvasController extends ChangeNotifier {
     return false;
   }
 
-  static void _writeRgbaToSurface(BitmapSurface surface, Uint8List rgba) {
-    final Uint32List pixels = surface.pixels;
-    for (int i = 0; i < pixels.length; i++) {
-      final int offset = i * 4;
-      final int r = rgba[offset];
-      final int g = rgba[offset + 1];
-      final int b = rgba[offset + 2];
-      final int a = rgba[offset + 3];
-      pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
-    }
-  }
-
   static double _clampUnit(double value) {
     if (value <= 0) {
       return 0;
@@ -1113,65 +1098,6 @@ class BitmapCanvasController extends ChangeNotifier {
 
   RasterIntRect _clipRectToSurface(Rect rect) =>
       _rasterBackend.clipRectToSurface(rect);
-
-  Rect _dirtyRectForCircle(Offset center, double radius) =>
-      _strokeDirtyRectForCircle(center, radius);
-
-  Rect _dirtyRectForLine(Offset a, Offset b, double radius) =>
-      _strokeDirtyRectForLine(a, b, radius);
-
-  _SurfacePatch? _surfacePatchForRegion(Rect region) {
-    final RasterIntRect bounds = _clipRectToSurface(region);
-    if (bounds.isEmpty) {
-      return null;
-    }
-    final int patchWidth = bounds.width;
-    final int patchHeight = bounds.height;
-    final Uint32List pixels = Uint32List(patchWidth * patchHeight);
-    final Uint32List source = _activeSurface.pixels;
-    for (int row = 0; row < patchHeight; row++) {
-      final int srcOffset = (bounds.top + row) * _width + bounds.left;
-      final int dstOffset = row * patchWidth;
-      pixels.setRange(dstOffset, dstOffset + patchWidth, source, srcOffset);
-    }
-    Uint8List? maskPatch;
-    final Uint8List? mask = _selectionMask;
-    if (mask != null) {
-      maskPatch = Uint8List(patchWidth * patchHeight);
-      for (int row = 0; row < patchHeight; row++) {
-        final int srcOffset = (bounds.top + row) * _width + bounds.left;
-        final int dstOffset = row * patchWidth;
-        maskPatch.setRange(
-          dstOffset,
-          dstOffset + patchWidth,
-          mask,
-          srcOffset,
-        );
-      }
-    }
-    return _SurfacePatch(
-      left: bounds.left,
-      top: bounds.top,
-      width: patchWidth,
-      height: patchHeight,
-      pixels: pixels,
-      mask: maskPatch,
-    );
-  }
-
-  void _applySurfacePatch(_SurfacePatch patch, Uint32List pixels) {
-    final Uint32List destination = _activeSurface.pixels;
-    for (int row = 0; row < patch.height; row++) {
-      final int dstOffset = (patch.top + row) * _width + patch.left;
-      final int srcOffset = row * patch.width;
-      destination.setRange(
-        dstOffset,
-        dstOffset + patch.width,
-        pixels,
-        srcOffset,
-      );
-    }
-  }
 
   Future<PaintingWorkerPatch?> _executeWorkerDraw({
     required Rect region,
@@ -1307,7 +1233,11 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     _resetWorkerSurfaceSync();
     _activeLayer.revision += 1;
-    _markDirty(region: region);
+    _markDirty(
+      region: region,
+      layerId: _activeLayer.id,
+      pixelsDirty: true,
+    );
   }
 
   void _applyStampSegmentFallback({
@@ -1404,38 +1334,6 @@ class BitmapCanvasController extends ChangeNotifier {
           ),
         );
     return mask;
-  }
-}
-
-class _SurfacePatch {
-  _SurfacePatch({
-    required this.left,
-    required this.top,
-    required this.width,
-    required this.height,
-    required this.pixels,
-    this.mask,
-  });
-
-  final int left;
-  final int top;
-  final int width;
-  final int height;
-  final Uint32List pixels;
-  final Uint8List? mask;
-
-  TransferableTypedData toPixelData() {
-    return TransferableTypedData.fromList(
-      <Uint8List>[Uint8List.view(pixels.buffer)],
-    );
-  }
-
-  TransferableTypedData? toMaskData() {
-    final Uint8List? data = mask;
-    if (data == null) {
-      return null;
-    }
-    return TransferableTypedData.fromList(<Uint8List>[data]);
   }
 }
 

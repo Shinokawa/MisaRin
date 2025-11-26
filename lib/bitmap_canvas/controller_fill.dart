@@ -82,7 +82,10 @@ void _fillFloodFill(
               mask: controller._selectionMask,
             );
             controller._resetWorkerSurfaceSync();
-            controller._markDirty();
+            controller._markDirty(
+              layerId: controller._activeLayer.id,
+              pixelsDirty: true,
+            );
           },
         );
       } else {
@@ -93,7 +96,10 @@ void _fillFloodFill(
           contiguous: contiguous,
           mask: controller._selectionMask,
         );
-        controller._markDirty();
+        controller._markDirty(
+          layerId: controller._activeLayer.id,
+          pixelsDirty: true,
+        );
       }
       return;
     }
@@ -310,6 +316,8 @@ Uint8List? _fillFloodFillAcrossLayers(
           (maxX + 1).toDouble(),
           (maxY + 1).toDouble(),
         ),
+        layerId: controller._activeLayer.id,
+        pixelsDirty: true,
       );
     }
     if (swallowMask != null && changed) {
@@ -374,6 +382,8 @@ Uint8List? _fillFloodFillAcrossLayers(
         (maxX + 1).toDouble(),
         (maxY + 1).toDouble(),
       ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
     );
   }
   return collectMask ? contiguousMask : null;
@@ -437,6 +447,8 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
         (maxX + 1).toDouble(),
         (maxY + 1).toDouble(),
       ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
     );
     return mask;
   }
@@ -493,6 +505,8 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
         (maxX + 1).toDouble(),
         (maxY + 1).toDouble(),
       ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
     );
     return mask;
   }
@@ -615,6 +629,8 @@ void _fillSwallowColorLines(
         (maxX + 1).toDouble(),
         (maxY + 1).toDouble(),
       ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
     );
   }
 }
@@ -671,7 +687,11 @@ void _fillApplyAntialiasToMask(
     pixels.setAll(0, src);
   }
   final Rect? bounds = _fillMaskBounds(controller, expandedMask);
-  controller._markDirty(region: bounds);
+  controller._markDirty(
+    region: bounds,
+    layerId: controller._activeLayer.id,
+    pixelsDirty: true,
+  );
 }
 
 bool _fillRunMaskedAntialiasPass(

@@ -6,14 +6,13 @@ import '../bitmap_canvas/bitmap_blend_utils.dart' as blend_utils;
 import '../bitmap_canvas/raster_int_rect.dart';
 import '../canvas/canvas_layer.dart';
 
-class CompositeRegionLayerPayload {
-  const CompositeRegionLayerPayload({
+class CompositeRegionLayerRef {
+  const CompositeRegionLayerRef({
     required this.id,
     required this.visible,
     required this.opacity,
     required this.clippingMask,
     required this.blendModeIndex,
-    required this.pixels,
   });
 
   final String id;
@@ -21,7 +20,6 @@ class CompositeRegionLayerPayload {
   final double opacity;
   final bool clippingMask;
   final int blendModeIndex;
-  final Uint32List pixels;
 
   CanvasLayerBlendMode get blendMode =>
       CanvasLayerBlendMode.values[blendModeIndex];
@@ -34,7 +32,7 @@ class CompositeRegionPayload {
   });
 
   final RasterIntRect rect;
-  final List<CompositeRegionLayerPayload> layers;
+  final List<CompositeRegionLayerRef> layers;
 }
 
 class CompositeWorkPayload {
@@ -91,6 +89,31 @@ class CanvasCompositeWorker {
     _sendPort = await _sendPortCompleter.future;
   }
 
+  Future<void> updateLayer({
+    required String id,
+    required int width,
+    required int height,
+    required Uint32List pixels,
+    RasterIntRect? rect,
+  }) async {
+    await _ensureStarted();
+    final SendPort port = _sendPort!;
+    final TransferableTypedData buffer = TransferableTypedData.fromList(
+      <Uint8List>[Uint8List.view(pixels.buffer)],
+    );
+    port.send(_CompositeWorkerRequest(
+      id: -1, // No response needed for updates
+      type: _CompositeWorkerRequestType.updateLayer,
+      payload: <String, Object?>{
+        'id': id,
+        'width': width,
+        'height': height,
+        'pixels': buffer,
+        'rect': rect,
+      },
+    ));
+  }
+
   Future<List<CompositeRegionResult>> composite(
     CompositeWorkPayload payload,
   ) async {
@@ -100,7 +123,11 @@ class CanvasCompositeWorker {
         Completer<List<CompositeRegionResult>>();
     final int requestId = _nextRequestId++;
     _pending[requestId] = completer;
-    port.send(_CompositeWorkerRequest(id: requestId, payload: payload));
+    port.send(_CompositeWorkerRequest(
+      id: requestId,
+      type: _CompositeWorkerRequestType.composite,
+      payload: payload,
+    ));
     return completer.future;
   }
 
@@ -142,24 +169,48 @@ class CanvasCompositeWorker {
   }
 }
 
+enum _CompositeWorkerRequestType {
+  updateLayer,
+  composite,
+}
+
+class _CompositeWorkerState {
+  final Map<String, Uint32List> layers = <String, Uint32List>{};
+  final Map<String, _LayerDimensions> layerDimensions = <String, _LayerDimensions>{};
+}
+
+class _LayerDimensions {
+  const _LayerDimensions(this.width, this.height);
+  final int width;
+  final int height;
+}
+
 @pragma('vm:entry-point')
 void _compositeWorkerMain(SendPort replyPort) {
   final ReceivePort commandPort = ReceivePort();
   replyPort.send(commandPort.sendPort);
+  final _CompositeWorkerState state = _CompositeWorkerState();
+
   commandPort.listen((Object? message) {
     if (message is _CompositeWorkerRequest) {
       try {
-        final List<CompositeRegionResult> regions =
-            runCompositeWork(message.payload);
-        replyPort.send(_CompositeWorkerResponse(message.id, regions));
+        if (message.type == _CompositeWorkerRequestType.updateLayer) {
+          _handleUpdateLayer(state, message.payload as Map<String, Object?>);
+        } else if (message.type == _CompositeWorkerRequestType.composite) {
+          final List<CompositeRegionResult> regions =
+              _runCompositeWork(state, message.payload as CompositeWorkPayload);
+          replyPort.send(_CompositeWorkerResponse(message.id, regions));
+        }
       } catch (error, stackTrace) {
-        replyPort.send(
-          _CompositeWorkerError(
-            message.id,
-            error.toString(),
-            stackTrace.toString(),
-          ),
-        );
+        if (message.id >= 0) {
+          replyPort.send(
+            _CompositeWorkerError(
+              message.id,
+              error.toString(),
+              stackTrace.toString(),
+            ),
+          );
+        }
       }
       return;
     }
@@ -169,14 +220,59 @@ void _compositeWorkerMain(SendPort replyPort) {
   });
 }
 
+void _handleUpdateLayer(
+  _CompositeWorkerState state,
+  Map<String, Object?> payload,
+) {
+  final String id = payload['id'] as String;
+  final int width = payload['width'] as int;
+  final int height = payload['height'] as int;
+  final TransferableTypedData pixelsData =
+      payload['pixels'] as TransferableTypedData;
+  final RasterIntRect? rect = payload['rect'] as RasterIntRect?;
+
+  final ByteBuffer buffer = pixelsData.materialize();
+  final Uint32List incomingPixels = Uint32List.view(
+    buffer,
+    0,
+    buffer.lengthInBytes ~/ Uint32List.bytesPerElement,
+  );
+
+  if (rect != null) {
+    // Update partial region
+    final Uint32List? existing = state.layers[id];
+    if (existing == null) {
+      return; // Layer not initialized, cannot update patch
+    }
+    final int regionWidth = rect.width;
+    final int regionHeight = rect.height;
+    for (int row = 0; row < regionHeight; row++) {
+      final int dstOffset = (rect.top + row) * width + rect.left;
+      final int srcOffset = row * regionWidth;
+      existing.setRange(
+        dstOffset,
+        dstOffset + regionWidth,
+        incomingPixels,
+        srcOffset,
+      );
+    }
+  } else {
+    // Full update
+    state.layers[id] = incomingPixels;
+    state.layerDimensions[id] = _LayerDimensions(width, height);
+  }
+}
+
 class _CompositeWorkerRequest {
   const _CompositeWorkerRequest({
     required this.id,
+    required this.type,
     required this.payload,
   });
 
   final int id;
-  final CompositeWorkPayload payload;
+  final _CompositeWorkerRequestType type;
+  final Object payload;
 }
 
 class _CompositeWorkerResponse {
@@ -194,12 +290,16 @@ class _CompositeWorkerError {
   final String stackTrace;
 }
 
-List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
+List<CompositeRegionResult> _runCompositeWork(
+  _CompositeWorkerState state,
+  CompositeWorkPayload payload,
+) {
   if (payload.regions.isEmpty) {
     return const <CompositeRegionResult>[];
   }
   final int surfaceWidth = payload.width;
   final List<CompositeRegionResult> results = <CompositeRegionResult>[];
+
   for (final CompositeRegionPayload region in payload.regions) {
     final RasterIntRect area = region.rect;
     final int areaWidth = area.width;
@@ -209,6 +309,7 @@ List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
     }
     final Uint32List composite = Uint32List(areaWidth * areaHeight);
     final Uint8List clipMask = Uint8List(areaWidth * areaHeight);
+
     for (int localY = 0; localY < areaHeight; localY++) {
       final int globalY = area.top + localY;
       final int rowOffset = localY * areaWidth;
@@ -218,7 +319,8 @@ List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
             (globalY * surfaceWidth) + (area.left + localX);
         int color = 0;
         bool initialized = false;
-        for (final CompositeRegionLayerPayload layer in region.layers) {
+
+        for (final CompositeRegionLayerRef layer in region.layers) {
           if (!layer.visible) {
             continue;
           }
@@ -226,6 +328,13 @@ List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
               layer.id == payload.translatingLayerId) {
             continue;
           }
+          
+          final Uint32List? layerPixels = state.layers[layer.id];
+          // If layer missing in worker, skip it (or handle error?)
+          if (layerPixels == null) {
+             continue;
+          }
+
           final double opacity = _clampUnit(layer.opacity);
           if (opacity <= 0) {
             if (!layer.clippingMask) {
@@ -233,7 +342,8 @@ List<CompositeRegionResult> runCompositeWork(CompositeWorkPayload payload) {
             }
             continue;
           }
-          final int src = layer.pixels[localIndex];
+
+          final int src = layerPixels[globalIndex];
           final int srcA = (src >> 24) & 0xff;
           if (srcA == 0) {
             if (!layer.clippingMask) {

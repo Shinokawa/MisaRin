@@ -4,6 +4,33 @@ const double _kStylusAbsoluteMinRadius = 0.005;
 const double _kSimulatedAbsoluteMinRadius = 0.01;
 const double _kAbsoluteMaxStrokeRadius = 512.0;
 
+double _strokeStampSpacing(double radius) {
+  if (!radius.isFinite) {
+    return 0.5;
+  }
+  return math.max(0.2, radius * 0.3);
+}
+
+Rect _strokeDirtyRectForVariableLine(
+  Offset a,
+  Offset b,
+  double startRadius,
+  double endRadius,
+) {
+  final double maxRadius = math.max(math.max(startRadius, endRadius), 0.5);
+  return Rect.fromPoints(a, b).inflate(maxRadius + 1.5);
+}
+
+Rect _strokeDirtyRectForCircle(Offset center, double radius) {
+  final double effectiveRadius = math.max(radius, 0.5);
+  return Rect.fromCircle(center: center, radius: effectiveRadius + 1.5);
+}
+
+Rect _strokeDirtyRectForLine(Offset a, Offset b, double radius) {
+  final double inflate = math.max(radius, 0.5) + 1.5;
+  return Rect.fromPoints(a, b).inflate(inflate);
+}
+
 void _strokeConfigureStylusPressure(
   BitmapCanvasController controller, {
   required bool enabled,
@@ -223,15 +250,6 @@ void _strokeExtend(
         includeStart: restartCaps,
       );
     }
-    assert(() {
-      _strokeLogDrawnSegment(
-        usesDevicePressure: controller._currentStrokeStylusPressureEnabled,
-        normalizedPressure: stylusPressure,
-        startRadius: startRadius,
-        endRadius: resolvedRadius,
-      );
-      return true;
-    }());
     if (!controller.isMultithreaded) {
       controller._markDirty(
         region: _strokeDirtyRectForVariableLine(
@@ -240,6 +258,8 @@ void _strokeExtend(
           startRadius,
           nextRadius,
         ),
+        layerId: controller._activeLayer.id,
+        pixelsDirty: true,
       );
     }
     controller._currentStrokeHasMoved = true;
@@ -285,7 +305,11 @@ void _strokeExtend(
         antialiasLevel: controller._currentStrokeAntialiasLevel,
         includeStartCap: firstSegment,
       );
-      controller._markDirty(region: constantDirty);
+      controller._markDirty(
+        region: constantDirty,
+        layerId: controller._activeLayer.id,
+        pixelsDirty: true,
+      );
     }
   } else {
     _strokeStampSegment(
@@ -297,30 +321,14 @@ void _strokeExtend(
       includeStart: firstSegment,
     );
   }
-  assert(() {
-    _strokeLogDrawnSegment(
-      usesDevicePressure: false,
-      normalizedPressure: null,
-      startRadius: controller._currentStrokeRadius,
-      endRadius: controller._currentStrokeRadius,
-    );
-    return true;
-  }());
   if (!controller.isMultithreaded) {
-    controller._markDirty(region: constantDirty);
+    controller._markDirty(
+      region: constantDirty,
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
+    );
   }
   controller._currentStrokeHasMoved = true;
-}
-
-void _strokeLogDrawnSegment({
-  required bool usesDevicePressure,
-  required double? normalizedPressure,
-  required double startRadius,
-  required double endRadius,
-}) {
-  final String pressureLabel = normalizedPressure != null
-      ? normalizedPressure.clamp(0.0, 1.0).toStringAsFixed(3)
-      : (usesDevicePressure ? 'virtual' : 'fixed');
 }
 
 void _strokeEnd(BitmapCanvasController controller) {
@@ -394,7 +402,11 @@ void _strokeEnd(BitmapCanvasController controller) {
             includeStartCap: true,
             erase: controller._currentStrokeEraseMode,
           );
-          controller._markDirty(region: dirtyRegion);
+          controller._markDirty(
+            region: dirtyRegion,
+            layerId: controller._activeLayer.id,
+            pixelsDirty: true,
+          );
         }
       } else if (tailInstruction.isPoint) {
         _strokeDrawPoint(
@@ -555,7 +567,11 @@ void _strokeDrawPoint(
       );
     }
     if (markDirty) {
-      controller._markDirty(region: dirtyRect);
+      controller._markDirty(
+        region: dirtyRect,
+        layerId: controller._activeLayer.id,
+        pixelsDirty: true,
+      );
     }
     return;
   }
@@ -654,32 +670,9 @@ void _strokeStampSegment(
       markDirty: false,
     );
   }
-  controller._markDirty(region: dirtyRegion);
-}
-
-double _strokeStampSpacing(double radius) {
-  if (!radius.isFinite) {
-    return 0.5;
-  }
-  return math.max(0.2, radius * 0.3);
-}
-
-Rect _strokeDirtyRectForVariableLine(
-  Offset a,
-  Offset b,
-  double startRadius,
-  double endRadius,
-) {
-  final double maxRadius = math.max(math.max(startRadius, endRadius), 0.5);
-  return Rect.fromPoints(a, b).inflate(maxRadius + 1.5);
-}
-
-Rect _strokeDirtyRectForCircle(Offset center, double radius) {
-  final double effectiveRadius = math.max(radius, 0.5);
-  return Rect.fromCircle(center: center, radius: effectiveRadius + 1.5);
-}
-
-Rect _strokeDirtyRectForLine(Offset a, Offset b, double radius) {
-  final double inflate = math.max(radius, 0.5) + 1.5;
-  return Rect.fromPoints(a, b).inflate(inflate);
+  controller._markDirty(
+    region: dirtyRegion,
+    layerId: controller._activeLayer.id,
+    pixelsDirty: true,
+  );
 }
