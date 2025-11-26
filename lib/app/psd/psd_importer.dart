@@ -35,6 +35,7 @@ class PsdImporter {
       width: header.width.toDouble(),
       height: header.height.toDouble(),
       backgroundColor: const Color(0xFFFFFFFF),
+      creationLogic: CanvasCreationLogic.multiThread,
     );
 
     final ProjectDocument base = ProjectDocument.newProject(

@@ -89,6 +89,7 @@ class _CheckboardBackground extends StatelessWidget {
   }
 }
 
+
 class _CheckboardPainter extends CustomPainter {
   const _CheckboardPainter({
     required this.cellSize,
@@ -905,6 +906,62 @@ class _PreviewPathPainter extends CustomPainter {
     return oldDelegate.path != path ||
         oldDelegate.color != color ||
         oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
+class _ActiveStrokeOverlayPainter extends CustomPainter {
+  const _ActiveStrokeOverlayPainter({
+    required this.points,
+    required this.radii,
+    required this.color,
+    this.shape = BrushShape.circle,
+    required this.committingStrokes,
+    this.antialiasLevel = 1,
+  });
+
+  final List<Offset> points;
+  final List<double> radii;
+  final Color color;
+  final BrushShape shape;
+  final List<PaintingDrawCommand> committingStrokes;
+  final int antialiasLevel;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw committing strokes (fading out/waiting for raster) first
+    for (final PaintingDrawCommand command in committingStrokes) {
+      if (command.points == null || command.radii == null) continue;
+      VectorStrokePainter.paint(
+        canvas: canvas,
+        points: command.points!,
+        radii: command.radii!,
+        color: Color(command.color),
+        shape: BrushShape.values[command.shapeIndex ?? 0],
+        antialiasLevel: command.antialiasLevel,
+      );
+    }
+
+    // Draw active stroke on top
+    if (points.isNotEmpty) {
+      VectorStrokePainter.paint(
+        canvas: canvas,
+        points: points,
+        radii: radii,
+        color: color,
+        shape: shape,
+        antialiasLevel: antialiasLevel,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ActiveStrokeOverlayPainter oldDelegate) {
+    return oldDelegate.points != points ||
+        oldDelegate.radii != radii ||
+        oldDelegate.color != color ||
+        oldDelegate.shape != shape ||
+        oldDelegate.committingStrokes != committingStrokes ||
+        oldDelegate.antialiasLevel != antialiasLevel;
   }
 }
 

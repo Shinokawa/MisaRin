@@ -112,23 +112,25 @@ mixin _PaintingBoardBuildMixin
         _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
-        _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
-          _workspaceSize.height - _toolButtonPadding * 2,
-        );
+        final BoardLayoutMetrics? layoutMetrics = _layoutMetrics;
+        final CanvasToolbarLayout toolbarLayout =
+            layoutMetrics?.layout ?? _toolbarLayout;
         final double toolSettingsLeft =
-            _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing;
+            layoutMetrics?.toolSettingsLeft ??
+            (_toolButtonPadding + toolbarLayout.width + _toolSettingsSpacing);
         final double sidebarLeft =
+            layoutMetrics?.sidebarLeft ??
             (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding).clamp(
               0.0,
               double.infinity,
             );
-        final double computedToolSettingsMaxWidth =
-            sidebarLeft - toolSettingsLeft - _toolSettingsSpacing;
         final double? toolSettingsMaxWidth =
-            computedToolSettingsMaxWidth.isFinite &&
-                computedToolSettingsMaxWidth > 0
-            ? computedToolSettingsMaxWidth
-            : null;
+            layoutMetrics?.toolSettingsMaxWidth ??
+            (() {
+              final double computed =
+                  sidebarLeft - toolSettingsLeft - _toolSettingsSpacing;
+              return computed.isFinite && computed > 0 ? computed : null;
+            })();
         final Rect boardRect = _boardRect;
         final ToolCursorStyle? cursorStyle = ToolCursorStyles.styleFor(
           _effectiveActiveTool,
@@ -239,19 +241,19 @@ mixin _PaintingBoardBuildMixin
               ),
               CutIntent: CallbackAction<CutIntent>(
                 onInvoke: (intent) {
-                  cut();
+                  unawaited(cut());
                   return null;
                 },
               ),
               CopyIntent: CallbackAction<CopyIntent>(
                 onInvoke: (intent) {
-                  copy();
+                  unawaited(copy());
                   return null;
                 },
               ),
               PasteIntent: CallbackAction<PasteIntent>(
                 onInvoke: (intent) {
-                  paste();
+                  unawaited(paste());
                   return null;
                 },
               ),
@@ -366,7 +368,10 @@ mixin _PaintingBoardBuildMixin
                                             final BitmapCanvasFrame? frame =
                                                 _controller.frame;
                                             if (frame == null) {
-                                              return const SizedBox.shrink();
+                                              return ColoredBox(
+                                                color:
+                                                    _controller.backgroundColor,
+                                              );
                                             }
                                             final bool isTransforming =
                                                 _controller
@@ -403,6 +408,13 @@ mixin _PaintingBoardBuildMixin
                                                     theme,
                                                   )
                                                 : null;
+                                            
+                                            // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
+                                            final bool showActiveStroke = 
+                                                !_isLayerFreeTransformActive &&
+                                                !_controller.isActiveLayerTransforming &&
+                                                (_effectiveActiveTool == CanvasTool.pen && !_controller.activeStrokeEraseMode && _controller.activeStrokePoints.isNotEmpty || _controller.committingStrokes.isNotEmpty);
+
                                             return Stack(
                                               fit: StackFit.expand,
                                               children: [
@@ -410,6 +422,18 @@ mixin _PaintingBoardBuildMixin
                                                 BitmapCanvasSurface(
                                                   frame: frame,
                                                 ),
+                                                if (showActiveStroke)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter: _ActiveStrokeOverlayPainter(
+                                                        points: _controller.activeStrokePoints,
+                                                        radii: _controller.activeStrokeRadii,
+                                                        color: _controller.activeStrokeColor,
+                                                        shape: _controller.activeStrokeShape,
+                                                        committingStrokes: _controller.committingStrokes,
+                                                      ),
+                                                    ),
+                                                  ),
                                                 if (transformImageOverlay !=
                                                     null)
                                                   transformImageOverlay
@@ -502,13 +526,13 @@ mixin _PaintingBoardBuildMixin
                               canUndo: canUndo,
                               canRedo: canRedo,
                               onExit: widget.onRequestExit,
-                              layout: _toolbarLayout,
+                              layout: toolbarLayout,
                             ),
                           ),
                           Positioned(
                             left:
                                 _toolButtonPadding +
-                                _toolbarLayout.width +
+                                toolbarLayout.width +
                                 _toolSettingsSpacing,
                             top: _toolButtonPadding,
                             child: Container(

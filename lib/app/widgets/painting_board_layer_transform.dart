@@ -478,7 +478,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           await _renderLayerTransformResult(state);
       final _CanvasHistoryEntry? undoEntry =
           await _buildLayerTransformUndoEntry(state);
-      _pushUndoSnapshot(entry: undoEntry);
+      await _pushUndoSnapshot(entry: undoEntry);
       final CanvasLayerData data = CanvasLayerData(
         id: activeLayer.id,
         name: activeLayer.name,
@@ -532,7 +532,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (activeLayer == null) {
       return null;
     }
-    final _CanvasHistoryEntry entry = _createHistoryEntry();
+    final _CanvasHistoryEntry entry = await _createHistoryEntry();
     final String? activeLayerId = entry.activeLayerId;
     if (activeLayerId == null) {
       return entry;

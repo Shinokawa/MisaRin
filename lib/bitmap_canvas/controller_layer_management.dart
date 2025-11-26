@@ -6,6 +6,7 @@ void _layerManagerSetActiveLayer(BitmapCanvasController controller, String id) {
     return;
   }
   controller._activeIndex = index;
+  controller._resetWorkerSurfaceSync();
   controller.notifyListeners();
 }
 
@@ -25,7 +26,7 @@ void _layerManagerUpdateVisibility(
       exclude: index,
     );
   }
-  controller._markDirty();
+  controller._markDirty(pixelsDirty: false);
 }
 
 void _layerManagerSetOpacity(
@@ -43,7 +44,7 @@ void _layerManagerSetOpacity(
     return;
   }
   layer.opacity = clamped;
-  controller._markDirty();
+  controller._markDirty(pixelsDirty: false);
   controller.notifyListeners();
 }
 
@@ -78,7 +79,7 @@ void _layerManagerSetClippingMask(
     return;
   }
   layer.clippingMask = clippingMask;
-  controller._markDirty();
+  controller._markDirty(pixelsDirty: false);
   controller.notifyListeners();
 }
 
@@ -96,7 +97,7 @@ void _layerManagerSetBlendMode(
     return;
   }
   layer.blendMode = mode;
-  controller._markDirty();
+  controller._markDirty(pixelsDirty: false);
   controller.notifyListeners();
 }
 
@@ -137,8 +138,9 @@ void _layerManagerAddLayer(
   }
   controller._layers.insert(insertIndex, layer);
   controller._activeIndex = insertIndex;
+  controller._resetWorkerSurfaceSync();
   controller._layerOverflowStores[layer.id] = _LayerOverflowStore();
-  controller._markDirty();
+  controller._markDirty(pixelsDirty: false);
 }
 
 void _layerManagerRemoveLayer(BitmapCanvasController controller, String id) {
@@ -154,7 +156,8 @@ void _layerManagerRemoveLayer(BitmapCanvasController controller, String id) {
   if (controller._activeIndex >= controller._layers.length) {
     controller._activeIndex = controller._layers.length - 1;
   }
-  controller._markDirty();
+  controller._resetWorkerSurfaceSync();
+  controller._markDirty(pixelsDirty: false);
 }
 
 void _layerManagerReorderLayer(
@@ -181,7 +184,8 @@ void _layerManagerReorderLayer(
       target <= controller._activeIndex) {
     controller._activeIndex += 1;
   }
-  controller._markDirty();
+  controller._resetWorkerSurfaceSync();
+  controller._markDirty(pixelsDirty: false);
 }
 
 bool _layerManagerMergeLayerDown(BitmapCanvasController controller, String id) {
@@ -220,6 +224,7 @@ bool _layerManagerMergeLayerDown(BitmapCanvasController controller, String id) {
       lowerOverflow,
       upperOverflow,
     );
+    lower.surface.markDirty();
   }
 
   layers.removeAt(index);
@@ -231,7 +236,7 @@ bool _layerManagerMergeLayerDown(BitmapCanvasController controller, String id) {
       controller._activeIndex -= 1;
     }
   }
-  controller._markDirty();
+  controller._markDirty(layerId: lower.id, pixelsDirty: true);
   return true;
 }
 
@@ -247,7 +252,7 @@ void _layerManagerClearAll(BitmapCanvasController controller) {
       layer.surface.fill(const Color(0x00000000));
     }
   }
-  controller._markDirty();
+  controller._markDirty(pixelsDirty: true);
 }
 
 void _mergeLayerIntoLower(
@@ -624,10 +629,8 @@ void _layerManagerClearRegion(
       ? BitmapSurface.encodeColor(controller._backgroundColor)
       : 0;
   if (mask == null) {
-    for (int i = 0; i < pixels.length; i++) {
-      pixels[i] = replacement;
-    }
-    controller._markDirty();
+    layer.surface.fill(BitmapSurface.decodeColor(replacement));
+    controller._markDirty(layerId: id, pixelsDirty: true);
     return;
   }
   if (mask.length != controller._width * controller._height) {
@@ -659,6 +662,9 @@ void _layerManagerClearRegion(
       }
     }
   }
+  if (replacement != 0) {
+    layer.surface.markDirty();
+  }
   if (maxX < minX || maxY < minY) {
     return;
   }
@@ -669,6 +675,8 @@ void _layerManagerClearRegion(
       (maxX + 1).toDouble(),
       (maxY + 1).toDouble(),
     ),
+    layerId: id,
+    pixelsDirty: true,
   );
 }
 
@@ -711,7 +719,7 @@ String _layerManagerInsertFromData(
   controller._layers.insert(insertIndex, layer);
   controller._activeIndex = insertIndex;
   controller._layerOverflowStores[layer.id] = overflowStore;
-  controller._markDirty();
+  controller._markDirty(pixelsDirty: false);
   return layer.id;
 }
 
@@ -743,7 +751,8 @@ void _layerManagerReplaceLayer(
     }
   }
   controller._layerOverflowStores[layer.id] = overflowStore;
-  controller._markDirty();
+  controller._resetWorkerSurfaceSync();
+  controller._markDirty(layerId: id, pixelsDirty: true);
 }
 
 void _layerManagerLoadLayers(
@@ -751,10 +760,12 @@ void _layerManagerLoadLayers(
   List<CanvasLayerData> layers,
   Color backgroundColor,
 ) {
+  controller._cancelPendingWorkerTasks();
   controller._layers.clear();
   controller._rasterBackend.resetClipMask();
   _loadFromCanvasLayers(controller, layers, backgroundColor);
-  controller._markDirty();
+  controller._resetWorkerSurfaceSync();
+  controller._markDirty(pixelsDirty: true);
 }
 
 List<CanvasLayerData> _layerManagerSnapshotLayers(
@@ -980,5 +991,6 @@ _LayerOverflowStore _applyBitmapToSurface(
       }
     }
   }
+  surface.markDirty();
   return builder.build();
 }

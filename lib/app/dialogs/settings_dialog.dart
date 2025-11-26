@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
 import '../utils/tablet_input_bridge.dart';
+import '../../performance/stroke_latency_monitor.dart';
 import 'misarin_dialog.dart';
 
 Future<void> showSettingsDialog(BuildContext context) {
@@ -48,6 +49,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late bool _stylusPressureEnabled;
   late double _stylusCurve;
   late PenStrokeSliderRange _penSliderRange;
+  late bool _fpsOverlayEnabled;
 
   @override
   void initState() {
@@ -56,6 +58,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
+    _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
   }
 
   @override
@@ -198,6 +201,34 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        InfoLabel(
+          label: '开发者选项',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(child: Text('性能监控面板')),
+                  ToggleSwitch(
+                    checked: _fpsOverlayEnabled,
+                    onChanged: (value) {
+                      setState(() => _fpsOverlayEnabled = value);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.updateShowFpsOverlay(value);
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。',
+                style: theme.typography.caption,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -242,12 +273,14 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
       _stylusCurve = AppPreferences.defaultStylusCurve;
       _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
+      _fpsOverlayEnabled = AppPreferences.defaultShowFpsOverlay;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
     prefs.stylusPressureEnabled = _stylusPressureEnabled;
     prefs.stylusPressureCurve = _stylusCurve;
     prefs.penStrokeSliderRange = _penSliderRange;
+    prefs.updateShowFpsOverlay(_fpsOverlayEnabled);
     _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }
@@ -343,6 +376,8 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   DateTime? _lastSample;
   double _estimatedRps = 0;
   bool _isDrawingContact = false;
+  bool _latencyPending = false;
+  bool _latencyFrameScheduled = false;
 
   void _handlePointer(PointerEvent event) {
     if (!_shouldCaptureEvent(event)) {
@@ -372,10 +407,15 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       _lastSample = now;
       if (!inContact) {
         _isDrawingContact = false;
+        _latencyPending = false;
         return;
       }
       final bool isNewStroke = !_isDrawingContact;
       _isDrawingContact = true;
+      if (isNewStroke) {
+        StrokeLatencyMonitor.instance.recordStrokeStart();
+        _latencyPending = true;
+      }
       _points.add(
         _TabletPoint(
           position: pos,
@@ -386,6 +426,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       );
       _sampleCount += 1;
     });
+    _scheduleLatencyFrameReport();
   }
 
   void _clear() {
@@ -399,7 +440,9 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       _latestPointerKind = null;
       _lastSample = null;
       _isDrawingContact = false;
+      _latencyPending = false;
     });
+    _latencyFrameScheduled = false;
   }
 
   bool _shouldCaptureEvent(PointerEvent event) {
@@ -488,6 +531,22 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       _latestPointerKind = event.kind;
       _latestPressure = 0;
       _isDrawingContact = false;
+    });
+    _latencyPending = false;
+  }
+
+  void _scheduleLatencyFrameReport() {
+    if (!_latencyPending || _latencyFrameScheduled) {
+      return;
+    }
+    _latencyFrameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _latencyFrameScheduled = false;
+      if (!_latencyPending) {
+        return;
+      }
+      StrokeLatencyMonitor.instance.recordFramePresented();
+      _latencyPending = false;
     });
   }
 

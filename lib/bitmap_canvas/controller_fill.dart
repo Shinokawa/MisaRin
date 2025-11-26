@@ -5,6 +5,7 @@ void _fillSetSelectionMask(BitmapCanvasController controller, Uint8List? mask) {
     throw ArgumentError('Selection mask size mismatch');
   }
   controller._selectionMask = mask;
+  controller._paintingWorkerSelectionDirty = true;
 }
 
 void _fillFloodFill(
@@ -38,8 +39,8 @@ void _fillFloodFill(
   final int clampedTolerance = tolerance.clamp(0, 255);
   final int clampedAntialias = antialiasLevel.clamp(0, 3);
   final bool hasAntialias = clampedAntialias > 0;
-  final bool requiresMaskFill =
-      shouldSwallow || clampedTolerance > 0 || hasAntialias;
+  // Tolerance is now supported by worker, so we don't need to force mask fill for it alone.
+  final bool requiresMaskFill = shouldSwallow || hasAntialias;
   final bool needsRegionMask = shouldSwallow || hasAntialias;
 
   Uint8List? regionMask;
@@ -64,14 +65,43 @@ void _fillFloodFill(
       y,
     );
     if (!requiresMaskFill) {
-      controller._activeSurface.floodFill(
-        start: Offset(x.toDouble(), y.toDouble()),
-        color: color,
-        targetColor: baseColor,
-        contiguous: contiguous,
-        mask: controller._selectionMask,
-      );
-      controller._markDirty();
+      if (controller.isMultithreaded) {
+        controller._enqueueWorkerPatchFuture(
+          controller._executeFloodFill(
+            start: Offset(x.toDouble(), y.toDouble()),
+            color: color,
+            targetColor: baseColor,
+            contiguous: contiguous,
+            tolerance: clampedTolerance,
+          ),
+          onError: () {
+            controller._activeSurface.floodFill(
+              start: Offset(x.toDouble(), y.toDouble()),
+              color: color,
+              targetColor: baseColor,
+              contiguous: contiguous,
+              mask: controller._selectionMask,
+            );
+            controller._resetWorkerSurfaceSync();
+            controller._markDirty(
+              layerId: controller._activeLayer.id,
+              pixelsDirty: true,
+            );
+          },
+        );
+      } else {
+        controller._activeSurface.floodFill(
+          start: Offset(x.toDouble(), y.toDouble()),
+          color: color,
+          targetColor: baseColor,
+          contiguous: contiguous,
+          mask: controller._selectionMask,
+        );
+        controller._markDirty(
+          layerId: controller._activeLayer.id,
+          pixelsDirty: true,
+        );
+      }
       return;
     }
     if (baseColor.value == color.value && !shouldSwallow) {
@@ -99,12 +129,12 @@ void _fillFloodFill(
   }
 }
 
-Uint8List? _fillComputeMagicWandMask(
+Future<Uint8List?> _fillComputeMagicWandMask(
   BitmapCanvasController controller,
   Offset position, {
   bool sampleAllLayers = true,
   int tolerance = 0,
-}) {
+}) async {
   final int x = position.dx.floor();
   final int y = position.dy.floor();
   if (x < 0 || x >= controller._width || y < 0 || y >= controller._height) {
@@ -117,10 +147,46 @@ Uint8List? _fillComputeMagicWandMask(
     if (composite == null || composite.isEmpty) {
       return null;
     }
-    final int target = composite[y * controller._width + x];
+    if (controller.isMultithreaded) {
+      final Uint32List copy = Uint32List.fromList(composite);
+      return controller._executeSelectionMask(
+        start: Offset(x.toDouble(), y.toDouble()),
+        pixels: copy,
+        tolerance: tolerance,
+      );
+    } else {
+      final int target = composite[y * controller._width + x];
+      final bool filled = _fillFloodFillMask(
+        controller,
+        pixels: composite,
+        targetColor: target,
+        mask: mask,
+        startX: x,
+        startY: y,
+        width: controller._width,
+        height: controller._height,
+        tolerance: tolerance,
+      );
+      if (!filled) {
+        return null;
+      }
+      return mask;
+    }
+  }
+
+  final Uint32List pixels = controller._activeSurface.pixels;
+  if (controller.isMultithreaded) {
+    final Uint32List copy = Uint32List.fromList(pixels);
+    return controller._executeSelectionMask(
+      start: Offset(x.toDouble(), y.toDouble()),
+      pixels: copy,
+      tolerance: tolerance,
+    );
+  } else {
+    final int target = pixels[y * controller._width + x];
     final bool filled = _fillFloodFillMask(
       controller,
-      pixels: composite,
+      pixels: pixels,
       targetColor: target,
       mask: mask,
       startX: x,
@@ -134,24 +200,6 @@ Uint8List? _fillComputeMagicWandMask(
     }
     return mask;
   }
-
-  final Uint32List pixels = controller._activeSurface.pixels;
-  final int target = pixels[y * controller._width + x];
-  final bool filled = _fillFloodFillMask(
-    controller,
-    pixels: pixels,
-    targetColor: target,
-    mask: mask,
-    startX: x,
-    startY: y,
-    width: controller._width,
-    height: controller._height,
-    tolerance: tolerance,
-  );
-  if (!filled) {
-    return null;
-  }
-  return mask;
 }
 
 Color _fillSampleColor(
@@ -269,6 +317,8 @@ Uint8List? _fillFloodFillAcrossLayers(
           (maxX + 1).toDouble(),
           (maxY + 1).toDouble(),
         ),
+        layerId: controller._activeLayer.id,
+        pixelsDirty: true,
       );
     }
     if (swallowMask != null && changed) {
@@ -294,6 +344,17 @@ Uint8List? _fillFloodFillAcrossLayers(
     return null;
   }
 
+  // Expand mask by 1 pixel to cover anti-aliased edges (only if tolerance > 0)
+  Uint8List finalMask = contiguousMask;
+  if (tolerance > 0) {
+    finalMask = _fillExpandMask(
+      contiguousMask,
+      controller._width,
+      controller._height,
+      radius: 1,
+    );
+  }
+
   // When sampling across layers we must derive the contiguous region from
   // the composite; the active layer alone may not contain the sampled color.
   int minX = controller._width;
@@ -301,8 +362,8 @@ Uint8List? _fillFloodFillAcrossLayers(
   int maxX = -1;
   int maxY = -1;
   bool changed = false;
-  for (int i = 0; i < contiguousMask.length; i++) {
-    if (contiguousMask[i] == 0) {
+  for (int i = 0; i < finalMask.length; i++) {
+    if (finalMask[i] == 0) {
       continue;
     }
     if (surfacePixels[i] == replacement) {
@@ -333,9 +394,11 @@ Uint8List? _fillFloodFillAcrossLayers(
         (maxX + 1).toDouble(),
         (maxY + 1).toDouble(),
       ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
     );
   }
-  return collectMask ? contiguousMask : null;
+  return collectMask ? finalMask : null;
 }
 
 Uint8List? _fillFloodFillSingleLayerWithMask(
@@ -396,6 +459,8 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
         (maxX + 1).toDouble(),
         (maxY + 1).toDouble(),
       ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
     );
     return mask;
   }
@@ -415,13 +480,24 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
     return null;
   }
 
+  // Expand mask by 1 pixel to cover anti-aliased edges (only if tolerance > 0)
+  Uint8List finalMask = mask;
+  if (tolerance > 0) {
+    finalMask = _fillExpandMask(
+      mask,
+      width,
+      height,
+      radius: 1,
+    );
+  }
+
   int minX = width;
   int minY = height;
   int maxX = -1;
   int maxY = -1;
   bool changed = false;
-  for (int i = 0; i < mask.length; i++) {
-    if (mask[i] == 0) {
+  for (int i = 0; i < finalMask.length; i++) {
+    if (finalMask[i] == 0) {
       continue;
     }
     if (pixels[i] == replacement) {
@@ -452,8 +528,10 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
         (maxX + 1).toDouble(),
         (maxY + 1).toDouble(),
       ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
     );
-    return mask;
+    return finalMask;
   }
   return null;
 }
@@ -574,6 +652,8 @@ void _fillSwallowColorLines(
         (maxX + 1).toDouble(),
         (maxY + 1).toDouble(),
       ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
     );
   }
 }
@@ -630,7 +710,11 @@ void _fillApplyAntialiasToMask(
     pixels.setAll(0, src);
   }
   final Rect? bounds = _fillMaskBounds(controller, expandedMask);
-  controller._markDirty(region: bounds);
+  controller._markDirty(
+    region: bounds,
+    layerId: controller._activeLayer.id,
+    pixelsDirty: true,
+  );
 }
 
 bool _fillRunMaskedAntialiasPass(

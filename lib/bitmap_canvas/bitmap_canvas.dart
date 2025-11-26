@@ -29,6 +29,16 @@ class BitmapSurface {
   final int width;
   final int height;
   final Uint32List pixels;
+  bool _isClean = true;
+
+  /// Returns true if the surface is guaranteed to be fully transparent (all zeros).
+  bool get isClean => _isClean;
+
+  /// Marks the surface as potentially containing non-transparent pixels.
+  /// Should be called when modifying [pixels] directly from outside.
+  void markDirty() {
+    _isClean = false;
+  }
 
   /// Clears the entire surface with [color].
   void fill(Color color) {
@@ -36,6 +46,7 @@ class BitmapSurface {
     for (int i = 0; i < pixels.length; i++) {
       pixels[i] = encoded;
     }
+    _isClean = encoded == 0;
   }
 
   /// Returns the color at the given integer pixel position.
@@ -571,6 +582,9 @@ class BitmapSurface {
         continue;
       }
       pixels[index] = replacement;
+      if (replacement != 0) {
+        _isClean = false;
+      }
 
       queue.add(math.Point<int>(x + 1, y));
       queue.add(math.Point<int>(x - 1, y));
@@ -941,6 +955,9 @@ class BitmapSurface {
     }
 
     pixels[index] = (outA << 24) | (outR << 16) | (outG << 8) | outB;
+    if (outA != 0) {
+      _isClean = false;
+    }
   }
 
   static int encodeColor(Color color) => color.toARGB32();

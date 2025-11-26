@@ -87,14 +87,14 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   @override
-  void _clearSelection() {
+  void _clearSelection() async {
     if (_selectionPath == null &&
         _selectionMask == null &&
         _selectionPreviewPath == null &&
         _magicWandPreviewPath == null) {
       return;
     }
-    _prepareSelectionUndo();
+    await _prepareSelectionUndo();
     setState(() {
       setSelectionState(path: null, mask: null);
       clearSelectionArtifacts();
@@ -109,11 +109,11 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   @override
-  void _convertMagicWandPreviewToSelection() {
+  void _convertMagicWandPreviewToSelection() async {
     if (_magicWandPreviewMask == null || _magicWandPreviewPath == null) {
       return;
     }
-    _prepareSelectionUndo();
+    await _prepareSelectionUndo();
     setState(() {
       _applySelectionPathInternal(
         _magicWandPreviewPath,
@@ -127,11 +127,18 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   void _applyMagicWandPreview(Offset position) {
-    final Uint8List? mask = _controller.computeMagicWandMask(
+    unawaited(_applyMagicWandPreviewAsync(position));
+  }
+
+  Future<void> _applyMagicWandPreviewAsync(Offset position) async {
+    final Uint8List? mask = await _controller.computeMagicWandMask(
       position,
       sampleAllLayers: true,
       tolerance: _magicWandTolerance,
     );
+    if (!mounted) {
+      return;
+    }
     setState(() {
       if (mask == null) {
         _clearMagicWandPreview();
@@ -144,7 +151,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   @override
-  void _handleSelectionPointerDown(Offset position, Duration timestamp) {
+  void _handleSelectionPointerDown(Offset position, Duration timestamp) async {
     _magicWandPreviewMask = null;
     _magicWandPreviewPath = null;
     if (_selectionShape == SelectionShape.polygon) {
@@ -152,7 +159,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       _updateSelectionAnimation();
       return;
     }
-    _prepareSelectionUndo();
+    await _prepareSelectionUndo();
     final bool additive =
         _isShiftPressed &&
         _selectionMask != null &&
@@ -338,10 +345,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     return dragPath;
   }
 
-  void _handlePolygonPointerDown(Offset position, Duration timestamp) {
+  void _handlePolygonPointerDown(Offset position, Duration timestamp) async {
     final bool isDoubleTap = _isPolygonDoubleTap(position, timestamp);
     if (_polygonPoints.isEmpty) {
-      _prepareSelectionUndo();
+      await _prepareSelectionUndo();
       setState(() {
         setSelectionState(path: null, mask: null);
         _polygonPoints.add(position);
@@ -557,11 +564,11 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     setSelectionState(path: resolvedPath, mask: effectiveMask);
   }
 
-  void _prepareSelectionUndo() {
+  Future<void> _prepareSelectionUndo() async {
     if (_selectionUndoArmed) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _selectionUndoArmed = true;
   }
 

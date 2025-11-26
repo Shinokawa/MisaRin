@@ -84,7 +84,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     });
   }
 
-  void _finishShapeDrawing() {
+  Future<void> _finishShapeDrawing() async {
     final List<Offset> strokePoints = _shapeStrokePoints;
     _shapeDragCurrent = null;
     if (strokePoints.length < 2) {
@@ -92,7 +92,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
 
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     final bool simulatePressure = _simulatePenPressure;
     const double initialTimestamp = 0.0;
     final List<Offset> effectivePoints = simulatePressure

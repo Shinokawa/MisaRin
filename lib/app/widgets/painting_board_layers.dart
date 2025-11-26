@@ -39,7 +39,7 @@ mixin _PaintingBoardLayerMixin
     return widget.settings.backgroundColor;
   }
 
-  void _handleLayerVisibilityChanged(String id, bool visible) {
+  void _handleLayerVisibilityChanged(String id, bool visible) async {
     BitmapLayerState? target;
     for (final BitmapLayerState layer in _layers) {
       if (layer.id == id) {
@@ -50,7 +50,7 @@ mixin _PaintingBoardLayerMixin
     if (target != null && target.visible == visible) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.updateLayerVisibility(id, visible);
     setState(() {});
     _markDirty();
@@ -96,7 +96,7 @@ mixin _PaintingBoardLayerMixin
     });
   }
 
-  void _finalizeLayerRename({bool cancel = false}) {
+  void _finalizeLayerRename({bool cancel = false}) async {
     final String? targetId = _renamingLayerId;
     if (targetId == null) {
       return;
@@ -118,30 +118,30 @@ mixin _PaintingBoardLayerMixin
     if (target == null || target.name == nextName) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.renameLayer(target.id, nextName);
     setState(() {});
     _markDirty();
   }
 
-  void _handleAddLayer() {
-    _pushUndoSnapshot();
+  void _handleAddLayer() async {
+    await _pushUndoSnapshot();
     _controller.addLayer(aboveLayerId: _activeLayerId);
     setState(() {});
     _markDirty();
   }
 
-  void _handleRemoveLayer(String id) {
+  void _handleRemoveLayer(String id) async {
     if (_layers.length <= 1) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.removeLayer(id);
     setState(() {});
     _markDirty();
   }
 
-  void _handleLayerReorder(int oldIndex, int newIndex) {
+  void _handleLayerReorder(int oldIndex, int newIndex) async {
     final int length = _layers.length;
     if (length <= 1) {
       return;
@@ -155,7 +155,7 @@ mixin _PaintingBoardLayerMixin
     if (actualOldIndex == actualNewIndex) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
     setState(() {});
     _markDirty();
@@ -174,7 +174,7 @@ mixin _PaintingBoardLayerMixin
     return null;
   }
 
-  void _handleLayerOpacityChangeStart(double _) {
+  void _handleLayerOpacityChangeStart(double _) async {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null) {
       return;
@@ -182,7 +182,7 @@ mixin _PaintingBoardLayerMixin
     if (_layerOpacityGestureActive && _layerOpacityGestureLayerId == layer.id) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _layerOpacityGestureActive = true;
     _layerOpacityGestureLayerId = layer.id;
   }
@@ -258,14 +258,14 @@ mixin _PaintingBoardLayerMixin
     _applyLayerOpacityValue(layerId, value);
   }
 
-  void _applyLayerLockedState(BitmapLayerState layer, bool locked) {
+  void _applyLayerLockedState(BitmapLayerState layer, bool locked) async {
     if (layer.locked == locked) {
       return;
     }
     if (locked && _renamingLayerId == layer.id) {
       _finalizeLayerRename(cancel: true);
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.setLayerLocked(layer.id, locked);
     setState(() {});
   }
@@ -305,11 +305,11 @@ mixin _PaintingBoardLayerMixin
     return !below.locked;
   }
 
-  void _handleMergeLayerDown(BitmapLayerState layer) {
+  void _handleMergeLayerDown(BitmapLayerState layer) async {
     if (!_canMergeLayerDown(layer)) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     if (!_controller.mergeLayerDown(layer.id)) {
       return;
     }
@@ -317,18 +317,18 @@ mixin _PaintingBoardLayerMixin
     _markDirty();
   }
 
-  void _handleLayerClippingToggle(BitmapLayerState layer) {
+  void _handleLayerClippingToggle(BitmapLayerState layer) async {
     if (layer.locked) {
       return;
     }
     final bool nextValue = !layer.clippingMask;
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, nextValue);
     setState(() {});
     _markDirty();
   }
 
-  void _handleDuplicateLayer(BitmapLayerState layer) {
+  void _handleDuplicateLayer(BitmapLayerState layer) async {
     final CanvasLayerData? snapshot = _controller.buildClipboardLayer(layer.id);
     if (snapshot == null) {
       return;
@@ -342,7 +342,7 @@ mixin _PaintingBoardLayerMixin
       locked: false,
       clippingMask: layer.clippingMask,
     );
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.insertLayerFromData(duplicate, aboveLayerId: layer.id);
     _controller.setActiveLayer(newId);
     setState(() {});
@@ -409,27 +409,27 @@ mixin _PaintingBoardLayerMixin
     ];
   }
 
-  void _updateActiveLayerClipping(bool clipping) {
+  void _updateActiveLayerClipping(bool clipping) async {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null || layer.clippingMask == clipping) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, clipping);
     setState(() {});
   }
 
-  void _updateActiveLayerBlendMode(CanvasLayerBlendMode mode) {
+  void _updateActiveLayerBlendMode(CanvasLayerBlendMode mode) async {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null || layer.blendMode == mode) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.setLayerBlendMode(layer.id, mode);
     setState(() {});
   }
 
-  bool applyLayerAntialiasLevel(int level) {
+  Future<bool> applyLayerAntialiasLevel(int level) async {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null || layer.locked) {
       return false;
@@ -438,7 +438,7 @@ mixin _PaintingBoardLayerMixin
     if (!_controller.applyAntialiasToActiveLayer(clamped, previewOnly: true)) {
       return false;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.applyAntialiasToActiveLayer(clamped);
     setState(() {});
     _markDirty();

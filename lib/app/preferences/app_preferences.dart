@@ -34,11 +34,12 @@ class AppPreferences {
     this.bucketTolerance = _defaultBucketTolerance,
     this.magicWandTolerance = _defaultMagicWandTolerance,
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
+    this.showFpsOverlay = _defaultShowFpsOverlay,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 18;
+  static const int _version = 19;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -63,6 +64,7 @@ class AppPreferences {
   static const int _defaultMagicWandTolerance = 0;
   static const bool _defaultBrushToolsEraserMode = false;
   static const int _defaultBucketAntialiasLevel = 0;
+  static const bool _defaultShowFpsOverlay = false;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -88,8 +90,11 @@ class AppPreferences {
       _defaultBrushToolsEraserMode;
   static const int defaultBucketAntialiasLevel =
       _defaultBucketAntialiasLevel;
+  static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
 
   static AppPreferences? _instance;
+  static final ValueNotifier<bool> fpsOverlayEnabledNotifier =
+      ValueNotifier<bool>(_defaultShowFpsOverlay);
 
   bool bucketSampleAllLayers;
   bool bucketContiguous;
@@ -112,6 +117,7 @@ class AppPreferences {
   int magicWandTolerance;
   bool brushToolsEraserMode;
   int bucketAntialiasLevel;
+  bool showFpsOverlay;
 
   static AppPreferences get instance {
     final AppPreferences? current = _instance;
@@ -119,6 +125,14 @@ class AppPreferences {
       throw StateError('AppPreferences has not been loaded');
     }
     return current;
+  }
+
+  void updateShowFpsOverlay(bool value) {
+    if (showFpsOverlay == value) {
+      return;
+    }
+    showFpsOverlay = value;
+    fpsOverlayEnabledNotifier.value = value;
   }
 
   static Future<AppPreferences> load() async {
@@ -131,13 +145,49 @@ class AppPreferences {
         final Uint8List bytes = await file.readAsBytes();
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
-          final bool hasColorLinePayload = version >= 15 && bytes.length >= 20;
+          final bool hasColorLinePayload =
+              version >= 15 && bytes.length >= 20;
           final Color decodedColorLineColor = hasColorLinePayload
               ? _decodeColorLineColor(bytes[18])
               : _defaultColorLineColor;
           final bool decodedBucketSwallowColorLine = hasColorLinePayload
               ? bytes[19] != 0
               : _defaultBucketSwallowColorLine;
+          if (version >= 19 && bytes.length >= 25) {
+            final int rawHistory = bytes[3] | (bytes[4] << 8);
+            final int rawStroke = bytes[6] | (bytes[7] << 8);
+            _instance = AppPreferences._(
+              bucketSampleAllLayers: bytes[1] != 0,
+              bucketContiguous: bytes[2] != 0,
+              historyLimit: _clampHistoryLimit(rawHistory),
+              themeMode: _decodeThemeMode(bytes[5]),
+              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              simulatePenPressure: bytes[8] != 0,
+              penPressureProfile: _decodePressureProfile(bytes[9]),
+              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+              stylusPressureEnabled: bytes[11] != 0,
+              stylusPressureCurve: _decodeStylusFactor(
+                bytes[12],
+                lower: _stylusCurveLowerBound,
+                upper: _stylusCurveUpperBound,
+              ),
+              autoSharpPeakEnabled: bytes[13] != 0,
+              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+              strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                bytes[15],
+              ),
+              brushShape: _decodeBrushShape(bytes[16]),
+              layerAdjustCropOutside: bytes[17] != 0,
+              colorLineColor: decodedColorLineColor,
+              bucketSwallowColorLine: decodedBucketSwallowColorLine,
+              bucketTolerance: _clampToleranceValue(bytes[20]),
+              magicWandTolerance: _clampToleranceValue(bytes[21]),
+              brushToolsEraserMode: bytes[22] != 0,
+              bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
+              showFpsOverlay: bytes[24] != 0,
+            );
+            return _finalizeLoadedPreferences();
+          }
           if (version >= 18 && bytes.length >= 24) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
@@ -170,7 +220,7 @@ class AppPreferences {
               brushToolsEraserMode: bytes[22] != 0,
               bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 17 && bytes.length >= 23) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -204,7 +254,7 @@ class AppPreferences {
               brushToolsEraserMode: bytes[22] != 0,
               bucketAntialiasLevel: _defaultBucketAntialiasLevel,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 16 && bytes.length >= 25) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -243,7 +293,7 @@ class AppPreferences {
               magicWandTolerance: _clampToleranceValue(bytes[21]),
               brushToolsEraserMode: sharedEraserMode,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 15 && bytes.length >= 20) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -273,7 +323,7 @@ class AppPreferences {
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 14 && bytes.length >= 18) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -303,7 +353,7 @@ class AppPreferences {
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 13 && bytes.length >= 17) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -333,7 +383,7 @@ class AppPreferences {
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 12 && bytes.length >= 16) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -359,12 +409,11 @@ class AppPreferences {
                 bytes[15],
               ),
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 11 && bytes.length >= 15) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -388,12 +437,11 @@ class AppPreferences {
               penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 10 && bytes.length >= 14) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -417,12 +465,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 9 && bytes.length >= 13) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -445,12 +492,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 8 && bytes.length >= 12) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -473,12 +519,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 7 && bytes.length >= 14) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -501,12 +546,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version >= 6 && bytes.length >= 10) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -525,12 +569,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version == 5 && bytes.length >= 10) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -549,12 +592,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version == 4 && bytes.length >= 9) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -573,12 +615,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version == 3 && bytes.length >= 6) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -597,12 +638,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version == 2 && bytes.length >= 5) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -621,12 +661,11 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
           if (version == 1 && bytes.length >= 3) {
             _instance = AppPreferences._(
@@ -644,16 +683,15 @@ class AppPreferences {
               penStrokeSliderRange: _defaultPenStrokeSliderRange,
               strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
               brushShape: _defaultBrushShape,
-
               layerAdjustCropOutside: false,
               colorLineColor: decodedColorLineColor,
               bucketSwallowColorLine: decodedBucketSwallowColorLine,
             );
-            return _instance!;
+            return _finalizeLoadedPreferences();
           }
         }
       } catch (_) {
-        // fall through to defaults if the file is corrupted
+        // Ignore corrupted preference files and fall back to defaults.
       }
     }
     _instance = AppPreferences._(
@@ -675,7 +713,13 @@ class AppPreferences {
       colorLineColor: _defaultColorLineColor,
       bucketSwallowColorLine: _defaultBucketSwallowColorLine,
     );
-    return _instance!;
+    return _finalizeLoadedPreferences();
+  }
+
+  static AppPreferences _finalizeLoadedPreferences() {
+    final AppPreferences prefs = _instance!;
+    fpsOverlayEnabledNotifier.value = prefs.showFpsOverlay;
+    return prefs;
   }
 
   static Future<void> save() async {
@@ -739,6 +783,7 @@ class AppPreferences {
       _clampToleranceValue(prefs.magicWandTolerance),
       prefs.brushToolsEraserMode ? 1 : 0,
       _encodeAntialiasLevel(prefs.bucketAntialiasLevel),
+      prefs.showFpsOverlay ? 1 : 0,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }

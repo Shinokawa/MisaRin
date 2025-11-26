@@ -62,6 +62,7 @@ import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
+import '../../canvas/vector_stroke_painter.dart';
 import 'canvas_toolbar.dart';
 import 'tool_cursor_overlay.dart';
 import 'bitmap_canvas_surface.dart';
@@ -75,6 +76,9 @@ import '../utils/tablet_input_bridge.dart';
 import '../palette/palette_exporter.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
+import '../../backend/layout_compute_worker.dart';
+import '../../backend/canvas_painting_worker.dart';
+import '../../performance/stroke_latency_monitor.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
@@ -255,6 +259,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         CanvasToolbar.buttonSize * CanvasToolbar.buttonCount +
         CanvasToolbar.spacing * (CanvasToolbar.buttonCount - 1),
   );
+  BoardLayoutWorker? _layoutWorker;
+  BoardLayoutMetrics? _layoutMetrics;
+  Future<BoardLayoutMetrics>? _pendingLayoutTask;
 
   final CanvasViewport _viewport = CanvasViewport();
   bool _viewportInitialized = false;
@@ -597,10 +604,45 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       }
       setState(() {
         _workspaceSize = size;
+        _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
+          _workspaceSize.height - _toolButtonPadding * 2,
+        );
         if (!_viewportInitialized) {
           // 仍需初始化视口，下一帧会根据新尺寸完成初始化
         }
+        _scheduleLayoutMetricsUpdate();
       });
+    });
+  }
+
+  BoardLayoutWorker _layoutWorkerInstance() {
+    return _layoutWorker ??= BoardLayoutWorker();
+  }
+
+  void _scheduleLayoutMetricsUpdate() {
+    if (!mounted) {
+      return;
+    }
+    final BoardLayoutInput input = BoardLayoutInput(
+      workspaceWidth: _workspaceSize.width,
+      workspaceHeight: _workspaceSize.height,
+      toolButtonPadding: _toolButtonPadding,
+      toolSettingsSpacing: _toolSettingsSpacing,
+      sidePanelWidth: _sidePanelWidth,
+    );
+    final Future<BoardLayoutMetrics> task =
+        _layoutWorkerInstance().compute(input);
+    _pendingLayoutTask = task;
+    task.then((BoardLayoutMetrics metrics) {
+      if (!mounted || _pendingLayoutTask != task) {
+        return;
+      }
+      setState(() {
+        _layoutMetrics = metrics;
+        _toolbarLayout = metrics.layout;
+      });
+    }).catchError((Object error, StackTrace stackTrace) {
+      debugPrint('Layout worker failed: $error');
     });
   }
 
@@ -713,9 +755,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _handleUndo();
   void _handleRedo();
-  bool cut();
-  bool copy();
-  bool paste();
+  Future<bool> cut();
+  Future<bool> copy();
+  Future<bool> paste();
 
   void _updatePenStrokeWidth(double value);
   void _updateBucketSampleAllLayers(bool value);
@@ -1237,18 +1279,20 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _historyLimit = AppPreferences.instance.historyLimit;
   }
 
-  void _pushUndoSnapshot({_CanvasHistoryEntry? entry}) {
+  Future<void> _pushUndoSnapshot({_CanvasHistoryEntry? entry}) async {
     _refreshHistoryLimit();
     if (_historyLocked) {
       return;
     }
-    final _CanvasHistoryEntry snapshot = entry ?? _createHistoryEntry();
+    final _CanvasHistoryEntry snapshot =
+        entry ?? await _createHistoryEntry();
     _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();
   }
 
-  _CanvasHistoryEntry _createHistoryEntry() {
+  Future<_CanvasHistoryEntry> _createHistoryEntry() async {
+    await _controller.waitForPendingWorkerTasks();
     return _CanvasHistoryEntry(
       layers: _controller.snapshotLayers(),
       backgroundColor: _controller.backgroundColor,
@@ -1263,7 +1307,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     );
   }
 
-  void _applyHistoryEntry(_CanvasHistoryEntry entry) {
+  Future<void> _applyHistoryEntry(_CanvasHistoryEntry entry) async {
+    await _controller.waitForPendingWorkerTasks();
     _historyLocked = true;
     try {
       _controller.loadLayers(entry.layers, entry.backgroundColor);
@@ -1400,6 +1445,7 @@ class PaintingBoardState extends _PaintingBoardBase
       height: widget.settings.height.round(),
       backgroundColor: widget.settings.backgroundColor,
       initialLayers: layers,
+      creationLogic: widget.settings.creationLogic,
     );
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
@@ -1420,6 +1466,8 @@ class PaintingBoardState extends _PaintingBoardBase
     _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
     _layerRenameController.dispose();
     _layerRenameFocusNode.dispose();
+    _pendingLayoutTask = null;
+    unawaited(_layoutWorker?.dispose());
     _focusNode.dispose();
     super.dispose();
   }
@@ -1440,7 +1488,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _handleMergeLayerDown(layer);
   }
 
-  void selectEntireCanvas() {
+  void selectEntireCanvas() async {
     final int width = _controller.width;
     final int height = _controller.height;
     if (width <= 0 || height <= 0) {
@@ -1450,7 +1498,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final Uint8List mask = Uint8List(length)..fillRange(0, length, 1);
     final Path selectionPath = Path()
       ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()));
-    _prepareSelectionUndo();
+    await _prepareSelectionUndo();
     setState(() {
       clearSelectionArtifacts();
       setSelectionState(path: selectionPath, mask: mask);
@@ -1459,7 +1507,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _finishSelectionUndo();
   }
 
-  void invertSelection() {
+  void invertSelection() async {
     final int width = _controller.width;
     final int height = _controller.height;
     if (width <= 0 || height <= 0) {
@@ -1479,7 +1527,7 @@ class PaintingBoardState extends _PaintingBoardBase
       }
     }
     if (!_maskHasCoverage(inverted)) {
-      _prepareSelectionUndo();
+      await _prepareSelectionUndo();
       setState(() {
         clearSelectionArtifacts();
         setSelectionState(path: null, mask: null);
@@ -1492,7 +1540,7 @@ class PaintingBoardState extends _PaintingBoardBase
         ? (Path()
             ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble())))
         : _pathFromMask(inverted, width);
-    _prepareSelectionUndo();
+    await _prepareSelectionUndo();
     setState(() {
       clearSelectionArtifacts();
       setSelectionState(path: path, mask: inverted);
@@ -1569,7 +1617,9 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
     final bool backgroundChanged =
         widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
-    if (sizeChanged || backgroundChanged) {
+    final bool logicChanged =
+        widget.settings.creationLogic != oldWidget.settings.creationLogic;
+    if (sizeChanged || backgroundChanged || logicChanged) {
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
       _controller = BitmapCanvasController(
@@ -1577,6 +1627,7 @@ class PaintingBoardState extends _PaintingBoardBase
         height: widget.settings.height.round(),
         backgroundColor: widget.settings.backgroundColor,
         initialLayers: _buildInitialLayers(),
+        creationLogic: widget.settings.creationLogic,
       );
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);

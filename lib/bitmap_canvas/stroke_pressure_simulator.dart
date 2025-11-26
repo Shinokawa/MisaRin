@@ -50,6 +50,8 @@ class StrokePressureSimulator {
   bool _sharpTipsEnabled = true;
   double _stylusPressureBlend = 1.0;
   bool _needleTipsEnabled = false;
+  bool _dynamicsEnabled = false;
+  double _baseRadius = 1.0;
 
   bool get isSimulatingStroke => _simulatingStroke;
   bool get usesDevicePressure => _usesDevicePressure;
@@ -69,10 +71,13 @@ class StrokePressureSimulator {
     _strokeSamples.add(position, timestampMillis);
     _velocitySmoother.addSample(position, timestampMillis);
 
+    _baseRadius = baseRadius;
     _stylusPressureBlend = stylusPressureBlend.clamp(0.0, 1.0);
     _usesDevicePressure = useDevicePressure;
     _needleTipsEnabled = needleTipsEnabled && !useDevicePressure;
-    _simulatingStroke = simulatePressure || useDevicePressure;
+    _dynamicsEnabled = simulatePressure || useDevicePressure;
+    _simulatingStroke = _dynamicsEnabled || _sharpTipsEnabled;
+
     if (!_simulatingStroke) {
       return null;
     }
@@ -105,6 +110,20 @@ class StrokePressureSimulator {
       position,
       sampleTimestamp,
     );
+
+    if (!_dynamicsEnabled) {
+      if (_sharpTipsEnabled) {
+        const int rampSamples = 5;
+        final int index = _strokeSamples.length - 1;
+        if (index < rampSamples) {
+          final double t = index / rampSamples;
+          final double startRadius = _strokeDynamics.initialRadius();
+          return lerpDouble(startRadius, _baseRadius, t) ?? _baseRadius;
+        }
+      }
+      return _baseRadius;
+    }
+
     final double? intensityOverride = _usesDevicePressure
         ? _stylusPressureToIntensity(normalizedPressure)
         : null;
@@ -207,6 +226,7 @@ class StrokePressureSimulator {
     _usesDevicePressure = false;
     _stylusPressureBlend = 1.0;
     _needleTipsEnabled = false;
+    _dynamicsEnabled = false;
   }
 
   void setProfile(StrokePressureProfile profile) {

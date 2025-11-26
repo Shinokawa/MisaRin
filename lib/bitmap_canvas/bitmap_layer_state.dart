@@ -24,4 +24,5 @@ class BitmapLayerState {
   bool clippingMask;
   CanvasLayerBlendMode blendMode;
   final BitmapSurface surface;
+  int revision = 0;
 }

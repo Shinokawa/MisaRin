@@ -61,7 +61,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     if (!isPointInsideSelection(position)) {
       return;
     }
-    _pushUndoSnapshot();
+    await _pushUndoSnapshot();
     _controller.floodFill(
       position,
       color: _primaryColor,

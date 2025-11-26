@@ -1,7 +1,16 @@
 part of 'controller.dart';
 
-void _compositeMarkDirty(BitmapCanvasController controller, {Rect? region}) {
-  controller._rasterBackend.markDirty(region: region);
+void _compositeMarkDirty(
+  BitmapCanvasController controller, {
+  Rect? region,
+  String? layerId,
+  bool pixelsDirty = true,
+}) {
+  controller._rasterBackend.markDirty(
+    region: region,
+    layerId: layerId,
+    pixelsDirty: pixelsDirty,
+  );
   _compositeScheduleRefresh(controller);
 }
 
@@ -10,15 +19,8 @@ void _compositeScheduleRefresh(BitmapCanvasController controller) {
     return;
   }
   controller._refreshScheduled = true;
-  final SchedulerBinding? scheduler = SchedulerBinding.instance;
-  if (scheduler == null) {
-    scheduleMicrotask(() => _compositeProcessScheduled(controller));
-  } else {
-    scheduler.ensureVisualUpdate();
-    scheduler.scheduleFrameCallback((_) {
-      _compositeProcessScheduled(controller);
-    });
-  }
+  scheduleMicrotask(() => _compositeProcessScheduled(controller));
+  SchedulerBinding.instance?.ensureVisualUpdate();
   controller.notifyListeners();
 }
 
@@ -39,7 +41,7 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
       return;
     }
 
-    _compositeUpdate(
+    await _compositeUpdate(
       controller,
       requiresFullSurface: work.requiresFullSurface,
       regions: work.regions,
@@ -56,6 +58,12 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
     if (frame != null) {
       controller._currentFrame = frame;
     }
+    
+    if (controller._nextFrameCompleter != null && !controller._nextFrameCompleter!.isCompleted) {
+      controller._nextFrameCompleter!.complete();
+      controller._nextFrameCompleter = null;
+    }
+
     final List<ui.Image> pendingDisposals =
         controller._tileCache.takePendingDisposals();
     if (pendingDisposals.isNotEmpty) {
@@ -77,12 +85,12 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
   }
 }
 
-void _compositeUpdate(
+Future<void> _compositeUpdate(
   BitmapCanvasController controller, {
   required bool requiresFullSurface,
   List<RasterIntRect>? regions,
 }) {
-  controller._rasterBackend.composite(
+  return controller._rasterBackend.composite(
     layers: controller._layers,
     requiresFullSurface: requiresFullSurface,
     regions: regions,

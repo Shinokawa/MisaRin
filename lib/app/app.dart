@@ -7,6 +7,7 @@ import 'menu/custom_menu_shell.dart';
 import 'preferences/app_preferences.dart';
 import 'theme/theme_controller.dart';
 import 'view/home_page.dart';
+import 'widgets/performance_pulse_overlay.dart';
 
 class MisarinApp extends StatefulWidget {
   const MisarinApp({super.key, this.showCustomMenu = false});
@@ -48,10 +49,30 @@ class _MisarinAppState extends State<MisarinApp> {
         debugShowCheckedModeBanner: false,
         title: 'Misa Rin',
         builder: (context, child) {
-          if (!widget.showCustomMenu || child == null) {
-            return child ?? const SizedBox.shrink();
+          Widget content = child ?? const SizedBox.shrink();
+          if (widget.showCustomMenu && child != null) {
+            content = CustomMenuShell(
+              child: child,
+              navigatorKey: _navigatorKey,
+            );
           }
-          return CustomMenuShell(child: child, navigatorKey: _navigatorKey);
+          return ValueListenableBuilder<bool>(
+            valueListenable: AppPreferences.fpsOverlayEnabledNotifier,
+            builder: (context, enabled, appChild) {
+              final Widget resolvedChild = appChild ?? const SizedBox.shrink();
+              if (!enabled) {
+                return resolvedChild;
+              }
+              return Stack(
+                fit: StackFit.passthrough,
+                children: [
+                  resolvedChild,
+                  const PerformancePulseOverlay(),
+                ],
+              );
+            },
+            child: content,
+          );
         },
         theme: FluentThemeData(
           brightness: Brightness.light,
