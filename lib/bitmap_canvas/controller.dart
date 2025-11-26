@@ -1522,6 +1522,7 @@ class BitmapCanvasController extends ChangeNotifier {
     required Color color,
     Color? targetColor,
     bool contiguous = true,
+    int tolerance = 0,
   }) async {
     await _ensureWorkerSurfaceSynced();
     await _ensureWorkerSelectionMaskSynced();
@@ -1536,6 +1537,7 @@ class BitmapCanvasController extends ChangeNotifier {
         targetColorValue: targetColor?.value,
         contiguous: contiguous,
         mask: null,
+        tolerance: tolerance,
       ),
     );
     return patch;

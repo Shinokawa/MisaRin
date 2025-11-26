@@ -39,8 +39,8 @@ void _fillFloodFill(
   final int clampedTolerance = tolerance.clamp(0, 255);
   final int clampedAntialias = antialiasLevel.clamp(0, 3);
   final bool hasAntialias = clampedAntialias > 0;
-  final bool requiresMaskFill =
-      shouldSwallow || clampedTolerance > 0 || hasAntialias;
+  // Tolerance is now supported by worker, so we don't need to force mask fill for it alone.
+  final bool requiresMaskFill = shouldSwallow || hasAntialias;
   final bool needsRegionMask = shouldSwallow || hasAntialias;
 
   Uint8List? regionMask;
@@ -72,6 +72,7 @@ void _fillFloodFill(
             color: color,
             targetColor: baseColor,
             contiguous: contiguous,
+            tolerance: clampedTolerance,
           ),
           onError: () {
             controller._activeSurface.floodFill(
@@ -343,6 +344,17 @@ Uint8List? _fillFloodFillAcrossLayers(
     return null;
   }
 
+  // Expand mask by 1 pixel to cover anti-aliased edges (only if tolerance > 0)
+  Uint8List finalMask = contiguousMask;
+  if (tolerance > 0) {
+    finalMask = _fillExpandMask(
+      contiguousMask,
+      controller._width,
+      controller._height,
+      radius: 1,
+    );
+  }
+
   // When sampling across layers we must derive the contiguous region from
   // the composite; the active layer alone may not contain the sampled color.
   int minX = controller._width;
@@ -350,8 +362,8 @@ Uint8List? _fillFloodFillAcrossLayers(
   int maxX = -1;
   int maxY = -1;
   bool changed = false;
-  for (int i = 0; i < contiguousMask.length; i++) {
-    if (contiguousMask[i] == 0) {
+  for (int i = 0; i < finalMask.length; i++) {
+    if (finalMask[i] == 0) {
       continue;
     }
     if (surfacePixels[i] == replacement) {
@@ -386,7 +398,7 @@ Uint8List? _fillFloodFillAcrossLayers(
       pixelsDirty: true,
     );
   }
-  return collectMask ? contiguousMask : null;
+  return collectMask ? finalMask : null;
 }
 
 Uint8List? _fillFloodFillSingleLayerWithMask(
@@ -468,13 +480,24 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
     return null;
   }
 
+  // Expand mask by 1 pixel to cover anti-aliased edges (only if tolerance > 0)
+  Uint8List finalMask = mask;
+  if (tolerance > 0) {
+    finalMask = _fillExpandMask(
+      mask,
+      width,
+      height,
+      radius: 1,
+    );
+  }
+
   int minX = width;
   int minY = height;
   int maxX = -1;
   int maxY = -1;
   bool changed = false;
-  for (int i = 0; i < mask.length; i++) {
-    if (mask[i] == 0) {
+  for (int i = 0; i < finalMask.length; i++) {
+    if (finalMask[i] == 0) {
       continue;
     }
     if (pixels[i] == replacement) {
@@ -508,7 +531,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
       layerId: controller._activeLayer.id,
       pixelsDirty: true,
     );
-    return mask;
+    return finalMask;
   }
   return null;
 }

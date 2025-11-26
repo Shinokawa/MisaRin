@@ -241,6 +241,7 @@ class PaintingFloodFillRequest {
     this.targetColorValue,
     this.contiguous = true,
     this.mask,
+    this.tolerance = 0,
   });
 
   final int width;
@@ -252,6 +253,7 @@ class PaintingFloodFillRequest {
   final int? targetColorValue;
   final bool contiguous;
   final TransferableTypedData? mask;
+  final int tolerance;
 }
 
 class PaintingSelectionMaskRequest {
@@ -409,6 +411,7 @@ class CanvasPaintingWorker {
       'targetColor': request.targetColorValue,
       'contiguous': request.contiguous,
       'mask': request.mask,
+      'tolerance': request.tolerance,
     });
     return _parsePatchResponse(
       response,
@@ -1110,6 +1113,7 @@ Object? _paintingWorkerHandleFloodFill(
     targetColorValue: payload['targetColor'] as int?,
     contiguous: payload['contiguous'] as bool? ?? true,
     mask: state.selectionMask,
+    tolerance: payload['tolerance'] as int? ?? 0,
   );
   if (!result.changed) {
     return _paintingWorkerEmptyPatch(0, 0, 0, 0);
@@ -1314,6 +1318,7 @@ _FloodFillResult _paintingWorkerFloodFillSurface({
   int? targetColorValue,
   required bool contiguous,
   Uint8List? mask,
+  int tolerance = 0,
 }) {
   final int width = surface.width;
   final int height = surface.height;
@@ -1335,6 +1340,7 @@ _FloodFillResult _paintingWorkerFloodFillSurface({
       baseColor: baseColor,
       replacement: replacement,
       mask: mask,
+      tolerance: tolerance,
     );
   }
   return _paintingWorkerFloodFillContiguous(
@@ -1346,6 +1352,7 @@ _FloodFillResult _paintingWorkerFloodFillSurface({
     startX: startX,
     startY: startY,
     mask: mask,
+    tolerance: tolerance,
   );
 }
 
@@ -1356,6 +1363,7 @@ _FloodFillResult _paintingWorkerFloodFillNonContiguous({
   required int baseColor,
   required int replacement,
   Uint8List? mask,
+  int tolerance = 0,
 }) {
   int minX = width;
   int minY = height;
@@ -1363,7 +1371,7 @@ _FloodFillResult _paintingWorkerFloodFillNonContiguous({
   int maxY = -1;
   bool changed = false;
   for (int i = 0; i < pixels.length; i++) {
-    if (pixels[i] != baseColor) {
+    if (!_colorsWithinTolerance(pixels[i], baseColor, tolerance)) {
       continue;
     }
     if (mask != null && mask[i] == 0) {
@@ -1406,57 +1414,115 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
   required int startX,
   required int startY,
   Uint8List? mask,
+  int tolerance = 0,
 }) {
   final int startIndex = startY * width + startX;
   if (mask != null && mask[startIndex] == 0) {
     return _FloodFillResult.none();
   }
+
+  final Uint8List fillMask = Uint8List(width * height);
   final List<int> stack = <int>[startIndex];
-  bool changed = false;
+  
   int minX = width;
   int minY = height;
   int maxX = -1;
   int maxY = -1;
+  bool changed = false;
+
+  // Phase 1: Standard Flood Fill to populate fillMask
   while (stack.isNotEmpty) {
     final int index = stack.removeLast();
     if (index < 0 || index >= pixels.length) {
       continue;
     }
-    if (pixels[index] != baseColor) {
+    if (fillMask[index] == 1) {
+      continue;
+    }
+    if (!_colorsWithinTolerance(pixels[index], baseColor, tolerance)) {
       continue;
     }
     if (mask != null && mask[index] == 0) {
       continue;
     }
-    pixels[index] = replacement;
-    changed = true;
+    
+    fillMask[index] = 1;
+    
     final int x = index % width;
     final int y = index ~/ width;
-    if (x < minX) {
-      minX = x;
+    
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+
+    if (x > 0) stack.add(index - 1);
+    if (x < width - 1) stack.add(index + 1);
+    if (y > 0) stack.add(index - width);
+    if (y < height - 1) stack.add(index + width);
+  }
+
+  // Phase 2: Expand mask by 1 pixel (Dilation) to cover AA edges
+  // We iterate over the bounding box of the fill (expanded by 1px)
+  // Only perform expansion if tolerance > 0. Precise fill (tolerance 0) should not expand.
+  if (tolerance > 0) {
+    final int expandMinX = math.max(0, minX - 1);
+    final int expandMaxX = math.min(width - 1, maxX + 1);
+    final int expandMinY = math.max(0, minY - 1);
+    final int expandMaxY = math.min(height - 1, maxY + 1);
+
+    final List<int> expansionPixels = <int>[];
+
+    for (int y = expandMinY; y <= expandMaxY; y++) {
+      final int rowOffset = y * width;
+      for (int x = expandMinX; x <= expandMaxX; x++) {
+        final int index = rowOffset + x;
+        if (fillMask[index] == 1) {
+          continue; // Already filled
+        }
+        if (mask != null && mask[index] == 0) {
+          continue; // Respect selection mask
+        }
+
+        // Check neighbors for a filled pixel
+        bool hasFilledNeighbor = false;
+        if (x > 0 && fillMask[index - 1] == 1) hasFilledNeighbor = true;
+        else if (x < width - 1 && fillMask[index + 1] == 1) hasFilledNeighbor = true;
+        else if (y > 0 && fillMask[index - width] == 1) hasFilledNeighbor = true;
+        else if (y < height - 1 && fillMask[index + width] == 1) hasFilledNeighbor = true;
+
+        if (hasFilledNeighbor) {
+          expansionPixels.add(index);
+        }
+      }
     }
-    if (y < minY) {
-      minY = y;
-    }
-    if (x > maxX) {
-      maxX = x;
-    }
-    if (y > maxY) {
-      maxY = y;
-    }
-    if (x > 0) {
-      stack.add(index - 1);
-    }
-    if (x < width - 1) {
-      stack.add(index + 1);
-    }
-    if (y > 0) {
-      stack.add(index - width);
-    }
-    if (y < height - 1) {
-      stack.add(index + width);
+
+    // Update bounding box to include expansion
+    for (final int index in expansionPixels) {
+      fillMask[index] = 1;
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
     }
   }
+
+  // Phase 3: Apply color
+  if (maxX >= minX && maxY >= minY) {
+    for (int y = minY; y <= maxY; y++) {
+      final int rowOffset = y * width;
+      for (int x = minX; x <= maxX; x++) {
+        final int index = rowOffset + x;
+        if (fillMask[index] == 1) {
+          pixels[index] = replacement;
+          changed = true;
+        }
+      }
+    }
+  }
+
   if (!changed) {
     return _FloodFillResult.none();
   }
@@ -1466,6 +1532,28 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
     width: maxX - minX + 1,
     height: maxY - minY + 1,
   );
+}
+
+bool _colorsWithinTolerance(int a, int b, int tolerance) {
+  if (tolerance <= 0) {
+    return a == b;
+  }
+  final int aa = (a >> 24) & 0xff;
+  final int ar = (a >> 16) & 0xff;
+  final int ag = (a >> 8) & 0xff;
+  final int ab = a & 0xff;
+  
+  final int ba = (b >> 24) & 0xff;
+  final int br = (b >> 16) & 0xff;
+  final int bg = (b >> 8) & 0xff;
+  final int bb = b & 0xff;
+  
+  final int deltaA = (aa - ba).abs();
+  final int deltaR = (ar - br).abs();
+  final int deltaG = (ag - bg).abs();
+  final int deltaB = (ab - bb).abs();
+  
+  return deltaA <= tolerance && deltaR <= tolerance && deltaG <= tolerance && deltaB <= tolerance;
 }
 
 void _paintingWorkerFloodMask({
