@@ -130,6 +130,55 @@ class _CheckboardPainter extends CustomPainter {
   }
 }
 
+class _PixelGridPainter extends CustomPainter {
+  const _PixelGridPainter({
+    required this.pixelWidth,
+    required this.pixelHeight,
+    required this.color,
+    required this.scale,
+  });
+
+  final int pixelWidth;
+  final int pixelHeight;
+  final Color color;
+  final double scale;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (pixelWidth <= 1 && pixelHeight <= 1) {
+      return;
+    }
+    final double resolvedScale = scale.abs() < 0.0001 ? 1.0 : scale.abs();
+    final Paint paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0 / resolvedScale
+      ..isAntiAlias = false;
+    final double maxX = size.width;
+    final double maxY = size.height;
+    if (pixelWidth > 1) {
+      for (int x = 1; x < pixelWidth; x++) {
+        final double dx = x.toDouble();
+        canvas.drawLine(Offset(dx, 0), Offset(dx, maxY), paint);
+      }
+    }
+    if (pixelHeight > 1) {
+      for (int y = 1; y < pixelHeight; y++) {
+        final double dy = y.toDouble();
+        canvas.drawLine(Offset(0, dy), Offset(maxX, dy), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PixelGridPainter oldDelegate) {
+    return oldDelegate.pixelWidth != pixelWidth ||
+        oldDelegate.pixelHeight != pixelHeight ||
+        oldDelegate.color != color ||
+        oldDelegate.scale != scale;
+  }
+}
+
 class _PreviewPathPainter extends CustomPainter {
   const _PreviewPathPainter({
     required this.path,

@@ -202,6 +202,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isDraggingBoard = false;
   bool _isDirty = false;
   bool _isScalingGesture = false;
+  bool _pixelGridVisible = false;
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   double _strokeStabilizerStrength =
@@ -291,10 +292,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double? _floatingColorPanelMeasuredHeight;
   double? _sai2ColorPanelHeight;
   double? _sai2ColorPanelMeasuredHeight;
-  double _sai2ToolSectionRatio =
-      AppPreferences.defaultSai2ToolPanelSplit;
-  double _sai2LayerPanelWidthRatio =
-      AppPreferences.defaultSai2LayerPanelSplit;
+  double _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
+  double _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
 
   bool _isInsidePaletteCardArea(Offset workspacePosition) {
     for (final _PaletteCardEntry entry in _paletteCards) {
@@ -330,6 +329,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _canvasSize.width * _viewport.scale,
     _canvasSize.height * _viewport.scale,
   );
+
+  Color get _pixelGridColor {
+    final double luminance = _controller.backgroundColor.computeLuminance();
+    return luminance < 0.5 ? Colors.white : Colors.black;
+  }
 
   bool _isWithinCanvasBounds(Offset position) {
     final Size size = _canvasSize;
@@ -1485,14 +1489,12 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       _floatingColorPanelHeight = null;
       _sai2ColorPanelHeight = null;
       _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
-      _sai2LayerPanelWidthRatio =
-          AppPreferences.defaultSai2LayerPanelSplit;
+      _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
     });
     prefs.floatingColorPanelHeight = null;
     prefs.sai2ColorPanelHeight = null;
     prefs.sai2ToolPanelSplit = AppPreferences.defaultSai2ToolPanelSplit;
-    prefs.sai2LayerPanelWidthSplit =
-        AppPreferences.defaultSai2LayerPanelSplit;
+    prefs.sai2LayerPanelWidthSplit = AppPreferences.defaultSai2LayerPanelSplit;
     unawaited(AppPreferences.save());
   }
 
@@ -1582,8 +1584,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _floatingColorPanelHeight = prefs.floatingColorPanelHeight;
     _sai2ColorPanelHeight = prefs.sai2ColorPanelHeight;
     _sai2ToolSectionRatio = prefs.sai2ToolPanelSplit.clamp(0.0, 1.0);
-    _sai2LayerPanelWidthRatio =
-        prefs.sai2LayerPanelWidthSplit.clamp(0.0, 1.0);
+    _sai2LayerPanelWidthRatio = prefs.sai2LayerPanelWidthSplit.clamp(0.0, 1.0);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();
@@ -1621,6 +1622,14 @@ class PaintingBoardState extends _PaintingBoardBase
 
   void addLayerAboveActiveLayer() {
     _handleAddLayer();
+  }
+
+  bool get isPixelGridVisible => _pixelGridVisible;
+
+  void togglePixelGridVisibility() {
+    setState(() {
+      _pixelGridVisible = !_pixelGridVisible;
+    });
   }
 
   void mergeActiveLayerDown() {

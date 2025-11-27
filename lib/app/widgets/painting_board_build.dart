@@ -585,6 +585,27 @@ mixin _PaintingBoardBuildMixin
                                                 BitmapCanvasSurface(
                                                   frame: frame,
                                                 ),
+                                                if (_pixelGridVisible)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter:
+                                                            _PixelGridPainter(
+                                                              pixelWidth:
+                                                                  _controller
+                                                                      .width,
+                                                              pixelHeight:
+                                                                  _controller
+                                                                      .height,
+                                                              color:
+                                                                  _pixelGridColor,
+                                                              scale: _viewport
+                                                                  .scale,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ),
                                                 if (showActiveStroke)
                                                   Positioned.fill(
                                                     child: CustomPaint(

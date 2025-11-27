@@ -7,9 +7,8 @@ import '../models/workspace_layout.dart';
 
 typedef MenuAsyncAction = FutureOr<void> Function();
 typedef MenuPaletteAction = FutureOr<void> Function(String paletteId);
-typedef MenuWorkspaceLayoutAction = FutureOr<void> Function(
-  WorkspaceLayoutPreference preference,
-);
+typedef MenuWorkspaceLayoutAction =
+    FutureOr<void> Function(WorkspaceLayoutPreference preference);
 
 class MenuPaletteMenuEntry {
   const MenuPaletteMenuEntry({required this.id, required this.label});
@@ -60,6 +59,8 @@ class MenuActionHandler {
     this.workspaceLayoutPreference,
     this.switchWorkspaceLayout,
     this.resetWorkspaceLayout,
+    this.togglePixelGrid,
+    this.pixelGridVisible = false,
   });
 
   const MenuActionHandler.empty()
@@ -102,7 +103,9 @@ class MenuActionHandler {
       paletteMenuEntries = const <MenuPaletteMenuEntry>[],
       workspaceLayoutPreference = null,
       switchWorkspaceLayout = null,
-      resetWorkspaceLayout = null;
+      resetWorkspaceLayout = null,
+      togglePixelGrid = null,
+      pixelGridVisible = false;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -144,6 +147,8 @@ class MenuActionHandler {
   final WorkspaceLayoutPreference? workspaceLayoutPreference;
   final MenuWorkspaceLayoutAction? switchWorkspaceLayout;
   final MenuAsyncAction? resetWorkspaceLayout;
+  final MenuAsyncAction? togglePixelGrid;
+  final bool pixelGridVisible;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

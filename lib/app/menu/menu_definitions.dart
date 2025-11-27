@@ -422,6 +422,18 @@ class MenuDefinitionBuilder {
           shortcut: const SingleActivator(LogicalKeyboardKey.minus, meta: true),
         ),
     ];
+    if (handler.togglePixelGrid != null) {
+      if (entries.isNotEmpty) {
+        entries.add(const MenuSeparatorEntry());
+      }
+      entries.add(
+        MenuActionEntry(
+          label: handler.pixelGridVisible ? '隐藏网格' : '显示网格',
+          action: handler.togglePixelGrid,
+          checked: handler.pixelGridVisible,
+        ),
+      );
+    }
     if (entries.isEmpty) {
       return null;
     }
@@ -454,10 +466,7 @@ class MenuDefinitionBuilder {
         MenuSubmenuEntry(label: '切换工作区', entries: entries),
         if (handler.resetWorkspaceLayout != null) ...[
           const MenuSeparatorEntry(),
-          MenuActionEntry(
-            label: '复位工作区',
-            action: handler.resetWorkspaceLayout,
-          ),
+          MenuActionEntry(label: '复位工作区', action: handler.resetWorkspaceLayout),
         ],
       ],
     );

@@ -439,7 +439,6 @@ class CanvasPageState extends State<CanvasPage> {
     await AppPreferences.save();
   }
 
-
   Future<bool> _saveProjectAs() async {
     if (!mounted || _isSaving || _isAutoSaving) {
       return false;
@@ -966,6 +965,15 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.zoomOut();
       },
+      togglePixelGrid: () {
+        final board = _activeBoard;
+        if (board == null) {
+          return;
+        }
+        board.togglePixelGridVisibility();
+        setState(() {});
+      },
+      pixelGridVisible: _activeBoard?.isPixelGridVisible ?? false,
       rotateCanvas90Clockwise: () {
         _applyCanvasRotation(CanvasRotation.clockwise90);
       },
