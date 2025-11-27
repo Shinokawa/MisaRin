@@ -337,7 +337,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     _shapePreviewDirtyRect = dirty;
-    _paintShapeStroke(strokePoints, 0.0);
+    _controller.runSynchronousRasterization(() {
+      _paintShapeStroke(strokePoints, 0.0);
+    });
     if (restoredRegion != null) {
       _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
     }

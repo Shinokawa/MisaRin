@@ -1095,7 +1095,9 @@ mixin _PaintingBoardInteractionMixin
       _curveDragDelta,
     );
     _curvePreviewDirtyRect = dirty;
-    _drawQuadraticCurve(start, control, end);
+    _controller.runSynchronousRasterization(() {
+      _drawQuadraticCurve(start, control, end);
+    });
     if (restoredRegion != null) {
       _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
     }

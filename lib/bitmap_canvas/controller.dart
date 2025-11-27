@@ -76,6 +76,7 @@ class BitmapCanvasController extends ChangeNotifier {
   final List<BitmapLayerState> _layers = <BitmapLayerState>[];
   int _activeIndex = 0;
   final bool _isMultithreaded;
+  bool _synchronousRasterOverride = false;
 
   final List<Offset> _currentStrokePoints = <Offset>[];
   final List<double> _currentStrokeRadii = <double>[];
@@ -373,7 +374,7 @@ class BitmapCanvasController extends ChangeNotifier {
     final List<PaintingDrawCommand> commands =
         List<PaintingDrawCommand>.from(_deferredStrokeCommands);
     _deferredStrokeCommands.clear();
-    if (_isMultithreaded) {
+    if (_useWorkerForRaster) {
       for (final PaintingDrawCommand command in commands) {
         final Rect? bounds = _dirtyRectForCommand(command);
         if (bounds == null || bounds.isEmpty) {
@@ -406,6 +407,8 @@ class BitmapCanvasController extends ChangeNotifier {
       _currentStrokeRadii.clear();
     }
   }
+
+  bool get _useWorkerForRaster => _isMultithreaded && !_synchronousRasterOverride;
 
   Rect? _dirtyRectForCommand(PaintingDrawCommand command) {
     switch (command.type) {
@@ -494,6 +497,16 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   bool get vectorDrawingEnabled => _vectorDrawingEnabled;
+
+  void runSynchronousRasterization(VoidCallback action) {
+    final bool previous = _synchronousRasterOverride;
+    _synchronousRasterOverride = true;
+    try {
+      action();
+    } finally {
+      _synchronousRasterOverride = previous;
+    }
+  }
 
   void setVectorDrawingEnabled(bool enabled) {
     if (_vectorDrawingEnabled == enabled) {
