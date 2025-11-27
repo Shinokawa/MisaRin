@@ -135,6 +135,7 @@ mixin _PaintingBoardInteractionMixin
         _curvePreviewPath = null;
       }
       if (tool != CanvasTool.shape) {
+        _disposeShapeRasterPreview(restoreLayer: true);
         _resetShapeDrawingState();
       }
       if (_activeTool == CanvasTool.eyedropper) {
@@ -269,6 +270,10 @@ mixin _PaintingBoardInteractionMixin
   void _updateVectorDrawingEnabled(bool value) {
     if (_vectorDrawingEnabled == value) {
       return;
+    }
+    if (value) {
+      _disposeCurveRasterPreview(restoreLayer: true);
+      _disposeShapeRasterPreview(restoreLayer: true);
     }
     setState(() => _vectorDrawingEnabled = value);
     _controller.setVectorDrawingEnabled(value);
@@ -946,6 +951,10 @@ mixin _PaintingBoardInteractionMixin
       _isCurvePlacingSegment = true;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
+    if (!_vectorDrawingEnabled) {
+      await _prepareCurveRasterPreview();
+      _refreshCurveRasterPreview();
+    }
   }
 
   void _handleCurvePenPointerMove(Offset boardLocal) {
@@ -956,6 +965,9 @@ mixin _PaintingBoardInteractionMixin
       _curveDragDelta = boardLocal - _curveDragOrigin!;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
+    if (!_vectorDrawingEnabled) {
+      _refreshCurveRasterPreview();
+    }
   }
 
   Future<void> _handleCurvePenPointerUp() async {
@@ -968,13 +980,19 @@ mixin _PaintingBoardInteractionMixin
       _cancelCurvePenSegment();
       return;
     }
-    await _pushUndoSnapshot();
+    if (!_curveUndoCapturedForPreview) {
+      await _pushUndoSnapshot();
+    }
     final Offset control = _computeCurveControlPoint(
       start,
       end,
       _curveDragDelta,
     );
+    if (!_vectorDrawingEnabled && _curveRasterPreviewSnapshot != null) {
+      _restoreCurveRasterPreview();
+    }
     _drawQuadraticCurve(start, control, end);
+    _disposeCurveRasterPreview(restoreLayer: false);
     setState(() {
       _curveAnchor = end;
       _curvePendingEnd = null;
@@ -989,6 +1007,7 @@ mixin _PaintingBoardInteractionMixin
     if (!_isCurvePlacingSegment) {
       return;
     }
+    _disposeCurveRasterPreview(restoreLayer: true);
     setState(() {
       _curvePendingEnd = null;
       _curveDragOrigin = null;
@@ -1008,11 +1027,61 @@ mixin _PaintingBoardInteractionMixin
       _isCurvePlacingSegment = false;
     }
 
+    _disposeCurveRasterPreview(restoreLayer: true);
     if (notify) {
       setState(apply);
     } else {
       apply();
     }
+  }
+
+  Future<void> _prepareCurveRasterPreview() async {
+    if (_curveUndoCapturedForPreview) {
+      return;
+    }
+    await _pushUndoSnapshot();
+    _curveUndoCapturedForPreview = true;
+    final String? activeLayerId = _controller.activeLayerId;
+    if (activeLayerId == null) {
+      return;
+    }
+    _curveRasterPreviewSnapshot = _controller.buildClipboardLayer(
+      activeLayerId,
+    );
+  }
+
+  void _refreshCurveRasterPreview() {
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    final Offset? start = _curveAnchor;
+    final Offset? end = _curvePendingEnd;
+    if (snapshot == null || start == null || end == null) {
+      return;
+    }
+    final Offset control = _computeCurveControlPoint(
+      start,
+      end,
+      _curveDragDelta,
+    );
+    _controller.replaceLayer(snapshot.id, snapshot);
+    _drawQuadraticCurve(start, control, end);
+  }
+
+  void _restoreCurveRasterPreview() {
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    if (snapshot == null) {
+      return;
+    }
+    _controller.replaceLayer(snapshot.id, snapshot);
+  }
+
+  void _disposeCurveRasterPreview({required bool restoreLayer}) {
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    if (snapshot != null && restoreLayer) {
+      _controller.replaceLayer(snapshot.id, snapshot);
+      _markDirty();
+    }
+    _curveRasterPreviewSnapshot = null;
+    _curveUndoCapturedForPreview = false;
   }
 
   Path? _buildCurvePreviewPath() {
@@ -1186,7 +1255,7 @@ mixin _PaintingBoardInteractionMixin
         break;
       case CanvasTool.shape:
         _focusNode.requestFocus();
-        _beginShapeDrawing(boardLocal);
+        await _beginShapeDrawing(boardLocal);
         break;
       case CanvasTool.bucket:
         _focusNode.requestFocus();

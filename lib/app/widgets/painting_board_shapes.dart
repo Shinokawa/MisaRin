@@ -9,6 +9,8 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   Offset? _shapeDragCurrent;
   Path? _shapePreviewPath;
   List<Offset> _shapeStrokePoints = <Offset>[];
+  CanvasLayerData? _shapeRasterPreviewSnapshot;
+  bool _shapeUndoCapturedForPreview = false;
 
   ShapeToolVariant get shapeToolVariant => _shapeToolVariant;
 
@@ -30,9 +32,12 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     _shapeStrokePoints = <Offset>[];
   }
 
-  void _beginShapeDrawing(Offset boardLocal) {
+  Future<void> _beginShapeDrawing(Offset boardLocal) async {
     if (!isPointInsideSelection(boardLocal)) {
       return;
+    }
+    if (!_vectorDrawingEnabled) {
+      await _prepareShapeRasterPreview();
     }
     final Offset clamped = _clampToCanvas(boardLocal);
     setState(() {
@@ -82,61 +87,29 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       _shapeStrokePoints = strokePoints;
       _shapePreviewPath = preview;
     });
+    if (!_vectorDrawingEnabled) {
+      _refreshShapeRasterPreview(strokePoints);
+    }
   }
 
   Future<void> _finishShapeDrawing() async {
     final List<Offset> strokePoints = _shapeStrokePoints;
     _shapeDragCurrent = null;
     if (strokePoints.length < 2) {
+      _disposeShapeRasterPreview(restoreLayer: true);
       _resetShapeDrawingState();
       return;
     }
 
-    await _pushUndoSnapshot();
-    final bool simulatePressure = _simulatePenPressure;
+    if (!_shapeUndoCapturedForPreview) {
+      await _pushUndoSnapshot();
+    }
     const double initialTimestamp = 0.0;
-    final List<Offset> effectivePoints = simulatePressure
-        ? _densifyStrokePolyline(strokePoints)
-        : strokePoints;
-    if (effectivePoints.length < 2) {
-      _resetShapeDrawingState();
-      return;
+    if (_shapeRasterPreviewSnapshot != null) {
+      _restoreShapeRasterPreview();
     }
-    final Offset strokeStart = effectivePoints.first;
-    final bool erase = _brushToolsEraserMode;
-    final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
-    _controller.beginStroke(
-      strokeStart,
-      color: strokeColor,
-      radius: _penStrokeWidth / 2,
-      simulatePressure: simulatePressure,
-      profile: _penPressureProfile,
-      timestampMillis: initialTimestamp,
-      antialiasLevel: _penAntialiasLevel,
-      brushShape: _brushShape,
-      erase: erase,
-    );
-    if (simulatePressure) {
-      final List<Offset> samplePoints = effectivePoints.length > 1
-          ? effectivePoints.sublist(1)
-          : const <Offset>[];
-      final List<_SyntheticStrokeSample> samples = _buildSyntheticStrokeSamples(
-        samplePoints,
-        strokeStart,
-      );
-      final double totalDistance = _syntheticStrokeTotalDistance(samples);
-      _simulateStrokeWithSyntheticTimeline(
-        samples,
-        totalDistance: totalDistance,
-        initialTimestamp: initialTimestamp,
-      );
-    } else {
-      for (int i = 1; i < effectivePoints.length; i++) {
-        _controller.extendStroke(effectivePoints[i]);
-      }
-    }
-    _controller.endStroke();
-    _markDirty();
+    _paintShapeStroke(strokePoints, initialTimestamp);
+    _disposeShapeRasterPreview(restoreLayer: false);
 
     setState(_resetShapeDrawingState);
   }
@@ -145,6 +118,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (_shapeDragStart == null) {
       return;
     }
+    _disposeShapeRasterPreview(restoreLayer: true);
     setState(_resetShapeDrawingState);
   }
 
@@ -307,5 +281,92 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       start.dx + math.cos(snappedAngle) * distance,
       start.dy + math.sin(snappedAngle) * distance,
     );
+  }
+
+  Future<void> _prepareShapeRasterPreview() async {
+    if (_shapeUndoCapturedForPreview) {
+      return;
+    }
+    await _pushUndoSnapshot();
+    _shapeUndoCapturedForPreview = true;
+    final String? activeLayerId = _controller.activeLayerId;
+    if (activeLayerId == null) {
+      return;
+    }
+    _shapeRasterPreviewSnapshot = _controller.buildClipboardLayer(
+      activeLayerId,
+    );
+  }
+
+  void _refreshShapeRasterPreview(List<Offset> strokePoints) {
+    final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
+    if (snapshot == null || strokePoints.length < 2) {
+      return;
+    }
+    _controller.replaceLayer(snapshot.id, snapshot);
+    _paintShapeStroke(strokePoints, 0.0);
+  }
+
+  void _disposeShapeRasterPreview({required bool restoreLayer}) {
+    final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
+    if (snapshot != null && restoreLayer) {
+      _controller.replaceLayer(snapshot.id, snapshot);
+      _markDirty();
+    }
+    _shapeRasterPreviewSnapshot = null;
+    _shapeUndoCapturedForPreview = false;
+  }
+
+  void _restoreShapeRasterPreview() {
+    final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
+    if (snapshot == null) {
+      return;
+    }
+    _controller.replaceLayer(snapshot.id, snapshot);
+  }
+
+  void _paintShapeStroke(List<Offset> strokePoints, double initialTimestamp) {
+    final bool simulatePressure = _simulatePenPressure;
+    final List<Offset> effectivePoints = simulatePressure
+        ? _densifyStrokePolyline(strokePoints)
+        : strokePoints;
+    if (effectivePoints.length < 2) {
+      return;
+    }
+    final Offset strokeStart = effectivePoints.first;
+    final bool erase = _brushToolsEraserMode;
+    final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    _controller.beginStroke(
+      strokeStart,
+      color: strokeColor,
+      radius: _penStrokeWidth / 2,
+      simulatePressure: simulatePressure,
+      profile: _penPressureProfile,
+      timestampMillis: initialTimestamp,
+      antialiasLevel: _penAntialiasLevel,
+      brushShape: _brushShape,
+      erase: erase,
+    );
+    if (simulatePressure) {
+      final List<Offset> samplePoints = effectivePoints.length > 1
+          ? effectivePoints.sublist(1)
+          : const <Offset>[];
+      final List<_SyntheticStrokeSample> samples = _buildSyntheticStrokeSamples(
+        samplePoints,
+        strokeStart,
+      );
+      final double totalDistance = _syntheticStrokeTotalDistance(samples);
+      _simulateStrokeWithSyntheticTimeline(
+        samples,
+        totalDistance: totalDistance,
+        initialTimestamp: initialTimestamp,
+      );
+    } else {
+      for (int i = 1; i < effectivePoints.length; i++) {
+        _controller.extendStroke(effectivePoints[i]);
+      }
+    }
+    _controller.endStroke();
+    _markDirty();
   }
 }

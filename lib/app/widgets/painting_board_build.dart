@@ -654,7 +654,8 @@ mixin _PaintingBoardBuildMixin
                                                 if (transformHandlesOverlay !=
                                                     null)
                                                   transformHandlesOverlay,
-                                                if (_curvePreviewPath != null)
+                                                if (_vectorDrawingEnabled &&
+                                                    _curvePreviewPath != null)
                                                   Positioned.fill(
                                                     child: CustomPaint(
                                                       painter: _PreviewPathPainter(
@@ -666,7 +667,8 @@ mixin _PaintingBoardBuildMixin
                                                       ),
                                                     ),
                                                   ),
-                                                if (shapePreviewPath != null)
+                                                if (_vectorDrawingEnabled &&
+                                                    shapePreviewPath != null)
                                                   Positioned.fill(
                                                     child: CustomPaint(
                                                       painter:

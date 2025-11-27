@@ -245,6 +245,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset _curveDragDelta = Offset.zero;
   bool _isCurvePlacingSegment = false;
   Path? _curvePreviewPath;
+  CanvasLayerData? _curveRasterPreviewSnapshot;
+  bool _curveUndoCapturedForPreview = false;
   bool _isEyedropperSampling = false;
   bool _eyedropperOverrideActive = false;
   Offset? _lastEyedropperSample;
