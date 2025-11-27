@@ -6,6 +6,7 @@ import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../../canvas/canvas_tools.dart';
 import '../../preferences/app_preferences.dart' show PenStrokeSliderRange;
 import 'measured_size.dart';
+import 'selection_shape_icon.dart';
 
 class ToolSettingsCard extends StatefulWidget {
   const ToolSettingsCard({
@@ -231,25 +232,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         );
         break;
       case CanvasTool.selection:
-        content = _buildLabeledComboField<SelectionShape>(
-          theme,
-          label: '选区形状',
-          width: 160,
-          value: widget.selectionShape,
-          items: SelectionShape.values
-              .map(
-                (shape) => ComboBoxItem<SelectionShape>(
-                  value: shape,
-                  child: Text(_selectionShapeLabel(shape)),
-                ),
-              )
-              .toList(),
-          onChanged: (value) {
-            if (value != null) {
-              widget.onSelectionShapeChanged(value);
-            }
-          },
-        );
+        content = _buildSelectionShapeRow(theme);
         break;
       default:
         content = Text('该工具暂无可调节参数', style: theme.typography.body);
@@ -409,6 +392,37 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
+  Widget _buildSelectionShapeRow(FluentThemeData theme) {
+    final Widget selector = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: SelectionShape.values
+          .map((shape) => _buildSelectionShapeButton(theme, shape))
+          .toList(),
+    );
+
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('选区形状', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          selector,
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('选区形状', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        selector,
+      ],
+    );
+  }
+
   Widget _buildShapeVariantRow(FluentThemeData theme) {
     final Widget selector = Wrap(
       spacing: 8,
@@ -444,7 +458,59 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     FluentThemeData theme,
     ShapeToolVariant variant,
   ) {
-    final bool isSelected = widget.shapeToolVariant == variant;
+    return _buildIconToggleButton(
+      theme: theme,
+      isSelected: widget.shapeToolVariant == variant,
+      tooltip: _shapeVariantLabel(variant),
+      onPressed: () => widget.onShapeToolVariantChanged(variant),
+      iconBuilder: (color) => _buildShapeVariantIcon(variant, color),
+    );
+  }
+
+  Widget _buildShapeVariantIcon(ShapeToolVariant variant, Color color) {
+    switch (variant) {
+      case ShapeToolVariant.rectangle:
+        return Icon(FluentIcons.rectangle_shape, size: 18, color: color);
+      case ShapeToolVariant.ellipse:
+        return Icon(FluentIcons.circle_shape, size: 18, color: color);
+      case ShapeToolVariant.triangle:
+        return Icon(FluentIcons.triangle_shape, size: 18, color: color);
+      case ShapeToolVariant.line:
+        return Image.asset(
+          'icons/line2.png',
+          width: 24,
+          height: 24,
+          color: color,
+          colorBlendMode: BlendMode.srcIn,
+          filterQuality: FilterQuality.high,
+        );
+    }
+  }
+
+  Widget _buildSelectionShapeButton(
+    FluentThemeData theme,
+    SelectionShape shape,
+  ) {
+    return _buildIconToggleButton(
+      theme: theme,
+      isSelected: widget.selectionShape == shape,
+      tooltip: _selectionShapeLabel(shape),
+      onPressed: () => widget.onSelectionShapeChanged(shape),
+      iconBuilder: (color) => _buildSelectionShapeIcon(shape, color),
+    );
+  }
+
+  Widget _buildSelectionShapeIcon(SelectionShape shape, Color color) {
+    return SelectionShapeIcon(shape: shape, color: color, size: 18);
+  }
+
+  Widget _buildIconToggleButton({
+    required FluentThemeData theme,
+    required bool isSelected,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required Widget Function(Color color) iconBuilder,
+  }) {
     final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
     final Color inactiveBackground = theme.resources.subtleFillColorSecondary;
     final Color baseBackground = isSelected
@@ -452,10 +518,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         : inactiveBackground;
     final Color hoverBackground =
         Color.lerp(baseBackground, accent.withOpacity(0.6), 0.2) ??
-            baseBackground;
+        baseBackground;
     final Color pressedBackground =
         Color.lerp(baseBackground, accent.withOpacity(0.8), 0.35) ??
-            baseBackground;
+        baseBackground;
     final Color borderColor = isSelected
         ? accent
         : theme.resources.controlStrokeColorDefault;
@@ -464,9 +530,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         : theme.typography.body?.color ?? theme.resources.textFillColorPrimary;
 
     return Tooltip(
-      message: _shapeVariantLabel(variant),
+      message: tooltip,
       child: Button(
-        onPressed: () => widget.onShapeToolVariantChanged(variant),
+        onPressed: onPressed,
         style: ButtonStyle(
           padding: WidgetStateProperty.all<EdgeInsets>(
             const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -491,30 +557,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         child: SizedBox(
           width: 28,
           height: 28,
-          child: Center(child: _buildShapeVariantIcon(variant, iconColor)),
+          child: Center(child: iconBuilder(iconColor)),
         ),
       ),
     );
-  }
-
-  Widget _buildShapeVariantIcon(ShapeToolVariant variant, Color color) {
-    switch (variant) {
-      case ShapeToolVariant.rectangle:
-        return Icon(FluentIcons.rectangle_shape, size: 18, color: color);
-      case ShapeToolVariant.ellipse:
-        return Icon(FluentIcons.circle_shape, size: 18, color: color);
-      case ShapeToolVariant.triangle:
-        return Icon(FluentIcons.triangle_shape, size: 18, color: color);
-      case ShapeToolVariant.line:
-        return Image.asset(
-          'icons/line2.png',
-          width: 24,
-          height: 24,
-          color: color,
-          colorBlendMode: BlendMode.srcIn,
-          filterQuality: FilterQuality.high,
-        );
-    }
   }
 
   Widget _buildBrushShapeButton(FluentThemeData theme, BrushShape shape) {
@@ -526,17 +572,17 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         : inactiveBackground;
     final Color hoverBackground =
         Color.lerp(baseBackground, accent.withOpacity(0.6), 0.2) ??
-            baseBackground;
+        baseBackground;
     final Color pressedBackground =
         Color.lerp(baseBackground, accent.withOpacity(0.8), 0.35) ??
-            baseBackground;
+        baseBackground;
     final Color borderColor = isSelected
         ? accent
         : theme.resources.controlStrokeColorDefault;
     final TextStyle textStyle =
         (theme.typography.body ?? const TextStyle(fontSize: 12)).copyWith(
-      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-    );
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+        );
 
     return Tooltip(
       message: _brushShapeLabel(shape),
@@ -562,7 +608,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
             ),
           ),
           foregroundColor: WidgetStateProperty.all<Color>(
-            theme.typography.body?.color ?? theme.resources.textFillColorPrimary,
+            theme.typography.body?.color ??
+                theme.resources.textFillColorPrimary,
           ),
         ),
         child: Row(
@@ -574,13 +621,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
               color: isSelected
                   ? accent
                   : theme.typography.body?.color ??
-                      theme.resources.textFillColorPrimary,
+                        theme.resources.textFillColorPrimary,
             ),
             const SizedBox(width: 6),
             Text(
               _brushShapeLabel(shape),
               style: textStyle.copyWith(
-                color: theme.typography.body?.color ??
+                color:
+                    theme.typography.body?.color ??
                     theme.resources.textFillColorPrimary,
               ),
             ),

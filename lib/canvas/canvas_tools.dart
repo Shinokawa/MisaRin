@@ -3,6 +3,7 @@ enum CanvasTool {
   pen,
   curvePen,
   shape,
+  eraser,
   bucket,
   magicWand,
   eyedropper,

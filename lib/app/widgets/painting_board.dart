@@ -739,7 +739,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool get _penRequiresOverlay =>
       _effectiveActiveTool == CanvasTool.pen ||
       _effectiveActiveTool == CanvasTool.curvePen ||
-      _effectiveActiveTool == CanvasTool.shape;
+      _effectiveActiveTool == CanvasTool.shape ||
+      _effectiveActiveTool == CanvasTool.eraser;
+
+  bool get _isBrushEraserEnabled =>
+      _brushToolsEraserMode || _activeTool == CanvasTool.eraser;
 
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
@@ -1622,6 +1626,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _layerOpacityCommitTimer?.cancel();
     _layerScrollController.dispose();
     _layerContextMenuController.dispose();
+    _blendModeFlyoutController.dispose();
     _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
     _layerRenameController.dispose();
     _layerRenameFocusNode.dispose();

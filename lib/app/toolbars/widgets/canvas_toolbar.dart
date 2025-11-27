@@ -10,6 +10,7 @@ import 'hand_tool_button.dart';
 import 'bucket_tool_button.dart';
 import 'magic_wand_tool_button.dart';
 import 'pen_tool_button.dart';
+import 'eraser_tool_button.dart';
 import 'selection_tool_button.dart';
 import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
@@ -48,7 +49,7 @@ class CanvasToolbar extends StatelessWidget {
   final bool includeExitButton;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 12;
+  static const int buttonCount = 13;
   static const int buttonCountWithoutExit = buttonCount - 1;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;
@@ -172,6 +173,16 @@ class CanvasToolbar extends StatelessWidget {
           isSelected: activeTool == CanvasTool.shape,
           variant: shapeToolVariant,
           onPressed: () => onToolSelected(CanvasTool.shape),
+        ),
+      ),
+      Tooltip(
+        message: _tooltipMessage('橡皮擦', ToolbarAction.eraserTool),
+        displayHorizontally: true,
+        style: _rightTooltipStyle,
+        useMousePosition: false,
+        child: EraserToolButton(
+          isSelected: activeTool == CanvasTool.eraser,
+          onPressed: () => onToolSelected(CanvasTool.eraser),
         ),
       ),
       Tooltip(

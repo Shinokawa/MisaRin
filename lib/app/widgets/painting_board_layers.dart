@@ -6,6 +6,7 @@ mixin _PaintingBoardLayerMixin
   final FocusNode _layerRenameFocusNode = FocusNode();
   String? _renamingLayerId;
   final FlyoutController _layerContextMenuController = FlyoutController();
+  final FlyoutController _blendModeFlyoutController = FlyoutController();
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
@@ -369,6 +370,8 @@ mixin _PaintingBoardLayerMixin
       position: position,
       barrierDismissible: true,
       barrierColor: Colors.transparent,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
       builder: (context) {
         final BitmapLayerState? target = _layerById(layer.id);
         if (target == null) {
@@ -441,6 +444,84 @@ mixin _PaintingBoardLayerMixin
     await _pushUndoSnapshot();
     _controller.setLayerBlendMode(layer.id, mode);
     setState(() {});
+  }
+
+  void _toggleBlendModeFlyout(CanvasLayerBlendMode selected) {
+    if (_blendModeFlyoutController.isOpen) {
+      _blendModeFlyoutController.close();
+      return;
+    }
+    _blendModeFlyoutController.showFlyout(
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      placementMode: FlyoutPlacementMode.bottomLeft,
+      additionalOffset: 0,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      builder: (context) {
+        return MenuFlyout(
+          items: kCanvasBlendModeDisplayOrder
+              .map(
+                (CanvasLayerBlendMode mode) => MenuFlyoutItem(
+                  selected: mode == selected,
+                  text: Text(mode.label),
+                  onPressed: () {
+                    if (mode != selected) {
+                      _updateActiveLayerBlendMode(mode);
+                    }
+                  },
+                ),
+              )
+              .toList(growable: false),
+        );
+      },
+    );
+  }
+
+  Widget _buildBlendModeDropdown({
+    required FluentThemeData theme,
+    required CanvasLayerBlendMode mode,
+    required bool isLocked,
+  }) {
+    final TextStyle baseStyle =
+        theme.typography.body ?? const TextStyle(fontSize: 14);
+    final Color textColor = isLocked
+        ? theme.resources.textFillColorDisabled
+        : baseStyle.color ?? theme.resources.textFillColorPrimary;
+    return FlyoutTarget(
+      controller: _blendModeFlyoutController,
+      child: Button(
+        style: const ButtonStyle(
+          padding: WidgetStatePropertyAll(EdgeInsets.zero),
+        ),
+        onPressed: isLocked ? null : () => _toggleBlendModeFlyout(mode),
+        child: Container(
+          padding: const EdgeInsetsDirectional.only(start: 11, end: 15),
+          constraints: const BoxConstraints(minHeight: 32),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(
+                child: Text(
+                  mode.label,
+                  style: baseStyle.copyWith(color: textColor),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                FluentIcons.chevron_down,
+                size: 8,
+                color: isLocked
+                    ? theme.resources.textFillColorDisabled
+                    : theme.resources.textFillColorSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<bool> applyLayerAntialiasLevel(int level) async {
@@ -699,24 +780,10 @@ mixin _PaintingBoardLayerMixin
     }
 
     Widget blendRow() {
-      final Widget comboBox = ComboBox<CanvasLayerBlendMode>(
-        value: activeLayer.blendMode,
-        items: kCanvasBlendModeDisplayOrder
-            .map(
-              (CanvasLayerBlendMode mode) =>
-                  ComboBoxItem<CanvasLayerBlendMode>(
-                    value: mode,
-                    child: Text(mode.label),
-                  ),
-            )
-            .toList(growable: false),
-        onChanged: activeLayer.locked
-            ? null
-            : (CanvasLayerBlendMode? mode) {
-                if (mode != null) {
-                  _updateActiveLayerBlendMode(mode);
-                }
-              },
+      final Widget dropdown = _buildBlendModeDropdown(
+        theme: theme,
+        mode: activeLayer.blendMode,
+        isLocked: activeLayer.locked,
       );
       if (isSai2Layout) {
         return Column(
@@ -724,7 +791,7 @@ mixin _PaintingBoardLayerMixin
           children: [
             Text('混合模式', style: labelStyle),
             const SizedBox(height: 8),
-            comboBox,
+            dropdown,
           ],
         );
       }
@@ -732,7 +799,7 @@ mixin _PaintingBoardLayerMixin
         children: [
           SizedBox(width: 52, child: Text('混合模式', style: labelStyle)),
           const SizedBox(width: 8),
-          Expanded(child: comboBox),
+          Expanded(child: dropdown),
         ],
       );
     }

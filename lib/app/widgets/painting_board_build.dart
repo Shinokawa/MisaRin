@@ -59,6 +59,10 @@ mixin _PaintingBoardBuildMixin
         key: const SelectToolIntent(CanvasTool.curvePen),
       for (final key in ToolbarShortcuts.of(ToolbarAction.shapeTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.shape),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.eraserTool,
+      ).shortcuts)
+        key: const SelectToolIntent(CanvasTool.eraser),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
       for (final key in ToolbarShortcuts.of(
@@ -193,6 +197,9 @@ mixin _PaintingBoardBuildMixin
                 workspaceCursor = SystemMouseCursors.precise;
                 break;
               case CanvasTool.shape:
+                workspaceCursor = SystemMouseCursors.precise;
+                break;
+              case CanvasTool.eraser:
                 workspaceCursor = SystemMouseCursors.precise;
                 break;
               case CanvasTool.eyedropper:

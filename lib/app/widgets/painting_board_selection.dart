@@ -105,7 +105,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
   @override
   void _handleMagicWandPointerDown(Offset position) {
-    _applyMagicWandPreview(position);
+    final bool additive = _isShiftPressed && _magicWandPreviewMask != null;
+    _applyMagicWandPreview(position, additive: additive);
   }
 
   @override
@@ -153,11 +154,14 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     setSelectionState(path: null, mask: null);
   }
 
-  void _applyMagicWandPreview(Offset position) {
-    unawaited(_applyMagicWandPreviewAsync(position));
+  void _applyMagicWandPreview(Offset position, {bool additive = false}) {
+    unawaited(_applyMagicWandPreviewAsync(position, additive: additive));
   }
 
-  Future<void> _applyMagicWandPreviewAsync(Offset position) async {
+  Future<void> _applyMagicWandPreviewAsync(
+    Offset position, {
+    required bool additive,
+  }) async {
     final Uint8List? mask = await _controller.computeMagicWandMask(
       position,
       sampleAllLayers: true,
@@ -168,10 +172,34 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     }
     setState(() {
       if (mask == null) {
-        _clearMagicWandPreview();
+        if (!additive) {
+          _clearMagicWandPreview();
+        }
+        return;
+      }
+      final Path? path = _pathFromMask(mask, _controller.width);
+      if (path == null) {
+        if (!additive) {
+          _clearMagicWandPreview();
+        }
+        return;
+      }
+      if (additive && _magicWandPreviewMask != null) {
+        final Uint8List merged = _mergeMasks(_magicWandPreviewMask!, mask);
+        final Path basePath =
+            _magicWandPreviewPath ??
+            (_pathFromMask(_magicWandPreviewMask!, _controller.width) ??
+                Path());
+        final Path combinedPath = Path.combine(
+          ui.PathOperation.union,
+          basePath,
+          path,
+        );
+        _magicWandPreviewMask = merged;
+        _magicWandPreviewPath = combinedPath;
       } else {
         _magicWandPreviewMask = mask;
-        _magicWandPreviewPath = _pathFromMask(mask, _controller.width);
+        _magicWandPreviewPath = path;
       }
     });
     _updateSelectionAnimation();

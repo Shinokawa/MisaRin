@@ -8,6 +8,7 @@ enum ToolbarAction {
   penTool,
   curvePenTool,
   shapeTool,
+  eraserTool,
   bucketTool,
   magicWandTool,
   eyedropperTool,
@@ -79,6 +80,10 @@ class ToolbarShortcuts {
     ToolbarAction.shapeTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyR)],
       primaryLabel: 'R',
+    ),
+    ToolbarAction.eraserTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyE)],
+      primaryLabel: 'E',
     ),
     ToolbarAction.magicWandTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyW)],

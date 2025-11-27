@@ -1,19 +1,13 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-import 'package:misa_rin/canvas/canvas_tools.dart';
-
-import 'selection_shape_icon.dart';
-
-class SelectionToolButton extends StatelessWidget {
-  const SelectionToolButton({
+class EraserToolButton extends StatelessWidget {
+  const EraserToolButton({
     super.key,
     required this.isSelected,
-    required this.selectionShape,
     required this.onPressed,
   });
 
   final bool isSelected;
-  final SelectionShape selectionShape;
   final VoidCallback onPressed;
 
   @override
@@ -29,7 +23,7 @@ class SelectionToolButton extends StatelessWidget {
         : (isDark ? const Color(0xFF1B1B1F) : const Color(0xFFFFFFFF));
     final Color iconColor = isSelected
         ? accent
-        : (isDark ? Colors.white : const Color(0xFF323130));
+        : (isDark ? const Color(0xFFE1E1E7) : const Color(0xFF323130));
     final Color shadowColor = isSelected
         ? Color.lerp(Colors.transparent, accent, isDark ? 0.45 : 0.28)!
         : Colors.transparent;
@@ -55,13 +49,7 @@ class SelectionToolButton extends StatelessWidget {
                 ),
             ],
           ),
-          child: Center(
-            child: SelectionShapeIcon(
-              shape: selectionShape,
-              color: iconColor,
-              size: 24,
-            ),
-          ),
+          child: Icon(FluentIcons.erase_tool, color: iconColor, size: 20),
         ),
       ),
     );
