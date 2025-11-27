@@ -1,5 +1,7 @@
 part of 'painting_board.dart';
 
+const Color _kVectorEraserPreviewColor = _kSelectionPreviewFillColor;
+
 class UndoIntent extends Intent {
   const UndoIntent();
 }
@@ -249,6 +251,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     this.shape = BrushShape.circle,
     required this.committingStrokes,
     this.antialiasLevel = 1,
+    required this.activeStrokeIsEraser,
+    this.eraserPreviewColor = _kVectorEraserPreviewColor,
   });
 
   final List<Offset> points;
@@ -257,17 +261,21 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   final BrushShape shape;
   final List<PaintingDrawCommand> committingStrokes;
   final int antialiasLevel;
+  final bool activeStrokeIsEraser;
+  final Color eraserPreviewColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     // Draw committing strokes (fading out/waiting for raster) first
     for (final PaintingDrawCommand command in committingStrokes) {
       if (command.points == null || command.radii == null) continue;
+      final Color commandColor =
+          command.erase ? eraserPreviewColor : Color(command.color);
       VectorStrokePainter.paint(
         canvas: canvas,
         points: command.points!,
         radii: command.radii!,
-        color: Color(command.color),
+        color: commandColor,
         shape: BrushShape.values[command.shapeIndex ?? 0],
         antialiasLevel: command.antialiasLevel,
       );
@@ -275,11 +283,13 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
 
     // Draw active stroke on top
     if (points.isNotEmpty) {
+      final Color activeColor =
+          activeStrokeIsEraser ? eraserPreviewColor : color;
       VectorStrokePainter.paint(
         canvas: canvas,
         points: points,
         radii: radii,
-        color: color,
+        color: activeColor,
         shape: shape,
         antialiasLevel: antialiasLevel,
       );
@@ -293,7 +303,9 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.color != color ||
         oldDelegate.shape != shape ||
         oldDelegate.committingStrokes != committingStrokes ||
-        oldDelegate.antialiasLevel != antialiasLevel;
+        oldDelegate.antialiasLevel != antialiasLevel ||
+        oldDelegate.activeStrokeIsEraser != activeStrokeIsEraser ||
+        oldDelegate.eraserPreviewColor != eraserPreviewColor;
   }
 }
 

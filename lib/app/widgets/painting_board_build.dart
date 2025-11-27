@@ -574,21 +574,28 @@ mixin _PaintingBoardBuildMixin
                                                 : null;
 
                                             // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
+                                            final bool canPreviewStroke =
+                                                _effectiveActiveTool ==
+                                                        CanvasTool.pen ||
+                                                    _effectiveActiveTool ==
+                                                        CanvasTool.eraser;
+                                            final bool hasActiveStroke =
+                                                canPreviewStroke &&
+                                                    _controller
+                                                        .activeStrokePoints
+                                                        .isNotEmpty;
                                             final bool showActiveStroke =
                                                 _vectorDrawingEnabled &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&
-                                                (_effectiveActiveTool ==
-                                                            CanvasTool.pen &&
-                                                        !_controller
-                                                            .activeStrokeEraseMode &&
-                                                        _controller
-                                                            .activeStrokePoints
-                                                            .isNotEmpty ||
+                                                (hasActiveStroke ||
                                                     _controller
                                                         .committingStrokes
                                                         .isNotEmpty);
+                                            final bool activeStrokeIsEraser =
+                                                _controller
+                                                    .activeStrokeEraseMode;
                                             final Path?
                                                 pendingFillOverlayPath =
                                                     shapeVectorFillOverlayPath;
@@ -639,6 +646,10 @@ mixin _PaintingBoardBuildMixin
                                                         committingStrokes:
                                                             _controller
                                                                 .committingStrokes,
+                                                        activeStrokeIsEraser:
+                                                            activeStrokeIsEraser,
+                                                        eraserPreviewColor:
+                                                            _kVectorEraserPreviewColor,
                                                       ),
                                                     ),
                                                   ),

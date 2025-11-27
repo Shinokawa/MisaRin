@@ -697,11 +697,25 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       widget.penStrokeWidth,
     );
     final String brushLabel = _formatValue(brushSize);
+    final bool sliderUsesIntegers =
+        widget.penStrokeSliderRange == PenStrokeSliderRange.compact;
+    final double sliderValue = sliderUsesIntegers
+        ? brushSize.roundToDouble()
+        : brushSize;
+    final int? sliderDivisions = sliderUsesIntegers
+        ? (_sliderMax - _sliderMin).round()
+        : null;
     final Slider slider = Slider(
-      value: brushSize,
+      value: sliderValue,
       min: _sliderMin,
       max: _sliderMax,
-      onChanged: widget.onPenStrokeWidthChanged,
+      divisions: sliderDivisions,
+      onChanged: (raw) {
+        final double nextValue = sliderUsesIntegers
+            ? raw.roundToDouble()
+            : raw;
+        widget.onPenStrokeWidthChanged(nextValue);
+      },
     );
     Widget buildStandardAdjustRow() {
       return Row(
