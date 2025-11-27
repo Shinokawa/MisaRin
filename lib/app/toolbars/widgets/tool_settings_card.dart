@@ -397,24 +397,106 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   }
 
   Widget _buildBrushShapeRow(FluentThemeData theme) {
-    return _buildLabeledComboField<BrushShape>(
-      theme,
-      label: '笔刷形状',
-      width: 140,
-      value: widget.brushShape,
-      items: BrushShape.values
-          .map(
-            (shape) => ComboBoxItem<BrushShape>(
-              value: shape,
-              child: Text(_brushShapeLabel(shape)),
-            ),
-          )
+    final Widget selector = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: BrushShape.values
+          .map((shape) => _buildBrushShapeButton(theme, shape))
           .toList(),
-      onChanged: (shape) {
-        if (shape != null) {
-          widget.onBrushShapeChanged(shape);
-        }
-      },
+    );
+
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('笔刷形状', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          selector,
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('笔刷形状', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        selector,
+      ],
+    );
+  }
+
+  Widget _buildBrushShapeButton(FluentThemeData theme, BrushShape shape) {
+    final bool isSelected = widget.brushShape == shape;
+    final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
+    final Color inactiveBackground = theme.resources.subtleFillColorSecondary;
+    final Color baseBackground = isSelected
+        ? accent.withOpacity(theme.brightness.isDark ? 0.35 : 0.2)
+        : inactiveBackground;
+    final Color hoverBackground =
+        Color.lerp(baseBackground, accent.withOpacity(0.6), 0.2) ??
+            baseBackground;
+    final Color pressedBackground =
+        Color.lerp(baseBackground, accent.withOpacity(0.8), 0.35) ??
+            baseBackground;
+    final Color borderColor = isSelected
+        ? accent
+        : theme.resources.controlStrokeColorDefault;
+    final TextStyle textStyle =
+        (theme.typography.body ?? const TextStyle(fontSize: 12)).copyWith(
+      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+    );
+
+    return Tooltip(
+      message: _brushShapeLabel(shape),
+      child: Button(
+        onPressed: () => widget.onBrushShapeChanged(shape),
+        style: ButtonStyle(
+          padding: WidgetStateProperty.all<EdgeInsets>(
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return pressedBackground;
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return hoverBackground;
+            }
+            return baseBackground;
+          }),
+          shape: WidgetStateProperty.all<OutlinedBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: borderColor, width: 1),
+            ),
+          ),
+          foregroundColor: WidgetStateProperty.all<Color>(
+            theme.typography.body?.color ?? theme.resources.textFillColorPrimary,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _brushShapeIcon(shape),
+              size: 14,
+              color: isSelected
+                  ? accent
+                  : theme.typography.body?.color ??
+                      theme.resources.textFillColorPrimary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _brushShapeLabel(shape),
+              style: textStyle.copyWith(
+                color: theme.typography.body?.color ??
+                    theme.resources.textFillColorPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -983,5 +1065,16 @@ String _brushShapeLabel(BrushShape shape) {
       return '三角形';
     case BrushShape.square:
       return '正方形';
+  }
+}
+
+IconData _brushShapeIcon(BrushShape shape) {
+  switch (shape) {
+    case BrushShape.circle:
+      return FluentIcons.circle_shape;
+    case BrushShape.triangle:
+      return FluentIcons.triangle_shape;
+    case BrushShape.square:
+      return FluentIcons.square_shape;
   }
 }
