@@ -174,25 +174,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildLabeledComboField<ShapeToolVariant>(
-              theme,
-              label: '图形类型',
-              width: 160,
-              value: widget.shapeToolVariant,
-              items: ShapeToolVariant.values
-                  .map(
-                    (variant) => ComboBoxItem<ShapeToolVariant>(
-                      value: variant,
-                      child: Text(_shapeVariantLabel(variant)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  widget.onShapeToolVariantChanged(value);
-                }
-              },
-            ),
+            _buildShapeVariantRow(theme),
             const SizedBox(height: 12),
             _buildBrushControls(theme),
           ],
@@ -425,6 +407,114 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         selector,
       ],
     );
+  }
+
+  Widget _buildShapeVariantRow(FluentThemeData theme) {
+    final Widget selector = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: ShapeToolVariant.values
+          .map((variant) => _buildShapeVariantButton(theme, variant))
+          .toList(),
+    );
+
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('图形类型', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          selector,
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('图形类型', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        selector,
+      ],
+    );
+  }
+
+  Widget _buildShapeVariantButton(
+    FluentThemeData theme,
+    ShapeToolVariant variant,
+  ) {
+    final bool isSelected = widget.shapeToolVariant == variant;
+    final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
+    final Color inactiveBackground = theme.resources.subtleFillColorSecondary;
+    final Color baseBackground = isSelected
+        ? accent.withOpacity(theme.brightness.isDark ? 0.35 : 0.2)
+        : inactiveBackground;
+    final Color hoverBackground =
+        Color.lerp(baseBackground, accent.withOpacity(0.6), 0.2) ??
+            baseBackground;
+    final Color pressedBackground =
+        Color.lerp(baseBackground, accent.withOpacity(0.8), 0.35) ??
+            baseBackground;
+    final Color borderColor = isSelected
+        ? accent
+        : theme.resources.controlStrokeColorDefault;
+    final Color iconColor = isSelected
+        ? accent
+        : theme.typography.body?.color ?? theme.resources.textFillColorPrimary;
+
+    return Tooltip(
+      message: _shapeVariantLabel(variant),
+      child: Button(
+        onPressed: () => widget.onShapeToolVariantChanged(variant),
+        style: ButtonStyle(
+          padding: WidgetStateProperty.all<EdgeInsets>(
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return pressedBackground;
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return hoverBackground;
+            }
+            return baseBackground;
+          }),
+          shape: WidgetStateProperty.all<OutlinedBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: borderColor, width: 1),
+            ),
+          ),
+          foregroundColor: WidgetStateProperty.all<Color>(iconColor),
+        ),
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Center(child: _buildShapeVariantIcon(variant, iconColor)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShapeVariantIcon(ShapeToolVariant variant, Color color) {
+    switch (variant) {
+      case ShapeToolVariant.rectangle:
+        return Icon(FluentIcons.rectangle_shape, size: 18, color: color);
+      case ShapeToolVariant.ellipse:
+        return Icon(FluentIcons.circle_shape, size: 18, color: color);
+      case ShapeToolVariant.triangle:
+        return Icon(FluentIcons.triangle_shape, size: 18, color: color);
+      case ShapeToolVariant.line:
+        return Image.asset(
+          'icons/line2.png',
+          width: 24,
+          height: 24,
+          color: color,
+          colorBlendMode: BlendMode.srcIn,
+          filterQuality: FilterQuality.high,
+        );
+    }
   }
 
   Widget _buildBrushShapeButton(FluentThemeData theme, BrushShape shape) {
