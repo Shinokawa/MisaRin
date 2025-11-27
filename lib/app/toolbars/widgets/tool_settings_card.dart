@@ -170,6 +170,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       case CanvasTool.curvePen:
         content = _buildBrushControls(theme);
         break;
+      case CanvasTool.eraser:
+        content = _buildBrushControls(theme, includeEraserToggle: false);
+        break;
       case CanvasTool.shape:
         content = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,21 +267,26 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     return MeasuredSize(onChanged: widget.onSizeChanged, child: padded);
   }
 
-  Widget _buildBrushControls(FluentThemeData theme) {
+  Widget _buildBrushControls(
+    FluentThemeData theme, {
+    bool includeEraserToggle = true,
+  }) {
+    final bool isPenTool = widget.activeTool == CanvasTool.pen;
+    final bool isEraserTool = widget.activeTool == CanvasTool.eraser;
+    final bool isCurvePenTool = widget.activeTool == CanvasTool.curvePen;
+    final bool isShapeTool = widget.activeTool == CanvasTool.shape;
     final bool showAdvancedBrushToggles =
-        widget.activeTool == CanvasTool.pen ||
-        widget.activeTool == CanvasTool.curvePen ||
-        widget.activeTool == CanvasTool.shape;
+        isPenTool || isCurvePenTool || isShapeTool || isEraserTool;
 
     final List<Widget> wrapChildren = <Widget>[
       _buildBrushSizeRow(theme),
       _buildBrushShapeRow(theme),
-      if (widget.activeTool == CanvasTool.pen) _buildStrokeStabilizerRow(theme),
+      if (isPenTool || isEraserTool) _buildStrokeStabilizerRow(theme),
     ];
 
     if (showAdvancedBrushToggles) {
       wrapChildren.add(_buildBrushAntialiasRow(theme));
-      if (widget.activeTool == CanvasTool.shape) {
+      if (isShapeTool) {
         wrapChildren.add(
           _buildToggleSwitchRow(
             theme,
@@ -312,14 +320,16 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           onChanged: widget.onSimulatePenPressureChanged,
         ),
       );
-      wrapChildren.add(
-        _buildToggleSwitchRow(
-          theme,
-          label: '转换为擦除',
-          value: widget.brushToolsEraserMode,
-          onChanged: widget.onBrushToolsEraserModeChanged,
-        ),
-      );
+      if (includeEraserToggle) {
+        wrapChildren.add(
+          _buildToggleSwitchRow(
+            theme,
+            label: '转换为擦除',
+            value: widget.brushToolsEraserMode,
+            onChanged: widget.onBrushToolsEraserModeChanged,
+          ),
+        );
+      }
       wrapChildren.add(
         _buildToggleSwitchRow(
           theme,

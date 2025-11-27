@@ -394,7 +394,7 @@ mixin _PaintingBoardInteractionMixin
       _activeStylusPressureMin = null;
       _activeStylusPressureMax = null;
     }
-    final bool erase = _brushToolsEraserMode;
+    final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     _lastStrokeBoardPosition = start;
     _lastStylusDirection = null;
@@ -617,7 +617,8 @@ mixin _PaintingBoardInteractionMixin
     final Offset clamped = _clampToCanvas(position);
     final bool enableStabilizer =
         _strokeStabilizerStrength > 0.0001 &&
-        _effectiveActiveTool == CanvasTool.pen;
+        (_effectiveActiveTool == CanvasTool.pen ||
+            _effectiveActiveTool == CanvasTool.eraser);
     if (!enableStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
@@ -725,7 +726,8 @@ mixin _PaintingBoardInteractionMixin
     final bool isPenLike =
         tool == CanvasTool.pen ||
         tool == CanvasTool.curvePen ||
-        tool == CanvasTool.shape;
+        tool == CanvasTool.shape ||
+        tool == CanvasTool.eraser;
     if (_isReferenceCardResizing) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {
@@ -915,7 +917,7 @@ mixin _PaintingBoardInteractionMixin
       }
       if (insideCanvas) {
         await _pushUndoSnapshot();
-        final bool erase = _brushToolsEraserMode;
+        final bool erase = _isBrushEraserEnabled;
         final Color strokeColor = erase
             ? const Color(0xFFFFFFFF)
             : _primaryColor;
@@ -1178,7 +1180,7 @@ mixin _PaintingBoardInteractionMixin
     final bool enableNeedleTips =
         simulatePressure &&
         _penPressureProfile == StrokePressureProfile.taperCenter;
-    final bool erase = _brushToolsEraserMode;
+    final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
@@ -1302,6 +1304,7 @@ mixin _PaintingBoardInteractionMixin
         await _beginLayerAdjustDrag(boardLocal);
         break;
       case CanvasTool.pen:
+      case CanvasTool.eraser:
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
@@ -1365,6 +1368,7 @@ mixin _PaintingBoardInteractionMixin
     }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
+      case CanvasTool.eraser:
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           _appendPoint(boardLocal, event.timeStamp, event);
@@ -1410,6 +1414,7 @@ mixin _PaintingBoardInteractionMixin
     }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
+      case CanvasTool.eraser:
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           final double? releasePressure = _stylusPressureValue(event);
@@ -1468,6 +1473,7 @@ mixin _PaintingBoardInteractionMixin
     }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
+      case CanvasTool.eraser:
         if (_isDrawing) {
           _finishStroke(event.timeStamp);
         }

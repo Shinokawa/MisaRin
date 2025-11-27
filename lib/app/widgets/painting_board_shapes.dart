@@ -135,7 +135,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (canShowFillOverlay) {
       pendingFillOverlay = Path()..addPath(_shapePreviewPath!, Offset.zero);
       pendingFillOverlayColor =
-          _brushToolsEraserMode ? const Color(0xFFFFFFFF) : _primaryColor;
+          _isBrushEraserEnabled ? const Color(0xFFFFFFFF) : _primaryColor;
     }
     _clearShapePreviewOverlay();
     if (_vectorDrawingEnabled) {
@@ -420,7 +420,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     final Offset strokeStart = effectivePoints.first;
-    final bool erase = _brushToolsEraserMode;
+    final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     if (_shapeFillEnabled && _shapeToolVariant != ShapeToolVariant.line) {
       _paintShapeFill(strokePoints, strokeColor, erase);

@@ -120,6 +120,11 @@ class _WorkspaceTabStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final Color hoverBackground = theme.resources.subtleFillColorTertiary;
+    final Color pressedBackground = theme.resources.subtleFillColorSecondary;
+    final Color baseIconColor = theme.resources.textFillColorSecondary;
+    final Color hoverIconColor = theme.resources.textFillColorPrimary;
     return Align(
       alignment: Alignment.centerLeft,
       widthFactor: 1,
@@ -145,8 +150,21 @@ class _WorkspaceTabStrip extends StatelessWidget {
                   shape: WidgetStateProperty.all<OutlinedBorder>(
                     const CircleBorder(),
                   ),
-                  backgroundColor: WidgetStateProperty.resolveWith<Color?>(
-                    (states) => Colors.transparent,
+                  backgroundColor: WidgetStateProperty.resolveWith<Color?>((
+                    states,
+                  ) {
+                    if (states.contains(WidgetState.pressed)) {
+                      return pressedBackground;
+                    }
+                    if (states.contains(WidgetState.hovered)) {
+                      return hoverBackground;
+                    }
+                    return Colors.transparent;
+                  }),
+                  foregroundColor: WidgetStateProperty.resolveWith<Color?>(
+                    (states) => states.contains(WidgetState.hovered)
+                        ? hoverIconColor
+                        : baseIconColor,
                   ),
                 ),
                 child: const Icon(FluentIcons.add, size: 14),
@@ -282,16 +300,46 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final bool isActive = widget.isActive;
-    final bool showActiveBackground = isActive || _hovered;
-    final Color activeBorder = isActive
+    final bool hovered = _hovered;
+    final Color activeFill = theme.resources.subtleFillColorSecondary;
+    final Color hoverFill = theme.resources.subtleFillColorTertiary;
+    final Color backgroundColor = isActive
+        ? activeFill
+        : (hovered ? hoverFill : Colors.transparent);
+    final Color borderColor = isActive
         ? theme.resources.controlStrokeColorDefault
-        : Colors.transparent;
-    final TextStyle? textStyle = theme.typography.caption;
+        : (hovered
+              ? theme.resources.controlStrokeColorSecondary
+              : Colors.transparent);
+    final TextStyle baseStyle =
+        theme.typography.caption ?? theme.typography.body ?? const TextStyle();
+    final Color inactiveTextColor =
+        baseStyle.color ?? theme.resources.textFillColorSecondary;
+    final Color activeTextColor =
+        theme.typography.bodyStrong?.color ??
+        theme.typography.body?.color ??
+        inactiveTextColor;
+    final Color hoverTextColor =
+        theme.typography.body?.color ??
+        theme.typography.bodyStrong?.color ??
+        inactiveTextColor;
     final Color textColor = isActive
-        ? theme.typography.bodyStrong?.color ??
-              theme.typography.body?.color ??
-              Colors.white
-        : theme.typography.caption?.color ?? Colors.white;
+        ? activeTextColor
+        : (hovered ? hoverTextColor : inactiveTextColor);
+    final Color closeIconColor = textColor.withOpacity(
+      hovered || isActive ? 0.95 : 0.75,
+    );
+    final List<BoxShadow>? shadows = (isActive || hovered)
+        ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                theme.brightness.isDark ? 0.3 : 0.12,
+              ),
+              blurRadius: isActive ? 6 : 4,
+              offset: const Offset(0, 2),
+            ),
+          ]
+        : null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: MouseRegion(
@@ -301,22 +349,30 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => widget.onSelect(widget.entry.id),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
             height: 28,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: showActiveBackground
-                  ? theme.resources.subtleFillColorSecondary
-                  : Colors.transparent,
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: activeBorder, width: isActive ? 1 : 0),
+              border: Border.all(color: borderColor, width: 1),
+              boxShadow: shadows,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  widget.entry.name,
-                  style: textStyle?.copyWith(color: textColor),
+                Flexible(
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    style: baseStyle.copyWith(color: textColor),
+                    child: Text(
+                      widget.entry.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
                 if (widget.entry.isDirty)
                   Padding(
@@ -334,7 +390,11 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => widget.onClose(widget.entry.id),
-                      child: const Icon(FluentIcons.chrome_close, size: 10),
+                      child: Icon(
+                        FluentIcons.chrome_close,
+                        size: 10,
+                        color: closeIconColor,
+                      ),
                     ),
                   ),
                 ),

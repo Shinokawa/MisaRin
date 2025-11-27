@@ -1,6 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-class UndoToolButton extends StatelessWidget {
+class UndoToolButton extends StatefulWidget {
   const UndoToolButton({
     super.key,
     required this.enabled,
@@ -11,46 +11,102 @@ class UndoToolButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
+  State<UndoToolButton> createState() => _UndoToolButtonState();
+}
+
+class _UndoToolButtonState extends State<UndoToolButton> {
+  bool _hovered = false;
+
+  void _handleHover(bool hovered) {
+    if (_hovered == hovered) {
+      return;
+    }
+    setState(() => _hovered = hovered);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
+    final FluentThemeData theme = FluentTheme.of(context);
     final bool isDark = theme.brightness.isDark;
+    final bool enabled = widget.enabled;
+
+    final Color enabledBorder = isDark
+        ? const Color(0xFF4AA553)
+        : const Color(0xFF0F7A0B);
+    final Color disabledBorder = isDark
+        ? const Color(0xFF2E3C30)
+        : const Color(0xFFC6D7C6);
+    final Color enabledBackground = isDark
+        ? const Color(0xFF17331B)
+        : const Color(0xFFEAF7EA);
+    final Color hoverBackground = isDark
+        ? const Color(0xFF1F3A22)
+        : const Color(0xFFE2F3E2);
+    final Color disabledBackground = isDark
+        ? const Color(0xFF1F2721)
+        : const Color(0xFFF2F7F2);
+    final Color enabledIcon = isDark
+        ? const Color(0xFF90F09D)
+        : const Color(0xFF0B5A09);
+    final Color hoverIcon = isDark
+        ? const Color(0xFFB6F9C0)
+        : const Color(0xFF094507);
+    final Color disabledIcon = isDark
+        ? const Color(0xFF5F7262)
+        : const Color(0xFF8AA08A);
+
+    final bool showHover = enabled && _hovered;
     final Color borderColor = enabled
-        ? (isDark ? const Color(0xFF4AA553) : const Color(0xFF0F7A0B))
-        : (isDark ? const Color(0xFF2E3C30) : const Color(0xFFC6D7C6));
+        ? (showHover
+              ? Color.lerp(enabledBorder, Colors.white, isDark ? 0.2 : 0.05)!
+              : enabledBorder)
+        : disabledBorder;
     final Color backgroundColor = enabled
-        ? (isDark ? const Color(0xFF17331B) : const Color(0xFFEAF7EA))
-        : (isDark ? const Color(0xFF1F2721) : const Color(0xFFF2F7F2));
+        ? (showHover ? hoverBackground : enabledBackground)
+        : disabledBackground;
     final Color iconColor = enabled
-        ? (isDark ? const Color(0xFF90F09D) : const Color(0xFF0B5A09))
-        : (isDark ? const Color(0xFF5F7262) : const Color(0xFF8AA08A));
-    final Color shadowColor = enabled
-        ? Color.lerp(
+        ? (showHover ? hoverIcon : enabledIcon)
+        : disabledIcon;
+
+    final List<BoxShadow> shadows = <BoxShadow>[];
+    if (enabled) {
+      shadows.add(
+        BoxShadow(
+          color: Color.lerp(
             Colors.transparent,
-            isDark ? const Color(0xFF4AA553) : const Color(0xFF0F7A0B),
+            enabledBorder,
             isDark ? 0.4 : 0.2,
-          )!
-        : Colors.transparent;
+          )!.withOpacity(showHover ? 1 : 0.85),
+          blurRadius: showHover ? 9 : 7,
+          offset: const Offset(0, 3),
+        ),
+      );
+    }
 
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) {
+        if (enabled) {
+          _handleHover(true);
+        }
+      },
+      onExit: (_) {
+        if (enabled) {
+          _handleHover(false);
+        }
+      },
       child: GestureDetector(
-        onTap: enabled ? onPressed : null,
+        onTap: enabled ? widget.onPressed : null,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
           width: 48,
           height: 48,
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: borderColor, width: 1.5),
-            boxShadow: [
-              if (enabled)
-                BoxShadow(
-                  color: shadowColor,
-                  blurRadius: 7,
-                  offset: const Offset(0, 3),
-                ),
-            ],
+            boxShadow: shadows,
           ),
           child: Icon(FluentIcons.undo, color: iconColor, size: 20),
         ),

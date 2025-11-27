@@ -764,11 +764,7 @@ mixin _PaintingBoardLayerMixin
       if (isSai2Layout) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            lockCheckbox,
-            const SizedBox(height: 8),
-            clipCheckbox,
-          ],
+          children: [lockCheckbox, const SizedBox(height: 8), clipCheckbox],
         );
       }
       return Wrap(
@@ -922,19 +918,14 @@ mixin _PaintingBoardLayerMixin
                         message: layerLocked ? '解锁图层' : '锁定图层',
                         child: IconButton(
                           icon: Icon(
-                            layerLocked
-                                ? FluentIcons.lock
-                                : FluentIcons.unlock,
+                            layerLocked ? FluentIcons.lock : FluentIcons.unlock,
                           ),
                           onPressed: () => _handleLayerLockToggle(layer),
                         ),
                       );
                       final Color clippingActiveBackground = Color.alphaBlend(
-                        (theme.brightness.isDark
-                                ? Colors.white
-                                : Colors.black)
-                            .withOpacity(
-                                theme.brightness.isDark ? 0.18 : 0.08),
+                        (theme.brightness.isDark ? Colors.white : Colors.black)
+                            .withOpacity(theme.brightness.isDark ? 0.18 : 0.08),
                         background,
                       );
                       clippingButton = Tooltip(
@@ -942,17 +933,17 @@ mixin _PaintingBoardLayerMixin
                         child: IconButton(
                           icon: const Icon(FluentIcons.fluid_logo),
                           style: ButtonStyle(
-                            backgroundColor: WidgetStateProperty.resolveWith(
-                              (states) {
-                                if (layerClipping) {
-                                  return clippingActiveBackground;
-                                }
-                                if (states.contains(WidgetState.disabled)) {
-                                  return theme.resources.controlFillColorDisabled;
-                                }
-                                return null;
-                              },
-                            ),
+                            backgroundColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (layerClipping) {
+                                return clippingActiveBackground;
+                              }
+                              if (states.contains(WidgetState.disabled)) {
+                                return theme.resources.controlFillColorDisabled;
+                              }
+                              return null;
+                            }),
                           ),
                           onPressed: layerLocked
                               ? null
@@ -975,6 +966,7 @@ mixin _PaintingBoardLayerMixin
                       }
                       trailingButtons.add(widget);
                     }
+
                     if (clippingButton != null) {
                       addTrailingButton(clippingButton);
                     }
@@ -990,86 +982,72 @@ mixin _PaintingBoardLayerMixin
                           left: layer.clippingMask ? 18 : 0,
                           bottom: index == orderedLayers.length - 1 ? 0 : 8,
                         ),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
+                        child: _LayerTile(
                           onTapDown: (_) => _handleLayerSelected(layer.id),
                           onSecondaryTapDown: (details) =>
                               _showLayerContextMenu(
                                 layer,
                                 details.globalPosition,
                               ),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: background,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: tileBorder),
-                            ),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Row(
-                                  children: [
-                                    visibilityButton,
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Opacity(
-                                        opacity: contentOpacity,
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: _LayerNameView(
-                                                layer: layer,
-                                                theme: theme,
-                                                isActive: isActive,
-                                                isRenaming:
-                                                    !layerLocked &&
-                                                    _renamingLayerId ==
+                          backgroundColor: background,
+                          borderColor: tileBorder,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Row(
+                                children: [
+                                  visibilityButton,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Opacity(
+                                      opacity: contentOpacity,
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: _LayerNameView(
+                                              layer: layer,
+                                              theme: theme,
+                                              isActive: isActive,
+                                              isRenaming:
+                                                  !layerLocked &&
+                                                  _renamingLayerId == layer.id,
+                                              isLocked: layerLocked,
+                                              buildEditor: (style) =>
+                                                  _buildInlineLayerRenameField(
+                                                    theme,
+                                                    isActive: isActive,
+                                                    layerId: layer.id,
+                                                    styleOverride: style,
+                                                  ),
+                                              onRequestRename: layerLocked
+                                                  ? null
+                                                  : () {
+                                                      _handleLayerSelected(
                                                         layer.id,
-                                                isLocked: layerLocked,
-                                                buildEditor: (style) =>
-                                                    _buildInlineLayerRenameField(
-                                                      theme,
-                                                      isActive: isActive,
-                                                      layerId: layer.id,
-                                                      styleOverride: style,
-                                                    ),
-                                                onRequestRename: layerLocked
-                                                    ? null
-                                                    : () {
-                                                        _handleLayerSelected(
-                                                          layer.id,
-                                                        );
-                                                        _beginLayerRename(
-                                                          layer,
-                                                        );
-                                                      },
-                                              ),
+                                                      );
+                                                      _beginLayerRename(layer);
+                                                    },
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    ...trailingButtons,
-                                  ],
-                                ),
-                                if (layer.clippingMask)
-                                  Positioned(
-                                    left: -10,
-                                    top: 6,
-                                    bottom: 6,
-                                    child: _ClippingMaskIndicator(
-                                      color: theme.accentColor.defaultBrushFor(
-                                        theme.brightness,
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
-                              ],
-                            ),
+                                  ...trailingButtons,
+                                ],
+                              ),
+                              if (layer.clippingMask)
+                                Positioned(
+                                  left: -10,
+                                  top: 6,
+                                  bottom: 6,
+                                  child: _ClippingMaskIndicator(
+                                    color: theme.accentColor.defaultBrushFor(
+                                      theme.brightness,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
@@ -1154,67 +1132,54 @@ mixin _PaintingBoardLayerMixin
                           left: layer.clippingMask ? 18 : 0,
                           bottom: index == orderedLayers.length - 1 ? 0 : 8,
                         ),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
+                        child: _LayerTile(
                           onTap: () => _handleLayerSelected(layer.id),
                           onSecondaryTapDown: (details) =>
                               _showLayerContextMenu(
                                 layer,
                                 details.globalPosition,
                               ),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: background,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: tileBorder),
-                            ),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Row(
-                                  children: [
-                                    visibilityButton,
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Opacity(
-                                        opacity: contentOpacity,
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                layer.name,
-                                                style: isActive
-                                                    ? theme
-                                                          .typography
-                                                          .bodyStrong
-                                                    : theme.typography.body,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
+                          backgroundColor: background,
+                          borderColor: tileBorder,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Row(
+                                children: [
+                                  visibilityButton,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Opacity(
+                                      opacity: contentOpacity,
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              layer.name,
+                                              style: isActive
+                                                  ? theme.typography.bodyStrong
+                                                  : theme.typography.body,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    deleteButton,
-                                  ],
-                                ),
-                                if (layer.clippingMask)
-                                  Positioned(
-                                    left: -18,
-                                    top: 12,
-                                    child: _ClippingMaskIndicator(
-                                      color: theme.accentColor.defaultBrushFor(
-                                        theme.brightness,
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
-                              ],
-                            ),
+                                  deleteButton,
+                                ],
+                              ),
+                              if (layer.clippingMask)
+                                Positioned(
+                                  left: -18,
+                                  top: 12,
+                                  child: _ClippingMaskIndicator(
+                                    color: theme.accentColor.defaultBrushFor(
+                                      theme.brightness,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
@@ -1242,6 +1207,92 @@ class _ClippingMaskIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(6),
+      ),
+    );
+  }
+}
+
+class _LayerTile extends StatefulWidget {
+  const _LayerTile({
+    required this.child,
+    required this.backgroundColor,
+    required this.borderColor,
+    this.onTap,
+    this.onTapDown,
+    this.onSecondaryTapDown,
+    this.behavior = HitTestBehavior.opaque,
+  });
+
+  final Widget child;
+  final Color backgroundColor;
+  final Color borderColor;
+  final VoidCallback? onTap;
+  final GestureTapDownCallback? onTapDown;
+  final GestureTapDownCallback? onSecondaryTapDown;
+  final HitTestBehavior behavior;
+
+  @override
+  State<_LayerTile> createState() => _LayerTileState();
+}
+
+class _LayerTileState extends State<_LayerTile> {
+  bool _hovered = false;
+
+  void _setHovered(bool hovered) {
+    if (_hovered == hovered) {
+      return;
+    }
+    setState(() => _hovered = hovered);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final bool isDark = theme.brightness.isDark;
+    final Color hoverOverlay = (isDark ? Colors.white : Colors.black)
+        .withOpacity(isDark ? 0.08 : 0.05);
+    final Color background = _hovered
+        ? Color.alphaBlend(hoverOverlay, widget.backgroundColor)
+        : widget.backgroundColor;
+    final Color border = _hovered
+        ? Color.lerp(
+                widget.borderColor,
+                theme.resources.controlStrokeColorDefault,
+                0.35,
+              ) ??
+              widget.borderColor
+        : widget.borderColor;
+    final List<BoxShadow>? shadows = _hovered
+        ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.35 : 0.12),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ]
+        : null;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
+      child: GestureDetector(
+        behavior: widget.behavior,
+        onTap: widget.onTap,
+        onTapDown: widget.onTapDown,
+        onSecondaryTapDown: widget.onSecondaryTapDown,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: border),
+            boxShadow: shadows,
+          ),
+          child: widget.child,
+        ),
       ),
     );
   }
