@@ -194,13 +194,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
               },
             ),
             const SizedBox(height: 12),
-            _buildToggleSwitchRow(
-              theme,
-              label: "实心",
-              value: widget.shapeFillEnabled,
-              onChanged: widget.onShapeFillChanged,
-            ),
-            const SizedBox(height: 12),
             _buildBrushControls(theme),
           ],
         );
@@ -320,6 +313,16 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
     if (showAdvancedBrushToggles) {
       wrapChildren.add(_buildBrushAntialiasRow(theme));
+      if (widget.activeTool == CanvasTool.shape) {
+        wrapChildren.add(
+          _buildToggleSwitchRow(
+            theme,
+            label: '实心',
+            value: widget.shapeFillEnabled,
+            onChanged: widget.onShapeFillChanged,
+          ),
+        );
+      }
       wrapChildren.add(
         _buildToggleSwitchRow(
           theme,
