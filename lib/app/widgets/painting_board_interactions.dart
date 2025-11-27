@@ -989,7 +989,7 @@ mixin _PaintingBoardInteractionMixin
       _curveDragDelta,
     );
     if (!_vectorDrawingEnabled && _curveRasterPreviewSnapshot != null) {
-      _restoreCurveRasterPreview();
+      _clearCurvePreviewOverlay();
     }
     _drawQuadraticCurve(start, control, end);
     _disposeCurveRasterPreview(restoreLayer: false);
@@ -1048,6 +1048,19 @@ mixin _PaintingBoardInteractionMixin
     _curveRasterPreviewSnapshot = _controller.buildClipboardLayer(
       activeLayerId,
     );
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    if (snapshot != null &&
+        snapshot.bitmap != null &&
+        snapshot.bitmapWidth != null &&
+        snapshot.bitmapHeight != null) {
+      _curveRasterPreviewPixels = BitmapCanvasController.rgbaToPixels(
+        snapshot.bitmap!,
+        snapshot.bitmapWidth!,
+        snapshot.bitmapHeight!,
+      );
+    } else {
+      _curveRasterPreviewPixels = null;
+    }
   }
 
   void _refreshCurveRasterPreview() {
@@ -1062,27 +1075,52 @@ mixin _PaintingBoardInteractionMixin
       end,
       _curveDragDelta,
     );
-    _controller.replaceLayer(snapshot.id, snapshot);
-    _drawQuadraticCurve(start, control, end);
-  }
-
-  void _restoreCurveRasterPreview() {
-    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
-    if (snapshot == null) {
+    _clearCurvePreviewOverlay();
+    final Rect? dirty = _curvePreviewDirtyRectForCurrentPath();
+    if (dirty == null) {
       return;
     }
-    _controller.replaceLayer(snapshot.id, snapshot);
+    _curvePreviewDirtyRect = dirty;
+    _drawQuadraticCurve(start, control, end);
   }
 
   void _disposeCurveRasterPreview({required bool restoreLayer}) {
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     if (snapshot != null && restoreLayer) {
-      _controller.replaceLayer(snapshot.id, snapshot);
-      _markDirty();
+      _clearCurvePreviewOverlay();
     }
     _curveRasterPreviewSnapshot = null;
     _curveUndoCapturedForPreview = false;
+    _curvePreviewDirtyRect = null;
+    _curveRasterPreviewPixels = null;
   }
+
+  void _clearCurvePreviewOverlay() {
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    final Rect? dirty = _curvePreviewDirtyRect;
+    if (snapshot == null || dirty == null) {
+      _curvePreviewDirtyRect = null;
+      return;
+    }
+    _controller.restoreLayerRegion(
+      snapshot,
+      dirty,
+      pixelCache: _curveRasterPreviewPixels,
+    );
+    _curvePreviewDirtyRect = null;
+  }
+
+  Rect? _curvePreviewDirtyRectForCurrentPath() {
+    final Path? path = _curvePreviewPath;
+    if (path == null) {
+      return null;
+    }
+    final Rect bounds = path.getBounds();
+    return bounds.inflate(_curvePreviewPadding);
+  }
+
+  double get _curvePreviewPadding =>
+      math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
 
   Path? _buildCurvePreviewPath() {
     final Offset? start = _curveAnchor;

@@ -11,6 +11,8 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   List<Offset> _shapeStrokePoints = <Offset>[];
   CanvasLayerData? _shapeRasterPreviewSnapshot;
   bool _shapeUndoCapturedForPreview = false;
+  Rect? _shapePreviewDirtyRect;
+  Uint32List? _shapeRasterPreviewPixels;
 
   ShapeToolVariant get shapeToolVariant => _shapeToolVariant;
 
@@ -30,6 +32,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     _shapeDragCurrent = null;
     _shapePreviewPath = null;
     _shapeStrokePoints = <Offset>[];
+    _shapePreviewDirtyRect = null;
   }
 
   Future<void> _beginShapeDrawing(Offset boardLocal) async {
@@ -105,9 +108,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       await _pushUndoSnapshot();
     }
     const double initialTimestamp = 0.0;
-    if (_shapeRasterPreviewSnapshot != null) {
-      _restoreShapeRasterPreview();
-    }
+    _clearShapePreviewOverlay();
     _paintShapeStroke(strokePoints, initialTimestamp);
     _disposeShapeRasterPreview(restoreLayer: false);
 
@@ -296,6 +297,19 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     _shapeRasterPreviewSnapshot = _controller.buildClipboardLayer(
       activeLayerId,
     );
+    final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
+    if (snapshot != null &&
+        snapshot.bitmap != null &&
+        snapshot.bitmapWidth != null &&
+        snapshot.bitmapHeight != null) {
+      _shapeRasterPreviewPixels = BitmapCanvasController.rgbaToPixels(
+        snapshot.bitmap!,
+        snapshot.bitmapWidth!,
+        snapshot.bitmapHeight!,
+      );
+    } else {
+      _shapeRasterPreviewPixels = null;
+    }
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
@@ -303,26 +317,38 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (snapshot == null || strokePoints.length < 2) {
       return;
     }
-    _controller.replaceLayer(snapshot.id, snapshot);
+    _clearShapePreviewOverlay();
+    final Rect? dirty = _shapePreviewBoundsForPoints(strokePoints);
+    if (dirty == null) {
+      return;
+    }
+    _shapePreviewDirtyRect = dirty;
     _paintShapeStroke(strokePoints, 0.0);
   }
 
   void _disposeShapeRasterPreview({required bool restoreLayer}) {
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot != null && restoreLayer) {
-      _controller.replaceLayer(snapshot.id, snapshot);
-      _markDirty();
+      _clearShapePreviewOverlay();
     }
     _shapeRasterPreviewSnapshot = null;
     _shapeUndoCapturedForPreview = false;
+    _shapeRasterPreviewPixels = null;
   }
 
-  void _restoreShapeRasterPreview() {
+  void _clearShapePreviewOverlay() {
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
-    if (snapshot == null) {
+    final Rect? dirty = _shapePreviewDirtyRect;
+    if (snapshot == null || dirty == null) {
+      _shapePreviewDirtyRect = null;
       return;
     }
-    _controller.replaceLayer(snapshot.id, snapshot);
+    _controller.restoreLayerRegion(
+      snapshot,
+      dirty,
+      pixelCache: _shapeRasterPreviewPixels,
+    );
+    _shapePreviewDirtyRect = null;
   }
 
   void _paintShapeStroke(List<Offset> strokePoints, double initialTimestamp) {
@@ -369,4 +395,25 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     _controller.endStroke();
     _markDirty();
   }
+
+  Rect? _shapePreviewBoundsForPoints(List<Offset> strokePoints) {
+    if (strokePoints.isEmpty) {
+      return null;
+    }
+    double minX = strokePoints.first.dx;
+    double minY = strokePoints.first.dy;
+    double maxX = strokePoints.first.dx;
+    double maxY = strokePoints.first.dy;
+    for (final Offset point in strokePoints) {
+      if (point.dx < minX) minX = point.dx;
+      if (point.dx > maxX) maxX = point.dx;
+      if (point.dy < minY) minY = point.dy;
+      if (point.dy > maxY) maxY = point.dy;
+    }
+    final double padding = _shapePreviewPadding;
+    return Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
+  }
+
+  double get _shapePreviewPadding =>
+      math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
 }

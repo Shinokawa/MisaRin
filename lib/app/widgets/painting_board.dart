@@ -247,6 +247,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Path? _curvePreviewPath;
   CanvasLayerData? _curveRasterPreviewSnapshot;
   bool _curveUndoCapturedForPreview = false;
+  Rect? _curvePreviewDirtyRect;
+  Uint32List? _curveRasterPreviewPixels;
   bool _isEyedropperSampling = false;
   bool _eyedropperOverrideActive = false;
   Offset? _lastEyedropperSample;

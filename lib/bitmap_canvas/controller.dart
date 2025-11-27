@@ -1023,6 +1023,148 @@ class BitmapCanvasController extends ChangeNotifier {
   void replaceLayer(String id, CanvasLayerData data) =>
       _layerManagerReplaceLayer(this, id, data);
 
+  void restoreLayerRegion(
+    CanvasLayerData snapshot,
+    Rect region, {
+    Uint32List? pixelCache,
+  }) {
+    final int index = _layers.indexWhere((layer) => layer.id == snapshot.id);
+    if (index < 0 || region.isEmpty) {
+      return;
+    }
+    final Rect canvasRect = Rect.fromLTWH(
+      0,
+      0,
+      _width.toDouble(),
+      _height.toDouble(),
+    );
+    Rect target = region.intersect(canvasRect);
+    if (target.isEmpty) {
+      return;
+    }
+    final BitmapLayerState layer = _layers[index];
+    final BitmapSurface surface = layer.surface;
+
+    if (snapshot.bitmap == null ||
+        snapshot.bitmapWidth == null ||
+        snapshot.bitmapHeight == null) {
+      final Color fill = snapshot.fillColor ?? const Color(0x00000000);
+      _fillSurfaceRegion(surface, target, fill);
+      surface.markDirty();
+      _markDirty(region: target, layerId: layer.id, pixelsDirty: true);
+      return;
+    }
+
+    final int srcWidth = snapshot.bitmapWidth!;
+    final int srcHeight = snapshot.bitmapHeight!;
+    final int offsetX = snapshot.bitmapLeft ?? 0;
+    final int offsetY = snapshot.bitmapTop ?? 0;
+    final Rect snapshotRect = Rect.fromLTWH(
+      offsetX.toDouble(),
+      offsetY.toDouble(),
+      srcWidth.toDouble(),
+      srcHeight.toDouble(),
+    );
+    target = target.intersect(snapshotRect);
+    if (target.isEmpty) {
+      return;
+    }
+
+    final Uint32List srcPixels = pixelCache ??
+        rgbaToPixels(snapshot.bitmap!, srcWidth, srcHeight);
+
+    final int startX = math.max(
+      0,
+      math.max(target.left.floor(), offsetX),
+    );
+    final int startY = math.max(
+      0,
+      math.max(target.top.floor(), offsetY),
+    );
+    final int endX = math.min(
+      _width,
+      math.min(target.right.ceil(), offsetX + srcWidth),
+    );
+    final int endY = math.min(
+      _height,
+      math.min(target.bottom.ceil(), offsetY + srcHeight),
+    );
+    if (startX >= endX || startY >= endY) {
+      return;
+    }
+
+    final Uint32List destPixels = surface.pixels;
+    final int copyWidth = endX - startX;
+    final int copyHeight = endY - startY;
+    Uint32List? workerPatch =
+        _isMultithreaded ? Uint32List(copyWidth * copyHeight) : null;
+    int workerOffset = 0;
+    for (int y = startY; y < endY; y++) {
+      final int srcY = y - offsetY;
+      if (srcY < 0 || srcY >= srcHeight) {
+        continue;
+      }
+      final int destOffset = y * _width + startX;
+      final int srcOffset = srcY * srcWidth + (startX - offsetX);
+      destPixels.setRange(
+        destOffset,
+        destOffset + copyWidth,
+        srcPixels,
+        srcOffset,
+      );
+      if (workerPatch != null) {
+        workerPatch.setRange(
+          workerOffset,
+          workerOffset + copyWidth,
+          srcPixels,
+          srcOffset,
+        );
+        workerOffset += copyWidth;
+      }
+    }
+    surface.markDirty();
+    final Rect dirtyRegion = Rect.fromLTRB(
+      startX.toDouble(),
+      startY.toDouble(),
+      endX.toDouble(),
+      endY.toDouble(),
+    );
+    _markDirty(
+      region: dirtyRegion,
+      layerId: layer.id,
+      pixelsDirty: true,
+    );
+    if (workerPatch != null) {
+      unawaited(_ensurePaintingWorker().syncSurfacePatch(
+        left: startX,
+        top: startY,
+        width: copyWidth,
+        height: copyHeight,
+        pixels: workerPatch,
+      ));
+    }
+  }
+
+  void _fillSurfaceRegion(
+    BitmapSurface surface,
+    Rect region,
+    Color color,
+  ) {
+    final int startX = math.max(0, region.left.floor());
+    final int startY = math.max(0, region.top.floor());
+    final int endX = math.min(_width, region.right.ceil());
+    final int endY = math.min(_height, region.bottom.ceil());
+    if (startX >= endX || startY >= endY) {
+      return;
+    }
+    final int encoded = BitmapSurface.encodeColor(color);
+    final Uint32List pixels = surface.pixels;
+    for (int y = startY; y < endY; y++) {
+      final int offset = y * _width + startX;
+      pixels.fillRange(offset, offset + (endX - startX), encoded);
+    }
+  }
+
   void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) =>
       _layerManagerLoadLayers(this, layers, backgroundColor);
 
@@ -1359,6 +1501,24 @@ class BitmapCanvasController extends ChangeNotifier {
       rgba[offset + 3] = (argb >> 24) & 0xff;
     }
     return rgba;
+  }
+
+  static Uint32List rgbaToPixels(
+    Uint8List rgba,
+    int width,
+    int height,
+  ) {
+    final int length = width * height;
+    final Uint32List pixels = Uint32List(length);
+    for (int i = 0; i < length; i++) {
+      final int offset = i * 4;
+      final int r = rgba[offset];
+      final int g = rgba[offset + 1];
+      final int b = rgba[offset + 2];
+      final int a = rgba[offset + 3];
+      pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+    return pixels;
   }
 
   static Uint8List _pixelsToRgba(Uint32List pixels) {
