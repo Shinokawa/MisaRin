@@ -323,7 +323,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       wrapChildren.add(
         _buildToggleSwitchRow(
           theme,
-          label: '自动尖锐出峰',
+          label: '自动尖锐出入峰',
           value: widget.autoSharpPeakEnabled,
           onChanged: widget.onAutoSharpPeakChanged,
         ),
