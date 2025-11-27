@@ -44,6 +44,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onSelectionShapeChanged,
     required this.shapeToolVariant,
     required this.onShapeToolVariantChanged,
+    required this.shapeFillEnabled,
+    required this.onShapeFillChanged,
     required this.onSizeChanged,
     required this.magicWandTolerance,
     required this.onMagicWandToleranceChanged,
@@ -89,6 +91,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<SelectionShape> onSelectionShapeChanged;
   final ShapeToolVariant shapeToolVariant;
   final ValueChanged<ShapeToolVariant> onShapeToolVariantChanged;
+  final bool shapeFillEnabled;
+  final ValueChanged<bool> onShapeFillChanged;
   final ValueChanged<Size> onSizeChanged;
   final int magicWandTolerance;
   final ValueChanged<int> onMagicWandToleranceChanged;
@@ -188,6 +192,13 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
                   widget.onShapeToolVariantChanged(value);
                 }
               },
+            ),
+            const SizedBox(height: 12),
+            _buildToggleSwitchRow(
+              theme,
+              label: "实心",
+              value: widget.shapeFillEnabled,
+              onChanged: widget.onShapeFillChanged,
             ),
             const SizedBox(height: 12),
             _buildBrushControls(theme),
@@ -292,10 +303,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         child: padded,
       );
     }
-    return MeasuredSize(
-      onChanged: widget.onSizeChanged,
-      child: padded,
-    );
+    return MeasuredSize(onChanged: widget.onSizeChanged, child: padded);
   }
 
   Widget _buildBrushControls(FluentThemeData theme) {
@@ -452,8 +460,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   }
 
   Widget _buildBrushSizeRow(FluentThemeData theme) {
-    final double brushSize =
-        widget.penStrokeSliderRange.clamp(widget.penStrokeWidth);
+    final double brushSize = widget.penStrokeSliderRange.clamp(
+      widget.penStrokeWidth,
+    );
     final String brushLabel = _formatValue(brushSize);
     final Slider slider = Slider(
       value: brushSize,

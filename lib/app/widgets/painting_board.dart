@@ -213,8 +213,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
-  bool _vectorDrawingEnabled =
-      AppPreferences.defaultVectorDrawingEnabled;
+  bool _vectorDrawingEnabled = AppPreferences.defaultVectorDrawingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
@@ -224,6 +223,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   int _bucketTolerance = AppPreferences.defaultBucketTolerance;
   int _magicWandTolerance = AppPreferences.defaultMagicWandTolerance;
   bool _brushToolsEraserMode = AppPreferences.defaultBrushToolsEraserMode;
+  bool _shapeFillEnabled = AppPreferences.defaultShapeToolFillEnabled;
   bool _layerAdjustCropOutside = false;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
@@ -1573,6 +1573,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _bucketTolerance = prefs.bucketTolerance;
     _magicWandTolerance = prefs.magicWandTolerance;
     _brushToolsEraserMode = prefs.brushToolsEraserMode;
+    _shapeFillEnabled = prefs.shapeToolFillEnabled;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);

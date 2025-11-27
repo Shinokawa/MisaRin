@@ -184,14 +184,22 @@ class _PreviewPathPainter extends CustomPainter {
     required this.path,
     required this.color,
     required this.strokeWidth,
+    this.fill = false,
   });
 
   final Path path;
   final Color color;
   final double strokeWidth;
+  final bool fill;
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (fill) {
+      final Paint fillPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(path, fillPaint);
+    }
     final Paint paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
@@ -205,7 +213,8 @@ class _PreviewPathPainter extends CustomPainter {
   bool shouldRepaint(_PreviewPathPainter oldDelegate) {
     return oldDelegate.path != path ||
         oldDelegate.color != color ||
-        oldDelegate.strokeWidth != strokeWidth;
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.fill != fill;
   }
 }
 

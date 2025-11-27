@@ -44,18 +44,18 @@ class BitmapCanvasController extends ChangeNotifier {
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
-       _isMultithreaded = CanvasSettings.supportsMultithreadedCanvas &&
-            creationLogic == CanvasCreationLogic.multiThread,
+       _isMultithreaded =
+           CanvasSettings.supportsMultithreadedCanvas &&
+           creationLogic == CanvasCreationLogic.multiThread,
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
-         multithreaded: CanvasSettings.supportsMultithreadedCanvas &&
-              creationLogic == CanvasCreationLogic.multiThread,
+         multithreaded:
+             CanvasSettings.supportsMultithreadedCanvas &&
+             creationLogic == CanvasCreationLogic.multiThread,
        ) {
     if (creationLogic == CanvasCreationLogic.multiThread && !_isMultithreaded) {
-      debugPrint(
-        'CanvasPaintingWorker 未启用：当前平台不支持多线程画布，已自动回退到单线程。',
-      );
+      debugPrint('CanvasPaintingWorker 未启用：当前平台不支持多线程画布，已自动回退到单线程。');
     }
     _tileCache = RasterTileCache(
       surfaceWidth: _width,
@@ -80,8 +80,10 @@ class BitmapCanvasController extends ChangeNotifier {
 
   final List<Offset> _currentStrokePoints = <Offset>[];
   final List<double> _currentStrokeRadii = <double>[];
-  final List<PaintingDrawCommand> _deferredStrokeCommands = <PaintingDrawCommand>[];
-  final List<PaintingDrawCommand> _committingStrokes = <PaintingDrawCommand>[]; // Strokes being rasterized
+  final List<PaintingDrawCommand> _deferredStrokeCommands =
+      <PaintingDrawCommand>[];
+  final List<PaintingDrawCommand> _committingStrokes =
+      <PaintingDrawCommand>[]; // Strokes being rasterized
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
   bool _currentStrokeStylusPressureEnabled = false;
@@ -91,7 +93,7 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _currentStrokeHasMoved = false;
   BrushShape _currentBrushShape = BrushShape.circle;
   final StrokePressureSimulator _strokePressureSimulator =
-  StrokePressureSimulator();
+      StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
   bool _currentStrokeEraseMode = false;
   bool _stylusPressureEnabled = true;
@@ -107,8 +109,7 @@ class BitmapCanvasController extends ChangeNotifier {
   int _paintingWorkerNextApplySequence = 0;
   int _paintingWorkerPendingTasks = 0;
   int _paintingWorkerGeneration = 0;
-  final List<Completer<void>> _paintingWorkerIdleWaiters =
-      <Completer<void>>[];
+  final List<Completer<void>> _paintingWorkerIdleWaiters = <Completer<void>>[];
   Completer<void>? _nextFrameCompleter;
   String? _paintingWorkerSyncedLayerId;
   int _paintingWorkerSyncedRevision = -1;
@@ -201,9 +202,12 @@ class BitmapCanvasController extends ChangeNotifier {
   bool get isMultithreaded => _isMultithreaded;
 
   // Active stroke state for client-side prediction
-  List<Offset> get activeStrokePoints => UnmodifiableListView(_currentStrokePoints);
-  List<double> get activeStrokeRadii => UnmodifiableListView(_currentStrokeRadii);
-  List<PaintingDrawCommand> get committingStrokes => UnmodifiableListView(_committingStrokes);
+  List<Offset> get activeStrokePoints =>
+      UnmodifiableListView(_currentStrokePoints);
+  List<double> get activeStrokeRadii =>
+      UnmodifiableListView(_currentStrokeRadii);
+  List<PaintingDrawCommand> get committingStrokes =>
+      UnmodifiableListView(_committingStrokes);
   Color get activeStrokeColor => _currentStrokeColor;
   double get activeStrokeRadius => _currentStrokeRadius;
   BrushShape get activeStrokeShape => _currentBrushShape;
@@ -255,7 +259,7 @@ class BitmapCanvasController extends ChangeNotifier {
       final Offset p = points[i];
       final double r = (i < radii.length) ? radii[i] : 1.0;
       if (r > maxRadius) maxRadius = r;
-      
+
       if (p.dx < minX) minX = p.dx;
       if (p.dx > maxX) maxX = p.dx;
       if (p.dy < minY) minY = p.dy;
@@ -264,10 +268,23 @@ class BitmapCanvasController extends ChangeNotifier {
 
     // Inflate bounds by max radius + padding
     final double inflate = maxRadius + 2.0;
-    final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(inflate);
+    final Rect dirtyRegion = Rect.fromLTRB(
+      minX,
+      minY,
+      maxX,
+      maxY,
+    ).inflate(inflate);
 
     // Rasterize vector stroke on main thread (asynchronously) to get pixels
-    _rasterizeVectorStroke(points, radii, color, shape, dirtyRegion, erase, antialiasLevel).then((_) {
+    _rasterizeVectorStroke(
+      points,
+      radii,
+      color,
+      shape,
+      dirtyRegion,
+      erase,
+      antialiasLevel,
+    ).then((_) {
       _committingStrokes.remove(vectorCommand);
       notifyListeners(); // Update UI to remove overlay
     });
@@ -288,19 +305,22 @@ class BitmapCanvasController extends ChangeNotifier {
     final int height = bounds.height.ceil().clamp(1, _height);
     final int left = bounds.left.floor().clamp(0, _width);
     final int top = bounds.top.floor().clamp(0, _height);
-    
+
     // Re-clamp width/height based on clamped left/top
     final int safeWidth = math.min(width, _width - left);
     final int safeHeight = math.min(height, _height - top);
-    
+
     if (safeWidth <= 0 || safeHeight <= 0) return;
 
     final ui.PictureRecorder recorder = ui.PictureRecorder();
-    final ui.Canvas canvas = ui.Canvas(recorder, Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()));
-    
+    final ui.Canvas canvas = ui.Canvas(
+      recorder,
+      Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
+    );
+
     // Translate canvas so drawing at (left, top) appears at (0, 0)
     canvas.translate(-left.toDouble(), -top.toDouble());
-    
+
     VectorStrokePainter.paint(
       canvas: canvas,
       points: points,
@@ -309,19 +329,22 @@ class BitmapCanvasController extends ChangeNotifier {
       shape: shape,
       antialiasLevel: antialiasLevel,
     );
-    
+
     final ui.Picture picture = recorder.endRecording();
     final ui.Image image = await picture.toImage(safeWidth, safeHeight);
-    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    
+    final ByteData? byteData = await image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+
     if (byteData == null) {
       image.dispose();
       picture.dispose();
       return;
     }
-    
+
     final Uint8List pixels = byteData.buffer.asUint8List();
-    final TransferableTypedData transferablePixels = TransferableTypedData.fromList([pixels]);
+    final TransferableTypedData transferablePixels =
+        TransferableTypedData.fromList([pixels]);
 
     image.dispose();
     picture.dispose();
@@ -330,17 +353,18 @@ class BitmapCanvasController extends ChangeNotifier {
       await _ensureWorkerSurfaceSynced();
       await _ensureWorkerSelectionMaskSynced();
       // Send pixel patch to worker
-      final PaintingWorkerPatch? patch = await _ensurePaintingWorker().mergePatch(
-        PaintingMergePatchRequest(
-          left: left,
-          top: top,
-          width: safeWidth,
-          height: safeHeight,
-          pixels: transferablePixels,
-          erase: erase,
-        )
-      );
-      
+      final PaintingWorkerPatch? patch = await _ensurePaintingWorker()
+          .mergePatch(
+            PaintingMergePatchRequest(
+              left: left,
+              top: top,
+              width: safeWidth,
+              height: safeHeight,
+              pixels: transferablePixels,
+              erase: erase,
+            ),
+          );
+
       if (patch != null) {
         _applyWorkerPatch(patch);
         await _waitForNextFrame();
@@ -371,8 +395,9 @@ class BitmapCanvasController extends ChangeNotifier {
       }
       return;
     }
-    final List<PaintingDrawCommand> commands =
-        List<PaintingDrawCommand>.from(_deferredStrokeCommands);
+    final List<PaintingDrawCommand> commands = List<PaintingDrawCommand>.from(
+      _deferredStrokeCommands,
+    );
     _deferredStrokeCommands.clear();
     if (_useWorkerForRaster) {
       for (final PaintingDrawCommand command in commands) {
@@ -408,7 +433,20 @@ class BitmapCanvasController extends ChangeNotifier {
     }
   }
 
-  bool get _useWorkerForRaster => _isMultithreaded && !_synchronousRasterOverride;
+  void _dispatchDirectPaintCommand(PaintingDrawCommand command) {
+    final Rect? bounds = _dirtyRectForCommand(command);
+    if (bounds == null || bounds.isEmpty) {
+      return;
+    }
+    if (_useWorkerForRaster) {
+      _enqueuePaintingWorkerCommand(region: bounds, command: command);
+      return;
+    }
+    _applyPaintingCommandsSynchronously(bounds, <PaintingDrawCommand>[command]);
+  }
+
+  bool get _useWorkerForRaster =>
+      _isMultithreaded && !_synchronousRasterOverride;
 
   Rect? _dirtyRectForCommand(PaintingDrawCommand command) {
     switch (command.type) {
@@ -432,23 +470,62 @@ class BitmapCanvasController extends ChangeNotifier {
         final Offset? end = command.end;
         final double? startRadius = command.startRadius;
         final double? endRadius = command.endRadius;
-        if (start == null || end == null || startRadius == null ||
+        if (start == null ||
+            end == null ||
+            startRadius == null ||
             endRadius == null) {
           return null;
         }
-        return _strokeDirtyRectForVariableLine(start, end, startRadius, endRadius);
+        return _strokeDirtyRectForVariableLine(
+          start,
+          end,
+          startRadius,
+          endRadius,
+        );
       case PaintingDrawCommandType.stampSegment:
         final Offset? start = command.start;
         final Offset? end = command.end;
         final double? startRadius = command.startRadius;
         final double? endRadius = command.endRadius;
-        if (start == null || end == null || startRadius == null ||
+        if (start == null ||
+            end == null ||
+            startRadius == null ||
             endRadius == null) {
           return null;
         }
-        return _strokeDirtyRectForVariableLine(start, end, startRadius, endRadius);
+        return _strokeDirtyRectForVariableLine(
+          start,
+          end,
+          startRadius,
+          endRadius,
+        );
       case PaintingDrawCommandType.vectorStroke:
         return null;
+      case PaintingDrawCommandType.filledPolygon:
+        final List<Offset>? polygon = command.points;
+        if (polygon == null || polygon.length < 3) {
+          return null;
+        }
+        double minX = polygon.first.dx;
+        double maxX = polygon.first.dx;
+        double minY = polygon.first.dy;
+        double maxY = polygon.first.dy;
+        for (final Offset point in polygon) {
+          if (point.dx < minX) {
+            minX = point.dx;
+          }
+          if (point.dx > maxX) {
+            maxX = point.dx;
+          }
+          if (point.dy < minY) {
+            minY = point.dy;
+          }
+          if (point.dy > maxY) {
+            maxY = point.dy;
+          }
+        }
+        final double padding = 2.0 + command.antialiasLevel.clamp(0, 3) * 1.2;
+        return Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
     }
   }
 
@@ -899,6 +976,27 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void endStroke() => _strokeEnd(this);
 
+  void drawFilledPolygon({
+    required List<Offset> points,
+    required Color color,
+    int antialiasLevel = 0,
+    bool erase = false,
+  }) {
+    if (_layers.isEmpty || _activeLayer.locked) {
+      return;
+    }
+    if (points.length < 3) {
+      return;
+    }
+    final PaintingDrawCommand command = PaintingDrawCommand.filledPolygon(
+      points: List<Offset>.from(points),
+      colorValue: color.value,
+      antialiasLevel: antialiasLevel.clamp(0, 3),
+      erase: erase,
+    );
+    _dispatchDirectPaintCommand(command);
+  }
+
   bool applyAntialiasToActiveLayer(int level, {bool previewOnly = false}) {
     if (_layers.isEmpty) {
       return false;
@@ -1021,8 +1119,7 @@ class BitmapCanvasController extends ChangeNotifier {
   );
 
   List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
-  Future<void> waitForPendingWorkerTasks() =>
-      _waitForPendingWorkerTasks();
+  Future<void> waitForPendingWorkerTasks() => _waitForPendingWorkerTasks();
 
   CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) =>
       _layerManagerBuildClipboardLayer(this, id, mask: mask);
@@ -1086,17 +1183,11 @@ class BitmapCanvasController extends ChangeNotifier {
       return null;
     }
 
-    final Uint32List srcPixels = pixelCache ??
-        rgbaToPixels(snapshot.bitmap!, srcWidth, srcHeight);
+    final Uint32List srcPixels =
+        pixelCache ?? rgbaToPixels(snapshot.bitmap!, srcWidth, srcHeight);
 
-    final int startX = math.max(
-      0,
-      math.max(target.left.floor(), offsetX),
-    );
-    final int startY = math.max(
-      0,
-      math.max(target.top.floor(), offsetY),
-    );
+    final int startX = math.max(0, math.max(target.left.floor(), offsetX));
+    final int startY = math.max(0, math.max(target.top.floor(), offsetY));
     final int endX = math.min(
       _width,
       math.min(target.right.ceil(), offsetX + srcWidth),
@@ -1112,8 +1203,9 @@ class BitmapCanvasController extends ChangeNotifier {
     final Uint32List destPixels = surface.pixels;
     final int copyWidth = endX - startX;
     final int copyHeight = endY - startY;
-    Uint32List? workerPatch =
-        _isMultithreaded ? Uint32List(copyWidth * copyHeight) : null;
+    Uint32List? workerPatch = _isMultithreaded
+        ? Uint32List(copyWidth * copyHeight)
+        : null;
     int workerOffset = 0;
     for (int y = startY; y < endY; y++) {
       final int srcY = y - offsetY;
@@ -1146,29 +1238,23 @@ class BitmapCanvasController extends ChangeNotifier {
       endY.toDouble(),
     );
     if (markDirty) {
-      _markDirty(
-        region: dirtyRegion,
-        layerId: layer.id,
-        pixelsDirty: true,
-      );
+      _markDirty(region: dirtyRegion, layerId: layer.id, pixelsDirty: true);
     }
     if (workerPatch != null) {
-      unawaited(_ensurePaintingWorker().syncSurfacePatch(
-        left: startX,
-        top: startY,
-        width: copyWidth,
-        height: copyHeight,
-        pixels: workerPatch,
-      ));
+      unawaited(
+        _ensurePaintingWorker().syncSurfacePatch(
+          left: startX,
+          top: startY,
+          width: copyWidth,
+          height: copyHeight,
+          pixels: workerPatch,
+        ),
+      );
     }
     return dirtyRegion;
   }
 
-  void _fillSurfaceRegion(
-    BitmapSurface surface,
-    Rect region,
-    Color color,
-  ) {
+  void _fillSurfaceRegion(BitmapSurface surface, Rect region, Color color) {
     final int startX = math.max(0, region.left.floor());
     final int startY = math.max(0, region.top.floor());
     final int endX = math.min(_width, region.right.ceil());
@@ -1204,16 +1290,13 @@ class BitmapCanvasController extends ChangeNotifier {
     );
   }
 
-  void _markDirty({
-    Rect? region,
-    String? layerId,
-    bool pixelsDirty = true,
-  }) => _compositeMarkDirty(
-    this,
-    region: region,
-    layerId: layerId,
-    pixelsDirty: pixelsDirty,
-  );
+  void _markDirty({Rect? region, String? layerId, bool pixelsDirty = true}) =>
+      _compositeMarkDirty(
+        this,
+        region: region,
+        layerId: layerId,
+        pixelsDirty: pixelsDirty,
+      );
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 
@@ -1231,14 +1314,14 @@ class BitmapCanvasController extends ChangeNotifier {
     if (region.isEmpty) {
       return;
     }
-    final _PendingWorkerDrawBatch batch =
-        _pendingWorkerDrawBatch ??= _PendingWorkerDrawBatch(region);
+    final _PendingWorkerDrawBatch batch = _pendingWorkerDrawBatch ??=
+        _PendingWorkerDrawBatch(region);
     batch.add(region, command);
     final bool exceededCommandLimit =
         batch.commands.length >= _kMaxWorkerBatchCommands;
     final double batchArea = batch.region.width * batch.region.height;
-    final bool exceededAreaLimit = !batchArea.isFinite ||
-        batchArea >= _kMaxWorkerBatchPixels;
+    final bool exceededAreaLimit =
+        !batchArea.isFinite || batchArea >= _kMaxWorkerBatchPixels;
     if (exceededCommandLimit || exceededAreaLimit) {
       _scheduleWorkerDrawFlush(forceImmediate: true);
     } else {
@@ -1268,8 +1351,9 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     _pendingWorkerDrawBatch = null;
     final Rect region = batch.region;
-    final List<PaintingDrawCommand> commands =
-        List<PaintingDrawCommand>.from(batch.commands);
+    final List<PaintingDrawCommand> commands = List<PaintingDrawCommand>.from(
+      batch.commands,
+    );
     _enqueueWorkerPatchFuture(
       _executeWorkerDraw(region: region, commands: commands),
       onError: () => _applyPaintingCommandsSynchronously(region, commands),
@@ -1349,11 +1433,7 @@ class BitmapCanvasController extends ChangeNotifier {
       return;
     }
     final Uint32List snapshot = Uint32List.fromList(layer.surface.pixels);
-    await worker.setSurface(
-      width: _width,
-      height: _height,
-      pixels: snapshot,
-    );
+    await worker.setSurface(width: _width, height: _height, pixels: snapshot);
     _paintingWorkerSyncedLayerId = layer.id;
     _paintingWorkerSyncedRevision = layer.revision;
   }
@@ -1380,46 +1460,51 @@ class BitmapCanvasController extends ChangeNotifier {
     final int sequence = _paintingWorkerNextSequence++;
     final int generation = _paintingWorkerGeneration;
     _paintingWorkerPendingTasks++;
-    future.then((PaintingWorkerPatch? patch) {
-      if (generation != _paintingWorkerGeneration ||
-          sequence < _paintingWorkerNextApplySequence) {
-        return;
-      }
-      if (patch == null) {
-        onError?.call();
-      }
-      _pendingWorkerPatches[sequence] = patch;
-      _processPendingWorkerPatches();
-    }).catchError((Object error, StackTrace stackTrace) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'CanvasPaintingWorker',
-          context: ErrorDescription('while running painting task'),
-        ),
-      );
-      if (generation != _paintingWorkerGeneration ||
-          sequence < _paintingWorkerNextApplySequence) {
-        return;
-      }
-      onError?.call();
-      _pendingWorkerPatches[sequence] = null;
-      _processPendingWorkerPatches();
-    }).whenComplete(() {
-      if (generation == _paintingWorkerGeneration &&
-          _paintingWorkerPendingTasks > 0) {
-        _paintingWorkerPendingTasks--;
-      }
-      _notifyWorkerIdle();
-    });
+    future
+        .then((PaintingWorkerPatch? patch) {
+          if (generation != _paintingWorkerGeneration ||
+              sequence < _paintingWorkerNextApplySequence) {
+            return;
+          }
+          if (patch == null) {
+            onError?.call();
+          }
+          _pendingWorkerPatches[sequence] = patch;
+          _processPendingWorkerPatches();
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: error,
+              stack: stackTrace,
+              library: 'CanvasPaintingWorker',
+              context: ErrorDescription('while running painting task'),
+            ),
+          );
+          if (generation != _paintingWorkerGeneration ||
+              sequence < _paintingWorkerNextApplySequence) {
+            return;
+          }
+          onError?.call();
+          _pendingWorkerPatches[sequence] = null;
+          _processPendingWorkerPatches();
+        })
+        .whenComplete(() {
+          if (generation == _paintingWorkerGeneration &&
+              _paintingWorkerPendingTasks > 0) {
+            _paintingWorkerPendingTasks--;
+          }
+          _notifyWorkerIdle();
+        });
   }
 
   void _processPendingWorkerPatches() {
-    while (_pendingWorkerPatches
-        .containsKey(_paintingWorkerNextApplySequence)) {
-      final PaintingWorkerPatch? patch =
-          _pendingWorkerPatches.remove(_paintingWorkerNextApplySequence);
+    while (_pendingWorkerPatches.containsKey(
+      _paintingWorkerNextApplySequence,
+    )) {
+      final PaintingWorkerPatch? patch = _pendingWorkerPatches.remove(
+        _paintingWorkerNextApplySequence,
+      );
       if (patch != null) {
         _applyWorkerPatch(patch);
       }
@@ -1529,11 +1614,7 @@ class BitmapCanvasController extends ChangeNotifier {
     return rgba;
   }
 
-  static Uint32List rgbaToPixels(
-    Uint8List rgba,
-    int width,
-    int height,
-  ) {
+  static Uint32List rgbaToPixels(Uint8List rgba, int width, int height) {
     final int length = width * height;
     final Uint32List pixels = Uint32List(length);
     for (int i = 0; i < length; i++) {
@@ -1666,8 +1747,10 @@ class BitmapCanvasController extends ChangeNotifier {
           if (center == null || radius == null || shapeIndex == null) {
             continue;
           }
-          final int clampedShape =
-              shapeIndex.clamp(0, BrushShape.values.length - 1);
+          final int clampedShape = shapeIndex.clamp(
+            0,
+            BrushShape.values.length - 1,
+          );
           surface.drawBrushStamp(
             center: center,
             radius: radius,
@@ -1703,7 +1786,9 @@ class BitmapCanvasController extends ChangeNotifier {
           final Offset? end = command.end;
           final double? startRadius = command.startRadius;
           final double? endRadius = command.endRadius;
-          if (start == null || end == null || startRadius == null ||
+          if (start == null ||
+              end == null ||
+              startRadius == null ||
               endRadius == null) {
             continue;
           }
@@ -1726,12 +1811,17 @@ class BitmapCanvasController extends ChangeNotifier {
           final double? startRadius = command.startRadius;
           final double? endRadius = command.endRadius;
           final int? shapeIndex = command.shapeIndex;
-          if (start == null || end == null || startRadius == null ||
-              endRadius == null || shapeIndex == null) {
+          if (start == null ||
+              end == null ||
+              startRadius == null ||
+              endRadius == null ||
+              shapeIndex == null) {
             continue;
           }
-          final int clampedShape =
-              shapeIndex.clamp(0, BrushShape.values.length - 1);
+          final int clampedShape = shapeIndex.clamp(
+            0,
+            BrushShape.values.length - 1,
+          );
           _applyStampSegmentFallback(
             surface: surface,
             start: start,
@@ -1751,6 +1841,20 @@ class BitmapCanvasController extends ChangeNotifier {
           // Synchronous fallback for vector stroke is not implemented on BitmapSurface.
           // This case should only be reached if the worker fails.
           break;
+        case PaintingDrawCommandType.filledPolygon:
+          final List<Offset>? points = command.points;
+          if (points == null || points.length < 3) {
+            continue;
+          }
+          surface.drawFilledPolygon(
+            vertices: points,
+            color: color,
+            mask: mask,
+            antialiasLevel: command.antialiasLevel,
+            erase: erase,
+          );
+          anyChange = true;
+          break;
       }
     }
     if (!anyChange) {
@@ -1758,11 +1862,7 @@ class BitmapCanvasController extends ChangeNotifier {
     }
     _resetWorkerSurfaceSync();
     _activeLayer.revision += 1;
-    _markDirty(
-      region: region,
-      layerId: _activeLayer.id,
-      pixelsDirty: true,
-    );
+    _markDirty(region: region, layerId: _activeLayer.id, pixelsDirty: true);
   }
 
   void _applyStampSegmentFallback({
@@ -1800,7 +1900,8 @@ class BitmapCanvasController extends ChangeNotifier {
     final int startIndex = includeStart ? 0 : 1;
     for (int i = startIndex; i <= samples; i++) {
       final double t = samples == 0 ? 1.0 : (i / samples);
-      final double radius = ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
+      final double radius =
+          ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
       final double sampleX = ui.lerpDouble(start.dx, end.dx, t) ?? end.dx;
       final double sampleY = ui.lerpDouble(start.dy, end.dy, t) ?? end.dy;
       surface.drawBrushStamp(
@@ -1849,17 +1950,16 @@ class BitmapCanvasController extends ChangeNotifier {
     final TransferableTypedData pixelData = TransferableTypedData.fromList(
       <Uint8List>[Uint8List.view(pixels.buffer)],
     );
-    final Uint8List mask =
-        await _ensurePaintingWorker().computeSelectionMask(
-          PaintingSelectionMaskRequest(
-            width: _width,
-            height: _height,
-            pixels: pixelData,
-            startX: start.dx.floor(),
-            startY: start.dy.floor(),
-            tolerance: tolerance,
-          ),
-        );
+    final Uint8List mask = await _ensurePaintingWorker().computeSelectionMask(
+      PaintingSelectionMaskRequest(
+        width: _width,
+        height: _height,
+        pixels: pixelData,
+        startX: start.dx.floor(),
+        startY: start.dy.floor(),
+        tolerance: tolerance,
+      ),
+    );
     return mask;
   }
 }

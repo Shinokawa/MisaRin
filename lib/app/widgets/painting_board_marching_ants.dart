@@ -7,31 +7,49 @@ class _MarchingAntsStroke {
     required double strokeWidth,
     required Color lightColor,
     required Color darkColor,
-  })  : assert(dashLength > 0),
-        assert(dashGap >= 0),
-        _lightPaint = Paint()
-          ..color = lightColor
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth
-          ..strokeCap = StrokeCap.square,
-        _darkPaint = Paint()
-          ..color = darkColor
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth
-          ..strokeCap = StrokeCap.square;
+  }) : assert(dashLength > 0),
+       assert(dashGap >= 0),
+       _baseStrokeWidth = strokeWidth,
+       _lightPaint = Paint()
+         ..color = lightColor
+         ..style = PaintingStyle.stroke
+         ..strokeWidth = strokeWidth
+         ..strokeCap = StrokeCap.square,
+       _darkPaint = Paint()
+         ..color = darkColor
+         ..style = PaintingStyle.stroke
+         ..strokeWidth = strokeWidth
+         ..strokeCap = StrokeCap.square;
 
   final double dashLength;
   final double dashGap;
+  double? _baseStrokeWidth;
   final Paint _lightPaint;
   final Paint _darkPaint;
 
   final LinkedHashMap<int, _MarchingAntsPathCache> _cache =
       LinkedHashMap<int, _MarchingAntsPathCache>();
 
-  void paint(Canvas canvas, Path path, double phase) {
+  void paint(
+    Canvas canvas,
+    Path path,
+    double phase, {
+    double viewportScale = 1.0,
+  }) {
     double effectivePhase = phase;
     if (!effectivePhase.isFinite) {
       effectivePhase = 0.0;
+    }
+
+    double effectiveScale = viewportScale;
+    if (!effectiveScale.isFinite || effectiveScale <= 0) {
+      effectiveScale = 1.0;
+    }
+    final double baseStrokeWidth = _resolveBaseStrokeWidth();
+    final double targetStrokeWidth = baseStrokeWidth / effectiveScale;
+    if (_lightPaint.strokeWidth != targetStrokeWidth) {
+      _lightPaint.strokeWidth = targetStrokeWidth;
+      _darkPaint.strokeWidth = targetStrokeWidth;
     }
 
     final double pattern = dashLength + dashGap;
@@ -55,13 +73,7 @@ class _MarchingAntsStroke {
     final double distanceOffset = -offset;
 
     for (final ui.PathMetric metric in cache.metrics) {
-      _paintMetric(
-        canvas,
-        metric,
-        distanceOffset,
-        pattern,
-        wrapCount,
-      );
+      _paintMetric(canvas, metric, distanceOffset, pattern, wrapCount);
     }
   }
 
@@ -100,11 +112,21 @@ class _MarchingAntsStroke {
       segmentIndex += 1;
     }
   }
+
+  double _resolveBaseStrokeWidth() {
+    final double? base = _baseStrokeWidth;
+    if (base != null) {
+      return base;
+    }
+    final double fallback = _lightPaint.strokeWidth;
+    _baseStrokeWidth = fallback;
+    return fallback;
+  }
 }
 
 class _MarchingAntsPathCache {
   _MarchingAntsPathCache(this.path)
-      : metrics = path.computeMetrics(forceClosed: false).toList(growable: false);
+    : metrics = path.computeMetrics(forceClosed: false).toList(growable: false);
 
   final Path path;
   final List<ui.PathMetric> metrics;

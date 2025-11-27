@@ -117,10 +117,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     }
     await _prepareSelectionUndo();
     setState(() {
-      _applySelectionPathInternal(
-        path,
-        mask: mask,
-      );
+      _applySelectionPathInternal(path, mask: mask);
       if (identical(_magicWandPreviewMask, mask)) {
         _magicWandPreviewMask = null;
       }
@@ -861,12 +858,14 @@ class _SelectionOverlayPainter extends CustomPainter {
     this.selectionPreviewPath,
     this.magicPreviewPath,
     required this.dashPhase,
+    required this.viewportScale,
   });
 
   final Path? selectionPath;
   final Path? selectionPreviewPath;
   final Path? magicPreviewPath;
   final double dashPhase;
+  final double viewportScale;
 
   static final Paint _previewFillPaint = Paint()
     ..color = _kSelectionPreviewFillColor
@@ -883,14 +882,29 @@ class _SelectionOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (magicPreviewPath != null) {
       canvas.drawPath(magicPreviewPath!, _previewFillPaint);
-      _selectionStroke.paint(canvas, magicPreviewPath!, dashPhase);
+      _selectionStroke.paint(
+        canvas,
+        magicPreviewPath!,
+        dashPhase,
+        viewportScale: viewportScale,
+      );
     }
     if (selectionPreviewPath != null) {
       canvas.drawPath(selectionPreviewPath!, _previewFillPaint);
-      _selectionStroke.paint(canvas, selectionPreviewPath!, dashPhase);
+      _selectionStroke.paint(
+        canvas,
+        selectionPreviewPath!,
+        dashPhase,
+        viewportScale: viewportScale,
+      );
     }
     if (selectionPath != null) {
-      _selectionStroke.paint(canvas, selectionPath!, dashPhase);
+      _selectionStroke.paint(
+        canvas,
+        selectionPath!,
+        dashPhase,
+        viewportScale: viewportScale,
+      );
     }
   }
 
@@ -899,6 +913,7 @@ class _SelectionOverlayPainter extends CustomPainter {
     return oldDelegate.selectionPath != selectionPath ||
         oldDelegate.selectionPreviewPath != selectionPreviewPath ||
         oldDelegate.magicPreviewPath != magicPreviewPath ||
-        oldDelegate.dashPhase != dashPhase;
+        oldDelegate.dashPhase != dashPhase ||
+        oldDelegate.viewportScale != viewportScale;
   }
 }

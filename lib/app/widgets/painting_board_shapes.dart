@@ -27,6 +27,18 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     });
   }
 
+  void _updateShapeFillEnabled(bool value) {
+    if (_shapeFillEnabled == value) {
+      return;
+    }
+    setState(() {
+      _shapeFillEnabled = value;
+    });
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.shapeToolFillEnabled = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _resetShapeDrawingState() {
     _shapeDragStart = null;
     _shapeDragCurrent = null;
@@ -387,6 +399,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     final Offset strokeStart = effectivePoints.first;
     final bool erase = _brushToolsEraserMode;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    if (_shapeFillEnabled && _shapeToolVariant != ShapeToolVariant.line) {
+      _paintShapeFill(strokePoints, strokeColor, erase);
+    }
     _controller.beginStroke(
       strokeStart,
       color: strokeColor,
@@ -421,6 +436,49 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     _markDirty();
   }
 
+  void _paintShapeFill(
+    List<Offset> strokePoints,
+    Color strokeColor,
+    bool erase,
+  ) {
+    if (strokePoints.length < 3) {
+      return;
+    }
+    final List<Offset> polygon = _buildShapeFillPolygon(strokePoints);
+    if (polygon.length < 3) {
+      return;
+    }
+    _controller.drawFilledPolygon(
+      points: polygon,
+      color: strokeColor,
+      antialiasLevel: _penAntialiasLevel,
+      erase: erase,
+    );
+  }
+
+  List<Offset> _buildShapeFillPolygon(List<Offset> strokePoints) {
+    final List<Offset> polygon = <Offset>[];
+    Offset? previous;
+    for (final Offset point in strokePoints) {
+      if (previous != null &&
+          (point.dx - previous.dx).abs() < 1e-4 &&
+          (point.dy - previous.dy).abs() < 1e-4) {
+        continue;
+      }
+      polygon.add(point);
+      previous = point;
+    }
+    if (polygon.length >= 3) {
+      final Offset first = polygon.first;
+      final Offset last = polygon.last;
+      if ((first.dx - last.dx).abs() < 1e-4 &&
+          (first.dy - last.dy).abs() < 1e-4) {
+        polygon.removeLast();
+      }
+    }
+    return polygon;
+  }
+
   Rect? _shapePreviewBoundsForPoints(List<Offset> strokePoints) {
     if (strokePoints.isEmpty) {
       return null;
@@ -439,7 +497,5 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     return Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
   }
 
-  double get _shapePreviewPadding =>
-      math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
-
+  double get _shapePreviewPadding => math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
 }

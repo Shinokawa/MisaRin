@@ -290,6 +290,8 @@ mixin _PaintingBoardBuildMixin
           onSelectionShapeChanged: _updateSelectionShape,
           shapeToolVariant: shapeToolVariant,
           onShapeToolVariantChanged: _updateShapeToolVariant,
+          shapeFillEnabled: _shapeFillEnabled,
+          onShapeFillChanged: _updateShapeFillEnabled,
           onSizeChanged: _updateToolSettingsCardSize,
           magicWandTolerance: _magicWandTolerance,
           onMagicWandToleranceChanged: _updateMagicWandTolerance,
@@ -671,15 +673,17 @@ mixin _PaintingBoardBuildMixin
                                                     shapePreviewPath != null)
                                                   Positioned.fill(
                                                     child: CustomPaint(
-                                                      painter:
-                                                          _PreviewPathPainter(
-                                                            path:
-                                                                shapePreviewPath!,
-                                                            color:
-                                                                _primaryColor,
-                                                            strokeWidth:
-                                                                _penStrokeWidth,
-                                                          ),
+                                                      painter: _PreviewPathPainter(
+                                                        path: shapePreviewPath!,
+                                                        color: _primaryColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                        fill:
+                                                            _shapeFillEnabled &&
+                                                            shapeToolVariant !=
+                                                                ShapeToolVariant
+                                                                    .line,
+                                                      ),
                                                     ),
                                                   ),
                                                 if (hasSelectionOverlay)
@@ -694,6 +698,8 @@ mixin _PaintingBoardBuildMixin
                                                             magicWandPreviewPath,
                                                         dashPhase:
                                                             selectionDashPhase,
+                                                        viewportScale:
+                                                            _viewport.scale,
                                                       ),
                                                     ),
                                                   ),

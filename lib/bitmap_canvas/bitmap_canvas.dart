@@ -200,6 +200,60 @@ class BitmapSurface {
     }
   }
 
+  void drawFilledPolygon({
+    required List<Offset> vertices,
+    required Color color,
+    Uint8List? mask,
+    int antialiasLevel = 0,
+    bool erase = false,
+  }) {
+    if (vertices.length < 3) {
+      return;
+    }
+    final List<Offset> sanitized = _sanitizePolygonVertices(vertices);
+    if (sanitized.length < 3) {
+      return;
+    }
+    double minX = sanitized.first.dx;
+    double maxX = sanitized.first.dx;
+    double minY = sanitized.first.dy;
+    double maxY = sanitized.first.dy;
+    for (final Offset vertex in sanitized) {
+      if (vertex.dx < minX) {
+        minX = vertex.dx;
+      }
+      if (vertex.dx > maxX) {
+        maxX = vertex.dx;
+      }
+      if (vertex.dy < minY) {
+        minY = vertex.dy;
+      }
+      if (vertex.dy > maxY) {
+        maxY = vertex.dy;
+      }
+    }
+    if (minX.isNaN || maxX.isNaN || minY.isNaN || maxY.isNaN) {
+      return;
+    }
+    final int level = antialiasLevel.clamp(0, 3);
+    final double padding = _featherForLevel(level) + 1.5;
+    final Rect bounds = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
+    final double longestSide = math.max(
+      bounds.width.abs(),
+      bounds.height.abs(),
+    );
+    final double radius = math.max(longestSide * 0.5, 0.01);
+    _drawPolygonStamp(
+      vertices: sanitized,
+      bounds: bounds,
+      radius: radius,
+      color: color,
+      mask: mask,
+      antialiasLevel: level,
+      erase: erase,
+    );
+  }
+
   void drawBrushStamp({
     required Offset center,
     required double radius,
@@ -256,6 +310,32 @@ class BitmapSurface {
   double _featherForLevel(int level) {
     const List<double> feather = <double>[0.0, 0.7, 1.1, 1.6];
     return feather[level.clamp(0, feather.length - 1)];
+  }
+
+  List<Offset> _sanitizePolygonVertices(List<Offset> vertices) {
+    if (vertices.isEmpty) {
+      return const <Offset>[];
+    }
+    final List<Offset> sanitized = <Offset>[];
+    Offset? previous;
+    for (final Offset vertex in vertices) {
+      if (previous != null &&
+          (vertex.dx - previous.dx).abs() < 1e-4 &&
+          (vertex.dy - previous.dy).abs() < 1e-4) {
+        continue;
+      }
+      sanitized.add(vertex);
+      previous = vertex;
+    }
+    if (sanitized.length >= 2) {
+      final Offset first = sanitized.first;
+      final Offset last = sanitized.last;
+      if ((first.dx - last.dx).abs() < 1e-4 &&
+          (first.dy - last.dy).abs() < 1e-4) {
+        sanitized.removeLast();
+      }
+    }
+    return sanitized;
   }
 
   void _drawPolygonStamp({
