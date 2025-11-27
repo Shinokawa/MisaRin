@@ -35,6 +35,7 @@ class AppPreferences {
     this.bucketTolerance = _defaultBucketTolerance,
     this.magicWandTolerance = _defaultMagicWandTolerance,
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
+    this.vectorDrawingEnabled = _defaultVectorDrawingEnabled,
     this.showFpsOverlay = _defaultShowFpsOverlay,
     this.workspaceLayout = _defaultWorkspaceLayout,
     this.floatingColorPanelHeight,
@@ -45,7 +46,7 @@ class AppPreferences {
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 21;
+  static const int _version = 22;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -69,6 +70,7 @@ class AppPreferences {
   static const int _defaultBucketTolerance = 0;
   static const int _defaultMagicWandTolerance = 0;
   static const bool _defaultBrushToolsEraserMode = false;
+  static const bool _defaultVectorDrawingEnabled = true;
   static const int _defaultBucketAntialiasLevel = 0;
   static const bool _defaultShowFpsOverlay = false;
   static const WorkspaceLayoutPreference _defaultWorkspaceLayout =
@@ -98,6 +100,8 @@ class AppPreferences {
   static const int defaultMagicWandTolerance = _defaultMagicWandTolerance;
   static const bool defaultBrushToolsEraserMode =
       _defaultBrushToolsEraserMode;
+  static const bool defaultVectorDrawingEnabled =
+      _defaultVectorDrawingEnabled;
   static const int defaultBucketAntialiasLevel =
       _defaultBucketAntialiasLevel;
   static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
@@ -131,6 +135,7 @@ class AppPreferences {
   int bucketTolerance;
   int magicWandTolerance;
   bool brushToolsEraserMode;
+  bool vectorDrawingEnabled;
   int bucketAntialiasLevel;
   bool showFpsOverlay;
   WorkspaceLayoutPreference workspaceLayout;
@@ -189,6 +194,10 @@ class AppPreferences {
             final double decodedSai2LayerSplit = hasWorkspaceSplitPayload
                 ? _decodeRatioByte(bytes[31])
                 : _defaultSai2LayerPanelSplit;
+            final bool decodedVectorDrawingEnabled =
+                version >= 22 && bytes.length >= 33
+                    ? bytes[32] != 0
+                    : _defaultVectorDrawingEnabled;
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
             _instance = AppPreferences._(
@@ -219,6 +228,7 @@ class AppPreferences {
               magicWandTolerance: _clampToleranceValue(bytes[21]),
               brushToolsEraserMode: bytes[22] != 0,
               bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
+              vectorDrawingEnabled: decodedVectorDrawingEnabled,
               showFpsOverlay: bytes[24] != 0,
               workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
               floatingColorPanelHeight: decodedFloatingColorHeight,
@@ -799,6 +809,7 @@ class AppPreferences {
       layerAdjustCropOutside: false,
       colorLineColor: _defaultColorLineColor,
       bucketSwallowColorLine: _defaultBucketSwallowColorLine,
+      vectorDrawingEnabled: _defaultVectorDrawingEnabled,
       workspaceLayout: _defaultWorkspaceLayout,
       floatingColorPanelHeight: null,
       sai2ColorPanelHeight: null,
@@ -891,6 +902,7 @@ class AppPreferences {
       (sai2ColorEncoded >> 8) & 0xff,
       sai2ToolSplitEncoded,
       sai2LayerSplitEncoded,
+      prefs.vectorDrawingEnabled ? 1 : 0,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }

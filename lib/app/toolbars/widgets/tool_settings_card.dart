@@ -49,6 +49,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onMagicWandToleranceChanged,
     required this.brushToolsEraserMode,
     required this.onBrushToolsEraserModeChanged,
+    required this.vectorDrawingEnabled,
+    required this.onVectorDrawingEnabledChanged,
     required this.strokeStabilizerMaxLevel,
     this.compactLayout = false,
   });
@@ -92,6 +94,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<int> onMagicWandToleranceChanged;
   final bool brushToolsEraserMode;
   final ValueChanged<bool> onBrushToolsEraserModeChanged;
+  final bool vectorDrawingEnabled;
+  final ValueChanged<bool> onVectorDrawingEnabledChanged;
   final int strokeStabilizerMaxLevel;
   final bool compactLayout;
 
@@ -338,6 +342,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           label: '转换为擦除',
           value: widget.brushToolsEraserMode,
           onChanged: widget.onBrushToolsEraserModeChanged,
+        ),
+      );
+      wrapChildren.add(
+        _buildToggleSwitchRow(
+          theme,
+          label: '矢量作画',
+          value: widget.vectorDrawingEnabled,
+          onChanged: widget.onVectorDrawingEnabledChanged,
         ),
       );
       if (widget.simulatePenPressure) {

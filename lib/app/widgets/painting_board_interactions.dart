@@ -266,6 +266,17 @@ mixin _PaintingBoardInteractionMixin
     _applyStylusSettingsToController();
   }
 
+  void _updateVectorDrawingEnabled(bool value) {
+    if (_vectorDrawingEnabled == value) {
+      return;
+    }
+    setState(() => _vectorDrawingEnabled = value);
+    _controller.setVectorDrawingEnabled(value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.vectorDrawingEnabled = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateBucketSampleAllLayers(bool value) {
     if (_bucketSampleAllLayers == value) {
       return;

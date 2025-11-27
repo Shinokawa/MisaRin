@@ -95,6 +95,7 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _currentStrokeEraseMode = false;
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
+  bool _vectorDrawingEnabled = true;
   static const double _kStylusSmoothing = 0.55;
   CanvasPaintingWorker? _paintingWorker;
   _PendingWorkerDrawBatch? _pendingWorkerDrawBatch;
@@ -211,6 +212,10 @@ class BitmapCanvasController extends ChangeNotifier {
       _layers.isEmpty ? null : _layers[_activeIndex].id;
 
   void _flushDeferredStrokeCommands() {
+    if (!_vectorDrawingEnabled) {
+      _commitDeferredStrokeCommandsAsRaster();
+      return;
+    }
     if (_currentStrokePoints.isEmpty) {
       _deferredStrokeCommands.clear();
       return;
@@ -350,6 +355,100 @@ class BitmapCanvasController extends ChangeNotifier {
     }
   }
 
+  void _flushRealtimeStrokeCommands() {
+    if (_vectorDrawingEnabled) {
+      return;
+    }
+    _commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
+  }
+
+  void _commitDeferredStrokeCommandsAsRaster({bool keepStrokeState = false}) {
+    if (_deferredStrokeCommands.isEmpty) {
+      if (!keepStrokeState) {
+        _currentStrokePoints.clear();
+        _currentStrokeRadii.clear();
+      }
+      return;
+    }
+    final List<PaintingDrawCommand> commands =
+        List<PaintingDrawCommand>.from(_deferredStrokeCommands);
+    _deferredStrokeCommands.clear();
+    if (_isMultithreaded) {
+      for (final PaintingDrawCommand command in commands) {
+        final Rect? bounds = _dirtyRectForCommand(command);
+        if (bounds == null || bounds.isEmpty) {
+          continue;
+        }
+        _enqueuePaintingWorkerCommand(region: bounds, command: command);
+      }
+    } else {
+      Rect? region;
+      for (final PaintingDrawCommand command in commands) {
+        final Rect? bounds = _dirtyRectForCommand(command);
+        if (bounds == null || bounds.isEmpty) {
+          continue;
+        }
+        region = region == null
+            ? bounds
+            : Rect.fromLTRB(
+                math.min(region.left, bounds.left),
+                math.min(region.top, bounds.top),
+                math.max(region.right, bounds.right),
+                math.max(region.bottom, bounds.bottom),
+              );
+      }
+      if (region != null) {
+        _applyPaintingCommandsSynchronously(region, commands);
+      }
+    }
+    if (!keepStrokeState) {
+      _currentStrokePoints.clear();
+      _currentStrokeRadii.clear();
+    }
+  }
+
+  Rect? _dirtyRectForCommand(PaintingDrawCommand command) {
+    switch (command.type) {
+      case PaintingDrawCommandType.brushStamp:
+        final Offset? center = command.center;
+        final double? radius = command.radius;
+        if (center == null || radius == null) {
+          return null;
+        }
+        return _strokeDirtyRectForCircle(center, radius);
+      case PaintingDrawCommandType.line:
+        final Offset? start = command.start;
+        final Offset? end = command.end;
+        final double? radius = command.radius;
+        if (start == null || end == null || radius == null) {
+          return null;
+        }
+        return _strokeDirtyRectForLine(start, end, radius);
+      case PaintingDrawCommandType.variableLine:
+        final Offset? start = command.start;
+        final Offset? end = command.end;
+        final double? startRadius = command.startRadius;
+        final double? endRadius = command.endRadius;
+        if (start == null || end == null || startRadius == null ||
+            endRadius == null) {
+          return null;
+        }
+        return _strokeDirtyRectForVariableLine(start, end, startRadius, endRadius);
+      case PaintingDrawCommandType.stampSegment:
+        final Offset? start = command.start;
+        final Offset? end = command.end;
+        final double? startRadius = command.startRadius;
+        final double? endRadius = command.endRadius;
+        if (start == null || end == null || startRadius == null ||
+            endRadius == null) {
+          return null;
+        }
+        return _strokeDirtyRectForVariableLine(start, end, startRadius, endRadius);
+      case PaintingDrawCommandType.vectorStroke:
+        return null;
+    }
+  }
+
   BitmapCanvasFrame? get frame => _currentFrame;
   Color get backgroundColor => _backgroundColor;
   int get width => _width;
@@ -392,6 +491,18 @@ class BitmapCanvasController extends ChangeNotifier {
       }
     }
     return false;
+  }
+
+  bool get vectorDrawingEnabled => _vectorDrawingEnabled;
+
+  void setVectorDrawingEnabled(bool enabled) {
+    if (_vectorDrawingEnabled == enabled) {
+      return;
+    }
+    _vectorDrawingEnabled = enabled;
+    if (!_vectorDrawingEnabled && _deferredStrokeCommands.isNotEmpty) {
+      _commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
+    }
   }
 
   void configureStylusPressure({

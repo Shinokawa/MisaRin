@@ -295,6 +295,8 @@ mixin _PaintingBoardBuildMixin
           onMagicWandToleranceChanged: _updateMagicWandTolerance,
           brushToolsEraserMode: _brushToolsEraserMode,
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
+          vectorDrawingEnabled: _vectorDrawingEnabled,
+          onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
           compactLayout: isSai2Layout,
         );
@@ -564,6 +566,7 @@ mixin _PaintingBoardBuildMixin
 
                                             // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
                                             final bool showActiveStroke =
+                                                _vectorDrawingEnabled &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&

@@ -213,6 +213,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
+  bool _vectorDrawingEnabled =
+      AppPreferences.defaultVectorDrawingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
@@ -1578,6 +1580,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
+    _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
     _brushShape = prefs.brushShape;
     _colorLineColor = prefs.colorLineColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
@@ -1595,6 +1598,7 @@ class PaintingBoardState extends _PaintingBoardBase
       initialLayers: layers,
       creationLogic: widget.settings.creationLogic,
     );
+    _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
@@ -1785,6 +1789,7 @@ class PaintingBoardState extends _PaintingBoardBase
         initialLayers: _buildInitialLayers(),
         creationLogic: widget.settings.creationLogic,
       );
+      _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
       _resetHistory();
