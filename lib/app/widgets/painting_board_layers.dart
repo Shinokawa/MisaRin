@@ -824,6 +824,23 @@ mixin _PaintingBoardLayerMixin
     );
   }
 
+  Map<String, bool> _computeLayerTileDimStates() {
+    final Map<String, bool> dimStates = <String, bool>{};
+    BitmapLayerState? clippingOwner;
+    for (final BitmapLayerState layer in _layers) {
+      if (!layer.clippingMask) {
+        clippingOwner = layer;
+        dimStates[layer.id] = !layer.visible;
+        continue;
+      }
+      final bool ownerDimmed = clippingOwner == null
+          ? true
+          : (dimStates[clippingOwner.id] ?? !clippingOwner.visible);
+      dimStates[layer.id] = !layer.visible || ownerDimmed;
+    }
+    return dimStates;
+  }
+
   Widget _buildLayerPanelContent(FluentThemeData theme) {
     final bool isSai2Layout =
         widget.toolbarLayoutStyle == PaintingToolbarLayoutStyle.sai2;
@@ -831,6 +848,7 @@ mixin _PaintingBoardLayerMixin
         .toList(growable: false)
         .reversed
         .toList(growable: false);
+    final Map<String, bool> layerTileDimStates = _computeLayerTileDimStates();
     final String? activeLayerId = _activeLayerId;
     final Color fallbackCardColor = theme.brightness.isDark
         ? const Color(0xFF1F1F1F)
@@ -886,7 +904,9 @@ mixin _PaintingBoardLayerMixin
                   itemBuilder: (context, index) {
                     final BitmapLayerState layer = orderedLayers[index];
                     final bool isActive = layer.id == activeLayerId;
-                    final double contentOpacity = layer.visible ? 1.0 : 0.45;
+                    final bool tileDimmed =
+                        layerTileDimStates[layer.id] ?? !layer.visible;
+                    final double contentOpacity = tileDimmed ? 0.45 : 1.0;
                     final Color background = isActive
                         ? Color.alphaBlend(
                             theme.resources.subtleFillColorSecondary,
@@ -1095,7 +1115,9 @@ mixin _PaintingBoardLayerMixin
                   itemBuilder: (context, index) {
                     final BitmapLayerState layer = orderedLayers[index];
                     final bool isActive = layer.id == activeLayerId;
-                    final double contentOpacity = layer.visible ? 1.0 : 0.45;
+                    final bool tileDimmed =
+                        layerTileDimStates[layer.id] ?? !layer.visible;
+                    final double contentOpacity = tileDimmed ? 0.45 : 1.0;
                     final Color background = isActive
                         ? Color.alphaBlend(
                             theme.resources.subtleFillColorSecondary,
