@@ -1023,14 +1023,15 @@ class BitmapCanvasController extends ChangeNotifier {
   void replaceLayer(String id, CanvasLayerData data) =>
       _layerManagerReplaceLayer(this, id, data);
 
-  void restoreLayerRegion(
+  Rect? restoreLayerRegion(
     CanvasLayerData snapshot,
     Rect region, {
     Uint32List? pixelCache,
+    bool markDirty = true,
   }) {
     final int index = _layers.indexWhere((layer) => layer.id == snapshot.id);
     if (index < 0 || region.isEmpty) {
-      return;
+      return null;
     }
     final Rect canvasRect = Rect.fromLTWH(
       0,
@@ -1040,7 +1041,7 @@ class BitmapCanvasController extends ChangeNotifier {
     );
     Rect target = region.intersect(canvasRect);
     if (target.isEmpty) {
-      return;
+      return null;
     }
     final BitmapLayerState layer = _layers[index];
     final BitmapSurface surface = layer.surface;
@@ -1051,8 +1052,10 @@ class BitmapCanvasController extends ChangeNotifier {
       final Color fill = snapshot.fillColor ?? const Color(0x00000000);
       _fillSurfaceRegion(surface, target, fill);
       surface.markDirty();
-      _markDirty(region: target, layerId: layer.id, pixelsDirty: true);
-      return;
+      if (markDirty) {
+        _markDirty(region: target, layerId: layer.id, pixelsDirty: true);
+      }
+      return target;
     }
 
     final int srcWidth = snapshot.bitmapWidth!;
@@ -1067,7 +1070,7 @@ class BitmapCanvasController extends ChangeNotifier {
     );
     target = target.intersect(snapshotRect);
     if (target.isEmpty) {
-      return;
+      return null;
     }
 
     final Uint32List srcPixels = pixelCache ??
@@ -1090,7 +1093,7 @@ class BitmapCanvasController extends ChangeNotifier {
       math.min(target.bottom.ceil(), offsetY + srcHeight),
     );
     if (startX >= endX || startY >= endY) {
-      return;
+      return null;
     }
 
     final Uint32List destPixels = surface.pixels;
@@ -1129,11 +1132,13 @@ class BitmapCanvasController extends ChangeNotifier {
       endX.toDouble(),
       endY.toDouble(),
     );
-    _markDirty(
-      region: dirtyRegion,
-      layerId: layer.id,
-      pixelsDirty: true,
-    );
+    if (markDirty) {
+      _markDirty(
+        region: dirtyRegion,
+        layerId: layer.id,
+        pixelsDirty: true,
+      );
+    }
     if (workerPatch != null) {
       unawaited(_ensurePaintingWorker().syncSurfacePatch(
         left: startX,
@@ -1143,6 +1148,7 @@ class BitmapCanvasController extends ChangeNotifier {
         pixels: workerPatch,
       ));
     }
+    return dirtyRegion;
   }
 
   void _fillSurfaceRegion(
@@ -1167,6 +1173,13 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) =>
       _layerManagerLoadLayers(this, layers, backgroundColor);
+
+  void markLayerRegionDirty(String id, Rect region) {
+    if (region.isEmpty) {
+      return;
+    }
+    _markDirty(region: region, layerId: id, pixelsDirty: true);
+  }
 
   void _updateComposite({required bool requiresFullSurface, Rect? region}) {
     _compositeUpdate(

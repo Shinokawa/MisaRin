@@ -1068,6 +1068,25 @@ mixin _PaintingBoardInteractionMixin
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;
     if (snapshot == null || start == null || end == null) {
+      _clearCurvePreviewOverlay();
+      return;
+    }
+    final Rect? previous = _curvePreviewDirtyRect;
+    Rect? restoredRegion;
+    if (previous != null) {
+      restoredRegion = _controller.restoreLayerRegion(
+        snapshot,
+        previous,
+        pixelCache: _curveRasterPreviewPixels,
+        markDirty: false,
+      );
+    }
+    final Rect? dirty = _curvePreviewDirtyRectForCurrentPath();
+    if (dirty == null) {
+      _curvePreviewDirtyRect = null;
+      if (restoredRegion != null) {
+        _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
+      }
       return;
     }
     final Offset control = _computeCurveControlPoint(
@@ -1075,13 +1094,11 @@ mixin _PaintingBoardInteractionMixin
       end,
       _curveDragDelta,
     );
-    _clearCurvePreviewOverlay();
-    final Rect? dirty = _curvePreviewDirtyRectForCurrentPath();
-    if (dirty == null) {
-      return;
-    }
     _curvePreviewDirtyRect = dirty;
     _drawQuadraticCurve(start, control, end);
+    if (restoredRegion != null) {
+      _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
+    }
   }
 
   void _disposeCurveRasterPreview({required bool restoreLayer}) {
@@ -1121,6 +1138,7 @@ mixin _PaintingBoardInteractionMixin
 
   double get _curvePreviewPadding =>
       math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
+
 
   Path? _buildCurvePreviewPath() {
     final Offset? start = _curveAnchor;

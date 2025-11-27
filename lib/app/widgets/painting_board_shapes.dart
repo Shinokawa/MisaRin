@@ -315,15 +315,32 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {
+      _clearShapePreviewOverlay();
       return;
     }
-    _clearShapePreviewOverlay();
+    final Rect? previous = _shapePreviewDirtyRect;
+    Rect? restoredRegion;
+    if (previous != null) {
+      restoredRegion = _controller.restoreLayerRegion(
+        snapshot,
+        previous,
+        pixelCache: _shapeRasterPreviewPixels,
+        markDirty: false,
+      );
+    }
     final Rect? dirty = _shapePreviewBoundsForPoints(strokePoints);
     if (dirty == null) {
+      _shapePreviewDirtyRect = null;
+      if (restoredRegion != null) {
+        _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
+      }
       return;
     }
     _shapePreviewDirtyRect = dirty;
     _paintShapeStroke(strokePoints, 0.0);
+    if (restoredRegion != null) {
+      _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
+    }
   }
 
   void _disposeShapeRasterPreview({required bool restoreLayer}) {
@@ -416,4 +433,5 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
 
   double get _shapePreviewPadding =>
       math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
+
 }
