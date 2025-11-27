@@ -991,7 +991,13 @@ mixin _PaintingBoardInteractionMixin
     if (!_vectorDrawingEnabled && _curveRasterPreviewSnapshot != null) {
       _clearCurvePreviewOverlay();
     }
-    _drawQuadraticCurve(start, control, end);
+    if (_vectorDrawingEnabled) {
+      _drawQuadraticCurve(start, control, end);
+    } else {
+      _controller.runSynchronousRasterization(() {
+        _drawQuadraticCurve(start, control, end);
+      });
+    }
     _disposeCurveRasterPreview(restoreLayer: false);
     setState(() {
       _curveAnchor = end;

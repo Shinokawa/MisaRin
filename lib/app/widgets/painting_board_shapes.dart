@@ -109,7 +109,13 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     }
     const double initialTimestamp = 0.0;
     _clearShapePreviewOverlay();
-    _paintShapeStroke(strokePoints, initialTimestamp);
+    if (_vectorDrawingEnabled) {
+      _paintShapeStroke(strokePoints, initialTimestamp);
+    } else {
+      _controller.runSynchronousRasterization(() {
+        _paintShapeStroke(strokePoints, initialTimestamp);
+      });
+    }
     _disposeShapeRasterPreview(restoreLayer: false);
 
     setState(_resetShapeDrawingState);
