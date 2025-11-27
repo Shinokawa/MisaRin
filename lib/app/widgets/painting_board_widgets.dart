@@ -218,6 +218,29 @@ class _PreviewPathPainter extends CustomPainter {
   }
 }
 
+class _ShapeFillOverlayPainter extends CustomPainter {
+  const _ShapeFillOverlayPainter({
+    required this.path,
+    required this.color,
+  });
+
+  final Path path;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(_ShapeFillOverlayPainter oldDelegate) {
+    return oldDelegate.path != path || oldDelegate.color != color;
+  }
+}
+
 class _ActiveStrokeOverlayPainter extends CustomPainter {
   const _ActiveStrokeOverlayPainter({
     required this.points,

@@ -750,6 +750,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Path? get selectionPath;
   Path? get selectionPreviewPath;
   Path? get shapePreviewPath;
+  Path? get shapeVectorFillOverlayPath;
+  Color? get shapeVectorFillOverlayColor;
   Path? get magicWandPreviewPath;
   double get selectionDashPhase;
   bool isPointInsideSelection(Offset position);
@@ -1810,10 +1812,24 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   void _handleControllerChanged() {
+    final bool shouldClearVectorFillOverlay =
+        _shapeVectorFillOverlayPath != null &&
+        _controller.committingStrokes.isEmpty;
     if (_maybeInitializeLayerTransformStateFromController()) {
+      if (shouldClearVectorFillOverlay) {
+        setState(() {
+          _shapeVectorFillOverlayPath = null;
+          _shapeVectorFillOverlayColor = null;
+        });
+      }
       return;
     }
-    setState(() {});
+    setState(() {
+      if (shouldClearVectorFillOverlay) {
+        _shapeVectorFillOverlayPath = null;
+        _shapeVectorFillOverlayColor = null;
+      }
+    });
   }
 }
 

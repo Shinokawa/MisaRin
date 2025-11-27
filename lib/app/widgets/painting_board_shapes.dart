@@ -13,10 +13,16 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   bool _shapeUndoCapturedForPreview = false;
   Rect? _shapePreviewDirtyRect;
   Uint32List? _shapeRasterPreviewPixels;
+  Path? _shapeVectorFillOverlayPath;
+  Color? _shapeVectorFillOverlayColor;
 
   ShapeToolVariant get shapeToolVariant => _shapeToolVariant;
 
   Path? get shapePreviewPath => _shapePreviewPath;
+
+  Path? get shapeVectorFillOverlayPath => _shapeVectorFillOverlayPath;
+
+  Color? get shapeVectorFillOverlayColor => _shapeVectorFillOverlayColor;
 
   void _updateShapeToolVariant(ShapeToolVariant variant) {
     if (_shapeToolVariant == variant) {
@@ -120,6 +126,17 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       await _pushUndoSnapshot();
     }
     const double initialTimestamp = 0.0;
+    Path? pendingFillOverlay;
+    Color? pendingFillOverlayColor;
+    final bool canShowFillOverlay = _vectorDrawingEnabled &&
+        _shapeFillEnabled &&
+        _shapeToolVariant != ShapeToolVariant.line &&
+        _shapePreviewPath != null;
+    if (canShowFillOverlay) {
+      pendingFillOverlay = Path()..addPath(_shapePreviewPath!, Offset.zero);
+      pendingFillOverlayColor =
+          _brushToolsEraserMode ? const Color(0xFFFFFFFF) : _primaryColor;
+    }
     _clearShapePreviewOverlay();
     if (_vectorDrawingEnabled) {
       _paintShapeStroke(strokePoints, initialTimestamp);
@@ -130,7 +147,13 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     }
     _disposeShapeRasterPreview(restoreLayer: false);
 
-    setState(_resetShapeDrawingState);
+    setState(() {
+      _resetShapeDrawingState();
+      if (pendingFillOverlay != null && pendingFillOverlayColor != null) {
+        _shapeVectorFillOverlayPath = pendingFillOverlay;
+        _shapeVectorFillOverlayColor = pendingFillOverlayColor;
+      }
+    });
   }
 
   void _cancelShapeDrawing() {
@@ -448,12 +471,20 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (polygon.length < 3) {
       return;
     }
-    _controller.drawFilledPolygon(
-      points: polygon,
-      color: strokeColor,
-      antialiasLevel: _penAntialiasLevel,
-      erase: erase,
-    );
+    void drawFill() {
+      _controller.drawFilledPolygon(
+        points: polygon,
+        color: strokeColor,
+        antialiasLevel: _penAntialiasLevel,
+        erase: erase,
+      );
+    }
+    if (_vectorDrawingEnabled) {
+      // 避免矢量异步落盘导致填充延迟，强制同步绘制填充区域消除闪烁。
+      _controller.runSynchronousRasterization(drawFill);
+    } else {
+      drawFill();
+    }
   }
 
   List<Offset> _buildShapeFillPolygon(List<Offset> strokePoints) {

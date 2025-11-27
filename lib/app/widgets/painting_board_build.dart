@@ -582,6 +582,12 @@ mixin _PaintingBoardBuildMixin
                                                     _controller
                                                         .committingStrokes
                                                         .isNotEmpty);
+                                            final Path?
+                                                pendingFillOverlayPath =
+                                                    shapeVectorFillOverlayPath;
+                                            final Color?
+                                                pendingFillOverlayColor =
+                                                    shapeVectorFillOverlayColor;
 
                                             return Stack(
                                               fit: StackFit.expand,
@@ -683,6 +689,25 @@ mixin _PaintingBoardBuildMixin
                                                             shapeToolVariant !=
                                                                 ShapeToolVariant
                                                                     .line,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (_vectorDrawingEnabled &&
+                                                    pendingFillOverlayPath !=
+                                                        null &&
+                                                    pendingFillOverlayColor !=
+                                                        null)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter:
+                                                            _ShapeFillOverlayPainter(
+                                                          path:
+                                                              pendingFillOverlayPath,
+                                                          color:
+                                                              pendingFillOverlayColor,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
