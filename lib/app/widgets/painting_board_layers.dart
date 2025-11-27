@@ -609,7 +609,7 @@ mixin _PaintingBoardLayerMixin
     }
     final bool isSai2Layout =
         widget.toolbarLayoutStyle == PaintingToolbarLayoutStyle.sai2;
-    final bool showHistoryButtons = isSai2Layout;
+    final bool showHistoryButtons = true;
 
     double clampedOpacity = activeLayer.opacity.clamp(0.0, 1.0).toDouble();
     if (_layerOpacityPreviewLayerId == activeLayer.id &&

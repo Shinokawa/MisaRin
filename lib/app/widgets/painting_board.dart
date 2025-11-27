@@ -691,10 +691,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final double buttonExtent = maxExtent.isFinite && maxExtent > 0
         ? maxExtent.clamp(36.0, CanvasToolbar.buttonSize)
         : CanvasToolbar.buttonSize;
-    final int toolCount = includeHistoryButtons
-        ? CanvasToolbar.buttonCountWithoutExit
-        : CanvasToolbar.buttonCountWithoutExit -
-              CanvasToolbar.historyButtonCount;
+    final int toolCount = CanvasToolbar.buttonCountWithoutExit +
+        (includeHistoryButtons ? CanvasToolbar.historyButtonCount : 0);
     final int rows = math.max(1, (toolCount / targetColumns).ceil());
     final double width = targetColumns * buttonExtent + totalSpacing;
     final double height =

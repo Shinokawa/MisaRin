@@ -49,7 +49,7 @@ class CanvasToolbar extends StatelessWidget {
   final bool includeExitButton;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 13;
+  static const int buttonCount = 11;
   static const int buttonCountWithoutExit = buttonCount - 1;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;

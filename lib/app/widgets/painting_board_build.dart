@@ -216,11 +216,12 @@ mixin _PaintingBoardBuildMixin
             widget.toolbarLayoutStyle;
         final bool isSai2Layout =
             toolbarStyle == PaintingToolbarLayoutStyle.sai2;
+        const bool includeHistoryOnToolbar = false;
         final CanvasToolbarLayout activeToolbarLayout =
             _resolveToolbarLayoutForStyle(
               toolbarStyle,
               toolbarLayout,
-              includeHistoryButtons: !isSai2Layout,
+              includeHistoryButtons: includeHistoryOnToolbar,
             );
         final bool detachExitButton = isSai2Layout;
         final Widget toolbarWidget = CanvasToolbar(
@@ -235,7 +236,7 @@ mixin _PaintingBoardBuildMixin
           onExit: widget.onRequestExit,
           layout: activeToolbarLayout,
           includeExitButton: !detachExitButton,
-          includeHistoryButtons: !isSai2Layout,
+          includeHistoryButtons: includeHistoryOnToolbar,
         );
         Widget buildExitButton() {
           final String shortcutLabel = ToolbarShortcuts.labelForPlatform(
