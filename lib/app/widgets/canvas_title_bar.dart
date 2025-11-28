@@ -60,35 +60,12 @@ class CanvasTitleBar extends StatelessWidget {
                 if (entries.isEmpty) {
                   return const SizedBox.shrink();
                 }
-                return Row(
-                  children: [
-                    Flexible(
-                      child: _WorkspaceTabStrip(
-                        entries: entries,
-                        activeId: activeId,
-                        onSelectTab: onSelectTab,
-                        onCloseTab: onCloseTab,
-                        onCreateTab: onCreateTab,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final double height = constraints.hasBoundedHeight
-                              ? constraints.maxHeight
-                              : 32;
-                          return WindowDragArea(
-                            canDragAtPosition: (_) => true,
-                            child: SizedBox(
-                              width: constraints.maxWidth,
-                              height: height,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                return _WorkspaceTabStrip(
+                  entries: entries,
+                  activeId: activeId,
+                  onSelectTab: onSelectTab,
+                  onCloseTab: onCloseTab,
+                  onCreateTab: onCreateTab,
                 );
               },
             ),
