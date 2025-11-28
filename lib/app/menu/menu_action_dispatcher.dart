@@ -41,6 +41,7 @@ class MenuActionHandler {
     this.paste,
     this.newLayer,
     this.generatePalette,
+    this.generateGradientPalette,
     this.importPalette,
     this.selectPaletteFromMenu,
     this.paletteMenuEntries = const <MenuPaletteMenuEntry>[],
@@ -86,6 +87,7 @@ class MenuActionHandler {
       paste = null,
       newLayer = null,
       generatePalette = null,
+      generateGradientPalette = null,
       importPalette = null,
       selectPaletteFromMenu = null,
       resizeImage = null,
@@ -129,6 +131,7 @@ class MenuActionHandler {
   final MenuAsyncAction? paste;
   final MenuAsyncAction? newLayer;
   final MenuAsyncAction? generatePalette;
+  final MenuAsyncAction? generateGradientPalette;
   final MenuAsyncAction? importPalette;
   final MenuPaletteAction? selectPaletteFromMenu;
   final List<MenuPaletteMenuEntry> paletteMenuEntries;

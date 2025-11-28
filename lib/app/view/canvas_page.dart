@@ -993,6 +993,10 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.showPaletteGenerator();
       },
+      generateGradientPalette: () {
+        final board = _activeBoard;
+        board?.showGradientPaletteFromPrimaryColor();
+      },
       showLayerAntialiasPanel: () {
         final board = _activeBoard;
         board?.showLayerAntialiasPanel();

@@ -82,6 +82,22 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     await _generatePaletteCard(count);
   }
 
+  void showGradientPaletteFromPrimaryColor() {
+    final List<Color> palette = _buildPrimaryColorGradientPalette();
+    if (palette.length < _minPaletteColorCount) {
+      AppNotifications.show(
+        context,
+        message: '当前颜色无法生成渐变调色盘，请重试',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    _addPaletteCard(
+      palette,
+      title: '渐变调色盘（当前颜色）',
+    );
+  }
+
   void _handlePaletteDragStart(int id) {
     _focusPaletteCard(id);
   }
@@ -102,7 +118,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         builder: (context) {
           final theme = FluentTheme.of(context);
           return ContentDialog(
-            title: const Text('生成调色盘'),
+            title: const Text('取色当前画布生成调色盘'),
             content: StatefulBuilder(
               builder: (context, setState) {
                 void handlePresetTap(int value) {
@@ -645,6 +661,70 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       }
     }
     return null;
+  }
+
+  List<Color> _buildPrimaryColorGradientPalette() {
+    final Color baseColor = _primaryColor;
+    final HSVColor baseHsv = _primaryHsv;
+    final Set<int> unique = <int>{};
+    final List<Color> collected = <Color>[];
+
+    void addColor(Color? color) {
+      if (color == null) {
+        return;
+      }
+      final Color sanitized = color.withAlpha(0xFF);
+      final int argb = sanitized.toARGB32();
+      if (unique.add(argb)) {
+        collected.add(sanitized);
+      }
+    }
+
+    addColor(baseColor);
+
+    const List<double> darkStops = <double>[0.2, 0.4, 0.6];
+    for (final double stop in darkStops) {
+      addColor(Color.lerp(baseColor, Colors.black, stop));
+    }
+    const List<double> lightStops = <double>[0.18, 0.35, 0.5];
+    for (final double stop in lightStops) {
+      addColor(Color.lerp(baseColor, Colors.white, stop));
+    }
+
+    const Color neutral = Color(0xFF7F7F7F);
+    const List<double> neutralStops = <double>[0.25, 0.5, 0.75];
+    for (final double stop in neutralStops) {
+      addColor(Color.lerp(baseColor, neutral, stop));
+    }
+
+    const List<double> saturationAdjustments = <double>[
+      -0.4,
+      -0.25,
+      -0.1,
+      0.15,
+      0.3,
+    ];
+    for (final double delta in saturationAdjustments) {
+      final double saturation = (baseHsv.saturation + delta).clamp(0.0, 1.0);
+      addColor(baseHsv.withSaturation(saturation).toColor());
+    }
+
+    const List<double> hueOffsets = <double>[-24, -12, 12, 24];
+    for (final double offset in hueOffsets) {
+      double hue = baseHsv.hue + offset;
+      while (hue < 0) {
+        hue += 360;
+      }
+      while (hue >= 360) {
+        hue -= 360;
+      }
+      addColor(baseHsv.withHue(hue).toColor());
+    }
+
+    if (collected.length > _maxPaletteColorCount) {
+      return collected.sublist(0, _maxPaletteColorCount);
+    }
+    return collected;
   }
 }
 
