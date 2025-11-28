@@ -337,8 +337,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   );
 
   Color get _pixelGridColor {
-    final double luminance = _controller.backgroundColor.computeLuminance();
-    return luminance < 0.5 ? Colors.white : Colors.black;
+    final Color background = _controller.backgroundColor;
+    return Color.fromARGB(
+      0xFF,
+      0xFF - background.red,
+      0xFF - background.green,
+      0xFF - background.blue,
+    );
   }
 
   bool _isWithinCanvasBounds(Offset position) {

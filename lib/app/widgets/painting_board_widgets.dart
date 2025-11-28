@@ -132,6 +132,8 @@ class _CheckboardPainter extends CustomPainter {
   }
 }
 
+const double _kPixelGridRelativeStrokeWidth = 0.35;
+
 class _PixelGridPainter extends CustomPainter {
   const _PixelGridPainter({
     required this.pixelWidth,
@@ -150,11 +152,10 @@ class _PixelGridPainter extends CustomPainter {
     if (pixelWidth <= 1 && pixelHeight <= 1) {
       return;
     }
-    final double resolvedScale = scale.abs() < 0.0001 ? 1.0 : scale.abs();
     final Paint paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0 / resolvedScale
+      ..strokeWidth = _kPixelGridRelativeStrokeWidth
       ..isAntiAlias = false;
     final double maxX = size.width;
     final double maxY = size.height;
