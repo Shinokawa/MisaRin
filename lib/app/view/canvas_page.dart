@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_settings.dart';
@@ -25,6 +26,7 @@ import '../widgets/app_notification.dart';
 import '../widgets/canvas_title_bar.dart';
 import '../widgets/painting_board.dart';
 import '../workspace/canvas_workspace_controller.dart';
+import '../workspace/workspace_shared_state.dart';
 
 class CanvasPage extends StatefulWidget {
   const CanvasPage({super.key, required this.document});
@@ -58,6 +60,8 @@ class CanvasPageState extends State<CanvasPage> {
       <String, List<ProjectDocument>>{};
   final Map<String, List<ProjectDocument>> _documentRedoStacks =
       <String, List<ProjectDocument>>{};
+  WorkspaceOverlaySnapshot? _sharedOverlaySnapshot;
+  ToolSettingsSnapshot? _sharedToolSettingsSnapshot;
 
   final List<_ImportedPaletteEntry> _importedPalettes =
       <_ImportedPaletteEntry>[];
@@ -156,6 +160,36 @@ class CanvasPageState extends State<CanvasPage> {
     });
     _workspace.updateDocument(entry);
     _workspace.markDirty(entry.id, true);
+  }
+
+  void _snapshotWorkspaceState([PaintingBoardState? board]) {
+    final PaintingBoardState? source = board ?? _activeBoard;
+    if (source == null) {
+      return;
+    }
+    _sharedOverlaySnapshot = source.buildWorkspaceOverlaySnapshot();
+    _sharedToolSettingsSnapshot = source.buildToolSettingsSnapshot();
+  }
+
+  void _restoreWorkspaceStateFor(String id) {
+    final PaintingBoardState? board = _boardFor(id);
+    if (board == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _restoreWorkspaceStateFor(id);
+      });
+      return;
+    }
+    final ToolSettingsSnapshot? toolSnapshot = _sharedToolSettingsSnapshot;
+    if (toolSnapshot != null) {
+      board.applyToolSettingsSnapshot(toolSnapshot);
+    }
+    final WorkspaceOverlaySnapshot? overlaySnapshot = _sharedOverlaySnapshot;
+    if (overlaySnapshot != null) {
+      unawaited(board.restoreWorkspaceOverlaySnapshot(overlaySnapshot));
+    }
   }
 
   int get _documentHistoryLimit => AppPreferences.instance.historyLimit;
@@ -832,6 +866,7 @@ class CanvasPageState extends State<CanvasPage> {
       _workspace.remove(id);
       return;
     }
+    final PaintingBoardState? previousBoard = _activeBoard;
     final CanvasWorkspaceEntry? neighbor = _workspace.neighborFor(id);
     if (_hasUnsavedChanges) {
       final bool canLeave = await _ensureCanLeave(
@@ -847,23 +882,37 @@ class CanvasPageState extends State<CanvasPage> {
       final String nextId = neighbor.id;
       _workspace.remove(id, activateAfter: nextId);
       _removeBoardKey(id);
-      _switchToEntry(_workspace.entryById(nextId));
+      _switchToEntry(
+        _workspace.entryById(nextId),
+        previousBoard: previousBoard,
+      );
       return;
     }
+    _snapshotWorkspaceState(previousBoard);
     _removeBoardKey(id);
     await _closePage();
   }
 
-  void _switchToEntry(CanvasWorkspaceEntry? entry) {
+  void _switchToEntry(
+    CanvasWorkspaceEntry? entry, {
+    PaintingBoardState? previousBoard,
+  }) {
     if (entry == null) {
       return;
     }
+    _snapshotWorkspaceState(previousBoard);
     _ensureBoardKey(entry.id);
     setState(() {
       _document = entry.document;
       _hasUnsavedChanges = entry.isDirty;
       _isSaving = false;
       _isAutoSaving = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _restoreWorkspaceStateFor(entry.id);
     });
   }
 

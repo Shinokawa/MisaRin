@@ -663,6 +663,42 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     return null;
   }
 
+  List<PaletteCardSnapshot> buildPaletteSnapshots() {
+    return _paletteCards
+        .map(
+          (entry) => PaletteCardSnapshot(
+            title: entry.title,
+            colors: entry.colors
+                .map((color) => color.value)
+                .toList(growable: false),
+            offset: entry.offset,
+            size: entry.size,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void restorePaletteSnapshots(List<PaletteCardSnapshot> snapshots) {
+    setState(() {
+      _paletteCards.clear();
+      _paletteCardSerial = 0;
+      for (final PaletteCardSnapshot snapshot in snapshots) {
+        final List<Color> colors = snapshot.colors
+            .map((value) => Color(value))
+            .toList(growable: false);
+        final Offset offset = _clampPaletteOffset(snapshot.offset, snapshot.size);
+        final _PaletteCardEntry entry = _PaletteCardEntry(
+          id: _paletteCardSerial++,
+          title: snapshot.title.trim().isEmpty ? '调色盘' : snapshot.title,
+          colors: colors,
+          offset: offset,
+        );
+        entry.size = snapshot.size;
+        _paletteCards.add(entry);
+      }
+    });
+  }
+
   List<Color> _buildPrimaryColorGradientPalette() {
     final Color baseColor = _primaryColor;
     final HSVColor baseHsv = _primaryHsv;

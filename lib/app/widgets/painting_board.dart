@@ -83,6 +83,7 @@ import 'app_notification.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../performance/stroke_latency_monitor.dart';
+import '../workspace/workspace_shared_state.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
@@ -1830,6 +1831,91 @@ class PaintingBoardState extends _PaintingBoardBase
         _shapeVectorFillOverlayColor = null;
       }
     });
+  }
+
+  WorkspaceOverlaySnapshot buildWorkspaceOverlaySnapshot() {
+    return WorkspaceOverlaySnapshot(
+      paletteCards: buildPaletteSnapshots(),
+      referenceCards: buildReferenceSnapshots(),
+    );
+  }
+
+  Future<void> restoreWorkspaceOverlaySnapshot(
+    WorkspaceOverlaySnapshot snapshot,
+  ) async {
+    restorePaletteSnapshots(snapshot.paletteCards);
+    await restoreReferenceSnapshots(snapshot.referenceCards);
+  }
+
+  ToolSettingsSnapshot buildToolSettingsSnapshot() {
+    return ToolSettingsSnapshot(
+      activeTool: _activeTool,
+      primaryColor: _primaryColor.value,
+      recentColors: _recentColors
+          .map((color) => color.value)
+          .toList(growable: false),
+      colorLineColor: _colorLineColor.value,
+      penStrokeWidth: _penStrokeWidth,
+      penStrokeSliderRange: _penStrokeSliderRange,
+      brushShape: _brushShape,
+      strokeStabilizerStrength: _strokeStabilizerStrength,
+      stylusPressureEnabled: _stylusPressureEnabled,
+      simulatePenPressure: _simulatePenPressure,
+      penPressureProfile: _penPressureProfile,
+      penAntialiasLevel: _penAntialiasLevel,
+      bucketAntialiasLevel: _bucketAntialiasLevel,
+      autoSharpPeakEnabled: _autoSharpPeakEnabled,
+      vectorDrawingEnabled: _vectorDrawingEnabled,
+      bucketSampleAllLayers: _bucketSampleAllLayers,
+      bucketContiguous: _bucketContiguous,
+      bucketSwallowColorLine: _bucketSwallowColorLine,
+      bucketTolerance: _bucketTolerance,
+      magicWandTolerance: _magicWandTolerance,
+      brushToolsEraserMode: _brushToolsEraserMode,
+      layerAdjustCropOutside: _layerAdjustCropOutside,
+      shapeFillEnabled: _shapeFillEnabled,
+      selectionShape: _selectionShape,
+      shapeToolVariant: _shapeToolVariant,
+    );
+  }
+
+  void applyToolSettingsSnapshot(ToolSettingsSnapshot snapshot) {
+    _setActiveTool(snapshot.activeTool);
+    _updateShapeToolVariant(snapshot.shapeToolVariant);
+    _updateShapeFillEnabled(snapshot.shapeFillEnabled);
+    _updateSelectionShape(snapshot.selectionShape);
+    _updatePenStrokeWidth(snapshot.penStrokeWidth);
+    if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
+      setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
+    }
+    _updateBrushShape(snapshot.brushShape);
+    _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
+    _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
+    _updatePenPressureSimulation(snapshot.simulatePenPressure);
+    _updatePenPressureProfile(snapshot.penPressureProfile);
+    _updatePenAntialiasLevel(snapshot.penAntialiasLevel);
+    _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
+    _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
+    _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
+    _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
+    _updateBucketContiguous(snapshot.bucketContiguous);
+    _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);
+    _updateBucketTolerance(snapshot.bucketTolerance);
+    _updateMagicWandTolerance(snapshot.magicWandTolerance);
+    _updateBrushToolsEraserMode(snapshot.brushToolsEraserMode);
+    _updateLayerAdjustCropOutside(snapshot.layerAdjustCropOutside);
+    _setPrimaryColor(Color(snapshot.primaryColor), remember: false);
+    setState(() {
+      _recentColors
+        ..clear()
+        ..addAll(
+          snapshot.recentColors.map((value) => Color(value)),
+        );
+    });
+    final Color targetColorLine = Color(snapshot.colorLineColor);
+    if (_colorLineColor.value != targetColorLine.value) {
+      setState(() => _colorLineColor = targetColorLine);
+    }
   }
 }
 

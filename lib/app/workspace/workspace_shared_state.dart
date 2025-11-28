@@ -1,0 +1,107 @@
+import 'dart:typed_data';
+import 'dart:ui';
+
+import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
+import '../../canvas/canvas_tools.dart'
+    show BrushShape, CanvasTool, SelectionShape, ShapeToolVariant;
+import '../preferences/app_preferences.dart' show PenStrokeSliderRange;
+
+class PaletteCardSnapshot {
+  const PaletteCardSnapshot({
+    required this.title,
+    required this.colors,
+    required this.offset,
+    this.size,
+  });
+
+  final String title;
+  final List<int> colors;
+  final Offset offset;
+  final Size? size;
+}
+
+class ReferenceCardSnapshot {
+  const ReferenceCardSnapshot({
+    required this.imageBytes,
+    required this.bodySize,
+    required this.panelSize,
+    required this.offset,
+    this.size,
+    this.pixelBytes,
+  });
+
+  final Uint8List imageBytes;
+  final Uint8List? pixelBytes;
+  final Size bodySize;
+  final Size panelSize;
+  final Offset offset;
+  final Size? size;
+}
+
+class WorkspaceOverlaySnapshot {
+  const WorkspaceOverlaySnapshot({
+    this.paletteCards = const <PaletteCardSnapshot>[],
+    this.referenceCards = const <ReferenceCardSnapshot>[],
+  });
+
+  final List<PaletteCardSnapshot> paletteCards;
+  final List<ReferenceCardSnapshot> referenceCards;
+
+  bool get isEmpty => paletteCards.isEmpty && referenceCards.isEmpty;
+}
+
+class ToolSettingsSnapshot {
+  const ToolSettingsSnapshot({
+    required this.activeTool,
+    required this.primaryColor,
+    required this.recentColors,
+    required this.colorLineColor,
+    required this.penStrokeWidth,
+    required this.penStrokeSliderRange,
+    required this.brushShape,
+    required this.strokeStabilizerStrength,
+    required this.stylusPressureEnabled,
+    required this.simulatePenPressure,
+    required this.penPressureProfile,
+    required this.penAntialiasLevel,
+    required this.bucketAntialiasLevel,
+    required this.autoSharpPeakEnabled,
+    required this.vectorDrawingEnabled,
+    required this.bucketSampleAllLayers,
+    required this.bucketContiguous,
+    required this.bucketSwallowColorLine,
+    required this.bucketTolerance,
+    required this.magicWandTolerance,
+    required this.brushToolsEraserMode,
+    required this.layerAdjustCropOutside,
+    required this.shapeFillEnabled,
+    required this.selectionShape,
+    required this.shapeToolVariant,
+  });
+
+  final CanvasTool activeTool;
+  final int primaryColor;
+  final List<int> recentColors;
+  final int colorLineColor;
+  final double penStrokeWidth;
+  final PenStrokeSliderRange penStrokeSliderRange;
+  final BrushShape brushShape;
+  final double strokeStabilizerStrength;
+  final bool stylusPressureEnabled;
+  final bool simulatePenPressure;
+  final StrokePressureProfile penPressureProfile;
+  final int penAntialiasLevel;
+  final int bucketAntialiasLevel;
+  final bool autoSharpPeakEnabled;
+  final bool vectorDrawingEnabled;
+  final bool bucketSampleAllLayers;
+  final bool bucketContiguous;
+  final bool bucketSwallowColorLine;
+  final int bucketTolerance;
+  final int magicWandTolerance;
+  final bool brushToolsEraserMode;
+  final bool layerAdjustCropOutside;
+  final bool shapeFillEnabled;
+  final SelectionShape selectionShape;
+  final ShapeToolVariant shapeToolVariant;
+}

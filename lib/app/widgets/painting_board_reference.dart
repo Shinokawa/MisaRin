@@ -30,6 +30,7 @@ class _ReferenceCardEntry {
     required this.bodySize,
     required this.initialPanelSize,
     this.pixelBytes,
+    required this.rawBytes,
   });
 
   final int id;
@@ -38,6 +39,7 @@ class _ReferenceCardEntry {
   Size bodySize;
   final Size initialPanelSize;
   final Uint8List? pixelBytes;
+  final Uint8List rawBytes;
   Size? size;
 
   Size get panelSize => size ?? initialPanelSize;
@@ -93,6 +95,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         pixelBytes: pixelBytes,
         bodySize: bodySize,
         panelSize: panelSize,
+        rawBytes: Uint8List.fromList(pngBytes),
       );
       AppNotifications.show(
         context,
@@ -170,6 +173,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         pixelBytes: pixelBytes,
         bodySize: bodySize,
         panelSize: panelSize,
+        rawBytes: Uint8List.fromList(bytes),
       );
       AppNotifications.show(
         context,
@@ -196,6 +200,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     required Uint8List? pixelBytes,
     required Size bodySize,
     required Size panelSize,
+    required Uint8List rawBytes,
   }) {
     final int id = ++_referenceCardSerial;
     final Offset offset = _initialReferenceCardOffset(panelSize);
@@ -208,6 +213,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
           bodySize: bodySize,
           initialPanelSize: panelSize,
           pixelBytes: pixelBytes,
+          rawBytes: rawBytes,
         ),
       );
     });
@@ -539,6 +545,79 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
       entry.image.dispose();
     }
     _referenceCards.clear();
+  }
+
+  List<ReferenceCardSnapshot> buildReferenceSnapshots() {
+    return _referenceCards
+        .map(
+          (entry) => ReferenceCardSnapshot(
+            imageBytes: Uint8List.fromList(entry.rawBytes),
+            pixelBytes:
+                entry.pixelBytes != null ? Uint8List.fromList(entry.pixelBytes!) : null,
+            bodySize: entry.bodySize,
+            panelSize: entry.panelSize,
+            offset: entry.offset,
+            size: entry.size,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> restoreReferenceSnapshots(
+    List<ReferenceCardSnapshot> snapshots,
+  ) async {
+    _referenceCardSerial = 0;
+    if (mounted) {
+      setState(() {
+        _disposeReferenceCards();
+      });
+    } else {
+      _disposeReferenceCards();
+    }
+    if (snapshots.isEmpty) {
+      return;
+    }
+    final List<_ReferenceCardEntry> restored = <_ReferenceCardEntry>[];
+    for (final ReferenceCardSnapshot snapshot in snapshots) {
+      try {
+        final ui.Codec codec = await ui.instantiateImageCodec(snapshot.imageBytes);
+        final ui.FrameInfo frame = await codec.getNextFrame();
+        codec.dispose();
+        final ui.Image image = frame.image;
+        Uint8List? pixelBytes = snapshot.pixelBytes != null
+            ? Uint8List.fromList(snapshot.pixelBytes!)
+            : null;
+        pixelBytes ??= (await image
+                .toByteData(format: ui.ImageByteFormat.rawRgba))
+            ?.buffer
+            .asUint8List();
+        final Offset offset = _clampReferenceCardOffset(
+          snapshot.offset,
+          snapshot.size ?? snapshot.panelSize,
+        );
+        final _ReferenceCardEntry entry = _ReferenceCardEntry(
+          id: ++_referenceCardSerial,
+          image: image,
+          offset: offset,
+          bodySize: snapshot.bodySize,
+          initialPanelSize: snapshot.panelSize,
+          pixelBytes: pixelBytes,
+          rawBytes: Uint8List.fromList(snapshot.imageBytes),
+        )..size = snapshot.size;
+        restored.add(entry);
+      } catch (error, stackTrace) {
+        debugPrint('Failed to restore reference card: $error\n$stackTrace');
+      }
+    }
+    if (!mounted) {
+      for (final _ReferenceCardEntry entry in restored) {
+        entry.image.dispose();
+      }
+      return;
+    }
+    setState(() {
+      _referenceCards.addAll(restored);
+    });
   }
 }
 
