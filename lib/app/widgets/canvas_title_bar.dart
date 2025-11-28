@@ -1,9 +1,14 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:flutter/widgets.dart'
+    show
+        ClampingScrollPhysics,
+        ReorderableDragStartListener,
+        ReorderableListView;
 import 'package:window_manager/window_manager.dart';
+
 import '../workspace/canvas_workspace_controller.dart';
-import 'window_drag_area.dart';
 
 typedef CanvasTabCallback = void Function(String id);
 
@@ -96,21 +101,31 @@ class _WorkspaceTabStrip extends StatelessWidget {
     final Color pressedBackground = theme.resources.subtleFillColorSecondary;
     final Color baseIconColor = theme.resources.textFillColorSecondary;
     final Color hoverIconColor = theme.resources.textFillColorPrimary;
-    return Align(
-      alignment: Alignment.centerLeft,
-      widthFactor: 1,
-      child: SingleChildScrollView(
+    final CanvasWorkspaceController controller =
+        CanvasWorkspaceController.instance;
+    return SizedBox(
+      height: 36,
+      child: ReorderableListView.builder(
         scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final CanvasWorkspaceEntry entry in entries)
-              _WorkspaceTab(
-                entry: entry,
-                isActive: entry.id == activeId,
-                onSelect: onSelectTab,
-                onClose: onCloseTab,
-              ),
-            Padding(
+        padding: EdgeInsets.zero,
+        primary: false,
+        physics: const ClampingScrollPhysics(),
+        buildDefaultDragHandles: false,
+        proxyDecorator: (child, index, animation) => child,
+        itemCount: entries.length + 1,
+        onReorder: (int oldIndex, int newIndex) {
+          if (oldIndex >= entries.length) {
+            return;
+          }
+          if (newIndex > entries.length) {
+            newIndex = entries.length;
+          }
+          controller.reorder(oldIndex, newIndex);
+        },
+        itemBuilder: (context, index) {
+          if (index >= entries.length) {
+            return Padding(
+              key: const ValueKey('__workspace_add_button__'),
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Button(
                 onPressed: onCreateTab,
@@ -140,9 +155,23 @@ class _WorkspaceTabStrip extends StatelessWidget {
                 ),
                 child: const Icon(FluentIcons.add, size: 14),
               ),
+            );
+          }
+          final CanvasWorkspaceEntry entry = entries[index];
+          return Padding(
+            key: ValueKey<String>(entry.id),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: ReorderableDragStartListener(
+              index: index,
+              child: _WorkspaceTab(
+                entry: entry,
+                isActive: entry.id == activeId,
+                onSelect: onSelectTab,
+                onClose: onCloseTab,
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
