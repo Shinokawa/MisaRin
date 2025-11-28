@@ -11,10 +11,16 @@ import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
 
 class CustomMenuBar extends StatefulWidget {
-  const CustomMenuBar({super.key, required this.menus, this.navigatorKey});
+  const CustomMenuBar({
+    super.key,
+    required this.menus,
+    this.navigatorKey,
+    this.showMenus = true,
+  });
 
   final List<MenuDefinition> menus;
   final GlobalKey<NavigatorState>? navigatorKey;
+  final bool showMenus;
 
   @override
   State<CustomMenuBar> createState() => _CustomMenuBarState();
@@ -61,7 +67,8 @@ class CustomMenuBar extends StatefulWidget {
       return false;
     }
     return defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux;
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS;
   }
 
   static bool _shouldShowWindowControls() {
@@ -107,16 +114,19 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
 
   @override
   Widget build(BuildContext context) {
-    final List<MenuDefinition> visibleMenus = widget.menus
-        .map(CustomMenuBar._pruneMenu)
-        .whereType<MenuDefinition>()
-        .toList(growable: false);
-    if (visibleMenus.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    final List<MenuDefinition> visibleMenus = widget.showMenus
+        ? widget.menus
+            .map(CustomMenuBar._pruneMenu)
+            .whereType<MenuDefinition>()
+            .toList(growable: false)
+        : const <MenuDefinition>[];
     final theme = FluentTheme.of(context);
     final bool canDrag = CustomMenuBar._supportsWindowDragArea();
     final bool showWindowControls = CustomMenuBar._shouldShowWindowControls();
+    final bool hasMenuButtons = visibleMenus.isNotEmpty;
+    if (!hasMenuButtons && !canDrag && !showWindowControls) {
+      return const SizedBox.shrink();
+    }
     final Widget dragArea = canDrag
         ? Expanded(
             child: Padding(

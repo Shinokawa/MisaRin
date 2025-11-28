@@ -10,9 +10,14 @@ import 'view/home_page.dart';
 import 'widgets/performance_pulse_overlay.dart';
 
 class MisarinApp extends StatefulWidget {
-  const MisarinApp({super.key, this.showCustomMenu = false});
+  const MisarinApp({
+    super.key,
+    this.showCustomMenu = false,
+    this.showCustomMenuItems = true,
+  });
 
   final bool showCustomMenu;
+  final bool showCustomMenuItems;
 
   @override
   State<MisarinApp> createState() => _MisarinAppState();
@@ -54,6 +59,7 @@ class _MisarinAppState extends State<MisarinApp> {
             content = CustomMenuShell(
               child: child,
               navigatorKey: _navigatorKey,
+              showMenus: widget.showCustomMenuItems,
             );
           }
           return ValueListenableBuilder<bool>(

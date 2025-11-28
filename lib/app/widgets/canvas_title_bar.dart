@@ -24,8 +24,6 @@ class CanvasTitleBar extends StatelessWidget {
     final theme = FluentTheme.of(context);
     final CanvasWorkspaceController controller =
         CanvasWorkspaceController.instance;
-    final bool showNativeMacButtons =
-        !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
     final bool showLinuxControls =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
     const EdgeInsets padding = EdgeInsets.only(
@@ -47,10 +45,6 @@ class CanvasTitleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (showNativeMacButtons) ...[
-            const SizedBox(width: 72),
-            const SizedBox(width: 12),
-          ],
           Expanded(
             child: AnimatedBuilder(
               animation: controller,

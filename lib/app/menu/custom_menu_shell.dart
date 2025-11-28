@@ -5,10 +5,16 @@ import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
 
 class CustomMenuShell extends StatelessWidget {
-  const CustomMenuShell({super.key, required this.child, this.navigatorKey});
+  const CustomMenuShell({
+    super.key,
+    required this.child,
+    this.navigatorKey,
+    this.showMenus = true,
+  });
 
   final Widget child;
   final GlobalKey<NavigatorState>? navigatorKey;
+  final bool showMenus;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +31,7 @@ class CustomMenuShell extends StatelessWidget {
         return _MenuOverlay(
           menus: menus,
           navigatorKey: navigatorKey,
+          showMenus: showMenus,
           child: menuChild,
         );
       },
@@ -38,11 +45,13 @@ class _MenuOverlay extends StatefulWidget {
     required this.menus,
     required this.child,
     this.navigatorKey,
+    this.showMenus = true,
   });
 
   final List<MenuDefinition> menus;
   final Widget child;
   final GlobalKey<NavigatorState>? navigatorKey;
+  final bool showMenus;
 
   @override
   State<_MenuOverlay> createState() => _MenuOverlayState();
@@ -66,7 +75,11 @@ class _MenuOverlayState extends State<_MenuOverlay> {
   Widget _buildOverlayContent(BuildContext context) {
     return Column(
       children: [
-        CustomMenuBar(menus: widget.menus, navigatorKey: widget.navigatorKey),
+        CustomMenuBar(
+          menus: widget.menus,
+          navigatorKey: widget.navigatorKey,
+          showMenus: widget.showMenus,
+        ),
         Expanded(child: widget.child),
       ],
     );

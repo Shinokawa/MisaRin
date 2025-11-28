@@ -44,9 +44,14 @@ Future<void> main() async {
     });
   }
 
-  final bool needsCustomMenu =
+  final bool showCustomMenu =
+      kIsWeb || (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS));
+  final bool showCustomMenuItems =
       kIsWeb || (!kIsWeb && (Platform.isWindows || Platform.isLinux));
-  final app = MisarinApp(showCustomMenu: needsCustomMenu);
+  final app = MisarinApp(
+    showCustomMenu: showCustomMenu,
+    showCustomMenuItems: showCustomMenuItems,
+  );
 
   if (!kIsWeb && Platform.isMacOS) {
     runApp(MacosMenuShell(child: app));
