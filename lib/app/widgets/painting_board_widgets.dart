@@ -134,8 +134,8 @@ class _CheckboardPainter extends CustomPainter {
 
 // 网格线力求保持恒定屏幕像素宽度，同时根据缩放自动调节网格步长。
 const double _kPixelGridScreenStrokeWidth = 1.0;
-const double _kPixelGridTargetScreenSpacing = 8.0;
-const int _kPixelGridMaxStep = 1 << 12;
+const double _kPixelGridTargetScreenSpacing = 24.0;
+const int _kPixelGridMaxStep = 256;
 
 int _resolvePixelGridStep(double scale) {
   if (scale <= 0.0 || scale.isNaN) {

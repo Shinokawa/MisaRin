@@ -336,15 +336,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _canvasSize.height * _viewport.scale,
   );
 
-  Color get _pixelGridColor {
-    final Color background = _controller.backgroundColor;
-    return Color.fromARGB(
-      0xFF,
-      0xFF - background.red,
-      0xFF - background.green,
-      0xFF - background.blue,
-    );
-  }
+  Color get _pixelGridColor => const ui.Color.fromARGB(255, 133, 133, 133);
 
   bool _isWithinCanvasBounds(Offset position) {
     final Size size = _canvasSize;
