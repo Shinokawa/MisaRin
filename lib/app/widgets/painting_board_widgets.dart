@@ -132,7 +132,23 @@ class _CheckboardPainter extends CustomPainter {
   }
 }
 
-const double _kPixelGridRelativeStrokeWidth = 0.35;
+// 网格线力求保持恒定屏幕像素宽度，同时根据缩放自动调节网格步长。
+const double _kPixelGridScreenStrokeWidth = 1.0;
+const double _kPixelGridTargetScreenSpacing = 8.0;
+const int _kPixelGridMaxStep = 1 << 12;
+
+int _resolvePixelGridStep(double scale) {
+  if (scale <= 0.0 || scale.isNaN) {
+    return 1;
+  }
+  final double desiredCanvasSpacing = _kPixelGridTargetScreenSpacing / scale;
+  if (desiredCanvasSpacing <= 1.0) {
+    return 1;
+  }
+  final double log2 = math.log(desiredCanvasSpacing) / math.ln2;
+  final int powerOfTwo = math.pow(2, log2.floor()).toInt();
+  return powerOfTwo.clamp(1, _kPixelGridMaxStep);
+}
 
 class _PixelGridPainter extends CustomPainter {
   const _PixelGridPainter({
@@ -152,21 +168,23 @@ class _PixelGridPainter extends CustomPainter {
     if (pixelWidth <= 1 && pixelHeight <= 1) {
       return;
     }
+    final double resolvedScale = scale.abs() < 0.0001 ? 1.0 : scale.abs();
+    final int step = _resolvePixelGridStep(resolvedScale);
     final Paint paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = _kPixelGridRelativeStrokeWidth
+      ..strokeWidth = _kPixelGridScreenStrokeWidth / resolvedScale
       ..isAntiAlias = false;
     final double maxX = size.width;
     final double maxY = size.height;
     if (pixelWidth > 1) {
-      for (int x = 1; x < pixelWidth; x++) {
+      for (int x = step; x < pixelWidth; x += step) {
         final double dx = x.toDouble();
         canvas.drawLine(Offset(dx, 0), Offset(dx, maxY), paint);
       }
     }
     if (pixelHeight > 1) {
-      for (int y = 1; y < pixelHeight; y++) {
+      for (int y = step; y < pixelHeight; y += step) {
         final double dy = y.toDouble();
         canvas.drawLine(Offset(0, dy), Offset(maxX, dy), paint);
       }
