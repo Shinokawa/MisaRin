@@ -456,7 +456,11 @@ class BitmapCanvasController extends ChangeNotifier {
         if (center == null || radius == null) {
           return null;
         }
-        return _strokeDirtyRectForCircle(center, radius);
+        final double softness = (command.softness ?? 0.0).clamp(0.0, 1.0);
+        final double expandedRadius = softness > 0
+            ? radius + radius * (0.35 + softness * 1.65)
+            : radius;
+        return _strokeDirtyRectForCircle(center, expandedRadius);
       case PaintingDrawCommandType.line:
         final Offset? start = command.start;
         final Offset? end = command.end;
@@ -1004,6 +1008,7 @@ class BitmapCanvasController extends ChangeNotifier {
     BrushShape brushShape = BrushShape.circle,
     int antialiasLevel = 0,
     bool erase = false,
+    double softness = 0.0,
   }) {
     if (_layers.isEmpty || _activeLayer.locked) {
       return;
@@ -1015,6 +1020,7 @@ class BitmapCanvasController extends ChangeNotifier {
       shapeIndex: brushShape.index,
       antialiasLevel: antialiasLevel.clamp(0, 3),
       erase: erase,
+      softness: softness.clamp(0.0, 1.0),
     );
     _dispatchDirectPaintCommand(command);
   }
@@ -1777,13 +1783,14 @@ class BitmapCanvasController extends ChangeNotifier {
             center: center,
             radius: radius,
             color: color,
-            shape: BrushShape.values[clampedShape],
-            mask: mask,
-            antialiasLevel: command.antialiasLevel,
-            erase: erase,
-          );
-          anyChange = true;
-          break;
+          shape: BrushShape.values[clampedShape],
+          mask: mask,
+          antialiasLevel: command.antialiasLevel,
+          erase: erase,
+          softness: command.softness ?? 0.0,
+        );
+        anyChange = true;
+        break;
         case PaintingDrawCommandType.line:
           final Offset? start = command.start;
           final Offset? end = command.end;

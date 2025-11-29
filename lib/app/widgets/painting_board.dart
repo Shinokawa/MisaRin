@@ -276,6 +276,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _sprayCurrentPressure = 1.0;
   KritaSprayEngine? _kritaSprayEngine;
   Color? _activeSprayColor;
+  Offset? _softSprayLastPoint;
+  double _softSprayResidual = 0.0;
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
   CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
     columns: 1,

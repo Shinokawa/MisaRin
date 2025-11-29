@@ -1,7 +1,6 @@
 part of 'painting_board.dart';
 
 const double _kStylusSimulationBlend = 0.68;
-const double _kAirbrushFalloffSigma = 0.52;
 
 mixin _PaintingBoardInteractionMixin
     on
@@ -188,7 +187,9 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _sprayStrokeWidth = clamped);
-    _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    if (_sprayMode == SprayMode.splatter) {
+      _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    }
     final AppPreferences prefs = AppPreferences.instance;
     prefs.sprayStrokeWidth = clamped;
     unawaited(AppPreferences.save());
@@ -202,6 +203,11 @@ mixin _PaintingBoardInteractionMixin
       _finishSprayStroke();
     }
     setState(() => _sprayMode = mode);
+    if (mode == SprayMode.splatter) {
+      _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    } else {
+      _kritaSprayEngine = null;
+    }
     final AppPreferences prefs = AppPreferences.instance;
     prefs.sprayMode = mode;
     unawaited(AppPreferences.save());
@@ -269,7 +275,9 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _penAntialiasLevel = clamped);
-    _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    if (_sprayMode == SprayMode.splatter) {
+      _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    }
     final AppPreferences prefs = AppPreferences.instance;
     prefs.penAntialiasLevel = clamped;
     unawaited(AppPreferences.save());
@@ -563,8 +571,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   /// Builds a Krita-style spray configuration using the current stroke width
-  /// and anti-alias settings. The constants mirror Krita's defaults but are
-  /// tuned so that emission rate + density feel natural on Flutter.
+  /// and anti-alias settings. This mirrors Krita's spray brush defaults
+  /// (`plugins/paintops/spray`) but tweaks a few constants so the Flutter
+  /// rasterizer produces similar densities.
   KritaSprayEngineSettings _buildKritaSpraySettings() {
     final double clampedDiameter =
         _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
@@ -596,7 +605,7 @@ mixin _PaintingBoardInteractionMixin
   KritaSprayEngine _ensureKritaSprayEngine() {
     final KritaSprayEngine engine = _kritaSprayEngine ??= KritaSprayEngine(
       controller: _controller,
-      clampToCanvas: _clampToCanvas,
+      clampToCanvas: (offset) => offset,
       random: _syntheticStrokeRandom,
     );
     engine.updateSettings(_buildKritaSpraySettings());
@@ -616,21 +625,27 @@ mixin _PaintingBoardInteractionMixin
     }
     _focusNode.requestFocus();
     await _pushUndoSnapshot();
-    final Offset clamped = _clampToCanvas(boardLocal);
-    _sprayBoardPosition = clamped;
+    _sprayBoardPosition = boardLocal;
     _sprayCurrentPressure = _resolveSprayPressure(event);
     _sprayEmissionAccumulator = 0.0;
     _sprayTickerTimestamp = null;
     _activeSprayColor = _isBrushEraserEnabled
         ? const Color(0xFFFFFFFF)
         : _primaryColor;
-    if (_sprayMode == SprayMode.splatter) {
-      _ensureKritaSprayEngine();
+    if (_sprayMode == SprayMode.smudge) {
+      _softSprayLastPoint = boardLocal;
+      _softSprayResidual = 0.0;
+      _stampSoftSpray(
+        boardLocal,
+        _resolveSoftSprayRadius(),
+        _sprayCurrentPressure,
+      );
+      _markDirty();
     } else {
-      _kritaSprayEngine = null;
+      _ensureKritaSprayEngine();
+      _ensureSprayTicker();
+      _sprayTicker?.start();
     }
-    _ensureSprayTicker();
-    _sprayTicker?.start();
     setState(() {
       _isSpraying = true;
     });
@@ -640,8 +655,11 @@ mixin _PaintingBoardInteractionMixin
     if (!_isSpraying) {
       return;
     }
-    _sprayBoardPosition = _clampToCanvas(boardLocal);
+    _sprayBoardPosition = boardLocal;
     _sprayCurrentPressure = _resolveSprayPressure(event);
+    if (_sprayMode == SprayMode.smudge) {
+      _extendSoftSprayStroke(boardLocal);
+    }
   }
 
   void _finishSprayStroke() {
@@ -657,10 +675,15 @@ mixin _PaintingBoardInteractionMixin
     _activeSprayColor = null;
     _sprayTickerTimestamp = null;
     _sprayEmissionAccumulator = 0.0;
+    _softSprayLastPoint = null;
+    _softSprayResidual = 0.0;
   }
 
   void _handleSprayTick(Duration elapsed) {
     if (!_isSpraying) {
+      return;
+    }
+    if (_sprayMode == SprayMode.smudge) {
       return;
     }
     final Offset? position = _sprayBoardPosition;
@@ -680,21 +703,17 @@ mixin _PaintingBoardInteractionMixin
     if (deltaSeconds <= 0.0) {
       return;
     }
-    if (_sprayMode == SprayMode.splatter) {
-      final double emissionRate = _sprayEmissionRateForDiameter(
-        _sprayStrokeWidth,
-      );
-      final double pressureScale = _sprayCurrentPressure.clamp(0.05, 1.0);
-      _sprayEmissionAccumulator += emissionRate * pressureScale * deltaSeconds;
-      final int particleCount = _sprayEmissionAccumulator.floor();
-      if (particleCount <= 0) {
-        return;
-      }
-      _sprayEmissionAccumulator -= particleCount;
-      _emitSprayParticles(position, particleCount);
+    final double pressureScale = _sprayCurrentPressure.clamp(0.05, 1.0);
+    final double emissionRate = _sprayEmissionRateForDiameter(
+      _sprayStrokeWidth,
+    );
+    _sprayEmissionAccumulator += emissionRate * pressureScale * deltaSeconds;
+    final int particleCount = _sprayEmissionAccumulator.floor();
+    if (particleCount <= 0) {
       return;
     }
-    _emitAirbrushPaint(position, deltaSeconds);
+    _sprayEmissionAccumulator -= particleCount;
+    _emitSprayParticles(position, particleCount);
   }
 
   double _sprayEmissionRateForDiameter(double diameter) {
@@ -712,7 +731,7 @@ mixin _PaintingBoardInteractionMixin
     final Color color = _activeSprayColor ??
         (erase ? const Color(0xFFFFFFFF) : _primaryColor);
     engine.paintParticles(
-      center: _clampToCanvas(center),
+      center: center,
       particleBudget: count,
       pressure: _sprayCurrentPressure,
       baseColor: color,
@@ -722,98 +741,76 @@ mixin _PaintingBoardInteractionMixin
     _markDirty();
   }
 
-  void _emitAirbrushPaint(Offset center, double deltaSeconds) {
-    final bool erase = _isBrushEraserEnabled;
-    final Color color = _activeSprayColor ??
-        (erase ? const Color(0xFFFFFFFF) : _primaryColor);
-    if (color.alpha == 0) {
+  void _extendSoftSprayStroke(Offset boardLocal) {
+    final double radius = _resolveSoftSprayRadius();
+    final Offset? last = _softSprayLastPoint;
+    final double spacing = _softSpraySpacingForRadius(radius);
+    if (last == null) {
+      _softSprayLastPoint = boardLocal;
+      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+      _markDirty();
       return;
     }
-    final double pressure = _sprayCurrentPressure.clamp(0.05, 1.0);
-    final double normalizedDiameter =
-        _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
-    final double unclampedRadius = math.max(normalizedDiameter / 2.0, 0.5);
-    final double baseRadius = unclampedRadius
-        .clamp(kSprayStrokeMin / 2, kSprayStrokeMax / 2)
-        .toDouble();
-    final double flow = _airbrushFlowForDiameter(normalizedDiameter);
-    final double deposit = (flow * pressure * deltaSeconds).clamp(0.0, 3.5);
-    if (deposit <= 1e-5) {
+    final Offset delta = boardLocal - last;
+    final double distance = delta.distance;
+    if (distance <= 1e-4) {
+      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+      _markDirty();
       return;
     }
-    final Offset clampedCenter = _clampToCanvas(center);
-    final double sampleRate =
-        _airbrushParticleRateForDiameter(normalizedDiameter);
-    final int sampleCount = math.max(
-      1,
-      (sampleRate * pressure * deltaSeconds).round(),
-    );
-    final double alphaPerSample = deposit / sampleCount;
-    _controller.runSynchronousRasterization(() {
-      for (int i = 0; i < sampleCount; i++) {
-        final double radial = _sampleAirbrushRadial();
-        final double angle = _syntheticStrokeRandom.nextDouble() *
-            math.pi *
-            2.0;
-        final double distance = baseRadius * radial;
-        final Offset sampleCenter = _clampToCanvas(
-          clampedCenter +
-              Offset(
-                distance * math.cos(angle),
-                distance * math.sin(angle),
-              ),
-        );
-        final double falloff =
-            math.exp(-(radial * radial) / (_kAirbrushFalloffSigma * 0.7));
-        final double stampRadius = math.max(
-          baseRadius *
-              (0.018 + _syntheticStrokeRandom.nextDouble() * 0.12),
-          0.18,
-        );
-        final int scaledAlpha = (color.alpha *
-                alphaPerSample *
-                falloff *
-                (0.85 + _syntheticStrokeRandom.nextDouble() * 0.3))
-            .round()
-            .clamp(0, 255);
-        if (scaledAlpha <= 0) {
-          continue;
-        }
-        _controller.drawBrushStamp(
-          center: sampleCenter,
-          radius: stampRadius,
-          color: color.withAlpha(scaledAlpha),
-          brushShape: BrushShape.circle,
-          antialiasLevel: math.max(_penAntialiasLevel, 2),
-          erase: erase,
-        );
-      }
-    });
+    final double totalDistance = _softSprayResidual + distance;
+    if (totalDistance < spacing) {
+      _softSprayResidual = totalDistance;
+      _softSprayLastPoint = boardLocal;
+      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+      _markDirty();
+      return;
+    }
+    final Offset direction = delta / distance;
+    double cursor = spacing - _softSprayResidual;
+    if (_softSprayResidual <= 1e-4) {
+      cursor = spacing;
+    }
+    while (cursor <= distance) {
+      final Offset sample = last + direction * cursor;
+      _stampSoftSpray(sample, radius, _sprayCurrentPressure);
+      cursor += spacing;
+    }
+    _softSprayResidual = distance - (cursor - spacing);
+    _softSprayLastPoint = boardLocal;
+    _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
     _markDirty();
   }
 
-  double _airbrushFlowForDiameter(double diameter) {
-    final double normalized = diameter.clamp(kSprayStrokeMin, kSprayStrokeMax);
-    final double sqrtScale = math.sqrt(normalized).clamp(
-      math.sqrt(kSprayStrokeMin),
-      math.sqrt(kSprayStrokeMax),
-    ).toDouble();
-    final double scaled = 0.32 + sqrtScale * 0.07;
-    return scaled.clamp(0.35, 3.0);
+  double _resolveSoftSprayRadius() {
+    final double normalized =
+        _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    return math.max(normalized * 0.5, 0.5);
   }
 
-  double _airbrushParticleRateForDiameter(double diameter) {
-    final double normalized = diameter.clamp(kSprayStrokeMin, kSprayStrokeMax);
-    final double radius = normalized / 2.0;
-    final double area = math.pi * radius * radius;
-    final double scaled = (area * 0.045).clamp(150.0, 5200.0);
-    return scaled;
+  void _stampSoftSpray(Offset position, double radius, double pressure) {
+    final bool erase = _isBrushEraserEnabled;
+    final Color baseColor = _activeSprayColor ??
+        (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    final double opacityScale =
+        (0.35 + pressure.clamp(0.0, 1.0) * 0.65).clamp(0.0, 1.0);
+    if (opacityScale <= 0.0) {
+      return;
+    }
+    _controller.drawBrushStamp(
+      center: position,
+      radius: radius,
+      color: baseColor.withOpacity(opacityScale),
+      brushShape: BrushShape.circle,
+      antialiasLevel: 3,
+      erase: erase,
+      softness: 0.9,
+    );
   }
 
-  double _sampleAirbrushRadial() {
-    final double uniform = _syntheticStrokeRandom.nextDouble().clamp(1e-6, 1.0);
-    final double bias = math.pow(uniform, 0.42).toDouble();
-    return bias;
+  double _softSpraySpacingForRadius(double radius) {
+    final double scaled = radius * 0.28;
+    return scaled.clamp(0.45, math.max(0.45, radius * 0.55));
   }
 
   void _emitReleaseSamples({
@@ -1582,7 +1579,9 @@ mixin _PaintingBoardInteractionMixin
     final Rect boardRect = _boardRect;
     final bool pointerInsideBoard = boardRect.contains(pointer);
     final bool toolCanStartOutsideCanvas =
-        tool == CanvasTool.curvePen || tool == CanvasTool.selection;
+        tool == CanvasTool.curvePen ||
+        tool == CanvasTool.selection ||
+        tool == CanvasTool.spray;
     if (!pointerInsideBoard && !toolCanStartOutsideCanvas) {
       return;
     }

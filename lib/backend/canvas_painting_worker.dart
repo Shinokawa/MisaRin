@@ -34,6 +34,7 @@ class PaintingDrawCommand {
     this.includeStartCap,
     this.points,
     this.radii,
+    this.softness,
   });
 
   factory PaintingDrawCommand.brushStamp({
@@ -43,6 +44,7 @@ class PaintingDrawCommand {
     required int shapeIndex,
     required int antialiasLevel,
     required bool erase,
+    double softness = 0.0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.brushStamp,
@@ -52,6 +54,7 @@ class PaintingDrawCommand {
       center: center,
       radius: radius,
       shapeIndex: shapeIndex,
+      softness: softness,
     );
   }
 
@@ -170,6 +173,7 @@ class PaintingDrawCommand {
   final double? endRadius;
   final bool? includeStartCap;
   final List<Offset>? points;
+  final double? softness;
   final List<double>? radii;
 
   Map<String, Object?> toJson() {
@@ -181,6 +185,7 @@ class PaintingDrawCommand {
       'center': center == null ? null : <double>[center!.dx, center!.dy],
       'radius': radius,
       'shape': shapeIndex,
+      'softness': softness,
       'start': start == null ? null : <double>[start!.dx, start!.dy],
       'end': end == null ? null : <double>[end!.dx, end!.dy],
       'startRadius': startRadius,
@@ -1036,6 +1041,8 @@ void _paintingWorkerApplyCommand({
           ?.cast<double>();
       final double radius = (command['radius'] as num? ?? 0).toDouble();
       final int shapeIndex = command['shape'] as int? ?? 0;
+      final double softness =
+          (command['softness'] as num? ?? 0).toDouble().clamp(0.0, 1.0);
       final BrushShape shape =
           BrushShape.values[shapeIndex.clamp(0, BrushShape.values.length - 1)];
       surface.drawBrushStamp(
@@ -1046,6 +1053,7 @@ void _paintingWorkerApplyCommand({
         mask: mask,
         antialiasLevel: antialias,
         erase: erase,
+        softness: softness,
       );
       break;
     case PaintingDrawCommandType.line:

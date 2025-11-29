@@ -65,14 +65,19 @@ class BitmapSurface {
     Uint8List? mask,
     int antialiasLevel = 0,
     bool erase = false,
+    double softness = 0.0,
   }) {
     if (radius <= 0) {
       return;
     }
-    final int minX = math.max(0, (center.dx - radius - 1).floor());
-    final int maxX = math.min(width - 1, (center.dx + radius + 1).ceil());
-    final int minY = math.max(0, (center.dy - radius - 1).floor());
-    final int maxY = math.min(height - 1, (center.dy + radius + 1).ceil());
+    final double softnessClamped = softness.clamp(0.0, 1.0);
+    final double softnessRadius =
+        softnessClamped > 0 ? radius * (0.35 + softnessClamped * 1.65) : 0.0;
+    final double extent = radius + softnessRadius + 1.5;
+    final int minX = math.max(0, (center.dx - extent).floor());
+    final int maxX = math.min(width - 1, (center.dx + extent).ceil());
+    final int minY = math.max(0, (center.dy - extent).floor());
+    final int maxY = math.min(height - 1, (center.dy + extent).ceil());
     final int level = antialiasLevel.clamp(0, 3);
     final double feather = _featherForLevel(level);
     final int baseColor = color.toARGB32();
@@ -84,21 +89,27 @@ class BitmapSurface {
       for (int x = minX; x <= maxX; x++) {
         final double dx = x + 0.5 - center.dx;
         final double distance = math.sqrt(dx * dx + dy * dy);
-        final double coverage = _computePixelCoverage(
-          dx: dx,
-          dy: dy,
-          distance: distance,
-          radius: radius,
-          feather: feather,
-          antialiasLevel: level,
-        );
+        final double coverage = softnessClamped <= 0.0
+            ? _computePixelCoverage(
+                dx: dx,
+                dy: dy,
+                distance: distance,
+                radius: radius,
+                feather: feather,
+                antialiasLevel: level,
+              )
+            : _computeFeatheredCoverage(
+                distance: distance,
+                radius: radius,
+                softness: softnessClamped,
+              );
         if (coverage <= 0.0) {
           continue;
         }
         if (mask != null && mask[y * width + x] == 0) {
           continue;
         }
-        if (coverage >= 0.999) {
+        if (coverage >= 0.999 && softnessClamped <= 0.0) {
           _blendPixelWithArgb(x, y, baseColor, erase: erase);
           continue;
         }
@@ -262,6 +273,7 @@ class BitmapSurface {
     Uint8List? mask,
     int antialiasLevel = 0,
     bool erase = false,
+    double softness = 0.0,
   }) {
     final int level = antialiasLevel.clamp(0, 3);
     if (shape == BrushShape.circle) {
@@ -272,6 +284,7 @@ class BitmapSurface {
         mask: mask,
         antialiasLevel: level,
         erase: erase,
+        softness: softness,
       );
       return;
     }
@@ -699,6 +712,34 @@ class BitmapSurface {
       return _projectedPixelCoverage(dx: dx, dy: dy, radius: radius);
     }
     return _radialCoverage(distance, radius, feather, antialiasLevel);
+  }
+
+  double _computeFeatheredCoverage({
+    required double distance,
+    required double radius,
+    required double softness,
+  }) {
+    if (radius <= 0.0) {
+      return 0.0;
+    }
+    final double clampedSoftness = softness.clamp(0.0, 1.0);
+    if (clampedSoftness <= 0.0) {
+      return distance <= radius ? 1.0 : 0.0;
+    }
+    final double innerRadius = radius * (1.0 - 0.45 * clampedSoftness);
+    if (distance <= innerRadius) {
+      return 1.0;
+    }
+    final double outerRadius =
+        radius + radius * (0.65 + 1.2 * clampedSoftness);
+    if (distance >= outerRadius) {
+      return 0.0;
+    }
+    final double normalized =
+        ((distance - innerRadius) / (outerRadius - innerRadius))
+            .clamp(0.0, 1.0);
+    final double eased = 1.0 - normalized;
+    return math.pow(eased, 2.2).toDouble();
   }
 
   double _projectedPixelCoverage({
