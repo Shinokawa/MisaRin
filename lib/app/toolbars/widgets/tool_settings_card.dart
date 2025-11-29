@@ -16,9 +16,11 @@ class ToolSettingsCard extends StatefulWidget {
     required this.activeTool,
     required this.penStrokeWidth,
     required this.sprayStrokeWidth,
+    required this.sprayMode,
     required this.penStrokeSliderRange,
     required this.onPenStrokeWidthChanged,
     required this.onSprayStrokeWidthChanged,
+    required this.onSprayModeChanged,
     required this.brushShape,
     required this.onBrushShapeChanged,
     required this.strokeStabilizerStrength,
@@ -65,9 +67,11 @@ class ToolSettingsCard extends StatefulWidget {
   final CanvasTool activeTool;
   final double penStrokeWidth;
   final double sprayStrokeWidth;
+  final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
   final ValueChanged<double> onPenStrokeWidthChanged;
   final ValueChanged<double> onSprayStrokeWidthChanged;
+  final ValueChanged<SprayMode> onSprayModeChanged;
   final BrushShape brushShape;
   final ValueChanged<BrushShape> onBrushShapeChanged;
   final double strokeStabilizerStrength;
@@ -397,6 +401,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   Widget _buildSprayControls(FluentThemeData theme) {
     final List<Widget> children = <Widget>[
       _buildBrushSizeRow(theme),
+      _buildSprayModeSelector(theme),
       _buildToggleSwitchRow(
         theme,
         label: '转换为擦除',
@@ -409,6 +414,28 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       spacing: 16,
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
+    );
+  }
+
+  Widget _buildSprayModeSelector(FluentThemeData theme) {
+    return _buildLabeledComboField<SprayMode>(
+      theme,
+      label: '喷枪效果',
+      width: 180,
+      value: widget.sprayMode,
+      items: SprayMode.values
+          .map(
+            (mode) => ComboBoxItem<SprayMode>(
+              value: mode,
+              child: Text(_sprayModeLabel(mode)),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (mode) {
+        if (mode != null) {
+          widget.onSprayModeChanged(mode);
+        }
+      },
     );
   }
 
@@ -1136,6 +1163,15 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         return '两端细中间粗';
       case StrokePressureProfile.auto:
         return '自动';
+    }
+  }
+
+  String _sprayModeLabel(SprayMode mode) {
+    switch (mode) {
+      case SprayMode.smudge:
+        return '涂抹';
+      case SprayMode.splatter:
+        return '喷溅';
     }
   }
 

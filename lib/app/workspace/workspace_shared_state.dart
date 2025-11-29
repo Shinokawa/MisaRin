@@ -3,7 +3,7 @@ import 'dart:ui';
 
 import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../canvas/canvas_tools.dart'
-    show BrushShape, CanvasTool, SelectionShape, ShapeToolVariant;
+    show BrushShape, CanvasTool, SelectionShape, ShapeToolVariant, SprayMode;
 import '../preferences/app_preferences.dart' show PenStrokeSliderRange;
 
 class PaletteCardSnapshot {
@@ -58,6 +58,7 @@ class ToolSettingsSnapshot {
     required this.colorLineColor,
     required this.penStrokeWidth,
     required this.sprayStrokeWidth,
+    required this.sprayMode,
     required this.penStrokeSliderRange,
     required this.brushShape,
     required this.strokeStabilizerStrength,
@@ -86,6 +87,7 @@ class ToolSettingsSnapshot {
   final int colorLineColor;
   final double penStrokeWidth;
   final double sprayStrokeWidth;
+  final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
   final BrushShape brushShape;
   final double strokeStabilizerStrength;

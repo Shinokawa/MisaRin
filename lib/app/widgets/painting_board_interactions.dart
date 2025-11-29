@@ -192,6 +192,19 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateSprayMode(SprayMode mode) {
+    if (_sprayMode == mode) {
+      return;
+    }
+    if (_activeTool == CanvasTool.spray && _isSpraying) {
+      _finishSprayStroke();
+    }
+    setState(() => _sprayMode = mode);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sprayMode = mode;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateBrushShape(BrushShape shape) {
     if (_brushShape == shape) {
       return;
@@ -559,12 +572,23 @@ mixin _PaintingBoardInteractionMixin
     }
     _focusNode.requestFocus();
     await _pushUndoSnapshot();
-    _sprayBoardPosition = _clampToCanvas(boardLocal);
+    final Offset clamped = _clampToCanvas(boardLocal);
+    _sprayBoardPosition = clamped;
     _sprayCurrentPressure = _resolveSprayPressure(event);
     _sprayEmissionAccumulator = 0.0;
     _sprayTickerTimestamp = null;
-    _ensureSprayTicker();
-    _sprayTicker?.start();
+    if (_sprayMode == SprayMode.splatter) {
+      _ensureSprayTicker();
+      _sprayTicker?.start();
+    } else {
+      _sprayTicker?.stop();
+      _smudgeLastPosition = clamped;
+      _smudgeLastPressure = _sprayCurrentPressure;
+      _smudgeCarryColor = _controller.sampleColor(
+        clamped,
+        sampleAllLayers: true,
+      );
+    }
     setState(() {
       _isSpraying = true;
     });
@@ -574,8 +598,12 @@ mixin _PaintingBoardInteractionMixin
     if (!_isSpraying) {
       return;
     }
-    _sprayBoardPosition = _clampToCanvas(boardLocal);
-    _sprayCurrentPressure = _resolveSprayPressure(event);
+    if (_sprayMode == SprayMode.splatter) {
+      _sprayBoardPosition = _clampToCanvas(boardLocal);
+      _sprayCurrentPressure = _resolveSprayPressure(event);
+      return;
+    }
+    _updateSmudgeStroke(boardLocal, event);
   }
 
   void _finishSprayStroke() {
@@ -589,10 +617,13 @@ mixin _PaintingBoardInteractionMixin
     _sprayBoardPosition = null;
     _sprayTickerTimestamp = null;
     _sprayEmissionAccumulator = 0.0;
+    _smudgeLastPosition = null;
+    _smudgeCarryColor = null;
+    _smudgeLastPressure = 1.0;
   }
 
   void _handleSprayTick(Duration elapsed) {
-    if (!_isSpraying) {
+    if (!_isSpraying || _sprayMode != SprayMode.splatter) {
       return;
     }
     final Offset? position = _sprayBoardPosition;
@@ -623,6 +654,120 @@ mixin _PaintingBoardInteractionMixin
     }
     _sprayEmissionAccumulator -= particleCount;
     _emitSprayParticles(position, particleCount);
+  }
+
+  void _updateSmudgeStroke(Offset boardLocal, PointerEvent event) {
+    final Offset clamped = _clampToCanvas(boardLocal);
+    final Offset startPoint = _smudgeLastPosition ?? clamped;
+    final double pressure = _resolveSprayPressure(event);
+    bool painted;
+    if (_isBrushEraserEnabled) {
+      painted = _applySmudgeEraser(
+        start: startPoint,
+        end: clamped,
+        pressure: pressure,
+      );
+      _smudgeCarryColor = null;
+    } else {
+      painted = _smudgeDepositSegment(
+        start: startPoint,
+        end: clamped,
+        pressure: pressure,
+      );
+    }
+    _smudgeLastPosition = clamped;
+    _smudgeLastPressure = pressure;
+    if (painted) {
+      _markDirty();
+    }
+  }
+
+  bool _smudgeDepositSegment({
+    required Offset start,
+    required Offset end,
+    required double pressure,
+  }) {
+    Color carryColor = _smudgeCarryColor ??
+        _controller.sampleColor(start, sampleAllLayers: true);
+    final double radius = _smudgeRadiusForPressure(pressure);
+    final double spacing = math.max(radius * 0.35, 2.0);
+    final double distance = (end - start).distance;
+    final int steps = math.max(1, (distance / spacing).ceil());
+    bool painted = false;
+    for (int i = 0; i < steps; i++) {
+      final double t = steps == 1 ? 1.0 : (i + 1) / steps;
+      final Offset point = Offset(
+        ui.lerpDouble(start.dx, end.dx, t) ?? end.dx,
+        ui.lerpDouble(start.dy, end.dy, t) ?? end.dy,
+      );
+      final Offset clamped = _clampToCanvas(point);
+      final Color destinationSample = _controller.sampleColor(
+        clamped,
+        sampleAllLayers: true,
+      );
+      final Color depositColor = _scaleSmudgeColor(carryColor, pressure);
+      if (depositColor.alpha > 0) {
+        _controller.drawBrushStamp(
+          center: clamped,
+          radius: radius,
+          color: depositColor,
+          brushShape: BrushShape.circle,
+          antialiasLevel: math.max(_penAntialiasLevel, 2),
+          erase: false,
+        );
+        painted = true;
+      }
+      carryColor =
+          Color.lerp(carryColor, destinationSample, 0.35) ?? destinationSample;
+    }
+    _smudgeCarryColor = carryColor;
+    return painted;
+  }
+
+  bool _applySmudgeEraser({
+    required Offset start,
+    required Offset end,
+    required double pressure,
+  }) {
+    final double radius = _smudgeRadiusForPressure(pressure);
+    final double spacing = math.max(radius * 0.35, 2.0);
+    final double distance = (end - start).distance;
+    final int steps = math.max(1, (distance / spacing).ceil());
+    bool painted = false;
+    for (int i = 0; i < steps; i++) {
+      final double t = steps == 1 ? 1.0 : (i + 1) / steps;
+      final Offset point = Offset(
+        ui.lerpDouble(start.dx, end.dx, t) ?? end.dx,
+        ui.lerpDouble(start.dy, end.dy, t) ?? end.dy,
+      );
+      _controller.drawBrushStamp(
+        center: _clampToCanvas(point),
+        radius: radius,
+        color: const Color(0xFFFFFFFF),
+        brushShape: BrushShape.circle,
+        antialiasLevel: math.max(_penAntialiasLevel, 2),
+        erase: true,
+      );
+      painted = true;
+    }
+    return painted;
+  }
+
+  double _smudgeRadiusForPressure(double pressure) {
+    final double baseRadius = (_sprayStrokeWidth / 2).clamp(
+      0.5,
+      kSprayStrokeMax / 2,
+    );
+    final double clampedPressure = pressure.clamp(0.05, 1.0);
+    return math.max(baseRadius * (0.45 + clampedPressure * 0.55), 0.35);
+  }
+
+  Color _scaleSmudgeColor(Color color, double pressure) {
+    final double clampedPressure = pressure.clamp(0.05, 1.0);
+    final double opacityScale = 0.25 + 0.75 * clampedPressure;
+    final int scaledAlpha =
+        (color.alpha * opacityScale).round().clamp(0, 255).toInt();
+    return color.withAlpha(scaledAlpha);
   }
 
   double _sprayEmissionRateForDiameter(double diameter) {

@@ -208,6 +208,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   double _sprayStrokeWidth = _defaultSprayStrokeWidth;
+  SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
   bool _simulatePenPressure = false;
@@ -272,6 +273,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Duration? _sprayTickerTimestamp;
   double _sprayEmissionAccumulator = 0.0;
   double _sprayCurrentPressure = 1.0;
+  Offset? _smudgeLastPosition;
+  Color? _smudgeCarryColor;
+  double _smudgeLastPressure = 1.0;
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
   CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
     columns: 1,
@@ -1594,6 +1598,7 @@ class PaintingBoardState extends _PaintingBoardBase
       kSprayStrokeMin,
       kSprayStrokeMax,
     );
+    _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
@@ -1873,6 +1878,7 @@ class PaintingBoardState extends _PaintingBoardBase
       colorLineColor: _colorLineColor.value,
       penStrokeWidth: _penStrokeWidth,
       sprayStrokeWidth: _sprayStrokeWidth,
+      sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
       brushShape: _brushShape,
       strokeStabilizerStrength: _strokeStabilizerStrength,
@@ -1903,6 +1909,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateSelectionShape(snapshot.selectionShape);
     _updatePenStrokeWidth(snapshot.penStrokeWidth);
     _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
+    _updateSprayMode(snapshot.sprayMode);
     if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
       setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
     }

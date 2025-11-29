@@ -12,6 +12,8 @@ enum CanvasTool {
   hand,
 }
 
+enum SprayMode { smudge, splatter }
+
 enum SelectionShape { rectangle, ellipse, polygon }
 
 enum ShapeToolVariant { rectangle, ellipse, triangle, line }

@@ -289,6 +289,13 @@ class _WindowControlButton extends StatelessWidget {
 class _WorkspaceTabState extends State<_WorkspaceTab> {
   bool _hovered = false;
 
+  Color _opaqueFill(Color fill, Color background) {
+    if (fill.alpha == 0xFF) {
+      return fill;
+    }
+    return Color.alphaBlend(fill, background);
+  }
+
   void _handlePointer(bool hovered) {
     if (_hovered == hovered) {
       return;
@@ -301,41 +308,36 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
     final theme = FluentTheme.of(context);
     final bool isActive = widget.isActive;
     final bool hovered = _hovered;
-    final Color activeFill = theme.resources.subtleFillColorSecondary;
-    final Color hoverFill = theme.resources.subtleFillColorTertiary;
-    final Color backgroundColor = isActive
-        ? activeFill
-        : (hovered ? hoverFill : Colors.transparent);
-    final Color borderColor = isActive
-        ? theme.resources.controlStrokeColorDefault
-        : (hovered
-              ? theme.resources.controlStrokeColorSecondary
-              : Colors.transparent);
+    final Color containerBackground = theme.micaBackgroundColor;
+    final Color hoverFill = _opaqueFill(
+      theme.resources.subtleFillColorTertiary,
+      containerBackground,
+    );
+    final Color baseFill = containerBackground;
+    final bool highlight = hovered || isActive;
+    final Color backgroundColor = highlight ? hoverFill : baseFill;
+    final Color borderColor = highlight
+        ? theme.resources.controlStrokeColorSecondary
+        : Colors.transparent;
     final TextStyle baseStyle =
         theme.typography.caption ?? theme.typography.body ?? const TextStyle();
     final Color inactiveTextColor =
         baseStyle.color ?? theme.resources.textFillColorSecondary;
-    final Color activeTextColor =
-        theme.typography.bodyStrong?.color ??
-        theme.typography.body?.color ??
-        inactiveTextColor;
     final Color hoverTextColor =
         theme.typography.body?.color ??
         theme.typography.bodyStrong?.color ??
         inactiveTextColor;
-    final Color textColor = isActive
-        ? activeTextColor
-        : (hovered ? hoverTextColor : inactiveTextColor);
-    final Color closeIconColor = textColor.withOpacity(
-      hovered || isActive ? 0.95 : 0.75,
-    );
-    final List<BoxShadow>? shadows = (isActive || hovered)
+    final Color textColor =
+        highlight ? hoverTextColor : inactiveTextColor;
+    final Color closeIconColor =
+        textColor.withOpacity(highlight ? 0.95 : 0.75);
+    final List<BoxShadow>? shadows = highlight
         ? [
             BoxShadow(
               color: Colors.black.withOpacity(
                 theme.brightness.isDark ? 0.3 : 0.12,
               ),
-              blurRadius: isActive ? 6 : 4,
+              blurRadius: 4,
               offset: const Offset(0, 2),
             ),
           ]

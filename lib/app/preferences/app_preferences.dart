@@ -44,17 +44,19 @@ class AppPreferences {
     this.sai2ToolPanelSplit = _defaultSai2ToolPanelSplit,
     this.sai2LayerPanelWidthSplit = _defaultSai2LayerPanelSplit,
     this.sprayStrokeWidth = _defaultSprayStrokeWidth,
+    this.sprayMode = _defaultSprayMode,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 24;
+  static const int _version = 25;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
   static const ThemeMode _defaultThemeMode = ThemeMode.system;
   static const double _defaultPenStrokeWidth = 3.0;
   static const double _defaultSprayStrokeWidth = kDefaultSprayStrokeWidth;
+  static const SprayMode _defaultSprayMode = SprayMode.smudge;
   static const bool _defaultSimulatePenPressure = false;
   static const StrokePressureProfile _defaultPenPressureProfile =
       StrokePressureProfile.auto;
@@ -97,6 +99,7 @@ class AppPreferences {
       _defaultStrokeStabilizerStrength;
   static const BrushShape defaultBrushShape = _defaultBrushShape;
   static const double defaultSprayStrokeWidth = _defaultSprayStrokeWidth;
+  static const SprayMode defaultSprayMode = _defaultSprayMode;
   static const bool defaultLayerAdjustCropOutside = false;
   static const Color defaultColorLineColor = _defaultColorLineColor;
   static const bool defaultBucketSwallowColorLine =
@@ -132,6 +135,7 @@ class AppPreferences {
   double strokeStabilizerStrength;
   BrushShape brushShape;
   double sprayStrokeWidth;
+  SprayMode sprayMode;
   bool layerAdjustCropOutside;
   Color colorLineColor;
   bool bucketSwallowColorLine;
@@ -208,47 +212,95 @@ class AppPreferences {
                 version >= 24 && bytes.length >= 36
                 ? _decodeSprayStrokeWidth(bytes[34] | (bytes[35] << 8))
                 : _defaultSprayStrokeWidth;
-            final int rawHistory = bytes[3] | (bytes[4] << 8);
-            final int rawStroke = bytes[6] | (bytes[7] << 8);
-            _instance = AppPreferences._(
-              bucketSampleAllLayers: bytes[1] != 0,
-              bucketContiguous: bytes[2] != 0,
-              historyLimit: _clampHistoryLimit(rawHistory),
-              themeMode: _decodeThemeMode(bytes[5]),
-              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
-              simulatePenPressure: bytes[8] != 0,
-              penPressureProfile: _decodePressureProfile(bytes[9]),
-              penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
-              stylusPressureEnabled: bytes[11] != 0,
-              stylusPressureCurve: _decodeStylusFactor(
-                bytes[12],
-                lower: _stylusCurveLowerBound,
-                upper: _stylusCurveUpperBound,
-              ),
-              autoSharpPeakEnabled: bytes[13] != 0,
-              penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
-              strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
-                bytes[15],
-              ),
-              brushShape: _decodeBrushShape(bytes[16]),
-              layerAdjustCropOutside: bytes[17] != 0,
-              colorLineColor: decodedColorLineColor,
-              bucketSwallowColorLine: decodedBucketSwallowColorLine,
-              shapeToolFillEnabled: decodedShapeToolFillEnabled,
-              bucketTolerance: _clampToleranceValue(bytes[20]),
-              magicWandTolerance: _clampToleranceValue(bytes[21]),
-              brushToolsEraserMode: bytes[22] != 0,
-              bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
-              vectorDrawingEnabled: decodedVectorDrawingEnabled,
-              showFpsOverlay: bytes[24] != 0,
-              workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
-              floatingColorPanelHeight: decodedFloatingColorHeight,
-              sai2ColorPanelHeight: decodedSai2ColorHeight,
-              sai2ToolPanelSplit: decodedSai2ToolSplit,
-              sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
-              sprayStrokeWidth: decodedSprayStrokeWidth,
-            );
-            return _finalizeLoadedPreferences();
+            if (version >= 25 && bytes.length >= 37) {
+              final SprayMode decodedSprayMode =
+                  _decodeSprayMode(bytes[36]);
+              final int rawHistory = bytes[3] | (bytes[4] << 8);
+              final int rawStroke = bytes[6] | (bytes[7] << 8);
+              _instance = AppPreferences._(
+                bucketSampleAllLayers: bytes[1] != 0,
+                bucketContiguous: bytes[2] != 0,
+                historyLimit: _clampHistoryLimit(rawHistory),
+                themeMode: _decodeThemeMode(bytes[5]),
+                penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+                simulatePenPressure: bytes[8] != 0,
+                penPressureProfile: _decodePressureProfile(bytes[9]),
+                penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+                stylusPressureEnabled: bytes[11] != 0,
+                stylusPressureCurve: _decodeStylusFactor(
+                  bytes[12],
+                  lower: _stylusCurveLowerBound,
+                  upper: _stylusCurveUpperBound,
+                ),
+                autoSharpPeakEnabled: bytes[13] != 0,
+                penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+                strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                  bytes[15],
+                ),
+                brushShape: _decodeBrushShape(bytes[16]),
+                layerAdjustCropOutside: bytes[17] != 0,
+                colorLineColor: decodedColorLineColor,
+                bucketSwallowColorLine: decodedBucketSwallowColorLine,
+                shapeToolFillEnabled: decodedShapeToolFillEnabled,
+                bucketTolerance: _clampToleranceValue(bytes[20]),
+                magicWandTolerance: _clampToleranceValue(bytes[21]),
+                brushToolsEraserMode: bytes[22] != 0,
+                bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
+                vectorDrawingEnabled: decodedVectorDrawingEnabled,
+                showFpsOverlay: bytes[24] != 0,
+                workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
+                floatingColorPanelHeight: decodedFloatingColorHeight,
+                sai2ColorPanelHeight: decodedSai2ColorHeight,
+                sai2ToolPanelSplit: decodedSai2ToolSplit,
+                sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
+                sprayStrokeWidth: decodedSprayStrokeWidth,
+                sprayMode: decodedSprayMode,
+              );
+              return _finalizeLoadedPreferences();
+            }
+            if (version >= 24 && bytes.length >= 36) {
+              final int rawHistory = bytes[3] | (bytes[4] << 8);
+              final int rawStroke = bytes[6] | (bytes[7] << 8);
+              _instance = AppPreferences._(
+                bucketSampleAllLayers: bytes[1] != 0,
+                bucketContiguous: bytes[2] != 0,
+                historyLimit: _clampHistoryLimit(rawHistory),
+                themeMode: _decodeThemeMode(bytes[5]),
+                penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+                simulatePenPressure: bytes[8] != 0,
+                penPressureProfile: _decodePressureProfile(bytes[9]),
+                penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+                stylusPressureEnabled: bytes[11] != 0,
+                stylusPressureCurve: _decodeStylusFactor(
+                  bytes[12],
+                  lower: _stylusCurveLowerBound,
+                  upper: _stylusCurveUpperBound,
+                ),
+                autoSharpPeakEnabled: bytes[13] != 0,
+                penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+                strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                  bytes[15],
+                ),
+                brushShape: _decodeBrushShape(bytes[16]),
+                layerAdjustCropOutside: bytes[17] != 0,
+                colorLineColor: decodedColorLineColor,
+                bucketSwallowColorLine: decodedBucketSwallowColorLine,
+                shapeToolFillEnabled: decodedShapeToolFillEnabled,
+                bucketTolerance: _clampToleranceValue(bytes[20]),
+                magicWandTolerance: _clampToleranceValue(bytes[21]),
+                brushToolsEraserMode: bytes[22] != 0,
+                bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
+                vectorDrawingEnabled: decodedVectorDrawingEnabled,
+                showFpsOverlay: bytes[24] != 0,
+                workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
+                floatingColorPanelHeight: decodedFloatingColorHeight,
+                sai2ColorPanelHeight: decodedSai2ColorHeight,
+                sai2ToolPanelSplit: decodedSai2ToolSplit,
+                sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
+                sprayStrokeWidth: decodedSprayStrokeWidth,
+              );
+              return _finalizeLoadedPreferences();
+            }
           }
           if (version >= 19 && bytes.length >= 25) {
             final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -923,6 +975,7 @@ class AppPreferences {
       prefs.shapeToolFillEnabled ? 1 : 0,
       sprayWidth & 0xff,
       (sprayWidth >> 8) & 0xff,
+      _encodeSprayMode(prefs.sprayMode),
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -994,6 +1047,26 @@ class AppPreferences {
       case WorkspaceLayoutPreference.sai2:
         return 1;
       case WorkspaceLayoutPreference.floating:
+      default:
+        return 0;
+    }
+  }
+
+  static SprayMode _decodeSprayMode(int value) {
+    switch (value) {
+      case 1:
+        return SprayMode.splatter;
+      case 0:
+      default:
+        return SprayMode.smudge;
+    }
+  }
+
+  static int _encodeSprayMode(SprayMode mode) {
+    switch (mode) {
+      case SprayMode.splatter:
+        return 1;
+      case SprayMode.smudge:
       default:
         return 0;
     }
