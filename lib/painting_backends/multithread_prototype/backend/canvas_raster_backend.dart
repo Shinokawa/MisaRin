@@ -308,6 +308,7 @@ class CanvasRasterBackend {
     Offset position,
     List<BitmapLayerState> layers, {
     String? translatingLayerId,
+    bool preferRealtime = false,
   }) {
     final int x = position.dx.floor();
     final int y = position.dy.floor();
@@ -315,7 +316,7 @@ class CanvasRasterBackend {
       return const Color(0x00000000);
     }
     final int index = y * _width + x;
-    final Uint32List? pixels = _compositePixels;
+    final Uint32List? pixels = preferRealtime ? null : _compositePixels;
     if (pixels != null && pixels.length > index) {
       return BitmapSurface.decodeColor(pixels[index]);
     }

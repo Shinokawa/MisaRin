@@ -187,6 +187,7 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _sprayStrokeWidth = clamped);
+    _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
     final AppPreferences prefs = AppPreferences.instance;
     prefs.sprayStrokeWidth = clamped;
     unawaited(AppPreferences.save());
@@ -267,6 +268,7 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _penAntialiasLevel = clamped);
+    _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
     final AppPreferences prefs = AppPreferences.instance;
     prefs.penAntialiasLevel = clamped;
     unawaited(AppPreferences.save());
@@ -559,6 +561,45 @@ mixin _PaintingBoardInteractionMixin
     return stylusPressure.clamp(0.0, 1.0);
   }
 
+  /// Builds a Krita-style spray configuration using the current stroke width
+  /// and anti-alias settings. The constants mirror Krita's defaults but are
+  /// tuned so that emission rate + density feel natural on Flutter.
+  KritaSprayEngineSettings _buildKritaSpraySettings() {
+    final double clampedDiameter =
+        _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    return KritaSprayEngineSettings(
+      diameter: clampedDiameter,
+      scale: 1.0,
+      aspectRatio: 1.0,
+      rotation: 0.0,
+      jitterMovement: true,
+      jitterAmount: 0.2,
+      radialDistribution: KritaRadialDistributionType.gaussian,
+      radialCenterBiased: true,
+      gaussianSigma: 0.35,
+      particleMultiplier: 1.0,
+      randomSize: true,
+      minParticleScale: 0.014,
+      maxParticleScale: 0.086,
+      baseParticleScale: 0.05,
+      minParticleRadius: 0.32,
+      sampleInputColor: false,
+      sampleBlend: 0.5,
+      shape: BrushShape.circle,
+      minAntialiasLevel: math.max(_penAntialiasLevel, 1),
+    );
+  }
+
+  KritaSprayEngine _ensureKritaSprayEngine() {
+    final KritaSprayEngine engine = _kritaSprayEngine ??= KritaSprayEngine(
+      controller: _controller,
+      clampToCanvas: _clampToCanvas,
+      random: _syntheticStrokeRandom,
+    );
+    engine.updateSettings(_buildKritaSpraySettings());
+    return engine;
+  }
+
   void _ensureSprayTicker() {
     if (_sprayTicker != null) {
       return;
@@ -577,17 +618,18 @@ mixin _PaintingBoardInteractionMixin
     _sprayCurrentPressure = _resolveSprayPressure(event);
     _sprayEmissionAccumulator = 0.0;
     _sprayTickerTimestamp = null;
+    _activeSprayColor = _isBrushEraserEnabled
+        ? const Color(0xFFFFFFFF)
+        : _primaryColor;
     if (_sprayMode == SprayMode.splatter) {
+      _ensureKritaSprayEngine();
       _ensureSprayTicker();
       _sprayTicker?.start();
     } else {
       _sprayTicker?.stop();
       _smudgeLastPosition = clamped;
       _smudgeLastPressure = _sprayCurrentPressure;
-      _smudgeCarryColor = _controller.sampleColor(
-        clamped,
-        sampleAllLayers: true,
-      );
+      _smudgeCarryColor = _primaryColor;
     }
     setState(() {
       _isSpraying = true;
@@ -615,6 +657,8 @@ mixin _PaintingBoardInteractionMixin
       _isSpraying = false;
     });
     _sprayBoardPosition = null;
+    _kritaSprayEngine = null;
+    _activeSprayColor = null;
     _sprayTickerTimestamp = null;
     _sprayEmissionAccumulator = 0.0;
     _smudgeLastPosition = null;
@@ -689,37 +733,40 @@ mixin _PaintingBoardInteractionMixin
   }) {
     Color carryColor = _smudgeCarryColor ??
         _controller.sampleColor(start, sampleAllLayers: true);
+    carryColor = _resolveSmudgeSeedColor(carryColor);
     final double radius = _smudgeRadiusForPressure(pressure);
     final double spacing = math.max(radius * 0.35, 2.0);
     final double distance = (end - start).distance;
     final int steps = math.max(1, (distance / spacing).ceil());
     bool painted = false;
-    for (int i = 0; i < steps; i++) {
-      final double t = steps == 1 ? 1.0 : (i + 1) / steps;
-      final Offset point = Offset(
-        ui.lerpDouble(start.dx, end.dx, t) ?? end.dx,
-        ui.lerpDouble(start.dy, end.dy, t) ?? end.dy,
-      );
-      final Offset clamped = _clampToCanvas(point);
-      final Color destinationSample = _controller.sampleColor(
-        clamped,
-        sampleAllLayers: true,
-      );
-      final Color depositColor = _scaleSmudgeColor(carryColor, pressure);
-      if (depositColor.alpha > 0) {
-        _controller.drawBrushStamp(
-          center: clamped,
-          radius: radius,
-          color: depositColor,
-          brushShape: BrushShape.circle,
-          antialiasLevel: math.max(_penAntialiasLevel, 2),
-          erase: false,
+    _controller.runSynchronousRasterization(() {
+      for (int i = 0; i < steps; i++) {
+        final double t = steps == 1 ? 1.0 : (i + 1) / steps;
+        final Offset point = Offset(
+          ui.lerpDouble(start.dx, end.dx, t) ?? end.dx,
+          ui.lerpDouble(start.dy, end.dy, t) ?? end.dy,
         );
-        painted = true;
+        final Offset clamped = _clampToCanvas(point);
+        final Color destinationSample = _controller.sampleColor(
+          clamped,
+          sampleAllLayers: true,
+        );
+        final Color depositColor = _scaleSmudgeColor(carryColor, pressure);
+        if (depositColor.alpha > 0) {
+          _controller.drawBrushStamp(
+            center: clamped,
+            radius: radius,
+            color: depositColor,
+            brushShape: BrushShape.circle,
+            antialiasLevel: math.max(_penAntialiasLevel, 2),
+            erase: false,
+          );
+          painted = true;
+        }
+        carryColor = Color.lerp(carryColor, destinationSample, 0.35) ??
+            destinationSample;
       }
-      carryColor =
-          Color.lerp(carryColor, destinationSample, 0.35) ?? destinationSample;
-    }
+    });
     _smudgeCarryColor = carryColor;
     return painted;
   }
@@ -734,22 +781,24 @@ mixin _PaintingBoardInteractionMixin
     final double distance = (end - start).distance;
     final int steps = math.max(1, (distance / spacing).ceil());
     bool painted = false;
-    for (int i = 0; i < steps; i++) {
-      final double t = steps == 1 ? 1.0 : (i + 1) / steps;
-      final Offset point = Offset(
-        ui.lerpDouble(start.dx, end.dx, t) ?? end.dx,
-        ui.lerpDouble(start.dy, end.dy, t) ?? end.dy,
-      );
-      _controller.drawBrushStamp(
-        center: _clampToCanvas(point),
-        radius: radius,
-        color: const Color(0xFFFFFFFF),
-        brushShape: BrushShape.circle,
-        antialiasLevel: math.max(_penAntialiasLevel, 2),
-        erase: true,
-      );
-      painted = true;
-    }
+    _controller.runSynchronousRasterization(() {
+      for (int i = 0; i < steps; i++) {
+        final double t = steps == 1 ? 1.0 : (i + 1) / steps;
+        final Offset point = Offset(
+          ui.lerpDouble(start.dx, end.dx, t) ?? end.dx,
+          ui.lerpDouble(start.dy, end.dy, t) ?? end.dy,
+        );
+        _controller.drawBrushStamp(
+          center: _clampToCanvas(point),
+          radius: radius,
+          color: const Color(0xFFFFFFFF),
+          brushShape: BrushShape.circle,
+          antialiasLevel: math.max(_penAntialiasLevel, 2),
+          erase: true,
+        );
+        painted = true;
+      }
+    });
     return painted;
   }
 
@@ -770,6 +819,13 @@ mixin _PaintingBoardInteractionMixin
     return color.withAlpha(scaledAlpha);
   }
 
+  Color _resolveSmudgeSeedColor(Color color) {
+    if (color.alpha > 0) {
+      return color;
+    }
+    return _primaryColor;
+  }
+
   double _sprayEmissionRateForDiameter(double diameter) {
     final double normalized = diameter.clamp(kSprayStrokeMin, kSprayStrokeMax);
     final double scaled = normalized * 0.25 + 40.0;
@@ -780,35 +836,18 @@ mixin _PaintingBoardInteractionMixin
     if (count <= 0) {
       return;
     }
+    final KritaSprayEngine engine = _ensureKritaSprayEngine();
     final bool erase = _isBrushEraserEnabled;
-    final Color color = erase ? const Color(0xFFFFFFFF) : _primaryColor;
-    final double maxRadius = (_sprayStrokeWidth / 2).clamp(
-      0.5,
-      kSprayStrokeMax / 2,
+    final Color color = _activeSprayColor ??
+        (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    engine.paintParticles(
+      center: _clampToCanvas(center),
+      particleBudget: count,
+      pressure: _sprayCurrentPressure,
+      baseColor: color,
+      erase: erase,
+      antialiasLevel: _penAntialiasLevel,
     );
-    final double minParticleRadius = math.max(maxRadius * 0.015, 0.35);
-    final double maxParticleRadius = math.max(maxRadius * 0.08, 0.6);
-    for (int i = 0; i < count; i++) {
-      final double distance =
-          math.sqrt(_syntheticStrokeRandom.nextDouble()) * maxRadius;
-      final double angle = _syntheticStrokeRandom.nextDouble() * math.pi * 2;
-      final Offset offset = Offset(
-        center.dx + math.cos(angle) * distance,
-        center.dy + math.sin(angle) * distance,
-      );
-      final double sizeFactor = _syntheticStrokeRandom.nextDouble();
-      final double particleRadius =
-          ui.lerpDouble(minParticleRadius, maxParticleRadius, sizeFactor) ??
-          minParticleRadius;
-      _controller.drawBrushStamp(
-        center: _clampToCanvas(offset),
-        radius: particleRadius,
-        color: color,
-        brushShape: BrushShape.circle,
-        antialiasLevel: _penAntialiasLevel,
-        erase: erase,
-      );
-    }
     _markDirty();
   }
 

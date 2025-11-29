@@ -165,8 +165,11 @@ Color _fillSampleColor(
     return const Color(0x00000000);
   }
   if (sampleAllLayers) {
-    controller._updateComposite(requiresFullSurface: true, region: null);
-    return _fillColorAtComposite(controller, position);
+    return _fillColorAtComposite(
+      controller,
+      position,
+      preferRealtime: true,
+    );
   }
   return _fillColorAtSurface(controller, controller._activeSurface, x, y);
 }
@@ -830,12 +833,14 @@ bool _fillColorsWithinTolerance(int candidate, int target, int tolerance) {
 
 Color _fillColorAtComposite(
   BitmapCanvasController controller,
-  Offset position,
-) {
+  Offset position, {
+  bool preferRealtime = false,
+}) {
   return controller._rasterBackend.colorAtComposite(
     position,
     controller._layers,
     translatingLayerId: controller._translatingLayerIdForComposite,
+    preferRealtime: preferRealtime,
   );
 }
 

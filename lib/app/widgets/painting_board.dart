@@ -68,6 +68,7 @@ import '../toolbars/widgets/exit_tool_button.dart';
 import '../toolbars/widgets/tool_settings_card.dart';
 import '../toolbars/layouts/layouts.dart';
 import '../toolbars/widgets/measured_size.dart';
+import '../../painting/krita_spray_engine.dart';
 import 'tool_cursor_overlay.dart';
 import 'bitmap_canvas_surface.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
@@ -273,6 +274,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Duration? _sprayTickerTimestamp;
   double _sprayEmissionAccumulator = 0.0;
   double _sprayCurrentPressure = 1.0;
+  KritaSprayEngine? _kritaSprayEngine;
+  Color? _activeSprayColor;
   Offset? _smudgeLastPosition;
   Color? _smudgeCarryColor;
   double _smudgeLastPressure = 1.0;
