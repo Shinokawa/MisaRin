@@ -18,6 +18,7 @@ import 'layer_adjust_tool_button.dart';
 import 'curve_pen_tool_button.dart';
 import 'eyedropper_tool_button.dart';
 import 'shape_tool_button.dart';
+import 'spray_tool_button.dart';
 
 class CanvasToolbar extends StatelessWidget {
   const CanvasToolbar({
@@ -49,7 +50,7 @@ class CanvasToolbar extends StatelessWidget {
   final bool includeExitButton;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 11;
+  static const int buttonCount = 12;
   static const int buttonCountWithoutExit = buttonCount - 1;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;
@@ -149,6 +150,16 @@ class CanvasToolbar extends StatelessWidget {
         child: PenToolButton(
           isSelected: activeTool == CanvasTool.pen,
           onPressed: () => onToolSelected(CanvasTool.pen),
+        ),
+      ),
+      Tooltip(
+        message: _tooltipMessage('喷枪工具', ToolbarAction.sprayTool),
+        displayHorizontally: true,
+        style: _rightTooltipStyle,
+        useMousePosition: false,
+        child: SprayToolButton(
+          isSelected: activeTool == CanvasTool.spray,
+          onPressed: () => onToolSelected(CanvasTool.spray),
         ),
       ),
       Tooltip(

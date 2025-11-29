@@ -37,7 +37,7 @@ import 'package:flutter/rendering.dart'
         RenderProxyBoxWithHitTestBehavior,
         TextPainter;
 import 'package:flutter/scheduler.dart'
-    show SchedulerBinding, SingleTickerProviderStateMixin, TickerProvider;
+    show SchedulerBinding, Ticker, TickerProvider, TickerProviderStateMixin;
 import 'package:flutter/widgets.dart'
     show
         EditableText,
@@ -120,6 +120,7 @@ const double _toolbarSpacing = CanvasToolbar.spacing;
 const double _toolSettingsSpacing = 12;
 const double _zoomStep = 1.1;
 const double _defaultPenStrokeWidth = 3;
+const double _defaultSprayStrokeWidth = kDefaultSprayStrokeWidth;
 const double _sidePanelWidth = 240;
 const double _sidePanelSpacing = 12;
 const double _colorIndicatorSize = 56;
@@ -206,6 +207,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _pixelGridVisible = false;
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
+  double _sprayStrokeWidth = _defaultSprayStrokeWidth;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
   bool _simulatePenPressure = false;
@@ -264,6 +266,12 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _lastStrokeBoardPosition;
   Offset? _lastStylusDirection;
   final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
+  bool _isSpraying = false;
+  Offset? _sprayBoardPosition;
+  Ticker? _sprayTicker;
+  Duration? _sprayTickerTimestamp;
+  double _sprayEmissionAccumulator = 0.0;
+  double _sprayCurrentPressure = 1.0;
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
   CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
     columns: 1,
@@ -689,7 +697,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final double buttonExtent = maxExtent.isFinite && maxExtent > 0
         ? maxExtent.clamp(36.0, CanvasToolbar.buttonSize)
         : CanvasToolbar.buttonSize;
-    final int toolCount = CanvasToolbar.buttonCountWithoutExit +
+    final int toolCount =
+        CanvasToolbar.buttonCountWithoutExit +
         (includeHistoryButtons ? CanvasToolbar.historyButtonCount : 0);
     final int rows = math.max(1, (toolCount / targetColumns).ceil());
     final double width = targetColumns * buttonExtent + totalSpacing;
@@ -734,6 +743,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   bool get _penRequiresOverlay =>
       _effectiveActiveTool == CanvasTool.pen ||
+      _effectiveActiveTool == CanvasTool.spray ||
       _effectiveActiveTool == CanvasTool.curvePen ||
       _effectiveActiveTool == CanvasTool.shape ||
       _effectiveActiveTool == CanvasTool.eraser;
@@ -826,6 +836,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Future<bool> paste();
 
   void _updatePenStrokeWidth(double value);
+  void _updateSprayStrokeWidth(double value);
   void _updateBucketSampleAllLayers(bool value);
   void _updateBucketContiguous(bool value);
 
@@ -1551,7 +1562,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
 class PaintingBoardState extends _PaintingBoardBase
     with
-        SingleTickerProviderStateMixin,
+        TickerProviderStateMixin,
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardLayerMixin,
         _PaintingBoardColorMixin,
@@ -1579,6 +1590,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
+    _sprayStrokeWidth = prefs.sprayStrokeWidth.clamp(
+      kSprayStrokeMin,
+      kSprayStrokeMax,
+    );
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
@@ -1629,6 +1644,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _pendingLayoutTask = null;
     unawaited(_layoutWorker?.dispose());
     _focusNode.dispose();
+    _sprayTicker?.dispose();
     super.dispose();
   }
 
@@ -1856,6 +1872,7 @@ class PaintingBoardState extends _PaintingBoardBase
           .toList(growable: false),
       colorLineColor: _colorLineColor.value,
       penStrokeWidth: _penStrokeWidth,
+      sprayStrokeWidth: _sprayStrokeWidth,
       penStrokeSliderRange: _penStrokeSliderRange,
       brushShape: _brushShape,
       strokeStabilizerStrength: _strokeStabilizerStrength,
@@ -1885,6 +1902,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateShapeFillEnabled(snapshot.shapeFillEnabled);
     _updateSelectionShape(snapshot.selectionShape);
     _updatePenStrokeWidth(snapshot.penStrokeWidth);
+    _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
     if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
       setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
     }
@@ -1908,9 +1926,7 @@ class PaintingBoardState extends _PaintingBoardBase
     setState(() {
       _recentColors
         ..clear()
-        ..addAll(
-          snapshot.recentColors.map((value) => Color(value)),
-        );
+        ..addAll(snapshot.recentColors.map((value) => Color(value)));
     });
     final Color targetColorLine = Color(snapshot.colorLineColor);
     if (_colorLineColor.value != targetColorLine.value) {

@@ -53,15 +53,15 @@ mixin _PaintingBoardBuildMixin
         key: const SelectToolIntent(CanvasTool.layerAdjust),
       for (final key in ToolbarShortcuts.of(ToolbarAction.penTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.pen),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.sprayTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.spray),
       for (final key in ToolbarShortcuts.of(
         ToolbarAction.curvePenTool,
       ).shortcuts)
         key: const SelectToolIntent(CanvasTool.curvePen),
       for (final key in ToolbarShortcuts.of(ToolbarAction.shapeTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.shape),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.eraserTool,
-      ).shortcuts)
+      for (final key in ToolbarShortcuts.of(ToolbarAction.eraserTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.eraser),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
@@ -155,6 +155,14 @@ mixin _PaintingBoardBuildMixin
             hideCursorBecauseLayerTransform;
         final bool isLayerAdjustDragging =
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
+        final double overlayBrushDiameter =
+            _effectiveActiveTool == CanvasTool.spray
+            ? _sprayStrokeWidth
+            : _penStrokeWidth;
+        final BrushShape overlayBrushShape =
+            _effectiveActiveTool == CanvasTool.spray
+            ? BrushShape.circle
+            : _brushShape;
         final Widget? antialiasCard = _buildAntialiasCard();
         final Widget? transformPanel = buildLayerTransformPanel();
         final Widget? transformCursorOverlay = buildLayerTransformCursorOverlay(
@@ -266,8 +274,10 @@ mixin _PaintingBoardBuildMixin
         final Widget toolSettingsCard = ToolSettingsCard(
           activeTool: _activeTool,
           penStrokeWidth: _penStrokeWidth,
+          sprayStrokeWidth: _sprayStrokeWidth,
           penStrokeSliderRange: _penStrokeSliderRange,
           onPenStrokeWidthChanged: _updatePenStrokeWidth,
+          onSprayStrokeWidthChanged: _updateSprayStrokeWidth,
           brushShape: _brushShape,
           onBrushShapeChanged: _updateBrushShape,
           strokeStabilizerStrength: _strokeStabilizerStrength,
@@ -577,14 +587,14 @@ mixin _PaintingBoardBuildMixin
                                             // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
                                             final bool canPreviewStroke =
                                                 _effectiveActiveTool ==
-                                                        CanvasTool.pen ||
-                                                    _effectiveActiveTool ==
-                                                        CanvasTool.eraser;
+                                                    CanvasTool.pen ||
+                                                _effectiveActiveTool ==
+                                                    CanvasTool.eraser;
                                             final bool hasActiveStroke =
                                                 canPreviewStroke &&
-                                                    _controller
-                                                        .activeStrokePoints
-                                                        .isNotEmpty;
+                                                _controller
+                                                    .activeStrokePoints
+                                                    .isNotEmpty;
                                             final bool showActiveStroke =
                                                 _vectorDrawingEnabled &&
                                                 !_isLayerFreeTransformActive &&
@@ -597,12 +607,11 @@ mixin _PaintingBoardBuildMixin
                                             final bool activeStrokeIsEraser =
                                                 _controller
                                                     .activeStrokeEraseMode;
-                                            final Path?
-                                                pendingFillOverlayPath =
-                                                    shapeVectorFillOverlayPath;
+                                            final Path? pendingFillOverlayPath =
+                                                shapeVectorFillOverlayPath;
                                             final Color?
-                                                pendingFillOverlayColor =
-                                                    shapeVectorFillOverlayColor;
+                                            pendingFillOverlayColor =
+                                                shapeVectorFillOverlayColor;
 
                                             return Stack(
                                               fit: StackFit.expand,
@@ -720,8 +729,7 @@ mixin _PaintingBoardBuildMixin
                                                     child: IgnorePointer(
                                                       ignoring: true,
                                                       child: CustomPaint(
-                                                        painter:
-                                                            _ShapeFillOverlayPainter(
+                                                        painter: _ShapeFillOverlayPainter(
                                                           path:
                                                               pendingFillOverlayPath,
                                                           color:
@@ -788,8 +796,8 @@ mixin _PaintingBoardBuildMixin
                               _penCursorWorkspacePosition != null)
                             PenCursorOverlay(
                               position: _penCursorWorkspacePosition!,
-                              diameter: _penStrokeWidth * _viewport.scale,
-                              shape: _brushShape,
+                              diameter: overlayBrushDiameter * _viewport.scale,
+                              shape: overlayBrushShape,
                             ),
                           if (_toolCursorPosition != null)
                             Positioned(

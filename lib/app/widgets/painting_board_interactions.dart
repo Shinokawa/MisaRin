@@ -7,7 +7,8 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardBase,
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardShapeMixin,
-        _PaintingBoardReferenceMixin {
+        _PaintingBoardReferenceMixin,
+        TickerProvider {
   void clear() async {
     await _pushUndoSnapshot();
     _controller.clear();
@@ -109,6 +110,9 @@ mixin _PaintingBoardInteractionMixin
     if (_activeTool == tool) {
       return;
     }
+    if (_activeTool == CanvasTool.spray && _isSpraying) {
+      _finishSprayStroke();
+    }
     if (_activeTool == CanvasTool.curvePen) {
       _resetCurvePenState(notify: false);
     }
@@ -174,6 +178,17 @@ mixin _PaintingBoardInteractionMixin
     setState(() => _penStrokeWidth = clamped);
     final AppPreferences prefs = AppPreferences.instance;
     prefs.penStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateSprayStrokeWidth(double value) {
+    final double clamped = value.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    if ((_sprayStrokeWidth - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _sprayStrokeWidth = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sprayStrokeWidth = clamped;
     unawaited(AppPreferences.save());
   }
 
@@ -523,6 +538,135 @@ mixin _PaintingBoardInteractionMixin
     _strokeStabilizer.reset();
   }
 
+  double _resolveSprayPressure(PointerEvent? event) {
+    final double? stylusPressure = _stylusPressureValue(event);
+    if (stylusPressure == null || !stylusPressure.isFinite) {
+      return 1.0;
+    }
+    return stylusPressure.clamp(0.0, 1.0);
+  }
+
+  void _ensureSprayTicker() {
+    if (_sprayTicker != null) {
+      return;
+    }
+    _sprayTicker = createTicker(_handleSprayTick);
+  }
+
+  Future<void> _startSprayStroke(Offset boardLocal, PointerEvent event) async {
+    if (!isPointInsideSelection(boardLocal)) {
+      return;
+    }
+    _focusNode.requestFocus();
+    await _pushUndoSnapshot();
+    _sprayBoardPosition = _clampToCanvas(boardLocal);
+    _sprayCurrentPressure = _resolveSprayPressure(event);
+    _sprayEmissionAccumulator = 0.0;
+    _sprayTickerTimestamp = null;
+    _ensureSprayTicker();
+    _sprayTicker?.start();
+    setState(() {
+      _isSpraying = true;
+    });
+  }
+
+  void _updateSprayStroke(Offset boardLocal, PointerEvent event) {
+    if (!_isSpraying) {
+      return;
+    }
+    _sprayBoardPosition = _clampToCanvas(boardLocal);
+    _sprayCurrentPressure = _resolveSprayPressure(event);
+  }
+
+  void _finishSprayStroke() {
+    if (!_isSpraying) {
+      return;
+    }
+    _sprayTicker?.stop();
+    setState(() {
+      _isSpraying = false;
+    });
+    _sprayBoardPosition = null;
+    _sprayTickerTimestamp = null;
+    _sprayEmissionAccumulator = 0.0;
+  }
+
+  void _handleSprayTick(Duration elapsed) {
+    if (!_isSpraying) {
+      return;
+    }
+    final Offset? position = _sprayBoardPosition;
+    if (position == null) {
+      return;
+    }
+    final Duration? previous = _sprayTickerTimestamp;
+    _sprayTickerTimestamp = elapsed;
+    if (previous == null) {
+      return;
+    }
+    final Duration delta = elapsed - previous;
+    if (delta <= Duration.zero) {
+      return;
+    }
+    final double deltaSeconds = delta.inMicroseconds / 1000000.0;
+    if (deltaSeconds <= 0.0) {
+      return;
+    }
+    final double emissionRate = _sprayEmissionRateForDiameter(
+      _sprayStrokeWidth,
+    );
+    final double pressureScale = _sprayCurrentPressure.clamp(0.05, 1.0);
+    _sprayEmissionAccumulator += emissionRate * pressureScale * deltaSeconds;
+    final int particleCount = _sprayEmissionAccumulator.floor();
+    if (particleCount <= 0) {
+      return;
+    }
+    _sprayEmissionAccumulator -= particleCount;
+    _emitSprayParticles(position, particleCount);
+  }
+
+  double _sprayEmissionRateForDiameter(double diameter) {
+    final double normalized = diameter.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    final double scaled = normalized * 0.25 + 40.0;
+    return scaled.clamp(60.0, 600.0);
+  }
+
+  void _emitSprayParticles(Offset center, int count) {
+    if (count <= 0) {
+      return;
+    }
+    final bool erase = _isBrushEraserEnabled;
+    final Color color = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    final double maxRadius = (_sprayStrokeWidth / 2).clamp(
+      0.5,
+      kSprayStrokeMax / 2,
+    );
+    final double minParticleRadius = math.max(maxRadius * 0.015, 0.35);
+    final double maxParticleRadius = math.max(maxRadius * 0.08, 0.6);
+    for (int i = 0; i < count; i++) {
+      final double distance =
+          math.sqrt(_syntheticStrokeRandom.nextDouble()) * maxRadius;
+      final double angle = _syntheticStrokeRandom.nextDouble() * math.pi * 2;
+      final Offset offset = Offset(
+        center.dx + math.cos(angle) * distance,
+        center.dy + math.sin(angle) * distance,
+      );
+      final double sizeFactor = _syntheticStrokeRandom.nextDouble();
+      final double particleRadius =
+          ui.lerpDouble(minParticleRadius, maxParticleRadius, sizeFactor) ??
+          minParticleRadius;
+      _controller.drawBrushStamp(
+        center: _clampToCanvas(offset),
+        radius: particleRadius,
+        color: color,
+        brushShape: BrushShape.circle,
+        antialiasLevel: _penAntialiasLevel,
+        erase: erase,
+      );
+    }
+    _markDirty();
+  }
+
   void _emitReleaseSamples({
     required Offset anchor,
     Offset? direction,
@@ -852,6 +996,9 @@ mixin _PaintingBoardInteractionMixin
     if (_isDrawing) {
       _finishStroke();
     }
+    if (_isSpraying) {
+      _finishSprayStroke();
+    }
     if (_isLayerDragging) {
       _finishLayerAdjustDrag();
     }
@@ -1146,9 +1293,7 @@ mixin _PaintingBoardInteractionMixin
     return bounds.inflate(_curvePreviewPadding);
   }
 
-  double get _curvePreviewPadding =>
-      math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
-
+  double get _curvePreviewPadding => math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
 
   Path? _buildCurvePreviewPath() {
     final Offset? start = _curveAnchor;
@@ -1324,6 +1469,13 @@ mixin _PaintingBoardInteractionMixin
         _focusNode.requestFocus();
         await _beginShapeDrawing(boardLocal);
         break;
+      case CanvasTool.spray:
+        _focusNode.requestFocus();
+        if (!isPointInsideSelection(boardLocal)) {
+          return;
+        }
+        await _startSprayStroke(boardLocal, event);
+        break;
       case CanvasTool.bucket:
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
@@ -1404,6 +1556,12 @@ mixin _PaintingBoardInteractionMixin
           _updateDragBoard(event.delta);
         }
         break;
+      case CanvasTool.spray:
+        if (_isSpraying) {
+          final Offset boardLocal = _toBoardLocal(event.localPosition);
+          _updateSprayStroke(boardLocal, event);
+        }
+        break;
     }
   }
 
@@ -1455,6 +1613,11 @@ mixin _PaintingBoardInteractionMixin
           _finishDragBoard();
         }
         break;
+      case CanvasTool.spray:
+        if (_isSpraying) {
+          _finishSprayStroke();
+        }
+        break;
       case CanvasTool.curvePen:
         await _handleCurvePenPointerUp();
         break;
@@ -1498,6 +1661,11 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.hand:
         if (_isDraggingBoard) {
           _finishDragBoard();
+        }
+        break;
+      case CanvasTool.spray:
+        if (_isSpraying) {
+          _finishSprayStroke();
         }
         break;
       case CanvasTool.bucket:

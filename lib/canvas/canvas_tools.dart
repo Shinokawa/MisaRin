@@ -1,6 +1,7 @@
 enum CanvasTool {
   layerAdjust,
   pen,
+  spray,
   curvePen,
   shape,
   eraser,

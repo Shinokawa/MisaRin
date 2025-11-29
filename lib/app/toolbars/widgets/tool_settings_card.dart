@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../../canvas/canvas_tools.dart';
 import '../../preferences/app_preferences.dart' show PenStrokeSliderRange;
+import '../../constants/pen_constants.dart'
+    show kSprayStrokeMin, kSprayStrokeMax;
 import 'measured_size.dart';
 import 'selection_shape_icon.dart';
 
@@ -13,8 +15,10 @@ class ToolSettingsCard extends StatefulWidget {
     super.key,
     required this.activeTool,
     required this.penStrokeWidth,
+    required this.sprayStrokeWidth,
     required this.penStrokeSliderRange,
     required this.onPenStrokeWidthChanged,
+    required this.onSprayStrokeWidthChanged,
     required this.brushShape,
     required this.onBrushShapeChanged,
     required this.strokeStabilizerStrength,
@@ -60,8 +64,10 @@ class ToolSettingsCard extends StatefulWidget {
 
   final CanvasTool activeTool;
   final double penStrokeWidth;
+  final double sprayStrokeWidth;
   final PenStrokeSliderRange penStrokeSliderRange;
   final ValueChanged<double> onPenStrokeWidthChanged;
+  final ValueChanged<double> onSprayStrokeWidthChanged;
   final BrushShape brushShape;
   final ValueChanged<BrushShape> onBrushShapeChanged;
   final double strokeStabilizerStrength;
@@ -121,12 +127,21 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
   double get _sliderMin => widget.penStrokeSliderRange.min;
   double get _sliderMax => widget.penStrokeSliderRange.max;
+  bool get _isSprayTool => widget.activeTool == CanvasTool.spray;
+  double get _activeSliderMin => _isSprayTool ? kSprayStrokeMin : _sliderMin;
+  double get _activeSliderMax => _isSprayTool ? kSprayStrokeMax : _sliderMax;
+  bool get _sliderUsesIntegers =>
+      _isSprayTool ||
+      widget.penStrokeSliderRange == PenStrokeSliderRange.compact;
+  double get _activeBrushValue => _isSprayTool
+      ? widget.sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax)
+      : widget.penStrokeSliderRange.clamp(widget.penStrokeWidth);
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(
-      text: _formatValue(widget.penStrokeWidth),
+      text: _formatBrushValue(_activeBrushValue),
     );
     _focusNode = FocusNode()..addListener(_handleFocusChange);
   }
@@ -134,9 +149,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   @override
   void didUpdateWidget(covariant ToolSettingsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final double newValue = _activeBrushValue;
+    final double previousValue = oldWidget.activeTool == CanvasTool.spray
+        ? oldWidget.sprayStrokeWidth
+        : oldWidget.penStrokeWidth;
+    final bool toolChanged = widget.activeTool != oldWidget.activeTool;
     if (!_focusNode.hasFocus &&
-        (widget.penStrokeWidth - oldWidget.penStrokeWidth).abs() >= 0.01) {
-      final String nextValue = _formatValue(widget.penStrokeWidth);
+        (toolChanged || (newValue - previousValue).abs() >= 0.01)) {
+      final String nextValue = _formatBrushValue(newValue);
       if (_controller.text != nextValue) {
         _isProgrammaticTextUpdate = true;
         _controller.text = nextValue;
@@ -169,6 +189,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       case CanvasTool.pen:
       case CanvasTool.curvePen:
         content = _buildBrushControls(theme);
+        break;
+      case CanvasTool.spray:
+        content = _buildSprayControls(theme);
         break;
       case CanvasTool.eraser:
         content = _buildBrushControls(theme, includeEraserToggle: false);
@@ -365,6 +388,24 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
     return _buildControlsGroup(
       wrapChildren,
+      spacing: 16,
+      runSpacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.center,
+    );
+  }
+
+  Widget _buildSprayControls(FluentThemeData theme) {
+    final List<Widget> children = <Widget>[
+      _buildBrushSizeRow(theme),
+      _buildToggleSwitchRow(
+        theme,
+        label: '转换为擦除',
+        value: widget.brushToolsEraserMode,
+        onChanged: widget.onBrushToolsEraserModeChanged,
+      ),
+    ];
+    return _buildControlsGroup(
+      children,
       spacing: 16,
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
@@ -692,29 +733,68 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
+  double _clampBrushValue(double value) {
+    if (_isSprayTool) {
+      final double clamped = value.clamp(kSprayStrokeMin, kSprayStrokeMax);
+      return clamped.roundToDouble();
+    }
+    return widget.penStrokeSliderRange.clamp(value);
+  }
+
+  void _notifyBrushSizeChanged(double value) {
+    final double clamped = _clampBrushValue(value);
+    if (_isSprayTool) {
+      if ((clamped - widget.sprayStrokeWidth).abs() < 0.0005) {
+        return;
+      }
+      widget.onSprayStrokeWidthChanged(clamped);
+    } else {
+      if ((clamped - widget.penStrokeWidth).abs() < 0.0005) {
+        return;
+      }
+      widget.onPenStrokeWidthChanged(clamped);
+    }
+  }
+
+  String _formatBrushValue(double value) {
+    if (_isSprayTool) {
+      return value.round().toString();
+    }
+    return _formatValue(value);
+  }
+
   Widget _buildBrushSizeRow(FluentThemeData theme) {
-    final double brushSize = widget.penStrokeSliderRange.clamp(
-      widget.penStrokeWidth,
-    );
-    final String brushLabel = _formatValue(brushSize);
-    final bool sliderUsesIntegers =
-        widget.penStrokeSliderRange == PenStrokeSliderRange.compact;
+    final double brushSize = _clampBrushValue(_activeBrushValue);
+    final bool sliderUsesIntegers = _sliderUsesIntegers;
     final double sliderValue = sliderUsesIntegers
         ? brushSize.roundToDouble()
         : brushSize;
     final int? sliderDivisions = sliderUsesIntegers
-        ? (_sliderMax - _sliderMin).round()
+        ? (_activeSliderMax - _activeSliderMin).round()
         : null;
+    final String brushLabel = sliderUsesIntegers
+        ? brushSize.round().toString()
+        : _formatValue(brushSize);
+    final String labelText = _isSprayTool ? '喷枪大小' : '笔刷大小';
     final Slider slider = Slider(
       value: sliderValue,
-      min: _sliderMin,
-      max: _sliderMax,
+      min: _activeSliderMin,
+      max: _activeSliderMax,
       divisions: sliderDivisions,
       onChanged: (raw) {
-        final double nextValue = sliderUsesIntegers
-            ? raw.roundToDouble()
-            : raw;
-        widget.onPenStrokeWidthChanged(nextValue);
+        final double nextValue = sliderUsesIntegers ? raw.roundToDouble() : raw;
+        _notifyBrushSizeChanged(nextValue);
+        if (!_focusNode.hasFocus) {
+          final String formatted = _formatBrushValue(nextValue);
+          if (_controller.text != formatted) {
+            _isProgrammaticTextUpdate = true;
+            _controller.value = TextEditingValue(
+              text: formatted,
+              selection: TextSelection.collapsed(offset: formatted.length),
+            );
+            _isProgrammaticTextUpdate = false;
+          }
+        }
       },
     );
     Widget buildStandardAdjustRow() {
@@ -797,7 +877,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text('笔刷大小', style: theme.typography.bodyStrong),
+          Text(labelText, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
           SizedBox(width: _defaultSliderWidth, child: slider),
           const SizedBox(width: 8),
@@ -811,10 +891,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       children: [
         _buildSliderSection(
           theme,
-          label: '笔刷大小',
+          label: labelText,
           valueText: '$brushLabel px',
           slider: slider,
-          tooltipText: '笔刷大小：$brushLabel px',
+          tooltipText: '$labelText：$brushLabel px',
         ),
         const SizedBox(height: 8),
         buildCompactAdjustRow(),
@@ -1067,8 +1147,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     if (parsed == null) {
       return;
     }
-    final double clamped = widget.penStrokeSliderRange.clamp(parsed);
-    final String formatted = _formatValue(clamped);
+    final double clamped = _clampBrushValue(parsed);
+    final String formatted = _formatBrushValue(clamped);
     if (_controller.text != formatted) {
       _isProgrammaticTextUpdate = true;
       _controller.value = TextEditingValue(
@@ -1077,14 +1157,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       );
       _isProgrammaticTextUpdate = false;
     }
-    if ((clamped - widget.penStrokeWidth).abs() < 0.0005) {
-      return;
-    }
-    widget.onPenStrokeWidthChanged(clamped);
+    _notifyBrushSizeChanged(clamped);
   }
 
   void _handleFocusChange() {
-    final String formatted = _formatValue(widget.penStrokeWidth);
+    final String formatted = _formatBrushValue(_activeBrushValue);
     if (_controller.text != formatted) {
       _isProgrammaticTextUpdate = true;
       _controller.text = formatted;
@@ -1092,15 +1169,16 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     }
   }
 
-  void _adjustStrokeWidthBy(int delta) {
-    final double nextValue = widget.penStrokeSliderRange.clamp(
-      widget.penStrokeWidth + delta,
-    );
-    if ((nextValue - widget.penStrokeWidth).abs() < 0.0005) {
+  void _adjustBrushSizeBy(int delta) {
+    final double nextValue = _clampBrushValue(_activeBrushValue + delta);
+    final double previousValue = _isSprayTool
+        ? widget.sprayStrokeWidth
+        : widget.penStrokeWidth;
+    if ((nextValue - previousValue).abs() < 0.0005) {
       return;
     }
-    widget.onPenStrokeWidthChanged(nextValue);
-    final String formatted = _formatValue(nextValue);
+    _notifyBrushSizeChanged(nextValue);
+    final String formatted = _formatBrushValue(nextValue);
     if (_controller.text != formatted) {
       _isProgrammaticTextUpdate = true;
       _controller.value = TextEditingValue(
@@ -1120,7 +1198,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       height: 28,
       child: IconButton(
         icon: Icon(icon, size: 14),
-        onPressed: () => _adjustStrokeWidthBy(delta),
+        onPressed: () => _adjustBrushSizeBy(delta),
       ),
     );
   }

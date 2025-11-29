@@ -997,6 +997,28 @@ class BitmapCanvasController extends ChangeNotifier {
     _dispatchDirectPaintCommand(command);
   }
 
+  void drawBrushStamp({
+    required Offset center,
+    required double radius,
+    required Color color,
+    BrushShape brushShape = BrushShape.circle,
+    int antialiasLevel = 0,
+    bool erase = false,
+  }) {
+    if (_layers.isEmpty || _activeLayer.locked) {
+      return;
+    }
+    final PaintingDrawCommand command = PaintingDrawCommand.brushStamp(
+      center: center,
+      radius: radius,
+      colorValue: color.value,
+      shapeIndex: brushShape.index,
+      antialiasLevel: antialiasLevel.clamp(0, 3),
+      erase: erase,
+    );
+    _dispatchDirectPaintCommand(command);
+  }
+
   bool applyAntialiasToActiveLayer(int level, {bool previewOnly = false}) {
     if (_layers.isEmpty) {
       return false;

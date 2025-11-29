@@ -43,16 +43,18 @@ class AppPreferences {
     this.sai2ColorPanelHeight,
     this.sai2ToolPanelSplit = _defaultSai2ToolPanelSplit,
     this.sai2LayerPanelWidthSplit = _defaultSai2LayerPanelSplit,
+    this.sprayStrokeWidth = _defaultSprayStrokeWidth,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 23;
+  static const int _version = 24;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
   static const ThemeMode _defaultThemeMode = ThemeMode.system;
   static const double _defaultPenStrokeWidth = 3.0;
+  static const double _defaultSprayStrokeWidth = kDefaultSprayStrokeWidth;
   static const bool _defaultSimulatePenPressure = false;
   static const StrokePressureProfile _defaultPenPressureProfile =
       StrokePressureProfile.auto;
@@ -94,6 +96,7 @@ class AppPreferences {
   static const double defaultStrokeStabilizerStrength =
       _defaultStrokeStabilizerStrength;
   static const BrushShape defaultBrushShape = _defaultBrushShape;
+  static const double defaultSprayStrokeWidth = _defaultSprayStrokeWidth;
   static const bool defaultLayerAdjustCropOutside = false;
   static const Color defaultColorLineColor = _defaultColorLineColor;
   static const bool defaultBucketSwallowColorLine =
@@ -128,6 +131,7 @@ class AppPreferences {
   PenStrokeSliderRange penStrokeSliderRange;
   double strokeStabilizerStrength;
   BrushShape brushShape;
+  double sprayStrokeWidth;
   bool layerAdjustCropOutside;
   Color colorLineColor;
   bool bucketSwallowColorLine;
@@ -200,6 +204,10 @@ class AppPreferences {
                 version >= 23 && bytes.length >= 34
                 ? bytes[33] != 0
                 : _defaultShapeToolFillEnabled;
+            final double decodedSprayStrokeWidth =
+                version >= 24 && bytes.length >= 36
+                ? _decodeSprayStrokeWidth(bytes[34] | (bytes[35] << 8))
+                : _defaultSprayStrokeWidth;
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
             _instance = AppPreferences._(
@@ -238,6 +246,7 @@ class AppPreferences {
               sai2ColorPanelHeight: decodedSai2ColorHeight,
               sai2ToolPanelSplit: decodedSai2ToolSplit,
               sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
+              sprayStrokeWidth: decodedSprayStrokeWidth,
             );
             return _finalizeLoadedPreferences();
           }
@@ -840,6 +849,11 @@ class AppPreferences {
     );
     prefs.penStrokeWidth = strokeWidthValue;
     final int strokeWidth = _encodePenStrokeWidth(strokeWidthValue);
+    final double sprayWidthValue = _clampSprayStrokeWidth(
+      prefs.sprayStrokeWidth,
+    );
+    prefs.sprayStrokeWidth = sprayWidthValue;
+    final int sprayWidth = _encodeSprayStrokeWidth(sprayWidthValue);
     final double stylusCurve = _clampStylusFactor(
       prefs.stylusPressureCurve,
       lower: _stylusCurveLowerBound,
@@ -907,6 +921,8 @@ class AppPreferences {
       sai2LayerSplitEncoded,
       prefs.vectorDrawingEnabled ? 1 : 0,
       prefs.shapeToolFillEnabled ? 1 : 0,
+      sprayWidth & 0xff,
+      (sprayWidth >> 8) & 0xff,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }
@@ -1041,6 +1057,29 @@ class AppPreferences {
         ? 0.0
         : (numerator / denominator);
     return (normalized * 65535.0).round().clamp(0, 0xffff);
+  }
+
+  static double _clampSprayStrokeWidth(double value) {
+    if (!value.isFinite) {
+      return _defaultSprayStrokeWidth;
+    }
+    return value.clamp(kSprayStrokeMin, kSprayStrokeMax);
+  }
+
+  static double _decodeSprayStrokeWidth(int value) {
+    final int resolved = value.clamp(
+      kSprayStrokeMin.round(),
+      kSprayStrokeMax.round(),
+    );
+    return resolved.toDouble();
+  }
+
+  static int _encodeSprayStrokeWidth(double value) {
+    final double clamped = _clampSprayStrokeWidth(value);
+    return clamped.round().clamp(
+      kSprayStrokeMin.round(),
+      kSprayStrokeMax.round(),
+    );
   }
 
   static double _decodeStylusFactor(

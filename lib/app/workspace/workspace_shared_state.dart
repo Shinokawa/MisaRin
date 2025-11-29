@@ -57,6 +57,7 @@ class ToolSettingsSnapshot {
     required this.recentColors,
     required this.colorLineColor,
     required this.penStrokeWidth,
+    required this.sprayStrokeWidth,
     required this.penStrokeSliderRange,
     required this.brushShape,
     required this.strokeStabilizerStrength,
@@ -84,6 +85,7 @@ class ToolSettingsSnapshot {
   final List<int> recentColors;
   final int colorLineColor;
   final double penStrokeWidth;
+  final double sprayStrokeWidth;
   final PenStrokeSliderRange penStrokeSliderRange;
   final BrushShape brushShape;
   final double strokeStabilizerStrength;
