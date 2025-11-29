@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 
 import '../../../canvas/canvas_tools.dart';
 import '../../shortcuts/toolbar_shortcuts.dart';
-import 'exit_tool_button.dart';
 import 'hand_tool_button.dart';
 import 'bucket_tool_button.dart';
 import 'magic_wand_tool_button.dart';
@@ -31,9 +30,7 @@ class CanvasToolbar extends StatelessWidget {
     required this.onRedo,
     required this.canUndo,
     required this.canRedo,
-    required this.onExit,
     required this.layout,
-    this.includeExitButton = true,
     this.includeHistoryButtons = true,
   });
 
@@ -45,13 +42,10 @@ class CanvasToolbar extends StatelessWidget {
   final VoidCallback onRedo;
   final bool canUndo;
   final bool canRedo;
-  final VoidCallback onExit;
   final CanvasToolbarLayout layout;
-  final bool includeExitButton;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 12;
-  static const int buttonCountWithoutExit = buttonCount - 1;
+  static const int buttonCount = 11;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;
   static const double spacing = 9;
@@ -120,17 +114,6 @@ class CanvasToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<Widget> items = <Widget>[];
-    if (includeExitButton) {
-      items.add(
-        Tooltip(
-          message: _tooltipMessage('退出', ToolbarAction.exit),
-          displayHorizontally: true,
-          style: _rightTooltipStyle,
-          useMousePosition: false,
-          child: ExitToolButton(onPressed: onExit),
-        ),
-      );
-    }
     items.addAll([
       Tooltip(
         message: _tooltipMessage('图层调节', ToolbarAction.layerAdjustTool),

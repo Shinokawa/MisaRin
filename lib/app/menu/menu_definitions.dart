@@ -172,6 +172,15 @@ class MenuDefinitionBuilder {
         ),
     ]);
 
+    _addSection(entries, <MenuEntry>[
+      if (handler.closeAll != null)
+        MenuActionEntry(
+          label: '关闭全部',
+          action: handler.closeAll,
+          shortcut: const SingleActivator(LogicalKeyboardKey.escape),
+        ),
+    ]);
+
     if (entries.isEmpty) {
       return null;
     }

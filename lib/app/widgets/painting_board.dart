@@ -64,7 +64,6 @@ import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/vector_stroke_painter.dart';
 import '../toolbars/widgets/canvas_toolbar.dart';
-import '../toolbars/widgets/exit_tool_button.dart';
 import '../toolbars/widgets/tool_settings_card.dart';
 import '../toolbars/layouts/layouts.dart';
 import '../toolbars/widgets/measured_size.dart';
@@ -704,7 +703,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         ? maxExtent.clamp(36.0, CanvasToolbar.buttonSize)
         : CanvasToolbar.buttonSize;
     final int toolCount =
-        CanvasToolbar.buttonCountWithoutExit +
+        CanvasToolbar.buttonCount +
         (includeHistoryButtons ? CanvasToolbar.historyButtonCount : 0);
     final int rows = math.max(1, (toolCount / targetColumns).ceil());
     final double width = targetColumns * buttonExtent + totalSpacing;

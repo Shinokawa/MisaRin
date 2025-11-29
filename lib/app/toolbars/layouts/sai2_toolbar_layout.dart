@@ -337,10 +337,14 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
           0.0,
           double.infinity,
         );
-    final double exitTop = math.max(
-      padding,
-      indicatorTop - gutter - indicatorSize,
-    );
+    final Widget? exitButton = elements.exitButton;
+    final bool hasExitButton = exitButton != null;
+    final double exitTop = hasExitButton
+        ? math.max(
+          padding,
+          indicatorTop - gutter - indicatorSize,
+        )
+        : 0.0;
 
     final Widget dockedControls = Positioned(
       right: padding,
@@ -349,8 +353,10 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          elements.exitButton,
-          SizedBox(height: gutter),
+          if (hasExitButton) ...[
+            exitButton!,
+            SizedBox(height: gutter),
+          ],
           elements.colorIndicator,
         ],
       ),
@@ -367,8 +373,12 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
         columnHeight,
       ),
       Rect.fromLTWH(indicatorLeft, indicatorTop, indicatorSize, indicatorSize),
-      Rect.fromLTWH(indicatorLeft, exitTop, indicatorSize, indicatorSize),
     ];
+    if (hasExitButton) {
+      hitRegions.add(
+        Rect.fromLTWH(indicatorLeft, exitTop, indicatorSize, indicatorSize),
+      );
+    }
 
     return PaintingToolbarLayoutResult(
       widgets: <Widget>[layout, dockedControls],

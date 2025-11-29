@@ -27,7 +27,7 @@ class PaintingToolbarElements {
     required this.colorIndicator,
     required this.colorPanel,
     required this.layerPanel,
-    required this.exitButton,
+    this.exitButton,
   });
 
   final Widget toolbar;
@@ -35,7 +35,7 @@ class PaintingToolbarElements {
   final Widget colorIndicator;
   final ToolbarPanelData colorPanel;
   final ToolbarPanelData layerPanel;
-  final Widget exitButton;
+  final Widget? exitButton;
 }
 
 class PaintingToolbarMetrics {

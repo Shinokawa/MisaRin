@@ -231,7 +231,6 @@ mixin _PaintingBoardBuildMixin
               toolbarLayout,
               includeHistoryButtons: includeHistoryOnToolbar,
             );
-        final bool detachExitButton = isSai2Layout;
         final Widget toolbarWidget = CanvasToolbar(
           activeTool: _activeTool,
           selectionShape: selectionShape,
@@ -241,36 +240,9 @@ mixin _PaintingBoardBuildMixin
           onRedo: _handleRedo,
           canUndo: canUndo,
           canRedo: canRedo,
-          onExit: widget.onRequestExit,
           layout: activeToolbarLayout,
-          includeExitButton: !detachExitButton,
           includeHistoryButtons: includeHistoryOnToolbar,
         );
-        Widget buildExitButton() {
-          final String shortcutLabel = ToolbarShortcuts.labelForPlatform(
-            ToolbarAction.exit,
-            defaultTargetPlatform,
-          );
-          final String message = shortcutLabel.isEmpty
-              ? '退出'
-              : '退出 ($shortcutLabel)';
-          const TooltipThemeData tooltipStyle = TooltipThemeData(
-            preferBelow: false,
-            verticalOffset: 24,
-            waitDuration: Duration.zero,
-          );
-          return Tooltip(
-            message: message,
-            displayHorizontally: true,
-            style: tooltipStyle,
-            useMousePosition: false,
-            child: ExitToolButton(onPressed: widget.onRequestExit),
-          );
-        }
-
-        final Widget exitButtonWidget = detachExitButton
-            ? buildExitButton()
-            : const SizedBox.shrink();
         final Widget toolSettingsCard = ToolSettingsCard(
           activeTool: _activeTool,
           penStrokeWidth: _penStrokeWidth,
@@ -340,7 +312,7 @@ mixin _PaintingBoardBuildMixin
           colorIndicator: _buildColorIndicator(theme),
           colorPanel: colorPanelData,
           layerPanel: layerPanelData,
-          exitButton: exitButtonWidget,
+          exitButton: null,
         );
         final WorkspaceLayoutSplits workspaceSplits = WorkspaceLayoutSplits(
           floatingColorPanelHeight: _floatingColorPanelHeight,

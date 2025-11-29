@@ -21,6 +21,7 @@ class MenuActionHandler {
   const MenuActionHandler({
     this.newProject,
     this.open,
+    this.closeAll,
     this.importImage,
     this.importImageFromClipboard,
     this.preferences,
@@ -67,6 +68,7 @@ class MenuActionHandler {
   const MenuActionHandler.empty()
     : newProject = null,
       open = null,
+      closeAll = null,
       importImage = null,
       importImageFromClipboard = null,
       preferences = null,
@@ -111,6 +113,7 @@ class MenuActionHandler {
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
+  final MenuAsyncAction? closeAll;
   final MenuAsyncAction? importImage;
   final MenuAsyncAction? importImageFromClipboard;
   final MenuAsyncAction? preferences;

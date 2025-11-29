@@ -954,6 +954,7 @@ class CanvasPageState extends State<CanvasPage> {
     final handler = MenuActionHandler(
       newProject: () => AppMenuActions.createProject(context),
       open: () => AppMenuActions.openProjectFromDisk(context),
+      closeAll: _handleExitRequest,
       importImage: () => AppMenuActions.importImage(context),
       importImageFromClipboard: () =>
           AppMenuActions.importImageFromClipboard(context),
