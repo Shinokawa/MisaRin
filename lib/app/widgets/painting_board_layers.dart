@@ -402,7 +402,7 @@ mixin _PaintingBoardLayerMixin
       ),
       MenuFlyoutItem(
         leading: Icon(
-          isClipping ? FluentIcons.cut : FluentIcons.clipboard_list,
+          isClipping ? FluentIcons.subtract_shape : FluentIcons.subtract_shape,
         ),
         text: Text(isClipping ? '取消剪贴蒙版' : '创建剪贴蒙版'),
         onPressed: isLocked ? null : () => _handleLayerClippingToggle(layer),
@@ -951,7 +951,7 @@ mixin _PaintingBoardLayerMixin
                       clippingButton = Tooltip(
                         message: layerClipping ? '取消剪贴蒙版' : '创建剪贴蒙版',
                         child: IconButton(
-                          icon: const Icon(FluentIcons.fluid_logo),
+                          icon: const Icon(FluentIcons.subtract_shape),
                           style: ButtonStyle(
                             backgroundColor: WidgetStateProperty.resolveWith((
                               states,
