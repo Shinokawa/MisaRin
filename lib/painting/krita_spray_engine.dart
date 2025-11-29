@@ -25,6 +25,8 @@ class KritaSprayEngineSettings {
     this.maxParticleScale = 0.08,
     this.baseParticleScale = 0.04,
     this.minParticleRadius = 0.25,
+    this.minParticleOpacity = 1.0,
+    this.maxParticleOpacity = 1.0,
     this.sampleInputColor = false,
     this.sampleBlend = 0.5,
     this.shape = BrushShape.circle,
@@ -46,6 +48,8 @@ class KritaSprayEngineSettings {
   final double maxParticleScale;
   final double baseParticleScale;
   final double minParticleRadius;
+  final double minParticleOpacity;
+  final double maxParticleOpacity;
   final bool sampleInputColor;
   final double sampleBlend;
   final BrushShape shape;
@@ -124,7 +128,14 @@ class KritaSprayEngine {
           _settings.minParticleRadius,
           radius * particleScale,
         );
-        final Color color = _resolveColor(position, baseColor);
+        final double opacityScale = _resolveParticleOpacity();
+        final Color base = _resolveColor(position, baseColor);
+        final int scaledAlpha =
+            (base.alpha * opacityScale).round().clamp(0, 255);
+        if (scaledAlpha <= 0) {
+          continue;
+        }
+        final Color color = base.withAlpha(scaledAlpha);
         controller.drawBrushStamp(
           center: position,
           radius: particleRadius,
@@ -208,6 +219,18 @@ class KritaSprayEngine {
     final double value =
         _randomRange(_settings.minParticleScale, _settings.maxParticleScale);
     return value.clamp(0.001, 1.0);
+  }
+
+  double _resolveParticleOpacity() {
+    final double minOpacity =
+        _settings.minParticleOpacity.clamp(0.0, 1.0);
+    final double maxOpacity =
+        _settings.maxParticleOpacity.clamp(0.0, 1.0);
+    if ((maxOpacity - minOpacity).abs() < 1e-4) {
+      return maxOpacity;
+    }
+    final double value = _randomRange(minOpacity, maxOpacity);
+    return value.clamp(0.0, 1.0);
   }
 
   Color _resolveColor(Offset position, Color fallback) {

@@ -1,6 +1,7 @@
 part of 'painting_board.dart';
 
 const double _kStylusSimulationBlend = 0.68;
+const double _kAirbrushFalloffSigma = 0.52;
 
 mixin _PaintingBoardInteractionMixin
     on
@@ -583,6 +584,8 @@ mixin _PaintingBoardInteractionMixin
       maxParticleScale: 0.086,
       baseParticleScale: 0.05,
       minParticleRadius: 0.32,
+      minParticleOpacity: 1.0,
+      maxParticleOpacity: 1.0,
       sampleInputColor: false,
       sampleBlend: 0.5,
       shape: BrushShape.circle,
@@ -623,14 +626,11 @@ mixin _PaintingBoardInteractionMixin
         : _primaryColor;
     if (_sprayMode == SprayMode.splatter) {
       _ensureKritaSprayEngine();
-      _ensureSprayTicker();
-      _sprayTicker?.start();
     } else {
-      _sprayTicker?.stop();
-      _smudgeLastPosition = clamped;
-      _smudgeLastPressure = _sprayCurrentPressure;
-      _smudgeCarryColor = _primaryColor;
+      _kritaSprayEngine = null;
     }
+    _ensureSprayTicker();
+    _sprayTicker?.start();
     setState(() {
       _isSpraying = true;
     });
@@ -640,12 +640,8 @@ mixin _PaintingBoardInteractionMixin
     if (!_isSpraying) {
       return;
     }
-    if (_sprayMode == SprayMode.splatter) {
-      _sprayBoardPosition = _clampToCanvas(boardLocal);
-      _sprayCurrentPressure = _resolveSprayPressure(event);
-      return;
-    }
-    _updateSmudgeStroke(boardLocal, event);
+    _sprayBoardPosition = _clampToCanvas(boardLocal);
+    _sprayCurrentPressure = _resolveSprayPressure(event);
   }
 
   void _finishSprayStroke() {
@@ -661,13 +657,10 @@ mixin _PaintingBoardInteractionMixin
     _activeSprayColor = null;
     _sprayTickerTimestamp = null;
     _sprayEmissionAccumulator = 0.0;
-    _smudgeLastPosition = null;
-    _smudgeCarryColor = null;
-    _smudgeLastPressure = 1.0;
   }
 
   void _handleSprayTick(Duration elapsed) {
-    if (!_isSpraying || _sprayMode != SprayMode.splatter) {
+    if (!_isSpraying) {
       return;
     }
     final Offset? position = _sprayBoardPosition;
@@ -687,143 +680,21 @@ mixin _PaintingBoardInteractionMixin
     if (deltaSeconds <= 0.0) {
       return;
     }
-    final double emissionRate = _sprayEmissionRateForDiameter(
-      _sprayStrokeWidth,
-    );
-    final double pressureScale = _sprayCurrentPressure.clamp(0.05, 1.0);
-    _sprayEmissionAccumulator += emissionRate * pressureScale * deltaSeconds;
-    final int particleCount = _sprayEmissionAccumulator.floor();
-    if (particleCount <= 0) {
+    if (_sprayMode == SprayMode.splatter) {
+      final double emissionRate = _sprayEmissionRateForDiameter(
+        _sprayStrokeWidth,
+      );
+      final double pressureScale = _sprayCurrentPressure.clamp(0.05, 1.0);
+      _sprayEmissionAccumulator += emissionRate * pressureScale * deltaSeconds;
+      final int particleCount = _sprayEmissionAccumulator.floor();
+      if (particleCount <= 0) {
+        return;
+      }
+      _sprayEmissionAccumulator -= particleCount;
+      _emitSprayParticles(position, particleCount);
       return;
     }
-    _sprayEmissionAccumulator -= particleCount;
-    _emitSprayParticles(position, particleCount);
-  }
-
-  void _updateSmudgeStroke(Offset boardLocal, PointerEvent event) {
-    final Offset clamped = _clampToCanvas(boardLocal);
-    final Offset startPoint = _smudgeLastPosition ?? clamped;
-    final double pressure = _resolveSprayPressure(event);
-    bool painted;
-    if (_isBrushEraserEnabled) {
-      painted = _applySmudgeEraser(
-        start: startPoint,
-        end: clamped,
-        pressure: pressure,
-      );
-      _smudgeCarryColor = null;
-    } else {
-      painted = _smudgeDepositSegment(
-        start: startPoint,
-        end: clamped,
-        pressure: pressure,
-      );
-    }
-    _smudgeLastPosition = clamped;
-    _smudgeLastPressure = pressure;
-    if (painted) {
-      _markDirty();
-    }
-  }
-
-  bool _smudgeDepositSegment({
-    required Offset start,
-    required Offset end,
-    required double pressure,
-  }) {
-    Color carryColor = _smudgeCarryColor ??
-        _controller.sampleColor(start, sampleAllLayers: true);
-    carryColor = _resolveSmudgeSeedColor(carryColor);
-    final double radius = _smudgeRadiusForPressure(pressure);
-    final double spacing = math.max(radius * 0.35, 2.0);
-    final double distance = (end - start).distance;
-    final int steps = math.max(1, (distance / spacing).ceil());
-    bool painted = false;
-    _controller.runSynchronousRasterization(() {
-      for (int i = 0; i < steps; i++) {
-        final double t = steps == 1 ? 1.0 : (i + 1) / steps;
-        final Offset point = Offset(
-          ui.lerpDouble(start.dx, end.dx, t) ?? end.dx,
-          ui.lerpDouble(start.dy, end.dy, t) ?? end.dy,
-        );
-        final Offset clamped = _clampToCanvas(point);
-        final Color destinationSample = _controller.sampleColor(
-          clamped,
-          sampleAllLayers: true,
-        );
-        final Color depositColor = _scaleSmudgeColor(carryColor, pressure);
-        if (depositColor.alpha > 0) {
-          _controller.drawBrushStamp(
-            center: clamped,
-            radius: radius,
-            color: depositColor,
-            brushShape: BrushShape.circle,
-            antialiasLevel: math.max(_penAntialiasLevel, 2),
-            erase: false,
-          );
-          painted = true;
-        }
-        carryColor = Color.lerp(carryColor, destinationSample, 0.35) ??
-            destinationSample;
-      }
-    });
-    _smudgeCarryColor = carryColor;
-    return painted;
-  }
-
-  bool _applySmudgeEraser({
-    required Offset start,
-    required Offset end,
-    required double pressure,
-  }) {
-    final double radius = _smudgeRadiusForPressure(pressure);
-    final double spacing = math.max(radius * 0.35, 2.0);
-    final double distance = (end - start).distance;
-    final int steps = math.max(1, (distance / spacing).ceil());
-    bool painted = false;
-    _controller.runSynchronousRasterization(() {
-      for (int i = 0; i < steps; i++) {
-        final double t = steps == 1 ? 1.0 : (i + 1) / steps;
-        final Offset point = Offset(
-          ui.lerpDouble(start.dx, end.dx, t) ?? end.dx,
-          ui.lerpDouble(start.dy, end.dy, t) ?? end.dy,
-        );
-        _controller.drawBrushStamp(
-          center: _clampToCanvas(point),
-          radius: radius,
-          color: const Color(0xFFFFFFFF),
-          brushShape: BrushShape.circle,
-          antialiasLevel: math.max(_penAntialiasLevel, 2),
-          erase: true,
-        );
-        painted = true;
-      }
-    });
-    return painted;
-  }
-
-  double _smudgeRadiusForPressure(double pressure) {
-    final double baseRadius = (_sprayStrokeWidth / 2).clamp(
-      0.5,
-      kSprayStrokeMax / 2,
-    );
-    final double clampedPressure = pressure.clamp(0.05, 1.0);
-    return math.max(baseRadius * (0.45 + clampedPressure * 0.55), 0.35);
-  }
-
-  Color _scaleSmudgeColor(Color color, double pressure) {
-    final double clampedPressure = pressure.clamp(0.05, 1.0);
-    final double opacityScale = 0.25 + 0.75 * clampedPressure;
-    final int scaledAlpha =
-        (color.alpha * opacityScale).round().clamp(0, 255).toInt();
-    return color.withAlpha(scaledAlpha);
-  }
-
-  Color _resolveSmudgeSeedColor(Color color) {
-    if (color.alpha > 0) {
-      return color;
-    }
-    return _primaryColor;
+    _emitAirbrushPaint(position, deltaSeconds);
   }
 
   double _sprayEmissionRateForDiameter(double diameter) {
@@ -849,6 +720,100 @@ mixin _PaintingBoardInteractionMixin
       antialiasLevel: _penAntialiasLevel,
     );
     _markDirty();
+  }
+
+  void _emitAirbrushPaint(Offset center, double deltaSeconds) {
+    final bool erase = _isBrushEraserEnabled;
+    final Color color = _activeSprayColor ??
+        (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    if (color.alpha == 0) {
+      return;
+    }
+    final double pressure = _sprayCurrentPressure.clamp(0.05, 1.0);
+    final double normalizedDiameter =
+        _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    final double unclampedRadius = math.max(normalizedDiameter / 2.0, 0.5);
+    final double baseRadius = unclampedRadius
+        .clamp(kSprayStrokeMin / 2, kSprayStrokeMax / 2)
+        .toDouble();
+    final double flow = _airbrushFlowForDiameter(normalizedDiameter);
+    final double deposit = (flow * pressure * deltaSeconds).clamp(0.0, 3.5);
+    if (deposit <= 1e-5) {
+      return;
+    }
+    final Offset clampedCenter = _clampToCanvas(center);
+    final double sampleRate =
+        _airbrushParticleRateForDiameter(normalizedDiameter);
+    final int sampleCount = math.max(
+      1,
+      (sampleRate * pressure * deltaSeconds).round(),
+    );
+    final double alphaPerSample = deposit / sampleCount;
+    _controller.runSynchronousRasterization(() {
+      for (int i = 0; i < sampleCount; i++) {
+        final double radial = _sampleAirbrushRadial();
+        final double angle = _syntheticStrokeRandom.nextDouble() *
+            math.pi *
+            2.0;
+        final double distance = baseRadius * radial;
+        final Offset sampleCenter = _clampToCanvas(
+          clampedCenter +
+              Offset(
+                distance * math.cos(angle),
+                distance * math.sin(angle),
+              ),
+        );
+        final double falloff =
+            math.exp(-(radial * radial) / (_kAirbrushFalloffSigma * 0.7));
+        final double stampRadius = math.max(
+          baseRadius *
+              (0.018 + _syntheticStrokeRandom.nextDouble() * 0.12),
+          0.18,
+        );
+        final int scaledAlpha = (color.alpha *
+                alphaPerSample *
+                falloff *
+                (0.85 + _syntheticStrokeRandom.nextDouble() * 0.3))
+            .round()
+            .clamp(0, 255);
+        if (scaledAlpha <= 0) {
+          continue;
+        }
+        _controller.drawBrushStamp(
+          center: sampleCenter,
+          radius: stampRadius,
+          color: color.withAlpha(scaledAlpha),
+          brushShape: BrushShape.circle,
+          antialiasLevel: math.max(_penAntialiasLevel, 2),
+          erase: erase,
+        );
+      }
+    });
+    _markDirty();
+  }
+
+  double _airbrushFlowForDiameter(double diameter) {
+    final double normalized = diameter.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    final double sqrtScale = math.sqrt(normalized).clamp(
+      math.sqrt(kSprayStrokeMin),
+      math.sqrt(kSprayStrokeMax),
+    ).toDouble();
+    final double scaled = 0.32 + sqrtScale * 0.07;
+    return scaled.clamp(0.35, 3.0);
+  }
+
+  double _airbrushParticleRateForDiameter(double diameter) {
+    final double normalized = diameter.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    final double radius = normalized / 2.0;
+    final double area = math.pi * radius * radius;
+    final double scaled = (area * 0.045).clamp(150.0, 5200.0);
+    return scaled;
+  }
+
+  double _sampleAirbrushRadial() {
+    final double uniform = _syntheticStrokeRandom.nextDouble().clamp(1e-6, 1.0);
+    final double bias = math.pow(uniform, 0.42).toDouble();
+    return bias;
   }
 
   void _emitReleaseSamples({

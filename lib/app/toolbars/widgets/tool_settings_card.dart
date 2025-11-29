@@ -1169,7 +1169,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   String _sprayModeLabel(SprayMode mode) {
     switch (mode) {
       case SprayMode.smudge:
-        return '涂抹';
+        return '柔和喷枪';
       case SprayMode.splatter:
         return '喷溅';
     }
