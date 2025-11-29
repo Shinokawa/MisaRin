@@ -598,7 +598,7 @@ mixin _PaintingBoardInteractionMixin
       sampleInputColor: false,
       sampleBlend: 0.5,
       shape: BrushShape.circle,
-      minAntialiasLevel: math.max(_penAntialiasLevel, 1),
+      minAntialiasLevel: _penAntialiasLevel.clamp(0, 3),
     );
   }
 
@@ -1017,7 +1017,8 @@ mixin _PaintingBoardInteractionMixin
         tool == CanvasTool.pen ||
         tool == CanvasTool.curvePen ||
         tool == CanvasTool.shape ||
-        tool == CanvasTool.eraser;
+        tool == CanvasTool.eraser ||
+        tool == CanvasTool.spray;
     if (_isReferenceCardResizing) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {

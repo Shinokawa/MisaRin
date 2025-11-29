@@ -409,6 +409,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         onChanged: widget.onBrushToolsEraserModeChanged,
       ),
     ];
+    if (widget.sprayMode == SprayMode.splatter) {
+      children.add(_buildBrushAntialiasRow(theme));
+    }
     return _buildControlsGroup(
       children,
       spacing: 16,
