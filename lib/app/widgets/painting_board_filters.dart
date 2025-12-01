@@ -1747,7 +1747,6 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
     if (below.isNotEmpty) {
       await tempBackend.composite(layers: below, requiresFullSurface: true);
       final Uint8List rgba = tempBackend.copySurfaceRgba();
-      _premultiplyRgba(rgba);
       background = await _decodeImage(rgba, width, height);
     }
     tempBackend.resetClipMask();
@@ -1758,13 +1757,11 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
       requiresFullSurface: true,
     );
     final Uint8List activeRgba = tempBackend.copySurfaceRgba();
-    _premultiplyRgba(activeRgba);
     active = await _decodeImage(activeRgba, width, height);
     if (above.isNotEmpty) {
       pixels.fillRange(0, pixels.length, 0);
       await tempBackend.composite(layers: above, requiresFullSurface: true);
       final Uint8List aboveRgba = tempBackend.copySurfaceRgba();
-      _premultiplyRgba(aboveRgba);
       foreground = await _decodeImage(aboveRgba, width, height);
     }
   } finally {
@@ -1787,24 +1784,6 @@ Future<ui.Image> _decodeImage(Uint8List pixels, int width, int height) {
     completer.complete,
   );
   return completer.future;
-}
-
-void _premultiplyRgba(Uint8List pixels) {
-  for (int i = 0; i < pixels.length; i += 4) {
-    final int alpha = pixels[i + 3];
-    if (alpha <= 0) {
-      pixels[i] = 0;
-      pixels[i + 1] = 0;
-      pixels[i + 2] = 0;
-      continue;
-    }
-    if (alpha >= 255) {
-      continue;
-    }
-    pixels[i] = ((pixels[i] * alpha) + 127) ~/ 255;
-    pixels[i + 1] = ((pixels[i + 1] * alpha) + 127) ~/ 255;
-    pixels[i + 2] = ((pixels[i + 2] * alpha) + 127) ~/ 255;
-  }
 }
 
 int _filterRoundChannel(double value) {

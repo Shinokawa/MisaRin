@@ -7,6 +7,7 @@ import '../bitmap_canvas/bitmap_canvas.dart';
 import '../bitmap_canvas/bitmap_layer_state.dart';
 import '../bitmap_canvas/raster_int_rect.dart';
 import 'canvas_composite_worker.dart';
+import 'rgba_utils.dart';
 
 class RasterCompositeWork {
   const RasterCompositeWork._({
@@ -430,6 +431,7 @@ class CanvasRasterBackend {
         rgba[offset + 3] = (argb >> 24) & 0xff;
       }
     }
+    premultiplyRgbaInPlace(rgba);
     return rgba;
   }
 
@@ -444,6 +446,7 @@ class CanvasRasterBackend {
       rgba[offset + 2] = argb & 0xff;
       rgba[offset + 3] = (argb >> 24) & 0xff;
     }
+    premultiplyRgbaInPlace(rgba);
     return rgba;
   }
 
