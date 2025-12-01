@@ -300,6 +300,7 @@ mixin _PaintingBoardLayerMixin
         controller: _controller,
         layers: snapshot,
         activeLayerId: layerId,
+        captureActiveLayerAtFullOpacity: true,
       );
     } catch (error, stackTrace) {
       debugPrint('Failed to capture opacity preview: $error');

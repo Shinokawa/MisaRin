@@ -1710,6 +1710,7 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
   required BitmapCanvasController controller,
   required List<BitmapLayerState> layers,
   required String activeLayerId,
+  bool captureActiveLayerAtFullOpacity = false,
 }) async {
   final int width = controller.width;
   final int height = controller.height;
@@ -1728,30 +1729,47 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
     }
     final List<BitmapLayerState> below = layers.sublist(0, activeIndex);
     final List<BitmapLayerState> above = layers.sublist(activeIndex + 1);
-    final BitmapLayerState activeLayer = layers[activeIndex];
-  if (below.isNotEmpty) {
-    await tempBackend.composite(layers: below, requiresFullSurface: true);
-    final Uint8List rgba = tempBackend.copySurfaceRgba();
-    _premultiplyRgba(rgba);
-    background = await _decodeImage(rgba, width, height);
-  }
-  tempBackend.resetClipMask();
-  final Uint32List pixels = tempBackend.ensureCompositePixels();
-  pixels.fillRange(0, pixels.length, 0);
-  await tempBackend.composite(layers: <BitmapLayerState>[activeLayer], requiresFullSurface: true);
-  final Uint8List activeRgba = tempBackend.copySurfaceRgba();
-  _premultiplyRgba(activeRgba);
-  active = await _decodeImage(activeRgba, width, height);
-  if (above.isNotEmpty) {
+    final BitmapLayerState rawActiveLayer = layers[activeIndex];
+    final bool forceFullOpacity =
+        captureActiveLayerAtFullOpacity && rawActiveLayer.opacity < 0.999;
+    final BitmapLayerState activeLayer = forceFullOpacity
+        ? (BitmapLayerState(
+            id: rawActiveLayer.id,
+            name: rawActiveLayer.name,
+            surface: rawActiveLayer.surface,
+            visible: rawActiveLayer.visible,
+            opacity: 1.0,
+            locked: rawActiveLayer.locked,
+            clippingMask: rawActiveLayer.clippingMask,
+            blendMode: rawActiveLayer.blendMode,
+          )..revision = rawActiveLayer.revision)
+        : rawActiveLayer;
+    if (below.isNotEmpty) {
+      await tempBackend.composite(layers: below, requiresFullSurface: true);
+      final Uint8List rgba = tempBackend.copySurfaceRgba();
+      _premultiplyRgba(rgba);
+      background = await _decodeImage(rgba, width, height);
+    }
+    tempBackend.resetClipMask();
+    final Uint32List pixels = tempBackend.ensureCompositePixels();
     pixels.fillRange(0, pixels.length, 0);
-    await tempBackend.composite(layers: above, requiresFullSurface: true);
-    final Uint8List aboveRgba = tempBackend.copySurfaceRgba();
-    _premultiplyRgba(aboveRgba);
-    foreground = await _decodeImage(aboveRgba, width, height);
+    await tempBackend.composite(
+      layers: <BitmapLayerState>[activeLayer],
+      requiresFullSurface: true,
+    );
+    final Uint8List activeRgba = tempBackend.copySurfaceRgba();
+    _premultiplyRgba(activeRgba);
+    active = await _decodeImage(activeRgba, width, height);
+    if (above.isNotEmpty) {
+      pixels.fillRange(0, pixels.length, 0);
+      await tempBackend.composite(layers: above, requiresFullSurface: true);
+      final Uint8List aboveRgba = tempBackend.copySurfaceRgba();
+      _premultiplyRgba(aboveRgba);
+      foreground = await _decodeImage(aboveRgba, width, height);
+    }
+  } finally {
+    await tempBackend.dispose();
   }
-} finally {
-  await tempBackend.dispose();
-}
   return _LayerPreviewImages(
     background: background,
     active: active,
