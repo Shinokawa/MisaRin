@@ -949,15 +949,19 @@ mixin _PaintingBoardBuildMixin
         child: activeLayerWidget,
       );
     }
+    final List<Widget> children = <Widget>[
+      if (_layerOpacityPreviewBackground != null)
+        RawImage(image: _layerOpacityPreviewBackground)
+      else
+        const _CheckboardBackground(),
+      activeLayerWidget,
+    ];
+    if (_layerOpacityPreviewForeground != null) {
+      children.add(RawImage(image: _layerOpacityPreviewForeground));
+    }
     return Stack(
       fit: StackFit.expand,
-      children: [
-        if (_layerOpacityPreviewBackground != null)
-          RawImage(image: _layerOpacityPreviewBackground),
-        activeLayerWidget,
-        if (_layerOpacityPreviewForeground != null)
-          RawImage(image: _layerOpacityPreviewForeground),
-      ],
+      children: children,
     );
   }
 
