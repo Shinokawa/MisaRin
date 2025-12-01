@@ -1,4 +1,4 @@
-﻿part of 'painting_board.dart';
+part of 'painting_board.dart';
 
 const List<int> _defaultPaletteChoices = <int>[4, 8, 12, 16];
 const int _minPaletteColorCount = 2;
@@ -10,25 +10,25 @@ const double _paletteMinimumColorDistance = 0.12;
 const double _paletteDuplicateEpsilon = 0.01;
 const List<_PaletteExportFormatOption> _paletteExportFormatOptions =
     <_PaletteExportFormatOption>[
-  _PaletteExportFormatOption(
-    name: 'GIMP GPL',
-    description: '文本格式，兼容 GIMP、Krita、Clip Studio Paint 等软件。',
-    extension: 'gpl',
-    format: PaletteExportFormat.gimp,
-  ),
-  _PaletteExportFormatOption(
-    name: 'Aseprite ASE',
-    description: '适用于 Aseprite、LibreSprite 等像素绘图软件。',
-    extension: 'ase',
-    format: PaletteExportFormat.aseprite,
-  ),
-  _PaletteExportFormatOption(
-    name: 'Aseprite ASEPRITE',
-    description: '使用 .aseprite 后缀，方便直接在 Aseprite 中打开。',
-    extension: 'aseprite',
-    format: PaletteExportFormat.aseprite,
-  ),
-];
+      _PaletteExportFormatOption(
+        name: 'GIMP GPL',
+        description: '文本格式，兼容 GIMP、Krita、Clip Studio Paint 等软件。',
+        extension: 'gpl',
+        format: PaletteExportFormat.gimp,
+      ),
+      _PaletteExportFormatOption(
+        name: 'Aseprite ASE',
+        description: '适用于 Aseprite、LibreSprite 等像素绘图软件。',
+        extension: 'ase',
+        format: PaletteExportFormat.aseprite,
+      ),
+      _PaletteExportFormatOption(
+        name: 'Aseprite ASEPRITE',
+        description: '使用 .aseprite 后缀，方便直接在 Aseprite 中打开。',
+        extension: 'aseprite',
+        format: PaletteExportFormat.aseprite,
+      ),
+    ];
 
 class _PaletteCardEntry {
   _PaletteCardEntry({
@@ -82,6 +82,22 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     await _generatePaletteCard(count);
   }
 
+  void showGradientPaletteFromPrimaryColor() {
+    final List<Color> palette = _buildPrimaryColorGradientPalette();
+    if (palette.length < _minPaletteColorCount) {
+      AppNotifications.show(
+        context,
+        message: '当前颜色无法生成渐变调色盘，请重试',
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    _addPaletteCard(
+      palette,
+      title: '渐变调色盘（当前颜色）',
+    );
+  }
+
   void _handlePaletteDragStart(int id) {
     _focusPaletteCard(id);
   }
@@ -102,7 +118,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         builder: (context) {
           final theme = FluentTheme.of(context);
           return ContentDialog(
-            title: const Text('生成调色盘'),
+            title: const Text('取色当前画布生成调色盘'),
             content: StatefulBuilder(
               builder: (context, setState) {
                 void handlePresetTap(int value) {
@@ -251,6 +267,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     }
     _addPaletteCard(palette);
   }
+
   void showPaletteFromColors({
     required String title,
     required List<Color> colors,
@@ -316,8 +333,10 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (outputPath == null) {
       return;
     }
-    final String normalizedPath =
-        _normalizePaletteExportPath(outputPath, option.extension);
+    final String normalizedPath = _normalizePaletteExportPath(
+      outputPath,
+      option.extension,
+    );
     try {
       final Uint8List bytes = PaletteFileExporter.encode(
         format: option.format,
@@ -381,7 +400,9 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
                         content: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${option.name} (.${option.extension.toUpperCase()})'),
+                            Text(
+                              '${option.name} (.${option.extension.toUpperCase()})',
+                            ),
                             const SizedBox(height: 2),
                             Text(
                               option.description,
@@ -414,11 +435,10 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
   String _suggestPaletteFileName(String title, String extension) {
     final String trimmed = title.trim();
     final String fallback = trimmed.isEmpty ? 'palette' : trimmed;
-    final String sanitized = fallback.replaceAll(
-      RegExp(r'[\\/:*?"<>|]'),
-      '_',
-    );
-    final String safeName = sanitized.trim().isEmpty ? 'palette' : sanitized.trim();
+    final String sanitized = fallback.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final String safeName = sanitized.trim().isEmpty
+        ? 'palette'
+        : sanitized.trim();
     return '$safeName.${extension.toLowerCase()}';
   }
 
@@ -642,6 +662,106 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     }
     return null;
   }
+
+  List<PaletteCardSnapshot> buildPaletteSnapshots() {
+    return _paletteCards
+        .map(
+          (entry) => PaletteCardSnapshot(
+            title: entry.title,
+            colors: entry.colors
+                .map((color) => color.value)
+                .toList(growable: false),
+            offset: entry.offset,
+            size: entry.size,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void restorePaletteSnapshots(List<PaletteCardSnapshot> snapshots) {
+    setState(() {
+      _paletteCards.clear();
+      _paletteCardSerial = 0;
+      for (final PaletteCardSnapshot snapshot in snapshots) {
+        final List<Color> colors = snapshot.colors
+            .map((value) => Color(value))
+            .toList(growable: false);
+        final Offset offset = _clampPaletteOffset(snapshot.offset, snapshot.size);
+        final _PaletteCardEntry entry = _PaletteCardEntry(
+          id: _paletteCardSerial++,
+          title: snapshot.title.trim().isEmpty ? '调色盘' : snapshot.title,
+          colors: colors,
+          offset: offset,
+        );
+        entry.size = snapshot.size;
+        _paletteCards.add(entry);
+      }
+    });
+  }
+
+  List<Color> _buildPrimaryColorGradientPalette() {
+    final Color baseColor = _primaryColor;
+    final HSVColor baseHsv = _primaryHsv;
+    final Set<int> unique = <int>{};
+    final List<Color> collected = <Color>[];
+
+    void addColor(Color? color) {
+      if (color == null) {
+        return;
+      }
+      final Color sanitized = color.withAlpha(0xFF);
+      final int argb = sanitized.toARGB32();
+      if (unique.add(argb)) {
+        collected.add(sanitized);
+      }
+    }
+
+    addColor(baseColor);
+
+    const List<double> darkStops = <double>[0.2, 0.4, 0.6];
+    for (final double stop in darkStops) {
+      addColor(Color.lerp(baseColor, Colors.black, stop));
+    }
+    const List<double> lightStops = <double>[0.18, 0.35, 0.5];
+    for (final double stop in lightStops) {
+      addColor(Color.lerp(baseColor, Colors.white, stop));
+    }
+
+    const Color neutral = Color(0xFF7F7F7F);
+    const List<double> neutralStops = <double>[0.25, 0.5, 0.75];
+    for (final double stop in neutralStops) {
+      addColor(Color.lerp(baseColor, neutral, stop));
+    }
+
+    const List<double> saturationAdjustments = <double>[
+      -0.4,
+      -0.25,
+      -0.1,
+      0.15,
+      0.3,
+    ];
+    for (final double delta in saturationAdjustments) {
+      final double saturation = (baseHsv.saturation + delta).clamp(0.0, 1.0);
+      addColor(baseHsv.withSaturation(saturation).toColor());
+    }
+
+    const List<double> hueOffsets = <double>[-24, -12, 12, 24];
+    for (final double offset in hueOffsets) {
+      double hue = baseHsv.hue + offset;
+      while (hue < 0) {
+        hue += 360;
+      }
+      while (hue >= 360) {
+        hue -= 360;
+      }
+      addColor(baseHsv.withHue(hue).toColor());
+    }
+
+    if (collected.length > _maxPaletteColorCount) {
+      return collected.sublist(0, _maxPaletteColorCount);
+    }
+    return collected;
+  }
 }
 
 class _WorkspacePaletteCard extends StatelessWidget {
@@ -673,7 +793,7 @@ class _WorkspacePaletteCard extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.basic,
       child: _PaletteHitTestBlocker(
-        child: _MeasureSize(
+        child: MeasuredSize(
           onChanged: onSizeChanged,
           child: WorkspaceFloatingPanel(
             title: title,
@@ -802,6 +922,3 @@ String _hexStringForColor(Color color) {
   }
   return '#$alpha$red$green$blue';
 }
-
-
-

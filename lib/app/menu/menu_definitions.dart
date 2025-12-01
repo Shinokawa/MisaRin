@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart'
     show MenuSerializableShortcut, SingleActivator;
 
+import '../models/workspace_layout.dart';
 import 'menu_action_dispatcher.dart';
 
 sealed class MenuEntry {
@@ -13,11 +14,13 @@ class MenuActionEntry extends MenuEntry {
     required this.label,
     required this.action,
     this.shortcut,
+    this.checked = false,
   });
 
   final String label;
   final MenuAsyncAction? action;
   final MenuSerializableShortcut? shortcut;
+  final bool checked;
 }
 
 class MenuSubmenuEntry extends MenuEntry {
@@ -69,6 +72,7 @@ class MenuDefinitionBuilder {
       _filterMenu(handler),
       _toolMenu(handler),
       _viewMenu(handler),
+      _workspaceMenu(handler),
       _windowMenu(),
     ].whereType<MenuDefinition>().toList(growable: false);
   }
@@ -165,6 +169,15 @@ class MenuDefinitionBuilder {
             meta: true,
             shift: true,
           ),
+        ),
+    ]);
+
+    _addSection(entries, <MenuEntry>[
+      if (handler.closeAll != null)
+        MenuActionEntry(
+          label: '关闭全部',
+          action: handler.closeAll,
+          shortcut: const SingleActivator(LogicalKeyboardKey.escape),
         ),
     ]);
 
@@ -350,7 +363,15 @@ class MenuDefinitionBuilder {
   static MenuDefinition? _toolMenu(MenuActionHandler handler) {
     final List<MenuEntry> paletteEntries = <MenuEntry>[
       if (handler.generatePalette != null)
-        MenuActionEntry(label: '生成调色盘…', action: handler.generatePalette),
+        MenuActionEntry(
+          label: '取色当前画布生成调色盘…',
+          action: handler.generatePalette,
+        ),
+      if (handler.generateGradientPalette != null)
+        MenuActionEntry(
+          label: '使用当前颜色生成渐变调色盘',
+          action: handler.generateGradientPalette,
+        ),
       if (handler.importPalette != null)
         MenuActionEntry(label: '导入调色盘…', action: handler.importPalette),
     ];
@@ -418,10 +439,54 @@ class MenuDefinitionBuilder {
           shortcut: const SingleActivator(LogicalKeyboardKey.minus, meta: true),
         ),
     ];
+    if (handler.togglePixelGrid != null) {
+      if (entries.isNotEmpty) {
+        entries.add(const MenuSeparatorEntry());
+      }
+      entries.add(
+        MenuActionEntry(
+          label: handler.pixelGridVisible ? '隐藏网格' : '显示网格',
+          action: handler.togglePixelGrid,
+          checked: handler.pixelGridVisible,
+        ),
+      );
+    }
     if (entries.isEmpty) {
       return null;
     }
     return MenuDefinition(label: '视图', entries: entries);
+  }
+
+  static MenuDefinition? _workspaceMenu(MenuActionHandler handler) {
+    final MenuWorkspaceLayoutAction? switchLayout =
+        handler.switchWorkspaceLayout;
+    if (switchLayout == null) {
+      return null;
+    }
+    final WorkspaceLayoutPreference? current =
+        handler.workspaceLayoutPreference;
+    final List<MenuEntry> entries = <MenuEntry>[
+      MenuActionEntry(
+        label: '默认',
+        action: () => switchLayout(WorkspaceLayoutPreference.floating),
+        checked: current == WorkspaceLayoutPreference.floating,
+      ),
+      MenuActionEntry(
+        label: 'SAI2',
+        action: () => switchLayout(WorkspaceLayoutPreference.sai2),
+        checked: current == WorkspaceLayoutPreference.sai2,
+      ),
+    ];
+    return MenuDefinition(
+      label: '工作区',
+      entries: <MenuEntry>[
+        MenuSubmenuEntry(label: '切换工作区', entries: entries),
+        if (handler.resetWorkspaceLayout != null) ...[
+          const MenuSeparatorEntry(),
+          MenuActionEntry(label: '复位工作区', action: handler.resetWorkspaceLayout),
+        ],
+      ],
+    );
   }
 
   static MenuDefinition? _filterMenu(MenuActionHandler handler) {

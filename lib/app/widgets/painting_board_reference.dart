@@ -17,18 +17,10 @@ const double _referenceCardBodyPaddingBottom = 12;
 const double _referenceCardResizeEdgeHitExtent = 14.0;
 const double _referenceCardResizeCornerHitExtent = 18.0;
 
-enum _ReferenceCardResizeEdge {
-  left,
-  right,
-  bottom,
-  bottomLeft,
-  bottomRight,
-}
+enum _ReferenceCardResizeEdge { left, right, bottom, bottomLeft, bottomRight }
 
-typedef _ReferenceCardResizeCallback = void Function(
-  _ReferenceCardResizeEdge edge,
-  Offset delta,
-);
+typedef _ReferenceCardResizeCallback =
+    void Function(_ReferenceCardResizeEdge edge, Offset delta);
 
 class _ReferenceCardEntry {
   _ReferenceCardEntry({
@@ -38,6 +30,7 @@ class _ReferenceCardEntry {
     required this.bodySize,
     required this.initialPanelSize,
     this.pixelBytes,
+    required this.rawBytes,
   });
 
   final int id;
@@ -46,6 +39,7 @@ class _ReferenceCardEntry {
   Size bodySize;
   final Size initialPanelSize;
   final Uint8List? pixelBytes;
+  final Uint8List rawBytes;
   Size? size;
 
   Size get panelSize => size ?? initialPanelSize;
@@ -101,6 +95,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         pixelBytes: pixelBytes,
         bodySize: bodySize,
         panelSize: panelSize,
+        rawBytes: Uint8List.fromList(pngBytes),
       );
       AppNotifications.show(
         context,
@@ -178,6 +173,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         pixelBytes: pixelBytes,
         bodySize: bodySize,
         panelSize: panelSize,
+        rawBytes: Uint8List.fromList(bytes),
       );
       AppNotifications.show(
         context,
@@ -204,6 +200,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     required Uint8List? pixelBytes,
     required Size bodySize,
     required Size panelSize,
+    required Uint8List rawBytes,
   }) {
     final int id = ++_referenceCardSerial;
     final Offset offset = _initialReferenceCardOffset(panelSize);
@@ -216,6 +213,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
           bodySize: bodySize,
           initialPanelSize: panelSize,
           pixelBytes: pixelBytes,
+          rawBytes: rawBytes,
         ),
       );
     });
@@ -548,6 +546,79 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     }
     _referenceCards.clear();
   }
+
+  List<ReferenceCardSnapshot> buildReferenceSnapshots() {
+    return _referenceCards
+        .map(
+          (entry) => ReferenceCardSnapshot(
+            imageBytes: Uint8List.fromList(entry.rawBytes),
+            pixelBytes:
+                entry.pixelBytes != null ? Uint8List.fromList(entry.pixelBytes!) : null,
+            bodySize: entry.bodySize,
+            panelSize: entry.panelSize,
+            offset: entry.offset,
+            size: entry.size,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> restoreReferenceSnapshots(
+    List<ReferenceCardSnapshot> snapshots,
+  ) async {
+    _referenceCardSerial = 0;
+    if (mounted) {
+      setState(() {
+        _disposeReferenceCards();
+      });
+    } else {
+      _disposeReferenceCards();
+    }
+    if (snapshots.isEmpty) {
+      return;
+    }
+    final List<_ReferenceCardEntry> restored = <_ReferenceCardEntry>[];
+    for (final ReferenceCardSnapshot snapshot in snapshots) {
+      try {
+        final ui.Codec codec = await ui.instantiateImageCodec(snapshot.imageBytes);
+        final ui.FrameInfo frame = await codec.getNextFrame();
+        codec.dispose();
+        final ui.Image image = frame.image;
+        Uint8List? pixelBytes = snapshot.pixelBytes != null
+            ? Uint8List.fromList(snapshot.pixelBytes!)
+            : null;
+        pixelBytes ??= (await image
+                .toByteData(format: ui.ImageByteFormat.rawRgba))
+            ?.buffer
+            .asUint8List();
+        final Offset offset = _clampReferenceCardOffset(
+          snapshot.offset,
+          snapshot.size ?? snapshot.panelSize,
+        );
+        final _ReferenceCardEntry entry = _ReferenceCardEntry(
+          id: ++_referenceCardSerial,
+          image: image,
+          offset: offset,
+          bodySize: snapshot.bodySize,
+          initialPanelSize: snapshot.panelSize,
+          pixelBytes: pixelBytes,
+          rawBytes: Uint8List.fromList(snapshot.imageBytes),
+        )..size = snapshot.size;
+        restored.add(entry);
+      } catch (error, stackTrace) {
+        debugPrint('Failed to restore reference card: $error\n$stackTrace');
+      }
+    }
+    if (!mounted) {
+      for (final _ReferenceCardEntry entry in restored) {
+        entry.image.dispose();
+      }
+      return;
+    }
+    setState(() {
+      _referenceCards.addAll(restored);
+    });
+  }
 }
 
 class _ResizeHandleIndicator extends StatelessWidget {
@@ -611,26 +682,10 @@ class _ResizeHandleIndicatorPainter extends CustomPainter {
     final double head = 5;
     void drawArrow(Paint paint) {
       canvas.drawLine(Offset(-half, 0), Offset(half, 0), paint);
-      canvas.drawLine(
-        Offset(half, 0),
-        Offset(half - head, head),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(half, 0),
-        Offset(half - head, -head),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(-half, 0),
-        Offset(-half + head, head),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(-half, 0),
-        Offset(-half + head, -head),
-        paint,
-      );
+      canvas.drawLine(Offset(half, 0), Offset(half - head, head), paint);
+      canvas.drawLine(Offset(half, 0), Offset(half - head, -head), paint);
+      canvas.drawLine(Offset(-half, 0), Offset(-half + head, head), paint);
+      canvas.drawLine(Offset(-half, 0), Offset(-half + head, -head), paint);
     }
 
     drawArrow(outlinePaint);
@@ -817,24 +872,29 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     if (panelSize.width <= 0 || panelSize.height <= 0) {
       return null;
     }
-    final Rect panelRect = Rect.fromLTWH(0, 0, panelSize.width, panelSize.height);
+    final Rect panelRect = Rect.fromLTWH(
+      0,
+      0,
+      panelSize.width,
+      panelSize.height,
+    );
     final double edgeTolerance = _referenceCardResizeEdgeHitExtent;
     final double cornerTolerance = _referenceCardResizeCornerHitExtent;
     final bool withinVerticalBounds =
         position.dy >= panelRect.top - edgeTolerance &&
-            position.dy <= panelRect.bottom + edgeTolerance;
+        position.dy <= panelRect.bottom + edgeTolerance;
     final bool withinHorizontalBounds =
         position.dx >= panelRect.left - edgeTolerance &&
-            position.dx <= panelRect.right + edgeTolerance;
+        position.dx <= panelRect.right + edgeTolerance;
     final bool nearLeft =
         withinVerticalBounds &&
-            (position.dx - panelRect.left).abs() <= edgeTolerance;
+        (position.dx - panelRect.left).abs() <= edgeTolerance;
     final bool nearRight =
         withinVerticalBounds &&
-            (position.dx - panelRect.right).abs() <= edgeTolerance;
+        (position.dx - panelRect.right).abs() <= edgeTolerance;
     final bool nearBottom =
         withinHorizontalBounds &&
-            (position.dy - panelRect.bottom).abs() <= edgeTolerance;
+        (position.dy - panelRect.bottom).abs() <= edgeTolerance;
 
     final bool nearBottomLeft =
         (position - panelRect.bottomLeft).distance <= cornerTolerance;
@@ -863,8 +923,9 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     if (_activeResizeEdge != null || _interactionLocked) {
       return;
     }
-    final _ReferenceCardResizeEdge? edge =
-        _resolveResizeEdge(event.localPosition);
+    final _ReferenceCardResizeEdge? edge = _resolveResizeEdge(
+      event.localPosition,
+    );
     if (edge == null) {
       if (_hoveredResizeEdge == null) {
         return;
@@ -895,8 +956,9 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
     if (_interactionLocked || event.buttons == 0) {
       return;
     }
-    final _ReferenceCardResizeEdge? edge =
-        _resolveResizeEdge(event.localPosition);
+    final _ReferenceCardResizeEdge? edge = _resolveResizeEdge(
+      event.localPosition,
+    );
     if (edge == null) {
       return;
     }
@@ -1187,7 +1249,8 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
   @override
   Widget build(BuildContext context) {
     final Size bodySize = widget.bodySize;
-    final double panelWidth = bodySize.width + _referenceCardBodyHorizontalPadding;
+    final double panelWidth =
+        bodySize.width + _referenceCardBodyHorizontalPadding;
     final FluentThemeData theme = FluentTheme.of(context);
     return Listener(
       behavior: HitTestBehavior.opaque,
@@ -1204,7 +1267,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              _MeasureSize(
+              MeasuredSize(
                 onChanged: (size) {
                   _panelSize = size;
                   widget.onSizeChanged(size);

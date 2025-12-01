@@ -122,6 +122,30 @@ class CanvasWorkspaceController extends ChangeNotifier {
     _scheduleNotify();
   }
 
+  void reorder(int oldIndex, int newIndex) {
+    if (_entries.length <= 1) {
+      return;
+    }
+    if (oldIndex < 0 || oldIndex >= _entries.length) {
+      return;
+    }
+    if (newIndex < 0) {
+      newIndex = 0;
+    }
+    if (newIndex > _entries.length) {
+      newIndex = _entries.length;
+    }
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    if (oldIndex == newIndex) {
+      return;
+    }
+    final CanvasWorkspaceEntry entry = _entries.removeAt(oldIndex);
+    _entries.insert(newIndex, entry);
+    _scheduleNotify();
+  }
+
   void _scheduleNotify() {
     final WidgetsBinding binding = WidgetsBinding.instance;
     if (_notifyScheduled) {

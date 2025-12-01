@@ -15,6 +15,7 @@ enum PaintingDrawCommandType {
   variableLine,
   stampSegment,
   vectorStroke, // Kept for enum stability, but unused in worker
+  filledPolygon,
 }
 
 class PaintingDrawCommand {
@@ -33,6 +34,7 @@ class PaintingDrawCommand {
     this.includeStartCap,
     this.points,
     this.radii,
+    this.softness,
   });
 
   factory PaintingDrawCommand.brushStamp({
@@ -42,6 +44,7 @@ class PaintingDrawCommand {
     required int shapeIndex,
     required int antialiasLevel,
     required bool erase,
+    double softness = 0.0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.brushStamp,
@@ -51,6 +54,7 @@ class PaintingDrawCommand {
       center: center,
       radius: radius,
       shapeIndex: shapeIndex,
+      softness: softness,
     );
   }
 
@@ -141,6 +145,21 @@ class PaintingDrawCommand {
     );
   }
 
+  factory PaintingDrawCommand.filledPolygon({
+    required List<Offset> points,
+    required int colorValue,
+    required int antialiasLevel,
+    required bool erase,
+  }) {
+    return PaintingDrawCommand._(
+      type: PaintingDrawCommandType.filledPolygon,
+      color: colorValue,
+      antialiasLevel: antialiasLevel,
+      erase: erase,
+      points: points,
+    );
+  }
+
   final PaintingDrawCommandType type;
   final int color;
   final int antialiasLevel;
@@ -154,6 +173,7 @@ class PaintingDrawCommand {
   final double? endRadius;
   final bool? includeStartCap;
   final List<Offset>? points;
+  final double? softness;
   final List<double>? radii;
 
   Map<String, Object?> toJson() {
@@ -165,6 +185,7 @@ class PaintingDrawCommand {
       'center': center == null ? null : <double>[center!.dx, center!.dy],
       'radius': radius,
       'shape': shapeIndex,
+      'softness': softness,
       'start': start == null ? null : <double>[start!.dx, start!.dy],
       'end': end == null ? null : <double>[end!.dx, end!.dy],
       'startRadius': startRadius,
@@ -276,9 +297,9 @@ class PaintingSelectionMaskRequest {
 
 class CanvasPaintingWorker {
   CanvasPaintingWorker()
-      : _receivePort = ReceivePort(),
-        _pending = <int, Completer<Object?>>{},
-        _sendPortCompleter = Completer<SendPort>() {
+    : _receivePort = ReceivePort(),
+      _pending = <int, Completer<Object?>>{},
+      _sendPortCompleter = Completer<SendPort>() {
     _subscription = _receivePort.listen(_handleMessage);
   }
 
@@ -376,7 +397,9 @@ class CanvasPaintingWorker {
     );
   }
 
-  Future<PaintingWorkerPatch> mergePatch(PaintingMergePatchRequest request) async {
+  Future<PaintingWorkerPatch> mergePatch(
+    PaintingMergePatchRequest request,
+  ) async {
     await _ensureStarted();
     final Object? response = await _sendRequest(<String, Object?>{
       'kind': 'mergePatch',
@@ -702,13 +725,12 @@ Object? _paintingWorkerHandleDraw(
 
   if (pixelData != null) {
     // Legacy path: Draw on local temporary surface
-    final BitmapSurface tempSurface = BitmapSurface(width: width, height: height);
-    final ByteBuffer buffer = pixelData.materialize();
-    final Uint32List patchPixels = Uint32List.view(
-      buffer,
-      0,
-      width * height,
+    final BitmapSurface tempSurface = BitmapSurface(
+      width: width,
+      height: height,
     );
+    final ByteBuffer buffer = pixelData.materialize();
+    final Uint32List patchPixels = Uint32List.view(buffer, 0, width * height);
     tempSurface.pixels.setAll(0, patchPixels);
     Uint8List? mask;
     final TransferableTypedData? maskData =
@@ -728,9 +750,9 @@ Object? _paintingWorkerHandleDraw(
       'top': top,
       'width': width,
       'height': height,
-      'pixels': TransferableTypedData.fromList(
-        <Uint8List>[Uint8List.view(tempSurface.pixels.buffer)],
-      ),
+      'pixels': TransferableTypedData.fromList(<Uint8List>[
+        Uint8List.view(tempSurface.pixels.buffer),
+      ]),
     };
   }
 
@@ -775,10 +797,11 @@ Object? _paintingWorkerHandleMergePatch(
   if (surface == null) {
     return _paintingWorkerEmptyPatch(left, top, width, height);
   }
-  
+
   final bool erase = payload['erase'] as bool? ?? false;
-  final TransferableTypedData? pixelData = payload['pixels'] as TransferableTypedData?;
-  
+  final TransferableTypedData? pixelData =
+      payload['pixels'] as TransferableTypedData?;
+
   if (width <= 0 || height <= 0 || pixelData == null) {
     return _paintingWorkerEmptyPatch(left, top, width, height);
   }
@@ -787,7 +810,7 @@ Object? _paintingWorkerHandleMergePatch(
   final int clampedTop = top.clamp(0, surface.height);
   final int clampedRight = math.min(clampedLeft + width, surface.width);
   final int clampedBottom = math.min(clampedTop + height, surface.height);
-  
+
   if (clampedRight <= clampedLeft || clampedBottom <= clampedTop) {
     return _paintingWorkerEmptyPatch(left, top, width, height);
   }
@@ -795,22 +818,22 @@ Object? _paintingWorkerHandleMergePatch(
   final ByteBuffer buffer = pixelData.materialize();
   final Uint8List sourceRgba = buffer.asUint8List();
   final Uint8List? mask = state.selectionMask;
-  
+
   final Uint32List surfacePixels = surface.pixels;
   final int surfaceWidth = surface.width;
 
-  // We need to blend the incoming RGBA patch into the surface ARGB
+  // We need to blend the incoming premultiplied RGBA patch into the surface ARGB
   for (int y = 0; y < height; y++) {
     final int surfaceY = top + y;
     if (surfaceY < 0 || surfaceY >= surface.height) continue;
-    
+
     final int rowOffset = y * width * 4;
     final int surfaceRowOffset = surfaceY * surfaceWidth;
-    
+
     for (int x = 0; x < width; x++) {
       final int surfaceX = left + x;
       if (surfaceX < 0 || surfaceX >= surface.width) continue;
-      
+
       // Check mask
       if (mask != null && mask[surfaceRowOffset + surfaceX] == 0) {
         continue;
@@ -824,12 +847,11 @@ Object? _paintingWorkerHandleMergePatch(
       final int g = sourceRgba[rgbaIndex + 1];
       final int b = sourceRgba[rgbaIndex + 2];
       final int a = sourceRgba[rgbaIndex + 3];
-      
+
       if (a == 0) continue;
 
       final int surfaceIndex = surfaceRowOffset + surfaceX;
       final int dstColor = surfacePixels[surfaceIndex];
-      
       final int dstA = (dstColor >> 24) & 0xff;
       final int dstR = (dstColor >> 16) & 0xff;
       final int dstG = (dstColor >> 8) & 0xff;
@@ -843,32 +865,44 @@ Object? _paintingWorkerHandleMergePatch(
         // But if we want "true" erasure where completely erased becomes transparent black:
         // If outA becomes 0, color matters less.
         // Let's just scale alpha.
-        surfacePixels[surfaceIndex] = (outA << 24) | (dstR << 16) | (dstG << 8) | dstB;
+        surfacePixels[surfaceIndex] =
+            (outA << 24) | (dstR << 16) | (dstG << 8) | dstB;
       } else {
+        final int srcR = _unpremultiplyChannel(r, a);
+        final int srcG = _unpremultiplyChannel(g, a);
+        final int srcB = _unpremultiplyChannel(b, a);
+
         // Normal blend (Src Over Dst)
         final double srcAlpha = a / 255.0;
         final double invSrcAlpha = 1.0 - srcAlpha;
-        
+
         final double outAlphaDouble = srcAlpha + (dstA / 255.0) * invSrcAlpha;
         if (outAlphaDouble <= 0.001) {
-           // If roughly transparent, keep it that way? 
-           // Or just set to 0.
-           continue; 
+          // If roughly transparent, keep it that way?
+          // Or just set to 0.
+          continue;
         }
         final int outA = (outAlphaDouble * 255.0).round();
-        
+
         // Composite colors
         // Result = (Src * SrcA + Dst * DstA * (1-SrcA)) / OutA
         // Note: Src R,G,B from ByteData are NON-premultiplied (straight alpha).
-        
-        final double outR = (r * srcAlpha + dstR * (dstA / 255.0) * invSrcAlpha) / outAlphaDouble;
-        final double outG = (g * srcAlpha + dstG * (dstA / 255.0) * invSrcAlpha) / outAlphaDouble;
-        final double outB = (b * srcAlpha + dstB * (dstA / 255.0) * invSrcAlpha) / outAlphaDouble;
-        
-        surfacePixels[surfaceIndex] = (outA.clamp(0, 255) << 24) |
-                                      (outR.round().clamp(0, 255) << 16) |
-                                      (outG.round().clamp(0, 255) << 8) |
-                                      outB.round().clamp(0, 255);
+
+        final double outR =
+            (srcR * srcAlpha + dstR * (dstA / 255.0) * invSrcAlpha) /
+            outAlphaDouble;
+        final double outG =
+            (srcG * srcAlpha + dstG * (dstA / 255.0) * invSrcAlpha) /
+            outAlphaDouble;
+        final double outB =
+            (srcB * srcAlpha + dstB * (dstA / 255.0) * invSrcAlpha) /
+            outAlphaDouble;
+
+        surfacePixels[surfaceIndex] =
+            (outA.clamp(0, 255) << 24) |
+            (outR.round().clamp(0, 255) << 16) |
+            (outG.round().clamp(0, 255) << 8) |
+            outB.round().clamp(0, 255);
       }
     }
   }
@@ -880,6 +914,23 @@ Object? _paintingWorkerHandleMergePatch(
     width: clampedRight - clampedLeft,
     height: clampedBottom - clampedTop,
   );
+}
+
+int _unpremultiplyChannel(int value, int alpha) {
+  if (alpha <= 0) {
+    return 0;
+  }
+  if (alpha >= 255) {
+    return value;
+  }
+  final int result = ((value * 255) + (alpha >> 1)) ~/ alpha;
+  if (result < 0) {
+    return 0;
+  }
+  if (result > 255) {
+    return 255;
+  }
+  return result;
 }
 
 Map<String, Object?> _paintingWorkerEmptyPatch(
@@ -929,21 +980,16 @@ Map<String, Object?> _paintingWorkerExportPatch({
   for (int row = 0; row < height; row++) {
     final int srcOffset = (top + row) * surface.width + left;
     final int dstOffset = row * width;
-    patch.setRange(
-      dstOffset,
-      dstOffset + width,
-      surface.pixels,
-      srcOffset,
-    );
+    patch.setRange(dstOffset, dstOffset + width, surface.pixels, srcOffset);
   }
   return <String, Object?>{
     'left': left,
     'top': top,
     'width': width,
     'height': height,
-    'pixels': TransferableTypedData.fromList(
-      <Uint8List>[Uint8List.view(patch.buffer)],
-    ),
+    'pixels': TransferableTypedData.fromList(<Uint8List>[
+      Uint8List.view(patch.buffer),
+    ]),
   };
 }
 
@@ -970,12 +1016,7 @@ void _paintingWorkerBlitPatch({
   for (int row = 0; row < maxHeight; row++) {
     final int srcOffset = row * width;
     final int dstOffset = (clampedTop + row) * surface.width + clampedLeft;
-    surface.pixels.setRange(
-      dstOffset,
-      dstOffset + maxWidth,
-      pixels,
-      srcOffset,
-    );
+    surface.pixels.setRange(dstOffset, dstOffset + maxWidth, pixels, srcOffset);
   }
 }
 
@@ -986,20 +1027,24 @@ void _paintingWorkerApplyCommand({
   required double originY,
   required Uint8List? mask,
 }) {
-  final PaintingDrawCommandType type = PaintingDrawCommandType.values[
-      (command['type'] as int? ?? 0)
-          .clamp(0, PaintingDrawCommandType.values.length - 1)];
+  final PaintingDrawCommandType type =
+      PaintingDrawCommandType.values[(command['type'] as int? ?? 0).clamp(
+        0,
+        PaintingDrawCommandType.values.length - 1,
+      )];
   final Color color = Color(command['color'] as int? ?? 0);
   final bool erase = command['erase'] as bool? ?? false;
   final int antialias = (command['antialias'] as int? ?? 0).clamp(0, 3);
   switch (type) {
     case PaintingDrawCommandType.brushStamp:
-      final List<double>? centerData =
-          (command['center'] as List<dynamic>?)?.cast<double>();
+      final List<double>? centerData = (command['center'] as List<dynamic>?)
+          ?.cast<double>();
       final double radius = (command['radius'] as num? ?? 0).toDouble();
       final int shapeIndex = command['shape'] as int? ?? 0;
-      final BrushShape shape = BrushShape
-          .values[shapeIndex.clamp(0, BrushShape.values.length - 1)];
+      final double softness =
+          (command['softness'] as num? ?? 0).toDouble().clamp(0.0, 1.0);
+      final BrushShape shape =
+          BrushShape.values[shapeIndex.clamp(0, BrushShape.values.length - 1)];
       surface.drawBrushStamp(
         center: _relativeOffset(centerData, originX, originY),
         radius: radius,
@@ -1008,13 +1053,14 @@ void _paintingWorkerApplyCommand({
         mask: mask,
         antialiasLevel: antialias,
         erase: erase,
+        softness: softness,
       );
       break;
     case PaintingDrawCommandType.line:
-      final List<double>? startData =
-          (command['start'] as List<dynamic>?)?.cast<double>();
-      final List<double>? endData =
-          (command['end'] as List<dynamic>?)?.cast<double>();
+      final List<double>? startData = (command['start'] as List<dynamic>?)
+          ?.cast<double>();
+      final List<double>? endData = (command['end'] as List<dynamic>?)
+          ?.cast<double>();
       final double radius = (command['radius'] as num? ?? 0).toDouble();
       final bool includeStartCap = command['includeStartCap'] as bool? ?? true;
       surface.drawLine(
@@ -1029,12 +1075,12 @@ void _paintingWorkerApplyCommand({
       );
       break;
     case PaintingDrawCommandType.variableLine:
-      final List<double>? startData =
-          (command['start'] as List<dynamic>?)?.cast<double>();
-      final List<double>? endData =
-          (command['end'] as List<dynamic>?)?.cast<double>();
-      final double startRadius =
-          (command['startRadius'] as num? ?? 0).toDouble();
+      final List<double>? startData = (command['start'] as List<dynamic>?)
+          ?.cast<double>();
+      final List<double>? endData = (command['end'] as List<dynamic>?)
+          ?.cast<double>();
+      final double startRadius = (command['startRadius'] as num? ?? 0)
+          .toDouble();
       final double endRadius = (command['endRadius'] as num? ?? 0).toDouble();
       final bool includeStartCap = command['includeStartCap'] as bool? ?? true;
       surface.drawVariableLine(
@@ -1050,17 +1096,17 @@ void _paintingWorkerApplyCommand({
       );
       break;
     case PaintingDrawCommandType.stampSegment:
-      final List<double>? startData =
-          (command['start'] as List<dynamic>?)?.cast<double>();
-      final List<double>? endData =
-          (command['end'] as List<dynamic>?)?.cast<double>();
-      final double startRadius =
-          (command['startRadius'] as num? ?? 0).toDouble();
+      final List<double>? startData = (command['start'] as List<dynamic>?)
+          ?.cast<double>();
+      final List<double>? endData = (command['end'] as List<dynamic>?)
+          ?.cast<double>();
+      final double startRadius = (command['startRadius'] as num? ?? 0)
+          .toDouble();
       final double endRadius = (command['endRadius'] as num? ?? 0).toDouble();
       final bool includeStart = command['includeStartCap'] as bool? ?? true;
       final int shapeIndex = command['shape'] as int? ?? 0;
-      final BrushShape shape = BrushShape
-          .values[shapeIndex.clamp(0, BrushShape.values.length - 1)];
+      final BrushShape shape =
+          BrushShape.values[shapeIndex.clamp(0, BrushShape.values.length - 1)];
       _paintingWorkerStampSegment(
         surface: surface,
         start: _relativeOffset(startData, originX, originY),
@@ -1078,18 +1124,48 @@ void _paintingWorkerApplyCommand({
     case PaintingDrawCommandType.vectorStroke:
       // Unused in worker now.
       break;
+    case PaintingDrawCommandType.filledPolygon:
+      final List<Offset> polygon = _relativePolygonPoints(
+        command['points'] as List<dynamic>?,
+        originX,
+        originY,
+      );
+      surface.drawFilledPolygon(
+        vertices: polygon,
+        color: color,
+        mask: mask,
+        antialiasLevel: antialias,
+        erase: erase,
+      );
+      break;
   }
 }
 
-Offset _relativeOffset(
-  List<double>? values,
-  double originX,
-  double originY,
-) {
+Offset _relativeOffset(List<double>? values, double originX, double originY) {
   if (values == null || values.length < 2) {
     return Offset.zero;
   }
   return Offset(values[0] - originX, values[1] - originY);
+}
+
+List<Offset> _relativePolygonPoints(
+  List<dynamic>? values,
+  double originX,
+  double originY,
+) {
+  if (values == null || values.isEmpty) {
+    return const <Offset>[];
+  }
+  final List<Offset> result = <Offset>[];
+  for (final dynamic entry in values) {
+    if (entry is! List || entry.length < 2) {
+      continue;
+    }
+    final double dx = (entry[0] as num? ?? 0).toDouble() - originX;
+    final double dy = (entry[1] as num? ?? 0).toDouble() - originY;
+    result.add(Offset(dx, dy));
+  }
+  return result;
 }
 
 Object? _paintingWorkerHandleFloodFill(
@@ -1137,11 +1213,7 @@ Map<String, Object?> _paintingWorkerHandleLegacyFloodFill(
     return _paintingWorkerEmptyPatch(0, 0, 0, 0);
   }
   final ByteBuffer pixelBuffer = pixelData.materialize();
-  final Uint32List pixels = Uint32List.view(
-    pixelBuffer,
-    0,
-    width * height,
-  );
+  final Uint32List pixels = Uint32List.view(pixelBuffer, 0, width * height);
   final BitmapSurface surface = BitmapSurface(width: width, height: height);
   surface.pixels.setAll(0, pixels);
   Uint8List? mask;
@@ -1159,8 +1231,7 @@ Map<String, Object?> _paintingWorkerHandleLegacyFloodFill(
   surface.floodFill(
     start: Offset(startX.toDouble(), startY.toDouble()),
     color: Color(colorValue),
-    targetColor:
-        targetColorValue != null ? Color(targetColorValue) : null,
+    targetColor: targetColorValue != null ? Color(targetColorValue) : null,
     contiguous: contiguous,
     mask: mask,
   );
@@ -1187,11 +1258,7 @@ TransferableTypedData _paintingWorkerHandleSelectionMask(
     return TransferableTypedData.fromList(const <Uint8List>[]);
   }
   final ByteBuffer pixelBuffer = pixelData.materialize();
-  final Uint32List pixels = Uint32List.view(
-    pixelBuffer,
-    0,
-    width * height,
-  );
+  final Uint32List pixels = Uint32List.view(pixelBuffer, 0, width * height);
   final Uint8List mask = Uint8List(width * height);
   final int target = pixels[startY * width + startX];
   _paintingWorkerFloodMask(
@@ -1242,8 +1309,7 @@ void _paintingWorkerStampSegment({
   final int startIndex = includeStart ? 0 : 1;
   for (int i = startIndex; i <= samples; i++) {
     final double t = samples == 0 ? 1.0 : (i / samples);
-    final double radius =
-        lerpDouble(startRadius, endRadius, t) ?? endRadius;
+    final double radius = lerpDouble(startRadius, endRadius, t) ?? endRadius;
     final double sampleX = lerpDouble(start.dx, end.dx, t) ?? end.dx;
     final double sampleY = lerpDouble(start.dy, end.dy, t) ?? end.dy;
     surface.drawBrushStamp(
@@ -1268,8 +1334,7 @@ double _paintingWorkerStampSpacing(double radius) {
   const double maxRadius = 28.0;
   final double normalized = ((radius - minRadius) / (maxRadius - minRadius))
       .clamp(0.0, 1.0);
-  final double spacing =
-      minSpacing + (maxSpacing - minSpacing) * normalized;
+  final double spacing = minSpacing + (maxSpacing - minSpacing) * normalized;
   return math.max(spacing, minSpacing);
 }
 
@@ -1283,12 +1348,12 @@ class _FloodFillResult {
   });
 
   factory _FloodFillResult.none() => const _FloodFillResult._(
-        left: 0,
-        top: 0,
-        width: 0,
-        height: 0,
-        changed: false,
-      );
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+    changed: false,
+  );
 
   factory _FloodFillResult.region({
     required int left,
@@ -1296,12 +1361,12 @@ class _FloodFillResult {
     required int width,
     required int height,
   }) => _FloodFillResult._(
-        left: left,
-        top: top,
-        width: width,
-        height: height,
-        changed: true,
-      );
+    left: left,
+    top: top,
+    width: width,
+    height: height,
+    changed: true,
+  );
 
   final int left;
   final int top;
@@ -1423,7 +1488,7 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
 
   final Uint8List fillMask = Uint8List(width * height);
   final List<int> stack = <int>[startIndex];
-  
+
   int minX = width;
   int minY = height;
   int maxX = -1;
@@ -1445,12 +1510,12 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
     if (mask != null && mask[index] == 0) {
       continue;
     }
-    
+
     fillMask[index] = 1;
-    
+
     final int x = index % width;
     final int y = index ~/ width;
-    
+
     if (x < minX) minX = x;
     if (y < minY) minY = y;
     if (x > maxX) maxX = x;
@@ -1486,10 +1551,14 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
 
         // Check neighbors for a filled pixel
         bool hasFilledNeighbor = false;
-        if (x > 0 && fillMask[index - 1] == 1) hasFilledNeighbor = true;
-        else if (x < width - 1 && fillMask[index + 1] == 1) hasFilledNeighbor = true;
-        else if (y > 0 && fillMask[index - width] == 1) hasFilledNeighbor = true;
-        else if (y < height - 1 && fillMask[index + width] == 1) hasFilledNeighbor = true;
+        if (x > 0 && fillMask[index - 1] == 1)
+          hasFilledNeighbor = true;
+        else if (x < width - 1 && fillMask[index + 1] == 1)
+          hasFilledNeighbor = true;
+        else if (y > 0 && fillMask[index - width] == 1)
+          hasFilledNeighbor = true;
+        else if (y < height - 1 && fillMask[index + width] == 1)
+          hasFilledNeighbor = true;
 
         if (hasFilledNeighbor) {
           expansionPixels.add(index);
@@ -1542,18 +1611,21 @@ bool _colorsWithinTolerance(int a, int b, int tolerance) {
   final int ar = (a >> 16) & 0xff;
   final int ag = (a >> 8) & 0xff;
   final int ab = a & 0xff;
-  
+
   final int ba = (b >> 24) & 0xff;
   final int br = (b >> 16) & 0xff;
   final int bg = (b >> 8) & 0xff;
   final int bb = b & 0xff;
-  
+
   final int deltaA = (aa - ba).abs();
   final int deltaR = (ar - br).abs();
   final int deltaG = (ag - bg).abs();
   final int deltaB = (ab - bb).abs();
-  
-  return deltaA <= tolerance && deltaR <= tolerance && deltaG <= tolerance && deltaB <= tolerance;
+
+  return deltaA <= tolerance &&
+      deltaR <= tolerance &&
+      deltaG <= tolerance &&
+      deltaB <= tolerance;
 }
 
 void _paintingWorkerFloodMask({
@@ -1566,10 +1638,7 @@ void _paintingWorkerFloodMask({
   required int tolerance,
   required Uint8List mask,
 }) {
-  if (startX < 0 ||
-      startX >= width ||
-      startY < 0 ||
-      startY >= height) {
+  if (startX < 0 || startX >= width || startY < 0 || startY >= height) {
     return;
   }
   final int baseA = (targetColor >> 24) & 0xff;

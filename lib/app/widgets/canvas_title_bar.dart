@@ -1,9 +1,14 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:flutter/widgets.dart'
+    show
+        ClampingScrollPhysics,
+        ReorderableDragStartListener,
+        ReorderableListView;
 import 'package:window_manager/window_manager.dart';
+
 import '../workspace/canvas_workspace_controller.dart';
-import 'window_drag_area.dart';
 
 typedef CanvasTabCallback = void Function(String id);
 
@@ -24,8 +29,6 @@ class CanvasTitleBar extends StatelessWidget {
     final theme = FluentTheme.of(context);
     final CanvasWorkspaceController controller =
         CanvasWorkspaceController.instance;
-    final bool showNativeMacButtons =
-        !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
     final bool showLinuxControls =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
     const EdgeInsets padding = EdgeInsets.only(
@@ -47,10 +50,6 @@ class CanvasTitleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (showNativeMacButtons) ...[
-            const SizedBox(width: 72),
-            const SizedBox(width: 12),
-          ],
           Expanded(
             child: AnimatedBuilder(
               animation: controller,
@@ -60,35 +59,12 @@ class CanvasTitleBar extends StatelessWidget {
                 if (entries.isEmpty) {
                   return const SizedBox.shrink();
                 }
-                return Row(
-                  children: [
-                    Flexible(
-                      child: _WorkspaceTabStrip(
-                        entries: entries,
-                        activeId: activeId,
-                        onSelectTab: onSelectTab,
-                        onCloseTab: onCloseTab,
-                        onCreateTab: onCreateTab,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final double height = constraints.hasBoundedHeight
-                              ? constraints.maxHeight
-                              : 32;
-                          return WindowDragArea(
-                            canDragAtPosition: (_) => true,
-                            child: SizedBox(
-                              width: constraints.maxWidth,
-                              height: height,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                return _WorkspaceTabStrip(
+                  entries: entries,
+                  activeId: activeId,
+                  onSelectTab: onSelectTab,
+                  onCloseTab: onCloseTab,
+                  onCreateTab: onCreateTab,
                 );
               },
             ),
@@ -120,21 +96,36 @@ class _WorkspaceTabStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      widthFactor: 1,
-      child: SingleChildScrollView(
+    final FluentThemeData theme = FluentTheme.of(context);
+    final Color hoverBackground = theme.resources.subtleFillColorTertiary;
+    final Color pressedBackground = theme.resources.subtleFillColorSecondary;
+    final Color baseIconColor = theme.resources.textFillColorSecondary;
+    final Color hoverIconColor = theme.resources.textFillColorPrimary;
+    final CanvasWorkspaceController controller =
+        CanvasWorkspaceController.instance;
+    return SizedBox(
+      height: 36,
+      child: ReorderableListView.builder(
         scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final CanvasWorkspaceEntry entry in entries)
-              _WorkspaceTab(
-                entry: entry,
-                isActive: entry.id == activeId,
-                onSelect: onSelectTab,
-                onClose: onCloseTab,
-              ),
-            Padding(
+        padding: EdgeInsets.zero,
+        primary: false,
+        physics: const ClampingScrollPhysics(),
+        buildDefaultDragHandles: false,
+        proxyDecorator: (child, index, animation) => child,
+        itemCount: entries.length + 1,
+        onReorder: (int oldIndex, int newIndex) {
+          if (oldIndex >= entries.length) {
+            return;
+          }
+          if (newIndex > entries.length) {
+            newIndex = entries.length;
+          }
+          controller.reorder(oldIndex, newIndex);
+        },
+        itemBuilder: (context, index) {
+          if (index >= entries.length) {
+            return Padding(
+              key: const ValueKey('__workspace_add_button__'),
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Button(
                 onPressed: onCreateTab,
@@ -145,15 +136,42 @@ class _WorkspaceTabStrip extends StatelessWidget {
                   shape: WidgetStateProperty.all<OutlinedBorder>(
                     const CircleBorder(),
                   ),
-                  backgroundColor: WidgetStateProperty.resolveWith<Color?>(
-                    (states) => Colors.transparent,
+                  backgroundColor: WidgetStateProperty.resolveWith<Color?>((
+                    states,
+                  ) {
+                    if (states.contains(WidgetState.pressed)) {
+                      return pressedBackground;
+                    }
+                    if (states.contains(WidgetState.hovered)) {
+                      return hoverBackground;
+                    }
+                    return Colors.transparent;
+                  }),
+                  foregroundColor: WidgetStateProperty.resolveWith<Color?>(
+                    (states) => states.contains(WidgetState.hovered)
+                        ? hoverIconColor
+                        : baseIconColor,
                   ),
                 ),
                 child: const Icon(FluentIcons.add, size: 14),
               ),
+            );
+          }
+          final CanvasWorkspaceEntry entry = entries[index];
+          return Padding(
+            key: ValueKey<String>(entry.id),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: ReorderableDragStartListener(
+              index: index,
+              child: _WorkspaceTab(
+                entry: entry,
+                isActive: entry.id == activeId,
+                onSelect: onSelectTab,
+                onClose: onCloseTab,
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -271,6 +289,13 @@ class _WindowControlButton extends StatelessWidget {
 class _WorkspaceTabState extends State<_WorkspaceTab> {
   bool _hovered = false;
 
+  Color _opaqueFill(Color fill, Color background) {
+    if (fill.alpha == 0xFF) {
+      return fill;
+    }
+    return Color.alphaBlend(fill, background);
+  }
+
   void _handlePointer(bool hovered) {
     if (_hovered == hovered) {
       return;
@@ -282,16 +307,41 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final bool isActive = widget.isActive;
-    final bool showActiveBackground = isActive || _hovered;
-    final Color activeBorder = isActive
-        ? theme.resources.controlStrokeColorDefault
+    final bool hovered = _hovered;
+    final Color containerBackground = theme.micaBackgroundColor;
+    final Color hoverFill = _opaqueFill(
+      theme.resources.subtleFillColorTertiary,
+      containerBackground,
+    );
+    final Color baseFill = containerBackground;
+    final bool highlight = hovered || isActive;
+    final Color backgroundColor = highlight ? hoverFill : baseFill;
+    final Color borderColor = highlight
+        ? theme.resources.controlStrokeColorSecondary
         : Colors.transparent;
-    final TextStyle? textStyle = theme.typography.caption;
-    final Color textColor = isActive
-        ? theme.typography.bodyStrong?.color ??
-              theme.typography.body?.color ??
-              Colors.white
-        : theme.typography.caption?.color ?? Colors.white;
+    final TextStyle baseStyle =
+        theme.typography.caption ?? theme.typography.body ?? const TextStyle();
+    final Color inactiveTextColor =
+        baseStyle.color ?? theme.resources.textFillColorSecondary;
+    final Color hoverTextColor =
+        theme.typography.body?.color ??
+        theme.typography.bodyStrong?.color ??
+        inactiveTextColor;
+    final Color textColor =
+        highlight ? hoverTextColor : inactiveTextColor;
+    final Color closeIconColor =
+        textColor.withOpacity(highlight ? 0.95 : 0.75);
+    final List<BoxShadow>? shadows = highlight
+        ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                theme.brightness.isDark ? 0.3 : 0.12,
+              ),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ]
+        : null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: MouseRegion(
@@ -301,22 +351,30 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => widget.onSelect(widget.entry.id),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
             height: 28,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: showActiveBackground
-                  ? theme.resources.subtleFillColorSecondary
-                  : Colors.transparent,
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: activeBorder, width: isActive ? 1 : 0),
+              border: Border.all(color: borderColor, width: 1),
+              boxShadow: shadows,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  widget.entry.name,
-                  style: textStyle?.copyWith(color: textColor),
+                Flexible(
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    style: baseStyle.copyWith(color: textColor),
+                    child: Text(
+                      widget.entry.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
                 if (widget.entry.isDirty)
                   Padding(
@@ -334,7 +392,11 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => widget.onClose(widget.entry.id),
-                      child: const Icon(FluentIcons.chrome_close, size: 10),
+                      child: Icon(
+                        FluentIcons.chrome_close,
+                        size: 10,
+                        color: closeIconColor,
+                      ),
                     ),
                   ),
                 ),

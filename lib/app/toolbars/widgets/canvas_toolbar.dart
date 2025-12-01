@@ -3,13 +3,13 @@ import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../canvas/canvas_tools.dart';
-import '../shortcuts/toolbar_shortcuts.dart';
-import 'exit_tool_button.dart';
+import '../../../canvas/canvas_tools.dart';
+import '../../shortcuts/toolbar_shortcuts.dart';
 import 'hand_tool_button.dart';
 import 'bucket_tool_button.dart';
 import 'magic_wand_tool_button.dart';
 import 'pen_tool_button.dart';
+import 'eraser_tool_button.dart';
 import 'selection_tool_button.dart';
 import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
@@ -17,6 +17,7 @@ import 'layer_adjust_tool_button.dart';
 import 'curve_pen_tool_button.dart';
 import 'eyedropper_tool_button.dart';
 import 'shape_tool_button.dart';
+import 'spray_tool_button.dart';
 
 class CanvasToolbar extends StatelessWidget {
   const CanvasToolbar({
@@ -29,8 +30,8 @@ class CanvasToolbar extends StatelessWidget {
     required this.onRedo,
     required this.canUndo,
     required this.canRedo,
-    required this.onExit,
     required this.layout,
+    this.includeHistoryButtons = true,
   });
 
   final CanvasTool activeTool;
@@ -41,10 +42,11 @@ class CanvasToolbar extends StatelessWidget {
   final VoidCallback onRedo;
   final bool canUndo;
   final bool canRedo;
-  final VoidCallback onExit;
   final CanvasToolbarLayout layout;
+  final bool includeHistoryButtons;
 
-  static const int buttonCount = 12;
+  static const int buttonCount = 11;
+  static const int historyButtonCount = 2;
   static const double buttonSize = 48;
   static const double spacing = 9;
 
@@ -61,6 +63,7 @@ class CanvasToolbar extends StatelessWidget {
         rows: buttonCount,
         width: buttonSize,
         height: singleColumnHeight,
+        buttonExtent: buttonSize,
       );
     }
 
@@ -74,6 +77,7 @@ class CanvasToolbar extends StatelessWidget {
       rows: rows,
       width: width,
       height: height,
+      buttonExtent: buttonSize,
     );
   }
 
@@ -109,14 +113,8 @@ class CanvasToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <Widget>[
-      Tooltip(
-        message: _tooltipMessage('退出', ToolbarAction.exit),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
-        child: ExitToolButton(onPressed: onExit),
-      ),
+    final List<Widget> items = <Widget>[];
+    items.addAll([
       Tooltip(
         message: _tooltipMessage('图层调节', ToolbarAction.layerAdjustTool),
         displayHorizontally: true,
@@ -135,6 +133,16 @@ class CanvasToolbar extends StatelessWidget {
         child: PenToolButton(
           isSelected: activeTool == CanvasTool.pen,
           onPressed: () => onToolSelected(CanvasTool.pen),
+        ),
+      ),
+      Tooltip(
+        message: _tooltipMessage('喷枪工具', ToolbarAction.sprayTool),
+        displayHorizontally: true,
+        style: _rightTooltipStyle,
+        useMousePosition: false,
+        child: SprayToolButton(
+          isSelected: activeTool == CanvasTool.spray,
+          onPressed: () => onToolSelected(CanvasTool.spray),
         ),
       ),
       Tooltip(
@@ -159,6 +167,16 @@ class CanvasToolbar extends StatelessWidget {
           isSelected: activeTool == CanvasTool.shape,
           variant: shapeToolVariant,
           onPressed: () => onToolSelected(CanvasTool.shape),
+        ),
+      ),
+      Tooltip(
+        message: _tooltipMessage('橡皮擦', ToolbarAction.eraserTool),
+        displayHorizontally: true,
+        style: _rightTooltipStyle,
+        useMousePosition: false,
+        child: EraserToolButton(
+          isSelected: activeTool == CanvasTool.eraser,
+          onPressed: () => onToolSelected(CanvasTool.eraser),
         ),
       ),
       Tooltip(
@@ -212,21 +230,35 @@ class CanvasToolbar extends StatelessWidget {
           onPressed: () => onToolSelected(CanvasTool.hand),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('撤销', ToolbarAction.undo),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
-        child: UndoToolButton(enabled: canUndo, onPressed: onUndo),
-      ),
-      Tooltip(
-        message: _tooltipMessage('恢复', ToolbarAction.redo),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
-        child: RedoToolButton(enabled: canRedo, onPressed: onRedo),
-      ),
-    ];
+    ]);
+
+    if (includeHistoryButtons) {
+      items.addAll([
+        Tooltip(
+          message: _tooltipMessage('撤销', ToolbarAction.undo),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: UndoToolButton(enabled: canUndo, onPressed: onUndo),
+        ),
+        Tooltip(
+          message: _tooltipMessage('恢复', ToolbarAction.redo),
+          displayHorizontally: true,
+          style: _rightTooltipStyle,
+          useMousePosition: false,
+          child: RedoToolButton(enabled: canRedo, onPressed: onRedo),
+        ),
+      ]);
+    }
+
+    final double buttonExtent = layout.buttonExtent;
+
+    List<Widget> sizedItems(List<Widget> children) {
+      return [
+        for (final Widget child in children)
+          SizedBox(width: buttonExtent, height: buttonExtent, child: child),
+      ];
+    }
 
     List<Widget> withVerticalSpacing(List<Widget> children) {
       if (children.isEmpty) {
@@ -244,7 +276,7 @@ class CanvasToolbar extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: withVerticalSpacing(items),
+        children: withVerticalSpacing(sizedItems(items)),
       );
     }
 
@@ -259,9 +291,8 @@ class CanvasToolbar extends StatelessWidget {
       final int targetCount = column == layout.columns - 1
           ? remaining
           : math.min(layout.rows, remaining);
-      final columnChildren = items.sublist(
-        startIndex,
-        startIndex + targetCount,
+      final columnChildren = sizedItems(
+        items.sublist(startIndex, startIndex + targetCount),
       );
       startIndex += targetCount;
       columnWidgets.add(
@@ -273,7 +304,7 @@ class CanvasToolbar extends StatelessWidget {
       );
     }
 
-    return Row(
+    final Widget multiColumnLayout = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -282,6 +313,24 @@ class CanvasToolbar extends StatelessWidget {
           columnWidgets[index],
         ],
       ],
+    );
+
+    if (!layout.horizontalFlow) {
+      return multiColumnLayout;
+    }
+
+    final wrappedItems = sizedItems(items);
+    return SizedBox(
+      width: layout.width,
+      height: layout.height,
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: wrappedItems,
+        ),
+      ),
     );
   }
 }
@@ -292,12 +341,16 @@ class CanvasToolbarLayout {
     required this.rows,
     required this.width,
     required this.height,
+    this.buttonExtent = CanvasToolbar.buttonSize,
+    this.horizontalFlow = false,
   });
 
   final int columns;
   final int rows;
   final double width;
   final double height;
+  final double buttonExtent;
+  final bool horizontalFlow;
 
   bool get isMultiColumn => columns > 1;
 }

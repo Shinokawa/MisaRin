@@ -53,12 +53,16 @@ mixin _PaintingBoardBuildMixin
         key: const SelectToolIntent(CanvasTool.layerAdjust),
       for (final key in ToolbarShortcuts.of(ToolbarAction.penTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.pen),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.sprayTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.spray),
       for (final key in ToolbarShortcuts.of(
         ToolbarAction.curvePenTool,
       ).shortcuts)
         key: const SelectToolIntent(CanvasTool.curvePen),
       for (final key in ToolbarShortcuts.of(ToolbarAction.shapeTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.shape),
+      for (final key in ToolbarShortcuts.of(ToolbarAction.eraserTool).shortcuts)
+        key: const SelectToolIntent(CanvasTool.eraser),
       for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.bucket),
       for (final key in ToolbarShortcuts.of(
@@ -151,6 +155,14 @@ mixin _PaintingBoardBuildMixin
             hideCursorBecauseLayerTransform;
         final bool isLayerAdjustDragging =
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
+        final double overlayBrushDiameter =
+            _effectiveActiveTool == CanvasTool.spray
+            ? _sprayStrokeWidth
+            : _penStrokeWidth;
+        final BrushShape overlayBrushShape =
+            _effectiveActiveTool == CanvasTool.spray
+            ? BrushShape.circle
+            : _brushShape;
         final Widget? antialiasCard = _buildAntialiasCard();
         final Widget? transformPanel = buildLayerTransformPanel();
         final Widget? transformCursorOverlay = buildLayerTransformCursorOverlay(
@@ -195,6 +207,9 @@ mixin _PaintingBoardBuildMixin
               case CanvasTool.shape:
                 workspaceCursor = SystemMouseCursors.precise;
                 break;
+              case CanvasTool.eraser:
+                workspaceCursor = SystemMouseCursors.precise;
+                break;
               case CanvasTool.eyedropper:
                 workspaceCursor = SystemMouseCursors.basic;
                 break;
@@ -204,6 +219,140 @@ mixin _PaintingBoardBuildMixin
             }
           }
         }
+
+        final PaintingToolbarLayoutStyle toolbarStyle =
+            widget.toolbarLayoutStyle;
+        final bool isSai2Layout =
+            toolbarStyle == PaintingToolbarLayoutStyle.sai2;
+        const bool includeHistoryOnToolbar = false;
+        final CanvasToolbarLayout activeToolbarLayout =
+            _resolveToolbarLayoutForStyle(
+              toolbarStyle,
+              toolbarLayout,
+              includeHistoryButtons: includeHistoryOnToolbar,
+            );
+        final Widget toolbarWidget = CanvasToolbar(
+          activeTool: _activeTool,
+          selectionShape: selectionShape,
+          shapeToolVariant: shapeToolVariant,
+          onToolSelected: _setActiveTool,
+          onUndo: _handleUndo,
+          onRedo: _handleRedo,
+          canUndo: canUndo,
+          canRedo: canRedo,
+          layout: activeToolbarLayout,
+          includeHistoryButtons: includeHistoryOnToolbar,
+        );
+        final Widget toolSettingsCard = ToolSettingsCard(
+          activeTool: _activeTool,
+          penStrokeWidth: _penStrokeWidth,
+          sprayStrokeWidth: _sprayStrokeWidth,
+          sprayMode: _sprayMode,
+          penStrokeSliderRange: _penStrokeSliderRange,
+          onPenStrokeWidthChanged: _updatePenStrokeWidth,
+          onSprayStrokeWidthChanged: _updateSprayStrokeWidth,
+          onSprayModeChanged: _updateSprayMode,
+          brushShape: _brushShape,
+          onBrushShapeChanged: _updateBrushShape,
+          strokeStabilizerStrength: _strokeStabilizerStrength,
+          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
+          stylusPressureEnabled: _stylusPressureEnabled,
+          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+          simulatePenPressure: _simulatePenPressure,
+          onSimulatePenPressureChanged: _updatePenPressureSimulation,
+          penPressureProfile: _penPressureProfile,
+          onPenPressureProfileChanged: _updatePenPressureProfile,
+          brushAntialiasLevel: _penAntialiasLevel,
+          onBrushAntialiasChanged: _updatePenAntialiasLevel,
+          autoSharpPeakEnabled: _autoSharpPeakEnabled,
+          onAutoSharpPeakChanged: _updateAutoSharpPeakEnabled,
+          bucketSampleAllLayers: _bucketSampleAllLayers,
+          bucketContiguous: _bucketContiguous,
+          bucketSwallowColorLine: _bucketSwallowColorLine,
+          bucketAntialiasLevel: _bucketAntialiasLevel,
+          onBucketSampleAllLayersChanged: _updateBucketSampleAllLayers,
+          onBucketContiguousChanged: _updateBucketContiguous,
+          onBucketSwallowColorLineChanged: _updateBucketSwallowColorLine,
+          onBucketAntialiasChanged: _updateBucketAntialiasLevel,
+          bucketTolerance: _bucketTolerance,
+          onBucketToleranceChanged: _updateBucketTolerance,
+          layerAdjustCropOutside: _layerAdjustCropOutside,
+          onLayerAdjustCropOutsideChanged: _updateLayerAdjustCropOutside,
+          selectionShape: selectionShape,
+          onSelectionShapeChanged: _updateSelectionShape,
+          shapeToolVariant: shapeToolVariant,
+          onShapeToolVariantChanged: _updateShapeToolVariant,
+          shapeFillEnabled: _shapeFillEnabled,
+          onShapeFillChanged: _updateShapeFillEnabled,
+          onSizeChanged: _updateToolSettingsCardSize,
+          magicWandTolerance: _magicWandTolerance,
+          onMagicWandToleranceChanged: _updateMagicWandTolerance,
+          brushToolsEraserMode: _brushToolsEraserMode,
+          onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
+          vectorDrawingEnabled: _vectorDrawingEnabled,
+          onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
+          strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
+          compactLayout: isSai2Layout,
+        );
+        final ToolbarPanelData colorPanelData = ToolbarPanelData(
+          title: '取色',
+          trailing: _buildColorPanelTrailing(theme),
+          child: _buildColorPanelContent(theme),
+        );
+        final Widget addLayerButton = _buildAddLayerButton();
+        final ToolbarPanelData layerPanelData = ToolbarPanelData(
+          title: '图层管理',
+          trailing: isSai2Layout ? addLayerButton : null,
+          child: _buildLayerPanelContent(theme),
+          expand: true,
+        );
+        final PaintingToolbarElements toolbarElements = PaintingToolbarElements(
+          toolbar: toolbarWidget,
+          toolSettings: toolSettingsCard,
+          colorIndicator: _buildColorIndicator(theme),
+          colorPanel: colorPanelData,
+          layerPanel: layerPanelData,
+          exitButton: null,
+        );
+        final WorkspaceLayoutSplits workspaceSplits = WorkspaceLayoutSplits(
+          floatingColorPanelHeight: _floatingColorPanelHeight,
+          floatingColorPanelMeasuredHeight: _floatingColorPanelMeasuredHeight,
+          onFloatingColorPanelHeightChanged: _setFloatingColorPanelHeight,
+          onFloatingColorPanelMeasured: _handleFloatingColorPanelMeasured,
+          sai2ColorPanelHeight: _sai2ColorPanelHeight,
+          sai2ColorPanelMeasuredHeight: _sai2ColorPanelMeasuredHeight,
+          onSai2ColorPanelHeightChanged: _setSai2ColorPanelHeight,
+          onSai2ColorPanelMeasured: _handleSai2ColorPanelMeasured,
+          sai2ToolbarSectionRatio: _sai2ToolSectionRatio,
+          onSai2ToolbarSectionRatioChanged: _setSai2ToolSectionRatio,
+          sai2LayerPanelWidthRatio: _sai2LayerPanelWidthRatio,
+          onSai2LayerPanelWidthRatioChanged: _setSai2LayerPanelWidthRatio,
+        );
+        final PaintingToolbarMetrics toolbarMetrics = PaintingToolbarMetrics(
+          toolbarLayout: activeToolbarLayout,
+          toolSettingsSize: _toolSettingsCardSize,
+          workspaceSize: _workspaceSize,
+          toolButtonPadding: _toolButtonPadding,
+          toolSettingsSpacing: _toolSettingsSpacing,
+          sidePanelWidth: _sidePanelWidth,
+          sidePanelSpacing: _sidePanelSpacing,
+          colorIndicatorSize: _colorIndicatorSize,
+          toolSettingsLeft: toolSettingsLeft,
+          sidebarLeft: sidebarLeft,
+          toolSettingsMaxWidth: toolSettingsMaxWidth,
+          workspaceSplits: workspaceSplits,
+        );
+        final PaintingToolbarLayoutDelegate toolbarLayoutDelegate =
+            toolbarStyle == PaintingToolbarLayoutStyle.sai2
+            ? const Sai2ToolbarLayoutDelegate()
+            : const FloatingToolbarLayoutDelegate();
+        final PaintingToolbarLayoutResult toolbarLayoutResult =
+            toolbarLayoutDelegate.build(
+              context,
+              toolbarElements,
+              toolbarMetrics,
+            );
+        _toolbarHitRegions = toolbarLayoutResult.hitRegions;
 
         return Shortcuts(
           shortcuts: shortcutBindings,
@@ -408,29 +557,92 @@ mixin _PaintingBoardBuildMixin
                                                     theme,
                                                   )
                                                 : null;
-                                            
+
                                             // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
-                                            final bool showActiveStroke = 
+                                            final bool canPreviewStroke =
+                                                _effectiveActiveTool ==
+                                                    CanvasTool.pen ||
+                                                _effectiveActiveTool ==
+                                                    CanvasTool.eraser;
+                                            final bool hasActiveStroke =
+                                                canPreviewStroke &&
+                                                _controller
+                                                    .activeStrokePoints
+                                                    .isNotEmpty;
+                                            final bool showActiveStroke =
+                                                _vectorDrawingEnabled &&
                                                 !_isLayerFreeTransformActive &&
-                                                !_controller.isActiveLayerTransforming &&
-                                                (_effectiveActiveTool == CanvasTool.pen && !_controller.activeStrokeEraseMode && _controller.activeStrokePoints.isNotEmpty || _controller.committingStrokes.isNotEmpty);
+                                                !_controller
+                                                    .isActiveLayerTransforming &&
+                                                (hasActiveStroke ||
+                                                    _controller
+                                                        .committingStrokes
+                                                        .isNotEmpty);
+                                            final bool activeStrokeIsEraser =
+                                                _controller
+                                                    .activeStrokeEraseMode;
+                                            final Path? pendingFillOverlayPath =
+                                                shapeVectorFillOverlayPath;
+                                            final Color?
+                                            pendingFillOverlayColor =
+                                                shapeVectorFillOverlayColor;
 
                                             return Stack(
                                               fit: StackFit.expand,
                                               children: [
                                                 const _CheckboardBackground(),
-                                                BitmapCanvasSurface(
-                                                  frame: frame,
-                                                ),
+                                                if (_filterSession != null &&
+                                                    _previewActiveLayerImage !=
+                                                        null)
+                                                  _buildFilterPreviewStack()
+                                                else if (_layerOpacityPreviewActive &&
+                                                    _layerOpacityPreviewActiveLayerImage !=
+                                                        null)
+                                                  _buildLayerOpacityPreviewStack()
+                                                else
+                                                  BitmapCanvasSurface(
+                                                    frame: frame,
+                                                  ),
+                                                if (_pixelGridVisible)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter:
+                                                            _PixelGridPainter(
+                                                              pixelWidth:
+                                                                  _controller
+                                                                      .width,
+                                                              pixelHeight:
+                                                                  _controller
+                                                                      .height,
+                                                              color:
+                                                                  _pixelGridColor,
+                                                              scale: _viewport
+                                                                  .scale,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ),
                                                 if (showActiveStroke)
                                                   Positioned.fill(
                                                     child: CustomPaint(
                                                       painter: _ActiveStrokeOverlayPainter(
-                                                        points: _controller.activeStrokePoints,
-                                                        radii: _controller.activeStrokeRadii,
-                                                        color: _controller.activeStrokeColor,
-                                                        shape: _controller.activeStrokeShape,
-                                                        committingStrokes: _controller.committingStrokes,
+                                                        points: _controller
+                                                            .activeStrokePoints,
+                                                        radii: _controller
+                                                            .activeStrokeRadii,
+                                                        color: _controller
+                                                            .activeStrokeColor,
+                                                        shape: _controller
+                                                            .activeStrokeShape,
+                                                        committingStrokes:
+                                                            _controller
+                                                                .committingStrokes,
+                                                        activeStrokeIsEraser:
+                                                            activeStrokeIsEraser,
+                                                        eraserPreviewColor:
+                                                            _kVectorEraserPreviewColor,
                                                       ),
                                                     ),
                                                   ),
@@ -461,7 +673,8 @@ mixin _PaintingBoardBuildMixin
                                                 if (transformHandlesOverlay !=
                                                     null)
                                                   transformHandlesOverlay,
-                                                if (_curvePreviewPath != null)
+                                                if (_vectorDrawingEnabled &&
+                                                    _curvePreviewPath != null)
                                                   Positioned.fill(
                                                     child: CustomPaint(
                                                       painter: _PreviewPathPainter(
@@ -473,18 +686,39 @@ mixin _PaintingBoardBuildMixin
                                                       ),
                                                     ),
                                                   ),
-                                                if (shapePreviewPath != null)
+                                                if (_vectorDrawingEnabled &&
+                                                    shapePreviewPath != null)
                                                   Positioned.fill(
                                                     child: CustomPaint(
-                                                      painter:
-                                                          _PreviewPathPainter(
-                                                            path:
-                                                                shapePreviewPath!,
-                                                            color:
-                                                                _primaryColor,
-                                                            strokeWidth:
-                                                                _penStrokeWidth,
-                                                          ),
+                                                      painter: _PreviewPathPainter(
+                                                        path: shapePreviewPath!,
+                                                        color: _primaryColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                        fill:
+                                                            _shapeFillEnabled &&
+                                                            shapeToolVariant !=
+                                                                ShapeToolVariant
+                                                                    .line,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (_vectorDrawingEnabled &&
+                                                    pendingFillOverlayPath !=
+                                                        null &&
+                                                    pendingFillOverlayColor !=
+                                                        null)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter: _ShapeFillOverlayPainter(
+                                                          path:
+                                                              pendingFillOverlayPath,
+                                                          color:
+                                                              pendingFillOverlayColor,
+                                                        ),
+                                                      ),
                                                     ),
                                                   ),
                                                 if (hasSelectionOverlay)
@@ -499,6 +733,8 @@ mixin _PaintingBoardBuildMixin
                                                             magicWandPreviewPath,
                                                         dashPhase:
                                                             selectionDashPhase,
+                                                        viewportScale:
+                                                            _viewport.scale,
                                                       ),
                                                     ),
                                                   ),
@@ -513,137 +749,7 @@ mixin _PaintingBoardBuildMixin
                               ),
                             ),
                           ),
-                          Positioned(
-                            left: _toolButtonPadding,
-                            top: _toolButtonPadding,
-                            child: CanvasToolbar(
-                              activeTool: _activeTool,
-                              selectionShape: selectionShape,
-                              shapeToolVariant: shapeToolVariant,
-                              onToolSelected: _setActiveTool,
-                              onUndo: _handleUndo,
-                              onRedo: _handleRedo,
-                              canUndo: canUndo,
-                              canRedo: canRedo,
-                              onExit: widget.onRequestExit,
-                              layout: toolbarLayout,
-                            ),
-                          ),
-                          Positioned(
-                            left:
-                                _toolButtonPadding +
-                                toolbarLayout.width +
-                                _toolSettingsSpacing,
-                            top: _toolButtonPadding,
-                            child: Container(
-                              constraints: toolSettingsMaxWidth != null
-                                  ? BoxConstraints(
-                                      maxWidth: toolSettingsMaxWidth,
-                                    )
-                                  : null,
-                              child: _ToolSettingsCard(
-                                activeTool: _activeTool,
-                                penStrokeWidth: _penStrokeWidth,
-                                penStrokeSliderRange: _penStrokeSliderRange,
-                                onPenStrokeWidthChanged: _updatePenStrokeWidth,
-                                brushShape: _brushShape,
-                                onBrushShapeChanged: _updateBrushShape,
-                                strokeStabilizerStrength:
-                                    _strokeStabilizerStrength,
-                                onStrokeStabilizerChanged:
-                                    _updateStrokeStabilizerStrength,
-                                stylusPressureEnabled: _stylusPressureEnabled,
-                                onStylusPressureEnabledChanged:
-                                    _updateStylusPressureEnabled,
-                                simulatePenPressure: _simulatePenPressure,
-                                onSimulatePenPressureChanged:
-                                    _updatePenPressureSimulation,
-                                penPressureProfile: _penPressureProfile,
-                                onPenPressureProfileChanged:
-                                    _updatePenPressureProfile,
-                                brushAntialiasLevel: _penAntialiasLevel,
-                                onBrushAntialiasChanged:
-                                    _updatePenAntialiasLevel,
-                                autoSharpPeakEnabled: _autoSharpPeakEnabled,
-                                onAutoSharpPeakChanged:
-                                    _updateAutoSharpPeakEnabled,
-                                bucketSampleAllLayers: _bucketSampleAllLayers,
-                                bucketContiguous: _bucketContiguous,
-                                bucketSwallowColorLine: _bucketSwallowColorLine,
-                                bucketAntialiasLevel: _bucketAntialiasLevel,
-                                onBucketSampleAllLayersChanged:
-                                    _updateBucketSampleAllLayers,
-                                onBucketContiguousChanged:
-                                    _updateBucketContiguous,
-                                onBucketSwallowColorLineChanged:
-                                    _updateBucketSwallowColorLine,
-                                onBucketAntialiasChanged:
-                                    _updateBucketAntialiasLevel,
-                                bucketTolerance: _bucketTolerance,
-                                onBucketToleranceChanged:
-                                    _updateBucketTolerance,
-                                layerAdjustCropOutside: _layerAdjustCropOutside,
-                                onLayerAdjustCropOutsideChanged:
-                                    _updateLayerAdjustCropOutside,
-                                selectionShape: selectionShape,
-                                onSelectionShapeChanged: _updateSelectionShape,
-                                shapeToolVariant: shapeToolVariant,
-                                onShapeToolVariantChanged:
-                                    _updateShapeToolVariant,
-                                onSizeChanged: _updateToolSettingsCardSize,
-                                magicWandTolerance: _magicWandTolerance,
-                                onMagicWandToleranceChanged:
-                                    _updateMagicWandTolerance,
-                                brushToolsEraserMode: _brushToolsEraserMode,
-                                onBrushToolsEraserModeChanged:
-                                    _updateBrushToolsEraserMode,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: _toolButtonPadding,
-                            bottom: _toolButtonPadding,
-                            child: _buildColorIndicator(theme),
-                          ),
-                          Positioned(
-                            right: _toolButtonPadding,
-                            top: _toolButtonPadding,
-                            bottom: _toolButtonPadding,
-                            child: SizedBox(
-                              width: _sidePanelWidth,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _PanelCard(
-                                    width: _sidePanelWidth,
-                                    title: '取色',
-                                    trailing: _buildColorPanelTrailing(theme),
-                                    child: _buildColorPanelContent(theme),
-                                  ),
-                                  const SizedBox(height: _sidePanelSpacing),
-                                  Expanded(
-                                    child: _PanelCard(
-                                      width: _sidePanelWidth,
-                                      title: '图层管理',
-                                      trailing: Button(
-                                        onPressed: _handleAddLayer,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: const [
-                                            Icon(FluentIcons.add, size: 14),
-                                            SizedBox(width: 6),
-                                            Text('新增图层'),
-                                          ],
-                                        ),
-                                      ),
-                                      expand: true,
-                                      child: _buildLayerPanelContent(theme),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          ...toolbarLayoutResult.widgets,
                           ..._buildReferenceCards(),
                           ..._buildPaletteCards(),
                           if (antialiasCard != null) antialiasCard,
@@ -673,8 +779,8 @@ mixin _PaintingBoardBuildMixin
                               _penCursorWorkspacePosition != null)
                             PenCursorOverlay(
                               position: _penCursorWorkspacePosition!,
-                              diameter: _penStrokeWidth * _viewport.scale,
-                              shape: _brushShape,
+                              diameter: overlayBrushDiameter * _viewport.scale,
+                              shape: overlayBrushShape,
                             ),
                           if (_toolCursorPosition != null)
                             Positioned(
@@ -763,6 +869,104 @@ mixin _PaintingBoardBuildMixin
         .toList(growable: false);
   }
 
+  Widget _buildFilterPreviewStack() {
+    final _FilterSession? session = _filterSession;
+    if (session == null) return const SizedBox.shrink();
+
+    Widget activeLayerWidget = RawImage(
+      image: _previewActiveLayerImage,
+      filterQuality: FilterQuality.low,
+    );
+
+    // Apply Filters
+    if (session.type == _FilterPanelType.gaussianBlur) {
+      final double radius = session.gaussianBlur.radius;
+      if (radius > 0) {
+        activeLayerWidget = ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: radius, sigmaY: radius),
+          child: activeLayerWidget,
+        );
+      }
+    } else if (session.type == _FilterPanelType.hueSaturation) {
+       final double hue = session.hueSaturation.hue;
+       final double saturation = session.hueSaturation.saturation;
+       final double lightness = session.hueSaturation.lightness;
+       
+       if (hue != 0) {
+         activeLayerWidget = ColorFiltered(
+           colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
+           child: activeLayerWidget,
+         );
+       }
+       if (saturation != 0) {
+         activeLayerWidget = ColorFiltered(
+           colorFilter: ColorFilter.matrix(ColorFilterGenerator.saturation(saturation)),
+           child: activeLayerWidget,
+         );
+       }
+       if (lightness != 0) {
+          activeLayerWidget = ColorFiltered(
+           colorFilter: ColorFilter.matrix(ColorFilterGenerator.brightness(lightness)),
+           child: activeLayerWidget,
+         );
+       }
+    } else if (session.type == _FilterPanelType.brightnessContrast) {
+       final double brightness = session.brightnessContrast.brightness;
+       final double contrast = session.brightnessContrast.contrast;
+       if (brightness != 0 || contrast != 0) {
+          activeLayerWidget = ColorFiltered(
+           colorFilter: ColorFilter.matrix(ColorFilterGenerator.brightnessContrast(brightness, contrast)),
+           child: activeLayerWidget,
+         );
+       }
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_previewBackground != null)
+          RawImage(image: _previewBackground),
+        activeLayerWidget,
+        if (_previewForeground != null)
+          RawImage(image: _previewForeground),
+      ],
+    );
+  }
+
+  Widget _buildLayerOpacityPreviewStack() {
+    if (_layerOpacityPreviewActiveLayerImage == null) {
+      return const SizedBox.shrink();
+    }
+    final bool hasVisibleLowerLayers =
+        _layerOpacityPreviewHasVisibleLowerLayers;
+    Widget activeLayerWidget = RawImage(
+      image: _layerOpacityPreviewActiveLayerImage,
+      filterQuality: FilterQuality.low,
+    );
+    final double previewOpacity =
+        (_layerOpacityPreviewValue ?? 1.0).clamp(0.0, 1.0);
+    if (previewOpacity < 0.999) {
+      activeLayerWidget = Opacity(
+        opacity: previewOpacity,
+        child: activeLayerWidget,
+      );
+    }
+    final List<Widget> children = <Widget>[
+      if (_layerOpacityPreviewBackground != null)
+        RawImage(image: _layerOpacityPreviewBackground)
+      else if (!hasVisibleLowerLayers)
+        const _CheckboardBackground(),
+      activeLayerWidget,
+    ];
+    if (_layerOpacityPreviewForeground != null) {
+      children.add(RawImage(image: _layerOpacityPreviewForeground));
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: children,
+    );
+  }
+
   Widget? _buildAntialiasCard() {
     if (!_antialiasCardVisible) {
       return null;
@@ -770,7 +974,7 @@ mixin _PaintingBoardBuildMixin
     return Positioned(
       left: _antialiasCardOffset.dx,
       top: _antialiasCardOffset.dy,
-      child: _MeasureSize(
+      child: MeasuredSize(
         onChanged: _handleAntialiasCardSizeChanged,
         child: WorkspaceFloatingPanel(
           width: _kAntialiasPanelWidth,

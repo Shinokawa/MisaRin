@@ -6,8 +6,10 @@ enum ToolbarAction {
   layerAdjustTool,
   freeTransform,
   penTool,
+  sprayTool,
   curvePenTool,
   shapeTool,
+  eraserTool,
   bucketTool,
   magicWandTool,
   eyedropperTool,
@@ -72,6 +74,10 @@ class ToolbarShortcuts {
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyB)],
       primaryLabel: 'B',
     ),
+    ToolbarAction.sprayTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyJ)],
+      primaryLabel: 'J',
+    ),
     ToolbarAction.curvePenTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyP)],
       primaryLabel: 'P',
@@ -79,6 +85,10 @@ class ToolbarShortcuts {
     ToolbarAction.shapeTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyR)],
       primaryLabel: 'R',
+    ),
+    ToolbarAction.eraserTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyE)],
+      primaryLabel: 'E',
     ),
     ToolbarAction.magicWandTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyW)],

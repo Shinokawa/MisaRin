@@ -3,8 +3,12 @@ import 'dart:collection';
 
 import 'package:flutter/widgets.dart';
 
+import '../models/workspace_layout.dart';
+
 typedef MenuAsyncAction = FutureOr<void> Function();
 typedef MenuPaletteAction = FutureOr<void> Function(String paletteId);
+typedef MenuWorkspaceLayoutAction =
+    FutureOr<void> Function(WorkspaceLayoutPreference preference);
 
 class MenuPaletteMenuEntry {
   const MenuPaletteMenuEntry({required this.id, required this.label});
@@ -17,6 +21,7 @@ class MenuActionHandler {
   const MenuActionHandler({
     this.newProject,
     this.open,
+    this.closeAll,
     this.importImage,
     this.importImageFromClipboard,
     this.preferences,
@@ -37,6 +42,7 @@ class MenuActionHandler {
     this.paste,
     this.newLayer,
     this.generatePalette,
+    this.generateGradientPalette,
     this.importPalette,
     this.selectPaletteFromMenu,
     this.paletteMenuEntries = const <MenuPaletteMenuEntry>[],
@@ -52,11 +58,17 @@ class MenuActionHandler {
     this.gaussianBlur,
     this.createReferenceImage,
     this.importReferenceImage,
+    this.workspaceLayoutPreference,
+    this.switchWorkspaceLayout,
+    this.resetWorkspaceLayout,
+    this.togglePixelGrid,
+    this.pixelGridVisible = false,
   });
 
   const MenuActionHandler.empty()
     : newProject = null,
       open = null,
+      closeAll = null,
       importImage = null,
       importImageFromClipboard = null,
       preferences = null,
@@ -77,6 +89,7 @@ class MenuActionHandler {
       paste = null,
       newLayer = null,
       generatePalette = null,
+      generateGradientPalette = null,
       importPalette = null,
       selectPaletteFromMenu = null,
       resizeImage = null,
@@ -91,10 +104,16 @@ class MenuActionHandler {
       gaussianBlur = null,
       createReferenceImage = null,
       importReferenceImage = null,
-      paletteMenuEntries = const <MenuPaletteMenuEntry>[];
+      paletteMenuEntries = const <MenuPaletteMenuEntry>[],
+      workspaceLayoutPreference = null,
+      switchWorkspaceLayout = null,
+      resetWorkspaceLayout = null,
+      togglePixelGrid = null,
+      pixelGridVisible = false;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
+  final MenuAsyncAction? closeAll;
   final MenuAsyncAction? importImage;
   final MenuAsyncAction? importImageFromClipboard;
   final MenuAsyncAction? preferences;
@@ -115,6 +134,7 @@ class MenuActionHandler {
   final MenuAsyncAction? paste;
   final MenuAsyncAction? newLayer;
   final MenuAsyncAction? generatePalette;
+  final MenuAsyncAction? generateGradientPalette;
   final MenuAsyncAction? importPalette;
   final MenuPaletteAction? selectPaletteFromMenu;
   final List<MenuPaletteMenuEntry> paletteMenuEntries;
@@ -130,6 +150,11 @@ class MenuActionHandler {
   final MenuAsyncAction? gaussianBlur;
   final MenuAsyncAction? createReferenceImage;
   final MenuAsyncAction? importReferenceImage;
+  final WorkspaceLayoutPreference? workspaceLayoutPreference;
+  final MenuWorkspaceLayoutAction? switchWorkspaceLayout;
+  final MenuAsyncAction? resetWorkspaceLayout;
+  final MenuAsyncAction? togglePixelGrid;
+  final bool pixelGridVisible;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

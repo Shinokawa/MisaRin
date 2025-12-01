@@ -75,11 +75,13 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     _markDirty();
   }
 
-  void _updatePrimaryFromSquare(Offset position, double size) {
-    final double x = position.dx.clamp(0.0, size);
-    final double y = position.dy.clamp(0.0, size);
-    final double saturation = (x / size).clamp(0.0, 1.0);
-    final double value = (1 - y / size).clamp(0.0, 1.0);
+  void _updatePrimaryFromSquare(Offset position, double width, double height) {
+    final double safeWidth = width <= 0 ? 1 : width;
+    final double safeHeight = height <= 0 ? 1 : height;
+    final double x = position.dx.clamp(0.0, safeWidth);
+    final double y = position.dy.clamp(0.0, safeHeight);
+    final double saturation = (x / safeWidth).clamp(0.0, 1.0);
+    final double value = (1 - y / safeHeight).clamp(0.0, 1.0);
     final HSVColor updated = _primaryHsv
         .withSaturation(saturation)
         .withValue(value);
@@ -184,6 +186,12 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   Widget _buildColorLineSelector(FluentThemeData theme) {
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Color previewBorder = Color.lerp(
+      borderColor,
+      Colors.transparent,
+      0.35,
+    )!;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -198,6 +206,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
                   return _ColorLineSwatch(
                     color: color,
                     selected: color.value == _colorLineColor.value,
+                    borderColor: previewBorder,
                     onTap: () => _handleSelectColorLineColor(color),
                   );
                 })
@@ -230,18 +239,21 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
         final HSVColor hsv = _primaryHsv;
 
-        Widget buildColorSquare(double size) {
+        Widget buildColorSquare({
+          required double width,
+          required double height,
+        }) {
           return GestureDetector(
             onPanDown: (details) =>
-                _updatePrimaryFromSquare(details.localPosition, size),
+                _updatePrimaryFromSquare(details.localPosition, width, height),
             onPanUpdate: (details) =>
-                _updatePrimaryFromSquare(details.localPosition, size),
+                _updatePrimaryFromSquare(details.localPosition, width, height),
             onPanEnd: (_) => _rememberCurrentPrimary(),
             onPanCancel: _rememberCurrentPrimary,
             onTapUp: (_) => _rememberCurrentPrimary(),
             child: SizedBox(
-              width: size,
-              height: size,
+              width: width,
+              height: height,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -278,8 +290,8 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
                     ),
                   ),
                   Positioned(
-                    left: (hsv.saturation.clamp(0.0, 1.0)) * size - 8,
-                    top: ((1 - hsv.value.clamp(0.0, 1.0)) * size) - 8,
+                    left: (hsv.saturation.clamp(0.0, 1.0)) * width - 8,
+                    top: ((1 - hsv.value.clamp(0.0, 1.0)) * height) - 8,
                     child: _ColorPickerHandle(color: hsv.toColor()),
                   ),
                 ],
@@ -355,8 +367,52 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           );
         }
 
+        Widget buildInteractiveArea({required bool expanded}) {
+          final Widget layout = LayoutBuilder(
+            builder: (context, areaConstraints) {
+              final double resolvedHeight =
+                  areaConstraints.maxHeight.isFinite &&
+                      areaConstraints.maxHeight > 0
+                  ? areaConstraints.maxHeight
+                  : squareSize;
+              final double colorHeight = resolvedHeight > 0
+                  ? resolvedHeight
+                  : squareSize;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: squareSize,
+                    height: colorHeight,
+                    child: buildColorSquare(
+                      width: squareSize,
+                      height: colorHeight,
+                    ),
+                  ),
+                  if (sliderWidth > 0) ...[
+                    const SizedBox(width: spacing),
+                    SizedBox(
+                      width: sliderWidth,
+                      height: colorHeight,
+                      child: buildHueSlider(colorHeight),
+                    ),
+                  ],
+                ],
+              );
+            },
+          );
+          if (!expanded) {
+            return layout;
+          }
+          return Expanded(child: layout);
+        }
+
+        final bool enforceHeight =
+            constraints.maxHeight.isFinite && constraints.maxHeight > 0;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: enforceHeight ? MainAxisSize.max : MainAxisSize.min,
           children: [
             _buildColorLineSelector(theme),
             const SizedBox(height: 12),
@@ -365,24 +421,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
               buildRecentColors(),
             ],
             const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: squareSize,
-                  height: squareSize,
-                  child: buildColorSquare(squareSize),
-                ),
-                if (sliderWidth > 0) ...[
-                  const SizedBox(width: spacing),
-                  SizedBox(
-                    width: sliderWidth,
-                    height: squareSize,
-                    child: buildHueSlider(squareSize),
-                  ),
-                ],
-              ],
-            ),
+            buildInteractiveArea(expanded: enforceHeight),
           ],
         );
       },
@@ -398,32 +437,12 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     return AppNotificationAnchor(
       child: Tooltip(
         message: '当前颜色 ${_hexStringForColor(_primaryColor)}',
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: _handleEditPrimaryColor,
-            child: Container(
-              width: CanvasToolbar.buttonSize,
-              height: CanvasToolbar.buttonSize,
-              decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: borderColor, width: 1.5),
-              ),
-              padding: const EdgeInsets.all(6),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: SizedBox.expand(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: _primaryColor,
-                      border: Border.all(color: Colors.black.withOpacity(0.1)),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+        child: _ColorIndicatorButton(
+          color: _primaryColor,
+          borderColor: borderColor,
+          backgroundColor: background,
+          isDark: isDark,
+          onTap: _handleEditPrimaryColor,
         ),
       ),
     );
@@ -466,7 +485,7 @@ class _HueSliderHandle extends StatelessWidget {
   }
 }
 
-class _RecentColorSwatch extends StatelessWidget {
+class _RecentColorSwatch extends StatefulWidget {
   const _RecentColorSwatch({
     required this.color,
     required this.selected,
@@ -480,33 +499,67 @@ class _RecentColorSwatch extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_RecentColorSwatch> createState() => _RecentColorSwatchState();
+}
+
+class _RecentColorSwatchState extends State<_RecentColorSwatch> {
+  bool _hovered = false;
+
+  void _setHover(bool hovered) {
+    if (_hovered == hovered) {
+      return;
+    }
+    setState(() => _hovered = hovered);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final Color highlight = theme.accentColor.defaultBrushFor(theme.brightness);
+    final bool showHover = _hovered && !widget.selected;
+    final double size = showHover ? 34 : 32;
+    final Color borderColor = widget.selected
+        ? highlight
+        : (showHover
+              ? Color.lerp(widget.borderColor, highlight, 0.35)!
+              : widget.borderColor);
+    final double borderWidth = widget.selected ? 2 : (showHover ? 1.8 : 1.5);
+    final List<BoxShadow>? shadows = widget.selected
+        ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ]
+        : (showHover
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(
+                      theme.brightness.isDark ? 0.25 : 0.12,
+                    ),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null);
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
+      onEnter: (_) => _setHover(true),
+      onExit: (_) => _setHover(false),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: 32,
-          height: 32,
+          curve: Curves.easeOut,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: color,
-            border: Border.all(
-              color: selected ? highlight : borderColor,
-              width: selected ? 2 : 1.5,
-            ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
+            color: widget.color,
+            border: Border.all(color: borderColor, width: borderWidth),
+            boxShadow: shadows,
           ),
         ),
       ),
@@ -514,7 +567,7 @@ class _RecentColorSwatch extends StatelessWidget {
   }
 }
 
-class _InlineRecentColorSwatch extends StatelessWidget {
+class _InlineRecentColorSwatch extends StatefulWidget {
   const _InlineRecentColorSwatch({
     required this.color,
     required this.selected,
@@ -528,33 +581,68 @@ class _InlineRecentColorSwatch extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_InlineRecentColorSwatch> createState() =>
+      _InlineRecentColorSwatchState();
+}
+
+class _InlineRecentColorSwatchState extends State<_InlineRecentColorSwatch> {
+  bool _hovered = false;
+
+  void _setHover(bool hovered) {
+    if (_hovered == hovered) {
+      return;
+    }
+    setState(() => _hovered = hovered);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final Color highlight = theme.accentColor.defaultBrushFor(theme.brightness);
+    final bool showHover = _hovered && !widget.selected;
+    final double size = showHover ? 24 : 22;
+    final Color borderColor = widget.selected
+        ? highlight
+        : (showHover
+              ? Color.lerp(widget.borderColor, highlight, 0.3)!
+              : widget.borderColor);
+    final double borderWidth = widget.selected ? 2 : (showHover ? 1.5 : 1.2);
+    final List<BoxShadow>? shadows = widget.selected
+        ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.18),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ]
+        : (showHover
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(
+                      theme.brightness.isDark ? 0.25 : 0.1,
+                    ),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null);
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
+      onEnter: (_) => _setHover(true),
+      onExit: (_) => _setHover(false),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: 22,
-          height: 22,
+          curve: Curves.easeOut,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
-            color: color,
-            border: Border.all(
-              color: selected ? highlight : borderColor,
-              width: selected ? 2 : 1.2,
-            ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.18),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ]
-                : null,
+            color: widget.color,
+            border: Border.all(color: borderColor, width: borderWidth),
+            boxShadow: shadows,
           ),
         ),
       ),
@@ -566,45 +654,108 @@ class _ColorLineSwatch extends StatelessWidget {
   const _ColorLineSwatch({
     required this.color,
     required this.selected,
+    required this.borderColor,
     required this.onTap,
   });
 
   final Color color;
   final bool selected;
+  final Color borderColor;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final FluentThemeData theme = FluentTheme.of(context);
-    final Color border = theme.resources.controlStrokeColorDefault;
-    final Color highlight = theme.accentColor.defaultBrushFor(theme.brightness);
-    final Color effectiveBorder = selected
-        ? highlight
-        : border.withValues(alpha: border.a * 0.8);
+    return _InlineRecentColorSwatch(
+      color: color,
+      selected: selected,
+      borderColor: borderColor,
+      onTap: onTap,
+    );
+  }
+}
+
+class _ColorIndicatorButton extends StatefulWidget {
+  const _ColorIndicatorButton({
+    required this.color,
+    required this.borderColor,
+    required this.backgroundColor,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  final Color color;
+  final Color borderColor;
+  final Color backgroundColor;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  @override
+  State<_ColorIndicatorButton> createState() => _ColorIndicatorButtonState();
+}
+
+class _ColorIndicatorButtonState extends State<_ColorIndicatorButton> {
+  bool _hovered = false;
+
+  void _setHover(bool hovered) {
+    if (_hovered == hovered) {
+      return;
+    }
+    setState(() => _hovered = hovered);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color hoverOverlay = (widget.isDark ? Colors.white : Colors.black)
+        .withOpacity(widget.isDark ? 0.08 : 0.05);
+    final Color background = _hovered
+        ? Color.alphaBlend(hoverOverlay, widget.backgroundColor)
+        : widget.backgroundColor;
+    final Color border = _hovered
+        ? Color.lerp(
+                widget.borderColor,
+                widget.isDark ? Colors.white : Colors.black,
+                widget.isDark ? 0.25 : 0.15,
+              ) ??
+              widget.borderColor
+        : widget.borderColor;
+    final List<BoxShadow>? shadows = _hovered
+        ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(widget.isDark ? 0.35 : 0.12),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ]
+        : null;
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
+      onEnter: (_) => _setHover(true),
+      onExit: (_) => _setHover(false),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: 26,
-          height: 26,
+          curve: Curves.easeOut,
+          width: CanvasToolbar.buttonSize,
+          height: CanvasToolbar.buttonSize,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-            border: Border.all(
-              color: effectiveBorder,
-              width: selected ? 2.2 : 1.4,
+            color: background,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: border, width: 1.5),
+            boxShadow: shadows,
+          ),
+          padding: const EdgeInsets.all(6),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox.expand(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: widget.color,
+                  border: Border.all(color: Colors.black.withOpacity(0.1)),
+                ),
+              ),
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
           ),
         ),
       ),

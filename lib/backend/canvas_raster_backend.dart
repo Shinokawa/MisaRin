@@ -7,6 +7,7 @@ import '../bitmap_canvas/bitmap_canvas.dart';
 import '../bitmap_canvas/bitmap_layer_state.dart';
 import '../bitmap_canvas/raster_int_rect.dart';
 import 'canvas_composite_worker.dart';
+import 'rgba_utils.dart';
 
 class RasterCompositeWork {
   const RasterCompositeWork._({
@@ -430,6 +431,7 @@ class CanvasRasterBackend {
         rgba[offset + 3] = (argb >> 24) & 0xff;
       }
     }
+    premultiplyRgbaInPlace(rgba);
     return rgba;
   }
 
@@ -444,6 +446,7 @@ class CanvasRasterBackend {
       rgba[offset + 2] = argb & 0xff;
       rgba[offset + 3] = (argb >> 24) & 0xff;
     }
+    premultiplyRgbaInPlace(rgba);
     return rgba;
   }
 
@@ -482,6 +485,7 @@ class CanvasRasterBackend {
     Offset position,
     List<BitmapLayerState> layers, {
     String? translatingLayerId,
+    bool preferRealtime = false,
   }) {
     final int x = position.dx.floor();
     final int y = position.dy.floor();
@@ -489,7 +493,7 @@ class CanvasRasterBackend {
       return const Color(0x00000000);
     }
     final int index = y * _width + x;
-    final Uint32List? pixels = _compositePixels;
+    final Uint32List? pixels = preferRealtime ? null : _compositePixels;
     if (pixels != null && pixels.length > index) {
       return BitmapSurface.decodeColor(pixels[index]);
     }

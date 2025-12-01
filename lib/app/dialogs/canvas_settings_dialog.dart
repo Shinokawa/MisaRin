@@ -57,9 +57,12 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     _ResolutionPreset(width: 1280, height: 720, label: 'HD (1280 × 720)'),
     _ResolutionPreset(width: 1080, height: 1920, label: '移动端纵向 (1080 × 1920)'),
     _ResolutionPreset(width: 1024, height: 1024, label: '方形 (1024 × 1024)'),
+    _ResolutionPreset(width: 64, height: 64, label: '像素画 (64 × 64)'),
+    _ResolutionPreset(width: 32, height: 32, label: '像素画 (32 × 32)'),
+    _ResolutionPreset(width: 16, height: 16, label: '像素画 (16 × 16)'),
   ];
 
-  static const int _minDimension = 64;
+  static const int _minDimension = 1;
   static const int _maxDimension = 16000;
 
   late final TextEditingController _widthController;
@@ -251,8 +254,9 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
   void _handleDimensionChanged() {
     final int? width = int.tryParse(_widthController.text);
     final int? height = int.tryParse(_heightController.text);
-    final _ResolutionPreset? matched =
-        width == null || height == null ? null : _matchPreset(width, height);
+    final _ResolutionPreset? matched = width == null || height == null
+        ? null
+        : _matchPreset(width, height);
     if (matched != _selectedPreset) {
       setState(() => _selectedPreset = matched);
     }

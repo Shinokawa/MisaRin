@@ -63,8 +63,10 @@ class MacosMenuBuilder {
       if (callback == null) {
         return null;
       }
+      final String label =
+          entry.checked ? '* ${entry.label}' : entry.label;
       return PlatformMenuItem(
-        label: entry.label,
+        label: label,
         onSelected: callback,
         shortcut: entry.shortcut,
       );

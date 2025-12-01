@@ -240,6 +240,7 @@ void _strokeExtend(
           erase: controller._currentStrokeEraseMode,
         ),
       );
+      controller._flushRealtimeStrokeCommands();
     } else {
       _strokeStampSegment(
         controller,
@@ -268,6 +269,7 @@ void _strokeExtend(
         erase: controller._currentStrokeEraseMode,
       ),
     );
+    controller._flushRealtimeStrokeCommands();
   } else {
     _strokeStampSegment(
       controller,
@@ -477,6 +479,7 @@ void _strokeDrawPoint(
       erase: erase,
     ),
   );
+  controller._flushRealtimeStrokeCommands();
 }
 
 void _strokeStampSegment(
@@ -500,6 +503,7 @@ void _strokeStampSegment(
       erase: controller._currentStrokeEraseMode,
     ),
   );
+  controller._flushRealtimeStrokeCommands();
 }
 
 bool _strokeDirectionChanged(

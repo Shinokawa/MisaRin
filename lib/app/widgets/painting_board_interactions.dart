@@ -7,7 +7,8 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardBase,
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardShapeMixin,
-        _PaintingBoardReferenceMixin {
+        _PaintingBoardReferenceMixin,
+        TickerProvider {
   void clear() async {
     await _pushUndoSnapshot();
     _controller.clear();
@@ -46,39 +47,42 @@ mixin _PaintingBoardInteractionMixin
     return false;
   }
 
-  Rect get _toolbarRect => Rect.fromLTWH(
-    _toolButtonPadding,
-    _toolButtonPadding,
-    _toolbarLayout.width,
-    _toolbarLayout.height,
-  );
-
-  Rect get _toolSettingsRect => Rect.fromLTWH(
-    _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing,
-    _toolButtonPadding,
-    _toolSettingsCardSize.width,
-    _toolSettingsCardSize.height,
-  );
-
-  Rect get _colorIndicatorRect {
-    final double top =
+  bool _isInsideToolArea(Offset workspacePosition) {
+    if (_toolbarHitRegions.isNotEmpty) {
+      for (final Rect region in _toolbarHitRegions) {
+        if (region.contains(workspacePosition)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    final Rect toolbarRect = Rect.fromLTWH(
+      _toolButtonPadding,
+      _toolButtonPadding,
+      _toolbarLayout.width,
+      _toolbarLayout.height,
+    );
+    final Rect toolSettingsRect = Rect.fromLTWH(
+      _toolButtonPadding + _toolbarLayout.width + _toolSettingsSpacing,
+      _toolButtonPadding,
+      _toolSettingsCardSize.width,
+      _toolSettingsCardSize.height,
+    );
+    final double indicatorTop =
         (_workspaceSize.height - _toolButtonPadding - _colorIndicatorSize)
             .clamp(0.0, double.infinity);
-    return Rect.fromLTWH(
+    final Rect colorIndicatorRect = Rect.fromLTWH(
       _toolButtonPadding,
-      top,
+      indicatorTop,
       _colorIndicatorSize,
       _colorIndicatorSize,
     );
-  }
-
-  Rect get _rightSidebarRect {
-    final double left =
+    final double sidebarLeft =
         (_workspaceSize.width - _sidePanelWidth - _toolButtonPadding)
             .clamp(0.0, double.infinity)
             .toDouble();
-    return Rect.fromLTWH(
-      left,
+    final Rect rightSidebarRect = Rect.fromLTWH(
+      sidebarLeft,
       _toolButtonPadding,
       _sidePanelWidth,
       (_workspaceSize.height - 2 * _toolButtonPadding).clamp(
@@ -86,13 +90,10 @@ mixin _PaintingBoardInteractionMixin
         double.infinity,
       ),
     );
-  }
-
-  bool _isInsideToolArea(Offset workspacePosition) {
-    return _toolbarRect.contains(workspacePosition) ||
-        _toolSettingsRect.contains(workspacePosition) ||
-        _rightSidebarRect.contains(workspacePosition) ||
-        _colorIndicatorRect.contains(workspacePosition);
+    return toolbarRect.contains(workspacePosition) ||
+        toolSettingsRect.contains(workspacePosition) ||
+        rightSidebarRect.contains(workspacePosition) ||
+        colorIndicatorRect.contains(workspacePosition);
   }
 
   bool _isWithinCanvas(Offset boardLocal) {
@@ -109,6 +110,9 @@ mixin _PaintingBoardInteractionMixin
     if (_activeTool == tool) {
       return;
     }
+    if (_activeTool == CanvasTool.spray && _isSpraying) {
+      _finishSprayStroke();
+    }
     if (_activeTool == CanvasTool.curvePen) {
       _resetCurvePenState(notify: false);
     }
@@ -121,9 +125,11 @@ mixin _PaintingBoardInteractionMixin
     setState(() {
       if (_activeTool == CanvasTool.magicWand) {
         _convertMagicWandPreviewToSelection();
-      }
-      if (tool != CanvasTool.magicWand) {
+      } else if (tool != CanvasTool.magicWand) {
         _clearMagicWandPreview();
+      }
+      if (tool == CanvasTool.magicWand) {
+        _convertSelectionToMagicWandPreview();
       }
       if (tool != CanvasTool.selection) {
         _resetSelectionPreview();
@@ -133,6 +139,7 @@ mixin _PaintingBoardInteractionMixin
         _curvePreviewPath = null;
       }
       if (tool != CanvasTool.shape) {
+        _disposeShapeRasterPreview(restoreLayer: true);
         _resetShapeDrawingState();
       }
       if (_activeTool == CanvasTool.eyedropper) {
@@ -171,6 +178,38 @@ mixin _PaintingBoardInteractionMixin
     setState(() => _penStrokeWidth = clamped);
     final AppPreferences prefs = AppPreferences.instance;
     prefs.penStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateSprayStrokeWidth(double value) {
+    final double clamped = value.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    if ((_sprayStrokeWidth - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _sprayStrokeWidth = clamped);
+    if (_sprayMode == SprayMode.splatter) {
+      _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    }
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sprayStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateSprayMode(SprayMode mode) {
+    if (_sprayMode == mode) {
+      return;
+    }
+    if (_activeTool == CanvasTool.spray && _isSpraying) {
+      _finishSprayStroke();
+    }
+    setState(() => _sprayMode = mode);
+    if (mode == SprayMode.splatter) {
+      _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    } else {
+      _kritaSprayEngine = null;
+    }
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sprayMode = mode;
     unawaited(AppPreferences.save());
   }
 
@@ -236,6 +275,9 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _penAntialiasLevel = clamped);
+    if (_sprayMode == SprayMode.splatter) {
+      _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    }
     final AppPreferences prefs = AppPreferences.instance;
     prefs.penAntialiasLevel = clamped;
     unawaited(AppPreferences.save());
@@ -262,6 +304,21 @@ mixin _PaintingBoardInteractionMixin
     prefs.autoSharpPeakEnabled = value;
     unawaited(AppPreferences.save());
     _applyStylusSettingsToController();
+  }
+
+  void _updateVectorDrawingEnabled(bool value) {
+    if (_vectorDrawingEnabled == value) {
+      return;
+    }
+    if (value) {
+      _disposeCurveRasterPreview(restoreLayer: true);
+      _disposeShapeRasterPreview(restoreLayer: true);
+    }
+    setState(() => _vectorDrawingEnabled = value);
+    _controller.setVectorDrawingEnabled(value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.vectorDrawingEnabled = value;
+    unawaited(AppPreferences.save());
   }
 
   void _updateBucketSampleAllLayers(bool value) {
@@ -352,7 +409,6 @@ mixin _PaintingBoardInteractionMixin
     return bound;
   }
 
-
   Future<void> _startStroke(
     Offset position,
     Duration timestamp,
@@ -377,7 +433,7 @@ mixin _PaintingBoardInteractionMixin
       _activeStylusPressureMin = null;
       _activeStylusPressureMax = null;
     }
-    final bool erase = _brushToolsEraserMode;
+    final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     _lastStrokeBoardPosition = start;
     _lastStylusDirection = null;
@@ -506,6 +562,257 @@ mixin _PaintingBoardInteractionMixin
     _strokeStabilizer.reset();
   }
 
+  double _resolveSprayPressure(PointerEvent? event) {
+    final double? stylusPressure = _stylusPressureValue(event);
+    if (stylusPressure == null || !stylusPressure.isFinite) {
+      return 1.0;
+    }
+    return stylusPressure.clamp(0.0, 1.0);
+  }
+
+  /// Builds a Krita-style spray configuration using the current stroke width
+  /// and anti-alias settings. This mirrors Krita's spray brush defaults
+  /// (`plugins/paintops/spray`) but tweaks a few constants so the Flutter
+  /// rasterizer produces similar densities.
+  KritaSprayEngineSettings _buildKritaSpraySettings() {
+    final double clampedDiameter =
+        _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    return KritaSprayEngineSettings(
+      diameter: clampedDiameter,
+      scale: 1.0,
+      aspectRatio: 1.0,
+      rotation: 0.0,
+      jitterMovement: true,
+      jitterAmount: 0.2,
+      radialDistribution: KritaRadialDistributionType.gaussian,
+      radialCenterBiased: true,
+      gaussianSigma: 0.35,
+      particleMultiplier: 1.0,
+      randomSize: true,
+      minParticleScale: 0.014,
+      maxParticleScale: 0.086,
+      baseParticleScale: 0.05,
+      minParticleRadius: 0.32,
+      minParticleOpacity: 1.0,
+      maxParticleOpacity: 1.0,
+      sampleInputColor: false,
+      sampleBlend: 0.5,
+      shape: BrushShape.circle,
+      minAntialiasLevel: _penAntialiasLevel.clamp(0, 3),
+    );
+  }
+
+  KritaSprayEngine _ensureKritaSprayEngine() {
+    final KritaSprayEngine engine = _kritaSprayEngine ??= KritaSprayEngine(
+      controller: _controller,
+      clampToCanvas: (offset) => offset,
+      random: _syntheticStrokeRandom,
+    );
+    engine.updateSettings(_buildKritaSpraySettings());
+    return engine;
+  }
+
+  void _ensureSprayTicker() {
+    if (_sprayTicker != null) {
+      return;
+    }
+    _sprayTicker = createTicker(_handleSprayTick);
+  }
+
+  Future<void> _startSprayStroke(Offset boardLocal, PointerEvent event) async {
+    if (!isPointInsideSelection(boardLocal)) {
+      return;
+    }
+    _focusNode.requestFocus();
+    await _pushUndoSnapshot();
+    _sprayBoardPosition = boardLocal;
+    _sprayCurrentPressure = _resolveSprayPressure(event);
+    _sprayEmissionAccumulator = 0.0;
+    _sprayTickerTimestamp = null;
+    _activeSprayColor = _isBrushEraserEnabled
+        ? const Color(0xFFFFFFFF)
+        : _primaryColor;
+    if (_sprayMode == SprayMode.smudge) {
+      _softSprayLastPoint = boardLocal;
+      _softSprayResidual = 0.0;
+      _stampSoftSpray(
+        boardLocal,
+        _resolveSoftSprayRadius(),
+        _sprayCurrentPressure,
+      );
+      _markDirty();
+    } else {
+      _ensureKritaSprayEngine();
+      _ensureSprayTicker();
+      _sprayTicker?.start();
+    }
+    setState(() {
+      _isSpraying = true;
+    });
+  }
+
+  void _updateSprayStroke(Offset boardLocal, PointerEvent event) {
+    if (!_isSpraying) {
+      return;
+    }
+    _sprayBoardPosition = boardLocal;
+    _sprayCurrentPressure = _resolveSprayPressure(event);
+    if (_sprayMode == SprayMode.smudge) {
+      _extendSoftSprayStroke(boardLocal);
+    }
+  }
+
+  void _finishSprayStroke() {
+    if (!_isSpraying) {
+      return;
+    }
+    _sprayTicker?.stop();
+    setState(() {
+      _isSpraying = false;
+    });
+    _sprayBoardPosition = null;
+    _kritaSprayEngine = null;
+    _activeSprayColor = null;
+    _sprayTickerTimestamp = null;
+    _sprayEmissionAccumulator = 0.0;
+    _softSprayLastPoint = null;
+    _softSprayResidual = 0.0;
+  }
+
+  void _handleSprayTick(Duration elapsed) {
+    if (!_isSpraying) {
+      return;
+    }
+    if (_sprayMode == SprayMode.smudge) {
+      return;
+    }
+    final Offset? position = _sprayBoardPosition;
+    if (position == null) {
+      return;
+    }
+    final Duration? previous = _sprayTickerTimestamp;
+    _sprayTickerTimestamp = elapsed;
+    if (previous == null) {
+      return;
+    }
+    final Duration delta = elapsed - previous;
+    if (delta <= Duration.zero) {
+      return;
+    }
+    final double deltaSeconds = delta.inMicroseconds / 1000000.0;
+    if (deltaSeconds <= 0.0) {
+      return;
+    }
+    final double pressureScale = _sprayCurrentPressure.clamp(0.05, 1.0);
+    final double emissionRate = _sprayEmissionRateForDiameter(
+      _sprayStrokeWidth,
+    );
+    _sprayEmissionAccumulator += emissionRate * pressureScale * deltaSeconds;
+    final int particleCount = _sprayEmissionAccumulator.floor();
+    if (particleCount <= 0) {
+      return;
+    }
+    _sprayEmissionAccumulator -= particleCount;
+    _emitSprayParticles(position, particleCount);
+  }
+
+  double _sprayEmissionRateForDiameter(double diameter) {
+    final double normalized = diameter.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    final double scaled = normalized * 0.25 + 40.0;
+    return scaled.clamp(60.0, 600.0);
+  }
+
+  void _emitSprayParticles(Offset center, int count) {
+    if (count <= 0) {
+      return;
+    }
+    final KritaSprayEngine engine = _ensureKritaSprayEngine();
+    final bool erase = _isBrushEraserEnabled;
+    final Color color = _activeSprayColor ??
+        (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    engine.paintParticles(
+      center: center,
+      particleBudget: count,
+      pressure: _sprayCurrentPressure,
+      baseColor: color,
+      erase: erase,
+      antialiasLevel: _penAntialiasLevel,
+    );
+    _markDirty();
+  }
+
+  void _extendSoftSprayStroke(Offset boardLocal) {
+    final double radius = _resolveSoftSprayRadius();
+    final Offset? last = _softSprayLastPoint;
+    final double spacing = _softSpraySpacingForRadius(radius);
+    if (last == null) {
+      _softSprayLastPoint = boardLocal;
+      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+      _markDirty();
+      return;
+    }
+    final Offset delta = boardLocal - last;
+    final double distance = delta.distance;
+    if (distance <= 1e-4) {
+      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+      _markDirty();
+      return;
+    }
+    final double totalDistance = _softSprayResidual + distance;
+    if (totalDistance < spacing) {
+      _softSprayResidual = totalDistance;
+      _softSprayLastPoint = boardLocal;
+      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+      _markDirty();
+      return;
+    }
+    final Offset direction = delta / distance;
+    double cursor = spacing - _softSprayResidual;
+    if (_softSprayResidual <= 1e-4) {
+      cursor = spacing;
+    }
+    while (cursor <= distance) {
+      final Offset sample = last + direction * cursor;
+      _stampSoftSpray(sample, radius, _sprayCurrentPressure);
+      cursor += spacing;
+    }
+    _softSprayResidual = distance - (cursor - spacing);
+    _softSprayLastPoint = boardLocal;
+    _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+    _markDirty();
+  }
+
+  double _resolveSoftSprayRadius() {
+    final double normalized =
+        _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    return math.max(normalized * 0.5, 0.5);
+  }
+
+  void _stampSoftSpray(Offset position, double radius, double pressure) {
+    final bool erase = _isBrushEraserEnabled;
+    final Color baseColor = _activeSprayColor ??
+        (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    final double opacityScale =
+        (0.35 + pressure.clamp(0.0, 1.0) * 0.65).clamp(0.0, 1.0);
+    if (opacityScale <= 0.0) {
+      return;
+    }
+    _controller.drawBrushStamp(
+      center: position,
+      radius: radius,
+      color: baseColor.withOpacity(opacityScale),
+      brushShape: BrushShape.circle,
+      antialiasLevel: 3,
+      erase: erase,
+      softness: 0.9,
+    );
+  }
+
+  double _softSpraySpacingForRadius(double radius) {
+    final double scaled = radius * 0.28;
+    return scaled.clamp(0.45, math.max(0.45, radius * 0.55));
+  }
+
   void _emitReleaseSamples({
     required Offset anchor,
     Offset? direction,
@@ -600,7 +907,8 @@ mixin _PaintingBoardInteractionMixin
     final Offset clamped = _clampToCanvas(position);
     final bool enableStabilizer =
         _strokeStabilizerStrength > 0.0001 &&
-        _effectiveActiveTool == CanvasTool.pen;
+        (_effectiveActiveTool == CanvasTool.pen ||
+            _effectiveActiveTool == CanvasTool.eraser);
     if (!enableStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
@@ -708,7 +1016,9 @@ mixin _PaintingBoardInteractionMixin
     final bool isPenLike =
         tool == CanvasTool.pen ||
         tool == CanvasTool.curvePen ||
-        tool == CanvasTool.shape;
+        tool == CanvasTool.shape ||
+        tool == CanvasTool.eraser ||
+        tool == CanvasTool.spray;
     if (_isReferenceCardResizing) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {
@@ -833,6 +1143,9 @@ mixin _PaintingBoardInteractionMixin
     if (_isDrawing) {
       _finishStroke();
     }
+    if (_isSpraying) {
+      _finishSprayStroke();
+    }
     if (_isLayerDragging) {
       _finishLayerAdjustDrag();
     }
@@ -898,7 +1211,7 @@ mixin _PaintingBoardInteractionMixin
       }
       if (insideCanvas) {
         await _pushUndoSnapshot();
-        final bool erase = _brushToolsEraserMode;
+        final bool erase = _isBrushEraserEnabled;
         final Color strokeColor = erase
             ? const Color(0xFFFFFFFF)
             : _primaryColor;
@@ -934,6 +1247,10 @@ mixin _PaintingBoardInteractionMixin
       _isCurvePlacingSegment = true;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
+    if (!_vectorDrawingEnabled) {
+      await _prepareCurveRasterPreview();
+      _refreshCurveRasterPreview();
+    }
   }
 
   void _handleCurvePenPointerMove(Offset boardLocal) {
@@ -944,6 +1261,9 @@ mixin _PaintingBoardInteractionMixin
       _curveDragDelta = boardLocal - _curveDragOrigin!;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
+    if (!_vectorDrawingEnabled) {
+      _refreshCurveRasterPreview();
+    }
   }
 
   Future<void> _handleCurvePenPointerUp() async {
@@ -956,13 +1276,25 @@ mixin _PaintingBoardInteractionMixin
       _cancelCurvePenSegment();
       return;
     }
-    await _pushUndoSnapshot();
+    if (!_curveUndoCapturedForPreview) {
+      await _pushUndoSnapshot();
+    }
     final Offset control = _computeCurveControlPoint(
       start,
       end,
       _curveDragDelta,
     );
-    _drawQuadraticCurve(start, control, end);
+    if (!_vectorDrawingEnabled && _curveRasterPreviewSnapshot != null) {
+      _clearCurvePreviewOverlay();
+    }
+    if (_vectorDrawingEnabled) {
+      _drawQuadraticCurve(start, control, end);
+    } else {
+      _controller.runSynchronousRasterization(() {
+        _drawQuadraticCurve(start, control, end);
+      });
+    }
+    _disposeCurveRasterPreview(restoreLayer: false);
     setState(() {
       _curveAnchor = end;
       _curvePendingEnd = null;
@@ -977,6 +1309,7 @@ mixin _PaintingBoardInteractionMixin
     if (!_isCurvePlacingSegment) {
       return;
     }
+    _disposeCurveRasterPreview(restoreLayer: true);
     setState(() {
       _curvePendingEnd = null;
       _curveDragOrigin = null;
@@ -996,12 +1329,118 @@ mixin _PaintingBoardInteractionMixin
       _isCurvePlacingSegment = false;
     }
 
+    _disposeCurveRasterPreview(restoreLayer: true);
     if (notify) {
       setState(apply);
     } else {
       apply();
     }
   }
+
+  Future<void> _prepareCurveRasterPreview() async {
+    if (_curveUndoCapturedForPreview) {
+      return;
+    }
+    await _pushUndoSnapshot();
+    _curveUndoCapturedForPreview = true;
+    final String? activeLayerId = _controller.activeLayerId;
+    if (activeLayerId == null) {
+      return;
+    }
+    _curveRasterPreviewSnapshot = _controller.buildClipboardLayer(
+      activeLayerId,
+    );
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    if (snapshot != null &&
+        snapshot.bitmap != null &&
+        snapshot.bitmapWidth != null &&
+        snapshot.bitmapHeight != null) {
+      _curveRasterPreviewPixels = BitmapCanvasController.rgbaToPixels(
+        snapshot.bitmap!,
+        snapshot.bitmapWidth!,
+        snapshot.bitmapHeight!,
+      );
+    } else {
+      _curveRasterPreviewPixels = null;
+    }
+  }
+
+  void _refreshCurveRasterPreview() {
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    final Offset? start = _curveAnchor;
+    final Offset? end = _curvePendingEnd;
+    if (snapshot == null || start == null || end == null) {
+      _clearCurvePreviewOverlay();
+      return;
+    }
+    final Rect? previous = _curvePreviewDirtyRect;
+    Rect? restoredRegion;
+    if (previous != null) {
+      restoredRegion = _controller.restoreLayerRegion(
+        snapshot,
+        previous,
+        pixelCache: _curveRasterPreviewPixels,
+        markDirty: false,
+      );
+    }
+    final Rect? dirty = _curvePreviewDirtyRectForCurrentPath();
+    if (dirty == null) {
+      _curvePreviewDirtyRect = null;
+      if (restoredRegion != null) {
+        _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
+      }
+      return;
+    }
+    final Offset control = _computeCurveControlPoint(
+      start,
+      end,
+      _curveDragDelta,
+    );
+    _curvePreviewDirtyRect = dirty;
+    _controller.runSynchronousRasterization(() {
+      _drawQuadraticCurve(start, control, end);
+    });
+    if (restoredRegion != null) {
+      _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
+    }
+  }
+
+  void _disposeCurveRasterPreview({required bool restoreLayer}) {
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    if (snapshot != null && restoreLayer) {
+      _clearCurvePreviewOverlay();
+    }
+    _curveRasterPreviewSnapshot = null;
+    _curveUndoCapturedForPreview = false;
+    _curvePreviewDirtyRect = null;
+    _curveRasterPreviewPixels = null;
+  }
+
+  void _clearCurvePreviewOverlay() {
+    final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
+    final Rect? dirty = _curvePreviewDirtyRect;
+    if (snapshot == null || dirty == null) {
+      _curvePreviewDirtyRect = null;
+      return;
+    }
+    _controller.restoreLayerRegion(
+      snapshot,
+      dirty,
+      pixelCache: _curveRasterPreviewPixels,
+    );
+    _curvePreviewDirtyRect = null;
+  }
+
+  Rect? _curvePreviewDirtyRectForCurrentPath() {
+    final Path? path = _curvePreviewPath;
+    if (path == null) {
+      return null;
+    }
+    final Rect bounds = path.getBounds();
+    return bounds.inflate(_curvePreviewPadding);
+  }
+
+  double get _curvePreviewPadding => math.max(_penStrokeWidth * 0.5, 0.5) + 4.0;
 
   Path? _buildCurvePreviewPath() {
     final Offset? start = _curveAnchor;
@@ -1033,7 +1472,7 @@ mixin _PaintingBoardInteractionMixin
     final bool enableNeedleTips =
         simulatePressure &&
         _penPressureProfile == StrokePressureProfile.taperCenter;
-    final bool erase = _brushToolsEraserMode;
+    final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
@@ -1141,7 +1580,9 @@ mixin _PaintingBoardInteractionMixin
     final Rect boardRect = _boardRect;
     final bool pointerInsideBoard = boardRect.contains(pointer);
     final bool toolCanStartOutsideCanvas =
-        tool == CanvasTool.curvePen || tool == CanvasTool.selection;
+        tool == CanvasTool.curvePen ||
+        tool == CanvasTool.selection ||
+        tool == CanvasTool.spray;
     if (!pointerInsideBoard && !toolCanStartOutsideCanvas) {
       return;
     }
@@ -1157,6 +1598,7 @@ mixin _PaintingBoardInteractionMixin
         await _beginLayerAdjustDrag(boardLocal);
         break;
       case CanvasTool.pen:
+      case CanvasTool.eraser:
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
@@ -1174,7 +1616,14 @@ mixin _PaintingBoardInteractionMixin
         break;
       case CanvasTool.shape:
         _focusNode.requestFocus();
-        _beginShapeDrawing(boardLocal);
+        await _beginShapeDrawing(boardLocal);
+        break;
+      case CanvasTool.spray:
+        _focusNode.requestFocus();
+        if (!isPointInsideSelection(boardLocal)) {
+          return;
+        }
+        await _startSprayStroke(boardLocal, event);
         break;
       case CanvasTool.bucket:
         _focusNode.requestFocus();
@@ -1220,6 +1669,7 @@ mixin _PaintingBoardInteractionMixin
     }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
+      case CanvasTool.eraser:
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           _appendPoint(boardLocal, event.timeStamp, event);
@@ -1255,6 +1705,12 @@ mixin _PaintingBoardInteractionMixin
           _updateDragBoard(event.delta);
         }
         break;
+      case CanvasTool.spray:
+        if (_isSpraying) {
+          final Offset boardLocal = _toBoardLocal(event.localPosition);
+          _updateSprayStroke(boardLocal, event);
+        }
+        break;
     }
   }
 
@@ -1265,6 +1721,7 @@ mixin _PaintingBoardInteractionMixin
     }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
+      case CanvasTool.eraser:
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           final double? releasePressure = _stylusPressureValue(event);
@@ -1305,6 +1762,11 @@ mixin _PaintingBoardInteractionMixin
           _finishDragBoard();
         }
         break;
+      case CanvasTool.spray:
+        if (_isSpraying) {
+          _finishSprayStroke();
+        }
+        break;
       case CanvasTool.curvePen:
         await _handleCurvePenPointerUp();
         break;
@@ -1323,6 +1785,7 @@ mixin _PaintingBoardInteractionMixin
     }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
+      case CanvasTool.eraser:
         if (_isDrawing) {
           _finishStroke(event.timeStamp);
         }
@@ -1347,6 +1810,11 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.hand:
         if (_isDraggingBoard) {
           _finishDragBoard();
+        }
+        break;
+      case CanvasTool.spray:
+        if (_isSpraying) {
+          _finishSprayStroke();
         }
         break;
       case CanvasTool.bucket:

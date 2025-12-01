@@ -105,32 +105,63 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
 
   @override
   void _handleMagicWandPointerDown(Offset position) {
-    _applyMagicWandPreview(position);
+    final bool additive = _isShiftPressed && _magicWandPreviewMask != null;
+    _applyMagicWandPreview(position, additive: additive);
   }
 
   @override
   void _convertMagicWandPreviewToSelection() async {
-    if (_magicWandPreviewMask == null || _magicWandPreviewPath == null) {
+    final Uint8List? mask = _magicWandPreviewMask;
+    final Path? path = _magicWandPreviewPath;
+    if (mask == null || path == null) {
       return;
     }
     await _prepareSelectionUndo();
     setState(() {
-      _applySelectionPathInternal(
-        _magicWandPreviewPath,
-        mask: _magicWandPreviewMask,
-      );
-      _magicWandPreviewMask = null;
-      _magicWandPreviewPath = null;
+      _applySelectionPathInternal(path, mask: mask);
+      if (identical(_magicWandPreviewMask, mask)) {
+        _magicWandPreviewMask = null;
+      }
+      if (identical(_magicWandPreviewPath, path)) {
+        _magicWandPreviewPath = null;
+      }
     });
     _updateSelectionAnimation();
     _finishSelectionUndo();
   }
 
-  void _applyMagicWandPreview(Offset position) {
-    unawaited(_applyMagicWandPreviewAsync(position));
+  @override
+  void _convertSelectionToMagicWandPreview() {
+    if (_selectionPath == null && _selectionMask == null) {
+      return;
+    }
+    Uint8List? mask = _selectionMask;
+    Path? path = _selectionPath;
+    if (mask == null && path == null) {
+      return;
+    }
+    if (mask == null && path != null) {
+      mask = _maskFromPath(path);
+    }
+    if (path == null && mask != null) {
+      path = _pathFromMask(mask, _controller.width);
+    }
+    if (mask == null || path == null) {
+      return;
+    }
+    _magicWandPreviewMask = mask;
+    _magicWandPreviewPath = path;
+    setSelectionState(path: null, mask: null);
   }
 
-  Future<void> _applyMagicWandPreviewAsync(Offset position) async {
+  void _applyMagicWandPreview(Offset position, {bool additive = false}) {
+    unawaited(_applyMagicWandPreviewAsync(position, additive: additive));
+  }
+
+  Future<void> _applyMagicWandPreviewAsync(
+    Offset position, {
+    required bool additive,
+  }) async {
     final Uint8List? mask = await _controller.computeMagicWandMask(
       position,
       sampleAllLayers: true,
@@ -141,10 +172,34 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     }
     setState(() {
       if (mask == null) {
-        _clearMagicWandPreview();
+        if (!additive) {
+          _clearMagicWandPreview();
+        }
+        return;
+      }
+      final Path? path = _pathFromMask(mask, _controller.width);
+      if (path == null) {
+        if (!additive) {
+          _clearMagicWandPreview();
+        }
+        return;
+      }
+      if (additive && _magicWandPreviewMask != null) {
+        final Uint8List merged = _mergeMasks(_magicWandPreviewMask!, mask);
+        final Path basePath =
+            _magicWandPreviewPath ??
+            (_pathFromMask(_magicWandPreviewMask!, _controller.width) ??
+                Path());
+        final Path combinedPath = Path.combine(
+          ui.PathOperation.union,
+          basePath,
+          path,
+        );
+        _magicWandPreviewMask = merged;
+        _magicWandPreviewPath = combinedPath;
       } else {
         _magicWandPreviewMask = mask;
-        _magicWandPreviewPath = _pathFromMask(mask, _controller.width);
+        _magicWandPreviewPath = path;
       }
     });
     _updateSelectionAnimation();
@@ -831,12 +886,14 @@ class _SelectionOverlayPainter extends CustomPainter {
     this.selectionPreviewPath,
     this.magicPreviewPath,
     required this.dashPhase,
+    required this.viewportScale,
   });
 
   final Path? selectionPath;
   final Path? selectionPreviewPath;
   final Path? magicPreviewPath;
   final double dashPhase;
+  final double viewportScale;
 
   static final Paint _previewFillPaint = Paint()
     ..color = _kSelectionPreviewFillColor
@@ -853,14 +910,29 @@ class _SelectionOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (magicPreviewPath != null) {
       canvas.drawPath(magicPreviewPath!, _previewFillPaint);
-      _selectionStroke.paint(canvas, magicPreviewPath!, dashPhase);
+      _selectionStroke.paint(
+        canvas,
+        magicPreviewPath!,
+        dashPhase,
+        viewportScale: viewportScale,
+      );
     }
     if (selectionPreviewPath != null) {
       canvas.drawPath(selectionPreviewPath!, _previewFillPaint);
-      _selectionStroke.paint(canvas, selectionPreviewPath!, dashPhase);
+      _selectionStroke.paint(
+        canvas,
+        selectionPreviewPath!,
+        dashPhase,
+        viewportScale: viewportScale,
+      );
     }
     if (selectionPath != null) {
-      _selectionStroke.paint(canvas, selectionPath!, dashPhase);
+      _selectionStroke.paint(
+        canvas,
+        selectionPath!,
+        dashPhase,
+        viewportScale: viewportScale,
+      );
     }
   }
 
@@ -869,6 +941,7 @@ class _SelectionOverlayPainter extends CustomPainter {
     return oldDelegate.selectionPath != selectionPath ||
         oldDelegate.selectionPreviewPath != selectionPreviewPath ||
         oldDelegate.magicPreviewPath != magicPreviewPath ||
-        oldDelegate.dashPhase != dashPhase;
+        oldDelegate.dashPhase != dashPhase ||
+        oldDelegate.viewportScale != viewportScale;
   }
 }

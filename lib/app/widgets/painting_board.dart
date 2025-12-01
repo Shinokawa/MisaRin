@@ -37,7 +37,7 @@ import 'package:flutter/rendering.dart'
         RenderProxyBoxWithHitTestBehavior,
         TextPainter;
 import 'package:flutter/scheduler.dart'
-    show SchedulerBinding, SingleTickerProviderStateMixin, TickerProvider;
+    show SchedulerBinding, Ticker, TickerProvider, TickerProviderStateMixin;
 import 'package:flutter/widgets.dart'
     show
         EditableText,
@@ -63,7 +63,11 @@ import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/vector_stroke_painter.dart';
-import 'canvas_toolbar.dart';
+import '../toolbars/widgets/canvas_toolbar.dart';
+import '../toolbars/widgets/tool_settings_card.dart';
+import '../toolbars/layouts/layouts.dart';
+import '../toolbars/widgets/measured_size.dart';
+import '../../painting/krita_spray_engine.dart';
 import 'tool_cursor_overlay.dart';
 import 'bitmap_canvas_surface.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
@@ -73,12 +77,15 @@ import '../constants/pen_constants.dart';
 import '../models/canvas_resize_anchor.dart';
 import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
+import '../utils/color_filter_generator.dart';
 import '../palette/palette_exporter.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
+import '../../backend/canvas_raster_backend.dart';
 import '../../performance/stroke_latency_monitor.dart';
+import '../workspace/workspace_shared_state.dart';
 
 part 'painting_board_layers.dart';
 part 'painting_board_colors.dart';
@@ -115,6 +122,7 @@ const double _toolbarSpacing = CanvasToolbar.spacing;
 const double _toolSettingsSpacing = 12;
 const double _zoomStep = 1.1;
 const double _defaultPenStrokeWidth = 3;
+const double _defaultSprayStrokeWidth = kDefaultSprayStrokeWidth;
 const double _sidePanelWidth = 240;
 const double _sidePanelSpacing = 12;
 const double _colorIndicatorSize = 56;
@@ -170,6 +178,7 @@ class PaintingBoard extends StatefulWidget {
     this.externalCanRedo = false,
     this.onResizeImage,
     this.onResizeCanvas,
+    this.toolbarLayoutStyle = PaintingToolbarLayoutStyle.floating,
   });
 
   final CanvasSettings settings;
@@ -182,6 +191,7 @@ class PaintingBoard extends StatefulWidget {
   final bool externalCanRedo;
   final Future<void> Function()? onResizeImage;
   final Future<void> Function()? onResizeCanvas;
+  final PaintingToolbarLayoutStyle toolbarLayoutStyle;
 
   @override
   State<PaintingBoard> createState() => PaintingBoardState();
@@ -196,8 +206,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isDraggingBoard = false;
   bool _isDirty = false;
   bool _isScalingGesture = false;
+  bool _pixelGridVisible = false;
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
+  double _sprayStrokeWidth = _defaultSprayStrokeWidth;
+  SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
   bool _simulatePenPressure = false;
@@ -206,6 +219,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
+  bool _vectorDrawingEnabled = AppPreferences.defaultVectorDrawingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
@@ -215,15 +229,21 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   int _bucketTolerance = AppPreferences.defaultBucketTolerance;
   int _magicWandTolerance = AppPreferences.defaultMagicWandTolerance;
   bool _brushToolsEraserMode = AppPreferences.defaultBrushToolsEraserMode;
+  bool _shapeFillEnabled = AppPreferences.defaultShapeToolFillEnabled;
   bool _layerAdjustCropOutside = false;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
+  double? _layerOpacityUndoOriginalValue;
   String? _layerOpacityPreviewLayerId;
   double? _layerOpacityPreviewValue;
-  final Duration _layerOpacityCommitDelay = const Duration(milliseconds: 50);
-  Timer? _layerOpacityCommitTimer;
-  String? _pendingLayerOpacityLayerId;
-  double? _pendingLayerOpacityValue;
+  bool _layerOpacityPreviewActive = false;
+  int _layerOpacityPreviewRequestId = 0;
+  int? _layerOpacityPreviewAwaitedGeneration;
+  int? _layerOpacityPreviewCapturedSignature;
+  bool _layerOpacityPreviewHasVisibleLowerLayers = false;
+  ui.Image? _layerOpacityPreviewBackground;
+  ui.Image? _layerOpacityPreviewActiveLayerImage;
+  ui.Image? _layerOpacityPreviewForeground;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
   Offset? _layerDragStart;
@@ -236,6 +256,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset _curveDragDelta = Offset.zero;
   bool _isCurvePlacingSegment = false;
   Path? _curvePreviewPath;
+  CanvasLayerData? _curveRasterPreviewSnapshot;
+  bool _curveUndoCapturedForPreview = false;
+  Rect? _curvePreviewDirtyRect;
+  Uint32List? _curveRasterPreviewPixels;
   bool _isEyedropperSampling = false;
   bool _eyedropperOverrideActive = false;
   Offset? _lastEyedropperSample;
@@ -250,6 +274,16 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _lastStrokeBoardPosition;
   Offset? _lastStylusDirection;
   final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
+  bool _isSpraying = false;
+  Offset? _sprayBoardPosition;
+  Ticker? _sprayTicker;
+  Duration? _sprayTickerTimestamp;
+  double _sprayEmissionAccumulator = 0.0;
+  double _sprayCurrentPressure = 1.0;
+  KritaSprayEngine? _kritaSprayEngine;
+  Color? _activeSprayColor;
+  Offset? _softSprayLastPoint;
+  double _softSprayResidual = 0.0;
   Size _toolSettingsCardSize = const Size(320, _toolbarButtonSize);
   CanvasToolbarLayout _toolbarLayout = const CanvasToolbarLayout(
     columns: 1,
@@ -259,6 +293,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         CanvasToolbar.buttonSize * CanvasToolbar.buttonCount +
         CanvasToolbar.spacing * (CanvasToolbar.buttonCount - 1),
   );
+  List<Rect> _toolbarHitRegions = const <Rect>[];
   BoardLayoutWorker? _layoutWorker;
   BoardLayoutMetrics? _layoutMetrics;
   Future<BoardLayoutMetrics>? _pendingLayoutTask;
@@ -280,6 +315,12 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   final List<_PaletteCardEntry> _paletteCards = <_PaletteCardEntry>[];
   int _paletteCardSerial = 0;
   bool _referenceCardResizeInProgress = false;
+  double? _floatingColorPanelHeight;
+  double? _floatingColorPanelMeasuredHeight;
+  double? _sai2ColorPanelHeight;
+  double? _sai2ColorPanelMeasuredHeight;
+  double _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
+  double _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
 
   bool _isInsidePaletteCardArea(Offset workspacePosition) {
     for (final _PaletteCardEntry entry in _paletteCards) {
@@ -315,6 +356,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _canvasSize.width * _viewport.scale,
     _canvasSize.height * _viewport.scale,
   );
+
+  Color get _pixelGridColor => const ui.Color.fromARGB(255, 133, 133, 133);
 
   bool _isWithinCanvasBounds(Offset position) {
     final Size size = _canvasSize;
@@ -630,20 +673,57 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       toolSettingsSpacing: _toolSettingsSpacing,
       sidePanelWidth: _sidePanelWidth,
     );
-    final Future<BoardLayoutMetrics> task =
-        _layoutWorkerInstance().compute(input);
+    final Future<BoardLayoutMetrics> task = _layoutWorkerInstance().compute(
+      input,
+    );
     _pendingLayoutTask = task;
-    task.then((BoardLayoutMetrics metrics) {
-      if (!mounted || _pendingLayoutTask != task) {
-        return;
-      }
-      setState(() {
-        _layoutMetrics = metrics;
-        _toolbarLayout = metrics.layout;
-      });
-    }).catchError((Object error, StackTrace stackTrace) {
-      debugPrint('Layout worker failed: $error');
-    });
+    task
+        .then((BoardLayoutMetrics metrics) {
+          if (!mounted || _pendingLayoutTask != task) {
+            return;
+          }
+          setState(() {
+            _layoutMetrics = metrics;
+            _toolbarLayout = metrics.layout;
+          });
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('Layout worker failed: $error');
+        });
+  }
+
+  CanvasToolbarLayout _resolveToolbarLayoutForStyle(
+    PaintingToolbarLayoutStyle style,
+    CanvasToolbarLayout base, {
+    required bool includeHistoryButtons,
+  }) {
+    if (style != PaintingToolbarLayoutStyle.sai2) {
+      return base;
+    }
+    const int targetColumns = 4;
+    final double availableWidth = math.max(0, _sidePanelWidth - 32);
+    final double totalSpacing = CanvasToolbar.spacing * (targetColumns - 1);
+    final double maxExtent = targetColumns > 0
+        ? (availableWidth - totalSpacing) / targetColumns
+        : CanvasToolbar.buttonSize;
+    final double buttonExtent = maxExtent.isFinite && maxExtent > 0
+        ? maxExtent.clamp(36.0, CanvasToolbar.buttonSize)
+        : CanvasToolbar.buttonSize;
+    final int toolCount =
+        CanvasToolbar.buttonCount +
+        (includeHistoryButtons ? CanvasToolbar.historyButtonCount : 0);
+    final int rows = math.max(1, (toolCount / targetColumns).ceil());
+    final double width = targetColumns * buttonExtent + totalSpacing;
+    final double height =
+        rows * buttonExtent + (rows - 1) * CanvasToolbar.spacing;
+    return CanvasToolbarLayout(
+      columns: targetColumns,
+      rows: rows,
+      width: width,
+      height: height,
+      buttonExtent: buttonExtent,
+      horizontalFlow: true,
+    );
   }
 
   Rect get _boardRect {
@@ -675,8 +755,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   bool get _penRequiresOverlay =>
       _effectiveActiveTool == CanvasTool.pen ||
+      _effectiveActiveTool == CanvasTool.spray ||
       _effectiveActiveTool == CanvasTool.curvePen ||
-      _effectiveActiveTool == CanvasTool.shape;
+      _effectiveActiveTool == CanvasTool.shape ||
+      _effectiveActiveTool == CanvasTool.eraser;
+
+  bool get _isBrushEraserEnabled =>
+      _brushToolsEraserMode || _activeTool == CanvasTool.eraser;
 
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
@@ -687,6 +772,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Path? get selectionPath;
   Path? get selectionPreviewPath;
   Path? get shapePreviewPath;
+  Path? get shapeVectorFillOverlayPath;
+  Color? get shapeVectorFillOverlayColor;
   Path? get magicWandPreviewPath;
   double get selectionDashPhase;
   bool isPointInsideSelection(Offset position);
@@ -718,6 +805,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void _setActiveTool(CanvasTool tool);
   void _convertMagicWandPreviewToSelection();
+  void _convertSelectionToMagicWandPreview();
   void _clearMagicWandPreview();
   void _resetSelectionPreview();
   void _resetPolygonState();
@@ -760,6 +848,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Future<bool> paste();
 
   void _updatePenStrokeWidth(double value);
+  void _updateSprayStrokeWidth(double value);
   void _updateBucketSampleAllLayers(bool value);
   void _updateBucketContiguous(bool value);
 
@@ -1284,8 +1373,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     if (_historyLocked) {
       return;
     }
-    final _CanvasHistoryEntry snapshot =
-        entry ?? await _createHistoryEntry();
+    final _CanvasHistoryEntry snapshot = entry ?? await _createHistoryEntry();
     _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();
@@ -1354,6 +1442,93 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     }
   }
 
+  void _handleFloatingColorPanelMeasured(double height) {
+    if (!height.isFinite || height <= 0) {
+      return;
+    }
+    final double? current = _floatingColorPanelMeasuredHeight;
+    if (current != null && (current - height).abs() < 0.5) {
+      return;
+    }
+    setState(() => _floatingColorPanelMeasuredHeight = height);
+  }
+
+  void _handleSai2ColorPanelMeasured(double height) {
+    if (!height.isFinite || height <= 0) {
+      return;
+    }
+    final double? current = _sai2ColorPanelMeasuredHeight;
+    if (current != null && (current - height).abs() < 0.5) {
+      return;
+    }
+    setState(() => _sai2ColorPanelMeasuredHeight = height);
+  }
+
+  void _setFloatingColorPanelHeight(double? value) {
+    double? sanitized = value;
+    if (sanitized != null && (!sanitized.isFinite || sanitized <= 0)) {
+      sanitized = null;
+    }
+    if (_floatingColorPanelHeight == sanitized) {
+      return;
+    }
+    setState(() => _floatingColorPanelHeight = sanitized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.floatingColorPanelHeight = sanitized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2ColorPanelHeight(double? value) {
+    double? sanitized = value;
+    if (sanitized != null && (!sanitized.isFinite || sanitized <= 0)) {
+      sanitized = null;
+    }
+    if (_sai2ColorPanelHeight == sanitized) {
+      return;
+    }
+    setState(() => _sai2ColorPanelHeight = sanitized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2ColorPanelHeight = sanitized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2ToolSectionRatio(double value) {
+    final double normalized = value.clamp(0.0, 1.0);
+    if ((_sai2ToolSectionRatio - normalized).abs() < 0.0001) {
+      return;
+    }
+    setState(() => _sai2ToolSectionRatio = normalized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2ToolPanelSplit = normalized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2LayerPanelWidthRatio(double value) {
+    final double normalized = value.clamp(0.0, 1.0);
+    if ((_sai2LayerPanelWidthRatio - normalized).abs() < 0.0001) {
+      return;
+    }
+    setState(() => _sai2LayerPanelWidthRatio = normalized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2LayerPanelWidthSplit = normalized;
+    unawaited(AppPreferences.save());
+  }
+
+  void resetWorkspaceLayout() {
+    final AppPreferences prefs = AppPreferences.instance;
+    setState(() {
+      _floatingColorPanelHeight = null;
+      _sai2ColorPanelHeight = null;
+      _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
+      _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
+    });
+    prefs.floatingColorPanelHeight = null;
+    prefs.sai2ColorPanelHeight = null;
+    prefs.sai2ToolPanelSplit = AppPreferences.defaultSai2ToolPanelSplit;
+    prefs.sai2LayerPanelWidthSplit = AppPreferences.defaultSai2LayerPanelSplit;
+    unawaited(AppPreferences.save());
+  }
+
   void _initializeViewportIfNeeded() {
     if (_viewportInitialized) {
       return;
@@ -1399,7 +1574,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
 class PaintingBoardState extends _PaintingBoardBase
     with
-        SingleTickerProviderStateMixin,
+        TickerProviderStateMixin,
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardLayerMixin,
         _PaintingBoardColorMixin,
@@ -1423,9 +1598,15 @@ class PaintingBoardState extends _PaintingBoardBase
     _bucketTolerance = prefs.bucketTolerance;
     _magicWandTolerance = prefs.magicWandTolerance;
     _brushToolsEraserMode = prefs.brushToolsEraserMode;
+    _shapeFillEnabled = prefs.shapeToolFillEnabled;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
+    _sprayStrokeWidth = prefs.sprayStrokeWidth.clamp(
+      kSprayStrokeMin,
+      kSprayStrokeMax,
+    );
+    _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
@@ -1434,9 +1615,14 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
+    _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
     _brushShape = prefs.brushShape;
     _colorLineColor = prefs.colorLineColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
+    _floatingColorPanelHeight = prefs.floatingColorPanelHeight;
+    _sai2ColorPanelHeight = prefs.sai2ColorPanelHeight;
+    _sai2ToolSectionRatio = prefs.sai2ToolPanelSplit.clamp(0.0, 1.0);
+    _sai2LayerPanelWidthRatio = prefs.sai2LayerPanelWidthSplit.clamp(0.0, 1.0);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();
@@ -1447,6 +1633,7 @@ class PaintingBoardState extends _PaintingBoardBase
       initialLayers: layers,
       creationLogic: widget.settings.creationLogic,
     );
+    _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
@@ -1460,20 +1647,30 @@ class PaintingBoardState extends _PaintingBoardBase
     disposeSelectionTicker();
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
-    _layerOpacityCommitTimer?.cancel();
+    _layerOpacityPreviewReset(this);
     _layerScrollController.dispose();
     _layerContextMenuController.dispose();
+    _blendModeFlyoutController.dispose();
     _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
     _layerRenameController.dispose();
     _layerRenameFocusNode.dispose();
     _pendingLayoutTask = null;
     unawaited(_layoutWorker?.dispose());
     _focusNode.dispose();
+    _sprayTicker?.dispose();
     super.dispose();
   }
 
   void addLayerAboveActiveLayer() {
     _handleAddLayer();
+  }
+
+  bool get isPixelGridVisible => _pixelGridVisible;
+
+  void togglePixelGridVisibility() {
+    setState(() {
+      _pixelGridVisible = !_pixelGridVisible;
+    });
   }
 
   void mergeActiveLayerDown() {
@@ -1629,6 +1826,7 @@ class PaintingBoardState extends _PaintingBoardBase
         initialLayers: _buildInitialLayers(),
         creationLogic: widget.settings.creationLogic,
       );
+      _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
       _resetHistory();
@@ -1644,10 +1842,122 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   void _handleControllerChanged() {
+    final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
+    if (awaitedGeneration != null) {
+      final BitmapCanvasFrame? frame = _controller.frame;
+      if (frame != null && frame.generation != awaitedGeneration) {
+        if (_layerOpacityGestureActive) {
+          _layerOpacityPreviewAwaitedGeneration = null;
+        } else {
+          _layerOpacityPreviewDeactivate(this, notifyListeners: true);
+        }
+      }
+    }
+    final bool shouldClearVectorFillOverlay =
+        _shapeVectorFillOverlayPath != null &&
+        _controller.committingStrokes.isEmpty;
     if (_maybeInitializeLayerTransformStateFromController()) {
+      if (shouldClearVectorFillOverlay) {
+        setState(() {
+          _shapeVectorFillOverlayPath = null;
+          _shapeVectorFillOverlayColor = null;
+        });
+      }
       return;
     }
-    setState(() {});
+    setState(() {
+      if (shouldClearVectorFillOverlay) {
+        _shapeVectorFillOverlayPath = null;
+        _shapeVectorFillOverlayColor = null;
+      }
+    });
+  }
+
+  WorkspaceOverlaySnapshot buildWorkspaceOverlaySnapshot() {
+    return WorkspaceOverlaySnapshot(
+      paletteCards: buildPaletteSnapshots(),
+      referenceCards: buildReferenceSnapshots(),
+    );
+  }
+
+  Future<void> restoreWorkspaceOverlaySnapshot(
+    WorkspaceOverlaySnapshot snapshot,
+  ) async {
+    restorePaletteSnapshots(snapshot.paletteCards);
+    await restoreReferenceSnapshots(snapshot.referenceCards);
+  }
+
+  ToolSettingsSnapshot buildToolSettingsSnapshot() {
+    return ToolSettingsSnapshot(
+      activeTool: _activeTool,
+      primaryColor: _primaryColor.value,
+      recentColors: _recentColors
+          .map((color) => color.value)
+          .toList(growable: false),
+      colorLineColor: _colorLineColor.value,
+      penStrokeWidth: _penStrokeWidth,
+      sprayStrokeWidth: _sprayStrokeWidth,
+      sprayMode: _sprayMode,
+      penStrokeSliderRange: _penStrokeSliderRange,
+      brushShape: _brushShape,
+      strokeStabilizerStrength: _strokeStabilizerStrength,
+      stylusPressureEnabled: _stylusPressureEnabled,
+      simulatePenPressure: _simulatePenPressure,
+      penPressureProfile: _penPressureProfile,
+      penAntialiasLevel: _penAntialiasLevel,
+      bucketAntialiasLevel: _bucketAntialiasLevel,
+      autoSharpPeakEnabled: _autoSharpPeakEnabled,
+      vectorDrawingEnabled: _vectorDrawingEnabled,
+      bucketSampleAllLayers: _bucketSampleAllLayers,
+      bucketContiguous: _bucketContiguous,
+      bucketSwallowColorLine: _bucketSwallowColorLine,
+      bucketTolerance: _bucketTolerance,
+      magicWandTolerance: _magicWandTolerance,
+      brushToolsEraserMode: _brushToolsEraserMode,
+      layerAdjustCropOutside: _layerAdjustCropOutside,
+      shapeFillEnabled: _shapeFillEnabled,
+      selectionShape: _selectionShape,
+      shapeToolVariant: _shapeToolVariant,
+    );
+  }
+
+  void applyToolSettingsSnapshot(ToolSettingsSnapshot snapshot) {
+    _setActiveTool(snapshot.activeTool);
+    _updateShapeToolVariant(snapshot.shapeToolVariant);
+    _updateShapeFillEnabled(snapshot.shapeFillEnabled);
+    _updateSelectionShape(snapshot.selectionShape);
+    _updatePenStrokeWidth(snapshot.penStrokeWidth);
+    _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
+    _updateSprayMode(snapshot.sprayMode);
+    if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
+      setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
+    }
+    _updateBrushShape(snapshot.brushShape);
+    _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
+    _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
+    _updatePenPressureSimulation(snapshot.simulatePenPressure);
+    _updatePenPressureProfile(snapshot.penPressureProfile);
+    _updatePenAntialiasLevel(snapshot.penAntialiasLevel);
+    _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
+    _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
+    _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
+    _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
+    _updateBucketContiguous(snapshot.bucketContiguous);
+    _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);
+    _updateBucketTolerance(snapshot.bucketTolerance);
+    _updateMagicWandTolerance(snapshot.magicWandTolerance);
+    _updateBrushToolsEraserMode(snapshot.brushToolsEraserMode);
+    _updateLayerAdjustCropOutside(snapshot.layerAdjustCropOutside);
+    _setPrimaryColor(Color(snapshot.primaryColor), remember: false);
+    setState(() {
+      _recentColors
+        ..clear()
+        ..addAll(snapshot.recentColors.map((value) => Color(value)));
+    });
+    final Color targetColorLine = Color(snapshot.colorLineColor);
+    if (_colorLineColor.value != targetColorLine.value) {
+      setState(() => _colorLineColor = targetColorLine);
+    }
   }
 }
 
@@ -1670,3 +1980,64 @@ class _CanvasHistoryEntry {
 }
 
 StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;
+
+void _layerOpacityPreviewReset(
+  _PaintingBoardBase board, {
+  bool notifyListeners = false,
+}) {
+  final bool hadPreview = board._layerOpacityPreviewActive ||
+      board._layerOpacityPreviewLayerId != null ||
+      board._layerOpacityPreviewValue != null;
+  board._layerOpacityPreviewActive = false;
+  board._layerOpacityPreviewLayerId = null;
+  board._layerOpacityPreviewValue = null;
+  board._layerOpacityPreviewRequestId++;
+  board._layerOpacityPreviewAwaitedGeneration = null;
+  board._layerOpacityPreviewCapturedSignature = null;
+  board._layerOpacityPreviewHasVisibleLowerLayers = false;
+  _layerOpacityPreviewDisposeImages(board);
+  if (notifyListeners && hadPreview && board.mounted) {
+    board.setState(() {});
+  }
+}
+
+void _layerOpacityPreviewDeactivate(
+  _PaintingBoardBase board, {
+  bool notifyListeners = false,
+}) {
+  final bool hadPreview = board._layerOpacityPreviewActive ||
+      board._layerOpacityPreviewValue != null ||
+      board._layerOpacityPreviewAwaitedGeneration != null;
+  board._layerOpacityPreviewActive = false;
+  board._layerOpacityPreviewValue = null;
+  board._layerOpacityPreviewAwaitedGeneration = null;
+  board._layerOpacityPreviewHasVisibleLowerLayers = false;
+  if (notifyListeners && hadPreview && board.mounted) {
+    board.setState(() {});
+  }
+}
+
+void _layerOpacityPreviewDisposeImages(_PaintingBoardBase board) {
+  board._layerOpacityPreviewBackground?.dispose();
+  board._layerOpacityPreviewBackground = null;
+  board._layerOpacityPreviewActiveLayerImage?.dispose();
+  board._layerOpacityPreviewActiveLayerImage = null;
+  board._layerOpacityPreviewForeground?.dispose();
+  board._layerOpacityPreviewForeground = null;
+}
+
+int _layerOpacityPreviewSignature(Iterable<BitmapLayerState> layers) {
+  int hash = layers.length;
+  int index = 1;
+  for (final BitmapLayerState layer in layers) {
+    hash = 37 * hash + layer.revision;
+    hash = 37 * hash + layer.id.hashCode;
+    hash = 37 * hash + index;
+    hash = 37 * hash + (layer.visible ? 1 : 0);
+    hash = 37 * hash + (layer.clippingMask ? 1 : 0);
+    hash = 37 * hash + layer.blendMode.index;
+    hash = 37 * hash + (layer.opacity * 1000).round();
+    index++;
+  }
+  return hash;
+}

@@ -537,8 +537,9 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (activeLayerId == null) {
       return entry;
     }
-    final int index = entry.layers
-        .indexWhere((CanvasLayerData layer) => layer.id == activeLayerId);
+    final int index = entry.layers.indexWhere(
+      (CanvasLayerData layer) => layer.id == activeLayerId,
+    );
     if (index < 0) {
       return entry;
     }
@@ -1149,7 +1150,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     return Positioned(
       left: _layerTransformPanelOffset.dx,
       top: _layerTransformPanelOffset.dy,
-      child: _MeasureSize(
+      child: MeasuredSize(
         onChanged: _handleLayerTransformPanelSizeChanged,
         child: WorkspaceFloatingPanel(
           width: _kLayerTransformPanelWidth,
