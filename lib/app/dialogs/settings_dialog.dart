@@ -369,7 +369,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   double? _latestPressure;
   double? _latestMin;
   double? _latestMax;
-  double? _latestRadius;
+  double? _latestPhysicalRadius;
   double? _latestTilt;
   PointerDeviceKind? _latestPointerKind;
   int _sampleCount = 0;
@@ -384,16 +384,19 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       return;
     }
     final Offset pos = event.localPosition;
+    final double devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
     final double pressure =
         TabletInputBridge.instance.pressureForEvent(event) ??
         (event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 0.0);
-    final double radius = _brushRadiusForPressure(pressure);
+    final double radius =
+        _brushRadiusForPressure(pressure, devicePixelRatio);
+    final double physicalRadius = radius * devicePixelRatio;
     final bool inContact = event.down || pressure > 0.0;
     setState(() {
       _latestPressure = pressure;
       _latestMin = event.pressureMin;
       _latestMax = event.pressureMax;
-      _latestRadius = radius;
+      _latestPhysicalRadius = physicalRadius;
       _latestTilt = event.orientation;
       _latestPointerKind = event.kind;
       final DateTime now = DateTime.now();
@@ -435,7 +438,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
       _sampleCount = 0;
       _estimatedRps = 0;
       _latestPressure = null;
-      _latestRadius = null;
+      _latestPhysicalRadius = null;
       _latestTilt = null;
       _latestPointerKind = null;
       _lastSample = null;
@@ -465,6 +468,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
+    final double devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
     return SizedBox(
       width: 700,
       height: 420,
@@ -485,7 +489,9 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
                       : Colors.white,
                   border: Border.all(color: theme.accentColor.lighter),
                 ),
-                child: CustomPaint(painter: _TabletPainter(_points)),
+                child: CustomPaint(
+                  painter: _TabletPainter(_points, devicePixelRatio),
+                ),
               ),
             ),
           ),
@@ -500,7 +506,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
                 _buildStat('最近压力', _latestPressure),
                 _buildStat('pressureMin', _latestMin),
                 _buildStat('pressureMax', _latestMax),
-                _buildStat('估算半径', _latestRadius),
+                _buildStat('估算半径 (px)', _latestPhysicalRadius),
                 _buildStat('倾角(弧度)', _latestTilt),
                 _buildStat('采样计数', _sampleCount.toDouble(), fractionDigits: 0),
                 _buildStat('采样频率(Hz)', _estimatedRps),
@@ -515,12 +521,16 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
     );
   }
 
-  double _brushRadiusForPressure(double pressure) {
-    const double minRadius = 1.0;
-    const double maxRadius = 12.0;
+  double _brushRadiusForPressure(double pressure, double devicePixelRatio) {
+    const double minPhysicalRadius = 1.0;
+    const double maxPhysicalRadius = 12.0;
     final double normalized = pressure.clamp(0.0, 1.0);
     final double eased = math.sqrt(normalized);
-    return minRadius + (maxRadius - minRadius) * eased;
+    final double physicalRadius =
+        minPhysicalRadius + (maxPhysicalRadius - minPhysicalRadius) * eased;
+    final double safePixelRatio =
+        devicePixelRatio <= 0 ? 1.0 : devicePixelRatio;
+    return physicalRadius / safePixelRatio;
   }
 
   void _handlePointerUp(PointerUpEvent event) {
@@ -609,15 +619,20 @@ class _TabletPoint {
 }
 
 class _TabletPainter extends CustomPainter {
-  const _TabletPainter(this.points);
+  const _TabletPainter(this.points, this.devicePixelRatio);
 
   final List<_TabletPoint> points;
+  final double devicePixelRatio;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (points.isEmpty) {
       return;
     }
+    final double safePixelRatio =
+        devicePixelRatio <= 0 ? 1.0 : devicePixelRatio;
+    final double minLogicalStroke = 1.0 / safePixelRatio;
+    final double maxLogicalStroke = 12.0 / safePixelRatio;
     final Paint strokePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -635,14 +650,14 @@ class _TabletPainter extends CustomPainter {
         point.position.dy.clamp(0.0, size.height),
       );
       if (point.isNewStroke || previous == null) {
-        final double radius = math.max(point.radius, 1.0);
+        final double radius = math.max(point.radius, minLogicalStroke);
         canvas.drawCircle(clamped, radius, dotPaint);
         previous = clamped;
         previousRadius = point.radius;
         continue;
       }
       final double strokeWidth = ((previousRadius + point.radius) / 2)
-          .clamp(1.0, 12.0)
+          .clamp(minLogicalStroke, maxLogicalStroke)
           .toDouble();
       strokePaint.strokeWidth = strokeWidth;
       canvas.drawLine(previous, clamped, strokePaint);
@@ -653,6 +668,7 @@ class _TabletPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TabletPainter oldDelegate) {
-    return oldDelegate.points.length != points.length;
+    return oldDelegate.points.length != points.length ||
+        oldDelegate.devicePixelRatio != devicePixelRatio;
   }
 }
