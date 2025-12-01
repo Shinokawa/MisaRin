@@ -38,6 +38,7 @@ class AppPreferences {
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
     this.vectorDrawingEnabled = _defaultVectorDrawingEnabled,
     this.showFpsOverlay = _defaultShowFpsOverlay,
+    this.pixelGridVisible = _defaultPixelGridVisible,
     this.workspaceLayout = _defaultWorkspaceLayout,
     this.floatingColorPanelHeight,
     this.sai2ColorPanelHeight,
@@ -49,7 +50,7 @@ class AppPreferences {
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
-  static const int _version = 25;
+  static const int _version = 26;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -79,6 +80,7 @@ class AppPreferences {
   static const bool _defaultShapeToolFillEnabled = false;
   static const int _defaultBucketAntialiasLevel = 0;
   static const bool _defaultShowFpsOverlay = false;
+  static const bool _defaultPixelGridVisible = false;
   static const WorkspaceLayoutPreference _defaultWorkspaceLayout =
       WorkspaceLayoutPreference.floating;
   static const double _defaultSai2ToolPanelSplit = 0.5;
@@ -119,6 +121,8 @@ class AppPreferences {
   static AppPreferences? _instance;
   static final ValueNotifier<bool> fpsOverlayEnabledNotifier =
       ValueNotifier<bool>(_defaultShowFpsOverlay);
+  static final ValueNotifier<bool> pixelGridVisibleNotifier =
+      ValueNotifier<bool>(_defaultPixelGridVisible);
 
   bool bucketSampleAllLayers;
   bool bucketContiguous;
@@ -146,6 +150,7 @@ class AppPreferences {
   bool vectorDrawingEnabled;
   int bucketAntialiasLevel;
   bool showFpsOverlay;
+  bool pixelGridVisible;
   WorkspaceLayoutPreference workspaceLayout;
   double? floatingColorPanelHeight;
   double? sai2ColorPanelHeight;
@@ -166,6 +171,14 @@ class AppPreferences {
     }
     showFpsOverlay = value;
     fpsOverlayEnabledNotifier.value = value;
+  }
+
+  void updatePixelGridVisible(bool value) {
+    if (pixelGridVisible == value) {
+      return;
+    }
+    pixelGridVisible = value;
+    pixelGridVisibleNotifier.value = value;
   }
 
   static Future<AppPreferences> load() async {
@@ -212,7 +225,54 @@ class AppPreferences {
                 version >= 24 && bytes.length >= 36
                 ? _decodeSprayStrokeWidth(bytes[34] | (bytes[35] << 8))
                 : _defaultSprayStrokeWidth;
-            if (version >= 25 && bytes.length >= 37) {
+            if (version >= 26 && bytes.length >= 38) {
+              final SprayMode decodedSprayMode =
+                  _decodeSprayMode(bytes[36]);
+              final bool decodedPixelGridVisible = bytes[37] != 0;
+              final int rawHistory = bytes[3] | (bytes[4] << 8);
+              final int rawStroke = bytes[6] | (bytes[7] << 8);
+              _instance = AppPreferences._(
+                bucketSampleAllLayers: bytes[1] != 0,
+                bucketContiguous: bytes[2] != 0,
+                historyLimit: _clampHistoryLimit(rawHistory),
+                themeMode: _decodeThemeMode(bytes[5]),
+                penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+                simulatePenPressure: bytes[8] != 0,
+                penPressureProfile: _decodePressureProfile(bytes[9]),
+                penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+                stylusPressureEnabled: bytes[11] != 0,
+                stylusPressureCurve: _decodeStylusFactor(
+                  bytes[12],
+                  lower: _stylusCurveLowerBound,
+                  upper: _stylusCurveUpperBound,
+                ),
+                autoSharpPeakEnabled: bytes[13] != 0,
+                penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+                strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                  bytes[15],
+                ),
+                brushShape: _decodeBrushShape(bytes[16]),
+                layerAdjustCropOutside: bytes[17] != 0,
+                colorLineColor: decodedColorLineColor,
+                bucketSwallowColorLine: decodedBucketSwallowColorLine,
+                shapeToolFillEnabled: decodedShapeToolFillEnabled,
+                bucketTolerance: _clampToleranceValue(bytes[20]),
+                magicWandTolerance: _clampToleranceValue(bytes[21]),
+                brushToolsEraserMode: bytes[22] != 0,
+                bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
+                vectorDrawingEnabled: decodedVectorDrawingEnabled,
+                showFpsOverlay: bytes[24] != 0,
+                workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
+                floatingColorPanelHeight: decodedFloatingColorHeight,
+                sai2ColorPanelHeight: decodedSai2ColorHeight,
+                sai2ToolPanelSplit: decodedSai2ToolSplit,
+                sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
+                sprayStrokeWidth: decodedSprayStrokeWidth,
+                sprayMode: decodedSprayMode,
+                pixelGridVisible: decodedPixelGridVisible,
+              );
+              return _finalizeLoadedPreferences();
+            } else if (version >= 25 && bytes.length >= 37) {
               final SprayMode decodedSprayMode =
                   _decodeSprayMode(bytes[36]);
               final int rawHistory = bytes[3] | (bytes[4] << 8);
@@ -886,6 +946,7 @@ class AppPreferences {
   static AppPreferences _finalizeLoadedPreferences() {
     final AppPreferences prefs = _instance!;
     fpsOverlayEnabledNotifier.value = prefs.showFpsOverlay;
+    pixelGridVisibleNotifier.value = prefs.pixelGridVisible;
     return prefs;
   }
 
@@ -976,6 +1037,7 @@ class AppPreferences {
       sprayWidth & 0xff,
       (sprayWidth >> 8) & 0xff,
       _encodeSprayMode(prefs.sprayMode),
+      prefs.pixelGridVisible ? 1 : 0,
     ]);
     await file.writeAsBytes(payload, flush: true);
   }

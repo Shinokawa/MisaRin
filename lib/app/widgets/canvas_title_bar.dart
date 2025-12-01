@@ -18,11 +18,13 @@ class CanvasTitleBar extends StatelessWidget {
     required this.onSelectTab,
     required this.onCloseTab,
     required this.onCreateTab,
+    required this.onRenameTab,
   });
 
   final CanvasTabCallback onSelectTab;
   final CanvasTabCallback onCloseTab;
   final VoidCallback onCreateTab;
+  final CanvasTabCallback onRenameTab;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +67,7 @@ class CanvasTitleBar extends StatelessWidget {
                   onSelectTab: onSelectTab,
                   onCloseTab: onCloseTab,
                   onCreateTab: onCreateTab,
+                  onRenameTab: onRenameTab,
                 );
               },
             ),
@@ -86,6 +89,7 @@ class _WorkspaceTabStrip extends StatelessWidget {
     required this.onSelectTab,
     required this.onCloseTab,
     required this.onCreateTab,
+    required this.onRenameTab,
   });
 
   final List<CanvasWorkspaceEntry> entries;
@@ -93,6 +97,7 @@ class _WorkspaceTabStrip extends StatelessWidget {
   final CanvasTabCallback onSelectTab;
   final CanvasTabCallback onCloseTab;
   final VoidCallback onCreateTab;
+  final CanvasTabCallback onRenameTab;
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +173,7 @@ class _WorkspaceTabStrip extends StatelessWidget {
                 isActive: entry.id == activeId,
                 onSelect: onSelectTab,
                 onClose: onCloseTab,
+                onRename: onRenameTab,
               ),
             ),
           );
@@ -183,12 +189,14 @@ class _WorkspaceTab extends StatefulWidget {
     required this.isActive,
     required this.onSelect,
     required this.onClose,
+    required this.onRename,
   });
 
   final CanvasWorkspaceEntry entry;
   final bool isActive;
   final CanvasTabCallback onSelect;
   final CanvasTabCallback onClose;
+  final CanvasTabCallback onRename;
 
   @override
   State<_WorkspaceTab> createState() => _WorkspaceTabState();
@@ -351,6 +359,10 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => widget.onSelect(widget.entry.id),
+          onDoubleTap: () {
+            widget.onSelect(widget.entry.id);
+            widget.onRename(widget.entry.id);
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             curve: Curves.easeOut,

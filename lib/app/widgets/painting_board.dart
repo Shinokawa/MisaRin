@@ -1592,6 +1592,9 @@ class PaintingBoardState extends _PaintingBoardBase
     initializeSelectionTicker(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
+    _pixelGridVisible = prefs.pixelGridVisible;
+    AppPreferences.pixelGridVisibleNotifier
+        .addListener(_handlePixelGridPreferenceChanged);
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
     _bucketSwallowColorLine = prefs.bucketSwallowColorLine;
@@ -1658,6 +1661,8 @@ class PaintingBoardState extends _PaintingBoardBase
     unawaited(_layoutWorker?.dispose());
     _focusNode.dispose();
     _sprayTicker?.dispose();
+    AppPreferences.pixelGridVisibleNotifier
+        .removeListener(_handlePixelGridPreferenceChanged);
     super.dispose();
   }
 
@@ -1667,10 +1672,25 @@ class PaintingBoardState extends _PaintingBoardBase
 
   bool get isPixelGridVisible => _pixelGridVisible;
 
-  void togglePixelGridVisibility() {
+  void _handlePixelGridPreferenceChanged() {
+    if (!mounted) {
+      return;
+    }
+    final bool visible =
+        AppPreferences.pixelGridVisibleNotifier.value;
+    if (visible == _pixelGridVisible) {
+      return;
+    }
     setState(() {
-      _pixelGridVisible = !_pixelGridVisible;
+      _pixelGridVisible = visible;
     });
+  }
+
+  void togglePixelGridVisibility() {
+    final AppPreferences prefs = AppPreferences.instance;
+    final bool nextVisible = !prefs.pixelGridVisible;
+    prefs.updatePixelGridVisible(nextVisible);
+    unawaited(AppPreferences.save());
   }
 
   void mergeActiveLayerDown() {

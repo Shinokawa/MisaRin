@@ -5,7 +5,8 @@ import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/widgets.dart' show WidgetsBinding;
+import 'package:flutter/widgets.dart'
+    show StatefulBuilder, StateSetter, TextEditingController, WidgetsBinding;
 
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_settings.dart';
@@ -206,6 +207,11 @@ class CanvasPageState extends State<CanvasPage> {
   String _sanitizeFileName(String input) {
     final sanitized = input.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
     return sanitized.isEmpty ? '未命名项目' : sanitized;
+  }
+
+  String _normalizeProjectName(String input) {
+    final String trimmed = input.trim();
+    return trimmed.isEmpty ? '未命名项目' : trimmed;
   }
 
   String _suggestedFileName(String extension) {
@@ -893,6 +899,100 @@ class CanvasPageState extends State<CanvasPage> {
     await _closePage();
   }
 
+  Future<void> _handleTabRename(String id) async {
+    final CanvasWorkspaceEntry? entry = _workspace.entryById(id);
+    if (entry == null) {
+      return;
+    }
+    final String? rawName = await _showProjectRenameDialog(entry.name);
+    if (rawName == null) {
+      return;
+    }
+    final String resolvedName = _normalizeProjectName(rawName);
+    if (resolvedName == entry.name) {
+      return;
+    }
+    final ProjectDocument updated = entry.document.copyWith(
+      name: resolvedName,
+      updatedAt: DateTime.now(),
+    );
+    if (id == _document.id) {
+      setState(() {
+        _document = updated;
+        _hasUnsavedChanges = true;
+      });
+    }
+    _workspace.updateDocument(updated);
+    _workspace.markDirty(id, true);
+  }
+
+  Future<String?> _showProjectRenameDialog(String currentName) async {
+    final TextEditingController controller =
+        TextEditingController(text: currentName);
+    String? errorText;
+    StateSetter? dialogSetState;
+
+    void submit() {
+      final String trimmed = controller.text.trim();
+      if (trimmed.isEmpty) {
+        dialogSetState?.call(() {
+          errorText = '名称不能为空';
+        });
+        return;
+      }
+      Navigator.of(context).pop(trimmed);
+    }
+
+    final String? result = await showMisarinDialog<String>(
+      context: context,
+      title: const Text('重命名项目'),
+      contentWidth: 360,
+      content: StatefulBuilder(
+        builder: (context, setState) {
+          dialogSetState = setState;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('请输入新的项目名称'),
+              const SizedBox(height: 8),
+              TextBox(
+                controller: controller,
+                autofocus: true,
+                placeholder: '未命名项目',
+                onChanged: (_) {
+                  if (errorText != null) {
+                    setState(() => errorText = null);
+                  }
+                },
+                onSubmitted: (_) => submit(),
+              ),
+              if (errorText != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  errorText!,
+                  style: const TextStyle(color: Color(0xFFD13438)),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+      actions: [
+        Button(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: submit,
+          child: const Text('重命名'),
+        ),
+      ],
+    );
+    controller.dispose();
+    return result;
+  }
+
   void _switchToEntry(
     CanvasWorkspaceEntry? entry, {
     PaintingBoardState? previousBoard,
@@ -1114,6 +1214,7 @@ class CanvasPageState extends State<CanvasPage> {
                 onSelectTab: _handleTabSelected,
                 onCloseTab: _handleTabClosed,
                 onCreateTab: () => AppMenuActions.createProject(context),
+                onRenameTab: _handleTabRename,
               ),
               Expanded(
                 child: Container(
