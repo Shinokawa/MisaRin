@@ -937,6 +937,8 @@ mixin _PaintingBoardBuildMixin
     if (_layerOpacityPreviewActiveLayerImage == null) {
       return const SizedBox.shrink();
     }
+    final bool hasVisibleLowerLayers =
+        _layerOpacityPreviewHasVisibleLowerLayers;
     Widget activeLayerWidget = RawImage(
       image: _layerOpacityPreviewActiveLayerImage,
       filterQuality: FilterQuality.low,
@@ -952,7 +954,7 @@ mixin _PaintingBoardBuildMixin
     final List<Widget> children = <Widget>[
       if (_layerOpacityPreviewBackground != null)
         RawImage(image: _layerOpacityPreviewBackground)
-      else
+      else if (!hasVisibleLowerLayers)
         const _CheckboardBackground(),
       activeLayerWidget,
     ];

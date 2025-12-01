@@ -240,6 +240,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   int _layerOpacityPreviewRequestId = 0;
   int? _layerOpacityPreviewAwaitedGeneration;
   int? _layerOpacityPreviewCapturedSignature;
+  bool _layerOpacityPreviewHasVisibleLowerLayers = false;
   ui.Image? _layerOpacityPreviewBackground;
   ui.Image? _layerOpacityPreviewActiveLayerImage;
   ui.Image? _layerOpacityPreviewForeground;
@@ -1993,6 +1994,7 @@ void _layerOpacityPreviewReset(
   board._layerOpacityPreviewRequestId++;
   board._layerOpacityPreviewAwaitedGeneration = null;
   board._layerOpacityPreviewCapturedSignature = null;
+  board._layerOpacityPreviewHasVisibleLowerLayers = false;
   _layerOpacityPreviewDisposeImages(board);
   if (notifyListeners && hadPreview && board.mounted) {
     board.setState(() {});
@@ -2009,6 +2011,7 @@ void _layerOpacityPreviewDeactivate(
   board._layerOpacityPreviewActive = false;
   board._layerOpacityPreviewValue = null;
   board._layerOpacityPreviewAwaitedGeneration = null;
+  board._layerOpacityPreviewHasVisibleLowerLayers = false;
   if (notifyListeners && hadPreview && board.mounted) {
     board.setState(() {});
   }
@@ -2030,6 +2033,10 @@ int _layerOpacityPreviewSignature(Iterable<BitmapLayerState> layers) {
     hash = 37 * hash + layer.revision;
     hash = 37 * hash + layer.id.hashCode;
     hash = 37 * hash + index;
+    hash = 37 * hash + (layer.visible ? 1 : 0);
+    hash = 37 * hash + (layer.clippingMask ? 1 : 0);
+    hash = 37 * hash + layer.blendMode.index;
+    hash = 37 * hash + (layer.opacity * 1000).round();
     index++;
   }
   return hash;

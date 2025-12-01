@@ -278,6 +278,7 @@ mixin _PaintingBoardLayerMixin
           _layerOpacityPreviewCapturedSignature != currentSignature;
     }
     _layerOpacityPreviewLayerId = layer.id;
+    _layerOpacityPreviewHasVisibleLowerLayers = _hasVisibleLayersBelow(layer);
     if (!_layerOpacityPreviewActive) {
       _layerOpacityPreviewActive = true;
     }
@@ -287,6 +288,18 @@ mixin _PaintingBoardLayerMixin
       final int requestId = ++_layerOpacityPreviewRequestId;
       unawaited(_loadLayerOpacityPreviewImages(layer.id, requestId));
     }
+  }
+
+  bool _hasVisibleLayersBelow(BitmapLayerState target) {
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id == target.id) {
+        break;
+      }
+      if (layer.visible && layer.opacity > 1e-4) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _loadLayerOpacityPreviewImages(
