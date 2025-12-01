@@ -77,6 +77,13 @@ mixin _PaintingBoardFilterMixin
   Size? _antialiasCardSize;
   int _antialiasCardLevel = 2;
 
+  bool _filterLoading = false;
+  ui.Image? _previewBackground;
+  ui.Image? _previewActiveLayerImage;
+  ui.Image? _previewForeground;
+  bool _filterApplying = false;
+  Completer<_FilterPreviewResult>? _filterApplyCompleter;
+
   void showHueSaturationAdjustments() {
     _openFilterPanel(_FilterPanelType.hueSaturation);
   }
@@ -89,7 +96,7 @@ mixin _PaintingBoardFilterMixin
     _openFilterPanel(_FilterPanelType.gaussianBlur);
   }
 
-  void _openFilterPanel(_FilterPanelType type) {
+  void _openFilterPanel(_FilterPanelType type) async {
     final String? activeLayerId = _activeLayerId;
     if (activeLayerId == null) {
       _showFilterMessage('请先选择一个可编辑的图层。');
@@ -113,12 +120,14 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     _removeFilterOverlay(restoreOriginal: false);
+    
     _filterSession = _FilterSession(
       type: type,
       originalLayers: snapshot,
       activeLayerIndex: layerIndex,
       activeLayerId: activeLayerId,
     );
+
     if (_filterPanelOffset == Offset.zero) {
       final Offset workspaceOffset = _workspacePanelSpawnOffset(
         this,
@@ -131,8 +140,104 @@ mixin _PaintingBoardFilterMixin
       _filterPanelOffset = _workspaceToOverlayOffset(this, _filterPanelOffset);
       _filterPanelOffsetIsOverlay = true;
     }
+
+    // Initialize worker but don't use it for preview during drag
     _initializeFilterWorker();
+
+    // Generate GPU preview images
+    setState(() => _filterLoading = true);
+    try {
+      await _generatePreviewImages();
+    } catch (e) {
+      debugPrint('Failed to generate preview images: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _filterLoading = false);
+      }
+    }
+
     _insertFilterOverlay();
+  }
+
+  Future<void> _generatePreviewImages() async {
+    final _FilterSession? session = _filterSession;
+    if (session == null) return;
+
+    final int width = _controller.width;
+    final int height = _controller.height;
+    final CanvasRasterBackend tempBackend = CanvasRasterBackend(
+      width: width,
+      height: height,
+      multithreaded: false,
+    );
+
+    try {
+      final List<BitmapLayerState> allLayers = _layers.toList();
+      final int activeIndex = allLayers.indexWhere((l) => l.id == session.activeLayerId);
+      if (activeIndex < 0) return;
+
+      final List<BitmapLayerState> below = allLayers.sublist(0, activeIndex);
+      final List<BitmapLayerState> above = allLayers.sublist(activeIndex + 1);
+      final BitmapLayerState active = allLayers[activeIndex];
+
+      if (below.isNotEmpty) {
+        await tempBackend.composite(layers: below, requiresFullSurface: true);
+        final Uint8List rgba = tempBackend.copySurfaceRgba();
+        _previewBackground = await _decodeImage(rgba, width, height);
+      }
+
+      tempBackend.resetClipMask();
+      final Uint32List pixels = tempBackend.ensureCompositePixels();
+      pixels.fillRange(0, pixels.length, 0);
+      
+      await tempBackend.composite(layers: [active], requiresFullSurface: true);
+      final Uint8List activeRgba = tempBackend.copySurfaceRgba();
+      _previewActiveLayerImage = await _decodeImage(activeRgba, width, height);
+
+      if (above.isNotEmpty) {
+        pixels.fillRange(0, pixels.length, 0);
+        await tempBackend.composite(layers: above, requiresFullSurface: true);
+        final Uint8List aboveRgba = tempBackend.copySurfaceRgba();
+        _previewForeground = await _decodeImage(aboveRgba, width, height);
+      }
+
+    } finally {
+      await tempBackend.dispose();
+    }
+  }
+
+  Future<ui.Image> _decodeImage(Uint8List pixels, int width, int height) {
+    final Completer<ui.Image> completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+      pixels,
+      width,
+      height,
+      ui.PixelFormat.rgba8888,
+      completer.complete,
+    );
+    return completer.future;
+  }
+
+  List<double>? _calculateCurrentFilterMatrix() {
+    final _FilterSession? session = _filterSession;
+    if (session == null) return null;
+    
+    if (session.type == _FilterPanelType.hueSaturation) {
+       final double hue = session.hueSaturation.hue;
+       final double saturation = session.hueSaturation.saturation;
+       if (hue == 0 && saturation == 0) return null;
+       
+       if (saturation == 0) {
+         return ColorFilterGenerator.hue(hue);
+       }
+       return null; // Handled via chaining in build
+    } else if (session.type == _FilterPanelType.brightnessContrast) {
+        final double brightness = session.brightnessContrast.brightness;
+        final double contrast = session.brightnessContrast.contrast;
+        if (brightness == 0 && contrast == 0) return null;
+        return ColorFilterGenerator.brightnessContrast(brightness, contrast);
+    }
+    return null;
   }
 
   void _showFilterMessage(String message) {
@@ -204,6 +309,19 @@ mixin _PaintingBoardFilterMixin
             );
             break;
         }
+        
+        if (_filterLoading) {
+           return Positioned(
+             left: _filterPanelOffset.dx,
+             top: _filterPanelOffset.dy,
+             child: const SizedBox(
+               width: _kFilterPanelWidth,
+               height: 100,
+               child: Center(child: ProgressRing()),
+             ),
+           );
+        }
+
         return Positioned(
           left: _filterPanelOffset.dx,
           top: _filterPanelOffset.dy,
@@ -238,8 +356,10 @@ mixin _PaintingBoardFilterMixin
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: _confirmFilterChanges,
-                  child: const Text('应用'),
+                  onPressed: _filterApplying ? null : _confirmFilterChanges,
+                  child: _filterApplying 
+                      ? const SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2)) 
+                      : const Text('应用'),
                 ),
               ],
             ),
@@ -248,7 +368,6 @@ mixin _PaintingBoardFilterMixin
       },
     );
     overlay.insert(_filterOverlayEntry!);
-    _requestFilterPreview(immediate: true);
   }
 
   void _initializeFilterWorker() {
@@ -292,7 +411,7 @@ mixin _PaintingBoardFilterMixin
       ..brightness = 0
       ..contrast = 0;
     session.gaussianBlur.radius = 0;
-    _requestFilterPreview(immediate: true);
+    setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
   }
 
@@ -309,7 +428,7 @@ mixin _PaintingBoardFilterMixin
       ..hue = hue ?? session.hueSaturation.hue
       ..saturation = saturation ?? session.hueSaturation.saturation
       ..lightness = lightness ?? session.hueSaturation.lightness;
-    _requestFilterPreview();
+    setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
   }
 
@@ -321,7 +440,7 @@ mixin _PaintingBoardFilterMixin
     session.brightnessContrast
       ..brightness = brightness ?? session.brightnessContrast.brightness
       ..contrast = contrast ?? session.brightnessContrast.contrast;
-    _requestFilterPreview();
+    setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
   }
 
@@ -331,22 +450,13 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     session.gaussianBlur.radius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
-    _requestFilterPreview();
+    setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
   }
 
   void _requestFilterPreview({bool immediate = false}) {
-    if (immediate) {
-      _filterPreviewDebounceTimer?.cancel();
-      _filterPreviewDebounceTimer = null;
-      _applyFilterPreview();
-      return;
-    }
-    _filterPreviewDebounceTimer?.cancel();
-    _filterPreviewDebounceTimer = Timer(_filterPreviewDebounceDuration, () {
-      _filterPreviewDebounceTimer = null;
-      _applyFilterPreview();
-    });
+    // Only used for final apply now
+    _applyFilterPreview();
   }
 
   void _applyFilterPreview() {
@@ -370,13 +480,7 @@ mixin _PaintingBoardFilterMixin
       _filterPreviewPendingChange = false;
       return;
     }
-    final bool isIdentity = _isFilterSessionIdentity(session);
-    if (isIdentity) {
-      _filterPreviewPendingChange = false;
-      _filterPreviewLastIssuedToken++;
-      _restoreFilterPreviewToOriginal(session);
-      return;
-    }
+    
     final _FilterPreviewWorker? worker = _filterWorker;
     if (worker == null) {
       return;
@@ -404,29 +508,61 @@ mixin _PaintingBoardFilterMixin
     }
   }
 
-  void _confirmFilterChanges() async {
+  Future<void> _confirmFilterChanges() async {
     final _FilterSession? session = _filterSession;
     if (session == null) {
       return;
     }
-    final CanvasLayerData? previewLayer = session.previewLayer;
-    if (previewLayer == null) {
+    if (_isFilterSessionIdentity(session)) {
       _removeFilterOverlay();
       return;
     }
-    _cancelFilterPreviewTasks();
+
+    setState(() {
+      _filterApplying = true;
+    });
+    _filterOverlayEntry?.markNeedsBuild();
+
+    final Completer<_FilterPreviewResult> completer =
+        Completer<_FilterPreviewResult>();
+    _filterApplyCompleter = completer;
+    _requestFilterPreview(immediate: true);
+
+    final _FilterPreviewResult result;
+    try {
+      result = await completer.future;
+    } catch (error, stackTrace) {
+      debugPrint('Filter apply failed: $error');
+      _filterApplyCompleter = null;
+      if (mounted) {
+        setState(() {
+          _filterApplying = false;
+        });
+        _filterOverlayEntry?.markNeedsBuild();
+      }
+      _showFilterMessage('应用滤镜失败，请重试。');
+      return;
+    }
+    _filterApplyCompleter = null;
+    await _finalizeFilterApply(session, result);
+  }
+
+  Future<void> _finalizeFilterApply(
+    _FilterSession session,
+    _FilterPreviewResult result,
+  ) async {
     final CanvasLayerData original =
         session.originalLayers[session.activeLayerIndex];
-    _controller.replaceLayer(session.activeLayerId, original);
-    _controller.setActiveLayer(session.activeLayerId);
+    final CanvasLayerData adjusted =
+        _buildAdjustedLayerFromResult(original, result);
     await _pushUndoSnapshot();
-    _controller.replaceLayer(session.activeLayerId, previewLayer);
+    _controller.replaceLayer(session.activeLayerId, adjusted);
     _controller.setActiveLayer(session.activeLayerId);
-    session.previewLayer = null;
-    setState(() {});
     _markDirty();
+    setState(() {});
     _removeFilterOverlay(restoreOriginal: false);
   }
+
 
   bool _isFilterSessionIdentity(_FilterSession session) {
     switch (session.type) {
@@ -464,31 +600,16 @@ mixin _PaintingBoardFilterMixin
     if (result.layerId != session.activeLayerId) {
       return;
     }
+    final Completer<_FilterPreviewResult>? completer = _filterApplyCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(result);
+      _onFilterPreviewRequestComplete();
+      return;
+    }
     final CanvasLayerData original =
         session.originalLayers[session.activeLayerIndex];
-    final Uint8List? bitmap = result.bitmapBytes;
-    final int? fillValue = result.fillColor;
-    Color? fillColor = original.fillColor;
-    if (fillValue != null) {
-      fillColor = Color(fillValue);
-    }
-    final bool hasBitmap = bitmap != null;
-    final CanvasLayerData adjusted = CanvasLayerData(
-      id: original.id,
-      name: original.name,
-      visible: original.visible,
-      opacity: original.opacity,
-      locked: original.locked,
-      clippingMask: original.clippingMask,
-      blendMode: original.blendMode,
-      fillColor: fillColor,
-      bitmap: bitmap,
-      bitmapWidth: hasBitmap ? original.bitmapWidth : null,
-      bitmapHeight: hasBitmap ? original.bitmapHeight : null,
-      bitmapLeft: hasBitmap ? original.bitmapLeft : null,
-      bitmapTop: hasBitmap ? original.bitmapTop : null,
-      cloneBitmap: false,
-    );
+    final CanvasLayerData adjusted =
+        _buildAdjustedLayerFromResult(original, result);
     session.previewLayer = adjusted;
     _controller.replaceLayer(session.activeLayerId, adjusted);
     _controller.setActiveLayer(session.activeLayerId);
@@ -498,6 +619,10 @@ mixin _PaintingBoardFilterMixin
 
   void _handleFilterWorkerError(Object error, StackTrace stackTrace) {
     debugPrint('Filter preview worker error: $error');
+    final Completer<_FilterPreviewResult>? completer = _filterApplyCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.completeError(error, stackTrace);
+    }
     _onFilterPreviewRequestComplete();
   }
 
@@ -536,9 +661,53 @@ mixin _PaintingBoardFilterMixin
     _filterWorker?.dispose();
     _filterWorker = null;
     _filterSession = null;
+    if (_filterApplyCompleter != null && !_filterApplyCompleter!.isCompleted) {
+      _filterApplyCompleter!
+          .completeError(StateError('滤镜面板已关闭，操作被取消。'));
+    }
+    _filterApplyCompleter = null;
+    
+    _previewBackground?.dispose();
+    _previewBackground = null;
+    _previewActiveLayerImage?.dispose();
+    _previewActiveLayerImage = null;
+    _previewForeground?.dispose();
+    _previewForeground = null;
+    _filterLoading = false;
+    _filterApplying = false;
+
     if (_filterPanelOffset == Offset.zero) {
       _filterPanelOffsetIsOverlay = false;
     }
+  }
+
+  CanvasLayerData _buildAdjustedLayerFromResult(
+    CanvasLayerData original,
+    _FilterPreviewResult result,
+  ) {
+    final Uint8List? bitmap = result.bitmapBytes;
+    final int? fillValue = result.fillColor;
+    Color? fillColor = original.fillColor;
+    if (fillValue != null) {
+      fillColor = Color(fillValue);
+    }
+    final bool hasBitmap = bitmap != null;
+    return CanvasLayerData(
+      id: original.id,
+      name: original.name,
+      visible: original.visible,
+      opacity: original.opacity,
+      locked: original.locked,
+      clippingMask: original.clippingMask,
+      blendMode: original.blendMode,
+      fillColor: fillColor,
+      bitmap: bitmap,
+      bitmapWidth: hasBitmap ? original.bitmapWidth : null,
+      bitmapHeight: hasBitmap ? original.bitmapHeight : null,
+      bitmapLeft: hasBitmap ? original.bitmapLeft : null,
+      bitmapTop: hasBitmap ? original.bitmapTop : null,
+      cloneBitmap: false,
+    );
   }
 
   void showLayerAntialiasPanel() {

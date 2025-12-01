@@ -77,11 +77,13 @@ import '../constants/pen_constants.dart';
 import '../models/canvas_resize_anchor.dart';
 import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
+import '../utils/color_filter_generator.dart';
 import '../palette/palette_exporter.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
+import '../../backend/canvas_raster_backend.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import '../workspace/workspace_shared_state.dart';
 

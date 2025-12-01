@@ -591,9 +591,12 @@ mixin _PaintingBoardBuildMixin
                                               fit: StackFit.expand,
                                               children: [
                                                 const _CheckboardBackground(),
-                                                BitmapCanvasSurface(
-                                                  frame: frame,
-                                                ),
+                                                if (_filterSession != null && _previewActiveLayerImage != null)
+                                                  _buildFilterPreviewStack()
+                                                else
+                                                  BitmapCanvasSurface(
+                                                    frame: frame,
+                                                  ),
                                                 if (_pixelGridVisible)
                                                   Positioned.fill(
                                                     child: IgnorePointer(
@@ -858,6 +861,70 @@ mixin _PaintingBoardBuildMixin
           );
         })
         .toList(growable: false);
+  }
+
+  Widget _buildFilterPreviewStack() {
+    final _FilterSession? session = _filterSession;
+    if (session == null) return const SizedBox.shrink();
+
+    Widget activeLayerWidget = RawImage(
+      image: _previewActiveLayerImage,
+      filterQuality: FilterQuality.low,
+    );
+
+    // Apply Filters
+    if (session.type == _FilterPanelType.gaussianBlur) {
+      final double radius = session.gaussianBlur.radius;
+      if (radius > 0) {
+        activeLayerWidget = ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: radius, sigmaY: radius),
+          child: activeLayerWidget,
+        );
+      }
+    } else if (session.type == _FilterPanelType.hueSaturation) {
+       final double hue = session.hueSaturation.hue;
+       final double saturation = session.hueSaturation.saturation;
+       final double lightness = session.hueSaturation.lightness;
+       
+       if (hue != 0) {
+         activeLayerWidget = ColorFiltered(
+           colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
+           child: activeLayerWidget,
+         );
+       }
+       if (saturation != 0) {
+         activeLayerWidget = ColorFiltered(
+           colorFilter: ColorFilter.matrix(ColorFilterGenerator.saturation(saturation)),
+           child: activeLayerWidget,
+         );
+       }
+       if (lightness != 0) {
+          activeLayerWidget = ColorFiltered(
+           colorFilter: ColorFilter.matrix(ColorFilterGenerator.brightness(lightness)),
+           child: activeLayerWidget,
+         );
+       }
+    } else if (session.type == _FilterPanelType.brightnessContrast) {
+       final double brightness = session.brightnessContrast.brightness;
+       final double contrast = session.brightnessContrast.contrast;
+       if (brightness != 0 || contrast != 0) {
+          activeLayerWidget = ColorFiltered(
+           colorFilter: ColorFilter.matrix(ColorFilterGenerator.brightnessContrast(brightness, contrast)),
+           child: activeLayerWidget,
+         );
+       }
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_previewBackground != null)
+          RawImage(image: _previewBackground),
+        activeLayerWidget,
+        if (_previewForeground != null)
+          RawImage(image: _previewForeground),
+      ],
+    );
   }
 
   Widget? _buildAntialiasCard() {
