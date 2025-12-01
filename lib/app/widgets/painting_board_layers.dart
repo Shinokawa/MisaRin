@@ -210,8 +210,26 @@ mixin _PaintingBoardLayerMixin
     final double? originalValue = _layerOpacityUndoOriginalValue;
     _layerOpacityGestureLayerId = null;
     _layerOpacityUndoOriginalValue = null;
-    _layerOpacityPreviewReset(this, notifyListeners: true);
-    _applyLayerOpacityValue(targetLayerId, value);
+    final double clampedValue = value.clamp(0.0, 1.0);
+    final bool applied = _applyLayerOpacityValue(targetLayerId, clampedValue);
+    final bool shouldHoldPreview =
+        applied &&
+        targetLayerId != null &&
+        _layerOpacityPreviewActive &&
+        _layerOpacityPreviewLayerId == targetLayerId &&
+        _layerOpacityPreviewActiveLayerImage != null;
+    if (shouldHoldPreview) {
+      _layerOpacityPreviewAwaitedGeneration =
+          _controller.frame?.generation ?? -1;
+      if (_layerOpacityPreviewValue == null ||
+          (_layerOpacityPreviewValue! - clampedValue).abs() >= 1e-4) {
+        setState(() {
+          _layerOpacityPreviewValue = clampedValue;
+        });
+      }
+    } else {
+      _layerOpacityPreviewDeactivate(this, notifyListeners: true);
+    }
     if (targetLayerId != null && originalValue != null) {
       unawaited(_commitLayerOpacityUndoSnapshot(targetLayerId, originalValue));
     }
@@ -232,26 +250,33 @@ mixin _PaintingBoardLayerMixin
     }
   }
 
-  void _applyLayerOpacityValue(String? layerId, double value) {
+  bool _applyLayerOpacityValue(String? layerId, double value) {
     if (layerId == null) {
-      return;
+      return false;
     }
     final BitmapLayerState? layer = _layerById(layerId);
     if (layer == null) {
-      return;
+      return false;
     }
     final double clamped = value.clamp(0.0, 1.0);
     if ((layer.opacity - clamped).abs() < 1e-4) {
-      return;
+      return false;
     }
     _controller.setLayerOpacity(layerId, clamped);
     setState(() {});
     _markDirty();
+    return true;
   }
 
   void _ensureLayerOpacityPreview(BitmapLayerState layer) {
-    final bool needsImages =
-        _layerOpacityPreviewLayerId != layer.id || !_layerOpacityPreviewActive;
+    bool needsImages =
+        _layerOpacityPreviewLayerId != layer.id ||
+            _layerOpacityPreviewActiveLayerImage == null;
+    if (!needsImages) {
+      final int currentSignature = _layerOpacityPreviewSignature(_layers);
+      needsImages = _layerOpacityPreviewCapturedSignature == null ||
+          _layerOpacityPreviewCapturedSignature != currentSignature;
+    }
     _layerOpacityPreviewLayerId = layer.id;
     if (!_layerOpacityPreviewActive) {
       _layerOpacityPreviewActive = true;
@@ -291,6 +316,8 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityPreviewBackground = previews.background;
     _layerOpacityPreviewActiveLayerImage = previews.active;
     _layerOpacityPreviewForeground = previews.foreground;
+    _layerOpacityPreviewCapturedSignature =
+        _layerOpacityPreviewSignature(snapshot);
     setState(() {});
   }
 

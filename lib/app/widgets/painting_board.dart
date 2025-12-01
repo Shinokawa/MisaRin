@@ -238,6 +238,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double? _layerOpacityPreviewValue;
   bool _layerOpacityPreviewActive = false;
   int _layerOpacityPreviewRequestId = 0;
+  int? _layerOpacityPreviewAwaitedGeneration;
+  int? _layerOpacityPreviewCapturedSignature;
   ui.Image? _layerOpacityPreviewBackground;
   ui.Image? _layerOpacityPreviewActiveLayerImage;
   ui.Image? _layerOpacityPreviewForeground;
@@ -1839,6 +1841,17 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   void _handleControllerChanged() {
+    final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
+    if (awaitedGeneration != null) {
+      final BitmapCanvasFrame? frame = _controller.frame;
+      if (frame != null && frame.generation != awaitedGeneration) {
+        if (_layerOpacityGestureActive) {
+          _layerOpacityPreviewAwaitedGeneration = null;
+        } else {
+          _layerOpacityPreviewDeactivate(this, notifyListeners: true);
+        }
+      }
+    }
     final bool shouldClearVectorFillOverlay =
         _shapeVectorFillOverlayPath != null &&
         _controller.committingStrokes.isEmpty;
@@ -1978,7 +1991,24 @@ void _layerOpacityPreviewReset(
   board._layerOpacityPreviewLayerId = null;
   board._layerOpacityPreviewValue = null;
   board._layerOpacityPreviewRequestId++;
+  board._layerOpacityPreviewAwaitedGeneration = null;
+  board._layerOpacityPreviewCapturedSignature = null;
   _layerOpacityPreviewDisposeImages(board);
+  if (notifyListeners && hadPreview && board.mounted) {
+    board.setState(() {});
+  }
+}
+
+void _layerOpacityPreviewDeactivate(
+  _PaintingBoardBase board, {
+  bool notifyListeners = false,
+}) {
+  final bool hadPreview = board._layerOpacityPreviewActive ||
+      board._layerOpacityPreviewValue != null ||
+      board._layerOpacityPreviewAwaitedGeneration != null;
+  board._layerOpacityPreviewActive = false;
+  board._layerOpacityPreviewValue = null;
+  board._layerOpacityPreviewAwaitedGeneration = null;
   if (notifyListeners && hadPreview && board.mounted) {
     board.setState(() {});
   }
@@ -1991,4 +2021,16 @@ void _layerOpacityPreviewDisposeImages(_PaintingBoardBase board) {
   board._layerOpacityPreviewActiveLayerImage = null;
   board._layerOpacityPreviewForeground?.dispose();
   board._layerOpacityPreviewForeground = null;
+}
+
+int _layerOpacityPreviewSignature(Iterable<BitmapLayerState> layers) {
+  int hash = layers.length;
+  int index = 1;
+  for (final BitmapLayerState layer in layers) {
+    hash = 37 * hash + layer.revision;
+    hash = 37 * hash + layer.id.hashCode;
+    hash = 37 * hash + index;
+    index++;
+  }
+  return hash;
 }
