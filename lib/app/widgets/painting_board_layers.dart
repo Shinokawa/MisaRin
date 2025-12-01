@@ -61,6 +61,7 @@ mixin _PaintingBoardLayerMixin
     if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
       return;
     }
+    _layerOpacityPreviewReset(this);
     _controller.setActiveLayer(id);
     setState(() {});
   }
@@ -189,7 +190,7 @@ mixin _PaintingBoardLayerMixin
     return null;
   }
 
-  void _handleLayerOpacityChangeStart(double _) async {
+  void _handleLayerOpacityChangeStart(double _) {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null) {
       return;
@@ -197,25 +198,23 @@ mixin _PaintingBoardLayerMixin
     if (_layerOpacityGestureActive && _layerOpacityGestureLayerId == layer.id) {
       return;
     }
-    await _pushUndoSnapshot();
     _layerOpacityGestureActive = true;
     _layerOpacityGestureLayerId = layer.id;
+    _layerOpacityUndoOriginalValue = layer.opacity;
+    _ensureLayerOpacityPreview(layer);
   }
 
   void _handleLayerOpacityChangeEnd(double value) {
     _layerOpacityGestureActive = false;
-    final String? targetLayerId =
-        _layerOpacityPreviewLayerId ?? _layerOpacityGestureLayerId;
-    final double? targetValue = _layerOpacityPreviewValue ?? value;
+    final String? targetLayerId = _layerOpacityGestureLayerId;
+    final double? originalValue = _layerOpacityUndoOriginalValue;
     _layerOpacityGestureLayerId = null;
-    _flushLayerOpacityCommit(
-      forceLayerId: targetLayerId,
-      forceValue: targetValue,
-    );
-    setState(() {
-      _layerOpacityPreviewLayerId = null;
-      _layerOpacityPreviewValue = null;
-    });
+    _layerOpacityUndoOriginalValue = null;
+    _layerOpacityPreviewReset(this, notifyListeners: true);
+    _applyLayerOpacityValue(targetLayerId, value);
+    if (targetLayerId != null && originalValue != null) {
+      unawaited(_commitLayerOpacityUndoSnapshot(targetLayerId, originalValue));
+    }
   }
 
   void _handleLayerOpacityChanged(double value) {
@@ -223,22 +222,18 @@ mixin _PaintingBoardLayerMixin
     if (layer == null) {
       return;
     }
+    _ensureLayerOpacityPreview(layer);
     final double clamped = value.clamp(0.0, 1.0);
-    final bool previewChanged =
-        _layerOpacityPreviewLayerId != layer.id ||
-        _layerOpacityPreviewValue == null ||
-        (_layerOpacityPreviewValue! - clamped).abs() >= 1e-4;
-    if (previewChanged) {
+    if (_layerOpacityPreviewValue == null ||
+        (_layerOpacityPreviewValue! - clamped).abs() >= 1e-4) {
       setState(() {
-        _layerOpacityPreviewLayerId = layer.id;
         _layerOpacityPreviewValue = clamped;
       });
     }
-    _scheduleLayerOpacityCommit(layer.id, clamped);
   }
 
-  void _applyLayerOpacityValue(String? layerId, double? value) {
-    if (layerId == null || value == null) {
+  void _applyLayerOpacityValue(String? layerId, double value) {
+    if (layerId == null) {
       return;
     }
     final BitmapLayerState? layer = _layerById(layerId);
@@ -251,26 +246,86 @@ mixin _PaintingBoardLayerMixin
     }
     _controller.setLayerOpacity(layerId, clamped);
     setState(() {});
+    _markDirty();
   }
 
-  void _scheduleLayerOpacityCommit(String layerId, double value) {
-    _pendingLayerOpacityLayerId = layerId;
-    _pendingLayerOpacityValue = value;
-    _layerOpacityCommitTimer?.cancel();
-    _layerOpacityCommitTimer = Timer(
-      _layerOpacityCommitDelay,
-      _flushLayerOpacityCommit,
-    );
+  void _ensureLayerOpacityPreview(BitmapLayerState layer) {
+    final bool needsImages =
+        _layerOpacityPreviewLayerId != layer.id || !_layerOpacityPreviewActive;
+    _layerOpacityPreviewLayerId = layer.id;
+    if (!_layerOpacityPreviewActive) {
+      _layerOpacityPreviewActive = true;
+    }
+    _layerOpacityPreviewValue ??= layer.opacity.clamp(0.0, 1.0);
+    setState(() {});
+    if (needsImages) {
+      final int requestId = ++_layerOpacityPreviewRequestId;
+      unawaited(_loadLayerOpacityPreviewImages(layer.id, requestId));
+    }
   }
 
-  void _flushLayerOpacityCommit({String? forceLayerId, double? forceValue}) {
-    _layerOpacityCommitTimer?.cancel();
-    _layerOpacityCommitTimer = null;
-    final String? layerId = forceLayerId ?? _pendingLayerOpacityLayerId;
-    final double? value = forceValue ?? _pendingLayerOpacityValue;
-    _pendingLayerOpacityLayerId = null;
-    _pendingLayerOpacityValue = null;
-    _applyLayerOpacityValue(layerId, value);
+  Future<void> _loadLayerOpacityPreviewImages(
+    String layerId,
+    int requestId,
+  ) async {
+    final List<BitmapLayerState> snapshot = _layers.toList();
+    _LayerPreviewImages previews;
+    try {
+      previews = await _captureLayerPreviewImages(
+        controller: _controller,
+        layers: snapshot,
+        activeLayerId: layerId,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to capture opacity preview: $error');
+      debugPrint('$stackTrace');
+      return;
+    }
+    if (!mounted ||
+        requestId != _layerOpacityPreviewRequestId ||
+        _layerOpacityPreviewLayerId != layerId) {
+      previews.dispose();
+      return;
+    }
+    _layerOpacityPreviewDisposeImages(this);
+    _layerOpacityPreviewBackground = previews.background;
+    _layerOpacityPreviewActiveLayerImage = previews.active;
+    _layerOpacityPreviewForeground = previews.foreground;
+    setState(() {});
+  }
+
+  Future<void> _commitLayerOpacityUndoSnapshot(
+    String layerId,
+    double originalOpacity,
+  ) async {
+    try {
+      final _CanvasHistoryEntry base = await _createHistoryEntry();
+      final List<CanvasLayerData> layers =
+          List<CanvasLayerData>.from(base.layers);
+      final int index = layers.indexWhere((layer) => layer.id == layerId);
+      if (index < 0) {
+        return;
+      }
+      layers[index] = layers[index].copyWith(
+        opacity: originalOpacity,
+        cloneBitmap: false,
+      );
+      await _pushUndoSnapshot(
+        entry: _CanvasHistoryEntry(
+          layers: layers,
+          backgroundColor: base.backgroundColor,
+          activeLayerId: base.activeLayerId,
+          selectionShape: base.selectionShape,
+          selectionMask: base.selectionMask,
+          selectionPath: base.selectionPath != null
+              ? (Path()..addPath(base.selectionPath!, Offset.zero))
+              : null,
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to capture opacity undo snapshot: $error');
+      debugPrint('$stackTrace');
+    }
   }
 
   void _applyLayerLockedState(BitmapLayerState layer, bool locked) async {
@@ -612,9 +667,10 @@ mixin _PaintingBoardLayerMixin
     final bool showHistoryButtons = true;
 
     double clampedOpacity = activeLayer.opacity.clamp(0.0, 1.0).toDouble();
-    if (_layerOpacityPreviewLayerId == activeLayer.id &&
+    if (_layerOpacityPreviewActive &&
+        _layerOpacityPreviewLayerId == activeLayer.id &&
         _layerOpacityPreviewValue != null) {
-      clampedOpacity = _layerOpacityPreviewValue!;
+      clampedOpacity = _layerOpacityPreviewValue!.clamp(0.0, 1.0);
     }
     final int opacityPercent = (clampedOpacity * 100).round();
     final TextStyle labelStyle =

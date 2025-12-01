@@ -591,8 +591,14 @@ mixin _PaintingBoardBuildMixin
                                               fit: StackFit.expand,
                                               children: [
                                                 const _CheckboardBackground(),
-                                                if (_filterSession != null && _previewActiveLayerImage != null)
+                                                if (_filterSession != null &&
+                                                    _previewActiveLayerImage !=
+                                                        null)
                                                   _buildFilterPreviewStack()
+                                                else if (_layerOpacityPreviewActive &&
+                                                    _layerOpacityPreviewActiveLayerImage !=
+                                                        null)
+                                                  _buildLayerOpacityPreviewStack()
                                                 else
                                                   BitmapCanvasSurface(
                                                     frame: frame,
@@ -923,6 +929,34 @@ mixin _PaintingBoardBuildMixin
         activeLayerWidget,
         if (_previewForeground != null)
           RawImage(image: _previewForeground),
+      ],
+    );
+  }
+
+  Widget _buildLayerOpacityPreviewStack() {
+    if (_layerOpacityPreviewActiveLayerImage == null) {
+      return const SizedBox.shrink();
+    }
+    Widget activeLayerWidget = RawImage(
+      image: _layerOpacityPreviewActiveLayerImage,
+      filterQuality: FilterQuality.low,
+    );
+    final double previewOpacity =
+        (_layerOpacityPreviewValue ?? 1.0).clamp(0.0, 1.0);
+    if (previewOpacity < 0.999) {
+      activeLayerWidget = Opacity(
+        opacity: previewOpacity,
+        child: activeLayerWidget,
+      );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_layerOpacityPreviewBackground != null)
+          RawImage(image: _layerOpacityPreviewBackground),
+        activeLayerWidget,
+        if (_layerOpacityPreviewForeground != null)
+          RawImage(image: _layerOpacityPreviewForeground),
       ],
     );
   }

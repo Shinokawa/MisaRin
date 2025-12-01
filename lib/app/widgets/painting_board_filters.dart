@@ -102,6 +102,7 @@ mixin _PaintingBoardFilterMixin
       _showFilterMessage('请先选择一个可编辑的图层。');
       return;
     }
+    _layerOpacityPreviewReset(this);
     final BitmapLayerState? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage('无法定位当前图层。');
@@ -161,61 +162,20 @@ mixin _PaintingBoardFilterMixin
 
   Future<void> _generatePreviewImages() async {
     final _FilterSession? session = _filterSession;
-    if (session == null) return;
-
-    final int width = _controller.width;
-    final int height = _controller.height;
-    final CanvasRasterBackend tempBackend = CanvasRasterBackend(
-      width: width,
-      height: height,
-      multithreaded: false,
-    );
-
-    try {
-      final List<BitmapLayerState> allLayers = _layers.toList();
-      final int activeIndex = allLayers.indexWhere((l) => l.id == session.activeLayerId);
-      if (activeIndex < 0) return;
-
-      final List<BitmapLayerState> below = allLayers.sublist(0, activeIndex);
-      final List<BitmapLayerState> above = allLayers.sublist(activeIndex + 1);
-      final BitmapLayerState active = allLayers[activeIndex];
-
-      if (below.isNotEmpty) {
-        await tempBackend.composite(layers: below, requiresFullSurface: true);
-        final Uint8List rgba = tempBackend.copySurfaceRgba();
-        _previewBackground = await _decodeImage(rgba, width, height);
-      }
-
-      tempBackend.resetClipMask();
-      final Uint32List pixels = tempBackend.ensureCompositePixels();
-      pixels.fillRange(0, pixels.length, 0);
-      
-      await tempBackend.composite(layers: [active], requiresFullSurface: true);
-      final Uint8List activeRgba = tempBackend.copySurfaceRgba();
-      _previewActiveLayerImage = await _decodeImage(activeRgba, width, height);
-
-      if (above.isNotEmpty) {
-        pixels.fillRange(0, pixels.length, 0);
-        await tempBackend.composite(layers: above, requiresFullSurface: true);
-        final Uint8List aboveRgba = tempBackend.copySurfaceRgba();
-        _previewForeground = await _decodeImage(aboveRgba, width, height);
-      }
-
-    } finally {
-      await tempBackend.dispose();
+    if (session == null) {
+      return;
     }
-  }
-
-  Future<ui.Image> _decodeImage(Uint8List pixels, int width, int height) {
-    final Completer<ui.Image> completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      pixels,
-      width,
-      height,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
+    final _LayerPreviewImages previews = await _captureLayerPreviewImages(
+      controller: _controller,
+      layers: _layers.toList(),
+      activeLayerId: session.activeLayerId,
     );
-    return completer.future;
+    _previewBackground?.dispose();
+    _previewActiveLayerImage?.dispose();
+    _previewForeground?.dispose();
+    _previewBackground = previews.background;
+    _previewActiveLayerImage = previews.active;
+    _previewForeground = previews.foreground;
   }
 
   List<double>? _calculateCurrentFilterMatrix() {
@@ -1726,6 +1686,86 @@ void _filterBoxBlurPass({
       sumA += source[addIndex + 3] - source[removeIndex + 3];
     }
   }
+}
+
+class _LayerPreviewImages {
+  const _LayerPreviewImages({
+    this.background,
+    this.active,
+    this.foreground,
+  });
+
+  final ui.Image? background;
+  final ui.Image? active;
+  final ui.Image? foreground;
+
+  void dispose() {
+    background?.dispose();
+    active?.dispose();
+    foreground?.dispose();
+  }
+}
+
+Future<_LayerPreviewImages> _captureLayerPreviewImages({
+  required BitmapCanvasController controller,
+  required List<BitmapLayerState> layers,
+  required String activeLayerId,
+}) async {
+  final int width = controller.width;
+  final int height = controller.height;
+  final CanvasRasterBackend tempBackend = CanvasRasterBackend(
+    width: width,
+    height: height,
+    multithreaded: false,
+  );
+  ui.Image? background;
+  ui.Image? active;
+  ui.Image? foreground;
+  try {
+    final int activeIndex = layers.indexWhere((layer) => layer.id == activeLayerId);
+    if (activeIndex < 0) {
+      return const _LayerPreviewImages();
+    }
+    final List<BitmapLayerState> below = layers.sublist(0, activeIndex);
+    final List<BitmapLayerState> above = layers.sublist(activeIndex + 1);
+    final BitmapLayerState activeLayer = layers[activeIndex];
+    if (below.isNotEmpty) {
+      await tempBackend.composite(layers: below, requiresFullSurface: true);
+      final Uint8List rgba = tempBackend.copySurfaceRgba();
+      background = await _decodeImage(rgba, width, height);
+    }
+    tempBackend.resetClipMask();
+    final Uint32List pixels = tempBackend.ensureCompositePixels();
+    pixels.fillRange(0, pixels.length, 0);
+    await tempBackend.composite(layers: <BitmapLayerState>[activeLayer], requiresFullSurface: true);
+    final Uint8List activeRgba = tempBackend.copySurfaceRgba();
+    active = await _decodeImage(activeRgba, width, height);
+    if (above.isNotEmpty) {
+      pixels.fillRange(0, pixels.length, 0);
+      await tempBackend.composite(layers: above, requiresFullSurface: true);
+      final Uint8List aboveRgba = tempBackend.copySurfaceRgba();
+      foreground = await _decodeImage(aboveRgba, width, height);
+    }
+  } finally {
+    await tempBackend.dispose();
+  }
+  return _LayerPreviewImages(
+    background: background,
+    active: active,
+    foreground: foreground,
+  );
+}
+
+Future<ui.Image> _decodeImage(Uint8List pixels, int width, int height) {
+  final Completer<ui.Image> completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    pixels,
+    width,
+    height,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
 }
 
 int _filterRoundChannel(double value) {

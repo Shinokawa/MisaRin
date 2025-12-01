@@ -233,12 +233,14 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _layerAdjustCropOutside = false;
   bool _layerOpacityGestureActive = false;
   String? _layerOpacityGestureLayerId;
+  double? _layerOpacityUndoOriginalValue;
   String? _layerOpacityPreviewLayerId;
   double? _layerOpacityPreviewValue;
-  final Duration _layerOpacityCommitDelay = const Duration(milliseconds: 50);
-  Timer? _layerOpacityCommitTimer;
-  String? _pendingLayerOpacityLayerId;
-  double? _pendingLayerOpacityValue;
+  bool _layerOpacityPreviewActive = false;
+  int _layerOpacityPreviewRequestId = 0;
+  ui.Image? _layerOpacityPreviewBackground;
+  ui.Image? _layerOpacityPreviewActiveLayerImage;
+  ui.Image? _layerOpacityPreviewForeground;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
   Offset? _layerDragStart;
@@ -1642,7 +1644,7 @@ class PaintingBoardState extends _PaintingBoardBase
     disposeSelectionTicker();
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
-    _layerOpacityCommitTimer?.cancel();
+    _layerOpacityPreviewReset(this);
     _layerScrollController.dispose();
     _layerContextMenuController.dispose();
     _blendModeFlyoutController.dispose();
@@ -1964,3 +1966,29 @@ class _CanvasHistoryEntry {
 }
 
 StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;
+
+void _layerOpacityPreviewReset(
+  _PaintingBoardBase board, {
+  bool notifyListeners = false,
+}) {
+  final bool hadPreview = board._layerOpacityPreviewActive ||
+      board._layerOpacityPreviewLayerId != null ||
+      board._layerOpacityPreviewValue != null;
+  board._layerOpacityPreviewActive = false;
+  board._layerOpacityPreviewLayerId = null;
+  board._layerOpacityPreviewValue = null;
+  board._layerOpacityPreviewRequestId++;
+  _layerOpacityPreviewDisposeImages(board);
+  if (notifyListeners && hadPreview && board.mounted) {
+    board.setState(() {});
+  }
+}
+
+void _layerOpacityPreviewDisposeImages(_PaintingBoardBase board) {
+  board._layerOpacityPreviewBackground?.dispose();
+  board._layerOpacityPreviewBackground = null;
+  board._layerOpacityPreviewActiveLayerImage?.dispose();
+  board._layerOpacityPreviewActiveLayerImage = null;
+  board._layerOpacityPreviewForeground?.dispose();
+  board._layerOpacityPreviewForeground = null;
+}
