@@ -888,10 +888,11 @@ mixin _PaintingBoardBuildMixin
 
     // Apply Filters
     if (session.type == _FilterPanelType.gaussianBlur) {
-      final double radius = session.gaussianBlur.radius;
-      if (radius > 0) {
+      final double sigma =
+          _gaussianBlurSigmaForRadius(session.gaussianBlur.radius);
+      if (sigma > 0) {
         activeLayerWidget = ImageFiltered(
-          imageFilter: ui.ImageFilter.blur(sigmaX: radius, sigmaY: radius),
+          imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
           child: activeLayerWidget,
         );
       }

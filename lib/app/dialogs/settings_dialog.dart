@@ -22,11 +22,10 @@ Future<void> showSettingsDialog(BuildContext context) {
     contentWidth: 420,
     maxWidth: 520,
     actions: [
-      if (!kIsWeb)
-        Button(
-          onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
-          child: const Text('数位板测试'),
-        ),
+      Button(
+        onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
+        child: const Text('数位板测试'),
+      ),
       Button(
         onPressed: () => contentKey.currentState?.resetToDefaults(),
         child: const Text('恢复默认'),
@@ -71,7 +70,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     final int minHistory = AppPreferences.minHistoryLimit;
     final int maxHistory = AppPreferences.maxHistoryLimit;
 
-    return Column(
+    final Widget body = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -99,48 +98,46 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
           ),
         ),
         const SizedBox(height: 16),
-        if (!kIsWeb) ...[
-          InfoLabel(
-            label: '数位笔压设置',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text('启用数位笔笔压'),
-                    const SizedBox(width: 12),
-                    ToggleSwitch(
-                      checked: _stylusPressureEnabled,
-                      onChanged: (value) {
-                        setState(() => _stylusPressureEnabled = value);
-                        final AppPreferences prefs = AppPreferences.instance;
-                        prefs.stylusPressureEnabled = value;
-                        unawaited(AppPreferences.save());
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _StylusSliderTile(
-                  label: '响应曲线',
-                  description: '调整压力与笔触粗细之间的过渡速度。',
-                  value: _stylusCurve,
-                  min: AppPreferences.stylusCurveLowerBound,
-                  max: AppPreferences.stylusCurveUpperBound,
-                  enabled: _stylusPressureEnabled,
-                  asMultiplier: false,
-                  onChanged: (value) {
-                    setState(() => _stylusCurve = value);
-                    final AppPreferences prefs = AppPreferences.instance;
-                    prefs.stylusPressureCurve = _stylusCurve;
-                    unawaited(AppPreferences.save());
-                  },
-                ),
-              ],
-            ),
+        InfoLabel(
+          label: '数位笔压设置',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('启用数位笔笔压'),
+                  const SizedBox(width: 12),
+                  ToggleSwitch(
+                    checked: _stylusPressureEnabled,
+                    onChanged: (value) {
+                      setState(() => _stylusPressureEnabled = value);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.stylusPressureEnabled = value;
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _StylusSliderTile(
+                label: '响应曲线',
+                description: '调整压力与笔触粗细之间的过渡速度。',
+                value: _stylusCurve,
+                min: AppPreferences.stylusCurveLowerBound,
+                max: AppPreferences.stylusCurveUpperBound,
+                enabled: _stylusPressureEnabled,
+                asMultiplier: false,
+                onChanged: (value) {
+                  setState(() => _stylusCurve = value);
+                  final AppPreferences prefs = AppPreferences.instance;
+                  prefs.stylusPressureCurve = _stylusCurve;
+                  unawaited(AppPreferences.save());
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-        ],
+        ),
+        const SizedBox(height: 16),
         InfoLabel(
           label: '笔刷大小滑块区间',
           child: Column(
@@ -236,6 +233,11 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
           ),
         ],
       ],
+    );
+
+    return SingleChildScrollView(
+      primary: true,
+      child: body,
     );
   }
 

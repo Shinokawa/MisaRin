@@ -1859,6 +1859,14 @@ bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
   return false;
 }
 
+double _gaussianBlurSigmaForRadius(double radius) {
+  final double clampedRadius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
+  if (clampedRadius <= 0) {
+    return 0;
+  }
+  return math.max(0.1, clampedRadius * 0.5);
+}
+
 void _filterApplyGaussianBlurToBitmap(
   Uint8List bitmap,
   int width,
@@ -1868,15 +1876,14 @@ void _filterApplyGaussianBlurToBitmap(
   if (bitmap.isEmpty || width <= 0 || height <= 0) {
     return;
   }
-  final double clampedRadius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
-  if (clampedRadius <= 0) {
+  final double sigma = _gaussianBlurSigmaForRadius(radius);
+  if (sigma <= 0) {
     return;
   }
   // 使用预乘 alpha 防止在透明区域被卷积时产生黑边。
   _filterPremultiplyAlpha(bitmap);
   // Approximate a gaussian blur with three fast box blur passes so very large
   // radii (e.g. 1000px) stay responsive during preview.
-  final double sigma = math.max(0.1, clampedRadius * 0.5);
   final List<int> boxSizes = _filterComputeBoxSizes(sigma, 3);
   final Uint8List scratch = Uint8List(bitmap.length);
   for (final int boxSize in boxSizes) {
