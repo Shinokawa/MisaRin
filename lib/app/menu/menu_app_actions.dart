@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
@@ -38,17 +41,40 @@ class AppMenuActions {
       dialogTitle: '打开项目',
       type: FileType.custom,
       allowedExtensions: const ['rin', 'psd'],
+      withData: kIsWeb,
     );
-    final String? path = result?.files.singleOrNull?.path;
-    if (path == null || !context.mounted) {
+    final PlatformFile? file = result?.files.singleOrNull;
+    if (file == null || !context.mounted) {
+      return;
+    }
+    final String? path = kIsWeb ? null : file.path;
+    final Uint8List? bytes = file.bytes;
+    if (path == null && bytes == null) {
       return;
     }
     try {
       final ProjectDocument document;
-      if (path.toLowerCase().endsWith('.psd')) {
-        document = await ProjectRepository.instance.importPsd(path);
+      final String extension = file.name.toLowerCase();
+      if (extension.endsWith('.psd')) {
+        if (path != null && !kIsWeb) {
+          document = await ProjectRepository.instance.importPsd(path);
+        } else if (bytes != null) {
+          document = await ProjectRepository.instance.importPsdFromBytes(
+            bytes,
+            fileName: file.name,
+          );
+        } else {
+          throw Exception('无法读取 PSD 文件内容。');
+        }
       } else {
-        document = await ProjectRepository.instance.loadDocument(path);
+        if (path != null && !kIsWeb) {
+          document = await ProjectRepository.instance.loadDocument(path);
+        } else if (bytes != null) {
+          document = await ProjectRepository.instance
+              .loadDocumentFromBytes(bytes);
+        } else {
+          throw Exception('无法读取项目文件内容。');
+        }
       }
       if (!context.mounted) {
         return;

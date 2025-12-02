@@ -97,6 +97,22 @@ class ProjectRepository {
     return document;
   }
 
+  Future<ProjectDocument> loadDocumentFromBytes(Uint8List bytes) async {
+    if (!kIsWeb) {
+      throw UnsupportedError('仅 Web 平台支持从字节流加载项目文件。');
+    }
+    final ProjectDocument decoded = ProjectBinaryCodec.decode(bytes);
+    final String fileName = _buildFileName(decoded);
+    final String virtualPath = _buildVirtualPath(fileName);
+    final ProjectDocument resolved = decoded.copyWith(path: virtualPath);
+    await _webStore!.write(
+      virtualPath,
+      resolved,
+      lastOpened: DateTime.now(),
+    );
+    return resolved;
+  }
+
   Future<List<ProjectSummary>> listRecentProjects() async {
     if (kIsWeb) {
       return _webStore!.listRecentProjects();
@@ -269,6 +285,17 @@ class ProjectRepository {
     return importer.importFile(path);
   }
 
+  Future<ProjectDocument> importPsdFromBytes(
+    Uint8List bytes, {
+    String? fileName,
+  }) async {
+    final String? displayName = fileName == null || fileName.trim().isEmpty
+        ? null
+        : p.basenameWithoutExtension(fileName);
+    const PsdImporter importer = PsdImporter();
+    return importer.importBytes(bytes, displayName: displayName);
+  }
+
   Future<void> exportDocumentAsPsd({
     required ProjectDocument document,
     required String path,
@@ -424,11 +451,15 @@ class _WebProjectStore {
       <String, _WebStoredProject>{};
   final Map<String, DateTime> _recentEntries = <String, DateTime>{};
 
-  Future<void> write(String path, ProjectDocument document) async {
+  Future<void> write(
+    String path,
+    ProjectDocument document, {
+    DateTime? lastOpened,
+  }) async {
     final DateTime updatedAt = document.updatedAt;
     final Uint8List bytes = ProjectBinaryCodec.encode(document);
     _projects[path] = _WebStoredProject(bytes: bytes, lastModified: updatedAt);
-    _touch(path, updatedAt);
+    _touch(path, lastOpened ?? updatedAt);
   }
 
   Future<ProjectDocument> read(String path) async {
