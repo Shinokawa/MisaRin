@@ -1179,6 +1179,21 @@ mixin _PaintingBoardLayerMixin
                       onChanged: (value) =>
                           _handleLayerVisibilityChanged(layer.id, value),
                     );
+                    Widget leadingButtons = visibilityButton;
+                    if (isSai2Layout) {
+                      leadingButtons = Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          visibilityButton,
+                          const SizedBox(height: 4),
+                          _LayerClippingToggleButton(
+                            active: layerClipping,
+                            enabled: !layerLocked,
+                            onPressed: () => _handleLayerClippingToggle(layer),
+                          ),
+                        ],
+                      );
+                    }
 
                     Widget? lockButton;
                     Widget? clippingButton;
@@ -1228,21 +1243,48 @@ mixin _PaintingBoardLayerMixin
                           ? () => _handleRemoveLayer(layer.id)
                           : null,
                     );
-                    final List<Widget> trailingButtons = <Widget>[];
-                    void addTrailingButton(Widget widget) {
-                      if (trailingButtons.isNotEmpty) {
-                        trailingButtons.add(const SizedBox(width: 4));
+                    Widget? trailingWidget;
+                    if (isSai2Layout) {
+                      final Widget lockToggleButton = Tooltip(
+                        message: layerLocked ? '解锁图层' : '锁定图层',
+                        child: IconButton(
+                          icon: Icon(
+                            layerLocked ? FluentIcons.lock : FluentIcons.unlock,
+                          ),
+                          onPressed: () => _handleLayerLockToggle(layer),
+                        ),
+                      );
+                      trailingWidget = Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          deleteButton,
+                          const SizedBox(height: 4),
+                          lockToggleButton,
+                        ],
+                      );
+                    } else {
+                      final List<Widget> trailingButtons = <Widget>[];
+                      void addTrailingButton(Widget widget) {
+                        if (trailingButtons.isNotEmpty) {
+                          trailingButtons.add(const SizedBox(width: 4));
+                        }
+                        trailingButtons.add(widget);
                       }
-                      trailingButtons.add(widget);
-                    }
 
-                    if (clippingButton != null) {
-                      addTrailingButton(clippingButton);
+                      if (clippingButton != null) {
+                        addTrailingButton(clippingButton);
+                      }
+                      if (lockButton != null) {
+                        addTrailingButton(lockButton);
+                      }
+                      addTrailingButton(deleteButton);
+                      if (trailingButtons.isNotEmpty) {
+                        trailingWidget = Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: trailingButtons,
+                        );
+                      }
                     }
-                    if (lockButton != null) {
-                      addTrailingButton(lockButton);
-                    }
-                    addTrailingButton(deleteButton);
                     return material.ReorderableDragStartListener(
                       key: ValueKey(layer.id),
                       index: index,
@@ -1266,7 +1308,7 @@ mixin _PaintingBoardLayerMixin
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  visibilityButton,
+                                  leadingButtons,
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Opacity(
@@ -1307,7 +1349,10 @@ mixin _PaintingBoardLayerMixin
                                       ),
                                     ),
                                   ),
-                                  ...trailingButtons,
+                                  if (trailingWidget != null) ...[
+                                    const SizedBox(width: 8),
+                                    trailingWidget!,
+                                  ],
                                 ],
                               ),
                               if (layer.clippingMask)
@@ -1392,12 +1437,30 @@ mixin _PaintingBoardLayerMixin
                           _handleLayerVisibilityChanged(layer.id, value),
                     );
 
+                    final bool layerLocked = layer.locked;
                     final bool canDelete = _layers.length > 1;
                     final Widget deleteButton = IconButton(
                       icon: const Icon(FluentIcons.delete),
                       onPressed: canDelete
                           ? () => _handleRemoveLayer(layer.id)
                           : null,
+                    );
+                    final Widget lockButton = Tooltip(
+                      message: layerLocked ? '解锁图层' : '锁定图层',
+                      child: IconButton(
+                        icon: Icon(
+                          layerLocked ? FluentIcons.lock : FluentIcons.unlock,
+                        ),
+                        onPressed: () => _handleLayerLockToggle(layer),
+                      ),
+                    );
+                    final Widget actionButtons = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        deleteButton,
+                        const SizedBox(height: 4),
+                        lockButton,
+                      ],
                     );
                     _ensureLayerPreview(layer);
                     final ui.Image? layerPreview = _layerPreviewImage(layer.id);
@@ -1450,7 +1513,7 @@ mixin _PaintingBoardLayerMixin
                                       ),
                                     ),
                                   ),
-                                  deleteButton,
+                                  actionButtons,
                                 ],
                               ),
                               if (layer.clippingMask)
@@ -1636,6 +1699,71 @@ class _LayerNameView extends StatelessWidget {
       maxLines: 1,
     )..layout();
     return painter.width;
+  }
+}
+
+class _LayerClippingToggleButton extends StatelessWidget {
+  const _LayerClippingToggleButton({
+    required this.active,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool active;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Color baseBackground = Color.lerp(
+          borderColor.withValues(alpha: borderColor.a * 0.1),
+          accent,
+          0.05,
+        ) ??
+        borderColor.withOpacity(0.1);
+    final Color background = active
+        ? Color.alphaBlend(
+            accent.withOpacity(theme.brightness.isDark ? 0.35 : 0.18),
+            baseBackground,
+          )
+        : baseBackground;
+    final Color iconColor = !enabled
+        ? theme.resources.textFillColorDisabled
+        : (active
+            ? accent
+            : theme.resources.textFillColorSecondary.withOpacity(0.85));
+
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: enabled ? onPressed : null,
+        child: Opacity(
+          opacity: enabled ? 1.0 : 0.55,
+          child: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              color: background,
+              border: Border.all(
+                color: borderColor.withValues(alpha: borderColor.a * 0.6),
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                FluentIcons.subtract_shape,
+                size: 14,
+                color: iconColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
