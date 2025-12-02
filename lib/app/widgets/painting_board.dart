@@ -46,6 +46,7 @@ import 'package:flutter/scheduler.dart'
     show SchedulerBinding, Ticker, TickerProvider, TickerProviderStateMixin;
 import 'package:flutter/widgets.dart'
     show
+        CustomPaint,
         EditableText,
         FocusNode,
         SingleChildRenderObjectWidget,
@@ -255,6 +256,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   ui.Image? _layerOpacityPreviewBackground;
   ui.Image? _layerOpacityPreviewActiveLayerImage;
   ui.Image? _layerOpacityPreviewForeground;
+  final Map<String, _LayerPreviewCacheEntry> _layerPreviewCache =
+      <String, _LayerPreviewCacheEntry>{};
+  int _layerPreviewRequestSerial = 0;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
   Offset? _layerDragStart;
@@ -1739,6 +1743,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
     _layerOpacityPreviewReset(this);
+    _disposeLayerPreviewCache();
     _layerScrollController.dispose();
     _layerContextMenuController.dispose();
     _blendModeFlyoutController.dispose();

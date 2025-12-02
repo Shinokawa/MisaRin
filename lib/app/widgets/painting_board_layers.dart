@@ -1,5 +1,7 @@
 part of 'painting_board.dart';
 
+const double _layerPreviewHeight = 32;
+
 mixin _PaintingBoardLayerMixin
     on _PaintingBoardBase, _PaintingBoardLayerTransformMixin {
   final TextEditingController _layerRenameController = TextEditingController();
@@ -938,6 +940,150 @@ mixin _PaintingBoardLayerMixin
     return dimStates;
   }
 
+  void _pruneLayerPreviewCache(Iterable<BitmapLayerState> layers) {
+    if (_layerPreviewCache.isEmpty) {
+      return;
+    }
+    final Set<String> liveIds = layers.map((layer) => layer.id).toSet();
+    final List<String> stale = <String>[];
+    for (final String id in _layerPreviewCache.keys) {
+      if (!liveIds.contains(id)) {
+        stale.add(id);
+      }
+    }
+    if (stale.isEmpty) {
+      return;
+    }
+    for (final String id in stale) {
+      final _LayerPreviewCacheEntry? entry = _layerPreviewCache.remove(id);
+      entry?.dispose();
+    }
+  }
+
+  void _ensureLayerPreview(BitmapLayerState layer) {
+    final _LayerPreviewCacheEntry? entry = _layerPreviewCache[layer.id];
+    if (entry != null && entry.revision == layer.revision) {
+      return;
+    }
+    final int requestId = ++_layerPreviewRequestSerial;
+    final _LayerPreviewCacheEntry target =
+        entry ?? _LayerPreviewCacheEntry(requestId: requestId);
+    target.requestId = requestId;
+    _layerPreviewCache[layer.id] = target;
+    unawaited(
+      _captureLayerPreviewThumbnail(
+        layerId: layer.id,
+        surface: layer.surface,
+        revision: layer.revision,
+        requestId: requestId,
+      ),
+    );
+  }
+
+  ui.Image? _layerPreviewImage(String layerId) {
+    return _layerPreviewCache[layerId]?.image;
+  }
+
+  Future<void> _captureLayerPreviewThumbnail({
+    required String layerId,
+    required BitmapSurface surface,
+    required int revision,
+    required int requestId,
+  }) async {
+    final _LayerPreviewPixels? pixels = _buildLayerPreviewPixels(surface);
+    ui.Image? image;
+    if (pixels != null) {
+      try {
+        image = await _decodeImage(
+          pixels.bytes,
+          pixels.width,
+          pixels.height,
+        );
+      } catch (error, stackTrace) {
+        debugPrint('Failed to build layer preview for $layerId: $error');
+        debugPrint('$stackTrace');
+        image = null;
+      }
+    }
+    _applyLayerPreviewResult(
+      layerId: layerId,
+      revision: revision,
+      requestId: requestId,
+      image: image,
+    );
+  }
+
+  void _applyLayerPreviewResult({
+    required String layerId,
+    required int revision,
+    required int requestId,
+    ui.Image? image,
+  }) {
+    if (!mounted) {
+      image?.dispose();
+      return;
+    }
+    final _LayerPreviewCacheEntry? entry = _layerPreviewCache[layerId];
+    if (entry == null || entry.requestId != requestId) {
+      image?.dispose();
+      return;
+    }
+    final ui.Image? previous = entry.image;
+    final bool changed = previous != image || entry.revision != revision;
+    entry
+      ..image = image
+      ..revision = revision;
+    if (!changed) {
+      return;
+    }
+    setState(() {});
+    if (previous != null && previous != image) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+    }
+  }
+
+  _LayerPreviewPixels? _buildLayerPreviewPixels(BitmapSurface surface) {
+    final int width = surface.width;
+    final int height = surface.height;
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    final int maxHeight = _layerPreviewHeight.round();
+    final int targetHeight = math.min(maxHeight, height);
+    final double scale = targetHeight / height;
+    final int targetWidth = math.max(1, (width * scale).round());
+    if (targetWidth <= 0 || targetHeight <= 0) {
+      return null;
+    }
+    final Uint8List rgba = Uint8List(targetWidth * targetHeight * 4);
+    final double stepX = width / targetWidth;
+    final double stepY = height / targetHeight;
+    int dest = 0;
+    for (int y = 0; y < targetHeight; y++) {
+      final int sourceY = (y * stepY).floor().clamp(0, height - 1);
+      final int rowBase = sourceY * width;
+      for (int x = 0; x < targetWidth; x++) {
+        final int sourceX = (x * stepX).floor().clamp(0, width - 1);
+        final int argb = surface.pixels[rowBase + sourceX];
+        rgba[dest++] = (argb >> 16) & 0xFF;
+        rgba[dest++] = (argb >> 8) & 0xFF;
+        rgba[dest++] = argb & 0xFF;
+        rgba[dest++] = (argb >> 24) & 0xFF;
+      }
+    }
+    return _LayerPreviewPixels(bytes: rgba, width: targetWidth, height: targetHeight);
+  }
+
+  void _disposeLayerPreviewCache() {
+    if (_layerPreviewCache.isEmpty) {
+      return;
+    }
+    for (final _LayerPreviewCacheEntry entry in _layerPreviewCache.values) {
+      entry.dispose();
+    }
+    _layerPreviewCache.clear();
+  }
+
   Widget _buildLayerPanelContent(FluentThemeData theme) {
     final bool isSai2Layout =
         widget.toolbarLayoutStyle == PaintingToolbarLayoutStyle.sai2;
@@ -945,6 +1091,7 @@ mixin _PaintingBoardLayerMixin
         .toList(growable: false)
         .reversed
         .toList(growable: false);
+    _pruneLayerPreviewCache(_layers);
     final Map<String, bool> layerTileDimStates = _computeLayerTileDimStates();
     final String? activeLayerId = _activeLayerId;
     final Color fallbackCardColor = theme.brightness.isDark
@@ -1021,6 +1168,8 @@ mixin _PaintingBoardLayerMixin
                     final bool layerLocked = layer.locked;
                     final bool layerClipping = layer.clippingMask;
                     final bool showTileButtons = !isSai2Layout;
+                    _ensureLayerPreview(layer);
+                    final ui.Image? layerPreview = _layerPreviewImage(layer.id);
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
@@ -1112,39 +1261,44 @@ mixin _PaintingBoardLayerMixin
                             clipBehavior: Clip.none,
                             children: [
                               Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   visibilityButton,
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Opacity(
                                       opacity: contentOpacity,
-                                      child: Row(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Expanded(
-                                            child: _LayerNameView(
-                                              layer: layer,
-                                              theme: theme,
-                                              isActive: isActive,
-                                              isRenaming:
-                                                  !layerLocked &&
-                                                  _renamingLayerId == layer.id,
-                                              isLocked: layerLocked,
-                                              buildEditor: (style) =>
-                                                  _buildInlineLayerRenameField(
-                                                    theme,
-                                                    isActive: isActive,
-                                                    layerId: layer.id,
-                                                    styleOverride: style,
-                                                  ),
-                                              onRequestRename: layerLocked
-                                                  ? null
-                                                  : () {
-                                                      _handleLayerSelected(
-                                                        layer.id,
-                                                      );
-                                                      _beginLayerRename(layer);
-                                                    },
-                                            ),
+                                          _LayerNameView(
+                                            layer: layer,
+                                            theme: theme,
+                                            isActive: isActive,
+                                            isRenaming: !layerLocked &&
+                                                _renamingLayerId == layer.id,
+                                            isLocked: layerLocked,
+                                            buildEditor: (style) =>
+                                                _buildInlineLayerRenameField(
+                                                  theme,
+                                                  isActive: isActive,
+                                                  layerId: layer.id,
+                                                  styleOverride: style,
+                                                ),
+                                            onRequestRename: layerLocked
+                                                ? null
+                                                : () {
+                                                    _handleLayerSelected(
+                                                      layer.id,
+                                                    );
+                                                    _beginLayerRename(layer);
+                                                  },
+                                          ),
+                                          const SizedBox(height: 6),
+                                          _LayerPreviewThumbnail(
+                                            image: layerPreview,
+                                            theme: theme,
                                           ),
                                         ],
                                       ),
@@ -1242,6 +1396,8 @@ mixin _PaintingBoardLayerMixin
                           ? () => _handleRemoveLayer(layer.id)
                           : null,
                     );
+                    _ensureLayerPreview(layer);
+                    final ui.Image? layerPreview = _layerPreviewImage(layer.id);
 
                     return material.ReorderableDragStartListener(
                       key: ValueKey(layer.id),
@@ -1264,22 +1420,28 @@ mixin _PaintingBoardLayerMixin
                             clipBehavior: Clip.none,
                             children: [
                               Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   visibilityButton,
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Opacity(
                                       opacity: contentOpacity,
-                                      child: Row(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Expanded(
-                                            child: Text(
-                                              layer.name,
-                                              style: isActive
-                                                  ? theme.typography.bodyStrong
-                                                  : theme.typography.body,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
+                                          Text(
+                                            layer.name,
+                                            style: isActive
+                                                ? theme.typography.bodyStrong
+                                                : theme.typography.body,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 6),
+                                          _LayerPreviewThumbnail(
+                                            image: layerPreview,
+                                            theme: theme,
                                           ),
                                         ],
                                       ),
@@ -1471,5 +1633,126 @@ class _LayerNameView extends StatelessWidget {
       maxLines: 1,
     )..layout();
     return painter.width;
+  }
+}
+
+class _LayerPreviewThumbnail extends StatelessWidget {
+  const _LayerPreviewThumbnail({
+    required this.image,
+    required this.theme,
+  });
+
+  final ui.Image? image;
+  final FluentThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color border =
+        theme.resources.controlStrokeColorDefault.withOpacity(0.6);
+    final Color lightSquare = theme.brightness.isDark
+        ? const Color(0xFF333333)
+        : const Color(0xFFF6F6F6);
+    final Color darkSquare = theme.brightness.isDark
+        ? const Color(0xFF252525)
+        : const Color(0xFFE0E0E0);
+    final Widget background = CustomPaint(
+      painter: _TransparencyGridPainter(
+        light: lightSquare,
+        dark: darkSquare,
+      ),
+    );
+    final Widget foreground = image == null
+        ? Center(
+            child: Icon(
+              FluentIcons.picture,
+              size: 12,
+              color: theme.resources.textFillColorTertiary,
+            ),
+          )
+        : RawImage(
+            image: image,
+            fit: BoxFit.cover,
+            filterQuality: ui.FilterQuality.low,
+          );
+    return Container(
+      height: _layerPreviewHeight,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border, width: 0.8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          background,
+          foreground,
+        ],
+      ),
+    );
+  }
+}
+
+class _TransparencyGridPainter extends CustomPainter {
+  const _TransparencyGridPainter({
+    required this.light,
+    required this.dark,
+  });
+
+  final Color light;
+  final Color dark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const double cellSize = 6;
+    final Paint lightPaint = Paint()..color = light;
+    final Paint darkPaint = Paint()..color = dark;
+    bool darkRow = false;
+    for (double y = 0; y < size.height; y += cellSize) {
+      bool darkCell = darkRow;
+      final double nextY = math.min(size.height, y + cellSize);
+      for (double x = 0; x < size.width; x += cellSize) {
+        final double nextX = math.min(size.width, x + cellSize);
+        canvas.drawRect(
+          Rect.fromLTRB(x, y, nextX, nextY),
+          darkCell ? darkPaint : lightPaint,
+        );
+        darkCell = !darkCell;
+      }
+      darkRow = !darkRow;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TransparencyGridPainter oldDelegate) {
+    return oldDelegate.light != light || oldDelegate.dark != dark;
+  }
+}
+
+class _LayerPreviewPixels {
+  const _LayerPreviewPixels({
+    required this.bytes,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint8List bytes;
+  final int width;
+  final int height;
+}
+
+class _LayerPreviewCacheEntry {
+  _LayerPreviewCacheEntry({
+    required this.requestId,
+    this.revision = -1,
+    this.image,
+  });
+
+  int requestId;
+  int revision;
+  ui.Image? image;
+
+  void dispose() {
+    image?.dispose();
+    image = null;
   }
 }
