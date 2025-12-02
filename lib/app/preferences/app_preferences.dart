@@ -1,10 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../bitmap_canvas/stroke_dynamics.dart';
 import '../../canvas/canvas_tools.dart';
@@ -50,6 +53,7 @@ class AppPreferences {
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
+  static const String _preferencesStorageKey = 'misa_rin.preferences';
   static const int _version = 26;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
@@ -185,10 +189,10 @@ class AppPreferences {
     if (_instance != null) {
       return _instance!;
     }
-    final File file = await _preferencesFile();
-    if (await file.exists()) {
+    final Uint8List? storedBytes = await _readPreferencesPayload();
+    if (storedBytes != null && storedBytes.isNotEmpty) {
       try {
-        final Uint8List bytes = await file.readAsBytes();
+        final Uint8List bytes = storedBytes;
         if (bytes.isNotEmpty) {
           final int version = bytes[0];
           final bool hasColorLinePayload = version >= 15 && bytes.length >= 20;
@@ -226,8 +230,7 @@ class AppPreferences {
                 ? _decodeSprayStrokeWidth(bytes[34] | (bytes[35] << 8))
                 : _defaultSprayStrokeWidth;
             if (version >= 26 && bytes.length >= 38) {
-              final SprayMode decodedSprayMode =
-                  _decodeSprayMode(bytes[36]);
+              final SprayMode decodedSprayMode = _decodeSprayMode(bytes[36]);
               final bool decodedPixelGridVisible = bytes[37] != 0;
               final int rawHistory = bytes[3] | (bytes[4] << 8);
               final int rawStroke = bytes[6] | (bytes[7] << 8);
@@ -273,8 +276,7 @@ class AppPreferences {
               );
               return _finalizeLoadedPreferences();
             } else if (version >= 25 && bytes.length >= 37) {
-              final SprayMode decodedSprayMode =
-                  _decodeSprayMode(bytes[36]);
+              final SprayMode decodedSprayMode = _decodeSprayMode(bytes[36]);
               final int rawHistory = bytes[3] | (bytes[4] << 8);
               final int rawStroke = bytes[6] | (bytes[7] << 8);
               _instance = AppPreferences._(
@@ -952,8 +954,6 @@ class AppPreferences {
 
   static Future<void> save() async {
     final AppPreferences prefs = _instance ?? await load();
-    final File file = await _preferencesFile();
-    await file.create(recursive: true);
     final int history = _clampHistoryLimit(prefs.historyLimit);
     prefs.historyLimit = history;
     final double strokeWidthValue = prefs.penStrokeWidth.clamp(
@@ -1039,7 +1039,7 @@ class AppPreferences {
       _encodeSprayMode(prefs.sprayMode),
       prefs.pixelGridVisible ? 1 : 0,
     ]);
-    await file.writeAsBytes(payload, flush: true);
+    await _writePreferencesPayload(payload);
   }
 
   static int _clampHistoryLimit(int value) {
@@ -1365,7 +1365,43 @@ class AppPreferences {
   static ThemeMode get defaultThemeMode => _defaultThemeMode;
   static int get defaultHistoryLimit => _defaultHistoryLimit;
 
+  static Future<Uint8List?> _readPreferencesPayload() async {
+    if (kIsWeb) {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? encoded = prefs.getString(_preferencesStorageKey);
+      if (encoded == null || encoded.isEmpty) {
+        return null;
+      }
+      try {
+        return Uint8List.fromList(base64Decode(encoded));
+      } catch (_) {
+        return null;
+      }
+    }
+    final File file = await _preferencesFile();
+    if (!await file.exists()) {
+      return null;
+    }
+    return file.readAsBytes();
+  }
+
+  static Future<void> _writePreferencesPayload(Uint8List bytes) async {
+    if (kIsWeb) {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_preferencesStorageKey, base64Encode(bytes));
+      return;
+    }
+    final File file = await _preferencesFile();
+    await file.create(recursive: true);
+    await file.writeAsBytes(bytes, flush: true);
+  }
+
   static Future<File> _preferencesFile() async {
+    if (kIsWeb) {
+      throw UnsupportedError(
+        'Preferences file storage is not available on web',
+      );
+    }
     final Directory base = await getApplicationDocumentsDirectory();
     final Directory directory = Directory(p.join(base.path, _folderName));
     if (!await directory.exists()) {

@@ -14,6 +14,17 @@ class PsdExporter {
   const PsdExporter();
 
   Future<void> export(ProjectDocument document, String path) async {
+    final Uint8List bytes = await exportToBytes(document);
+    final File output = File(path);
+    await output.writeAsBytes(bytes, flush: true);
+  }
+
+  Future<Uint8List> exportToBytes(ProjectDocument document) async {
+    final _ByteWriter writer = _buildDocumentWriter(document);
+    return writer.toBytes();
+  }
+
+  _ByteWriter _buildDocumentWriter(ProjectDocument document) {
     final int width = document.settings.width.round();
     final int height = document.settings.height.round();
     final List<CanvasLayerData> layers = document.layers;
@@ -46,8 +57,7 @@ class PsdExporter {
     );
     compositeSection.write(writer);
 
-    final File output = File(path);
-    await output.writeAsBytes(writer.toBytes(), flush: true);
+    return writer;
   }
 }
 

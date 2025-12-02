@@ -9,7 +9,7 @@ import 'dart:ui' as ui;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/foundation.dart'
-    show debugPrint, defaultTargetPlatform, TargetPlatform;
+    show debugPrint, defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -79,6 +79,8 @@ import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
 import '../utils/color_filter_generator.dart';
 import '../palette/palette_exporter.dart';
+import '../utils/web_file_dialog.dart';
+import '../utils/web_file_saver.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 import '../../backend/layout_compute_worker.dart';

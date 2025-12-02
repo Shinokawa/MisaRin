@@ -343,13 +343,13 @@ class BitmapCanvasController extends ChangeNotifier {
     }
 
     final Uint8List pixels = byteData.buffer.asUint8List();
-    final TransferableTypedData transferablePixels =
-        TransferableTypedData.fromList([pixels]);
 
     image.dispose();
     picture.dispose();
 
     if (_isMultithreaded) {
+      final TransferableTypedData transferablePixels =
+          TransferableTypedData.fromList(<Uint8List>[pixels]);
       await _ensureWorkerSurfaceSynced();
       await _ensureWorkerSelectionMaskSynced();
       // Send pixel patch to worker

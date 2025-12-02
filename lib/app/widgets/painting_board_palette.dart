@@ -324,33 +324,65 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (option == null) {
       return;
     }
-    final String? outputPath = await FilePicker.platform.saveFile(
-      dialogTitle: '导出调色盘',
-      fileName: _suggestPaletteFileName(entry.title, option.extension),
-      type: FileType.custom,
-      allowedExtensions: <String>[option.extension],
-    );
-    if (outputPath == null) {
-      return;
+    String? normalizedPath;
+    String? downloadName;
+    if (kIsWeb) {
+      final String? fileName = await showWebFileNameDialog(
+        context: context,
+        title: '导出调色盘',
+        suggestedFileName: _suggestPaletteFileName(
+          entry.title,
+          option.extension,
+        ),
+        description: '浏览器会将调色盘保存到默认的下载目录。',
+        confirmLabel: '下载',
+      );
+      if (fileName == null) {
+        return;
+      }
+      downloadName = _normalizePaletteExportPath(
+        _sanitizePaletteFileNameInput(fileName),
+        option.extension,
+      );
+    } else {
+      final String? outputPath = await FilePicker.platform.saveFile(
+        dialogTitle: '导出调色盘',
+        fileName: _suggestPaletteFileName(entry.title, option.extension),
+        type: FileType.custom,
+        allowedExtensions: <String>[option.extension],
+      );
+      if (outputPath == null) {
+        return;
+      }
+      normalizedPath = _normalizePaletteExportPath(
+        outputPath,
+        option.extension,
+      );
     }
-    final String normalizedPath = _normalizePaletteExportPath(
-      outputPath,
-      option.extension,
-    );
     try {
       final Uint8List bytes = PaletteFileExporter.encode(
         format: option.format,
         paletteName: entry.title,
         colors: entry.colors,
       );
-      final File file = File(normalizedPath);
-      await file.writeAsBytes(bytes, flush: true);
+      if (kIsWeb) {
+        await WebFileSaver.saveBytes(
+          fileName: downloadName!,
+          bytes: bytes,
+          mimeType: 'application/octet-stream',
+        );
+      } else {
+        final File file = File(normalizedPath!);
+        await file.writeAsBytes(bytes, flush: true);
+      }
       if (!mounted) {
         return;
       }
       AppNotifications.show(
         context,
-        message: '调色盘已导出到 $normalizedPath',
+        message: kIsWeb
+            ? '调色盘已下载：$downloadName'
+            : '调色盘已导出到 $normalizedPath',
         severity: InfoBarSeverity.success,
       );
     } catch (error) {
@@ -446,6 +478,12 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     final String lower = raw.toLowerCase();
     final String suffix = '.${extension.toLowerCase()}';
     return lower.endsWith(suffix) ? raw : '$raw$suffix';
+  }
+
+  String _sanitizePaletteFileNameInput(String input) {
+    final String sanitized =
+        input.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    return sanitized.isEmpty ? 'palette' : sanitized;
   }
 
   List<Color> _sanitizePaletteColors(List<Color> colors) {

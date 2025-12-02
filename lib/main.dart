@@ -15,7 +15,9 @@ Future<void> main() async {
   TabletInputBridge.instance.ensureInitialized();
 
   await AppPreferences.load();
-  await _initializePerformancePulse();
+  if (!kIsWeb) {
+    await _initializePerformancePulse();
+  }
 
   final bool isDesktop =
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
