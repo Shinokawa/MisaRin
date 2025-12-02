@@ -11,6 +11,7 @@ import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/foundation.dart'
     show
         ValueChanged,
+        compute,
         debugPrint,
         defaultTargetPlatform,
         TargetPlatform,

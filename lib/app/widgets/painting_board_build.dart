@@ -874,8 +874,15 @@ mixin _PaintingBoardBuildMixin
     final _FilterSession? session = _filterSession;
     if (session == null) return const SizedBox.shrink();
 
+    ui.Image? activeImage = _previewActiveLayerImage;
+    final bool useHuePreviewImage =
+        session.type == _FilterPanelType.hueSaturation &&
+        _previewFilteredActiveLayerImage != null;
+    if (useHuePreviewImage) {
+      activeImage = _previewFilteredActiveLayerImage;
+    }
     Widget activeLayerWidget = RawImage(
-      image: _previewActiveLayerImage,
+      image: activeImage,
       filterQuality: FilterQuality.low,
     );
 
@@ -889,28 +896,33 @@ mixin _PaintingBoardBuildMixin
         );
       }
     } else if (session.type == _FilterPanelType.hueSaturation) {
-       final double hue = session.hueSaturation.hue;
-       final double saturation = session.hueSaturation.saturation;
-       final double lightness = session.hueSaturation.lightness;
-       
-       if (hue != 0) {
-         activeLayerWidget = ColorFiltered(
-           colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
-           child: activeLayerWidget,
-         );
-       }
-       if (saturation != 0) {
-         activeLayerWidget = ColorFiltered(
-           colorFilter: ColorFilter.matrix(ColorFilterGenerator.saturation(saturation)),
-           child: activeLayerWidget,
-         );
-       }
-       if (lightness != 0) {
+      final double hue = session.hueSaturation.hue;
+      final double saturation = session.hueSaturation.saturation;
+      final double lightness = session.hueSaturation.lightness;
+      final bool requiresAdjustments =
+          hue != 0 || saturation != 0 || lightness != 0;
+      if (requiresAdjustments && !useHuePreviewImage) {
+        if (hue != 0) {
           activeLayerWidget = ColorFiltered(
-           colorFilter: ColorFilter.matrix(ColorFilterGenerator.brightness(lightness)),
-           child: activeLayerWidget,
-         );
-       }
+            colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
+            child: activeLayerWidget,
+          );
+        }
+        if (saturation != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter:
+                ColorFilter.matrix(ColorFilterGenerator.saturation(saturation)),
+            child: activeLayerWidget,
+          );
+        }
+        if (lightness != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter:
+                ColorFilter.matrix(ColorFilterGenerator.brightness(lightness)),
+            child: activeLayerWidget,
+          );
+        }
+      }
     } else if (session.type == _FilterPanelType.brightnessContrast) {
        final double brightness = session.brightnessContrast.brightness;
        final double contrast = session.brightnessContrast.contrast;

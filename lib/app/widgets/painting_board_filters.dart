@@ -80,7 +80,12 @@ mixin _PaintingBoardFilterMixin
   bool _filterLoading = false;
   ui.Image? _previewBackground;
   ui.Image? _previewActiveLayerImage;
+  ui.Image? _previewFilteredActiveLayerImage;
   ui.Image? _previewForeground;
+  Uint8List? _previewActiveLayerPixels;
+  bool _previewHueSaturationUpdateScheduled = false;
+  bool _previewHueSaturationUpdateInFlight = false;
+  int _previewHueSaturationUpdateToken = 0;
   bool _filterApplying = false;
   Completer<_FilterPreviewResult>? _filterApplyCompleter;
 
@@ -128,6 +133,12 @@ mixin _PaintingBoardFilterMixin
       activeLayerIndex: layerIndex,
       activeLayerId: activeLayerId,
     );
+    _previewFilteredActiveLayerImage?.dispose();
+    _previewFilteredActiveLayerImage = null;
+    _previewActiveLayerPixels = null;
+    _previewHueSaturationUpdateScheduled = false;
+    _previewHueSaturationUpdateInFlight = false;
+    _previewHueSaturationUpdateToken++;
 
     if (_filterPanelOffset == Offset.zero) {
       final Offset workspaceOffset = _workspacePanelSpawnOffset(
@@ -176,6 +187,120 @@ mixin _PaintingBoardFilterMixin
     _previewBackground = previews.background;
     _previewActiveLayerImage = previews.active;
     _previewForeground = previews.foreground;
+    _previewFilteredActiveLayerImage?.dispose();
+    _previewFilteredActiveLayerImage = null;
+    _previewActiveLayerPixels = null;
+    if (_previewActiveLayerImage != null) {
+      await _prepareActiveLayerPreviewPixels();
+    }
+    _previewHueSaturationUpdateToken++;
+    _previewHueSaturationUpdateScheduled = false;
+    _previewHueSaturationUpdateInFlight = false;
+    if (session.type == _FilterPanelType.hueSaturation) {
+      _scheduleHueSaturationPreviewImageUpdate();
+    }
+  }
+
+  Future<void> _prepareActiveLayerPreviewPixels() async {
+    final ui.Image? image = _previewActiveLayerImage;
+    if (image == null) {
+      _previewActiveLayerPixels = null;
+      return;
+    }
+    try {
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (byteData == null) {
+        _previewActiveLayerPixels = null;
+        return;
+      }
+      _previewActiveLayerPixels =
+          Uint8List.fromList(byteData.buffer.asUint8List());
+    } catch (error, stackTrace) {
+      debugPrint('Failed to prepare preview pixels: $error');
+      _previewActiveLayerPixels = null;
+    }
+  }
+
+  void _scheduleHueSaturationPreviewImageUpdate() {
+    if (_filterSession?.type != _FilterPanelType.hueSaturation) {
+      return;
+    }
+    if (_previewActiveLayerPixels == null || _previewActiveLayerImage == null) {
+      return;
+    }
+    _previewHueSaturationUpdateScheduled = true;
+    if (!_previewHueSaturationUpdateInFlight) {
+      unawaited(_runHueSaturationPreviewImageUpdate());
+    }
+  }
+
+  Future<void> _runHueSaturationPreviewImageUpdate() async {
+    if (_previewHueSaturationUpdateInFlight) {
+      return;
+    }
+    _previewHueSaturationUpdateInFlight = true;
+    while (_previewHueSaturationUpdateScheduled) {
+      _previewHueSaturationUpdateScheduled = false;
+      final _FilterSession? session = _filterSession;
+      final ui.Image? baseImage = _previewActiveLayerImage;
+      final Uint8List? source = _previewActiveLayerPixels;
+      if (session == null ||
+          session.type != _FilterPanelType.hueSaturation ||
+          baseImage == null ||
+          source == null) {
+        break;
+      }
+      final _HueSaturationSettings settings = session.hueSaturation;
+      final bool isIdentity =
+          settings.hue == 0 &&
+          settings.saturation == 0 &&
+          settings.lightness == 0;
+      if (isIdentity) {
+        if (_previewFilteredActiveLayerImage != null) {
+          setState(() {
+            _previewFilteredActiveLayerImage?.dispose();
+            _previewFilteredActiveLayerImage = null;
+          });
+        }
+        continue;
+      }
+      final int token = ++_previewHueSaturationUpdateToken;
+      final List<Object?> args = <Object?>[
+        source,
+        settings.hue,
+        settings.saturation,
+        settings.lightness,
+      ];
+      Uint8List processed;
+      try {
+        processed = await _generateHueSaturationPreviewBytes(args);
+      } catch (error, stackTrace) {
+        debugPrint('Failed to compute hue preview: $error');
+        break;
+      }
+      if (!mounted || token != _previewHueSaturationUpdateToken) {
+        break;
+      }
+      final ui.Image image =
+          await _decodeImage(processed, baseImage.width, baseImage.height);
+      if (!mounted || token != _previewHueSaturationUpdateToken) {
+        image.dispose();
+        break;
+      }
+      if (!mounted) {
+        image.dispose();
+        break;
+      }
+      setState(() {
+        _previewFilteredActiveLayerImage?.dispose();
+        _previewFilteredActiveLayerImage = image;
+      });
+    }
+    _previewHueSaturationUpdateInFlight = false;
+    if (_previewHueSaturationUpdateScheduled) {
+      unawaited(_runHueSaturationPreviewImageUpdate());
+    }
   }
 
   List<double>? _calculateCurrentFilterMatrix() {
@@ -373,6 +498,7 @@ mixin _PaintingBoardFilterMixin
     session.gaussianBlur.radius = 0;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _scheduleHueSaturationPreviewImageUpdate();
   }
 
   void _updateHueSaturation({
@@ -390,6 +516,7 @@ mixin _PaintingBoardFilterMixin
       ..lightness = lightness ?? session.hueSaturation.lightness;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _scheduleHueSaturationPreviewImageUpdate();
   }
 
   void _updateBrightnessContrast({double? brightness, double? contrast}) {
@@ -631,8 +758,14 @@ mixin _PaintingBoardFilterMixin
     _previewBackground = null;
     _previewActiveLayerImage?.dispose();
     _previewActiveLayerImage = null;
+    _previewFilteredActiveLayerImage?.dispose();
+    _previewFilteredActiveLayerImage = null;
     _previewForeground?.dispose();
     _previewForeground = null;
+    _previewActiveLayerPixels = null;
+    _previewHueSaturationUpdateScheduled = false;
+    _previewHueSaturationUpdateInFlight = false;
+    _previewHueSaturationUpdateToken++;
     _filterLoading = false;
     _filterApplying = false;
 
@@ -1532,6 +1665,37 @@ double _filterReadListValue(List<dynamic>? values, int index) {
     return value.toDouble();
   }
   return 0.0;
+}
+
+Future<Uint8List> _generateHueSaturationPreviewBytes(
+  List<Object?> args,
+) async {
+  if (kIsWeb) {
+    return _computeHueSaturationPreviewPixels(args);
+  }
+  try {
+    return await compute<List<Object?>, Uint8List>(
+      _computeHueSaturationPreviewPixels,
+      args,
+    );
+  } on UnsupportedError catch (_) {
+    return _computeHueSaturationPreviewPixels(args);
+  }
+}
+
+Uint8List _computeHueSaturationPreviewPixels(List<Object?> args) {
+  final Uint8List source = args[0] as Uint8List;
+  final double hue = (args[1] as num).toDouble();
+  final double saturation = (args[2] as num).toDouble();
+  final double lightness = (args[3] as num).toDouble();
+  final Uint8List pixels = Uint8List.fromList(source);
+  _filterApplyHueSaturationToBitmap(
+    pixels,
+    hue,
+    saturation,
+    lightness,
+  );
+  return pixels;
 }
 
 void _filterApplyHueSaturationToBitmap(
