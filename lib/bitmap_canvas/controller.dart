@@ -370,13 +370,17 @@ class BitmapCanvasController extends ChangeNotifier {
         await _waitForNextFrame();
       }
     } else {
-      // Fallback for main thread merge?
-      // Currently merge logic is in worker. We could duplicate it here or just rely on worker.
-      // Since we are fixing "Old logic is gone" and want vector quality, we should ideally support this.
-      // But implementing blend logic on main thread is CPU intensive.
-      // For now, if single threaded, we might fail silently or need to implement merge locally.
-      // Given constraints, let's assume worker is available if isMultithreaded is true.
-      // If !isMultithreaded, we haven't implemented vector rasterization fallback yet.
+      final bool applied = _mergeVectorPatchOnMainThread(
+        rgbaPixels: pixels,
+        left: left,
+        top: top,
+        width: safeWidth,
+        height: safeHeight,
+        erase: erase,
+      );
+      if (applied) {
+        await _waitForNextFrame();
+      }
     }
   }
 
@@ -1582,6 +1586,139 @@ class BitmapCanvasController extends ChangeNotifier {
       layerId: _activeLayer.id,
       pixelsDirty: true,
     );
+  }
+
+  int _unpremultiplyChannel(int value, int alpha) {
+    if (alpha <= 0) {
+      return 0;
+    }
+    if (alpha >= 255) {
+      return value;
+    }
+    final int result = ((value * 255) + (alpha >> 1)) ~/ alpha;
+    if (result < 0) {
+      return 0;
+    }
+    if (result > 255) {
+      return 255;
+    }
+    return result;
+  }
+
+  bool _mergeVectorPatchOnMainThread({
+    required Uint8List rgbaPixels,
+    required int left,
+    required int top,
+    required int width,
+    required int height,
+    required bool erase,
+  }) {
+    if (width <= 0 || height <= 0 || rgbaPixels.isEmpty) {
+      return false;
+    }
+    final int clampedLeft = math.max(0, math.min(left, _width));
+    final int clampedTop = math.max(0, math.min(top, _height));
+    final int clampedRight = math.max(0, math.min(left + width, _width));
+    final int clampedBottom = math.max(0, math.min(top + height, _height));
+    if (clampedRight <= clampedLeft || clampedBottom <= clampedTop) {
+      return false;
+    }
+
+    final Uint32List destination = _activeSurface.pixels;
+    final Uint8List? mask = _selectionMask;
+    bool anyChange = false;
+
+    for (int y = 0; y < height; y++) {
+      final int surfaceY = top + y;
+      if (surfaceY < 0 || surfaceY >= _height) {
+        continue;
+      }
+      final int surfaceRowOffset = surfaceY * _width;
+      final int rgbaRowOffset = y * width * 4;
+
+      for (int x = 0; x < width; x++) {
+        final int surfaceX = left + x;
+        if (surfaceX < 0 || surfaceX >= _width) {
+          continue;
+        }
+        if (mask != null && mask[surfaceRowOffset + surfaceX] == 0) {
+          continue;
+        }
+
+        final int rgbaIndex = rgbaRowOffset + x * 4;
+        if (rgbaIndex + 3 >= rgbaPixels.length) {
+          continue;
+        }
+        final int a = rgbaPixels[rgbaIndex + 3];
+        if (a == 0) {
+          continue;
+        }
+        final int r = rgbaPixels[rgbaIndex];
+        final int g = rgbaPixels[rgbaIndex + 1];
+        final int b = rgbaPixels[rgbaIndex + 2];
+
+        final int destIndex = surfaceRowOffset + surfaceX;
+        final int dstColor = destination[destIndex];
+        final int dstA = (dstColor >> 24) & 0xff;
+        final int dstR = (dstColor >> 16) & 0xff;
+        final int dstG = (dstColor >> 8) & 0xff;
+        final int dstB = dstColor & 0xff;
+
+        if (erase) {
+          final double alphaFactor = 1.0 - (a / 255.0);
+          final int outA = (dstA * alphaFactor).round();
+          destination[destIndex] =
+              (outA << 24) | (dstR << 16) | (dstG << 8) | dstB;
+          anyChange = true;
+          continue;
+        }
+
+        final int srcR = _unpremultiplyChannel(r, a);
+        final int srcG = _unpremultiplyChannel(g, a);
+        final int srcB = _unpremultiplyChannel(b, a);
+
+        final double srcAlpha = a / 255.0;
+        final double dstAlpha = dstA / 255.0;
+        final double invSrcAlpha = 1.0 - srcAlpha;
+        final double outAlphaDouble = srcAlpha + dstAlpha * invSrcAlpha;
+        if (outAlphaDouble <= 0.001) {
+          continue;
+        }
+        final int outA = (outAlphaDouble * 255.0).round();
+        final double outR =
+            (srcR * srcAlpha + dstR * dstAlpha * invSrcAlpha) / outAlphaDouble;
+        final double outG =
+            (srcG * srcAlpha + dstG * dstAlpha * invSrcAlpha) / outAlphaDouble;
+        final double outB =
+            (srcB * srcAlpha + dstB * dstAlpha * invSrcAlpha) / outAlphaDouble;
+
+        destination[destIndex] =
+            (outA.clamp(0, 255) << 24) |
+            (outR.round().clamp(0, 255) << 16) |
+            (outG.round().clamp(0, 255) << 8) |
+            outB.round().clamp(0, 255);
+        anyChange = true;
+      }
+    }
+
+    if (!anyChange) {
+      return false;
+    }
+
+    _resetWorkerSurfaceSync();
+    _activeLayer.revision += 1;
+    final Rect dirtyRegion = Rect.fromLTRB(
+      clampedLeft.toDouble(),
+      clampedTop.toDouble(),
+      clampedRight.toDouble(),
+      clampedBottom.toDouble(),
+    );
+    _markDirty(
+      region: dirtyRegion,
+      layerId: _activeLayer.id,
+      pixelsDirty: true,
+    );
+    return true;
   }
 
   void _scheduleTileImageDisposal() {
