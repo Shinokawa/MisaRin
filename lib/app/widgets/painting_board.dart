@@ -97,6 +97,8 @@ import '../../performance/stroke_latency_monitor.dart';
 import '../workspace/workspace_shared_state.dart';
 
 part 'painting_board_layers.dart';
+part 'painting_board_layers_panel.dart';
+part 'painting_board_layer_widgets.dart';
 part 'painting_board_colors.dart';
 part 'painting_board_palette.dart';
 part 'painting_board_marching_ants.dart';
