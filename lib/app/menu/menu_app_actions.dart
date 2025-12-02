@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/widgets.dart';
 
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
@@ -53,29 +54,32 @@ class AppMenuActions {
       return;
     }
     try {
-      final ProjectDocument document;
-      final String extension = file.name.toLowerCase();
-      if (extension.endsWith('.psd')) {
-        if (path != null && !kIsWeb) {
-          document = await ProjectRepository.instance.importPsd(path);
-        } else if (bytes != null) {
-          document = await ProjectRepository.instance.importPsdFromBytes(
-            bytes,
-            fileName: file.name,
-          );
-        } else {
-          throw Exception('无法读取 PSD 文件内容。');
-        }
-      } else {
-        if (path != null && !kIsWeb) {
-          document = await ProjectRepository.instance.loadDocument(path);
-        } else if (bytes != null) {
-          document = await ProjectRepository.instance
-              .loadDocumentFromBytes(bytes);
-        } else {
+      final ProjectDocument document = await _runWithWebProgress<ProjectDocument>(
+        context,
+        title: '正在打开项目…',
+        message: '正在加载 ${file.name}',
+        action: () async {
+          final String extension = file.name.toLowerCase();
+          if (extension.endsWith('.psd')) {
+            if (path != null && !kIsWeb) {
+              return ProjectRepository.instance.importPsd(path);
+            } else if (bytes != null) {
+              return ProjectRepository.instance.importPsdFromBytes(
+                bytes,
+                fileName: file.name,
+              );
+            }
+            throw Exception('无法读取 PSD 文件内容。');
+          }
+          if (path != null && !kIsWeb) {
+            return ProjectRepository.instance.loadDocument(path);
+          }
+          if (bytes != null) {
+            return ProjectRepository.instance.loadDocumentFromBytes(bytes);
+          }
           throw Exception('无法读取项目文件内容。');
-        }
-      }
+        },
+      );
       if (!context.mounted) {
         return;
       }
@@ -188,22 +192,40 @@ class AppMenuActions {
     BuildContext context,
     ProjectDocument document,
   ) async {
+    OverlayEntry? loadingOverlay;
+    void hideLoadingOverlay() {
+      if (loadingOverlay == null) {
+        return;
+      }
+      loadingOverlay!.remove();
+      loadingOverlay = null;
+    }
+    if (kIsWeb) {
+      loadingOverlay = _showWebCanvasLoadingOverlay(context);
+    }
     final CanvasPageState? canvasState = context
         .findAncestorStateOfType<CanvasPageState>();
-    if (canvasState != null) {
-      await canvasState.openDocument(document);
-      return;
+    try {
+      if (canvasState != null) {
+        await canvasState.openDocument(document);
+      } else {
+        if (!context.mounted) {
+          return;
+        }
+        await Navigator.of(context).push(
+          PageRouteBuilder<void>(
+            pageBuilder: (_, __, ___) => CanvasPage(
+              document: document,
+              onInitialBoardReady: kIsWeb ? hideLoadingOverlay : null,
+            ),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        );
+      }
+    } finally {
+      hideLoadingOverlay();
     }
-    if (!context.mounted) {
-      return;
-    }
-    await Navigator.of(context).push(
-      PageRouteBuilder<void>(
-        pageBuilder: (_, __, ___) => CanvasPage(document: document),
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-      ),
-    );
   }
 
   static void _showInfoBar(
@@ -212,5 +234,114 @@ class AppMenuActions {
     InfoBarSeverity severity = InfoBarSeverity.info,
   }) {
     AppNotifications.show(context, message: message, severity: severity);
+  }
+
+  static Future<T> _runWithWebProgress<T>(
+    BuildContext context, {
+    required Future<T> Function() action,
+    required String title,
+    String? message,
+  }) async {
+    if (!context.mounted || !kIsWeb) {
+      return action();
+    }
+    final OverlayState? overlay = Overlay.of(context, rootOverlay: true);
+    if (overlay == null) {
+      return action();
+    }
+    final OverlayEntry entry = OverlayEntry(
+      builder: (context) => AbsorbPointer(
+        absorbing: true,
+        child: _WebProgressOverlay(title: title, message: message),
+      ),
+    );
+    overlay.insert(entry);
+    // Give Flutter a frame to render the overlay before running heavy tasks.
+    await Future<void>.delayed(Duration.zero);
+    try {
+      return await action();
+    } finally {
+      entry.remove();
+    }
+  }
+
+  static OverlayEntry? _showWebCanvasLoadingOverlay(BuildContext context) {
+    if (!context.mounted) {
+      return null;
+    }
+    final OverlayState? overlay = Overlay.of(context, rootOverlay: true);
+    if (overlay == null) {
+      return null;
+    }
+    final OverlayEntry entry = OverlayEntry(
+      builder: (context) => const _WebProgressOverlay(
+        title: '正在准备画布…',
+        message: 'Web 端需要一些时间才能完成初始化，请稍候。',
+      ),
+    );
+    overlay.insert(entry);
+    return entry;
+  }
+}
+
+class _WebProgressOverlay extends StatelessWidget {
+  const _WebProgressOverlay({required this.title, this.message});
+
+  final String title;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final Color overlayColor = theme.micaBackgroundColor.withOpacity(0.65);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ColoredBox(color: overlayColor),
+        ),
+        Positioned.fill(
+          child: Center(
+            child: Container(
+              width: 360,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x33000000),
+                    blurRadius: 32,
+                    offset: Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: theme.typography.subtitle,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  const ProgressBar(),
+                  if (message != null) ...[
+                    const SizedBox(height: 12),
+                    Opacity(
+                      opacity: 0.8,
+                      child: Text(
+                        message!,
+                        style: theme.typography.body,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

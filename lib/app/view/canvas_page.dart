@@ -7,7 +7,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart'
-    show StatefulBuilder, StateSetter, TextEditingController, WidgetsBinding;
+    show
+        StatefulBuilder,
+        StateSetter,
+        TextEditingController,
+        WidgetsBinding;
 
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_settings.dart';
@@ -35,9 +39,14 @@ import '../utils/web_file_dialog.dart';
 import '../utils/web_file_saver.dart';
 
 class CanvasPage extends StatefulWidget {
-  const CanvasPage({super.key, required this.document});
+  const CanvasPage({
+    super.key,
+    required this.document,
+    this.onInitialBoardReady,
+  });
 
   final ProjectDocument document;
+  final VoidCallback? onInitialBoardReady;
 
   @override
   State<CanvasPage> createState() => CanvasPageState();
@@ -81,6 +90,9 @@ class CanvasPageState extends State<CanvasPage> {
   Timer? _autoSaveTimer;
   WorkspaceLayoutPreference _workspaceLayoutPreference =
       AppPreferences.instance.workspaceLayout;
+  final Map<String, Completer<void>> _boardReadyCompleters =
+      <String, Completer<void>>{};
+  bool _initialBoardReadyDispatched = false;
 
   PaintingBoardState? get _activeBoard => _boardFor(_document.id);
 
@@ -257,7 +269,34 @@ class CanvasPageState extends State<CanvasPage> {
 
   void _removeBoardKey(String id) {
     _boardKeys.remove(id);
+    _boardReadyCompleters.remove(id)?.complete();
     _removeDocumentHistory(id);
+  }
+
+  Completer<void>? _trackBoardReady(String id) {
+    if (!kIsWeb) {
+      return null;
+    }
+    final Completer<void> completer = Completer<void>();
+    _boardReadyCompleters[id] = completer;
+    final PaintingBoardState? board = _boardFor(id);
+    if (board != null && board.isBoardReady) {
+      scheduleMicrotask(() {
+        _boardReadyCompleters.remove(id)?.complete();
+      });
+    }
+    return completer;
+  }
+
+  void _handleBoardReadyChanged(String id, bool ready) {
+    if (!ready) {
+      return;
+    }
+    _boardReadyCompleters.remove(id)?.complete();
+    if (!_initialBoardReadyDispatched && id == widget.document.id) {
+      _initialBoardReadyDispatched = true;
+      widget.onInitialBoardReady?.call();
+    }
   }
 
   String _fileExtension(String? name) {
@@ -977,8 +1016,12 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   Future<void> openDocument(ProjectDocument document) async {
+    final Completer<void>? readyCompleter = _trackBoardReady(document.id);
     _workspace.open(document, activate: true);
     _switchToEntry(_workspace.entryById(document.id));
+    if (readyCompleter != null) {
+      await readyCompleter.future;
+    }
   }
 
   void _handleTabSelected(String id) {
@@ -1173,6 +1216,8 @@ class CanvasPageState extends State<CanvasPage> {
       externalCanRedo: _canRedoDocumentFor(id),
       onResizeImage: _handleResizeImage,
       onResizeCanvas: _handleResizeCanvas,
+      onReadyChanged:
+          kIsWeb ? (ready) => _handleBoardReadyChanged(id, ready) : null,
       toolbarLayoutStyle: _toolbarLayoutStyle,
     );
   }

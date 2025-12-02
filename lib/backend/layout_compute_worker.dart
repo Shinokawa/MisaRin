@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:flutter/foundation.dart';
+
 import '../app/toolbars/widgets/canvas_toolbar.dart';
 
 class BoardLayoutInput {
@@ -37,8 +39,38 @@ class BoardLayoutMetrics {
   final double? toolSettingsMaxWidth;
 }
 
-class BoardLayoutWorker {
-  BoardLayoutWorker()
+abstract class BoardLayoutWorker {
+  factory BoardLayoutWorker() {
+    if (kIsWeb) {
+      return _InlineBoardLayoutWorker();
+    }
+    return _IsolateBoardLayoutWorker();
+  }
+
+  Future<BoardLayoutMetrics> compute(BoardLayoutInput input);
+
+  Future<void> dispose();
+}
+
+class _InlineBoardLayoutWorker implements BoardLayoutWorker {
+  @override
+  Future<BoardLayoutMetrics> compute(BoardLayoutInput input) {
+    final Map<String, Object?> response = _computeLayoutResponse(
+      _serializeInput(input),
+    );
+    return SynchronousFuture<BoardLayoutMetrics>(
+      _metricsFromResponse(response),
+    );
+  }
+
+  @override
+  Future<void> dispose() {
+    return SynchronousFuture<void>(null);
+  }
+}
+
+class _IsolateBoardLayoutWorker implements BoardLayoutWorker {
+  _IsolateBoardLayoutWorker()
     : _receivePort = ReceivePort(),
       _pending = <int, Completer<Map<String, Object?>>>{},
       _sendPortCompleter = Completer<SendPort>() {
@@ -66,37 +98,13 @@ class BoardLayoutWorker {
     _sendPort = await _sendPortCompleter.future;
   }
 
+  @override
   Future<BoardLayoutMetrics> compute(BoardLayoutInput input) async {
     await _ensureStarted();
-    final Map<String, Object?> response = await _sendRequest(<String, Object?>{
-      'workspaceWidth': input.workspaceWidth,
-      'workspaceHeight': input.workspaceHeight,
-      'toolButtonPadding': input.toolButtonPadding,
-      'toolSettingsSpacing': input.toolSettingsSpacing,
-      'sidePanelWidth': input.sidePanelWidth,
-      'colorIndicatorSize': input.colorIndicatorSize,
-      'toolbarButtonCount': input.toolbarButtonCount,
-    });
-    final CanvasToolbarLayout layout = CanvasToolbarLayout(
-      columns: response['columns'] as int? ?? 1,
-      rows: response['rows'] as int? ?? CanvasToolbar.buttonCount,
-      width: (response['layoutWidth'] as num? ?? 0).toDouble(),
-      height: (response['layoutHeight'] as num? ?? 0).toDouble(),
+    final Map<String, Object?> response = await _sendRequest(
+      _serializeInput(input),
     );
-    final double toolSettingsLeft = (response['toolSettingsLeft'] as num? ?? 0)
-        .toDouble();
-    final double sidebarLeft = (response['sidebarLeft'] as num? ?? 0)
-        .toDouble();
-    final double? toolSettingsMaxWidth =
-        response['toolSettingsMaxWidth'] == null
-        ? null
-        : (response['toolSettingsMaxWidth'] as num).toDouble();
-    return BoardLayoutMetrics(
-      layout: layout,
-      toolSettingsLeft: toolSettingsLeft,
-      sidebarLeft: sidebarLeft,
-      toolSettingsMaxWidth: toolSettingsMaxWidth,
-    );
+    return _metricsFromResponse(response);
   }
 
   Future<Map<String, Object?>> _sendRequest(
@@ -133,6 +141,7 @@ class BoardLayoutWorker {
     }
   }
 
+  @override
   Future<void> dispose() async {
     final Isolate? isolate = _isolate;
     if (isolate != null) {
@@ -219,4 +228,39 @@ Map<String, Object?> _computeLayoutResponse(Map<String, Object?> request) {
     'sidebarLeft': sidebarLeft,
     'toolSettingsMaxWidth': toolSettingsMaxWidth,
   };
+}
+
+Map<String, Object?> _serializeInput(BoardLayoutInput input) {
+  return <String, Object?>{
+    'workspaceWidth': input.workspaceWidth,
+    'workspaceHeight': input.workspaceHeight,
+    'toolButtonPadding': input.toolButtonPadding,
+    'toolSettingsSpacing': input.toolSettingsSpacing,
+    'sidePanelWidth': input.sidePanelWidth,
+    'colorIndicatorSize': input.colorIndicatorSize,
+    'toolbarButtonCount': input.toolbarButtonCount,
+  };
+}
+
+BoardLayoutMetrics _metricsFromResponse(Map<String, Object?> response) {
+  final CanvasToolbarLayout layout = CanvasToolbarLayout(
+    columns: response['columns'] as int? ?? 1,
+    rows: response['rows'] as int? ?? CanvasToolbar.buttonCount,
+    width: (response['layoutWidth'] as num? ?? 0).toDouble(),
+    height: (response['layoutHeight'] as num? ?? 0).toDouble(),
+  );
+  final double toolSettingsLeft = (response['toolSettingsLeft'] as num? ?? 0)
+      .toDouble();
+  final double sidebarLeft = (response['sidebarLeft'] as num? ?? 0)
+      .toDouble();
+  final double? toolSettingsMaxWidth =
+      response['toolSettingsMaxWidth'] == null
+      ? null
+      : (response['toolSettingsMaxWidth'] as num).toDouble();
+  return BoardLayoutMetrics(
+    layout: layout,
+    toolSettingsLeft: toolSettingsLeft,
+    sidebarLeft: sidebarLeft,
+    toolSettingsMaxWidth: toolSettingsMaxWidth,
+  );
 }

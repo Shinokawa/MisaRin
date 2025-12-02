@@ -9,7 +9,12 @@ import 'dart:ui' as ui;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/foundation.dart'
-    show debugPrint, defaultTargetPlatform, TargetPlatform, kIsWeb;
+    show
+        ValueChanged,
+        debugPrint,
+        defaultTargetPlatform,
+        TargetPlatform,
+        kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -180,6 +185,7 @@ class PaintingBoard extends StatefulWidget {
     this.externalCanRedo = false,
     this.onResizeImage,
     this.onResizeCanvas,
+    this.onReadyChanged,
     this.toolbarLayoutStyle = PaintingToolbarLayoutStyle.floating,
   });
 
@@ -193,6 +199,7 @@ class PaintingBoard extends StatefulWidget {
   final bool externalCanRedo;
   final Future<void> Function()? onResizeImage;
   final Future<void> Function()? onResizeCanvas;
+  final ValueChanged<bool>? onReadyChanged;
   final PaintingToolbarLayoutStyle toolbarLayoutStyle;
 
   @override
@@ -202,6 +209,7 @@ class PaintingBoard extends StatefulWidget {
 abstract class _PaintingBoardBase extends State<PaintingBoard> {
   late BitmapCanvasController _controller;
   final FocusNode _focusNode = FocusNode();
+  bool _boardReadyNotified = false;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -1714,6 +1722,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
+    _boardReadyNotified = _controller.frame != null;
+    if (_boardReadyNotified) {
+      widget.onReadyChanged?.call(true);
+    }
     _resetHistory();
   }
 
@@ -1745,6 +1757,8 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   bool get isPixelGridVisible => _pixelGridVisible;
+
+  bool get isBoardReady => _controller.frame != null;
 
   void _handlePixelGridPreferenceChanged() {
     if (!mounted) {
@@ -1923,6 +1937,10 @@ class PaintingBoardState extends _PaintingBoardBase
       _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
+      _boardReadyNotified = _controller.frame != null;
+      if (_boardReadyNotified) {
+        widget.onReadyChanged?.call(true);
+      }
       _resetHistory();
       setState(() {
         if (sizeChanged) {
@@ -1965,6 +1983,18 @@ class PaintingBoardState extends _PaintingBoardBase
         _shapeVectorFillOverlayColor = null;
       }
     });
+    _notifyBoardReadyIfNeeded();
+  }
+
+  void _notifyBoardReadyIfNeeded() {
+    if (_boardReadyNotified) {
+      return;
+    }
+    if (_controller.frame == null) {
+      return;
+    }
+    _boardReadyNotified = true;
+    widget.onReadyChanged?.call(true);
   }
 
   WorkspaceOverlaySnapshot buildWorkspaceOverlaySnapshot() {
