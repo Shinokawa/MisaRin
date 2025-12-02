@@ -2,8 +2,9 @@ part of 'painting_board.dart';
 
 const int _layerPreviewRasterHeight = 128;
 const double _layerPreviewDisplayHeight = 32;
-const EdgeInsets _layerPreviewPadding =
-    EdgeInsets.symmetric(horizontal: 4, vertical: 4);
+const double _layerPreviewAspectRatio = 16 / 9;
+const double _layerPreviewDisplayWidth =
+    _layerPreviewDisplayHeight * _layerPreviewAspectRatio;
 
 mixin _PaintingBoardLayerMixin
     on _PaintingBoardBase, _PaintingBoardLayerTransformMixin {
@@ -1650,58 +1651,80 @@ class _LayerPreviewThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final BorderRadius radius = BorderRadius.circular(6);
+    final Widget checkerBackground = CustomPaint(
+      painter: _TransparencyGridPainter(
+        light: theme.brightness.isDark
+            ? const Color(0xFF363636)
+            : const Color(0xFFF5F5F5),
+        dark: theme.brightness.isDark
+            ? const Color(0xFF2A2A2A)
+            : const Color(0xFFE0E0E0),
+      ),
+    );
+    final Widget imageWidget = image == null
+        ? Center(
+            child: Icon(
+              FluentIcons.picture,
+              size: 12,
+              color: theme.resources.textFillColorTertiary,
+            ),
+          )
+        : RawImage(
+            image: image,
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+            filterQuality: ui.FilterQuality.none,
+          );
     return ClipRRect(
       borderRadius: radius,
       child: SizedBox(
+        width: _layerPreviewDisplayWidth,
         height: _layerPreviewDisplayHeight,
-        child: ColoredBox(
-          color: Colors.white,
-          child: Padding(
-            padding: _layerPreviewPadding,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                if (image == null) {
-                  return Center(
-                    child: Icon(
-                      FluentIcons.picture,
-                      size: 12,
-                      color: theme.resources.textFillColorTertiary,
-                    ),
-                  );
-                }
-                final double aspectRatio =
-                    image!.width.toDouble() / image!.height.toDouble();
-                final double maxHeight = math.max(
-                  4.0,
-                  _layerPreviewDisplayHeight - _layerPreviewPadding.vertical,
-                );
-                final double maxWidth = constraints.maxWidth.isFinite
-                    ? constraints.maxWidth
-                    : aspectRatio * maxHeight;
-                double displayWidth = aspectRatio * maxHeight;
-                double displayHeight = maxHeight;
-                if (displayWidth > maxWidth && maxWidth > 0) {
-                  final double scale = maxWidth / displayWidth;
-                  displayWidth *= scale;
-                  displayHeight *= scale;
-                }
-                return Align(
-                  alignment: Alignment.centerLeft,
-                  child: SizedBox(
-                    width: displayWidth,
-                    height: displayHeight,
-                    child: RawImage(
-                      image: image,
-                      filterQuality: ui.FilterQuality.none,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            checkerBackground,
+            imageWidget,
+          ],
         ),
       ),
     );
+  }
+}
+
+class _TransparencyGridPainter extends CustomPainter {
+  const _TransparencyGridPainter({
+    required this.light,
+    required this.dark,
+  });
+
+  final Color light;
+  final Color dark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const double cellSize = 4;
+    final Paint lightPaint = Paint()..color = light;
+    final Paint darkPaint = Paint()..color = dark;
+    bool darkRow = false;
+    for (double y = 0; y < size.height; y += cellSize) {
+      bool darkCell = darkRow;
+      final double nextY = math.min(size.height, y + cellSize);
+      for (double x = 0; x < size.width; x += cellSize) {
+        final double nextX = math.min(size.width, x + cellSize);
+        canvas.drawRect(
+          Rect.fromLTRB(x, y, nextX, nextY),
+          darkCell ? darkPaint : lightPaint,
+        );
+        darkCell = !darkCell;
+      }
+      darkRow = !darkRow;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TransparencyGridPainter oldDelegate) {
+    return oldDelegate.light != light || oldDelegate.dark != dark;
   }
 }
 
