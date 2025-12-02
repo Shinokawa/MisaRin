@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
@@ -21,10 +22,11 @@ Future<void> showSettingsDialog(BuildContext context) {
     contentWidth: 420,
     maxWidth: 520,
     actions: [
-      Button(
-        onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
-        child: const Text('数位板测试'),
-      ),
+      if (!kIsWeb)
+        Button(
+          onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
+          child: const Text('数位板测试'),
+        ),
       Button(
         onPressed: () => contentKey.currentState?.resetToDefaults(),
         child: const Text('恢复默认'),
@@ -97,46 +99,48 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
           ),
         ),
         const SizedBox(height: 16),
-        InfoLabel(
-          label: '数位笔压设置',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text('启用数位笔笔压'),
-                  const SizedBox(width: 12),
-                  ToggleSwitch(
-                    checked: _stylusPressureEnabled,
-                    onChanged: (value) {
-                      setState(() => _stylusPressureEnabled = value);
-                      final AppPreferences prefs = AppPreferences.instance;
-                      prefs.stylusPressureEnabled = value;
-                      unawaited(AppPreferences.save());
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _StylusSliderTile(
-                label: '响应曲线',
-                description: '调整压力与笔触粗细之间的过渡速度。',
-                value: _stylusCurve,
-                min: AppPreferences.stylusCurveLowerBound,
-                max: AppPreferences.stylusCurveUpperBound,
-                enabled: _stylusPressureEnabled,
-                asMultiplier: false,
-                onChanged: (value) {
-                  setState(() => _stylusCurve = value);
-                  final AppPreferences prefs = AppPreferences.instance;
-                  prefs.stylusPressureCurve = _stylusCurve;
-                  unawaited(AppPreferences.save());
-                },
-              ),
-            ],
+        if (!kIsWeb) ...[
+          InfoLabel(
+            label: '数位笔压设置',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('启用数位笔笔压'),
+                    const SizedBox(width: 12),
+                    ToggleSwitch(
+                      checked: _stylusPressureEnabled,
+                      onChanged: (value) {
+                        setState(() => _stylusPressureEnabled = value);
+                        final AppPreferences prefs = AppPreferences.instance;
+                        prefs.stylusPressureEnabled = value;
+                        unawaited(AppPreferences.save());
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _StylusSliderTile(
+                  label: '响应曲线',
+                  description: '调整压力与笔触粗细之间的过渡速度。',
+                  value: _stylusCurve,
+                  min: AppPreferences.stylusCurveLowerBound,
+                  max: AppPreferences.stylusCurveUpperBound,
+                  enabled: _stylusPressureEnabled,
+                  asMultiplier: false,
+                  onChanged: (value) {
+                    setState(() => _stylusCurve = value);
+                    final AppPreferences prefs = AppPreferences.instance;
+                    prefs.stylusPressureCurve = _stylusCurve;
+                    unawaited(AppPreferences.save());
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
+        ],
         InfoLabel(
           label: '笔刷大小滑块区间',
           child: Column(
@@ -201,34 +205,36 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        InfoLabel(
-          label: '开发者选项',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(child: Text('性能监控面板')),
-                  ToggleSwitch(
-                    checked: _fpsOverlayEnabled,
-                    onChanged: (value) {
-                      setState(() => _fpsOverlayEnabled = value);
-                      final AppPreferences prefs = AppPreferences.instance;
-                      prefs.updateShowFpsOverlay(value);
-                      unawaited(AppPreferences.save());
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。',
-                style: theme.typography.caption,
-              ),
-            ],
+        if (!kIsWeb) ...[
+          const SizedBox(height: 16),
+          InfoLabel(
+            label: '开发者选项',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(child: Text('性能监控面板')),
+                    ToggleSwitch(
+                      checked: _fpsOverlayEnabled,
+                      onChanged: (value) {
+                        setState(() => _fpsOverlayEnabled = value);
+                        final AppPreferences prefs = AppPreferences.instance;
+                        prefs.updateShowFpsOverlay(value);
+                        unawaited(AppPreferences.save());
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。',
+                  style: theme.typography.caption,
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
