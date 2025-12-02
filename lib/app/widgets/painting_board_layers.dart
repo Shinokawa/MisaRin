@@ -498,7 +498,7 @@ mixin _PaintingBoardLayerMixin
         onPressed: () => _handleLayerLockToggle(layer),
       ),
       MenuFlyoutItem(
-        leading: const Icon(FluentIcons.combine),
+        leading: const Icon(FluentIcons.download),
         text: const Text('向下合并'),
         onPressed: canMerge ? () => _handleMergeLayerDown(layer) : null,
       ),
@@ -1169,6 +1169,7 @@ mixin _PaintingBoardLayerMixin
                     )!;
 
                     final bool layerLocked = layer.locked;
+                    final bool canMergeDown = _canMergeLayerDown(layer);
                     final bool layerClipping = layer.clippingMask;
                     final bool showTileButtons = !isSai2Layout;
                     _ensureLayerPreview(layer);
@@ -1259,27 +1260,77 @@ mixin _PaintingBoardLayerMixin
                         ],
                       );
                     } else {
-                      final List<Widget> trailingButtons = <Widget>[];
-                      void addTrailingButton(Widget widget) {
-                        if (trailingButtons.isNotEmpty) {
-                          trailingButtons.add(const SizedBox(width: 4));
+                      final List<Widget> topRowButtons = <Widget>[];
+                      void addTopButton(Widget widget) {
+                        if (topRowButtons.isNotEmpty) {
+                          topRowButtons.add(const SizedBox(width: 4));
                         }
-                        trailingButtons.add(widget);
+                        topRowButtons.add(widget);
                       }
 
                       if (clippingButton != null) {
-                        addTrailingButton(clippingButton);
+                        addTopButton(clippingButton);
                       }
                       if (lockButton != null) {
-                        addTrailingButton(lockButton);
+                        addTopButton(lockButton);
                       }
-                      addTrailingButton(deleteButton);
-                      if (trailingButtons.isNotEmpty) {
-                        trailingWidget = Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: trailingButtons,
+                      addTopButton(deleteButton);
+
+                      Widget wrapIconButton({
+                        required Widget child,
+                        required String tooltip,
+                      }) {
+                        return Tooltip(
+                          message: tooltip,
+                          child: child,
                         );
                       }
+
+                      final Widget mergeButton = wrapIconButton(
+                        tooltip: '向下合并',
+                          child: IconButton(
+                            icon: const Icon(FluentIcons.download),
+                          onPressed: canMergeDown
+                              ? () => _handleMergeLayerDown(layer)
+                              : null,
+                        ),
+                      );
+                      final Widget duplicateButton = wrapIconButton(
+                        tooltip: '复制图层',
+                        child: IconButton(
+                          icon: const Icon(FluentIcons.copy),
+                          onPressed: () => _handleDuplicateLayer(layer),
+                        ),
+                      );
+                      final Widget placeholderButton = wrapIconButton(
+                        tooltip: '更多',
+                        child: const IconButton(
+                          icon: Icon(FluentIcons.more),
+                          onPressed: null,
+                        ),
+                      );
+
+                      trailingWidget = Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: topRowButtons,
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              mergeButton,
+                              const SizedBox(width: 4),
+                              duplicateButton,
+                              const SizedBox(width: 4),
+                              placeholderButton,
+                            ],
+                          ),
+                        ],
+                      );
                     }
                     return material.ReorderableDragStartListener(
                       key: ValueKey(layer.id),
