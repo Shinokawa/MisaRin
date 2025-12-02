@@ -8,6 +8,12 @@ import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import 'project_document.dart';
 
+const int _kUint32Bits = 32;
+const int _kUint32Mask = 0xFFFFFFFF;
+const int _kInt64SignBit = 0x80000000;
+final BigInt _kBigUint64 = BigInt.one << 64;
+final BigInt _kBigUint32Mask = BigInt.from(_kUint32Mask);
+
 /// `.rin` 二进制编解码器（v6，向后兼容 v4）
 ///
 /// 结构参考 PSD 分块思路：头部 + 文档元数据 + 图层块 + 预览块。
@@ -329,8 +335,13 @@ class _ByteWriter {
   }
 
   void writeInt64(int value) {
+    // Web 端 ByteData 不支持 Int64 accessor，手动拆分成两个 Uint32。
+    final BigInt unsignedValue = _intToUnsignedBigInt64(value);
+    final int high = (unsignedValue >> _kUint32Bits).toInt();
+    final int low = (unsignedValue & _kBigUint32Mask).toInt();
     final ByteData data = ByteData(8);
-    data.setInt64(0, value, Endian.big);
+    data.setUint32(0, high, Endian.big);
+    data.setUint32(4, low, Endian.big);
     _builder.add(data.buffer.asUint8List());
   }
 
@@ -402,7 +413,9 @@ class _ByteReader {
   int readInt64() {
     final ByteData data = ByteData.sublistView(_bytes, _offset, _offset + 8);
     _offset += 8;
-    return data.getInt64(0, Endian.big);
+    final int high = data.getUint32(0, Endian.big);
+    final int low = data.getUint32(4, Endian.big);
+    return _composeSignedInt64(high, low);
   }
 
   double readFloat32() {
@@ -442,4 +455,21 @@ class _ByteReader {
       throw const FormatException('项目文件结构不完整');
     }
   }
+}
+
+BigInt _intToUnsignedBigInt64(int value) {
+  BigInt bigValue = BigInt.from(value);
+  if (bigValue.isNegative) {
+    bigValue += _kBigUint64;
+  }
+  return bigValue;
+}
+
+int _composeSignedInt64(int high, int low) {
+  BigInt value =
+      (BigInt.from(high) << _kUint32Bits) | BigInt.from(low);
+  if (high >= _kInt64SignBit) {
+    value -= _kBigUint64;
+  }
+  return value.toInt();
 }
