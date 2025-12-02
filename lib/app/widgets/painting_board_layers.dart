@@ -1,7 +1,7 @@
 part of 'painting_board.dart';
 
 const int _layerPreviewRasterHeight = 128;
-const double _layerPreviewDisplayHeight = 32;
+const double _layerPreviewDisplayHeight = 28;
 const double _layerPreviewAspectRatio = 16 / 9;
 const double _layerPreviewDisplayWidth =
     _layerPreviewDisplayHeight * _layerPreviewAspectRatio;
@@ -1181,17 +1181,13 @@ mixin _PaintingBoardLayerMixin
                     );
                     Widget leadingButtons = visibilityButton;
                     if (isSai2Layout) {
-                      leadingButtons = Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          visibilityButton,
-                          const SizedBox(height: 4),
-                          _LayerClippingToggleButton(
-                            active: layerClipping,
-                            enabled: !layerLocked,
-                            onPressed: () => _handleLayerClippingToggle(layer),
-                          ),
-                        ],
+                      leadingButtons = _LayerSidebarButtons(
+                        primary: visibilityButton,
+                        secondary: _LayerClippingToggleButton(
+                          active: layerClipping,
+                          enabled: !layerLocked,
+                          onPressed: () => _handleLayerClippingToggle(layer),
+                        ),
                       );
                     }
 
@@ -1454,13 +1450,9 @@ mixin _PaintingBoardLayerMixin
                         onPressed: () => _handleLayerLockToggle(layer),
                       ),
                     );
-                    final Widget actionButtons = Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        deleteButton,
-                        const SizedBox(height: 4),
-                        lockButton,
-                      ],
+                    final Widget actionButtons = _LayerSidebarButtons(
+                      primary: deleteButton,
+                      secondary: lockButton,
                     );
                     _ensureLayerPreview(layer);
                     final ui.Image? layerPreview = _layerPreviewImage(layer.id);
@@ -1699,6 +1691,32 @@ class _LayerNameView extends StatelessWidget {
       maxLines: 1,
     )..layout();
     return painter.width;
+  }
+}
+
+class _LayerSidebarButtons extends StatelessWidget {
+  const _LayerSidebarButtons({
+    required this.primary,
+    required this.secondary,
+  });
+
+  final Widget primary;
+  final Widget secondary;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          primary,
+          const SizedBox(height: 6),
+          secondary,
+        ],
+      ),
+    );
   }
 }
 
