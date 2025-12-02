@@ -1,6 +1,9 @@
 part of 'painting_board.dart';
 
-const double _layerPreviewHeight = 32;
+const int _layerPreviewRasterHeight = 128;
+const double _layerPreviewDisplayHeight = 32;
+const EdgeInsets _layerPreviewPadding =
+    EdgeInsets.symmetric(horizontal: 4, vertical: 4);
 
 mixin _PaintingBoardLayerMixin
     on _PaintingBoardBase, _PaintingBoardLayerTransformMixin {
@@ -1048,8 +1051,7 @@ mixin _PaintingBoardLayerMixin
     if (width <= 0 || height <= 0) {
       return null;
     }
-    final int maxHeight = _layerPreviewHeight.round();
-    final int targetHeight = math.min(maxHeight, height);
+    final int targetHeight = math.min(_layerPreviewRasterHeight, height);
     final double scale = targetHeight / height;
     final int targetWidth = math.max(1, (width * scale).round());
     if (targetWidth <= 0 || targetHeight <= 0) {
@@ -1647,84 +1649,59 @@ class _LayerPreviewThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color border =
-        theme.resources.controlStrokeColorDefault.withOpacity(0.6);
-    final Color lightSquare = theme.brightness.isDark
-        ? const Color(0xFF333333)
-        : const Color(0xFFF6F6F6);
-    final Color darkSquare = theme.brightness.isDark
-        ? const Color(0xFF252525)
-        : const Color(0xFFE0E0E0);
-    final Widget background = CustomPaint(
-      painter: _TransparencyGridPainter(
-        light: lightSquare,
-        dark: darkSquare,
-      ),
-    );
-    final Widget foreground = image == null
-        ? Center(
-            child: Icon(
-              FluentIcons.picture,
-              size: 12,
-              color: theme.resources.textFillColorTertiary,
+    final BorderRadius radius = BorderRadius.circular(6);
+    return ClipRRect(
+      borderRadius: radius,
+      child: SizedBox(
+        height: _layerPreviewDisplayHeight,
+        child: ColoredBox(
+          color: Colors.white,
+          child: Padding(
+            padding: _layerPreviewPadding,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (image == null) {
+                  return Center(
+                    child: Icon(
+                      FluentIcons.picture,
+                      size: 12,
+                      color: theme.resources.textFillColorTertiary,
+                    ),
+                  );
+                }
+                final double aspectRatio =
+                    image!.width.toDouble() / image!.height.toDouble();
+                final double maxHeight = math.max(
+                  4.0,
+                  _layerPreviewDisplayHeight - _layerPreviewPadding.vertical,
+                );
+                final double maxWidth = constraints.maxWidth.isFinite
+                    ? constraints.maxWidth
+                    : aspectRatio * maxHeight;
+                double displayWidth = aspectRatio * maxHeight;
+                double displayHeight = maxHeight;
+                if (displayWidth > maxWidth && maxWidth > 0) {
+                  final double scale = maxWidth / displayWidth;
+                  displayWidth *= scale;
+                  displayHeight *= scale;
+                }
+                return Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: displayWidth,
+                    height: displayHeight,
+                    child: RawImage(
+                      image: image,
+                      filterQuality: ui.FilterQuality.none,
+                    ),
+                  ),
+                );
+              },
             ),
-          )
-        : RawImage(
-            image: image,
-            fit: BoxFit.cover,
-            filterQuality: ui.FilterQuality.low,
-          );
-    return Container(
-      height: _layerPreviewHeight,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: border, width: 0.8),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          background,
-          foreground,
-        ],
+          ),
+        ),
       ),
     );
-  }
-}
-
-class _TransparencyGridPainter extends CustomPainter {
-  const _TransparencyGridPainter({
-    required this.light,
-    required this.dark,
-  });
-
-  final Color light;
-  final Color dark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const double cellSize = 6;
-    final Paint lightPaint = Paint()..color = light;
-    final Paint darkPaint = Paint()..color = dark;
-    bool darkRow = false;
-    for (double y = 0; y < size.height; y += cellSize) {
-      bool darkCell = darkRow;
-      final double nextY = math.min(size.height, y + cellSize);
-      for (double x = 0; x < size.width; x += cellSize) {
-        final double nextX = math.min(size.width, x + cellSize);
-        canvas.drawRect(
-          Rect.fromLTRB(x, y, nextX, nextY),
-          darkCell ? darkPaint : lightPaint,
-        );
-        darkCell = !darkCell;
-      }
-      darkRow = !darkRow;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _TransparencyGridPainter oldDelegate) {
-    return oldDelegate.light != light || oldDelegate.dark != dark;
   }
 }
 
