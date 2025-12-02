@@ -324,6 +324,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
   double _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
 
+  bool get _includeHistoryOnToolbar => false;
+
+  int get _toolbarButtonCount => CanvasToolbar.buttonCount +
+      (_includeHistoryOnToolbar ? CanvasToolbar.historyButtonCount : 0);
+
   bool _isInsidePaletteCardArea(Offset workspacePosition) {
     for (final _PaletteCardEntry entry in _paletteCards) {
       final Size size = entry.size ?? const Size(_paletteCardWidth, 180.0);
@@ -649,9 +654,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       }
       setState(() {
         _workspaceSize = size;
+        final double reservedColorSpace =
+            _colorIndicatorSize + CanvasToolbar.spacing;
         _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
-          _workspaceSize.height - _toolButtonPadding * 2,
+          _workspaceSize.height - _toolButtonPadding * 2 - reservedColorSpace,
+          toolCount: _toolbarButtonCount,
         );
+        _layoutMetrics = null;
         if (!_viewportInitialized) {
           // 仍需初始化视口，下一帧会根据新尺寸完成初始化
         }
@@ -674,6 +683,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       toolButtonPadding: _toolButtonPadding,
       toolSettingsSpacing: _toolSettingsSpacing,
       sidePanelWidth: _sidePanelWidth,
+      colorIndicatorSize: _colorIndicatorSize,
+      toolbarButtonCount: _toolbarButtonCount,
     );
     final Future<BoardLayoutMetrics> task = _layoutWorkerInstance().compute(
       input,
@@ -692,6 +703,66 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         .catchError((Object error, StackTrace stackTrace) {
           debugPrint('Layout worker failed: $error');
         });
+  }
+
+  void _applyToolbarLayout(CanvasToolbarLayout layout) {
+    if (_toolbarLayout.columns == layout.columns &&
+        (_toolbarLayout.height - layout.height).abs() < 0.5 &&
+        (_toolbarLayout.width - layout.width).abs() < 0.5) {
+      return;
+    }
+    setState(() {
+      _toolbarLayout = layout;
+      _layoutMetrics = null;
+      _scheduleLayoutMetricsUpdate();
+    });
+  }
+
+  void _ensureToolbarDoesNotOverlapColorIndicator() {
+    if (_toolbarHitRegions.length < 3) {
+      return;
+    }
+    final Rect toolbarRect = _toolbarHitRegions[0];
+    final Rect colorRect = _toolbarHitRegions[2];
+    final double gap = colorRect.top - toolbarRect.bottom;
+    final double fullAvailableHeight =
+        _workspaceSize.height -
+        _toolButtonPadding * 2 -
+        _colorIndicatorSize;
+    final double safeAvailableHeight =
+        fullAvailableHeight - CanvasToolbar.spacing;
+    if (!safeAvailableHeight.isFinite || safeAvailableHeight <= 0) {
+      return;
+    }
+    if (gap >= CanvasToolbar.spacing) {
+      if (_toolbarLayout.isMultiColumn) {
+        final CanvasToolbarLayout candidate =
+            CanvasToolbar.layoutForAvailableHeight(
+          safeAvailableHeight,
+          toolCount: _toolbarButtonCount,
+        );
+        if (candidate.columns == 1) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              return;
+            }
+            _applyToolbarLayout(candidate);
+          });
+        }
+      }
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final CanvasToolbarLayout wrappedLayout =
+          CanvasToolbar.layoutForAvailableHeight(
+        safeAvailableHeight,
+        toolCount: _toolbarButtonCount,
+      );
+      _applyToolbarLayout(wrappedLayout);
+    });
   }
 
   CanvasToolbarLayout _resolveToolbarLayoutForStyle(
@@ -725,6 +796,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       height: height,
       buttonExtent: buttonExtent,
       horizontalFlow: true,
+      flowDirection: Axis.horizontal,
     );
   }
 

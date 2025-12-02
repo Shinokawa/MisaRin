@@ -10,6 +10,8 @@ class BoardLayoutInput {
     required this.toolButtonPadding,
     required this.toolSettingsSpacing,
     required this.sidePanelWidth,
+    required this.colorIndicatorSize,
+    required this.toolbarButtonCount,
   });
 
   final double workspaceWidth;
@@ -17,6 +19,8 @@ class BoardLayoutInput {
   final double toolButtonPadding;
   final double toolSettingsSpacing;
   final double sidePanelWidth;
+  final double colorIndicatorSize;
+  final int toolbarButtonCount;
 }
 
 class BoardLayoutMetrics {
@@ -70,6 +74,8 @@ class BoardLayoutWorker {
       'toolButtonPadding': input.toolButtonPadding,
       'toolSettingsSpacing': input.toolSettingsSpacing,
       'sidePanelWidth': input.sidePanelWidth,
+      'colorIndicatorSize': input.colorIndicatorSize,
+      'toolbarButtonCount': input.toolbarButtonCount,
     });
     final CanvasToolbarLayout layout = CanvasToolbarLayout(
       columns: response['columns'] as int? ?? 1,
@@ -178,9 +184,18 @@ Map<String, Object?> _computeLayoutResponse(Map<String, Object?> request) {
       (request['toolSettingsSpacing'] as num? ?? 0).toDouble();
   final double sidePanelWidth = (request['sidePanelWidth'] as num? ?? 0)
       .toDouble();
-  final double availableToolbarHeight = workspaceHeight - toolButtonPadding * 2;
+  final double colorIndicatorSize = (request['colorIndicatorSize'] as num? ?? 0)
+      .toDouble();
+  final int toolbarButtonCount =
+      (request['toolbarButtonCount'] as int? ?? CanvasToolbar.buttonCount);
+  final double reservedColorSpace = colorIndicatorSize > 0
+      ? colorIndicatorSize + CanvasToolbar.spacing
+      : 0;
+  final double availableToolbarHeight =
+      workspaceHeight - toolButtonPadding * 2 - reservedColorSpace;
   final CanvasToolbarLayout layout = CanvasToolbar.layoutForAvailableHeight(
     availableToolbarHeight,
+    toolCount: toolbarButtonCount <= 0 ? 1 : toolbarButtonCount,
   );
   final double toolSettingsLeft =
       toolButtonPadding + layout.width + toolSettingsSpacing;

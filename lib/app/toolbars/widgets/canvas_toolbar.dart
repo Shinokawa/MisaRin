@@ -50,34 +50,59 @@ class CanvasToolbar extends StatelessWidget {
   static const double buttonSize = 48;
   static const double spacing = 9;
 
-  static CanvasToolbarLayout layoutForAvailableHeight(double availableHeight) {
+  static CanvasToolbarLayout layoutForAvailableHeight(
+    double availableHeight, {
+    int toolCount = buttonCount,
+  }) {
+    final int clampedToolCount = math.max(1, toolCount);
     final double effectiveHeight = availableHeight.isFinite
         ? math.max(0, availableHeight)
         : double.infinity;
 
     final double singleColumnHeight =
-        buttonSize * buttonCount + spacing * (buttonCount - 1);
-    if (effectiveHeight >= singleColumnHeight) {
+        buttonSize * clampedToolCount + spacing * (clampedToolCount - 1);
+    if (effectiveHeight == double.infinity ||
+        effectiveHeight >= singleColumnHeight) {
       return CanvasToolbarLayout(
         columns: 1,
-        rows: buttonCount,
+        rows: clampedToolCount,
         width: buttonSize,
         height: singleColumnHeight,
         buttonExtent: buttonSize,
       );
     }
 
-    const int columns = 2;
-    final int rows = (buttonCount / columns).ceil();
-    final double height = rows * buttonSize + spacing * (rows - 1);
+    if (effectiveHeight <= buttonSize) {
+      final double width =
+          buttonSize * clampedToolCount + spacing * (clampedToolCount - 1);
+      return CanvasToolbarLayout(
+        columns: clampedToolCount,
+        rows: 1,
+        width: width,
+        height: buttonSize,
+        buttonExtent: buttonSize,
+        horizontalFlow: true,
+        flowDirection: Axis.horizontal,
+      );
+    }
+
+    final int itemsPerColumn = math.max(
+      1,
+      ((effectiveHeight + spacing) / (buttonSize + spacing)).floor(),
+    );
+    final int columns = (clampedToolCount / itemsPerColumn).ceil();
+    final double height =
+        itemsPerColumn * buttonSize + spacing * (itemsPerColumn - 1);
     final double width = columns * buttonSize + spacing * (columns - 1);
 
     return CanvasToolbarLayout(
       columns: columns,
-      rows: rows,
+      rows: itemsPerColumn,
       width: width,
       height: height,
       buttonExtent: buttonSize,
+      horizontalFlow: true,
+      flowDirection: Axis.vertical,
     );
   }
 
@@ -326,6 +351,7 @@ class CanvasToolbar extends StatelessWidget {
       child: Align(
         alignment: Alignment.topLeft,
         child: Wrap(
+          direction: layout.flowDirection,
           spacing: spacing,
           runSpacing: spacing,
           children: wrappedItems,
@@ -343,6 +369,7 @@ class CanvasToolbarLayout {
     required this.height,
     this.buttonExtent = CanvasToolbar.buttonSize,
     this.horizontalFlow = false,
+    this.flowDirection = Axis.horizontal,
   });
 
   final int columns;
@@ -351,6 +378,7 @@ class CanvasToolbarLayout {
   final double height;
   final double buttonExtent;
   final bool horizontalFlow;
+  final Axis flowDirection;
 
   bool get isMultiColumn => columns > 1;
 }

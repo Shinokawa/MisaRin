@@ -224,7 +224,7 @@ mixin _PaintingBoardBuildMixin
             widget.toolbarLayoutStyle;
         final bool isSai2Layout =
             toolbarStyle == PaintingToolbarLayoutStyle.sai2;
-        const bool includeHistoryOnToolbar = false;
+        final bool includeHistoryOnToolbar = _includeHistoryOnToolbar;
         final CanvasToolbarLayout activeToolbarLayout =
             _resolveToolbarLayoutForStyle(
               toolbarStyle,
@@ -353,6 +353,7 @@ mixin _PaintingBoardBuildMixin
               toolbarMetrics,
             );
         _toolbarHitRegions = toolbarLayoutResult.hitRegions;
+        _ensureToolbarDoesNotOverlapColorIndicator();
 
         return Shortcuts(
           shortcuts: shortcutBindings,
