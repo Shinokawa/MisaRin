@@ -88,6 +88,8 @@ mixin _PaintingBoardFilterMixin
   int _previewHueSaturationUpdateToken = 0;
   bool _filterApplying = false;
   Completer<_FilterPreviewResult>? _filterApplyCompleter;
+  bool _filterAwaitingFrameSwap = false;
+  int? _filterAwaitedFrameGeneration;
 
   void showHueSaturationAdjustments() {
     _openFilterPanel(_FilterPanelType.hueSaturation);
@@ -643,13 +645,44 @@ mixin _PaintingBoardFilterMixin
     final CanvasLayerData adjusted =
         _buildAdjustedLayerFromResult(original, result);
     await _pushUndoSnapshot();
+    final int? awaitedGeneration = _controller.frame?.generation;
     _controller.replaceLayer(session.activeLayerId, adjusted);
     _controller.setActiveLayer(session.activeLayerId);
     _markDirty();
     setState(() {});
-    _removeFilterOverlay(restoreOriginal: false);
+    _scheduleFilterOverlayRemovalAfterApply(awaitedGeneration);
   }
 
+  void _scheduleFilterOverlayRemovalAfterApply(int? awaitedGeneration) {
+    if (awaitedGeneration == null) {
+      _removeFilterOverlay(restoreOriginal: false);
+      return;
+    }
+    _filterAwaitedFrameGeneration = awaitedGeneration;
+    _filterAwaitingFrameSwap = true;
+    _tryFinalizeFilterApplyAfterFrameChange();
+  }
+
+  void _tryFinalizeFilterApplyAfterFrameChange([BitmapCanvasFrame? frame]) {
+    if (!_filterAwaitingFrameSwap) {
+      return;
+    }
+    frame ??= _controller.frame;
+    if (frame == null) {
+      return;
+    }
+    final int? awaitedGeneration = _filterAwaitedFrameGeneration;
+    if (awaitedGeneration == null ||
+        frame.generation != awaitedGeneration) {
+      _filterAwaitingFrameSwap = false;
+      _filterAwaitedFrameGeneration = null;
+      _removeFilterOverlay(restoreOriginal: false);
+    }
+  }
+
+  void _handleFilterApplyFrameProgress(BitmapCanvasFrame? frame) {
+    _tryFinalizeFilterApplyAfterFrameChange(frame);
+  }
 
   bool _isFilterSessionIdentity(_FilterSession session) {
     switch (session.type) {
@@ -753,6 +786,8 @@ mixin _PaintingBoardFilterMixin
           .completeError(StateError('滤镜面板已关闭，操作被取消。'));
     }
     _filterApplyCompleter = null;
+    _filterAwaitingFrameSwap = false;
+    _filterAwaitedFrameGeneration = null;
     
     _previewBackground?.dispose();
     _previewBackground = null;

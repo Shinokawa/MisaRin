@@ -1955,17 +1955,18 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   void _handleControllerChanged() {
+    final BitmapCanvasFrame? frame = _controller.frame;
     final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
-    if (awaitedGeneration != null) {
-      final BitmapCanvasFrame? frame = _controller.frame;
-      if (frame != null && frame.generation != awaitedGeneration) {
-        if (_layerOpacityGestureActive) {
-          _layerOpacityPreviewAwaitedGeneration = null;
-        } else {
-          _layerOpacityPreviewDeactivate(this, notifyListeners: true);
-        }
+    if (awaitedGeneration != null &&
+        frame != null &&
+        frame.generation != awaitedGeneration) {
+      if (_layerOpacityGestureActive) {
+        _layerOpacityPreviewAwaitedGeneration = null;
+      } else {
+        _layerOpacityPreviewDeactivate(this, notifyListeners: true);
       }
     }
+    _handleFilterApplyFrameProgress(frame);
     final bool shouldClearVectorFillOverlay =
         _shapeVectorFillOverlayPath != null &&
         _controller.committingStrokes.isEmpty;
