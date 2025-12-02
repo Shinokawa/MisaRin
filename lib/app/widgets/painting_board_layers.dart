@@ -1671,7 +1671,6 @@ class _LayerPreviewThumbnail extends StatelessWidget {
           )
         : RawImage(
             image: image,
-            fit: BoxFit.cover,
             alignment: Alignment.center,
             filterQuality: ui.FilterQuality.none,
           );
@@ -1684,7 +1683,16 @@ class _LayerPreviewThumbnail extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             checkerBackground,
-            imageWidget,
+            if (image == null)
+              imageWidget
+            else
+              Center(
+                child: SizedBox(
+                  width: _scaledPreviewWidth(image!),
+                  height: _layerPreviewDisplayHeight,
+                  child: ClipRect(child: imageWidget),
+                ),
+              ),
           ],
         ),
       ),
@@ -1726,6 +1734,13 @@ class _TransparencyGridPainter extends CustomPainter {
   bool shouldRepaint(covariant _TransparencyGridPainter oldDelegate) {
     return oldDelegate.light != light || oldDelegate.dark != dark;
   }
+}
+
+double _scaledPreviewWidth(ui.Image image) {
+  final double height = _layerPreviewDisplayHeight;
+  final double sourceHeight = image.height.toDouble().clamp(1, double.infinity);
+  final double aspect = image.width.toDouble() / sourceHeight;
+  return aspect * height;
 }
 
 class _LayerPreviewPixels {
