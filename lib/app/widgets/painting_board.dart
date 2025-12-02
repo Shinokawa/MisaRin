@@ -225,7 +225,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
   bool _simulatePenPressure = false;
-  int _penAntialiasLevel = 0;
+  int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
   int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
@@ -315,7 +315,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset _layoutBaseOffset = Offset.zero;
   bool _workspaceMeasurementScheduled = false;
   final ScrollController _layerScrollController = ScrollController();
-  Color _primaryColor = const Color(0xFF000000);
+  Color _primaryColor = AppPreferences.defaultPrimaryColor;
   late HSVColor _primaryHsv;
   final List<Color> _recentColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
@@ -1704,6 +1704,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
     _brushShape = prefs.brushShape;
     _colorLineColor = prefs.colorLineColor;
+    _primaryColor = prefs.primaryColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _floatingColorPanelHeight = prefs.floatingColorPanelHeight;
     _sai2ColorPanelHeight = prefs.sai2ColorPanelHeight;

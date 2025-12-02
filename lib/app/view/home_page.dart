@@ -8,8 +8,27 @@ import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
 import '../widgets/app_notification.dart';
 
-class MisarinHomePage extends StatelessWidget {
+class MisarinHomePage extends StatefulWidget {
   const MisarinHomePage({super.key});
+
+  @override
+  State<MisarinHomePage> createState() => _MisarinHomePageState();
+}
+
+class _MisarinHomePageState extends State<MisarinHomePage> {
+  late final ScrollController _sidebarScrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _sidebarScrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _sidebarScrollController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleCreateProject(BuildContext context) async {
     await AppMenuActions.createProject(context);
@@ -138,8 +157,10 @@ class MisarinHomePage extends StatelessWidget {
           ],
         ),
         child: Scrollbar(
+          controller: _sidebarScrollController,
           thumbVisibility: true,
           child: SingleChildScrollView(
+            controller: _sidebarScrollController,
             physics: const ClampingScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

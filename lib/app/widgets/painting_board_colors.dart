@@ -103,6 +103,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
         _rememberColor(_primaryColor);
       }
     });
+    _persistPrimaryColor();
   }
 
   @override
@@ -114,6 +115,16 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
         _rememberColor(color);
       }
     });
+    _persistPrimaryColor();
+  }
+
+  void _persistPrimaryColor() {
+    final AppPreferences prefs = AppPreferences.instance;
+    if (prefs.primaryColor.value == _primaryColor.value) {
+      return;
+    }
+    prefs.primaryColor = _primaryColor;
+    unawaited(AppPreferences.save());
   }
 
   void _rememberCurrentPrimary() {
