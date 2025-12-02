@@ -20,6 +20,16 @@ class PsdImporter {
 
   Future<ProjectDocument> importFile(String path, {String? displayName}) async {
     final Uint8List data = await File(path).readAsBytes();
+    return importBytes(
+      data,
+      displayName: displayName ?? _nameFromPath(path),
+    );
+  }
+
+  Future<ProjectDocument> importBytes(
+    Uint8List data, {
+    String? displayName,
+  }) async {
     final _ByteReader reader = _ByteReader(data);
 
     final _PsdHeader header = _readHeader(reader);
@@ -40,7 +50,7 @@ class PsdImporter {
 
     final ProjectDocument base = ProjectDocument.newProject(
       settings: settings,
-      name: displayName ?? _nameFromPath(path),
+      name: displayName ?? 'PSD 项目',
     );
 
     final List<CanvasLayerData> canvasLayers = <CanvasLayerData>[];

@@ -9,7 +9,13 @@ import 'dart:ui' as ui;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/foundation.dart'
-    show debugPrint, defaultTargetPlatform, TargetPlatform;
+    show
+        ValueChanged,
+        compute,
+        debugPrint,
+        defaultTargetPlatform,
+        TargetPlatform,
+        kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -40,6 +46,7 @@ import 'package:flutter/scheduler.dart'
     show SchedulerBinding, Ticker, TickerProvider, TickerProviderStateMixin;
 import 'package:flutter/widgets.dart'
     show
+        CustomPaint,
         EditableText,
         FocusNode,
         SingleChildRenderObjectWidget,
@@ -79,6 +86,8 @@ import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
 import '../utils/color_filter_generator.dart';
 import '../palette/palette_exporter.dart';
+import '../utils/web_file_dialog.dart';
+import '../utils/web_file_saver.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 import '../../backend/layout_compute_worker.dart';
@@ -88,6 +97,8 @@ import '../../performance/stroke_latency_monitor.dart';
 import '../workspace/workspace_shared_state.dart';
 
 part 'painting_board_layers.dart';
+part 'painting_board_layers_panel.dart';
+part 'painting_board_layer_widgets.dart';
 part 'painting_board_colors.dart';
 part 'painting_board_palette.dart';
 part 'painting_board_marching_ants.dart';
@@ -178,6 +189,7 @@ class PaintingBoard extends StatefulWidget {
     this.externalCanRedo = false,
     this.onResizeImage,
     this.onResizeCanvas,
+    this.onReadyChanged,
     this.toolbarLayoutStyle = PaintingToolbarLayoutStyle.floating,
   });
 
@@ -191,6 +203,7 @@ class PaintingBoard extends StatefulWidget {
   final bool externalCanRedo;
   final Future<void> Function()? onResizeImage;
   final Future<void> Function()? onResizeCanvas;
+  final ValueChanged<bool>? onReadyChanged;
   final PaintingToolbarLayoutStyle toolbarLayoutStyle;
 
   @override
@@ -200,6 +213,7 @@ class PaintingBoard extends StatefulWidget {
 abstract class _PaintingBoardBase extends State<PaintingBoard> {
   late BitmapCanvasController _controller;
   final FocusNode _focusNode = FocusNode();
+  bool _boardReadyNotified = false;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -214,7 +228,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
   bool _simulatePenPressure = false;
-  int _penAntialiasLevel = 0;
+  int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
   int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
@@ -244,6 +258,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   ui.Image? _layerOpacityPreviewBackground;
   ui.Image? _layerOpacityPreviewActiveLayerImage;
   ui.Image? _layerOpacityPreviewForeground;
+  final Map<String, _LayerPreviewCacheEntry> _layerPreviewCache =
+      <String, _LayerPreviewCacheEntry>{};
+  int _layerPreviewRequestSerial = 0;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
   Offset? _layerDragStart;
@@ -304,7 +321,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset _layoutBaseOffset = Offset.zero;
   bool _workspaceMeasurementScheduled = false;
   final ScrollController _layerScrollController = ScrollController();
-  Color _primaryColor = const Color(0xFF000000);
+  Color _primaryColor = AppPreferences.defaultPrimaryColor;
   late HSVColor _primaryHsv;
   final List<Color> _recentColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
@@ -321,6 +338,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double? _sai2ColorPanelMeasuredHeight;
   double _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
   double _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
+
+  bool get _includeHistoryOnToolbar => false;
+
+  int get _toolbarButtonCount => CanvasToolbar.buttonCount +
+      (_includeHistoryOnToolbar ? CanvasToolbar.historyButtonCount : 0);
 
   bool _isInsidePaletteCardArea(Offset workspacePosition) {
     for (final _PaletteCardEntry entry in _paletteCards) {
@@ -647,9 +669,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       }
       setState(() {
         _workspaceSize = size;
+        final double reservedColorSpace =
+            _colorIndicatorSize + CanvasToolbar.spacing;
         _toolbarLayout = CanvasToolbar.layoutForAvailableHeight(
-          _workspaceSize.height - _toolButtonPadding * 2,
+          _workspaceSize.height - _toolButtonPadding * 2 - reservedColorSpace,
+          toolCount: _toolbarButtonCount,
         );
+        _layoutMetrics = null;
         if (!_viewportInitialized) {
           // 仍需初始化视口，下一帧会根据新尺寸完成初始化
         }
@@ -672,6 +698,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       toolButtonPadding: _toolButtonPadding,
       toolSettingsSpacing: _toolSettingsSpacing,
       sidePanelWidth: _sidePanelWidth,
+      colorIndicatorSize: _colorIndicatorSize,
+      toolbarButtonCount: _toolbarButtonCount,
     );
     final Future<BoardLayoutMetrics> task = _layoutWorkerInstance().compute(
       input,
@@ -690,6 +718,66 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         .catchError((Object error, StackTrace stackTrace) {
           debugPrint('Layout worker failed: $error');
         });
+  }
+
+  void _applyToolbarLayout(CanvasToolbarLayout layout) {
+    if (_toolbarLayout.columns == layout.columns &&
+        (_toolbarLayout.height - layout.height).abs() < 0.5 &&
+        (_toolbarLayout.width - layout.width).abs() < 0.5) {
+      return;
+    }
+    setState(() {
+      _toolbarLayout = layout;
+      _layoutMetrics = null;
+      _scheduleLayoutMetricsUpdate();
+    });
+  }
+
+  void _ensureToolbarDoesNotOverlapColorIndicator() {
+    if (_toolbarHitRegions.length < 3) {
+      return;
+    }
+    final Rect toolbarRect = _toolbarHitRegions[0];
+    final Rect colorRect = _toolbarHitRegions[2];
+    final double gap = colorRect.top - toolbarRect.bottom;
+    final double fullAvailableHeight =
+        _workspaceSize.height -
+        _toolButtonPadding * 2 -
+        _colorIndicatorSize;
+    final double safeAvailableHeight =
+        fullAvailableHeight - CanvasToolbar.spacing;
+    if (!safeAvailableHeight.isFinite || safeAvailableHeight <= 0) {
+      return;
+    }
+    if (gap >= CanvasToolbar.spacing) {
+      if (_toolbarLayout.isMultiColumn) {
+        final CanvasToolbarLayout candidate =
+            CanvasToolbar.layoutForAvailableHeight(
+          safeAvailableHeight,
+          toolCount: _toolbarButtonCount,
+        );
+        if (candidate.columns == 1) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              return;
+            }
+            _applyToolbarLayout(candidate);
+          });
+        }
+      }
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final CanvasToolbarLayout wrappedLayout =
+          CanvasToolbar.layoutForAvailableHeight(
+        safeAvailableHeight,
+        toolCount: _toolbarButtonCount,
+      );
+      _applyToolbarLayout(wrappedLayout);
+    });
   }
 
   CanvasToolbarLayout _resolveToolbarLayoutForStyle(
@@ -723,6 +811,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       height: height,
       buttonExtent: buttonExtent,
       horizontalFlow: true,
+      flowDirection: Axis.horizontal,
     );
   }
 
@@ -1621,6 +1710,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
     _brushShape = prefs.brushShape;
     _colorLineColor = prefs.colorLineColor;
+    _primaryColor = prefs.primaryColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
     _floatingColorPanelHeight = prefs.floatingColorPanelHeight;
     _sai2ColorPanelHeight = prefs.sai2ColorPanelHeight;
@@ -1640,6 +1730,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
+    _boardReadyNotified = _controller.frame != null;
+    if (_boardReadyNotified) {
+      widget.onReadyChanged?.call(true);
+    }
     _resetHistory();
   }
 
@@ -1651,6 +1745,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
     _layerOpacityPreviewReset(this);
+    _disposeLayerPreviewCache();
     _layerScrollController.dispose();
     _layerContextMenuController.dispose();
     _blendModeFlyoutController.dispose();
@@ -1671,6 +1766,8 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   bool get isPixelGridVisible => _pixelGridVisible;
+
+  bool get isBoardReady => _controller.frame != null;
 
   void _handlePixelGridPreferenceChanged() {
     if (!mounted) {
@@ -1849,6 +1946,10 @@ class PaintingBoardState extends _PaintingBoardBase
       _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
+      _boardReadyNotified = _controller.frame != null;
+      if (_boardReadyNotified) {
+        widget.onReadyChanged?.call(true);
+      }
       _resetHistory();
       setState(() {
         if (sizeChanged) {
@@ -1862,17 +1963,18 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   void _handleControllerChanged() {
+    final BitmapCanvasFrame? frame = _controller.frame;
     final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
-    if (awaitedGeneration != null) {
-      final BitmapCanvasFrame? frame = _controller.frame;
-      if (frame != null && frame.generation != awaitedGeneration) {
-        if (_layerOpacityGestureActive) {
-          _layerOpacityPreviewAwaitedGeneration = null;
-        } else {
-          _layerOpacityPreviewDeactivate(this, notifyListeners: true);
-        }
+    if (awaitedGeneration != null &&
+        frame != null &&
+        frame.generation != awaitedGeneration) {
+      if (_layerOpacityGestureActive) {
+        _layerOpacityPreviewAwaitedGeneration = null;
+      } else {
+        _layerOpacityPreviewDeactivate(this, notifyListeners: true);
       }
     }
+    _handleFilterApplyFrameProgress(frame);
     final bool shouldClearVectorFillOverlay =
         _shapeVectorFillOverlayPath != null &&
         _controller.committingStrokes.isEmpty;
@@ -1891,6 +1993,18 @@ class PaintingBoardState extends _PaintingBoardBase
         _shapeVectorFillOverlayColor = null;
       }
     });
+    _notifyBoardReadyIfNeeded();
+  }
+
+  void _notifyBoardReadyIfNeeded() {
+    if (_boardReadyNotified) {
+      return;
+    }
+    if (_controller.frame == null) {
+      return;
+    }
+    _boardReadyNotified = true;
+    widget.onReadyChanged?.call(true);
   }
 
   WorkspaceOverlaySnapshot buildWorkspaceOverlaySnapshot() {

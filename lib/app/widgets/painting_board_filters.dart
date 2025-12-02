@@ -80,9 +80,16 @@ mixin _PaintingBoardFilterMixin
   bool _filterLoading = false;
   ui.Image? _previewBackground;
   ui.Image? _previewActiveLayerImage;
+  ui.Image? _previewFilteredActiveLayerImage;
   ui.Image? _previewForeground;
+  Uint8List? _previewActiveLayerPixels;
+  bool _previewHueSaturationUpdateScheduled = false;
+  bool _previewHueSaturationUpdateInFlight = false;
+  int _previewHueSaturationUpdateToken = 0;
   bool _filterApplying = false;
   Completer<_FilterPreviewResult>? _filterApplyCompleter;
+  bool _filterAwaitingFrameSwap = false;
+  int? _filterAwaitedFrameGeneration;
 
   void showHueSaturationAdjustments() {
     _openFilterPanel(_FilterPanelType.hueSaturation);
@@ -128,6 +135,12 @@ mixin _PaintingBoardFilterMixin
       activeLayerIndex: layerIndex,
       activeLayerId: activeLayerId,
     );
+    _previewFilteredActiveLayerImage?.dispose();
+    _previewFilteredActiveLayerImage = null;
+    _previewActiveLayerPixels = null;
+    _previewHueSaturationUpdateScheduled = false;
+    _previewHueSaturationUpdateInFlight = false;
+    _previewHueSaturationUpdateToken++;
 
     if (_filterPanelOffset == Offset.zero) {
       final Offset workspaceOffset = _workspacePanelSpawnOffset(
@@ -176,6 +189,120 @@ mixin _PaintingBoardFilterMixin
     _previewBackground = previews.background;
     _previewActiveLayerImage = previews.active;
     _previewForeground = previews.foreground;
+    _previewFilteredActiveLayerImage?.dispose();
+    _previewFilteredActiveLayerImage = null;
+    _previewActiveLayerPixels = null;
+    if (_previewActiveLayerImage != null) {
+      await _prepareActiveLayerPreviewPixels();
+    }
+    _previewHueSaturationUpdateToken++;
+    _previewHueSaturationUpdateScheduled = false;
+    _previewHueSaturationUpdateInFlight = false;
+    if (session.type == _FilterPanelType.hueSaturation) {
+      _scheduleHueSaturationPreviewImageUpdate();
+    }
+  }
+
+  Future<void> _prepareActiveLayerPreviewPixels() async {
+    final ui.Image? image = _previewActiveLayerImage;
+    if (image == null) {
+      _previewActiveLayerPixels = null;
+      return;
+    }
+    try {
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (byteData == null) {
+        _previewActiveLayerPixels = null;
+        return;
+      }
+      _previewActiveLayerPixels =
+          Uint8List.fromList(byteData.buffer.asUint8List());
+    } catch (error, stackTrace) {
+      debugPrint('Failed to prepare preview pixels: $error');
+      _previewActiveLayerPixels = null;
+    }
+  }
+
+  void _scheduleHueSaturationPreviewImageUpdate() {
+    if (_filterSession?.type != _FilterPanelType.hueSaturation) {
+      return;
+    }
+    if (_previewActiveLayerPixels == null || _previewActiveLayerImage == null) {
+      return;
+    }
+    _previewHueSaturationUpdateScheduled = true;
+    if (!_previewHueSaturationUpdateInFlight) {
+      unawaited(_runHueSaturationPreviewImageUpdate());
+    }
+  }
+
+  Future<void> _runHueSaturationPreviewImageUpdate() async {
+    if (_previewHueSaturationUpdateInFlight) {
+      return;
+    }
+    _previewHueSaturationUpdateInFlight = true;
+    while (_previewHueSaturationUpdateScheduled) {
+      _previewHueSaturationUpdateScheduled = false;
+      final _FilterSession? session = _filterSession;
+      final ui.Image? baseImage = _previewActiveLayerImage;
+      final Uint8List? source = _previewActiveLayerPixels;
+      if (session == null ||
+          session.type != _FilterPanelType.hueSaturation ||
+          baseImage == null ||
+          source == null) {
+        break;
+      }
+      final _HueSaturationSettings settings = session.hueSaturation;
+      final bool isIdentity =
+          settings.hue == 0 &&
+          settings.saturation == 0 &&
+          settings.lightness == 0;
+      if (isIdentity) {
+        if (_previewFilteredActiveLayerImage != null) {
+          setState(() {
+            _previewFilteredActiveLayerImage?.dispose();
+            _previewFilteredActiveLayerImage = null;
+          });
+        }
+        continue;
+      }
+      final int token = ++_previewHueSaturationUpdateToken;
+      final List<Object?> args = <Object?>[
+        source,
+        settings.hue,
+        settings.saturation,
+        settings.lightness,
+      ];
+      Uint8List processed;
+      try {
+        processed = await _generateHueSaturationPreviewBytes(args);
+      } catch (error, stackTrace) {
+        debugPrint('Failed to compute hue preview: $error');
+        break;
+      }
+      if (!mounted || token != _previewHueSaturationUpdateToken) {
+        break;
+      }
+      final ui.Image image =
+          await _decodeImage(processed, baseImage.width, baseImage.height);
+      if (!mounted || token != _previewHueSaturationUpdateToken) {
+        image.dispose();
+        break;
+      }
+      if (!mounted) {
+        image.dispose();
+        break;
+      }
+      setState(() {
+        _previewFilteredActiveLayerImage?.dispose();
+        _previewFilteredActiveLayerImage = image;
+      });
+    }
+    _previewHueSaturationUpdateInFlight = false;
+    if (_previewHueSaturationUpdateScheduled) {
+      unawaited(_runHueSaturationPreviewImageUpdate());
+    }
   }
 
   List<double>? _calculateCurrentFilterMatrix() {
@@ -373,6 +500,7 @@ mixin _PaintingBoardFilterMixin
     session.gaussianBlur.radius = 0;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _scheduleHueSaturationPreviewImageUpdate();
   }
 
   void _updateHueSaturation({
@@ -390,6 +518,7 @@ mixin _PaintingBoardFilterMixin
       ..lightness = lightness ?? session.hueSaturation.lightness;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _scheduleHueSaturationPreviewImageUpdate();
   }
 
   void _updateBrightnessContrast({double? brightness, double? contrast}) {
@@ -516,13 +645,44 @@ mixin _PaintingBoardFilterMixin
     final CanvasLayerData adjusted =
         _buildAdjustedLayerFromResult(original, result);
     await _pushUndoSnapshot();
+    final int? awaitedGeneration = _controller.frame?.generation;
     _controller.replaceLayer(session.activeLayerId, adjusted);
     _controller.setActiveLayer(session.activeLayerId);
     _markDirty();
     setState(() {});
-    _removeFilterOverlay(restoreOriginal: false);
+    _scheduleFilterOverlayRemovalAfterApply(awaitedGeneration);
   }
 
+  void _scheduleFilterOverlayRemovalAfterApply(int? awaitedGeneration) {
+    if (awaitedGeneration == null) {
+      _removeFilterOverlay(restoreOriginal: false);
+      return;
+    }
+    _filterAwaitedFrameGeneration = awaitedGeneration;
+    _filterAwaitingFrameSwap = true;
+    _tryFinalizeFilterApplyAfterFrameChange();
+  }
+
+  void _tryFinalizeFilterApplyAfterFrameChange([BitmapCanvasFrame? frame]) {
+    if (!_filterAwaitingFrameSwap) {
+      return;
+    }
+    frame ??= _controller.frame;
+    if (frame == null) {
+      return;
+    }
+    final int? awaitedGeneration = _filterAwaitedFrameGeneration;
+    if (awaitedGeneration == null ||
+        frame.generation != awaitedGeneration) {
+      _filterAwaitingFrameSwap = false;
+      _filterAwaitedFrameGeneration = null;
+      _removeFilterOverlay(restoreOriginal: false);
+    }
+  }
+
+  void _handleFilterApplyFrameProgress(BitmapCanvasFrame? frame) {
+    _tryFinalizeFilterApplyAfterFrameChange(frame);
+  }
 
   bool _isFilterSessionIdentity(_FilterSession session) {
     switch (session.type) {
@@ -626,13 +786,21 @@ mixin _PaintingBoardFilterMixin
           .completeError(StateError('滤镜面板已关闭，操作被取消。'));
     }
     _filterApplyCompleter = null;
+    _filterAwaitingFrameSwap = false;
+    _filterAwaitedFrameGeneration = null;
     
     _previewBackground?.dispose();
     _previewBackground = null;
     _previewActiveLayerImage?.dispose();
     _previewActiveLayerImage = null;
+    _previewFilteredActiveLayerImage?.dispose();
+    _previewFilteredActiveLayerImage = null;
     _previewForeground?.dispose();
     _previewForeground = null;
+    _previewActiveLayerPixels = null;
+    _previewHueSaturationUpdateScheduled = false;
+    _previewHueSaturationUpdateInFlight = false;
+    _previewHueSaturationUpdateToken++;
     _filterLoading = false;
     _filterApplying = false;
 
@@ -1143,9 +1311,18 @@ class _FilterPreviewWorker {
   SendPort? _sendPort;
   StreamSubscription<dynamic>? _subscription;
   final Completer<void> _readyCompleter = Completer<void>();
+  bool _useMainThreadPreview = false;
+  Uint8List? _baseBitmapSnapshot;
+  int? _baseFillColorValue;
+  int _baseBitmapWidth = 0;
+  int _baseBitmapHeight = 0;
   bool _disposed = false;
 
   Future<void> _start(CanvasLayerData layer) async {
+    if (kIsWeb) {
+      _initializeSynchronousLayer(layer);
+      return;
+    }
     final TransferableTypedData? bitmapData = layer.bitmap != null
         ? TransferableTypedData.fromList(<Uint8List>[layer.bitmap!])
         : null;
@@ -1205,12 +1382,35 @@ class _FilterPreviewWorker {
         _onError(error, stackTrace);
       },
     );
-    _isolate = await Isolate.spawn<List<Object?>>(
-      _filterPreviewWorkerMain,
-      <Object?>[port.sendPort, initData],
-      debugName: 'FilterPreviewWorker',
-      errorsAreFatal: false,
-    );
+    try {
+      _isolate = await Isolate.spawn<List<Object?>>(
+        _filterPreviewWorkerMain,
+        <Object?>[port.sendPort, initData],
+        debugName: 'FilterPreviewWorker',
+        errorsAreFatal: false,
+      );
+    } on Object catch (error, stackTrace) {
+      await _subscription?.cancel();
+      _subscription = null;
+      _receivePort = null;
+      port.close();
+      _isolate = null;
+      debugPrint('Filter preview worker isolate unavailable: $error');
+      _initializeSynchronousLayer(layer);
+    }
+  }
+
+  void _initializeSynchronousLayer(CanvasLayerData layer) {
+    _useMainThreadPreview = true;
+    _baseBitmapSnapshot = layer.bitmap != null
+        ? Uint8List.fromList(layer.bitmap!)
+        : null;
+    _baseFillColorValue = layer.fillColor?.value;
+    _baseBitmapWidth = layer.bitmapWidth ?? _canvasWidth;
+    _baseBitmapHeight = layer.bitmapHeight ?? _canvasHeight;
+    if (!_readyCompleter.isCompleted) {
+      _readyCompleter.complete();
+    }
   }
 
   Future<void> requestPreview({
@@ -1225,6 +1425,15 @@ class _FilterPreviewWorker {
     try {
       await _readyCompleter.future;
     } catch (_) {
+      return;
+    }
+    if (_useMainThreadPreview) {
+      _runPreviewSynchronously(
+        token: token,
+        hueSaturation: hueSaturation,
+        brightnessContrast: brightnessContrast,
+        blurRadius: blurRadius,
+      );
       return;
     }
     final SendPort? port = _sendPort;
@@ -1247,6 +1456,80 @@ class _FilterPreviewWorker {
     });
   }
 
+  void _runPreviewSynchronously({
+    required int token,
+    required _HueSaturationSettings hueSaturation,
+    required _BrightnessContrastSettings brightnessContrast,
+    required double blurRadius,
+  }) {
+    Uint8List? bitmap;
+    final Uint8List? source = _baseBitmapSnapshot;
+    if (source != null) {
+      bitmap = Uint8List.fromList(source);
+      if (_type == _FilterPanelType.hueSaturation) {
+        _filterApplyHueSaturationToBitmap(
+          bitmap,
+          hueSaturation.hue,
+          hueSaturation.saturation,
+          hueSaturation.lightness,
+        );
+      } else if (_type == _FilterPanelType.brightnessContrast) {
+        _filterApplyBrightnessContrastToBitmap(
+          bitmap,
+          brightnessContrast.brightness,
+          brightnessContrast.contrast,
+        );
+      } else if (_type == _FilterPanelType.gaussianBlur &&
+          blurRadius > 0 &&
+          _baseBitmapWidth > 0 &&
+          _baseBitmapHeight > 0) {
+        _filterApplyGaussianBlurToBitmap(
+          bitmap,
+          _baseBitmapWidth,
+          _baseBitmapHeight,
+          blurRadius,
+        );
+      }
+      if (bitmap != null && !_filterBitmapHasVisiblePixels(bitmap)) {
+        bitmap = null;
+      }
+    }
+    int? adjustedFill = _baseFillColorValue;
+    if (adjustedFill != null) {
+      final Color baseColor = Color(adjustedFill);
+      Color output = baseColor;
+      if (_type == _FilterPanelType.hueSaturation) {
+        output = _filterApplyHueSaturationToColor(
+          baseColor,
+          hueSaturation.hue,
+          hueSaturation.saturation,
+          hueSaturation.lightness,
+        );
+      } else if (_type == _FilterPanelType.brightnessContrast) {
+        output = _filterApplyBrightnessContrastToColor(
+          baseColor,
+          brightnessContrast.brightness,
+          brightnessContrast.contrast,
+        );
+      }
+      adjustedFill = output.value;
+    }
+    final _FilterPreviewResult result = _FilterPreviewResult(
+      token: token,
+      layerId: _layerId,
+      bitmapBytes: bitmap,
+      fillColor: adjustedFill,
+    );
+    if (_disposed) {
+      return;
+    }
+    scheduleMicrotask(() {
+      if (!_disposed) {
+        _onResult(result);
+      }
+    });
+  }
+
   void discardPendingResult() {}
 
   void dispose() {
@@ -1260,6 +1543,8 @@ class _FilterPreviewWorker {
     _receivePort?.close();
     _isolate?.kill(priority: Isolate.immediate);
     _sendPort = null;
+    _baseBitmapSnapshot = null;
+    _baseFillColorValue = null;
     if (!_readyCompleter.isCompleted) {
       _readyCompleter.complete();
     }
@@ -1271,8 +1556,10 @@ class _FilterPreviewResult {
     required this.token,
     required this.layerId,
     TransferableTypedData? bitmapData,
+    Uint8List? bitmapBytes,
     this.fillColor,
-  }) : _bitmapData = bitmapData;
+  })  : _bitmapData = bitmapData,
+        _bytes = bitmapBytes;
 
   final int token;
   final String layerId;
@@ -1415,6 +1702,37 @@ double _filterReadListValue(List<dynamic>? values, int index) {
   return 0.0;
 }
 
+Future<Uint8List> _generateHueSaturationPreviewBytes(
+  List<Object?> args,
+) async {
+  if (kIsWeb) {
+    return _computeHueSaturationPreviewPixels(args);
+  }
+  try {
+    return await compute<List<Object?>, Uint8List>(
+      _computeHueSaturationPreviewPixels,
+      args,
+    );
+  } on UnsupportedError catch (_) {
+    return _computeHueSaturationPreviewPixels(args);
+  }
+}
+
+Uint8List _computeHueSaturationPreviewPixels(List<Object?> args) {
+  final Uint8List source = args[0] as Uint8List;
+  final double hue = (args[1] as num).toDouble();
+  final double saturation = (args[2] as num).toDouble();
+  final double lightness = (args[3] as num).toDouble();
+  final Uint8List pixels = Uint8List.fromList(source);
+  _filterApplyHueSaturationToBitmap(
+    pixels,
+    hue,
+    saturation,
+    lightness,
+  );
+  return pixels;
+}
+
 void _filterApplyHueSaturationToBitmap(
   Uint8List bitmap,
   double hueDelta,
@@ -1541,6 +1859,14 @@ bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
   return false;
 }
 
+double _gaussianBlurSigmaForRadius(double radius) {
+  final double clampedRadius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
+  if (clampedRadius <= 0) {
+    return 0;
+  }
+  return math.max(0.1, clampedRadius * 0.5);
+}
+
 void _filterApplyGaussianBlurToBitmap(
   Uint8List bitmap,
   int width,
@@ -1550,13 +1876,14 @@ void _filterApplyGaussianBlurToBitmap(
   if (bitmap.isEmpty || width <= 0 || height <= 0) {
     return;
   }
-  final double clampedRadius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
-  if (clampedRadius <= 0) {
+  final double sigma = _gaussianBlurSigmaForRadius(radius);
+  if (sigma <= 0) {
     return;
   }
+  // 使用预乘 alpha 防止在透明区域被卷积时产生黑边。
+  _filterPremultiplyAlpha(bitmap);
   // Approximate a gaussian blur with three fast box blur passes so very large
   // radii (e.g. 1000px) stay responsive during preview.
-  final double sigma = math.max(0.1, clampedRadius * 0.5);
   final List<int> boxSizes = _filterComputeBoxSizes(sigma, 3);
   final Uint8List scratch = Uint8List(bitmap.length);
   for (final int boxSize in boxSizes) {
@@ -1581,6 +1908,7 @@ void _filterApplyGaussianBlurToBitmap(
       horizontal: false,
     );
   }
+  _filterUnpremultiplyAlpha(bitmap);
 }
 
 List<int> _filterComputeBoxSizes(double sigma, int boxCount) {
@@ -1686,6 +2014,51 @@ void _filterBoxBlurPass({
       sumA += source[addIndex + 3] - source[removeIndex + 3];
     }
   }
+}
+
+void _filterPremultiplyAlpha(Uint8List bitmap) {
+  for (int i = 0; i < bitmap.length; i += 4) {
+    final int alpha = bitmap[i + 3];
+    if (alpha == 0) {
+      bitmap[i] = 0;
+      bitmap[i + 1] = 0;
+      bitmap[i + 2] = 0;
+      continue;
+    }
+    bitmap[i] = _filterMultiplyChannelByAlpha(bitmap[i], alpha);
+    bitmap[i + 1] = _filterMultiplyChannelByAlpha(bitmap[i + 1], alpha);
+    bitmap[i + 2] = _filterMultiplyChannelByAlpha(bitmap[i + 2], alpha);
+  }
+}
+
+void _filterUnpremultiplyAlpha(Uint8List bitmap) {
+  for (int i = 0; i < bitmap.length; i += 4) {
+    final int alpha = bitmap[i + 3];
+    if (alpha == 0) {
+      bitmap[i] = 0;
+      bitmap[i + 1] = 0;
+      bitmap[i + 2] = 0;
+      continue;
+    }
+    bitmap[i] = _filterUnmultiplyChannelByAlpha(bitmap[i], alpha);
+    bitmap[i + 1] = _filterUnmultiplyChannelByAlpha(bitmap[i + 1], alpha);
+    bitmap[i + 2] = _filterUnmultiplyChannelByAlpha(bitmap[i + 2], alpha);
+  }
+}
+
+int _filterMultiplyChannelByAlpha(int channel, int alpha) {
+  return ((channel * alpha) + 127) ~/ 255;
+}
+
+int _filterUnmultiplyChannelByAlpha(int channel, int alpha) {
+  final int value = ((channel * 255) + (alpha >> 1)) ~/ alpha;
+  if (value < 0) {
+    return 0;
+  }
+  if (value > 255) {
+    return 255;
+  }
+  return value;
 }
 
 class _LayerPreviewImages {

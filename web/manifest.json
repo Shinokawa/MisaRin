@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Misa Rin is a Fluent UI inspired cross-platform digital painting and pixel art studio for desktop and web.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

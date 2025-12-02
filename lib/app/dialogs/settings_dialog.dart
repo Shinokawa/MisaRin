@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
@@ -69,7 +70,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     final int minHistory = AppPreferences.minHistoryLimit;
     final int maxHistory = AppPreferences.maxHistoryLimit;
 
-    return Column(
+    final Widget body = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -201,35 +202,42 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        InfoLabel(
-          label: '开发者选项',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(child: Text('性能监控面板')),
-                  ToggleSwitch(
-                    checked: _fpsOverlayEnabled,
-                    onChanged: (value) {
-                      setState(() => _fpsOverlayEnabled = value);
-                      final AppPreferences prefs = AppPreferences.instance;
-                      prefs.updateShowFpsOverlay(value);
-                      unawaited(AppPreferences.save());
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。',
-                style: theme.typography.caption,
-              ),
-            ],
+        if (!kIsWeb) ...[
+          const SizedBox(height: 16),
+          InfoLabel(
+            label: '开发者选项',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(child: Text('性能监控面板')),
+                    ToggleSwitch(
+                      checked: _fpsOverlayEnabled,
+                      onChanged: (value) {
+                        setState(() => _fpsOverlayEnabled = value);
+                        final AppPreferences prefs = AppPreferences.instance;
+                        prefs.updateShowFpsOverlay(value);
+                        unawaited(AppPreferences.save());
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。',
+                  style: theme.typography.caption,
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
+    );
+
+    return SingleChildScrollView(
+      primary: true,
+      child: body,
     );
   }
 

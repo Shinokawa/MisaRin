@@ -224,7 +224,7 @@ mixin _PaintingBoardBuildMixin
             widget.toolbarLayoutStyle;
         final bool isSai2Layout =
             toolbarStyle == PaintingToolbarLayoutStyle.sai2;
-        const bool includeHistoryOnToolbar = false;
+        final bool includeHistoryOnToolbar = _includeHistoryOnToolbar;
         final CanvasToolbarLayout activeToolbarLayout =
             _resolveToolbarLayoutForStyle(
               toolbarStyle,
@@ -353,6 +353,7 @@ mixin _PaintingBoardBuildMixin
               toolbarMetrics,
             );
         _toolbarHitRegions = toolbarLayoutResult.hitRegions;
+        _ensureToolbarDoesNotOverlapColorIndicator();
 
         return Shortcuts(
           shortcuts: shortcutBindings,
@@ -873,43 +874,56 @@ mixin _PaintingBoardBuildMixin
     final _FilterSession? session = _filterSession;
     if (session == null) return const SizedBox.shrink();
 
+    ui.Image? activeImage = _previewActiveLayerImage;
+    final bool useHuePreviewImage =
+        session.type == _FilterPanelType.hueSaturation &&
+        _previewFilteredActiveLayerImage != null;
+    if (useHuePreviewImage) {
+      activeImage = _previewFilteredActiveLayerImage;
+    }
     Widget activeLayerWidget = RawImage(
-      image: _previewActiveLayerImage,
+      image: activeImage,
       filterQuality: FilterQuality.low,
     );
 
     // Apply Filters
     if (session.type == _FilterPanelType.gaussianBlur) {
-      final double radius = session.gaussianBlur.radius;
-      if (radius > 0) {
+      final double sigma =
+          _gaussianBlurSigmaForRadius(session.gaussianBlur.radius);
+      if (sigma > 0) {
         activeLayerWidget = ImageFiltered(
-          imageFilter: ui.ImageFilter.blur(sigmaX: radius, sigmaY: radius),
+          imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
           child: activeLayerWidget,
         );
       }
     } else if (session.type == _FilterPanelType.hueSaturation) {
-       final double hue = session.hueSaturation.hue;
-       final double saturation = session.hueSaturation.saturation;
-       final double lightness = session.hueSaturation.lightness;
-       
-       if (hue != 0) {
-         activeLayerWidget = ColorFiltered(
-           colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
-           child: activeLayerWidget,
-         );
-       }
-       if (saturation != 0) {
-         activeLayerWidget = ColorFiltered(
-           colorFilter: ColorFilter.matrix(ColorFilterGenerator.saturation(saturation)),
-           child: activeLayerWidget,
-         );
-       }
-       if (lightness != 0) {
+      final double hue = session.hueSaturation.hue;
+      final double saturation = session.hueSaturation.saturation;
+      final double lightness = session.hueSaturation.lightness;
+      final bool requiresAdjustments =
+          hue != 0 || saturation != 0 || lightness != 0;
+      if (requiresAdjustments && !useHuePreviewImage) {
+        if (hue != 0) {
           activeLayerWidget = ColorFiltered(
-           colorFilter: ColorFilter.matrix(ColorFilterGenerator.brightness(lightness)),
-           child: activeLayerWidget,
-         );
-       }
+            colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
+            child: activeLayerWidget,
+          );
+        }
+        if (saturation != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter:
+                ColorFilter.matrix(ColorFilterGenerator.saturation(saturation)),
+            child: activeLayerWidget,
+          );
+        }
+        if (lightness != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter:
+                ColorFilter.matrix(ColorFilterGenerator.brightness(lightness)),
+            child: activeLayerWidget,
+          );
+        }
+      }
     } else if (session.type == _FilterPanelType.brightnessContrast) {
        final double brightness = session.brightnessContrast.brightness;
        final double contrast = session.brightnessContrast.contrast;
