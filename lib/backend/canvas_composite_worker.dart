@@ -55,10 +55,12 @@ class CompositeRegionResult {
   const CompositeRegionResult({
     required this.rect,
     required this.pixels,
+    this.rgbaBytes,
   });
 
   final RasterIntRect rect;
   final Uint32List pixels;
+  final TransferableTypedData? rgbaBytes;
 }
 
 class CanvasCompositeWorker {
@@ -318,8 +320,10 @@ List<CompositeRegionResult> _runCompositeWork(
     if (areaWidth <= 0 || areaHeight <= 0) {
       continue;
     }
-    final Uint32List composite = Uint32List(areaWidth * areaHeight);
-    final Uint8List clipMask = Uint8List(areaWidth * areaHeight);
+    final int length = areaWidth * areaHeight;
+    final Uint32List composite = Uint32List(length);
+    final Uint8List clipMask = Uint8List(length);
+    final Uint8List rgba = Uint8List(length * 4);
 
     for (int localY = 0; localY < areaHeight; localY++) {
       final int globalY = area.top + localY;
@@ -341,7 +345,6 @@ List<CompositeRegionResult> _runCompositeWork(
           }
           
           final Uint32List? layerPixels = state.layers[layer.id];
-          // If layer missing in worker, skip it (or handle error?)
           if (layerPixels == null) {
              continue;
           }
@@ -401,10 +404,43 @@ List<CompositeRegionResult> _runCompositeWork(
             );
           }
         }
+        
+        // Save ARGB
         composite[localIndex] = initialized ? color : 0;
+
+        // Compute RGBA + Premultiply
+        final int argb = composite[localIndex];
+        final int a = (argb >> 24) & 0xff;
+        final int r = (argb >> 16) & 0xff;
+        final int g = (argb >> 8) & 0xff;
+        final int b = argb & 0xff;
+        
+        final int offset = localIndex * 4;
+        if (a == 0) {
+            rgba[offset] = 0;
+            rgba[offset + 1] = 0;
+            rgba[offset + 2] = 0;
+            rgba[offset + 3] = 0;
+        } else if (a == 255) {
+            rgba[offset] = r;
+            rgba[offset + 1] = g;
+            rgba[offset + 2] = b;
+            rgba[offset + 3] = 255;
+        } else {
+            // Premultiply
+            rgba[offset] = (r * a) ~/ 255;
+            rgba[offset + 1] = (g * a) ~/ 255;
+            rgba[offset + 2] = (b * a) ~/ 255;
+            rgba[offset + 3] = a;
+        }
       }
     }
-    results.add(CompositeRegionResult(rect: area, pixels: composite));
+    
+    results.add(CompositeRegionResult(
+        rect: area, 
+        pixels: composite,
+        rgbaBytes: TransferableTypedData.fromList(<Uint8List>[rgba]),
+    ));
   }
   return results;
 }
