@@ -21,6 +21,7 @@ import 'bitmap_layer_state.dart';
 import 'raster_frame.dart';
 import 'raster_tile_cache.dart';
 import 'raster_int_rect.dart';
+import 'soft_brush_profile.dart';
 import 'stroke_dynamics.dart';
 import 'stroke_pressure_simulator.dart';
 import '../canvas/brush_shape_geometry.dart';

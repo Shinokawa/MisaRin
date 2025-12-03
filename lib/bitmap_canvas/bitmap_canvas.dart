@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import '../canvas/brush_shape_geometry.dart';
 import '../canvas/canvas_tools.dart';
+import 'soft_brush_profile.dart';
 
 const double _kSubpixelRadiusLimit = 0.6;
 const double _kHalfPixel = 0.5;
@@ -71,8 +72,9 @@ class BitmapSurface {
       return;
     }
     final double softnessClamped = softness.clamp(0.0, 1.0);
-    final double softnessRadius =
-        softnessClamped > 0 ? radius * (0.35 + softnessClamped * 1.65) : 0.0;
+    final double softnessRadius = softnessClamped > 0
+        ? radius * softBrushExtentMultiplier(softnessClamped)
+        : 0.0;
     final double extent = radius + softnessRadius + 1.5;
     final int minX = math.max(0, (center.dx - extent).floor());
     final int maxX = math.min(width - 1, (center.dx + extent).ceil());
@@ -726,12 +728,13 @@ class BitmapSurface {
     if (clampedSoftness <= 0.0) {
       return distance <= radius ? 1.0 : 0.0;
     }
-    final double innerRadius = radius * (1.0 - 0.45 * clampedSoftness);
+    final double innerRadius =
+        radius * softBrushInnerRadiusFraction(clampedSoftness);
     if (distance <= innerRadius) {
       return 1.0;
     }
     final double outerRadius =
-        radius + radius * (0.65 + 1.2 * clampedSoftness);
+        radius + radius * softBrushExtentMultiplier(clampedSoftness);
     if (distance >= outerRadius) {
       return 0.0;
     }
@@ -739,7 +742,12 @@ class BitmapSurface {
         ((distance - innerRadius) / (outerRadius - innerRadius))
             .clamp(0.0, 1.0);
     final double eased = 1.0 - normalized;
-    return math.pow(eased, 2.2).toDouble();
+    return math
+        .pow(
+          eased,
+          softBrushFalloffExponent(clampedSoftness),
+        )
+        .toDouble();
   }
 
   double _projectedPixelCoverage({

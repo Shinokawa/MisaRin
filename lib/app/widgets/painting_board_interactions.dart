@@ -804,7 +804,7 @@ mixin _PaintingBoardInteractionMixin
       brushShape: BrushShape.circle,
       antialiasLevel: 3,
       erase: erase,
-      softness: 0.9,
+      softness: 1.0,
     );
   }
 
