@@ -754,16 +754,13 @@ mixin _PaintingBoardInteractionMixin
     final Offset delta = boardLocal - last;
     final double distance = delta.distance;
     if (distance <= 1e-4) {
-      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
-      _markDirty();
+      _softSprayLastPoint = boardLocal;
       return;
     }
     final double totalDistance = _softSprayResidual + distance;
     if (totalDistance < spacing) {
       _softSprayResidual = totalDistance;
       _softSprayLastPoint = boardLocal;
-      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
-      _markDirty();
       return;
     }
     final Offset direction = delta / distance;
