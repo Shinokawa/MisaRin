@@ -388,6 +388,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       final CanvasTextLayout layout = _textOverlayRenderer.layout(data);
 
+      final int? initialFrameGeneration = _controller.frame?.generation;
       setState(() {
 
         session.data = data;
@@ -728,6 +729,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       await _waitForPendingTextLayerUpdate();
 
+      final int? initialFrameGeneration = _controller.frame?.generation;
+
       setState(() {
 
         session.isFinalizing = true;
@@ -784,7 +787,13 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       } finally {
 
-        await _finalizeTextEditingSessionCleanup(session);
+        await _finalizeTextEditingSessionCleanup(
+
+          session,
+
+          initialFrameGeneration,
+
+        );
 
       }
 
@@ -807,6 +816,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         session.isFinalizing = true;
 
       });
+
+      final int? initialFrameGeneration = _controller.frame?.generation;
 
       try {
 
@@ -834,7 +845,13 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       } finally {
 
-        await _finalizeTextEditingSessionCleanup(session);
+        await _finalizeTextEditingSessionCleanup(
+
+          session,
+
+          initialFrameGeneration,
+
+        );
 
       }
 
@@ -1148,13 +1165,37 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       _TextEditingSession session,
 
+      int? initialFrameGeneration,
+
     ) async {
+
+      const int maxWaitFrames = 24;
 
       final SchedulerBinding binding = SchedulerBinding.instance;
 
-      // 等待至少一帧绘制完成，确保图层更新结果已呈现再移除 overlay。
+      int waits = 0;
 
-      await binding.endOfFrame;
+      while (waits < maxWaitFrames) {
+
+        final BitmapCanvasFrame? frame = _controller.frame;
+
+        if (frame != null) {
+
+          if (initialFrameGeneration == null ||
+
+              frame.generation != initialFrameGeneration) {
+
+            break;
+
+          }
+
+        }
+
+        waits += 1;
+
+        await binding.endOfFrame;
+
+      }
 
       await binding.endOfFrame;
 
