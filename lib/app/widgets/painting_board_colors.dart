@@ -152,14 +152,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   void _handleSelectColorLineColor(Color color) {
-    final bool changed = _colorLineColor.value != color.value;
-    if (changed) {
-      setState(() => _colorLineColor = color);
-      final AppPreferences prefs = AppPreferences.instance;
-      prefs.colorLineColor = color;
-      unawaited(AppPreferences.save());
-    }
-    _setPrimaryColor(color);
+    _setTextStrokeColor(color, syncPrimary: true);
   }
 
   Future<void> _handleEditPrimaryColor() async {
@@ -168,6 +161,28 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       initialColor: _primaryColor,
       onSelected: (color) => _setPrimaryColor(color),
     );
+  }
+
+  Future<void> _handleEditTextStrokeColor() async {
+    await _pickColor(
+      title: '调整描边颜色',
+      initialColor: _colorLineColor,
+      onSelected: _setTextStrokeColor,
+    );
+  }
+
+  void _setTextStrokeColor(Color color, {bool syncPrimary = false}) {
+    final bool changed = _colorLineColor.value != color.value;
+    if (changed) {
+      setState(() => _colorLineColor = color);
+      final AppPreferences prefs = AppPreferences.instance;
+      prefs.colorLineColor = color;
+      unawaited(AppPreferences.save());
+      _handleTextStrokeColorChanged(color);
+    }
+    if (syncPrimary) {
+      _setPrimaryColor(color);
+    }
   }
 
   Widget? _buildColorPanelTrailing(FluentThemeData theme) {

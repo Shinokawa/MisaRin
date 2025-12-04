@@ -82,6 +82,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onTextStrokeEnabledChanged,
     required this.textStrokeWidth,
     required this.onTextStrokeWidthChanged,
+    required this.textStrokeColor,
+    required this.onTextStrokeColorPressed,
     this.compactLayout = false,
   });
 
@@ -154,6 +156,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onTextStrokeEnabledChanged;
   final double textStrokeWidth;
   final ValueChanged<double> onTextStrokeWidthChanged;
+  final Color textStrokeColor;
+  final VoidCallback onTextStrokeColorPressed;
 
   @override
   State<ToolSettingsCard> createState() => _ToolSettingsCardState();
@@ -608,6 +612,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     ];
 
     if (widget.textStrokeEnabled) {
+      children.add(_buildTextStrokeColorRow(theme));
       children.add(
         _buildLabeledSlider(
           theme: theme,
@@ -698,6 +703,36 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
               loadingIndicator,
             ],
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextStrokeColorRow(FluentThemeData theme) {
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('描边颜色', style: theme.typography.bodyStrong),
+        const SizedBox(width: 12),
+        Button(
+          onPressed: widget.onTextStrokeColorPressed,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: widget.textStrokeColor,
+                  border: Border.all(color: borderColor),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('选择颜色'),
+            ],
+          ),
         ),
       ],
     );

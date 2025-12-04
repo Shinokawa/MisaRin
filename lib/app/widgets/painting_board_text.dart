@@ -94,6 +94,14 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     _updateActiveTextSessionColor();
   }
 
+  @override
+  void _handleTextStrokeColorChanged(Color color) {
+    super._handleTextStrokeColorChanged(color);
+    if (_textStrokeEnabled) {
+      _refreshTextPreview();
+    }
+  }
+
   Widget? buildTextEditingOverlay() {
 
       final _TextEditingSession? session = _textSession;

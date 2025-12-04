@@ -6,6 +6,7 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardInteractionMixin,
         _PaintingBoardPaletteMixin,
+        _PaintingBoardColorMixin,
         _PaintingBoardReferenceMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
@@ -326,6 +327,8 @@ mixin _PaintingBoardBuildMixin
           onTextStrokeEnabledChanged: _updateTextStrokeEnabled,
           textStrokeWidth: _textStrokeWidth,
           onTextStrokeWidthChanged: _updateTextStrokeWidth,
+          textStrokeColor: _colorLineColor,
+          onTextStrokeColorPressed: _handleEditTextStrokeColor,
         );
         final ToolbarPanelData colorPanelData = ToolbarPanelData(
           title: '取色',

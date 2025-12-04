@@ -331,6 +331,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   /// 颜色更新后由颜色面板调用的钩子，子类/混入可以覆写以响应颜色变化。
   @protected
   void _handlePrimaryColorChanged() {}
+  @protected
+  void _handleTextStrokeColorChanged(Color color) {}
   final List<Color> _recentColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
