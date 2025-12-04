@@ -6,12 +6,16 @@ class _TextEditingSession {
     required this.isNewLayer,
     this.layerId,
     this.layerWasVisible = true,
+    this.originalData,
+    this.pendingHistoryEntry,
   });
 
   final Offset origin;
   final bool isNewLayer;
   final String? layerId;
   final bool layerWasVisible;
+  final CanvasTextData? originalData;
+  final Future<_CanvasHistoryEntry>? pendingHistoryEntry;
   CanvasTextData? data;
   Rect? bounds;
 }
@@ -43,6 +47,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       CanvasTextOrientation.horizontal;
   bool _textAntialias = true;
   bool _textStrokeEnabled = false;
+  Future<void>? _pendingTextLayerUpdate;
 
   void initializeTextTool() {
     _textEditingController.addListener(_handleTextFieldChanged);
@@ -81,6 +86,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       _boardRect.top + bounds.top * scale,
     );
     final CanvasTextData data = session.data!;
+    final bool showPreviewPainter = session.isNewLayer;
     return Positioned(
       left: workspacePosition.dx,
       top: workspacePosition.dy,
@@ -93,8 +99,13 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         focusNode: _textEditingFocusNode,
         cursorColor: _primaryColor,
         selectionColor: _primaryColor.withOpacity(0.25),
-        onConfirm: _commitTextEditingSession,
-        onCancel: _cancelTextEditingSession,
+        onConfirm: () {
+          unawaited(_commitTextEditingSession());
+        },
+        onCancel: () {
+          unawaited(_cancelTextEditingSession());
+        },
+        paintPreview: showPreviewPainter,
       ),
     );
   }
@@ -121,6 +132,50 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       session.data = data;
       session.bounds = layout.bounds;
     });
+    if (!session.isNewLayer && session.layerId != null) {
+      _scheduleLiveTextLayerUpdate(
+        session.layerId!,
+        data,
+        waitForHistoryEntry: session.pendingHistoryEntry,
+      );
+    }
+  }
+
+  void _scheduleLiveTextLayerUpdate(
+    String layerId,
+    CanvasTextData data, {
+    Future<_CanvasHistoryEntry>? waitForHistoryEntry,
+  }) {
+    Future<void> previous =
+        _pendingTextLayerUpdate ?? Future<void>.value();
+    if (waitForHistoryEntry != null) {
+      previous = Future.wait<void>(
+        <Future<void>>[
+          previous,
+          waitForHistoryEntry.then((_) {}),
+        ],
+      );
+    }
+    final Future<void> next =
+        previous.then((_) => _controller.updateTextLayer(layerId, data));
+    _pendingTextLayerUpdate =
+        next.catchError((Object error, StackTrace stackTrace) {
+      debugPrint('文字图层实时渲染失败: $error');
+    });
+  }
+
+  Future<void> _waitForPendingTextLayerUpdate() async {
+    final Future<void>? pending = _pendingTextLayerUpdate;
+    if (pending == null) {
+      return;
+    }
+    try {
+      await pending;
+    } finally {
+      if (identical(_pendingTextLayerUpdate, pending)) {
+        _pendingTextLayerUpdate = null;
+      }
+    }
   }
 
   CanvasTextData _buildTextData({
@@ -148,6 +203,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
   }
 
   void _beginNewTextSession(Offset origin) {
+    _pendingTextLayerUpdate = null;
     _textEditingController
       ..clear()
       ..selection = const TextSelection.collapsed(offset: 0);
@@ -197,20 +253,26 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     _textAntialias = existing.antialias;
     _textStrokeEnabled = existing.strokeEnabled;
     _textStrokeWidth = existing.strokeWidth;
+    _colorLineColor = existing.strokeColor;
+    _primaryColor = existing.color;
+    _primaryHsv = HSVColor.fromColor(existing.color);
     _textEditingController.text = existing.text;
     _textEditingController.selection = TextSelection.collapsed(
       offset: existing.text.length,
     );
+    _pendingTextLayerUpdate = null;
+    final Future<_CanvasHistoryEntry> pendingHistory =
+        _createHistoryEntry();
     _textSession = _TextEditingSession(
       origin: existing.origin,
       isNewLayer: false,
       layerId: layer.id,
       layerWasVisible: layer.visible,
+      originalData: existing,
+      pendingHistoryEntry: pendingHistory,
     );
-    layer.visible = false;
     _updateTextPreview(existing.origin);
     setState(() {});
-    _controller.notifyListeners();
     _textEditingFocusNode.requestFocus();
   }
 
@@ -221,38 +283,56 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     }
     final String content = _textEditingController.text;
     if (content.trim().isEmpty) {
-      _cancelTextEditingSession();
+      await _cancelTextEditingSession();
       return;
     }
     final CanvasTextData data = (session.data ??
         _buildTextData(origin: session.origin, text: content)).copyWith(
       text: content,
     );
+    await _waitForPendingTextLayerUpdate();
     _textEditingController.clear();
     setState(() {
       _textSession = null;
     });
-    await _pushUndoSnapshot();
     if (session.isNewLayer) {
+      await _pushUndoSnapshot();
       await _controller.createTextLayer(data);
-    } else if (session.layerId != null) {
-      _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
-      await _controller.updateTextLayer(session.layerId!, data);
+      return;
     }
+    if (session.layerId == null) {
+      return;
+    }
+    final Future<_CanvasHistoryEntry>? pendingHistory =
+        session.pendingHistoryEntry;
+    _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
+    if (pendingHistory != null) {
+      final _CanvasHistoryEntry entry = await pendingHistory;
+      await _pushUndoSnapshot(entry: entry);
+    } else {
+      await _pushUndoSnapshot();
+    }
+    await _controller.updateTextLayer(session.layerId!, data);
   }
 
-  void _cancelTextEditingSession() {
+  Future<void> _cancelTextEditingSession() async {
     final _TextEditingSession? session = _textSession;
     if (session == null) {
       return;
     }
-    if (!session.isNewLayer && session.layerId != null) {
-      _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
-    }
     _textEditingController.clear();
     setState(() {
       _textSession = null;
     });
+    if (session.isNewLayer || session.layerId == null) {
+      return;
+    }
+    await _waitForPendingTextLayerUpdate();
+    _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
+    final CanvasTextData? original = session.originalData;
+    if (original != null) {
+      await _controller.updateTextLayer(session.layerId!, original);
+    }
   }
 
   void _restoreTextLayerVisibility(String id, bool wasVisible) {
@@ -390,6 +470,7 @@ class _TextEditorOverlay extends StatelessWidget {
     required this.selectionColor,
     required this.onConfirm,
     required this.onCancel,
+    this.paintPreview = true,
   });
 
   final CanvasTextRenderer renderer;
@@ -402,6 +483,7 @@ class _TextEditorOverlay extends StatelessWidget {
   final Color selectionColor;
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
+  final bool paintPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -443,14 +525,15 @@ class _TextEditorOverlay extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CustomPaint(
-                painter: _TextPreviewPainter(
-                  renderer: renderer,
-                  data: data,
-                  bounds: bounds,
-                  scale: scale,
+              if (paintPreview)
+                CustomPaint(
+                  painter: _TextPreviewPainter(
+                    renderer: renderer,
+                    data: data,
+                    bounds: bounds,
+                    scale: scale,
+                  ),
                 ),
-              ),
               EditableText(
                 controller: controller,
                 focusNode: focusNode,
@@ -472,18 +555,9 @@ class _TextEditorOverlay extends StatelessWidget {
               Positioned(
                 top: 8,
                 right: 8,
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(FluentIcons.check_mark),
-                      onPressed: onConfirm,
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(FluentIcons.chrome_close),
-                      onPressed: onCancel,
-                    ),
-                  ],
+                child: IconButton(
+                  icon: const Icon(FluentIcons.check_mark),
+                  onPressed: onConfirm,
                 ),
               ),
             ],

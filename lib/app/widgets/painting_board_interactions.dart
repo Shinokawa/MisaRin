@@ -12,7 +12,7 @@ mixin _PaintingBoardInteractionMixin
         TickerProvider {
   void clear() async {
     if (_isTextEditingActive) {
-      _cancelTextEditingSession();
+      await _cancelTextEditingSession();
     }
     await _pushUndoSnapshot();
     _controller.clear();
@@ -2044,7 +2044,7 @@ mixin _PaintingBoardInteractionMixin
 
   void _handleUndo() {
     if (_isTextEditingActive) {
-      _cancelTextEditingSession();
+      unawaited(_cancelTextEditingSession());
     }
     unawaited(_performUndo());
   }
@@ -2057,7 +2057,7 @@ mixin _PaintingBoardInteractionMixin
 
   void _handleRedo() {
     if (_isTextEditingActive) {
-      _cancelTextEditingSession();
+      unawaited(_cancelTextEditingSession());
     }
     unawaited(_performRedo());
   }
