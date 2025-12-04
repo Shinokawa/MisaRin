@@ -15,9 +15,11 @@ mixin _PaintingBoardBuildMixin
     _refreshHistoryLimit();
     final bool canUndo = this.canUndo || widget.externalCanUndo;
     final bool canRedo = this.canRedo || widget.externalCanRedo;
-    final Map<LogicalKeySet, Intent> shortcutBindings = {
-      for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
-        key: const UndoIntent(),
+    final Map<LogicalKeySet, Intent> shortcutBindings = _isTextEditingActive
+        ? <LogicalKeySet, Intent>{}
+        : {
+            for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
+              key: const UndoIntent(),
       for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
         key: const RedoIntent(),
       for (final key in ToolbarShortcuts.of(

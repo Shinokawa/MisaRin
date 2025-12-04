@@ -101,30 +101,44 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     );
     final CanvasTextData data = session.data!;
     final bool showPreviewPainter = session.isNewLayer;
-    final Widget editor = _TextEditorOverlay(
-      renderer: _textOverlayRenderer,
-      data: data,
-      bounds: bounds,
-      scale: scale,
-      controller: _textEditingController,
-      focusNode: _textEditingFocusNode,
-      cursorColor: _primaryColor,
-      selectionColor: _primaryColor.withOpacity(0.25),
-      onConfirm: () {
-        unawaited(_commitTextEditingSession());
-      },
-      onCancel: () {
-        unawaited(_cancelTextEditingSession());
-      },
-      paintPreview: showPreviewPainter,
+    final Widget editor = Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: _primaryColor),
+      ),
+      child: _TextEditorOverlay(
+        renderer: _textOverlayRenderer,
+        data: data,
+        bounds: bounds,
+        scale: scale,
+        controller: _textEditingController,
+        focusNode: _textEditingFocusNode,
+        cursorColor: _primaryColor,
+        selectionColor: _primaryColor.withOpacity(0.25),
+        onConfirm: () {
+          unawaited(_commitTextEditingSession());
+        },
+        onCancel: () {
+          unawaited(_cancelTextEditingSession());
+        },
+        paintPreview: showPreviewPainter,
+      ),
     );
     final Widget confirmButton = Padding(
       padding: const EdgeInsets.only(left: 8, top: 4),
-      child: IconButton(
-        icon: const Icon(FluentIcons.check_mark),
-        onPressed: () {
-          unawaited(_commitTextEditingSession());
-        },
+      child: Container(
+        decoration: BoxDecoration(
+          color: FluentTheme.of(context).cardColor,
+          border: Border.all(
+            color: FluentTheme.of(context).resources.dividerStrokeColorDefault,
+          ),
+          borderRadius: BorderRadius.circular(4.0),
+        ),
+        child: IconButton(
+          icon: const Icon(FluentIcons.check_mark),
+          onPressed: () {
+            unawaited(_commitTextEditingSession());
+          },
+        ),
       ),
     );
     return Positioned(
