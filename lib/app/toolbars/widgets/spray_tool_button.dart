@@ -17,8 +17,16 @@ class SprayToolButton extends StatelessWidget {
     return ToolbarToolButtonFrame(
       isSelected: isSelected,
       onPressed: onPressed,
-      builder: (context, iconColor, _) =>
-          Icon(FluentIcons.brush, color: iconColor, size: 20),
+      builder: (context, iconColor, _) => Center(
+        child: Image.asset(
+          'icons/spray.png',
+          width: 20,
+          height: 20,
+          color: iconColor,
+          colorBlendMode: BlendMode.srcIn,
+          filterQuality: FilterQuality.high,
+        ),
+      ),
     );
   }
 }

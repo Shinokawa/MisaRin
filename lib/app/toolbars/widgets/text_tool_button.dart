@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/material.dart' show Icons;
 
 import 'toolbar_tool_button_frame.dart';
 
@@ -18,8 +19,8 @@ class TextToolButton extends StatelessWidget {
       isSelected: isSelected,
       onPressed: onPressed,
       builder: (context, iconColor, _) => Icon(
-        FluentIcons.text_field,
-        size: 20,
+        Icons.text_fields,
+        size: 25,
         color: iconColor,
       ),
     );
