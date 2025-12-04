@@ -1,8 +1,8 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:system_fonts/system_fonts.dart' as sys_fonts;
 
 class SystemFonts {
   const SystemFonts._();
@@ -25,7 +25,7 @@ class SystemFonts {
     if (_cachedFamilies != null) {
       return _cachedFamilies!;
     }
-    if (kIsWeb) {
+    if (!_supportsNativeFonts) {
       _cachedFamilies = _fallbackFamilies;
       return _cachedFamilies!;
     }
@@ -36,15 +36,21 @@ class SystemFonts {
     }
     try {
       final List<String> families = await compute(
-        _scanSystemFonts,
-        _FontScanRequest(directories),
+        _collectFontNames,
+        directories,
       );
       _cachedFamilies = families.isEmpty ? _fallbackFamilies : families;
-      return _cachedFamilies!;
     } catch (_) {
       _cachedFamilies = _fallbackFamilies;
-      return _cachedFamilies!;
     }
+    return _cachedFamilies!;
+  }
+
+  static bool get _supportsNativeFonts {
+    if (kIsWeb) {
+      return false;
+    }
+    return Platform.isMacOS || Platform.isWindows || Platform.isLinux;
   }
 
   static List<String> _fontDirectories() {
@@ -63,6 +69,12 @@ class SystemFonts {
       } else {
         dirs.add(r'C:\Windows\Fonts');
       }
+      final String? userProfile = Platform.environment['USERPROFILE'];
+      if (userProfile != null && userProfile.isNotEmpty) {
+        dirs.add(
+          p.join(userProfile, 'AppData', 'Local', 'Microsoft', 'Windows', 'Fonts'),
+        );
+      }
     } else if (Platform.isLinux) {
       dirs.add('/usr/share/fonts');
       dirs.add('/usr/local/share/fonts');
@@ -76,195 +88,47 @@ class SystemFonts {
   }
 }
 
-class _FontScanRequest {
-  const _FontScanRequest(this.directories);
-
-  final List<String> directories;
-}
-
-List<String> _scanSystemFonts(_FontScanRequest request) {
-  final Set<String> families = <String>{};
-  for (final String path in request.directories) {
-    final Directory directory = Directory(path);
-    if (!directory.existsSync()) {
-      continue;
-    }
-    try {
-      for (final FileSystemEntity entity in directory.listSync(
-        recursive: true,
-        followLinks: false,
-      )) {
-        if (entity is! File) {
-          continue;
-        }
-        final String ext = p.extension(entity.path).toLowerCase();
-        if (ext == '.ttf' || ext == '.otf') {
-          final String? family = _readTrueTypeFamily(entity, 0);
-          if (family != null && family.trim().isNotEmpty) {
-            families.add(family.trim());
-          }
-        } else if (ext == '.ttc') {
-          families.addAll(_readCollectionFamilies(entity));
-        }
-      }
-    } catch (_) {
-      // Ignore directories we cannot access.
-    }
+List<String> _collectFontNames(List<String> roots) {
+  final sys_fonts.SystemFonts loader = sys_fonts.SystemFonts();
+  final Set<String> visited = <String>{};
+  for (final String root in roots) {
+    _registerDirectory(loader, root, visited);
   }
-  final List<String> sorted = families.toList()
-    ..sort((String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
-  return sorted;
+  final List<String> fonts = loader.getFontList();
+  fonts.sort(
+    (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
+  );
+  return fonts;
 }
 
-Iterable<String> _readCollectionFamilies(File file) sync* {
-  RandomAccessFile? raf;
+void _registerDirectory(
+  sys_fonts.SystemFonts loader,
+  String rawPath,
+  Set<String> visited,
+) {
+  if (rawPath.isEmpty) {
+    return;
+  }
+  final String normalized = p.normalize(rawPath);
+  if (!visited.add(normalized)) {
+    return;
+  }
+  final Directory directory = Directory(normalized);
+  if (!directory.existsSync()) {
+    return;
+  }
   try {
-    raf = file.openSync(mode: FileMode.read);
-    final Uint8List header = raf.readSync(12);
-    if (header.length < 12) {
-      return;
-    }
-    final String signature = String.fromCharCodes(header.sublist(0, 4));
-    if (signature != 'ttcf') {
-      final String? family = _readTrueTypeFamily(file, 0);
-      if (family != null) {
-        yield family;
-      }
-      return;
-    }
-    final Uint8List countBytes = raf.readSync(4);
-    if (countBytes.length < 4) {
-      return;
-    }
-    final int numFonts = _readUint32(countBytes, 0);
-    for (int i = 0; i < numFonts; i++) {
-      raf.setPositionSync(12 + i * 4);
-      final Uint8List offsetBytes = raf.readSync(4);
-      if (offsetBytes.length < 4) {
-        continue;
-      }
-      final int offset = _readUint32(offsetBytes, 0);
-      final String? family = _readTrueTypeFamily(file, offset);
-      if (family != null && family.trim().isNotEmpty) {
-        yield family.trim();
-      }
-    }
+    loader.addAdditionalFontDirectory(normalized);
   } catch (_) {
     return;
-  } finally {
-    raf?.closeSync();
   }
-}
-
-String? _readTrueTypeFamily(File file, int offset) {
-  RandomAccessFile? raf;
   try {
-    raf = file.openSync(mode: FileMode.read);
-    raf.setPositionSync(offset);
-    final Uint8List header = raf.readSync(12);
-    if (header.length < 12) {
-      return null;
-    }
-    final int numTables = _readUint16(header, 4);
-    for (int i = 0; i < numTables; i++) {
-      raf.setPositionSync(offset + 12 + i * 16);
-      final Uint8List record = raf.readSync(16);
-      if (record.length < 16) {
-        continue;
+    for (final FileSystemEntity entity in directory.listSync(followLinks: false)) {
+      if (entity is Directory) {
+        _registerDirectory(loader, entity.path, visited);
       }
-      final String tag = String.fromCharCodes(record.sublist(0, 4));
-      if (tag != 'name') {
-        continue;
-      }
-      final int tableOffset = offset + _readUint32(record, 8);
-      final int tableLength = _readUint32(record, 12);
-      return _extractName(raf, tableOffset, tableLength);
     }
   } catch (_) {
-    return null;
-  } finally {
-    raf?.closeSync();
+    // Ignore directories we cannot traverse.
   }
-  return null;
-}
-
-String? _extractName(
-  RandomAccessFile raf,
-  int offset,
-  int length,
-) {
-  if (length <= 0) {
-    return null;
-  }
-  raf.setPositionSync(offset);
-  final Uint8List header = raf.readSync(6);
-  if (header.length < 6) {
-    return null;
-  }
-  final int count = _readUint16(header, 2);
-  final int stringOffset = _readUint16(header, 4);
-  String? fallback;
-  for (int i = 0; i < count; i++) {
-    raf.setPositionSync(offset + 6 + i * 12);
-    final Uint8List record = raf.readSync(12);
-    if (record.length < 12) {
-      continue;
-    }
-    final int platformId = _readUint16(record, 0);
-    final int encodingId = _readUint16(record, 2);
-    final int nameId = _readUint16(record, 6);
-    final int lengthBytes = _readUint16(record, 8);
-    final int stringPos = _readUint16(record, 10);
-    if (nameId != 1 || lengthBytes <= 0) {
-      continue;
-    }
-    raf.setPositionSync(offset + stringOffset + stringPos);
-    final Uint8List raw = raf.readSync(lengthBytes);
-    final String? decoded = _decodeNameRecord(
-      platformId,
-      encodingId,
-      raw,
-    );
-    if (decoded == null || decoded.trim().isEmpty) {
-      continue;
-    }
-    if (platformId == 3) {
-      return decoded.trim();
-    }
-    fallback ??= decoded.trim();
-  }
-  return fallback;
-}
-
-String? _decodeNameRecord(int platformId, int encodingId, Uint8List raw) {
-  if (platformId == 3) {
-    final int length = raw.length & ~1;
-    if (length <= 0) {
-      return null;
-    }
-    final StringBuffer buffer = StringBuffer();
-    for (int i = 0; i < length; i += 2) {
-      final int codeUnit = (raw[i] << 8) | raw[i + 1];
-      buffer.writeCharCode(codeUnit);
-    }
-    return buffer.toString();
-  }
-  if (platformId == 1) {
-    return String.fromCharCodes(raw);
-  }
-  if (encodingId == 0) {
-    return String.fromCharCodes(raw);
-  }
-  return null;
-}
-
-int _readUint16(Uint8List data, int offset) {
-  return (data[offset] << 8) | data[offset + 1];
-}
-
-int _readUint32(Uint8List data, int offset) {
-  return (data[offset] << 24) |
-      (data[offset + 1] << 16) |
-      (data[offset + 2] << 8) |
-      data[offset + 3];
 }

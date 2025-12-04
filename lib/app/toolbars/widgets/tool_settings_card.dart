@@ -557,19 +557,13 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         widget.availableFontFamilies.contains(widget.textFontFamily);
     final String selectedFont =
         fontAvailable ? widget.textFontFamily : '系统默认';
-    final List<TextAlign> alignments = <TextAlign>[
-      TextAlign.left,
-      TextAlign.center,
-      TextAlign.right,
-    ];
     final List<Widget> children = <Widget>[
-      widget.fontsLoading
-          ? _buildFontSelectorLoading(theme)
-          : _buildFontSelectorRow(
-              theme,
-              fontOptions: fontOptions,
-              selectedFont: selectedFont,
-            ),
+      _buildFontSelectorRow(
+        theme,
+        fontOptions: fontOptions,
+        selectedFont: selectedFont,
+        isLoading: widget.fontsLoading,
+      ),
       _buildLabeledSlider(
         theme: theme,
         label: '字号',
@@ -641,17 +635,21 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     FluentThemeData theme, {
     required List<String> fontOptions,
     required String selectedFont,
+    required bool isLoading,
   }) {
-    return _buildLabeledComboField<String>(
-      theme,
-      label: '字体',
-      width: 220,
+    final ComboBox<String> comboBox = ComboBox<String>(
       value: selectedFont,
+      isExpanded: true,
       items: fontOptions
           .map(
             (family) => ComboBoxItem<String>(
               value: family,
-              child: Text(_sanitizeDisplayText(family)),
+              child: Text(
+                _sanitizeDisplayText(family),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
             ),
           )
           .toList(growable: false),
@@ -664,16 +662,13 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         );
       },
     );
-  }
 
-  Widget _buildFontSelectorLoading(FluentThemeData theme) {
-    final Widget indicator = SizedBox(
-      width: widget.compactLayout ? double.infinity : 220,
-      child: const Align(
-        alignment: Alignment.centerLeft,
-        child: ProgressRing(),
-      ),
+    final Widget loadingIndicator = SizedBox(
+      width: 18,
+      height: 18,
+      child: const ProgressRing(strokeWidth: 2.0),
     );
+
     if (!widget.compactLayout) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -681,16 +676,29 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         children: [
           Text('字体', style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          indicator,
+          SizedBox(width: 220, child: comboBox),
+          if (isLoading) ...[
+            const SizedBox(width: 8),
+            loadingIndicator,
+          ],
         ],
       );
     }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('字体', style: theme.typography.bodyStrong),
         const SizedBox(height: 8),
-        indicator,
+        Row(
+          children: [
+            Expanded(child: comboBox),
+            if (isLoading) ...[
+              const SizedBox(width: 8),
+              loadingIndicator,
+            ],
+          ],
+        ),
       ],
     );
   }
@@ -799,6 +807,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final StringBuffer buffer = StringBuffer();
     for (int i = 0; i < units.length; i++) {
       final int unit = units[i];
+      if (unit < 0x20) {
+        continue;
+      }
       if (_isLowSurrogate(unit)) {
         // 忽略孤立的低代理项，避免渲染异常。
         continue;
