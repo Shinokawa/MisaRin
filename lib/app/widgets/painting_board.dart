@@ -15,7 +15,8 @@ import 'package:flutter/foundation.dart'
         debugPrint,
         defaultTargetPlatform,
         TargetPlatform,
-        kIsWeb;
+        kIsWeb,
+        protected;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -326,6 +327,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   final ScrollController _layerScrollController = ScrollController();
   Color _primaryColor = AppPreferences.defaultPrimaryColor;
   late HSVColor _primaryHsv;
+
+  /// 颜色更新后由颜色面板调用的钩子，子类/混入可以覆写以响应颜色变化。
+  @protected
+  void _handlePrimaryColorChanged() {}
   final List<Color> _recentColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];

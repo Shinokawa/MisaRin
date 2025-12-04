@@ -104,6 +104,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       }
     });
     _persistPrimaryColor();
+    _handlePrimaryColorChanged();
   }
 
   @override
@@ -116,6 +117,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       }
     });
     _persistPrimaryColor();
+    _handlePrimaryColorChanged();
   }
 
   void _persistPrimaryColor() {

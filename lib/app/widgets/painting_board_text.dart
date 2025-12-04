@@ -89,11 +89,9 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
   bool get _isTextEditingActive => _textSession != null;
 
   @override
-  void _setPrimaryColor(Color color, {bool remember = true}) {
-    super._setPrimaryColor(color, remember: remember);
-    if (_isTextEditingActive) {
-      _updateActiveTextSessionColor();
-    }
+  void _handlePrimaryColorChanged() {
+    super._handlePrimaryColorChanged();
+    _updateActiveTextSessionColor();
   }
 
   Widget? buildTextEditingOverlay() {
