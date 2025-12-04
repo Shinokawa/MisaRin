@@ -50,6 +50,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
   _TextEditingSession? _textSession;
   List<String> _textFontFamilies = const <String>[];
   bool _textFontsLoading = false;
+  Rect? _hoverTextBounds;
+  String? _hoverTextLayerId;
 
   double _textFontSize = 48;
   double _textLineHeight = 1.2;
@@ -263,6 +265,82 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
     }
 
+  Widget? buildTextHoverOverlay() {
+    if (_isTextEditingActive) {
+      return null;
+    }
+    final Rect? hoverRect = _textHoverWorkspaceRect();
+    if (hoverRect == null) {
+      return null;
+    }
+    final Color overlayColor = _textOverlayContrastColor();
+    return Positioned(
+      left: hoverRect.left,
+      top: hoverRect.top,
+      child: IgnorePointer(
+        ignoring: true,
+        child: Container(
+          width: hoverRect.width,
+          height: hoverRect.height,
+          decoration: BoxDecoration(
+            border: Border.all(color: overlayColor),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Rect? _textHoverWorkspaceRect() {
+    final Rect? bounds = _hoverTextBounds;
+    if (bounds == null) {
+      return null;
+    }
+    final double scale = _viewport.scale;
+    final double width = math.max(bounds.width * scale, 1.0);
+    final double height = math.max(bounds.height * scale, 1.0);
+    return Rect.fromLTWH(
+      _boardRect.left + bounds.left * scale,
+      _boardRect.top + bounds.top * scale,
+      width,
+      height,
+    );
+  }
+
+  void _handleTextHover(Offset boardLocal) {
+    if (_isTextEditingActive) {
+      _clearTextHoverHighlight();
+      return;
+    }
+    final BitmapLayerState? targetLayer = _hitTestTextLayer(boardLocal);
+    if (targetLayer == null || targetLayer.locked) {
+      _clearTextHoverHighlight();
+      return;
+    }
+    final Rect? bounds = targetLayer.textBounds;
+    if (bounds == null) {
+      _clearTextHoverHighlight();
+      return;
+    }
+    if (_hoverTextLayerId == targetLayer.id &&
+        _hoverTextBounds == bounds) {
+      return;
+    }
+    setState(() {
+      _hoverTextLayerId = targetLayer.id;
+      _hoverTextBounds = bounds;
+    });
+  }
+
+  void _clearTextHoverHighlight() {
+    if (_hoverTextLayerId == null && _hoverTextBounds == null) {
+      return;
+    }
+    setState(() {
+      _hoverTextLayerId = null;
+      _hoverTextBounds = null;
+    });
+  }
+
   
 
     void _handleTextFieldChanged() {
@@ -451,6 +529,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
     void _beginNewTextSession(Offset origin) {
 
+      _clearTextHoverHighlight();
+
       _pendingTextLayerUpdate = null;
 
       _textEditingController
@@ -508,6 +588,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
   
 
     void _beginEditExistingTextLayer(BitmapLayerState layer) {
+
+      _clearTextHoverHighlight();
 
       final CanvasTextData? existing = layer.text;
 

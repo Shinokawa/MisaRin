@@ -131,6 +131,9 @@ mixin _PaintingBoardInteractionMixin
     if (_activeTool == CanvasTool.eyedropper && _isEyedropperSampling) {
       _finishEyedropperSample();
     }
+    if (tool != CanvasTool.text) {
+      _clearTextHoverHighlight();
+    }
     setState(() {
       if (_activeTool == CanvasTool.magicWand) {
         _convertMagicWandPreviewToSelection();
@@ -1109,6 +1112,7 @@ mixin _PaintingBoardInteractionMixin
     if (_effectiveActiveTool == CanvasTool.selection) {
       _clearSelectionHover();
     }
+    _clearTextHoverHighlight();
     _clearToolCursorOverlay();
     _clearLayerTransformCursorIndicator();
     _lastWorkspacePointer = null;
@@ -1870,11 +1874,27 @@ mixin _PaintingBoardInteractionMixin
       _updateLayerTransformHover(boardLocal);
       return;
     }
-    if (_effectiveActiveTool != CanvasTool.selection) {
+    final CanvasTool tool = _effectiveActiveTool;
+    if (tool == CanvasTool.selection) {
+      final Offset boardLocal = _toBoardLocal(event.localPosition);
+      _handleSelectionHover(boardLocal);
       return;
     }
-    final Offset boardLocal = _toBoardLocal(event.localPosition);
-    _handleSelectionHover(boardLocal);
+    if (tool == CanvasTool.text) {
+      if (_isTextEditingActive) {
+        _clearTextHoverHighlight();
+        return;
+      }
+      final Rect boardRect = _boardRect;
+      if (!boardRect.contains(event.localPosition)) {
+        _clearTextHoverHighlight();
+        return;
+      }
+      final Offset boardLocal = _toBoardLocal(event.localPosition);
+      _handleTextHover(boardLocal);
+      return;
+    }
+    _clearTextHoverHighlight();
   }
 
   @override

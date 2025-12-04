@@ -176,6 +176,7 @@ mixin _PaintingBoardBuildMixin
         final Widget? transformCursorOverlay = buildLayerTransformCursorOverlay(
           theme,
         );
+        final Widget? textHoverOverlay = buildTextHoverOverlay();
         final Widget? textOverlay = buildTextEditingOverlay();
 
         final bool transformActive = _isLayerFreeTransformActive;
@@ -786,6 +787,7 @@ mixin _PaintingBoardBuildMixin
                               ),
                             ),
                           ),
+                          if (textHoverOverlay != null) textHoverOverlay,
                           if (textOverlay != null) textOverlay,
                           ...toolbarLayoutResult.widgets,
                           ..._buildReferenceCards(),
