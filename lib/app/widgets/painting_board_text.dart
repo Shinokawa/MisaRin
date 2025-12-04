@@ -653,6 +653,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
           _createHistoryEntry();
 
+      final bool layerWasVisible = layer.visible;
+
       _textSession = _TextEditingSession(
 
         origin: existing.origin,
@@ -661,13 +663,21 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
         layerId: layer.id,
 
-        layerWasVisible: layer.visible,
+        layerWasVisible: layerWasVisible,
 
         originalData: existing,
 
         pendingHistoryEntry: pendingHistory,
 
       );
+
+      if (layerWasVisible) {
+
+        layer.visible = false;
+
+        _controller.notifyListeners();
+
+      }
 
       _updateTextPreview(existing.origin);
 
