@@ -223,6 +223,8 @@ class BitmapCanvasController extends ChangeNotifier {
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
 
+  BitmapLayerState get activeLayer => _activeLayer;
+
   void _flushDeferredStrokeCommands() =>
       _controllerFlushDeferredStrokeCommands(this);
 

@@ -266,7 +266,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
   }
 
   bool _activeLayerIsText() {
-    final BitmapLayerState layer = _controller._activeLayer;
+    final BitmapLayerState layer = _controller.activeLayer;
     return layer.text != null;
   }
 
@@ -410,8 +410,9 @@ class _TextEditorOverlay extends StatelessWidget {
       math.max(bounds.height * scale, 4),
     );
     return Shortcuts(
-      shortcuts: const <LogicalKeySet, Intent>{
-        LogicalKeySet(LogicalKeyboardKey.escape): _CancelTextEditingIntent(),
+      shortcuts: <LogicalKeySet, Intent>{
+        LogicalKeySet(LogicalKeyboardKey.escape):
+            _CancelTextEditingIntent(),
         LogicalKeySet(
           LogicalKeyboardKey.meta,
           LogicalKeyboardKey.enter,

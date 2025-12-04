@@ -530,7 +530,7 @@ mixin _PaintingBoardLayerMixin
       items.insert(
         0,
         MenuFlyoutItem(
-          leading: const Icon(FluentIcons.text_font),
+          leading: const Icon(FluentIcons.font),
           text: const Text('栅格化文字图层'),
           onPressed: () async {
             await _pushUndoSnapshot();

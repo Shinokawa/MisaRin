@@ -7,6 +7,7 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardInteractionMixin,
         _PaintingBoardPaletteMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
   @override
   Widget build(BuildContext context) {

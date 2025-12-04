@@ -327,7 +327,6 @@ class CanvasTextRenderer {
       textAlign: data.align,
       maxLines: null,
       ellipsis: null,
-      leadingDistribution: ui.TextLeadingDistribution.even,
     );
     final ui.TextStyle textStyle = ui.TextStyle(
       color: paint == null ? data.color : null,
@@ -335,7 +334,6 @@ class CanvasTextRenderer {
       fontFamily: data.fontFamily.isEmpty ? null : data.fontFamily,
       fontSize: data.fontSize,
       height: resolvedLineHeight,
-      leadingDistribution: ui.TextLeadingDistribution.even,
     );
     final ui.ParagraphBuilder builder = ui.ParagraphBuilder(style)
       ..pushStyle(textStyle)

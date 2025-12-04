@@ -8,6 +8,7 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardTextMixin,
         TickerProvider {
   void clear() async {
     if (_isTextEditingActive) {
@@ -1757,6 +1758,8 @@ mixin _PaintingBoardInteractionMixin
           _updateSprayStroke(boardLocal, event);
         }
         break;
+      case CanvasTool.text:
+        break;
     }
   }
 
@@ -1815,16 +1818,6 @@ mixin _PaintingBoardInteractionMixin
         break;
       case CanvasTool.text:
         break;
-      case CanvasTool.text:
-        break;
-      case CanvasTool.curvePen:
-        await _handleCurvePenPointerUp();
-        break;
-      case CanvasTool.layerAdjust:
-        if (_isLayerDragging) {
-          _finishLayerAdjustDrag();
-        }
-        break;
     }
   }
 
@@ -1869,6 +1862,8 @@ mixin _PaintingBoardInteractionMixin
         break;
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
+        break;
+      case CanvasTool.text:
         break;
     }
   }

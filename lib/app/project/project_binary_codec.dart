@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
+import '../../canvas/text_renderer.dart';
 import 'project_document.dart';
 
 const int _kUint32Bits = 32;

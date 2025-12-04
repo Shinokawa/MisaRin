@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../../canvas/canvas_tools.dart';
+import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../../preferences/app_preferences.dart' show PenStrokeSliderRange;
 import '../../constants/pen_constants.dart'
     show kSprayStrokeMin, kSprayStrokeMax;

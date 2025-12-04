@@ -70,6 +70,7 @@ import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/vector_stroke_painter.dart';
+import '../../canvas/text_renderer.dart';
 import '../toolbars/widgets/canvas_toolbar.dart';
 import '../toolbars/widgets/tool_settings_card.dart';
 import '../toolbars/layouts/layouts.dart';
