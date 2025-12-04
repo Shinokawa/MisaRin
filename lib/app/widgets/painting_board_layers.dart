@@ -204,8 +204,16 @@ mixin _PaintingBoardLayerMixin
     return _rasterizeTextLayer(layer);
   }
 
+  bool get canRasterizeActiveLayer {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null) {
+      return false;
+    }
+    return layer.text != null && !layer.locked;
+  }
+
   Future<bool> _rasterizeTextLayer(BitmapLayerState layer) async {
-    if (layer.text == null) {
+    if (layer.text == null || layer.locked) {
       return false;
     }
     await _pushUndoSnapshot();
@@ -551,9 +559,11 @@ mixin _PaintingBoardLayerMixin
         MenuFlyoutItem(
           leading: const Icon(FluentIcons.font),
           text: const Text('栅格化文字图层'),
-          onPressed: () async {
-            await _rasterizeTextLayer(layer);
-          },
+          onPressed: layer.locked
+              ? null
+              : () async {
+                  await _rasterizeTextLayer(layer);
+                },
         ),
       );
     }

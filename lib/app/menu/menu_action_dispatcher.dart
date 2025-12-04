@@ -9,6 +9,7 @@ typedef MenuAsyncAction = FutureOr<void> Function();
 typedef MenuPaletteAction = FutureOr<void> Function(String paletteId);
 typedef MenuWorkspaceLayoutAction =
     FutureOr<void> Function(WorkspaceLayoutPreference preference);
+typedef MenuActionEnabledResolver = bool Function();
 
 class MenuPaletteMenuEntry {
   const MenuPaletteMenuEntry({required this.id, required this.label});
@@ -50,6 +51,7 @@ class MenuActionHandler {
     this.resizeCanvas,
     this.mergeLayerDown,
     this.rasterizeLayer,
+    this.rasterizeLayerEnabled,
     this.layerFreeTransform,
     this.adjustHueSaturation,
     this.adjustBrightnessContrast,
@@ -97,6 +99,7 @@ class MenuActionHandler {
       resizeCanvas = null,
       mergeLayerDown = null,
       rasterizeLayer = null,
+      rasterizeLayerEnabled = null,
       layerFreeTransform = null,
       adjustHueSaturation = null,
       adjustBrightnessContrast = null,
@@ -144,6 +147,7 @@ class MenuActionHandler {
   final MenuAsyncAction? resizeCanvas;
   final MenuAsyncAction? mergeLayerDown;
   final MenuAsyncAction? rasterizeLayer;
+  final MenuActionEnabledResolver? rasterizeLayerEnabled;
   final MenuAsyncAction? layerFreeTransform;
   final MenuAsyncAction? adjustHueSaturation;
   final MenuAsyncAction? adjustBrightnessContrast;

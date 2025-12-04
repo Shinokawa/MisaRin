@@ -197,13 +197,14 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     }
 
     Widget historyRow() {
+      final TargetPlatform platform = resolvedTargetPlatform();
       final String undoShortcut = ToolbarShortcuts.labelForPlatform(
         ToolbarAction.undo,
-        defaultTargetPlatform,
+        platform,
       );
       final String redoShortcut = ToolbarShortcuts.labelForPlatform(
         ToolbarAction.redo,
-        defaultTargetPlatform,
+        platform,
       );
       final String undoLabel = undoShortcut.isEmpty
           ? '撤销'

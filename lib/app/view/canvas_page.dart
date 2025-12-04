@@ -1346,6 +1346,10 @@ class CanvasPageState extends State<CanvasPage> {
               severity: InfoBarSeverity.warning);
         }
       },
+      rasterizeLayerEnabled: () {
+        final board = _activeBoard;
+        return board?.canRasterizeActiveLayer ?? false;
+      },
       layerFreeTransform: () {
         final board = _activeBoard;
         board?.toggleLayerFreeTransform();

@@ -1,10 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart';
-
 import '../../../canvas/canvas_tools.dart';
 import '../../shortcuts/toolbar_shortcuts.dart';
+import '../../utils/platform_target.dart';
 import 'bucket_tool_button.dart';
 import 'magic_wand_tool_button.dart';
 import 'pen_tool_button.dart';
@@ -116,7 +115,7 @@ class CanvasToolbar extends StatelessWidget {
   static String _tooltipMessage(String base, ToolbarAction action) {
     final shortcutLabel = ToolbarShortcuts.labelForPlatform(
       action,
-      defaultTargetPlatform,
+      resolvedTargetPlatform(),
     );
     if (shortcutLabel.isEmpty) {
       return base;

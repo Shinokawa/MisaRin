@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../utils/platform_target.dart';
 import '../widgets/window_drag_area.dart';
 import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
@@ -325,10 +326,13 @@ class _MenuButtonState extends State<_MenuButton> {
 
   MenuFlyoutItemBase? _convertEntry(BuildContext context, MenuEntry entry) {
     if (entry is MenuActionEntry) {
-      final VoidCallback? onPressed = _wrapAction(entry.action);
-      if (onPressed == null) {
+      final bool resolvedEnabled = entry.isEnabled;
+      final VoidCallback? action = _wrapAction(entry.action);
+      if (action == null && resolvedEnabled) {
         return null;
       }
+      final bool enabled = resolvedEnabled && action != null;
+      final VoidCallback? onPressed = enabled ? action : null;
       final String? shortcutLabel = _formatShortcut(entry.shortcut);
       final TextStyle? shortcutStyle = FluentTheme.of(context)
           .typography
@@ -561,7 +565,7 @@ String? _formatShortcut(MenuSerializableShortcut? shortcut) {
   if (shortcut is! SingleActivator) {
     return null;
   }
-  final bool isMac = !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+  final bool isMac = isResolvedPlatformMacOS();
   final List<String> parts = <String>[];
 
   if (shortcut.control) {

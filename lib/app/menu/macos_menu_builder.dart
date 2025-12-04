@@ -59,15 +59,16 @@ class MacosMenuBuilder {
 
   static PlatformMenuItem? _convertEntry(MenuEntry entry) {
     if (entry is MenuActionEntry) {
+      final bool resolvedEnabled = entry.isEnabled;
       final VoidCallback? callback = _wrap(entry.action);
-      if (callback == null) {
+      if (callback == null && resolvedEnabled) {
         return null;
       }
       final String label =
           entry.checked ? '* ${entry.label}' : entry.label;
       return PlatformMenuItem(
         label: label,
-        onSelected: callback,
+        onSelected: resolvedEnabled && callback != null ? callback : null,
         shortcut: entry.shortcut,
       );
     }
