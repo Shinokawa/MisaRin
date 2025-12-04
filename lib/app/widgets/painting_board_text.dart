@@ -88,592 +88,1237 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
   bool get _isTextEditingActive => _textSession != null;
 
+  @override
+  void _setPrimaryColor(Color color, {bool remember = true}) {
+    super._setPrimaryColor(color, remember: remember);
+    if (_isTextEditingActive) {
+      _updateActiveTextSessionColor();
+    }
+  }
+
   Widget? buildTextEditingOverlay() {
-    final _TextEditingSession? session = _textSession;
-    if (session == null || session.data == null || session.bounds == null) {
-      return null;
-    }
-    final Rect bounds = session.bounds!;
-    final double scale = _viewport.scale;
-    final Offset workspacePosition = Offset(
-      _boardRect.left + bounds.left * scale,
-      _boardRect.top + bounds.top * scale,
-    );
-    final CanvasTextData data = session.data!;
-    final bool showPreviewPainter = session.isNewLayer;
-    final Widget editor = Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: _primaryColor),
-      ),
-      child: _TextEditorOverlay(
-        renderer: _textOverlayRenderer,
-        data: data,
-        bounds: bounds,
-        scale: scale,
-        controller: _textEditingController,
-        focusNode: _textEditingFocusNode,
-        cursorColor: _primaryColor,
-        selectionColor: _primaryColor.withOpacity(0.25),
-        onConfirm: () {
-          unawaited(_commitTextEditingSession());
-        },
-        onCancel: () {
-          unawaited(_cancelTextEditingSession());
-        },
-        paintPreview: showPreviewPainter,
-      ),
-    );
-    final Widget confirmButton = Padding(
-      padding: const EdgeInsets.only(left: 8, top: 4),
-      child: Container(
+
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null || session.data == null || session.bounds == null) {
+
+        return null;
+
+      }
+
+      final Rect bounds = session.bounds!;
+
+      final double scale = _viewport.scale;
+
+      final Offset workspacePosition = Offset(
+
+        _boardRect.left + bounds.left * scale,
+
+        _boardRect.top + bounds.top * scale,
+
+      );
+
+      final CanvasTextData data = session.data!;
+
+      // Show preview painter (the colored text) because we want the input text to be transparent
+
+      // but we want the user to see what they are typing in the correct color.
+
+      // Actually, wait, if we are editing, we want to see the preview always?
+
+      // Yes, otherwise it's invisible.
+
+      const bool showPreviewPainter = true; 
+
+      final bool isDark = FluentTheme.of(context).brightness.isDark;
+
+      final Color uiColor = isDark ? Colors.white : Colors.black;
+
+      final Widget editor = Container(
+
         decoration: BoxDecoration(
-          color: FluentTheme.of(context).cardColor,
-          border: Border.all(
-            color: FluentTheme.of(context).resources.dividerStrokeColorDefault,
-          ),
-          borderRadius: BorderRadius.circular(4.0),
+
+          border: Border.all(color: uiColor),
+
         ),
-        child: IconButton(
-          icon: const Icon(FluentIcons.check_mark),
-          onPressed: () {
+
+        child: _TextEditorOverlay(
+
+          renderer: _textOverlayRenderer,
+
+          data: data,
+
+          bounds: bounds,
+
+          scale: scale,
+
+          controller: _textEditingController,
+
+          focusNode: _textEditingFocusNode,
+
+          cursorColor: uiColor,
+
+          selectionColor: uiColor.withOpacity(0.25),
+
+          onConfirm: () {
+
             unawaited(_commitTextEditingSession());
+
           },
+
+          onCancel: () {
+
+            unawaited(_cancelTextEditingSession());
+
+          },
+
+          paintPreview: showPreviewPainter,
+
         ),
-      ),
-    );
-    return Positioned(
-      left: workspacePosition.dx,
-      top: workspacePosition.dy,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          editor,
-          confirmButton,
-        ],
-      ),
-    );
-  }
 
-  void _handleTextFieldChanged() {
-    final _TextEditingSession? session = _textSession;
-    if (session == null) {
-      return;
-    }
-    _updateTextPreview(session.origin);
-  }
-
-  void _updateTextPreview(Offset origin) {
-    final _TextEditingSession? session = _textSession;
-    if (session == null) {
-      return;
-    }
-    final CanvasTextData data = _buildTextData(
-      origin: origin,
-      text: _textEditingController.text,
-    );
-    final CanvasTextLayout layout = _textOverlayRenderer.layout(data);
-    setState(() {
-      session.data = data;
-      session.bounds = layout.bounds;
-    });
-    if (!session.isNewLayer && session.layerId != null) {
-      _scheduleLiveTextLayerUpdate(
-        session.layerId!,
-        data,
-        waitForHistoryEntry: session.pendingHistoryEntry,
       );
-    }
-  }
 
-  void _scheduleLiveTextLayerUpdate(
-    String layerId,
-    CanvasTextData data, {
-    Future<_CanvasHistoryEntry>? waitForHistoryEntry,
-  }) {
-    Future<void> previous =
-        _pendingTextLayerUpdate ?? Future<void>.value();
-    if (waitForHistoryEntry != null) {
-      previous = Future.wait<void>(
-        <Future<void>>[
-          previous,
-          waitForHistoryEntry.then((_) {}),
-        ],
+      final Widget confirmButton = Padding(
+
+        padding: const EdgeInsets.only(left: 8, top: 4),
+
+        child: Container(
+
+          decoration: BoxDecoration(
+
+            color: FluentTheme.of(context).cardColor,
+
+            border: Border.all(
+
+              color: isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.5),
+
+            ),
+
+            borderRadius: BorderRadius.circular(4.0),
+
+          ),
+
+          child: IconButton(
+
+            icon: const Icon(FluentIcons.check_mark),
+
+            onPressed: () {
+
+              unawaited(_commitTextEditingSession());
+
+            },
+
+          ),
+
+        ),
+
       );
-    }
-    final Future<void> next =
-        previous.then((_) => _controller.updateTextLayer(layerId, data));
-    _pendingTextLayerUpdate =
-        next.catchError((Object error, StackTrace stackTrace) {
-      debugPrint('文字图层实时渲染失败: $error');
-    });
-  }
 
-  Future<void> _waitForPendingTextLayerUpdate() async {
-    final Future<void>? pending = _pendingTextLayerUpdate;
-    if (pending == null) {
-      return;
+      return Positioned(
+
+        left: workspacePosition.dx,
+
+        top: workspacePosition.dy,
+
+        child: Row(
+
+          crossAxisAlignment: CrossAxisAlignment.start,
+
+          children: [
+
+            editor,
+
+            confirmButton,
+
+          ],
+
+        ),
+
+      );
+
     }
-    try {
-      await pending;
-    } finally {
-      if (identical(_pendingTextLayerUpdate, pending)) {
-        _pendingTextLayerUpdate = null;
+
+  
+
+    void _handleTextFieldChanged() {
+
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null) {
+
+        return;
+
       }
+
+      _updateTextPreview(session.origin);
+
     }
-  }
 
-  CanvasTextData _buildTextData({
-    required Offset origin,
-    required String text,
-  }) {
-    final double maxWidth = (_canvasSize.width - origin.dx)
-        .clamp(32.0, _canvasSize.width);
-    return CanvasTextData(
-      text: text,
-      origin: origin,
-      fontSize: _textFontSize,
-      fontFamily: _textFontFamily,
-      color: _primaryColor,
-      lineHeight: _textLineHeight,
-      leftMargin: _textLeftMargin,
-      maxWidth: maxWidth,
-      align: _textAlign,
-      orientation: _textOrientation,
-      antialias: _textAntialias,
-      strokeEnabled: _textStrokeEnabled,
-      strokeWidth: _textStrokeWidth,
-      strokeColor: _colorLineColor,
-    );
-  }
+  
 
-  void _beginNewTextSession(Offset origin) {
-    _pendingTextLayerUpdate = null;
-    _textEditingController
-      ..clear()
-      ..selection = const TextSelection.collapsed(offset: 0);
-    _textSession = _TextEditingSession(
-      origin: origin,
-      isNewLayer: true,
-    );
-    _updateTextPreview(origin);
-    setState(() {});
-    _textEditingFocusNode.requestFocus();
-  }
+    void _updateTextPreview(Offset origin) {
 
-  Rect? _textOverlayWorkspaceRect() {
-    final _TextEditingSession? session = _textSession;
-    if (session == null || session.bounds == null) {
-      return null;
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null) {
+
+        return;
+
+      }
+
+      final CanvasTextData data = _buildTextData(
+
+        origin: origin,
+
+        text: _textEditingController.text,
+
+      );
+
+      final CanvasTextLayout layout = _textOverlayRenderer.layout(data);
+
+      setState(() {
+
+        session.data = data;
+
+        session.bounds = layout.bounds;
+
+      });
+
+      if (!session.isNewLayer && session.layerId != null) {
+
+        _scheduleLiveTextLayerUpdate(
+
+          session.layerId!,
+
+          data,
+
+          waitForHistoryEntry: session.pendingHistoryEntry,
+
+        );
+
+      }
+
     }
-    final Rect bounds = session.bounds!;
-    final double scale = _viewport.scale;
-    return Rect.fromLTWH(
-      _boardRect.left + bounds.left * scale,
-      _boardRect.top + bounds.top * scale,
-      bounds.width * scale,
-      bounds.height * scale,
-    );
-  }
 
-  void _beginEditExistingTextLayer(BitmapLayerState layer) {
-    final CanvasTextData? existing = layer.text;
-    if (existing == null) {
-      return;
+  
+
+    void _scheduleLiveTextLayerUpdate(
+
+      String layerId,
+
+      CanvasTextData data, {
+
+      Future<_CanvasHistoryEntry>? waitForHistoryEntry,
+
+    }) {
+
+      Future<void> previous =
+
+          _pendingTextLayerUpdate ?? Future<void>.value();
+
+      if (waitForHistoryEntry != null) {
+
+        previous = Future.wait<void>(
+
+          <Future<void>>[
+
+            previous,
+
+            waitForHistoryEntry.then((_) {}),
+
+          ],
+
+        );
+
+      }
+
+      final Future<void> next =
+
+          previous.then((_) => _controller.updateTextLayer(layerId, data));
+
+      _pendingTextLayerUpdate =
+
+          next.catchError((Object error, StackTrace stackTrace) {
+
+        debugPrint('文字图层实时渲染失败: $error');
+
+      });
+
     }
-    if (layer.locked) {
+
+  
+
+    Future<void> _waitForPendingTextLayerUpdate() async {
+
+      final Future<void>? pending = _pendingTextLayerUpdate;
+
+      if (pending == null) {
+
+        return;
+
+      }
+
+      try {
+
+        await pending;
+
+      } finally {
+
+        if (identical(_pendingTextLayerUpdate, pending)) {
+
+          _pendingTextLayerUpdate = null;
+
+        }
+
+      }
+
+    }
+
+  
+
+    CanvasTextData _buildTextData({
+
+      required Offset origin,
+
+      required String text,
+
+    }) {
+
+      final double maxWidth = (_canvasSize.width - origin.dx)
+
+          .clamp(32.0, _canvasSize.width);
+
+      return CanvasTextData(
+
+        text: text,
+
+        origin: origin,
+
+        fontSize: _textFontSize,
+
+        fontFamily: _textFontFamily,
+
+        color: _primaryColor,
+
+        lineHeight: _textLineHeight,
+
+        leftMargin: _textLeftMargin,
+
+        maxWidth: maxWidth,
+
+        align: _textAlign,
+
+        orientation: _textOrientation,
+
+        antialias: _textAntialias,
+
+        strokeEnabled: _textStrokeEnabled,
+
+        strokeWidth: _textStrokeWidth,
+
+        strokeColor: _colorLineColor,
+
+      );
+
+    }
+
+  
+
+    void _beginNewTextSession(Offset origin) {
+
+      _pendingTextLayerUpdate = null;
+
+      _textEditingController
+
+        ..clear()
+
+        ..selection = const TextSelection.collapsed(offset: 0);
+
+      _textSession = _TextEditingSession(
+
+        origin: origin,
+
+        isNewLayer: true,
+
+      );
+
+      _updateTextPreview(origin);
+
+      setState(() {});
+
+      _textEditingFocusNode.requestFocus();
+
+    }
+
+  
+
+    Rect? _textOverlayWorkspaceRect() {
+
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null || session.bounds == null) {
+
+        return null;
+
+      }
+
+      final Rect bounds = session.bounds!;
+
+      final double scale = _viewport.scale;
+
+      return Rect.fromLTWH(
+
+        _boardRect.left + bounds.left * scale,
+
+        _boardRect.top + bounds.top * scale,
+
+        bounds.width * scale,
+
+        bounds.height * scale,
+
+      );
+
+    }
+
+  
+
+    void _beginEditExistingTextLayer(BitmapLayerState layer) {
+
+      final CanvasTextData? existing = layer.text;
+
+      if (existing == null) {
+
+        return;
+
+      }
+
+      if (layer.locked) {
+
+        AppNotifications.show(
+
+          context,
+
+          message: '请先解锁文字图层后再编辑。',
+
+          severity: InfoBarSeverity.warning,
+
+        );
+
+        return;
+
+      }
+
+      _textFontFamily = existing.fontFamily;
+
+      _textFontSize = existing.fontSize;
+
+      _textLineHeight = existing.lineHeight;
+
+      _textLeftMargin = existing.leftMargin;
+
+      _textAlign = existing.align;
+
+      _textOrientation = existing.orientation;
+
+      _textAntialias = existing.antialias;
+
+      _textStrokeEnabled = existing.strokeEnabled;
+
+      _textStrokeWidth = existing.strokeWidth;
+
+      _colorLineColor = existing.strokeColor;
+
+      _primaryColor = existing.color;
+
+      _primaryHsv = HSVColor.fromColor(existing.color);
+
+      _textEditingController.text = existing.text;
+
+      _textEditingController.selection = TextSelection.collapsed(
+
+        offset: existing.text.length,
+
+      );
+
+      _pendingTextLayerUpdate = null;
+
+      final Future<_CanvasHistoryEntry> pendingHistory =
+
+          _createHistoryEntry();
+
+      _textSession = _TextEditingSession(
+
+        origin: existing.origin,
+
+        isNewLayer: false,
+
+        layerId: layer.id,
+
+        layerWasVisible: layer.visible,
+
+        originalData: existing,
+
+        pendingHistoryEntry: pendingHistory,
+
+      );
+
+      _updateTextPreview(existing.origin);
+
+      setState(() {});
+
+      _textEditingFocusNode.requestFocus();
+
+    }
+
+  
+
+    Future<void> _commitTextEditingSession() async {
+
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null) {
+
+        return;
+
+      }
+
+      final String content = _textEditingController.text;
+
+      if (content.trim().isEmpty) {
+
+        await _cancelTextEditingSession();
+
+        return;
+
+      }
+
+      final CanvasTextData data = (session.data ??
+
+          _buildTextData(origin: session.origin, text: content)).copyWith(
+
+        text: content,
+
+      );
+
+      await _waitForPendingTextLayerUpdate();
+
+      _textEditingController.clear();
+
+      setState(() {
+
+        _textSession = null;
+
+      });
+
+      if (session.isNewLayer) {
+
+        await _pushUndoSnapshot();
+
+        await _controller.createTextLayer(data);
+
+        return;
+
+      }
+
+      if (session.layerId == null) {
+
+        return;
+
+      }
+
+      final Future<_CanvasHistoryEntry>? pendingHistory =
+
+          session.pendingHistoryEntry;
+
+      _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
+
+      if (pendingHistory != null) {
+
+        final _CanvasHistoryEntry entry = await pendingHistory;
+
+        await _pushUndoSnapshot(entry: entry);
+
+      } else {
+
+        await _pushUndoSnapshot();
+
+      }
+
+      await _controller.updateTextLayer(session.layerId!, data);
+
+    }
+
+  
+
+    Future<void> _cancelTextEditingSession() async {
+
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null) {
+
+        return;
+
+      }
+
+      _textEditingController.clear();
+
+      setState(() {
+
+        _textSession = null;
+
+      });
+
+      if (session.isNewLayer || session.layerId == null) {
+
+        return;
+
+      }
+
+      await _waitForPendingTextLayerUpdate();
+
+      _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
+
+      final CanvasTextData? original = session.originalData;
+
+      if (original != null) {
+
+        await _controller.updateTextLayer(session.layerId!, original);
+
+      }
+
+    }
+
+  
+
+    void _restoreTextLayerVisibility(String id, bool wasVisible) {
+
+      for (final BitmapLayerState layer in _controller.layers) {
+
+        if (layer.id == id) {
+
+          layer.visible = wasVisible;
+
+          break;
+
+        }
+
+      }
+
+      _controller.notifyListeners();
+
+    }
+
+  
+
+    bool _activeLayerIsText() {
+
+      final BitmapLayerState layer = _controller.activeLayer;
+
+      return layer.text != null;
+
+    }
+
+  
+
+    void _showTextToolConflictWarning() {
+
       AppNotifications.show(
+
         context,
-        message: '请先解锁文字图层后再编辑。',
+
+        message: '当前图层是文字图层，请先栅格化或切换其他图层。',
+
         severity: InfoBarSeverity.warning,
+
       );
-      return;
+
     }
-    _textFontFamily = existing.fontFamily;
-    _textFontSize = existing.fontSize;
-    _textLineHeight = existing.lineHeight;
-    _textLeftMargin = existing.leftMargin;
-    _textAlign = existing.align;
-    _textOrientation = existing.orientation;
-    _textAntialias = existing.antialias;
-    _textStrokeEnabled = existing.strokeEnabled;
-    _textStrokeWidth = existing.strokeWidth;
-    _colorLineColor = existing.strokeColor;
-    _primaryColor = existing.color;
-    _primaryHsv = HSVColor.fromColor(existing.color);
-    _textEditingController.text = existing.text;
-    _textEditingController.selection = TextSelection.collapsed(
-      offset: existing.text.length,
-    );
-    _pendingTextLayerUpdate = null;
-    final Future<_CanvasHistoryEntry> pendingHistory =
-        _createHistoryEntry();
-    _textSession = _TextEditingSession(
-      origin: existing.origin,
-      isNewLayer: false,
-      layerId: layer.id,
-      layerWasVisible: layer.visible,
-      originalData: existing,
-      pendingHistoryEntry: pendingHistory,
-    );
-    _updateTextPreview(existing.origin);
-    setState(() {});
-    _textEditingFocusNode.requestFocus();
+
+  
+
+    BitmapLayerState? _hitTestTextLayer(Offset boardLocal) {
+
+      final List<BitmapLayerState> layers =
+
+          _controller.layers.toList(growable: false);
+
+      for (int i = layers.length - 1; i >= 0; i--) {
+
+        final BitmapLayerState layer = layers[i];
+
+        if (!layer.visible || layer.text == null || layer.textBounds == null) {
+
+          continue;
+
+        }
+
+        if (layer.textBounds!.contains(boardLocal)) {
+
+          return layer;
+
+        }
+
+      }
+
+      return null;
+
+    }
+
+  
+
+    void _updateTextFontFamily(String family) {
+
+      if (_textFontFamily == family) {
+
+        return;
+
+      }
+
+      setState(() => _textFontFamily = family);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _updateTextFontSize(double value) {
+
+      final double clamped = value.clamp(4.0, 512.0);
+
+      if ((_textFontSize - clamped).abs() < 0.01) {
+
+        return;
+
+      }
+
+      setState(() => _textFontSize = clamped);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _updateTextLineHeight(double value) {
+
+      final double clamped = value.clamp(0.5, 4.0);
+
+      if ((_textLineHeight - clamped).abs() < 0.01) {
+
+        return;
+
+      }
+
+      setState(() => _textLineHeight = clamped);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _updateTextLeftMargin(double value) {
+
+      final double clamped = value.clamp(-200.0, 400.0);
+
+      if ((_textLeftMargin - clamped).abs() < 0.5) {
+
+        return;
+
+      }
+
+      setState(() => _textLeftMargin = clamped);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _updateTextAlign(TextAlign align) {
+
+      if (_textAlign == align) {
+
+        return;
+
+      }
+
+      setState(() => _textAlign = align);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _updateTextOrientation(CanvasTextOrientation orientation) {
+
+      if (_textOrientation == orientation) {
+
+        return;
+
+      }
+
+      setState(() => _textOrientation = orientation);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _updateTextAntialias(bool value) {
+
+      if (_textAntialias == value) {
+
+        return;
+
+      }
+
+      setState(() => _textAntialias = value);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _updateTextStrokeEnabled(bool value) {
+
+      if (_textStrokeEnabled == value) {
+
+        return;
+
+      }
+
+      setState(() => _textStrokeEnabled = value);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _updateTextStrokeWidth(double value) {
+
+      final double clamped = value.clamp(0.5, 20.0);
+
+      if ((_textStrokeWidth - clamped).abs() < 0.01) {
+
+        return;
+
+      }
+
+      setState(() => _textStrokeWidth = clamped);
+
+      _refreshTextPreview();
+
+    }
+
+  
+
+    void _refreshTextPreview() {
+
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null) {
+
+        return;
+
+      }
+
+      _updateTextPreview(session.origin);
+
+    }
+
+  
+
+    void _updateActiveTextSessionColor() {
+
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null || session.data == null) {
+
+        return;
+
+      }
+
+      final CanvasTextData updated = session.data!.copyWith(
+
+        color: _primaryColor,
+
+      );
+
+      session.data = updated;
+
+      if (!session.isNewLayer && session.layerId != null) {
+
+        _scheduleLiveTextLayerUpdate(
+
+          session.layerId!,
+
+          updated,
+
+          waitForHistoryEntry: session.pendingHistoryEntry,
+
+        );
+
+      }
+
+      setState(() {});
+
+    }
+
   }
 
-  Future<void> _commitTextEditingSession() async {
-    final _TextEditingSession? session = _textSession;
-    if (session == null) {
-      return;
-    }
-    final String content = _textEditingController.text;
-    if (content.trim().isEmpty) {
-      await _cancelTextEditingSession();
-      return;
-    }
-    final CanvasTextData data = (session.data ??
-        _buildTextData(origin: session.origin, text: content)).copyWith(
-      text: content,
-    );
-    await _waitForPendingTextLayerUpdate();
-    _textEditingController.clear();
-    setState(() {
-      _textSession = null;
+  
+
+  class _TextEditorOverlay extends StatefulWidget {
+
+    const _TextEditorOverlay({
+
+      required this.renderer,
+
+      required this.data,
+
+      required this.bounds,
+
+      required this.scale,
+
+      required this.controller,
+
+      required this.focusNode,
+
+      required this.cursorColor,
+
+      required this.selectionColor,
+
+      required this.onConfirm,
+
+      required this.onCancel,
+
+      this.paintPreview = true,
+
     });
-    if (session.isNewLayer) {
-      await _pushUndoSnapshot();
-      await _controller.createTextLayer(data);
-      return;
-    }
-    if (session.layerId == null) {
-      return;
-    }
-    final Future<_CanvasHistoryEntry>? pendingHistory =
-        session.pendingHistoryEntry;
-    _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
-    if (pendingHistory != null) {
-      final _CanvasHistoryEntry entry = await pendingHistory;
-      await _pushUndoSnapshot(entry: entry);
-    } else {
-      await _pushUndoSnapshot();
-    }
-    await _controller.updateTextLayer(session.layerId!, data);
+
+  
+
+    final CanvasTextRenderer renderer;
+
+    final CanvasTextData data;
+
+    final Rect bounds;
+
+    final double scale;
+
+    final TextEditingController controller;
+
+    final FocusNode focusNode;
+
+    final Color cursorColor;
+
+    final Color selectionColor;
+
+    final VoidCallback onConfirm;
+
+    final VoidCallback onCancel;
+
+    final bool paintPreview;
+
+  
+
+    @override
+
+    State<_TextEditorOverlay> createState() => _TextEditorOverlayState();
+
   }
 
-  Future<void> _cancelTextEditingSession() async {
-    final _TextEditingSession? session = _textSession;
-    if (session == null) {
-      return;
-    }
-    _textEditingController.clear();
-    setState(() {
-      _textSession = null;
-    });
-    if (session.isNewLayer || session.layerId == null) {
-      return;
-    }
-    await _waitForPendingTextLayerUpdate();
-    _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
-    final CanvasTextData? original = session.originalData;
-    if (original != null) {
-      await _controller.updateTextLayer(session.layerId!, original);
-    }
-  }
+  
 
-  void _restoreTextLayerVisibility(String id, bool wasVisible) {
-    for (final BitmapLayerState layer in _controller.layers) {
-      if (layer.id == id) {
-        layer.visible = wasVisible;
-        break;
-      }
-    }
-    _controller.notifyListeners();
-  }
+  class _TextEditorOverlayState extends State<_TextEditorOverlay> {
 
-  bool _activeLayerIsText() {
-    final BitmapLayerState layer = _controller.activeLayer;
-    return layer.text != null;
-  }
+    final GlobalKey<EditableTextState> _editableKey =
 
-  void _showTextToolConflictWarning() {
-    AppNotifications.show(
-      context,
-      message: '当前图层是文字图层，请先栅格化或切换其他图层。',
-      severity: InfoBarSeverity.warning,
-    );
-  }
+        GlobalKey<EditableTextState>();
 
-  BitmapLayerState? _hitTestTextLayer(Offset boardLocal) {
-    final List<BitmapLayerState> layers =
-        _controller.layers.toList(growable: false);
-    for (int i = layers.length - 1; i >= 0; i--) {
-      final BitmapLayerState layer = layers[i];
-      if (!layer.visible || layer.text == null || layer.textBounds == null) {
-        continue;
-      }
-      if (layer.textBounds!.contains(boardLocal)) {
-        return layer;
-      }
-    }
-    return null;
-  }
+    Offset? _selectionDragOrigin;
 
-  void _updateTextFontFamily(String family) {
-    if (_textFontFamily == family) {
-      return;
-    }
-    setState(() => _textFontFamily = family);
-    _refreshTextPreview();
-  }
+    int? _selectionPointer;
 
-  void _updateTextFontSize(double value) {
-    final double clamped = value.clamp(4.0, 512.0);
-    if ((_textFontSize - clamped).abs() < 0.01) {
-      return;
-    }
-    setState(() => _textFontSize = clamped);
-    _refreshTextPreview();
-  }
+  
 
-  void _updateTextLineHeight(double value) {
-    final double clamped = value.clamp(0.5, 4.0);
-    if ((_textLineHeight - clamped).abs() < 0.01) {
-      return;
-    }
-    setState(() => _textLineHeight = clamped);
-    _refreshTextPreview();
-  }
+    @override
 
-  void _updateTextLeftMargin(double value) {
-    final double clamped = value.clamp(-200.0, 400.0);
-    if ((_textLeftMargin - clamped).abs() < 0.5) {
-      return;
-    }
-    setState(() => _textLeftMargin = clamped);
-    _refreshTextPreview();
-  }
+    Widget build(BuildContext context) {
 
-  void _updateTextAlign(TextAlign align) {
-    if (_textAlign == align) {
-      return;
-    }
-    setState(() => _textAlign = align);
-    _refreshTextPreview();
-  }
+      final Size scaledSize = Size(
 
-  void _updateTextOrientation(CanvasTextOrientation orientation) {
-    if (_textOrientation == orientation) {
-      return;
-    }
-    setState(() => _textOrientation = orientation);
-    _refreshTextPreview();
-  }
+        math.max(widget.bounds.width * widget.scale, 4),
 
-  void _updateTextAntialias(bool value) {
-    if (_textAntialias == value) {
-      return;
-    }
-    setState(() => _textAntialias = value);
-    _refreshTextPreview();
-  }
+        math.max(widget.bounds.height * widget.scale, 4),
 
-  void _updateTextStrokeEnabled(bool value) {
-    if (_textStrokeEnabled == value) {
-      return;
-    }
-    setState(() => _textStrokeEnabled = value);
-    _refreshTextPreview();
-  }
+      );
 
-  void _updateTextStrokeWidth(double value) {
-    final double clamped = value.clamp(0.5, 20.0);
-    if ((_textStrokeWidth - clamped).abs() < 0.01) {
-      return;
-    }
-    setState(() => _textStrokeWidth = clamped);
-    _refreshTextPreview();
-  }
+      final double scaledFontSize =
 
-  void _refreshTextPreview() {
-    final _TextEditingSession? session = _textSession;
-    if (session == null) {
-      return;
-    }
-    _updateTextPreview(session.origin);
-  }
-}
+          (widget.data.fontSize * widget.scale).clamp(0.1, 4096.0);
 
-class _TextEditorOverlay extends StatefulWidget {
-  const _TextEditorOverlay({
-    required this.renderer,
-    required this.data,
-    required this.bounds,
-    required this.scale,
-    required this.controller,
-    required this.focusNode,
-    required this.cursorColor,
-    required this.selectionColor,
-    required this.onConfirm,
-    required this.onCancel,
-    this.paintPreview = true,
-  });
+      final Map<LogicalKeySet, Intent> shortcuts = <LogicalKeySet, Intent>{
 
-  final CanvasTextRenderer renderer;
-  final CanvasTextData data;
-  final Rect bounds;
-  final double scale;
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final Color cursorColor;
-  final Color selectionColor;
-  final VoidCallback onConfirm;
-  final VoidCallback onCancel;
-  final bool paintPreview;
+        LogicalKeySet(LogicalKeyboardKey.escape):
 
-  @override
-  State<_TextEditorOverlay> createState() => _TextEditorOverlayState();
-}
+            const _CancelTextEditingIntent(),
 
-class _TextEditorOverlayState extends State<_TextEditorOverlay> {
-  final GlobalKey<EditableTextState> _editableKey =
-      GlobalKey<EditableTextState>();
-  Offset? _selectionDragOrigin;
-  int? _selectionPointer;
+        LogicalKeySet(
 
-  @override
-  Widget build(BuildContext context) {
-    final Size scaledSize = Size(
-      math.max(widget.bounds.width * widget.scale, 4),
-      math.max(widget.bounds.height * widget.scale, 4),
-    );
-    final double scaledFontSize =
-        (widget.data.fontSize * widget.scale).clamp(0.1, 4096.0);
-    final Map<LogicalKeySet, Intent> shortcuts = <LogicalKeySet, Intent>{
-      LogicalKeySet(LogicalKeyboardKey.escape):
-          const _CancelTextEditingIntent(),
-      LogicalKeySet(
-        LogicalKeyboardKey.meta,
-        LogicalKeyboardKey.enter,
-      ): const _CommitTextEditingIntent(),
-      LogicalKeySet(
-        LogicalKeyboardKey.control,
-        LogicalKeyboardKey.enter,
-      ): const _CommitTextEditingIntent(),
-      LogicalKeySet(
-        LogicalKeyboardKey.meta,
-        LogicalKeyboardKey.keyA,
-      ): const _SelectAllTextOverlayIntent(),
-      LogicalKeySet(
-        LogicalKeyboardKey.control,
-        LogicalKeyboardKey.keyA,
-      ): const _SelectAllTextOverlayIntent(),
-      LogicalKeySet(LogicalKeyboardKey.arrowLeft):
-          const _MoveTextCaretIntent(-1),
-      LogicalKeySet(LogicalKeyboardKey.arrowRight):
-          const _MoveTextCaretIntent(1),
-      LogicalKeySet(
-        LogicalKeyboardKey.shift,
-        LogicalKeyboardKey.arrowLeft,
-      ): const _MoveTextCaretIntent(-1, expandSelection: true),
-      LogicalKeySet(
-        LogicalKeyboardKey.shift,
-        LogicalKeyboardKey.arrowRight,
-      ): const _MoveTextCaretIntent(1, expandSelection: true),
-    };
-    return Shortcuts(
-      shortcuts: shortcuts,
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          _CommitTextEditingIntent: CallbackAction<_CommitTextEditingIntent>(
-            onInvoke: (intent) {
-              widget.onConfirm();
-              return null;
-            },
+          LogicalKeyboardKey.meta,
+
+          LogicalKeyboardKey.enter,
+
+        ): const _CommitTextEditingIntent(),
+
+        LogicalKeySet(
+
+          LogicalKeyboardKey.control,
+
+          LogicalKeyboardKey.enter,
+
+        ): const _CommitTextEditingIntent(),
+
+        LogicalKeySet(
+
+          LogicalKeyboardKey.meta,
+
+          LogicalKeyboardKey.keyA,
+
+        ): const _SelectAllTextOverlayIntent(),
+
+        LogicalKeySet(
+
+          LogicalKeyboardKey.control,
+
+          LogicalKeyboardKey.keyA,
+
+        ): const _SelectAllTextOverlayIntent(),
+
+        LogicalKeySet(LogicalKeyboardKey.arrowLeft):
+
+            const _MoveTextCaretIntent(-1),
+
+        LogicalKeySet(LogicalKeyboardKey.arrowRight):
+
+            const _MoveTextCaretIntent(1),
+
+        LogicalKeySet(
+
+          LogicalKeyboardKey.shift,
+
+          LogicalKeyboardKey.arrowLeft,
+
+        ): const _MoveTextCaretIntent(-1, expandSelection: true),
+
+        LogicalKeySet(
+
+          LogicalKeyboardKey.shift,
+
+          LogicalKeyboardKey.arrowRight,
+
+        ): const _MoveTextCaretIntent(1, expandSelection: true),
+
+      };
+
+      return Shortcuts(
+
+        shortcuts: shortcuts,
+
+        child: Actions(
+
+          actions: <Type, Action<Intent>>{
+
+            _CommitTextEditingIntent: CallbackAction<_CommitTextEditingIntent>(
+
+              onInvoke: (intent) {
+
+                widget.onConfirm();
+
+                return null;
+
+              },
+
+            ),
+
+            _CancelTextEditingIntent: CallbackAction<_CancelTextEditingIntent>(
+
+              onInvoke: (intent) {
+
+                widget.onCancel();
+
+                return null;
+
+              },
+
+            ),
+
+            _SelectAllTextOverlayIntent:
+
+                CallbackAction<_SelectAllTextOverlayIntent>(
+
+              onInvoke: (intent) {
+
+                _handleSelectAll();
+
+                return null;
+
+              },
+
+            ),
+
+            _MoveTextCaretIntent: CallbackAction<_MoveTextCaretIntent>(
+
+              onInvoke: (intent) {
+
+                _handleMoveCaret(intent);
+
+                return null;
+
+              },
+
+            ),
+
+          },
+
+          child: Listener(
+
+            behavior: HitTestBehavior.translucent,
+
+            onPointerDown: _handlePointerDown,
+
+            onPointerMove: _handlePointerMove,
+
+            onPointerUp: _handlePointerUp,
+
+            onPointerCancel: _handlePointerCancel,
+
+            child: SizedBox(
+
+              width: scaledSize.width,
+
+              height: scaledSize.height,
+
+              child: Stack(
+
+                fit: StackFit.loose,
+
+                clipBehavior: Clip.none,
+
+                children: [
+
+                  if (widget.paintPreview)
+
+                    Positioned.fill(
+
+                      child: CustomPaint(
+
+                        painter: _TextPreviewPainter(
+
+                          renderer: widget.renderer,
+
+                          data: widget.data,
+
+                          bounds: widget.bounds,
+
+                          scale: widget.scale,
+
+                        ),
+
+                      ),
+
+                    ),
+
+                  Positioned(
+
+                    left: widget.data.align == TextAlign.right ||
+
+                            widget.data.align == TextAlign.end ||
+
+                            widget.data.align == TextAlign.center
+
+                        ? -scaledFontSize
+
+                        : 0,
+
+                    right: widget.data.align == TextAlign.left ||
+
+                            widget.data.align == TextAlign.start ||
+
+                            widget.data.align == TextAlign.justify ||
+
+                            widget.data.align == TextAlign.center
+
+                        ? -scaledFontSize
+
+                        : 0,
+
+                    top: 0,
+
+                    bottom: 0,
+
+                    child: EditableText(
+
+                      key: _editableKey,
+
+                      controller: widget.controller,
+
+                      focusNode: widget.focusNode,
+
+                      cursorColor: widget.cursorColor,
+
+                      backgroundCursorColor: Colors.transparent,
+
+                      style: TextStyle(
+
+                        color: Colors.transparent,
+
+                        fontSize: scaledFontSize,
+
+                        fontFamily: widget.data.fontFamily.isEmpty
+
+                            ? null
+
+                            : widget.data.fontFamily,
+
+                        height: widget.data.lineHeight,
+
+                      ),
+
+                      selectionColor: widget.selectionColor,
+
+                      keyboardType: TextInputType.multiline,
+
+                      maxLines: null,
+
+                      textAlign: widget.data.align,
+
+                      textDirection: TextDirection.ltr,
+
+                    ),
+
+                  ),
+
+                ],
+
+              ),
+
+            ),
+
           ),
-          _CancelTextEditingIntent: CallbackAction<_CancelTextEditingIntent>(
-            onInvoke: (intent) {
-              widget.onCancel();
-              return null;
-            },
-          ),
-          _SelectAllTextOverlayIntent:
-              CallbackAction<_SelectAllTextOverlayIntent>(
-            onInvoke: (intent) {
-              _handleSelectAll();
-              return null;
-            },
-          ),
-          _MoveTextCaretIntent: CallbackAction<_MoveTextCaretIntent>(
-            onInvoke: (intent) {
-              _handleMoveCaret(intent);
-              return null;
-            },
-          ),
-        },
-        child: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: _handlePointerDown,
-          onPointerMove: _handlePointerMove,
-          onPointerUp: _handlePointerUp,
-          onPointerCancel: _handlePointerCancel,
-          child: SizedBox(
-            width: scaledSize.width,
-            height: scaledSize.height,
-                        child: Stack(
-                          fit: StackFit.loose,
-                          clipBehavior: Clip.none,
-                          children: [
-                            if (widget.paintPreview)
-                              Positioned.fill(
-                                child: CustomPaint(
-                                  painter: _TextPreviewPainter(
-                                    renderer: widget.renderer,
-                                    data: widget.data,
-                                    bounds: widget.bounds,
-                                    scale: widget.scale,
-                                  ),
-                                ),
-                              ),
-                            Positioned(
-                              left: widget.data.align == TextAlign.right ||
-                                      widget.data.align == TextAlign.end ||
-                                      widget.data.align == TextAlign.center
-                                  ? -scaledFontSize
-                                  : 0,
-                              right: widget.data.align == TextAlign.left ||
-                                      widget.data.align == TextAlign.start ||
-                                      widget.data.align == TextAlign.justify ||
-                                      widget.data.align == TextAlign.center
-                                  ? -scaledFontSize
-                                  : 0,
-                              top: 0,
-                              bottom: 0,
-                              child: EditableText(
-                                key: _editableKey,
-                                controller: widget.controller,
-                                focusNode: widget.focusNode,
-                                cursorColor: widget.cursorColor,
-                                backgroundCursorColor: Colors.transparent,
-                                style: TextStyle(
-                                  color: Colors.transparent,
-                                  fontSize: scaledFontSize,
-                                  fontFamily: widget.data.fontFamily.isEmpty
-                                      ? null
-                                      : widget.data.fontFamily,
-                                  height: widget.data.lineHeight,
-                                ),
-                                selectionColor: widget.selectionColor,
-                                keyboardType: TextInputType.multiline,
-                                maxLines: null,
-                                textAlign: widget.data.align,
-                                textDirection: TextDirection.ltr,
-                              ),
-                            ),
-                          ],
-                        ),          ),
+
         ),
-      ),
-    );
-  }
+
+      );
+
+    }
 
   void _handleSelectAll() {
     final EditableTextState? state = _editableKey.currentState;
