@@ -895,8 +895,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       case CanvasTool.text:
       case CanvasTool.hand:
       case CanvasTool.eyedropper:
-        return false;
       case CanvasTool.layerAdjust:
+        return false;
       case CanvasTool.pen:
       case CanvasTool.eraser:
       case CanvasTool.curvePen:
