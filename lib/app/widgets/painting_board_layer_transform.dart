@@ -8,6 +8,8 @@ const double _kLayerTransformRotationHandleDistance = 36;
 const double _kLayerTransformRotationHandleRadius = 6;
 const double _kLayerTransformMinScale = 0.02;
 const double _kLayerTransformMaxScale = 64;
+const Color _kLayerTransformOverlayColor = Color(0xFF2B2B2B);
+const Color _kLayerTransformOverlayHighlightColor = Color(0xFF4B4B4B);
 
 enum _LayerTransformHandle {
   translate,
@@ -1042,10 +1044,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (state == null) {
       return null;
     }
-    final Color lineColor = theme.resources.textFillColorSecondary;
-    final Color highlightColor = theme.accentColor.defaultBrushFor(
-      theme.brightness,
-    );
+    const Color lineColor = _kLayerTransformOverlayColor;
+    const Color highlightColor = _kLayerTransformOverlayHighlightColor;
     return IgnorePointer(
       ignoring: true,
       child: CustomPaint(
