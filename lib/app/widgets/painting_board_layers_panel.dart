@@ -591,6 +591,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                     final bool tileDimmed =
                         layerTileDimStates[layer.id] ?? !layer.visible;
                     final double contentOpacity = tileDimmed ? 0.45 : 1.0;
+                    final bool isTextLayer = layer.text != null;
                     final Color background = isActive
                         ? Color.alphaBlend(
                             theme.resources.subtleFillColorSecondary,
@@ -801,28 +802,14 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          _LayerNameView(
-                                            layer: layer,
+                                          _buildLayerNameRow(
                                             theme: theme,
+                                            layer: layer,
                                             isActive: isActive,
                                             isRenaming: !layerLocked &&
                                                 _renamingLayerId == layer.id,
                                             isLocked: layerLocked,
-                                            buildEditor: (style) =>
-                                                _buildInlineLayerRenameField(
-                                                  theme,
-                                                  isActive: isActive,
-                                                  layerId: layer.id,
-                                                  styleOverride: style,
-                                                ),
-                                            onRequestRename: layerLocked
-                                                ? null
-                                                : () {
-                                                    _handleLayerSelected(
-                                                      layer.id,
-                                                    );
-                                                    _beginLayerRename(layer);
-                                                  },
+                                            isTextLayer: isTextLayer,
                                           ),
                                           const SizedBox(height: 6),
                                           _LayerPreviewThumbnail(
@@ -861,6 +848,52 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildLayerNameRow({
+    required FluentThemeData theme,
+    required BitmapLayerState layer,
+    required bool isActive,
+    required bool isRenaming,
+    required bool isLocked,
+    required bool isTextLayer,
+  }) {
+    Widget name = _LayerNameView(
+      layer: layer,
+      theme: theme,
+      isActive: isActive,
+      isRenaming: isRenaming,
+      isLocked: isLocked,
+      buildEditor: (style) => _buildInlineLayerRenameField(
+        theme,
+        isActive: isActive,
+        layerId: layer.id,
+        styleOverride: style,
+      ),
+      onRequestRename: isLocked
+          ? null
+          : () {
+              _handleLayerSelected(layer.id);
+              _beginLayerRename(layer);
+            },
+    );
+    if (!isTextLayer) {
+      return name;
+    }
+    final Color iconColor = theme.resources.textFillColorSecondary;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(
+          FluentIcons.font,
+          size: 12,
+          color: iconColor,
+        ),
+        const SizedBox(width: 6),
+        Expanded(child: name),
       ],
     );
   }

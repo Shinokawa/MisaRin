@@ -817,13 +817,35 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
   
 
-    bool _activeLayerIsText() {
+  bool _activeLayerIsText() {
 
-      final BitmapLayerState layer = _controller.activeLayer;
+    final BitmapLayerState layer = _controller.activeLayer;
 
-      return layer.text != null;
+    return layer.text != null;
 
+  }
+
+  bool _shouldBlockToolOnTextLayer(CanvasTool tool) {
+    if (!_activeLayerIsText()) {
+      return false;
     }
+    switch (tool) {
+      case CanvasTool.text:
+      case CanvasTool.hand:
+      case CanvasTool.eyedropper:
+        return false;
+      case CanvasTool.layerAdjust:
+      case CanvasTool.pen:
+      case CanvasTool.eraser:
+      case CanvasTool.curvePen:
+      case CanvasTool.shape:
+      case CanvasTool.spray:
+      case CanvasTool.bucket:
+      case CanvasTool.magicWand:
+      case CanvasTool.selection:
+        return true;
+    }
+}
 
   
 

@@ -183,14 +183,18 @@ class CanvasTextRenderer {
   Future<CanvasTextRaster> rasterize(CanvasTextData data) async {
     final CanvasTextLayout textLayout = layout(data);
     final ui.Rect bounds = textLayout.bounds;
-    final int width = math.max(1, bounds.width.ceil());
-    final int height = math.max(1, bounds.height.ceil());
+    final int left = bounds.left.floor();
+    final int top = bounds.top.floor();
+    final int right = bounds.right.ceil();
+    final int bottom = bounds.bottom.ceil();
+    final int width = math.max(1, right - left);
+    final int height = math.max(1, bottom - top);
     final ui.PictureRecorder recorder = ui.PictureRecorder();
     final ui.Canvas canvas = ui.Canvas(
       recorder,
       ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
     );
-    canvas.translate(-bounds.left, -bounds.top);
+    canvas.translate(-left.toDouble(), -top.toDouble());
     _paint(canvas, data);
     final ui.Picture picture = recorder.endRecording();
     final ui.Image image = await picture.toImage(width, height);
@@ -203,8 +207,8 @@ class CanvasTextRenderer {
         pixels: Uint8List(0),
         width: width,
         height: height,
-        left: bounds.left.floor(),
-        top: bounds.top.floor(),
+        left: left,
+        top: top,
         layout: textLayout,
       );
     }
@@ -214,8 +218,8 @@ class CanvasTextRenderer {
       pixels: pixels,
       width: width,
       height: height,
-      left: bounds.left.floor(),
-      top: bounds.top.floor(),
+      left: left,
+      top: top,
       layout: textLayout,
     );
   }

@@ -1596,6 +1596,10 @@ mixin _PaintingBoardInteractionMixin
     if (!pointerInsideBoard && !toolCanStartOutsideCanvas) {
       return;
     }
+    if (_shouldBlockToolOnTextLayer(tool)) {
+      _showTextToolConflictWarning();
+      return;
+    }
     final Offset boardLocal = _toBoardLocal(pointer);
     if (_isTextEditingActive) {
       return;
@@ -1612,10 +1616,6 @@ mixin _PaintingBoardInteractionMixin
         break;
       case CanvasTool.pen:
       case CanvasTool.eraser:
-        if (_activeLayerIsText()) {
-          _showTextToolConflictWarning();
-          return;
-        }
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
@@ -1624,10 +1624,6 @@ mixin _PaintingBoardInteractionMixin
         await _startStroke(boardLocal, event.timeStamp, event);
         break;
       case CanvasTool.curvePen:
-        if (_activeLayerIsText()) {
-          _showTextToolConflictWarning();
-          return;
-        }
         if (_isCurveCancelModifierPressed() &&
             (_curveAnchor != null || _isCurvePlacingSegment)) {
           _resetCurvePenState();
@@ -1636,18 +1632,10 @@ mixin _PaintingBoardInteractionMixin
         await _handleCurvePenPointerDown(boardLocal);
         break;
       case CanvasTool.shape:
-        if (_activeLayerIsText()) {
-          _showTextToolConflictWarning();
-          return;
-        }
         _focusNode.requestFocus();
         await _beginShapeDrawing(boardLocal);
         break;
       case CanvasTool.spray:
-        if (_activeLayerIsText()) {
-          _showTextToolConflictWarning();
-          return;
-        }
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
@@ -1655,10 +1643,6 @@ mixin _PaintingBoardInteractionMixin
         await _startSprayStroke(boardLocal, event);
         break;
       case CanvasTool.bucket:
-        if (_activeLayerIsText()) {
-          _showTextToolConflictWarning();
-          return;
-        }
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
