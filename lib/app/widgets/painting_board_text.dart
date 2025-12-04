@@ -228,6 +228,10 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         _buildTextData(origin: session.origin, text: content)).copyWith(
       text: content,
     );
+    _textEditingController.clear();
+    setState(() {
+      _textSession = null;
+    });
     await _pushUndoSnapshot();
     if (session.isNewLayer) {
       await _controller.createTextLayer(data);
@@ -235,10 +239,6 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
       await _controller.updateTextLayer(session.layerId!, data);
     }
-    _textEditingController.clear();
-    setState(() {
-      _textSession = null;
-    });
   }
 
   void _cancelTextEditingSession() {

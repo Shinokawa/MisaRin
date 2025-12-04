@@ -108,11 +108,13 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _setActiveTool(CanvasTool tool) {
-    if (tool != CanvasTool.text && _isTextEditingActive) {
-      _cancelTextEditingSession();
-    }
+    final bool shouldCommitText =
+        tool != CanvasTool.text && _isTextEditingActive;
     if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
       return;
+    }
+    if (shouldCommitText) {
+      unawaited(_commitTextEditingSession());
     }
     if (_activeTool == tool) {
       return;
