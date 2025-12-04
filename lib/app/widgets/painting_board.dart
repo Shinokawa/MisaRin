@@ -82,6 +82,7 @@ import '../../painting/krita_spray_engine.dart';
 import 'tool_cursor_overlay.dart';
 import 'bitmap_canvas_surface.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
+import '../menu/menu_action_dispatcher.dart';
 import '../constants/color_line_presets.dart';
 import '../preferences/app_preferences.dart';
 import '../constants/pen_constants.dart';
@@ -1750,6 +1751,7 @@ class PaintingBoardState extends _PaintingBoardBase
       widget.onReadyChanged?.call(true);
     }
     _resetHistory();
+    _syncRasterizeMenuAvailability();
   }
 
   @override
@@ -2009,6 +2011,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _shapeVectorFillOverlayColor = null;
       }
     });
+    _syncRasterizeMenuAvailability();
     _notifyBoardReadyIfNeeded();
   }
 

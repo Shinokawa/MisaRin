@@ -200,6 +200,10 @@ class MenuActionDispatcher extends ChangeNotifier {
       notifyListeners();
     });
   }
+
+  void refresh() {
+    _scheduleNotify();
+  }
 }
 
 class MenuActionBinding extends StatefulWidget {

@@ -13,6 +13,7 @@ mixin _PaintingBoardLayerMixin
   String? _renamingLayerId;
   final FlyoutController _layerContextMenuController = FlyoutController();
   final FlyoutController _blendModeFlyoutController = FlyoutController();
+  bool? _rasterizeMenuEnabled;
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
@@ -70,6 +71,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityPreviewReset(this);
     _controller.setActiveLayer(id);
     setState(() {});
+    _syncRasterizeMenuAvailability();
   }
 
   void _handleLayerRenameFocusChange() {
@@ -220,7 +222,17 @@ mixin _PaintingBoardLayerMixin
     _controller.rasterizeTextLayer(layer.id);
     setState(() {});
     _markDirty();
+    _syncRasterizeMenuAvailability();
     return true;
+  }
+
+  void _syncRasterizeMenuAvailability() {
+    final bool next = canRasterizeActiveLayer;
+    if (_rasterizeMenuEnabled == next) {
+      return;
+    }
+    _rasterizeMenuEnabled = next;
+    MenuActionDispatcher.instance.refresh();
   }
 
   void _handleLayerOpacityChangeStart(double _) {
