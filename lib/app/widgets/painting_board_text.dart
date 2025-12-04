@@ -18,6 +18,7 @@ class _TextEditingSession {
   final Future<_CanvasHistoryEntry>? pendingHistoryEntry;
   CanvasTextData? data;
   Rect? bounds;
+  bool isFinalizing = false;
 }
 
 class _CommitTextEditingIntent extends Intent {
@@ -134,15 +135,9 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       final CanvasTextData data = session.data!;
 
-      // Show preview painter (the colored text) because we want the input text to be transparent
-
-      // but we want the user to see what they are typing in the correct color.
-
-      // Actually, wait, if we are editing, we want to see the preview always?
-
-      // Yes, otherwise it's invisible.
-
       const bool showPreviewPainter = true; 
+
+      final bool isFinalizing = session.isFinalizing;
 
       final Color overlayColor = _textOverlayContrastColor();
       final Color selectionColor = overlayColor.withOpacity(0.25);
@@ -193,6 +188,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
           paintPreview: showPreviewPainter,
 
+          interactive: !isFinalizing,
+
         ),
 
       );
@@ -217,25 +214,37 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
           ),
 
-          child: IconButton(
+          child: isFinalizing
 
-            icon: Icon(
+              ? const SizedBox(
 
-              FluentIcons.check_mark,
+                  width: 32,
 
-              color: overlayColor,
+                  height: 32,
 
-            ),
+                  child: ProgressRing(strokeWidth: 2.0),
 
-            style: confirmButtonStyle,
+                )
 
-            onPressed: () {
+              : IconButton(
 
-              unawaited(_commitTextEditingSession());
+                  icon: Icon(
 
-            },
+                    FluentIcons.check_mark,
 
-          ),
+                    color: overlayColor,
+
+                  ),
+
+                  style: confirmButtonStyle,
+
+                  onPressed: () {
+
+                    unawaited(_commitTextEditingSession());
+
+                  },
+
+                ),
 
         ),
 
@@ -347,7 +356,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       final _TextEditingSession? session = _textSession;
 
-      if (session == null) {
+      if (session == null || session.isFinalizing) {
 
         return;
 
@@ -693,7 +702,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       final _TextEditingSession? session = _textSession;
 
-      if (session == null) {
+      if (session == null || session.isFinalizing) {
 
         return;
 
@@ -709,59 +718,75 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       }
 
-      final CanvasTextData data = (session.data ??
+      final CanvasTextData baseData =
 
-          _buildTextData(origin: session.origin, text: content)).copyWith(
+          session.data ?? _buildTextData(origin: session.origin, text: content);
 
-        text: content,
+      final CanvasTextData data = baseData.copyWith(text: content);
 
-      );
+      final CanvasTextLayout layout = _textOverlayRenderer.layout(data);
 
       await _waitForPendingTextLayerUpdate();
 
-      _textEditingController.clear();
-
       setState(() {
 
-        _textSession = null;
+        session.isFinalizing = true;
+
+        session.data = data;
+
+        session.bounds = layout.bounds;
 
       });
 
-      if (session.isNewLayer) {
+      try {
 
-        await _pushUndoSnapshot();
+        if (session.isNewLayer) {
 
-        await _controller.createTextLayer(data);
+          await _pushUndoSnapshot();
 
-        return;
+          await _controller.createTextLayer(data);
+
+          return;
+
+        }
+
+        if (session.layerId == null) {
+
+          return;
+
+        }
+
+        final Future<_CanvasHistoryEntry>? pendingHistory =
+
+            session.pendingHistoryEntry;
+
+        _restoreTextLayerVisibility(
+
+          session.layerId!,
+
+          session.layerWasVisible,
+
+        );
+
+        if (pendingHistory != null) {
+
+          final _CanvasHistoryEntry entry = await pendingHistory;
+
+          await _pushUndoSnapshot(entry: entry);
+
+        } else {
+
+          await _pushUndoSnapshot();
+
+        }
+
+        await _controller.updateTextLayer(session.layerId!, data);
+
+      } finally {
+
+        await _finalizeTextEditingSessionCleanup(session);
 
       }
-
-      if (session.layerId == null) {
-
-        return;
-
-      }
-
-      final Future<_CanvasHistoryEntry>? pendingHistory =
-
-          session.pendingHistoryEntry;
-
-      _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
-
-      if (pendingHistory != null) {
-
-        final _CanvasHistoryEntry entry = await pendingHistory;
-
-        await _pushUndoSnapshot(entry: entry);
-
-      } else {
-
-        await _pushUndoSnapshot();
-
-      }
-
-      await _controller.updateTextLayer(session.layerId!, data);
 
     }
 
@@ -771,35 +796,45 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       final _TextEditingSession? session = _textSession;
 
-      if (session == null) {
+      if (session == null || session.isFinalizing) {
 
         return;
 
       }
-
-      _textEditingController.clear();
 
       setState(() {
 
-        _textSession = null;
+        session.isFinalizing = true;
 
       });
 
-      if (session.isNewLayer || session.layerId == null) {
+      try {
 
-        return;
+        if (!session.isNewLayer && session.layerId != null) {
 
-      }
+          await _waitForPendingTextLayerUpdate();
 
-      await _waitForPendingTextLayerUpdate();
+          _restoreTextLayerVisibility(
 
-      _restoreTextLayerVisibility(session.layerId!, session.layerWasVisible);
+            session.layerId!,
 
-      final CanvasTextData? original = session.originalData;
+            session.layerWasVisible,
 
-      if (original != null) {
+          );
 
-        await _controller.updateTextLayer(session.layerId!, original);
+          final CanvasTextData? original = session.originalData;
+
+          if (original != null) {
+
+            await _controller.updateTextLayer(session.layerId!, original);
+
+          }
+
+        }
+
+      } finally {
+
+        await _finalizeTextEditingSessionCleanup(session);
 
       }
 
@@ -1109,6 +1144,44 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
     }
 
+    Future<void> _finalizeTextEditingSessionCleanup(
+
+      _TextEditingSession session,
+
+    ) async {
+
+      final SchedulerBinding binding = SchedulerBinding.instance;
+
+      // 等待至少一帧绘制完成，确保图层更新结果已呈现再移除 overlay。
+
+      await binding.endOfFrame;
+
+      await binding.endOfFrame;
+
+      if (!mounted || !identical(_textSession, session)) {
+
+        return;
+
+      }
+
+      _textEditingController.clear();
+
+      _textEditingController.selection =
+
+          const TextSelection.collapsed(offset: 0);
+
+      setState(() {
+
+        if (identical(_textSession, session)) {
+
+          _textSession = null;
+
+        }
+
+      });
+
+    }
+
   }
 
   
@@ -1139,6 +1212,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       this.paintPreview = true,
 
+      this.interactive = true,
+
     });
 
   
@@ -1164,6 +1239,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     final VoidCallback onCancel;
 
     final bool paintPreview;
+
+    final bool interactive;
 
   
 
@@ -1268,197 +1345,119 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       };
 
       return Shortcuts(
-
         shortcuts: shortcuts,
-
         child: Actions(
-
           actions: <Type, Action<Intent>>{
-
             _CommitTextEditingIntent: CallbackAction<_CommitTextEditingIntent>(
-
               onInvoke: (intent) {
-
+                if (!widget.interactive) {
+                  return null;
+                }
                 widget.onConfirm();
-
                 return null;
-
               },
-
             ),
-
             _CancelTextEditingIntent: CallbackAction<_CancelTextEditingIntent>(
-
               onInvoke: (intent) {
-
+                if (!widget.interactive) {
+                  return null;
+                }
                 widget.onCancel();
-
                 return null;
-
               },
-
             ),
-
             _SelectAllTextOverlayIntent:
-
                 CallbackAction<_SelectAllTextOverlayIntent>(
-
               onInvoke: (intent) {
-
+                if (!widget.interactive) {
+                  return null;
+                }
                 _handleSelectAll();
-
                 return null;
-
               },
-
             ),
-
             _MoveTextCaretIntent: CallbackAction<_MoveTextCaretIntent>(
-
               onInvoke: (intent) {
-
+                if (!widget.interactive) {
+                  return null;
+                }
                 _handleMoveCaret(intent);
-
                 return null;
-
               },
-
             ),
-
           },
-
-          child: Listener(
-
-            behavior: HitTestBehavior.translucent,
-
-            onPointerDown: _handlePointerDown,
-
-            onPointerMove: _handlePointerMove,
-
-            onPointerUp: _handlePointerUp,
-
-            onPointerCancel: _handlePointerCancel,
-
-            child: SizedBox(
-
-              width: scaledSize.width,
-
-              height: scaledSize.height,
-
-              child: Stack(
-
-                fit: StackFit.loose,
-
-                clipBehavior: Clip.none,
-
-                children: [
-
-                  if (widget.paintPreview)
-
-                    Positioned.fill(
-
-                      child: CustomPaint(
-
-                        painter: _TextPreviewPainter(
-
-                          renderer: widget.renderer,
-
-                          data: widget.data,
-
-                          bounds: widget.bounds,
-
-                          scale: widget.scale,
-
+          child: IgnorePointer(
+            ignoring: !widget.interactive,
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: _handlePointerDown,
+              onPointerMove: _handlePointerMove,
+              onPointerUp: _handlePointerUp,
+              onPointerCancel: _handlePointerCancel,
+              child: SizedBox(
+                width: scaledSize.width,
+                height: scaledSize.height,
+                child: Stack(
+                  fit: StackFit.loose,
+                  clipBehavior: Clip.none,
+                  children: [
+                    if (widget.paintPreview)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _TextPreviewPainter(
+                            renderer: widget.renderer,
+                            data: widget.data,
+                            bounds: widget.bounds,
+                            scale: widget.scale,
+                          ),
                         ),
-
                       ),
-
-                    ),
-
-                  Positioned(
-
-                    left: widget.data.align == TextAlign.right ||
-
-                            widget.data.align == TextAlign.end ||
-
-                            widget.data.align == TextAlign.center
-
-                        ? -scaledFontSize
-
-                        : 0,
-
-                    right: widget.data.align == TextAlign.left ||
-
-                            widget.data.align == TextAlign.start ||
-
-                            widget.data.align == TextAlign.justify ||
-
-                            widget.data.align == TextAlign.center
-
-                        ? -scaledFontSize
-
-                        : 0,
-
-                    top: 0,
-
-                    bottom: 0,
-
-                    child: EditableText(
-
-                      key: _editableKey,
-
-                      controller: widget.controller,
-
-                      focusNode: widget.focusNode,
-
-                      cursorColor: widget.cursorColor,
-
-                      backgroundCursorColor: Colors.transparent,
-
-                      style: TextStyle(
-
-                        color: Colors.transparent,
-
-                        fontSize: scaledFontSize,
-
-                        fontFamily: widget.data.fontFamily.isEmpty
-
-                            ? null
-
-                            : widget.data.fontFamily,
-
-                        height: widget.data.lineHeight,
-
-                        letterSpacing:
-
-                            widget.data.letterSpacing * widget.scale,
-
+                    Positioned(
+                      left: widget.data.align == TextAlign.right ||
+                              widget.data.align == TextAlign.end ||
+                              widget.data.align == TextAlign.center
+                          ? -scaledFontSize
+                          : 0,
+                      right: widget.data.align == TextAlign.left ||
+                              widget.data.align == TextAlign.start ||
+                              widget.data.align == TextAlign.justify ||
+                              widget.data.align == TextAlign.center
+                          ? -scaledFontSize
+                          : 0,
+                      top: 0,
+                      bottom: 0,
+                      child: EditableText(
+                        key: _editableKey,
+                        controller: widget.controller,
+                        focusNode: widget.focusNode,
+                        cursorColor: widget.cursorColor,
+                        backgroundCursorColor: Colors.transparent,
+                        style: TextStyle(
+                          color: Colors.transparent,
+                          fontSize: scaledFontSize,
+                          fontFamily: widget.data.fontFamily.isEmpty
+                              ? null
+                              : widget.data.fontFamily,
+                          height: widget.data.lineHeight,
+                          letterSpacing:
+                              widget.data.letterSpacing * widget.scale,
+                        ),
+                        selectionColor: widget.selectionColor,
+                        readOnly: !widget.interactive,
+                        enableInteractiveSelection: widget.interactive,
+                        showCursor: widget.interactive,
+                        keyboardType: TextInputType.multiline,
+                        maxLines: null,
+                        textAlign: widget.data.align,
+                        textDirection: TextDirection.ltr,
                       ),
-
-                      selectionColor: widget.selectionColor,
-
-                      keyboardType: TextInputType.multiline,
-
-                      maxLines: null,
-
-                      textAlign: widget.data.align,
-
-                      textDirection: TextDirection.ltr,
-
                     ),
-
-                  ),
-
-                ],
-
+                  ],
+                ),
               ),
-
             ),
-
           ),
-
         ),
-
       );
 
     }
