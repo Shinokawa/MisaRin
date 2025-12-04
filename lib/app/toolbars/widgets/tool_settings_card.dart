@@ -651,7 +651,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           .map(
             (family) => ComboBoxItem<String>(
               value: family,
-              child: Text(family),
+              child: Text(_sanitizeDisplayText(family)),
             ),
           )
           .toList(growable: false),
@@ -790,6 +790,40 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       ),
     );
   }
+
+  String _sanitizeDisplayText(String raw) {
+    if (raw.isEmpty) {
+      return raw;
+    }
+    final List<int> units = raw.codeUnits;
+    final StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < units.length; i++) {
+      final int unit = units[i];
+      if (_isLowSurrogate(unit)) {
+        // 忽略孤立的低代理项，避免渲染异常。
+        continue;
+      }
+      if (_isHighSurrogate(unit)) {
+        if (i + 1 < units.length && _isLowSurrogate(units[i + 1])) {
+          final int high = unit;
+          final int low = units[++i];
+          final int codePoint = 0x10000 +
+              ((high - 0xD800) << 10) +
+              (low - 0xDC00);
+          buffer.writeCharCode(codePoint);
+        } else {
+          buffer.writeCharCode(0xFFFD);
+        }
+        continue;
+      }
+      buffer.writeCharCode(unit);
+    }
+    return buffer.toString();
+  }
+
+  bool _isHighSurrogate(int value) => value >= 0xD800 && value <= 0xDBFF;
+
+  bool _isLowSurrogate(int value) => value >= 0xDC00 && value <= 0xDFFF;
 
   Widget _buildLabeledSlider({
     required FluentThemeData theme,
