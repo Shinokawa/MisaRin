@@ -1594,14 +1594,6 @@ mixin _PaintingBoardInteractionMixin
     }
     final Offset boardLocal = _toBoardLocal(pointer);
     if (_isTextEditingActive) {
-      final Rect? overlayRect = _textOverlayWorkspaceRect();
-      if (overlayRect != null && overlayRect.contains(pointer)) {
-        return;
-      }
-      await _commitTextEditingSession();
-      if (_effectiveActiveTool == CanvasTool.text && pointerInsideBoard) {
-        _beginNewTextSession(boardLocal);
-      }
       return;
     }
     if (_layerTransformModeActive) {
