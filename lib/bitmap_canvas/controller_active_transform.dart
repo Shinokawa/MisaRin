@@ -25,7 +25,8 @@ void _translateActiveLayer(BitmapCanvasController controller, int dx, int dy) {
 }
 
 void _commitActiveLayerTranslation(BitmapCanvasController controller) {
-  if (controller._activeLayerTranslationSnapshot == null) {
+  if (controller._activeLayerTranslationSnapshot == null ||
+      controller._pendingActiveLayerTransformCleanup) {
     return;
   }
   final Rect? dirtyRegion = controller._activeLayerTransformDirtyRegion;
@@ -296,7 +297,6 @@ void _applyClippedLayerTranslation(
     }
   }
   controller._layerOverflowStores[layerId]?.clear();
-  _resetActiveLayerTranslationState(controller);
   _textLayerApplyTranslation(target, dx, dy);
 }
 
@@ -348,7 +348,6 @@ void _applyOverflowLayerTranslation(
   } else if (controller._layerOverflowStores.containsKey(layerId)) {
     controller._layerOverflowStores[layerId]!.clear();
   }
-  _resetActiveLayerTranslationState(controller);
   _textLayerApplyTranslation(target, dx, dy);
 }
 
