@@ -24,6 +24,8 @@ import 'package:flutter/material.dart'
 import 'package:flutter/painting.dart' show MatrixUtils;
 import 'package:flutter/services.dart'
     show
+        Clipboard,
+        ClipboardData,
         FilteringTextInputFormatter,
         HardwareKeyboard,
         KeyDownEvent,

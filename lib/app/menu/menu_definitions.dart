@@ -319,6 +319,12 @@ class MenuDefinitionBuilder {
       );
     }
 
+    if (handler.rasterizeLayer != null) {
+      entries.add(
+        MenuActionEntry(label: '栅格化', action: handler.rasterizeLayer),
+      );
+    }
+
     if (handler.layerFreeTransform != null) {
       entries.add(
         MenuActionEntry(

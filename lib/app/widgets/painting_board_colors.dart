@@ -8,7 +8,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     VoidCallback? onCleared,
   }) async {
     Color previewColor = initialColor;
-    _ColorAdjustMode currentMode = _ColorAdjustMode.square;
+    _ColorAdjustMode currentMode = _ColorAdjustMode.fluentBox;
     final Color? result = await showDialog<Color>(
       context: context,
       barrierDismissible: true,
@@ -39,27 +39,35 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
               Widget buildPickerBody() {
                 switch (currentMode) {
-                  case _ColorAdjustMode.square:
+                  case _ColorAdjustMode.fluentBox:
                     return _FluentColorPickerHost(
-                      key: const ValueKey('square'),
+                      key: const ValueKey('fluentBox'),
                       color: previewColor,
                       spectrumShape: ColorSpectrumShape.box,
                       onChanged: (color) => setState(() {
                         previewColor = color;
                       }),
                     );
-                  case _ColorAdjustMode.wheel:
+                  case _ColorAdjustMode.fluentRing:
                     return _FluentColorPickerHost(
-                      key: const ValueKey('wheel'),
+                      key: const ValueKey('fluentRing'),
                       color: previewColor,
                       spectrumShape: ColorSpectrumShape.ring,
                       onChanged: (color) => setState(() {
                         previewColor = color;
                       }),
                     );
-                  case _ColorAdjustMode.sliders:
+                  case _ColorAdjustMode.numericSliders:
                     return _ColorSliderEditor(
-                      key: const ValueKey('sliders'),
+                      key: const ValueKey('numericSliders'),
+                      color: previewColor,
+                      onChanged: (color) => setState(() {
+                        previewColor = color;
+                      }),
+                    );
+                  case _ColorAdjustMode.boardPanel:
+                    return _BoardPanelColorPicker(
+                      key: const ValueKey('boardPanel'),
                       color: previewColor,
                       onChanged: (color) => setState(() {
                         previewColor = color;
@@ -853,6 +861,88 @@ class _ColorIndicatorButtonState extends State<_ColorIndicatorButton> {
   }
 }
 
+class _ColorHexPreview extends StatelessWidget {
+  const _ColorHexPreview({super.key, required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final bool isDark = theme.brightness.isDark;
+    final String hex = _hexStringForColor(color);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.resources.subtleFillColorSecondary,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.resources.controlStrokeColorDefault,
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 12),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.18)
+                    : Colors.black.withOpacity(0.08),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: color),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('当前颜色', style: theme.typography.bodyStrong),
+                const SizedBox(height: 2),
+                Text(hex, style: theme.typography.caption),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Tooltip(
+              message: '复制 $hex',
+              child: IconButton(
+                icon: const Icon(FluentIcons.copy),
+                onPressed: () => _copyHex(context, hex),
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all<EdgeInsets>(
+                    const EdgeInsets.all(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyHex(BuildContext context, String hex) {
+    Clipboard.setData(ClipboardData(text: hex));
+    AppNotifications.show(
+      context,
+      message: '已复制 $hex',
+      severity: InfoBarSeverity.success,
+      duration: const Duration(seconds: 2),
+    );
+  }
+}
+
 class _FluentColorPickerHost extends StatelessWidget {
   const _FluentColorPickerHost({
     super.key,
@@ -867,36 +957,47 @@ class _FluentColorPickerHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColorPicker(
-      color: color,
-      onChanged: onChanged,
-      colorSpectrumShape: spectrumShape,
-      isMoreButtonVisible: false,
-      isColorChannelTextInputVisible: false,
-      isHexInputVisible: true,
-      isColorSliderVisible: true,
-      isAlphaEnabled: false,
-      isAlphaSliderVisible: false,
-      isAlphaTextInputVisible: false,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ColorPicker(
+          color: color,
+          onChanged: onChanged,
+          colorSpectrumShape: spectrumShape,
+          isMoreButtonVisible: false,
+          isColorChannelTextInputVisible: false,
+          isHexInputVisible: false,
+          isColorSliderVisible: true,
+          isAlphaEnabled: false,
+          isAlphaSliderVisible: false,
+          isAlphaTextInputVisible: false,
+        ),
+        const SizedBox(height: 16),
+        _ColorHexPreview(color: color),
+      ],
     );
   }
 }
 
 enum _ColorAdjustMode {
-  square,
-  wheel,
-  sliders,
+  fluentBox,
+  fluentRing,
+  numericSliders,
+  boardPanel,
 }
 
 extension _ColorAdjustModeLabel on _ColorAdjustMode {
   String get label {
     switch (this) {
-      case _ColorAdjustMode.square:
-        return '方形模式';
-      case _ColorAdjustMode.wheel:
-        return '圆形模式';
-      case _ColorAdjustMode.sliders:
-        return '滑条模式';
+      case _ColorAdjustMode.fluentBox:
+        return 'HSV 方形光谱';
+      case _ColorAdjustMode.fluentRing:
+        return '色相环光谱';
+      case _ColorAdjustMode.numericSliders:
+        return 'RGB / HSV 滑块';
+      case _ColorAdjustMode.boardPanel:
+        return '画板取色器';
     }
   }
 }
@@ -986,6 +1087,8 @@ class _ColorSliderEditor extends StatelessWidget {
           onChanged: (value) =>
               onChanged(hsv.withValue(value.clamp(0.0, 1.0)).toColor()),
         ),
+        const SizedBox(height: 16),
+        _ColorHexPreview(color: color),
       ],
     );
   }
@@ -1024,5 +1127,221 @@ class _ColorSliderEditor extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _BoardPanelColorPicker extends StatefulWidget {
+  const _BoardPanelColorPicker({
+    super.key,
+    required this.color,
+    required this.onChanged,
+  });
+
+  final Color color;
+  final ValueChanged<Color> onChanged;
+
+  @override
+  State<_BoardPanelColorPicker> createState() => _BoardPanelColorPickerState();
+}
+
+class _BoardPanelColorPickerState extends State<_BoardPanelColorPicker> {
+  late HSVColor _currentHsv;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentHsv = HSVColor.fromColor(widget.color);
+  }
+
+  @override
+  void didUpdateWidget(covariant _BoardPanelColorPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.color.value != widget.color.value) {
+      _currentHsv = HSVColor.fromColor(widget.color);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const double spacing = 12;
+    final Color displayColor = _currentHsv.toColor();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            double sliderWidth = 24;
+            double availableWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : 320;
+            double squareSize = availableWidth - sliderWidth - spacing;
+            if (squareSize <= 0) {
+              squareSize = availableWidth;
+              sliderWidth = 0;
+            }
+            final double colorHeight =
+                squareSize > 0 ? squareSize : availableWidth;
+
+            return ConstrainedBox(
+              constraints: BoxConstraints(minHeight: colorHeight),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: squareSize,
+                    height: colorHeight,
+                    child: _buildColorSquare(squareSize, colorHeight),
+                  ),
+                  if (sliderWidth > 0) ...[
+                    const SizedBox(width: spacing),
+                    SizedBox(
+                      width: sliderWidth,
+                      height: colorHeight,
+                      child: _buildHueSlider(colorHeight),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        _ColorHexPreview(color: displayColor),
+      ],
+    );
+  }
+
+  Widget _buildColorSquare(double width, double height) {
+    final HSVColor hsv = _currentHsv;
+    return GestureDetector(
+      onPanDown: (details) =>
+          _updateFromSquare(details.localPosition, width, height),
+      onPanUpdate: (details) =>
+          _updateFromSquare(details.localPosition, width, height),
+      onTapUp: (_) => _updateFromSquare(
+        Offset(
+          hsv.saturation.clamp(0.0, 1.0) * width,
+          (1 - hsv.value.clamp(0.0, 1.0)) * height,
+        ),
+        width,
+        height,
+      ),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Colors.white,
+                            HSVColor.fromAHSV(1, hsv.hue, 1, 1).toColor(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x00FFFFFF),
+                            Color(0xFF000000),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: hsv.saturation.clamp(0.0, 1.0) * width - 8,
+              top: (1 - hsv.value.clamp(0.0, 1.0)) * height - 8,
+              child: _ColorPickerHandle(color: hsv.toColor()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHueSlider(double height) {
+    const List<Color> hueColors = [
+      Color(0xFFFF0000),
+      Color(0xFFFFFF00),
+      Color(0xFF00FF00),
+      Color(0xFF00FFFF),
+      Color(0xFF0000FF),
+      Color(0xFFFF00FF),
+      Color(0xFFFF0000),
+    ];
+    final double handleY =
+        (_currentHsv.hue.clamp(0.0, 360.0) / 360.0) * height;
+    return GestureDetector(
+      onPanDown: (details) => _updateHue(details.localPosition.dy, height),
+      onPanUpdate: (details) => _updateHue(details.localPosition.dy, height),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: hueColors,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: handleY - 8,
+            left: -4,
+            right: -4,
+            child: const _HueSliderHandle(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateFromSquare(Offset position, double width, double height) {
+    final double safeWidth = width <= 0 ? 1 : width;
+    final double safeHeight = height <= 0 ? 1 : height;
+    final double x = position.dx.clamp(0.0, safeWidth);
+    final double y = position.dy.clamp(0.0, safeHeight);
+    final double saturation = (x / safeWidth).clamp(0.0, 1.0);
+    final double value = (1 - y / safeHeight).clamp(0.0, 1.0);
+    _setColor(_currentHsv.withSaturation(saturation).withValue(value));
+  }
+
+  void _updateHue(double dy, double height) {
+    final double y = dy.clamp(0.0, height);
+    final double hue = (y / height).clamp(0.0, 1.0) * 360.0;
+    _setColor(_currentHsv.withHue(hue));
+  }
+
+  void _setColor(HSVColor hsv) {
+    setState(() {
+      _currentHsv = hsv;
+    });
+    widget.onChanged(hsv.toColor());
   }
 }

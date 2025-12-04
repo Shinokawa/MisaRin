@@ -196,6 +196,25 @@ mixin _PaintingBoardLayerMixin
     return null;
   }
 
+  Future<bool> rasterizeActiveTextLayer() async {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null) {
+      return false;
+    }
+    return _rasterizeTextLayer(layer);
+  }
+
+  Future<bool> _rasterizeTextLayer(BitmapLayerState layer) async {
+    if (layer.text == null) {
+      return false;
+    }
+    await _pushUndoSnapshot();
+    _controller.rasterizeTextLayer(layer.id);
+    setState(() {});
+    _markDirty();
+    return true;
+  }
+
   void _handleLayerOpacityChangeStart(double _) {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null) {
@@ -533,9 +552,7 @@ mixin _PaintingBoardLayerMixin
           leading: const Icon(FluentIcons.font),
           text: const Text('栅格化文字图层'),
           onPressed: () async {
-            await _pushUndoSnapshot();
-            _controller.rasterizeTextLayer(layer.id);
-            setState(() {});
+            await _rasterizeTextLayer(layer);
           },
         ),
       );
