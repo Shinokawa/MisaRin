@@ -1879,6 +1879,9 @@ mixin _PaintingBoardInteractionMixin
 
   @override
   KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event) {
+    if (_isTextEditingActive) {
+      return KeyEventResult.ignored;
+    }
     final LogicalKeyboardKey key = event.logicalKey;
     if (_layerTransformModeActive) {
       if (event is KeyDownEvent || event is KeyRepeatEvent) {

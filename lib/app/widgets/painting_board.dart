@@ -2067,7 +2067,7 @@ class PaintingBoardState extends _PaintingBoardBase
       shapeToolVariant: _shapeToolVariant,
       textFontSize: _textFontSize,
       textLineHeight: _textLineHeight,
-      textLeftMargin: _textLeftMargin,
+      textLetterSpacing: _textLetterSpacing,
       textFontFamily: _textFontFamily,
       textAlign: _textAlign,
       textOrientation: _textOrientation,
@@ -2084,7 +2084,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateSelectionShape(snapshot.selectionShape);
     _updateTextFontSize(snapshot.textFontSize);
     _updateTextLineHeight(snapshot.textLineHeight);
-    _updateTextLeftMargin(snapshot.textLeftMargin);
+    _updateTextLetterSpacing(snapshot.textLetterSpacing);
     _updateTextFontFamily(snapshot.textFontFamily);
     _updateTextAlign(snapshot.textAlign);
     _updateTextOrientation(snapshot.textOrientation);

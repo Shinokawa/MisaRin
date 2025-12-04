@@ -82,7 +82,7 @@ class ToolSettingsSnapshot {
     required this.shapeToolVariant,
     required this.textFontSize,
     required this.textLineHeight,
-    required this.textLeftMargin,
+    required this.textLetterSpacing,
     required this.textFontFamily,
     required this.textAlign,
     required this.textOrientation,
@@ -120,7 +120,7 @@ class ToolSettingsSnapshot {
   final ShapeToolVariant shapeToolVariant;
   final double textFontSize;
   final double textLineHeight;
-  final double textLeftMargin;
+  final double textLetterSpacing;
   final String textFontFamily;
   final TextAlign textAlign;
   final CanvasTextOrientation textOrientation;

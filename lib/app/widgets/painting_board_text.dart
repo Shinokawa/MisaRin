@@ -53,7 +53,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
   double _textFontSize = 48;
   double _textLineHeight = 1.2;
-  double _textLeftMargin = 0;
+  double _textLetterSpacing = 0;
   double _textStrokeWidth = 1.0;
   String _textFontFamily = '';
   TextAlign _textAlign = TextAlign.left;
@@ -62,6 +62,12 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
   bool _textAntialias = true;
   bool _textStrokeEnabled = false;
   Future<void>? _pendingTextLayerUpdate;
+
+  Color _textOverlayContrastColor() {
+    final Color canvasColor = _controller.backgroundColor;
+    // Match UI accents to the opposite of the canvas so they stay visible.
+    return canvasColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+  }
 
   void initializeTextTool() {
     _textEditingController.addListener(_handleTextFieldChanged);
@@ -136,15 +142,20 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       const bool showPreviewPainter = true; 
 
-      final bool isDark = FluentTheme.of(context).brightness.isDark;
-
-      final Color uiColor = isDark ? Colors.white : Colors.black;
+      final Color overlayColor = _textOverlayContrastColor();
+      final Color selectionColor = overlayColor.withOpacity(0.25);
+      final Color confirmBackgroundColor = overlayColor.withOpacity(0.08);
+      final Color confirmBorderColor = overlayColor;
+      final ButtonStyle confirmButtonStyle = ButtonStyle(
+        backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+        foregroundColor: WidgetStatePropertyAll(overlayColor),
+      );
 
       final Widget editor = Container(
 
         decoration: BoxDecoration(
 
-          border: Border.all(color: uiColor),
+          border: Border.all(color: overlayColor),
 
         ),
 
@@ -162,9 +173,9 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
           focusNode: _textEditingFocusNode,
 
-          cursorColor: uiColor,
+          cursorColor: overlayColor,
 
-          selectionColor: uiColor.withOpacity(0.25),
+          selectionColor: selectionColor,
 
           onConfirm: () {
 
@@ -192,11 +203,11 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
           decoration: BoxDecoration(
 
-            color: FluentTheme.of(context).cardColor,
+            color: confirmBackgroundColor,
 
             border: Border.all(
 
-              color: isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.5),
+              color: confirmBorderColor,
 
             ),
 
@@ -206,7 +217,15 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
           child: IconButton(
 
-            icon: const Icon(FluentIcons.check_mark),
+            icon: Icon(
+
+              FluentIcons.check_mark,
+
+              color: overlayColor,
+
+            ),
+
+            style: confirmButtonStyle,
 
             onPressed: () {
 
@@ -408,7 +427,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
         lineHeight: _textLineHeight,
 
-        leftMargin: _textLeftMargin,
+        letterSpacing: _textLetterSpacing,
 
         maxWidth: maxWidth,
 
@@ -520,7 +539,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       _textLineHeight = existing.lineHeight;
 
-      _textLeftMargin = existing.leftMargin;
+      _textLetterSpacing = existing.letterSpacing;
 
       _textAlign = existing.align;
 
@@ -824,17 +843,17 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
   
 
-    void _updateTextLeftMargin(double value) {
+    void _updateTextLetterSpacing(double value) {
 
-      final double clamped = value.clamp(-200.0, 400.0);
+      final double clamped = value.clamp(-100.0, 200.0);
 
-      if ((_textLeftMargin - clamped).abs() < 0.5) {
+      if ((_textLetterSpacing - clamped).abs() < 0.01) {
 
         return;
 
       }
 
-      setState(() => _textLeftMargin = clamped);
+      setState(() => _textLetterSpacing = clamped);
 
       _refreshTextPreview();
 
@@ -1295,6 +1314,10 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
                             : widget.data.fontFamily,
 
                         height: widget.data.lineHeight,
+
+                        letterSpacing:
+
+                            widget.data.letterSpacing * widget.scale,
 
                       ),
 

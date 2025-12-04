@@ -66,8 +66,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onTextFontSizeChanged,
     required this.textLineHeight,
     required this.onTextLineHeightChanged,
-    required this.textLeftMargin,
-    required this.onTextLeftMarginChanged,
+    required this.textLetterSpacing,
+    required this.onTextLetterSpacingChanged,
     required this.textFontFamily,
     required this.onTextFontFamilyChanged,
     required this.availableFontFamilies,
@@ -140,8 +140,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<double> onTextFontSizeChanged;
   final double textLineHeight;
   final ValueChanged<double> onTextLineHeightChanged;
-  final double textLeftMargin;
-  final ValueChanged<double> onTextLeftMarginChanged;
+  final double textLetterSpacing;
+  final ValueChanged<double> onTextLetterSpacingChanged;
   final String textFontFamily;
   final ValueChanged<String> onTextFontFamilyChanged;
   final List<String> availableFontFamilies;
@@ -588,12 +588,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       ),
       _buildLabeledSlider(
         theme: theme,
-        label: '左间距',
-        value: widget.textLeftMargin,
-        min: -200,
-        max: 400,
-        formatter: (value) => '${value.toStringAsFixed(0)} px',
-        onChanged: widget.onTextLeftMarginChanged,
+        label: '文字间距',
+        value: widget.textLetterSpacing,
+        min: -100,
+        max: 200,
+        formatter: (value) => '${value.toStringAsFixed(1)} px',
+        onChanged: widget.onTextLetterSpacingChanged,
       ),
       _buildTextAlignRow(theme),
       _buildTextOrientationRow(theme),
@@ -625,9 +625,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         ),
       );
     }
-
-    children.add(_buildTextToolHint(theme));
-
     return _buildControlsGroup(
       children,
       spacing: 16,

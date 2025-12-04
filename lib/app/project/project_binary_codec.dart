@@ -15,14 +15,14 @@ const int _kInt64SignBit = 0x80000000;
 final BigInt _kBigUint64 = BigInt.one << 64;
 final BigInt _kBigUint32Mask = BigInt.from(_kUint32Mask);
 
-/// `.rin` 二进制编解码器（v6，向后兼容 v4）
+/// `.rin` 二进制编解码器（v8，向后兼容 v4）
 ///
 /// 结构参考 PSD 分块思路：头部 + 文档元数据 + 图层块 + 预览块。
 /// 所有字符串按 UTF-8 存储并携带 32bit 长度前缀；位图数据按需使用
 /// zlib 压缩，避免 JSON 与 Base64 的额外开销。
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
-  static const int _version = 7;
+  static const int _version = 8;
   static const int _minSupportedVersion = 4;
 
   static final ZLibEncoder _encoder = ZLibEncoder();
@@ -171,7 +171,7 @@ class ProjectBinaryCodec {
       if (version >= 7) {
         final bool hasText = reader.readBool();
         if (hasText) {
-          text = _readTextBlock(reader);
+          text = _readTextBlock(reader, version);
         }
       }
 
@@ -266,7 +266,7 @@ class ProjectBinaryCodec {
       if (version >= 7) {
         final bool hasText = reader.readBool();
         if (hasText) {
-          _readTextBlock(reader);
+          _readTextBlock(reader, version);
         }
       }
     }
@@ -322,7 +322,7 @@ class ProjectBinaryCodec {
     writer.writeFloat32(text.origin.dy);
     writer.writeFloat32(text.fontSize);
     writer.writeFloat32(text.lineHeight);
-    writer.writeFloat32(text.leftMargin);
+    writer.writeFloat32(text.letterSpacing);
     final bool hasWidth = text.maxWidth != null;
     writer.writeBool(hasWidth);
     if (hasWidth) {
@@ -339,12 +339,12 @@ class ProjectBinaryCodec {
     writer.writeString(text.text);
   }
 
-  static CanvasTextData _readTextBlock(_ByteReader reader) {
+  static CanvasTextData _readTextBlock(_ByteReader reader, int version) {
     final double originX = reader.readFloat32();
     final double originY = reader.readFloat32();
     final double fontSize = reader.readFloat32();
     final double lineHeight = reader.readFloat32();
-    final double leftMargin = reader.readFloat32();
+    final double spacingField = reader.readFloat32();
     final bool hasWidth = reader.readBool();
     final double? maxWidth = hasWidth ? reader.readFloat32() : null;
     final int alignIndex = reader.readUint8();
@@ -364,14 +364,17 @@ class ProjectBinaryCodec {
             orientationIndex < CanvasTextOrientation.values.length
         ? CanvasTextOrientation.values[orientationIndex]
         : CanvasTextOrientation.horizontal;
+    final double resolvedOriginX =
+        version < 8 ? originX + spacingField : originX;
+    final double letterSpacing = version >= 8 ? spacingField : 0.0;
     return CanvasTextData(
       text: text,
-      origin: Offset(originX, originY),
+      origin: Offset(resolvedOriginX, originY),
       fontSize: fontSize,
       fontFamily: fontFamily,
       color: fillColor,
       lineHeight: lineHeight,
-      leftMargin: leftMargin,
+      letterSpacing: letterSpacing,
       maxWidth: maxWidth,
       align: align,
       orientation: orientation,

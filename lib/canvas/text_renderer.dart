@@ -12,7 +12,7 @@ class CanvasTextData {
     required this.fontFamily,
     required this.color,
     this.lineHeight = 1.0,
-    this.leftMargin = 0.0,
+    this.letterSpacing = 0.0,
     this.maxWidth,
     this.align = ui.TextAlign.left,
     this.orientation = CanvasTextOrientation.horizontal,
@@ -28,7 +28,7 @@ class CanvasTextData {
   final String fontFamily;
   final ui.Color color;
   final double lineHeight;
-  final double leftMargin;
+  final double letterSpacing;
   final double? maxWidth;
   final ui.TextAlign align;
   final CanvasTextOrientation orientation;
@@ -44,7 +44,7 @@ class CanvasTextData {
     String? fontFamily,
     ui.Color? color,
     double? lineHeight,
-    double? leftMargin,
+    double? letterSpacing,
     double? maxWidth,
     ui.TextAlign? align,
     CanvasTextOrientation? orientation,
@@ -60,7 +60,7 @@ class CanvasTextData {
       fontFamily: fontFamily ?? this.fontFamily,
       color: color ?? this.color,
       lineHeight: lineHeight ?? this.lineHeight,
-      leftMargin: leftMargin ?? this.leftMargin,
+      letterSpacing: letterSpacing ?? this.letterSpacing,
       maxWidth: maxWidth ?? this.maxWidth,
       align: align ?? this.align,
       orientation: orientation ?? this.orientation,
@@ -80,7 +80,7 @@ class CanvasTextData {
       'fontFamily': fontFamily,
       'color': color.value,
       'lineHeight': lineHeight,
-      'leftMargin': leftMargin,
+      'letterSpacing': letterSpacing,
       if (maxWidth != null) 'maxWidth': maxWidth,
       'align': align.name,
       'orientation': orientation.name,
@@ -92,17 +92,26 @@ class CanvasTextData {
   }
 
   static CanvasTextData fromJson(Map<String, dynamic> json) {
+    final double rawOriginX =
+        (json['originX'] as num?)?.toDouble() ?? 0;
+    final double rawOriginY =
+        (json['originY'] as num?)?.toDouble() ?? 0;
+    final double? serializedLetterSpacing =
+        (json['letterSpacing'] as num?)?.toDouble();
+    final double legacyLeftMargin = serializedLetterSpacing == null
+        ? (json['leftMargin'] as num?)?.toDouble() ?? 0.0
+        : 0.0;
     return CanvasTextData(
       text: json['text'] as String? ?? '',
       origin: ui.Offset(
-        (json['originX'] as num?)?.toDouble() ?? 0,
-        (json['originY'] as num?)?.toDouble() ?? 0,
+        rawOriginX + legacyLeftMargin,
+        rawOriginY,
       ),
       fontSize: (json['fontSize'] as num?)?.toDouble() ?? 16,
       fontFamily: json['fontFamily'] as String? ?? '',
       color: ui.Color(json['color'] as int? ?? 0xFF000000),
       lineHeight: (json['lineHeight'] as num?)?.toDouble() ?? 1.0,
-      leftMargin: (json['leftMargin'] as num?)?.toDouble() ?? 0.0,
+      letterSpacing: serializedLetterSpacing ?? 0.0,
       maxWidth: (json['maxWidth'] as num?)?.toDouble(),
       align: _parseTextAlign(json['align'] as String?),
       orientation: _parseOrientation(json['orientation'] as String?),
@@ -240,7 +249,7 @@ class CanvasTextRenderer {
       math.max(1.0, paragraph.longestLine),
     );
     final double height = math.max(paragraph.height, data.fontSize);
-    final ui.Offset origin = data.origin + ui.Offset(data.leftMargin, 0);
+    final ui.Offset origin = data.origin;
     return CanvasTextLayout(
       bounds: ui.Rect.fromLTWH(origin.dx, origin.dy, width, height),
     );
@@ -248,8 +257,7 @@ class CanvasTextRenderer {
 
   void _paintHorizontal(ui.Canvas canvas, CanvasTextData data) {
     final double resolvedWidth = _resolveConstraintWidth(data);
-    final ui.Offset offset =
-        data.origin + ui.Offset(data.leftMargin, 0.0);
+    final ui.Offset offset = data.origin;
     if (data.strokeEnabled) {
       final ui.Paragraph strokeParagraph = _buildParagraph(
         data,
@@ -334,6 +342,7 @@ class CanvasTextRenderer {
       fontFamily: data.fontFamily.isEmpty ? null : data.fontFamily,
       fontSize: data.fontSize,
       height: resolvedLineHeight,
+      letterSpacing: data.letterSpacing,
     );
     final ui.ParagraphBuilder builder = ui.ParagraphBuilder(style)
       ..pushStyle(textStyle)
@@ -347,15 +356,18 @@ class CanvasTextRenderer {
         data.maxWidth! > 1) {
       return data.maxWidth!.clamp(1.0, _kMaxParagraphWidth);
     }
+    final int charCount = math.max(1, data.text.length);
+    final int spacingSlots = math.max(0, charCount - 1);
     final double estimated =
-        data.fontSize * math.max(1, data.text.length) * 1.1;
+        data.fontSize * charCount * 1.1 + data.letterSpacing * spacingSlots;
     return estimated.clamp(64.0, _kMaxParagraphWidth);
   }
 
   _VerticalLayout _computeVerticalLayout(CanvasTextData data) {
-    final double baseX = data.origin.dx + data.leftMargin;
+    final double baseX = data.origin.dx;
     final double baseY = data.origin.dy;
     final double lineGap = data.fontSize * (data.lineHeight - 1.0);
+    final double lineSpacing = math.max(0, lineGap);
     double maxWidth = 0;
     double maxHeight = 0;
     double columnX = baseX;
@@ -366,7 +378,7 @@ class CanvasTextRenderer {
       double y = baseY;
       double columnWidth = 0;
       if (line.isEmpty) {
-        y += data.fontSize;
+        y += data.fontSize + lineSpacing + data.letterSpacing;
         columnWidth = math.max(columnWidth, data.fontSize);
       } else {
         for (final int codePoint in line.runes) {
@@ -388,7 +400,7 @@ class CanvasTextRenderer {
               constraintWidth: constraint,
             ),
           );
-          y += paragraph.height + math.max(0, lineGap);
+          y += paragraph.height + lineSpacing + data.letterSpacing;
         }
       }
       maxWidth = math.max(maxWidth, (columnX - baseX) + columnWidth);
