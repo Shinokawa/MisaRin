@@ -1206,20 +1206,17 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       }
 
       _textEditingController.clear();
-
       _textEditingController.selection =
-
           const TextSelection.collapsed(offset: 0);
-
+      final bool shouldRestoreFocus = identical(_textSession, session);
       setState(() {
-
-        if (identical(_textSession, session)) {
-
+        if (shouldRestoreFocus) {
           _textSession = null;
-
         }
-
       });
+      if (shouldRestoreFocus) {
+        _focusNode.requestFocus();
+      }
 
     }
 

@@ -8,6 +8,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     VoidCallback? onCleared,
   }) async {
     Color previewColor = initialColor;
+    _ColorAdjustMode currentMode = _ColorAdjustMode.square;
     final Color? result = await showDialog<Color>(
       context: context,
       barrierDismissible: true,
@@ -16,17 +17,78 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           title: Text(title),
           content: StatefulBuilder(
             builder: (context, setState) {
-              return SizedBox(
-                width: 320,
-                child: ColorPicker(
-                  color: previewColor,
-                  onChanged: (Color color) {
-                    setState(() => previewColor = color);
+              Widget buildModeChooser(_ColorAdjustMode mode) {
+                final bool selected = currentMode == mode;
+                return ToggleButton(
+                  checked: selected,
+                  onChanged: (value) {
+                    if (!value) {
+                      return;
+                    }
+                    setState(() => currentMode = mode);
                   },
-                  isMoreButtonVisible: false,
-                  isColorChannelTextInputVisible: false,
-                  isHexInputVisible: true,
-                  isAlphaTextInputVisible: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Text(mode.label),
+                  ),
+                );
+              }
+
+              Widget buildPickerBody() {
+                switch (currentMode) {
+                  case _ColorAdjustMode.square:
+                    return _FluentColorPickerHost(
+                      key: const ValueKey('square'),
+                      color: previewColor,
+                      spectrumShape: ColorSpectrumShape.box,
+                      onChanged: (color) => setState(() {
+                        previewColor = color;
+                      }),
+                    );
+                  case _ColorAdjustMode.wheel:
+                    return _FluentColorPickerHost(
+                      key: const ValueKey('wheel'),
+                      color: previewColor,
+                      spectrumShape: ColorSpectrumShape.ring,
+                      onChanged: (color) => setState(() {
+                        previewColor = color;
+                      }),
+                    );
+                  case _ColorAdjustMode.sliders:
+                    return _ColorSliderEditor(
+                      key: const ValueKey('sliders'),
+                      color: previewColor,
+                      onChanged: (color) => setState(() {
+                        previewColor = color;
+                      }),
+                    );
+                }
+              }
+
+              return SizedBox(
+                width: 380,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _ColorAdjustMode.values
+                          .map(buildModeChooser)
+                          .toList(growable: false),
+                    ),
+                    const SizedBox(height: 12),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, animation) =>
+                          FadeTransition(opacity: animation, child: child),
+                      child: buildPickerBody(),
+                    ),
+                  ],
                 ),
               );
             },
@@ -786,6 +848,180 @@ class _ColorIndicatorButtonState extends State<_ColorIndicatorButton> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FluentColorPickerHost extends StatelessWidget {
+  const _FluentColorPickerHost({
+    super.key,
+    required this.color,
+    required this.onChanged,
+    required this.spectrumShape,
+  });
+
+  final Color color;
+  final ValueChanged<Color> onChanged;
+  final ColorSpectrumShape spectrumShape;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColorPicker(
+      color: color,
+      onChanged: onChanged,
+      colorSpectrumShape: spectrumShape,
+      isMoreButtonVisible: false,
+      isColorChannelTextInputVisible: false,
+      isHexInputVisible: true,
+      isColorSliderVisible: true,
+      isAlphaEnabled: false,
+      isAlphaSliderVisible: false,
+      isAlphaTextInputVisible: false,
+    );
+  }
+}
+
+enum _ColorAdjustMode {
+  square,
+  wheel,
+  sliders,
+}
+
+extension _ColorAdjustModeLabel on _ColorAdjustMode {
+  String get label {
+    switch (this) {
+      case _ColorAdjustMode.square:
+        return '方形模式';
+      case _ColorAdjustMode.wheel:
+        return '圆形模式';
+      case _ColorAdjustMode.sliders:
+        return '滑条模式';
+    }
+  }
+}
+
+class _ColorSliderEditor extends StatelessWidget {
+  const _ColorSliderEditor({
+    super.key,
+    required this.color,
+    required this.onChanged,
+  });
+
+  final Color color;
+  final ValueChanged<Color> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final HSVColor hsv = HSVColor.fromColor(color);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('RGB', style: theme.typography.bodyStrong),
+        const SizedBox(height: 4),
+        _buildSliderRow(
+          context,
+          label: '红',
+          value: color.red.toDouble(),
+          min: 0,
+          max: 255,
+          divisions: 255,
+          displayValue: color.red.toString(),
+          onChanged: (value) => onChanged(color.withRed(value.round())),
+        ),
+        _buildSliderRow(
+          context,
+          label: '绿',
+          value: color.green.toDouble(),
+          min: 0,
+          max: 255,
+          divisions: 255,
+          displayValue: color.green.toString(),
+          onChanged: (value) => onChanged(color.withGreen(value.round())),
+        ),
+        _buildSliderRow(
+          context,
+          label: '蓝',
+          value: color.blue.toDouble(),
+          min: 0,
+          max: 255,
+          divisions: 255,
+          displayValue: color.blue.toString(),
+          onChanged: (value) => onChanged(color.withBlue(value.round())),
+        ),
+        const SizedBox(height: 12),
+        Text('HSV', style: theme.typography.bodyStrong),
+        const SizedBox(height: 4),
+        _buildSliderRow(
+          context,
+          label: '色相',
+          value: hsv.hue.clamp(0, 360),
+          min: 0,
+          max: 360,
+          divisions: 360,
+          displayValue: hsv.hue.round().toString(),
+          onChanged: (value) => onChanged(hsv.withHue(value).toColor()),
+        ),
+        _buildSliderRow(
+          context,
+          label: '饱和度',
+          value: hsv.saturation.clamp(0, 1),
+          min: 0,
+          max: 1,
+          divisions: 100,
+          displayValue: '${(hsv.saturation * 100).round()}%',
+          onChanged: (value) =>
+              onChanged(hsv.withSaturation(value.clamp(0.0, 1.0)).toColor()),
+        ),
+        _buildSliderRow(
+          context,
+          label: '明度',
+          value: hsv.value.clamp(0, 1),
+          min: 0,
+          max: 1,
+          divisions: 100,
+          displayValue: '${(hsv.value * 100).round()}%',
+          onChanged: (value) =>
+              onChanged(hsv.withValue(value.clamp(0.0, 1.0)).toColor()),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSliderRow(
+    BuildContext context, {
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+    String? displayValue,
+    int? divisions,
+  }) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final String resolvedDisplay = displayValue ?? value.toStringAsFixed(0);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: theme.typography.body),
+              Text(resolvedDisplay, style: theme.typography.caption),
+            ],
+          ),
+          Slider(
+            min: min,
+            max: max,
+            divisions: divisions,
+            value: value.clamp(min, max),
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }
