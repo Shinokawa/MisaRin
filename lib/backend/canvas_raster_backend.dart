@@ -60,6 +60,9 @@ class CanvasRasterBackend {
   final Set<String> _pendingDirtyLayerIds = <String>{};
   bool _pendingAllLayersDirty = false;
   final Set<String> _workerKnownLayerIds = <String>{};
+  
+  // Cache for worker-generated RGBA tiles to avoid main thread conversion
+  final Map<int, Uint8List> _precomputedTileRgba = <int, Uint8List>{};
 
   Uint32List? _compositePixels;
   Uint8List? _clipMaskBuffer;
@@ -87,6 +90,7 @@ class CanvasRasterBackend {
       _pendingDirtyBounds = null;
       _pendingDirtyTiles.clear();
       _pendingDirtyTileKeys.clear();
+      _precomputedTileRgba.clear(); // Invalidate all cached tiles
       _pendingFullSurface = true;
       return;
     }
@@ -99,6 +103,20 @@ class CanvasRasterBackend {
     if (clipped.isEmpty) {
       return;
     }
+    
+    // Invalidate cached tiles for the dirty region
+    final int leftTile = clipped.left ~/ tileSize;
+    final int rightTile = (clipped.right - 1) ~/ tileSize;
+    final int topTile = clipped.top ~/ tileSize;
+    final int bottomTile = (clipped.bottom - 1) ~/ tileSize;
+    
+    for (int ty = topTile; ty <= bottomTile; ty++) {
+      for (int tx = leftTile; tx <= rightTile; tx++) {
+        final int key = (ty << 20) | tx;
+        _precomputedTileRgba.remove(key);
+      }
+    }
+
     if (_pendingDirtyBounds == null) {
       _pendingDirtyBounds = clipped;
     } else {
@@ -331,6 +349,18 @@ class CanvasRasterBackend {
     final Uint32List composite = _compositePixels!;
     for (final CompositeRegionResult region in results) {
       _writeRegion(region.rect, region.pixels, composite);
+      
+      // Cache precomputed RGBA if available
+      if (region.rgbaBytes != null) {
+        final ByteBuffer buffer = region.rgbaBytes!.materialize();
+        final Uint8List rgba = buffer.asUint8List();
+        // We need to store this keyed by the tile rect. 
+        // However, the region rect might not align perfectly with tiles if we supported partial updates.
+        // But currently _enqueueDirtyTiles aligns everything to tileSize.
+        // So we can assume region.rect is a tile.
+        final int key = (region.rect.top ~/ tileSize << 20) | (region.rect.left ~/ tileSize);
+        _precomputedTileRgba[key] = rgba;
+      }
     }
     if (requiresFullSurface) {
       _compositeInitialized = true;
@@ -358,6 +388,10 @@ class CanvasRasterBackend {
 
   void completeCompositePass() {
     _compositeDirty = _pendingFullSurface || _pendingDirtyBounds != null;
+    // Clean up old cache entries that weren't updated? 
+    // Or maybe just keep them until next dirty? 
+    // Actually, we should probably clear the cache for tiles that are dirtied but not yet updated.
+    // But here we just updated them.
   }
 
   Uint32List ensureCompositePixels() {
@@ -414,6 +448,15 @@ class CanvasRasterBackend {
   }
 
   Uint8List copyTileRgba(RasterIntRect rect) {
+    // Check cache first
+    final int key = (rect.top ~/ tileSize << 20) | (rect.left ~/ tileSize);
+    final Uint8List? cached = _precomputedTileRgba[key];
+    final int expectedLength = rect.width * rect.height * 4;
+
+    if (cached != null && cached.length == expectedLength) {
+      return cached;
+    }
+
     final Uint32List pixels = ensureCompositePixels();
     final int tileWidth = rect.width;
     final int tileHeight = rect.height;

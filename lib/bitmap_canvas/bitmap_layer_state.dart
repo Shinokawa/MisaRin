@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../canvas/canvas_layer.dart';
+import '../canvas/text_renderer.dart';
 import 'bitmap_canvas.dart';
 
 /// 在画布控制器与渲染后端之间共享的图层状态模型。
@@ -14,6 +15,8 @@ class BitmapLayerState {
     this.locked = false,
     this.clippingMask = false,
     this.blendMode = CanvasLayerBlendMode.normal,
+    this.text,
+    this.textBounds,
   });
 
   final String id;
@@ -25,4 +28,6 @@ class BitmapLayerState {
   CanvasLayerBlendMode blendMode;
   final BitmapSurface surface;
   int revision = 0;
+  CanvasTextData? text;
+  Rect? textBounds;
 }

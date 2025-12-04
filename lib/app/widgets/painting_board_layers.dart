@@ -13,6 +13,7 @@ mixin _PaintingBoardLayerMixin
   String? _renamingLayerId;
   final FlyoutController _layerContextMenuController = FlyoutController();
   final FlyoutController _blendModeFlyoutController = FlyoutController();
+  bool? _rasterizeMenuEnabled;
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
@@ -70,6 +71,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityPreviewReset(this);
     _controller.setActiveLayer(id);
     setState(() {});
+    _syncRasterizeMenuAvailability();
   }
 
   void _handleLayerRenameFocusChange() {
@@ -194,6 +196,43 @@ mixin _PaintingBoardLayerMixin
       }
     }
     return null;
+  }
+
+  Future<bool> rasterizeActiveTextLayer() async {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null) {
+      return false;
+    }
+    return _rasterizeTextLayer(layer);
+  }
+
+  bool get canRasterizeActiveLayer {
+    final BitmapLayerState? layer = _currentActiveLayer();
+    if (layer == null) {
+      return false;
+    }
+    return layer.text != null && !layer.locked;
+  }
+
+  Future<bool> _rasterizeTextLayer(BitmapLayerState layer) async {
+    if (layer.text == null || layer.locked) {
+      return false;
+    }
+    await _pushUndoSnapshot();
+    _controller.rasterizeTextLayer(layer.id);
+    setState(() {});
+    _markDirty();
+    _syncRasterizeMenuAvailability();
+    return true;
+  }
+
+  void _syncRasterizeMenuAvailability() {
+    final bool next = canRasterizeActiveLayer;
+    if (_rasterizeMenuEnabled == next) {
+      return;
+    }
+    _rasterizeMenuEnabled = next;
+    MenuActionDispatcher.instance.refresh();
   }
 
   void _handleLayerOpacityChangeStart(double _) {
@@ -491,7 +530,7 @@ mixin _PaintingBoardLayerMixin
     final bool isVisible = layer.visible;
     final bool isClipping = layer.clippingMask;
 
-    return <MenuFlyoutItemBase>[
+    final List<MenuFlyoutItemBase> items = <MenuFlyoutItemBase>[
       MenuFlyoutItem(
         leading: Icon(isLocked ? FluentIcons.lock : FluentIcons.unlock),
         text: Text(isLocked ? '解锁图层' : '锁定图层'),
@@ -526,6 +565,21 @@ mixin _PaintingBoardLayerMixin
         onPressed: () => _handleDuplicateLayer(layer),
       ),
     ];
+    if (layer.text != null) {
+      items.insert(
+        0,
+        MenuFlyoutItem(
+          leading: const Icon(FluentIcons.font),
+          text: const Text('栅格化文字图层'),
+          onPressed: layer.locked
+              ? null
+              : () async {
+                  await _rasterizeTextLayer(layer);
+                },
+        ),
+      );
+    }
+    return items;
   }
 
   void _updateActiveLayerClipping(bool clipping) async {

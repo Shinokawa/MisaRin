@@ -1334,6 +1334,22 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.mergeActiveLayerDown();
       },
+      rasterizeLayer: () async {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法栅格化图层。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        final bool success = await board.rasterizeActiveTextLayer();
+        if (!success) {
+          _showInfoBar('当前图层无法栅格化，仅文字图层支持该操作。',
+              severity: InfoBarSeverity.warning);
+        }
+      },
+      rasterizeLayerEnabled: () {
+        final board = _activeBoard;
+        return board?.canRasterizeActiveLayer ?? false;
+      },
       layerFreeTransform: () {
         final board = _activeBoard;
         board?.toggleLayerFreeTransform();

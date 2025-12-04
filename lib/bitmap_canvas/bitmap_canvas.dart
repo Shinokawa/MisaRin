@@ -5,6 +5,8 @@ import 'dart:ui';
 
 import '../canvas/brush_shape_geometry.dart';
 import '../canvas/canvas_tools.dart';
+import 'brush_tip_cache.dart';
+import 'soft_brush_profile.dart';
 
 const double _kSubpixelRadiusLimit = 0.6;
 const double _kHalfPixel = 0.5;
@@ -71,8 +73,108 @@ class BitmapSurface {
       return;
     }
     final double softnessClamped = softness.clamp(0.0, 1.0);
-    final double softnessRadius =
-        softnessClamped > 0 ? radius * (0.35 + softnessClamped * 1.65) : 0.0;
+    
+    // Optimization: Use cached brush tip for soft brushes
+    if (softnessClamped > 0.0 && mask == null) {
+        final BrushTip tip = BrushTipCache.getIfPresent(radius, softnessClamped);
+        final int tipWidth = tip.width;
+        final int tipHeight = tip.height;
+        final Uint8List tipAlpha = tip.alpha;
+        
+        final int minX = math.max(0, (center.dx - tip.extent).floor());
+        final int maxX = math.min(width - 1, (center.dx + tip.extent).ceil());
+        final int minY = math.max(0, (center.dy - tip.extent).floor());
+        final int maxY = math.min(height - 1, (center.dy + tip.extent).ceil());
+
+        final int baseColor = color.toARGB32();
+        final int baseAlpha = (baseColor >> 24) & 0xff;
+        final int baseRgb = baseColor & 0x00ffffff;
+        
+        final double tipOffsetX = tipWidth / 2.0 - center.dx;
+        final double tipOffsetY = tipHeight / 2.0 - center.dy;
+        
+        final int surfaceWidth = width; // hoisting
+        final Uint32List destPixels = pixels; // direct access
+
+        for (int y = minY; y <= maxY; y++) {
+            final int ty = (y + tipOffsetY).floor();
+            if (ty < 0 || ty >= tipHeight) continue;
+            
+            final int tipRowOffset = ty * tipWidth;
+            // Calculate starting index for this row
+            int destIndex = y * surfaceWidth + minX;
+            
+            for (int x = minX; x <= maxX; x++) {
+                final int tx = (x + tipOffsetX).floor();
+                if (tx >= 0 && tx < tipWidth) {
+                    final int coverageAlpha = tipAlpha[tipRowOffset + tx];
+                    if (coverageAlpha > 0) {
+                        // Inlined blending logic
+                        final int dst = destPixels[destIndex];
+                        final int dstA = (dst >> 24) & 0xff;
+                        
+                        if (erase) {
+                             if (dstA != 0) {
+                                 // srcA (coverageAlpha) acts as erase amount (0..255) where 255 is full erase
+                                 // But wait, coverageAlpha is just the brush shape alpha.
+                                 // We also need to consider baseAlpha (flow/opacity).
+                                 // Effective erase amount = (baseAlpha * coverageAlpha) / 255
+                                 final int effectiveErase = (baseAlpha * coverageAlpha * 257) >> 16;
+                                 final int invErase = 255 - effectiveErase;
+                                 final int remainingAlpha = (dstA * invErase * 257) >> 16;
+                                 
+                                 if (remainingAlpha == 0) {
+                                    destPixels[destIndex] = 0;
+                                    _isClean = false;
+                                 } else {
+                                     // Preserve RGB, reduce alpha
+                                     destPixels[destIndex] = (remainingAlpha << 24) | (dst & 0x00FFFFFF);
+                                     _isClean = false;
+                                 }
+                             }
+                        } else {
+                            // Normal Blend
+                            // effectiveSrcA = (baseAlpha * coverageAlpha) / 255
+                            final int srcA = (baseAlpha * coverageAlpha * 257) >> 16;
+                            
+                            if (srcA > 0) {
+                                final int dstR = (dst >> 16) & 0xff;
+                                final int dstG = (dst >> 8) & 0xff;
+                                final int dstB = dst & 0xff;
+
+                                final int invSrcA = 255 - srcA;
+                                final int dstWeightedA = (dstA * invSrcA * 257) >> 16;
+                                final int outA = srcA + dstWeightedA;
+
+                                if (outA > 0) {
+                                    final int srcR = (baseRgb >> 16) & 0xff;
+                                    final int srcG = (baseRgb >> 8) & 0xff;
+                                    final int srcB = baseRgb & 0xff;
+
+                                    // outC = (srcC * srcA + dstC * dstWeightedA) / outA
+                                    final int outR = (srcR * srcA + dstR * dstWeightedA) ~/ outA;
+                                    final int outG = (srcG * srcA + dstG * dstWeightedA) ~/ outA;
+                                    final int outB = (srcB * srcA + dstB * dstWeightedA) ~/ outA;
+
+                                    destPixels[destIndex] = (outA << 24) | 
+                                                        (outR << 16) | 
+                                                        (outG << 8) | 
+                                                        outB;
+                                    _isClean = false;
+                                }
+                            }
+                        }
+                    }
+                }
+                destIndex++;
+            }
+        }
+        return;
+    }
+
+    final double softnessRadius = softnessClamped > 0
+        ? radius * softBrushExtentMultiplier(softnessClamped)
+        : 0.0;
     final double extent = radius + softnessRadius + 1.5;
     final int minX = math.max(0, (center.dx - extent).floor());
     final int maxX = math.min(width - 1, (center.dx + extent).ceil());
@@ -726,12 +828,13 @@ class BitmapSurface {
     if (clampedSoftness <= 0.0) {
       return distance <= radius ? 1.0 : 0.0;
     }
-    final double innerRadius = radius * (1.0 - 0.45 * clampedSoftness);
+    final double innerRadius =
+        radius * softBrushInnerRadiusFraction(clampedSoftness);
     if (distance <= innerRadius) {
       return 1.0;
     }
     final double outerRadius =
-        radius + radius * (0.65 + 1.2 * clampedSoftness);
+        radius + radius * softBrushExtentMultiplier(clampedSoftness);
     if (distance >= outerRadius) {
       return 0.0;
     }
@@ -739,7 +842,12 @@ class BitmapSurface {
         ((distance - innerRadius) / (outerRadius - innerRadius))
             .clamp(0.0, 1.0);
     final double eased = 1.0 - normalized;
-    return math.pow(eased, 2.2).toDouble();
+    return math
+        .pow(
+          eased,
+          softBrushFalloffExponent(clampedSoftness),
+        )
+        .toDouble();
   }
 
   double _projectedPixelCoverage({
@@ -1029,56 +1137,57 @@ class BitmapSurface {
     final int dstG = (dst >> 8) & 0xff;
     final int dstB = dst & 0xff;
 
-    final double srcAlpha = srcA / 255.0;
-    final double dstAlpha = dstA / 255.0;
-
     if (erase) {
-      if (dstAlpha <= 0.0) {
+      if (dstA == 0) {
         return;
       }
-      final double eraseAmount = srcAlpha.clamp(0.0, 1.0);
-      if (eraseAmount <= 0.0) {
-        return;
-      }
-      final double remainingAlpha = dstAlpha * (1 - eraseAmount);
-      if (remainingAlpha <= 0.0001) {
+      // srcA acts as erase amount (0..255)
+      // remaining = dstA * (1 - srcA/255)
+      //           = dstA * (255 - srcA) / 255
+      final int invSrcA = 255 - srcA;
+      // Approximation: (a * b) / 255 ~= (a * b * 257) >> 16
+      final int remainingAlpha = (dstA * invSrcA * 257) >> 16;
+      
+      if (remainingAlpha == 0) {
         pixels[index] = 0;
+        _isClean = false;
         return;
       }
-      final double scale = remainingAlpha / dstAlpha;
-      final int eraseA = (remainingAlpha * 255.0).round().clamp(0, 255);
-      final int eraseR = (dstR * scale).round().clamp(0, 255);
-      final int eraseG = (dstG * scale).round().clamp(0, 255);
-      final int eraseB = (dstB * scale).round().clamp(0, 255);
-      pixels[index] = (eraseA << 24) | (eraseR << 16) | (eraseG << 8) | eraseB;
+      
+      // Preserve original behavior: scale RGB by the same factor as Alpha
+      // Original: scale = remainingAlpha / dstAlpha = (dstA * invSrcA / 255) / dstA = invSrcA / 255
+      
+      final int outR = (dstR * invSrcA * 257) >> 16;
+      final int outG = (dstG * invSrcA * 257) >> 16;
+      final int outB = (dstB * invSrcA * 257) >> 16;
+
+      pixels[index] = (remainingAlpha << 24) | (outR << 16) | (outG << 8) | outB;
+      _isClean = false;
       return;
     }
 
-    final double outAlpha = srcAlpha + dstAlpha * (1 - srcAlpha);
+    // Normal Blend (Src over Dst)
+    // outA = srcA + dstA * (1 - srcA/255)
+    final int invSrcA = 255 - srcA;
+    final int dstWeightedA = (dstA * invSrcA * 257) >> 16;
+    final int outA = srcA + dstWeightedA;
 
-    int outA;
-    int outR;
-    int outG;
-    int outB;
-    if (outAlpha == 0) {
-      outA = outR = outG = outB = 0;
-    } else {
-      outA = (outAlpha * 255.0).round().clamp(0, 255);
-      outR = ((srcR * srcAlpha + dstR * dstAlpha * (1 - srcAlpha)) / outAlpha)
-          .round()
-          .clamp(0, 255);
-      outG = ((srcG * srcAlpha + dstG * dstAlpha * (1 - srcAlpha)) / outAlpha)
-          .round()
-          .clamp(0, 255);
-      outB = ((srcB * srcAlpha + dstB * dstAlpha * (1 - srcAlpha)) / outAlpha)
-          .round()
-          .clamp(0, 255);
+    if (outA == 0) {
+      pixels[index] = 0;
+      return;
     }
 
-    pixels[index] = (outA << 24) | (outR << 16) | (outG << 8) | outB;
-    if (outA != 0) {
-      _isClean = false;
-    }
+    // outC = (srcC * srcA + dstC * dstWeightedA) / outA
+    // We perform the division at the end.
+    final int outR = (srcR * srcA + dstR * dstWeightedA) ~/ outA;
+    final int outG = (srcG * srcA + dstG * dstWeightedA) ~/ outA;
+    final int outB = (srcB * srcA + dstB * dstWeightedA) ~/ outA;
+
+    pixels[index] = (outA << 24) | 
+                    (outR.clamp(0, 255) << 16) | 
+                    (outG.clamp(0, 255) << 8) | 
+                    outB.clamp(0, 255);
+    _isClean = false;
   }
 
   static int encodeColor(Color color) => color.toARGB32();

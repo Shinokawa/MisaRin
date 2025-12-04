@@ -15,12 +15,24 @@ class MenuActionEntry extends MenuEntry {
     required this.action,
     this.shortcut,
     this.checked = false,
+    this.enabled = true,
+    this.enabledResolver,
   });
 
   final String label;
   final MenuAsyncAction? action;
   final MenuSerializableShortcut? shortcut;
   final bool checked;
+  final bool enabled;
+  final MenuActionEnabledResolver? enabledResolver;
+
+  bool get isEnabled {
+    final MenuActionEnabledResolver? resolver = enabledResolver;
+    if (resolver != null) {
+      return resolver();
+    }
+    return enabled;
+  }
 }
 
 class MenuSubmenuEntry extends MenuEntry {
@@ -316,6 +328,16 @@ class MenuDefinitionBuilder {
     if (handler.mergeLayerDown != null) {
       entries.add(
         MenuActionEntry(label: '向下合并', action: handler.mergeLayerDown),
+      );
+    }
+
+    if (handler.rasterizeLayer != null) {
+      entries.add(
+        MenuActionEntry(
+          label: '栅格化',
+          action: handler.rasterizeLayer,
+          enabledResolver: handler.rasterizeLayerEnabled,
+        ),
       );
     }
 

@@ -4,6 +4,7 @@ import 'dart:ui';
 import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../canvas/canvas_tools.dart'
     show BrushShape, CanvasTool, SelectionShape, ShapeToolVariant, SprayMode;
+import '../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../preferences/app_preferences.dart' show PenStrokeSliderRange;
 
 class PaletteCardSnapshot {
@@ -79,6 +80,15 @@ class ToolSettingsSnapshot {
     required this.shapeFillEnabled,
     required this.selectionShape,
     required this.shapeToolVariant,
+    required this.textFontSize,
+    required this.textLineHeight,
+    required this.textLetterSpacing,
+    required this.textFontFamily,
+    required this.textAlign,
+    required this.textOrientation,
+    required this.textAntialias,
+    required this.textStrokeEnabled,
+    required this.textStrokeWidth,
   });
 
   final CanvasTool activeTool;
@@ -108,4 +118,13 @@ class ToolSettingsSnapshot {
   final bool shapeFillEnabled;
   final SelectionShape selectionShape;
   final ShapeToolVariant shapeToolVariant;
+  final double textFontSize;
+  final double textLineHeight;
+  final double textLetterSpacing;
+  final String textFontFamily;
+  final TextAlign textAlign;
+  final CanvasTextOrientation textOrientation;
+  final bool textAntialias;
+  final bool textStrokeEnabled;
+  final double textStrokeWidth;
 }

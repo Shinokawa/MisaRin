@@ -8,6 +8,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     VoidCallback? onCleared,
   }) async {
     Color previewColor = initialColor;
+    _ColorAdjustMode currentMode = _ColorAdjustMode.fluentBox;
     final Color? result = await showDialog<Color>(
       context: context,
       barrierDismissible: true,
@@ -16,17 +17,86 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           title: Text(title),
           content: StatefulBuilder(
             builder: (context, setState) {
-              return SizedBox(
-                width: 320,
-                child: ColorPicker(
-                  color: previewColor,
-                  onChanged: (Color color) {
-                    setState(() => previewColor = color);
+              Widget buildModeChooser(_ColorAdjustMode mode) {
+                final bool selected = currentMode == mode;
+                return ToggleButton(
+                  checked: selected,
+                  onChanged: (value) {
+                    if (!value) {
+                      return;
+                    }
+                    setState(() => currentMode = mode);
                   },
-                  isMoreButtonVisible: false,
-                  isColorChannelTextInputVisible: false,
-                  isHexInputVisible: true,
-                  isAlphaTextInputVisible: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Text(mode.label),
+                  ),
+                );
+              }
+
+              Widget buildPickerBody() {
+                switch (currentMode) {
+                  case _ColorAdjustMode.fluentBox:
+                    return _FluentColorPickerHost(
+                      key: const ValueKey('fluentBox'),
+                      color: previewColor,
+                      spectrumShape: ColorSpectrumShape.box,
+                      onChanged: (color) => setState(() {
+                        previewColor = color;
+                      }),
+                    );
+                  case _ColorAdjustMode.fluentRing:
+                    return _FluentColorPickerHost(
+                      key: const ValueKey('fluentRing'),
+                      color: previewColor,
+                      spectrumShape: ColorSpectrumShape.ring,
+                      onChanged: (color) => setState(() {
+                        previewColor = color;
+                      }),
+                    );
+                  case _ColorAdjustMode.numericSliders:
+                    return _ColorSliderEditor(
+                      key: const ValueKey('numericSliders'),
+                      color: previewColor,
+                      onChanged: (color) => setState(() {
+                        previewColor = color;
+                      }),
+                    );
+                  case _ColorAdjustMode.boardPanel:
+                    return _BoardPanelColorPicker(
+                      key: const ValueKey('boardPanel'),
+                      color: previewColor,
+                      onChanged: (color) => setState(() {
+                        previewColor = color;
+                      }),
+                    );
+                }
+              }
+
+              return SizedBox(
+                width: 380,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _ColorAdjustMode.values
+                          .map(buildModeChooser)
+                          .toList(growable: false),
+                    ),
+                    const SizedBox(height: 12),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, animation) =>
+                          FadeTransition(opacity: animation, child: child),
+                      child: buildPickerBody(),
+                    ),
+                  ],
                 ),
               );
             },
@@ -104,6 +174,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       }
     });
     _persistPrimaryColor();
+    _handlePrimaryColorChanged();
   }
 
   @override
@@ -116,6 +187,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       }
     });
     _persistPrimaryColor();
+    _handlePrimaryColorChanged();
   }
 
   void _persistPrimaryColor() {
@@ -150,14 +222,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   void _handleSelectColorLineColor(Color color) {
-    final bool changed = _colorLineColor.value != color.value;
-    if (changed) {
-      setState(() => _colorLineColor = color);
-      final AppPreferences prefs = AppPreferences.instance;
-      prefs.colorLineColor = color;
-      unawaited(AppPreferences.save());
-    }
-    _setPrimaryColor(color);
+    _setTextStrokeColor(color, syncPrimary: true);
   }
 
   Future<void> _handleEditPrimaryColor() async {
@@ -166,6 +231,28 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       initialColor: _primaryColor,
       onSelected: (color) => _setPrimaryColor(color),
     );
+  }
+
+  Future<void> _handleEditTextStrokeColor() async {
+    await _pickColor(
+      title: '调整描边颜色',
+      initialColor: _colorLineColor,
+      onSelected: _setTextStrokeColor,
+    );
+  }
+
+  void _setTextStrokeColor(Color color, {bool syncPrimary = false}) {
+    final bool changed = _colorLineColor.value != color.value;
+    if (changed) {
+      setState(() => _colorLineColor = color);
+      final AppPreferences prefs = AppPreferences.instance;
+      prefs.colorLineColor = color;
+      unawaited(AppPreferences.save());
+      _handleTextStrokeColorChanged(color);
+    }
+    if (syncPrimary) {
+      _setPrimaryColor(color);
+    }
   }
 
   Widget? _buildColorPanelTrailing(FluentThemeData theme) {
@@ -771,5 +858,490 @@ class _ColorIndicatorButtonState extends State<_ColorIndicatorButton> {
         ),
       ),
     );
+  }
+}
+
+class _ColorHexPreview extends StatelessWidget {
+  const _ColorHexPreview({super.key, required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final bool isDark = theme.brightness.isDark;
+    final String hex = _hexStringForColor(color);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.resources.subtleFillColorSecondary,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.resources.controlStrokeColorDefault,
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 12),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.18)
+                    : Colors.black.withOpacity(0.08),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: color),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('当前颜色', style: theme.typography.bodyStrong),
+                const SizedBox(height: 2),
+                Text(hex, style: theme.typography.caption),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Tooltip(
+              message: '复制 $hex',
+              child: IconButton(
+                icon: const Icon(FluentIcons.copy),
+                onPressed: () => _copyHex(context, hex),
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all<EdgeInsets>(
+                    const EdgeInsets.all(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyHex(BuildContext context, String hex) {
+    Clipboard.setData(ClipboardData(text: hex));
+    AppNotifications.show(
+      context,
+      message: '已复制 $hex',
+      severity: InfoBarSeverity.success,
+      duration: const Duration(seconds: 2),
+    );
+  }
+}
+
+class _FluentColorPickerHost extends StatelessWidget {
+  const _FluentColorPickerHost({
+    super.key,
+    required this.color,
+    required this.onChanged,
+    required this.spectrumShape,
+  });
+
+  final Color color;
+  final ValueChanged<Color> onChanged;
+  final ColorSpectrumShape spectrumShape;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ColorPicker(
+          color: color,
+          onChanged: onChanged,
+          colorSpectrumShape: spectrumShape,
+          isMoreButtonVisible: false,
+          isColorChannelTextInputVisible: false,
+          isHexInputVisible: false,
+          isColorSliderVisible: true,
+          isAlphaEnabled: false,
+          isAlphaSliderVisible: false,
+          isAlphaTextInputVisible: false,
+        ),
+        const SizedBox(height: 16),
+        _ColorHexPreview(color: color),
+      ],
+    );
+  }
+}
+
+enum _ColorAdjustMode {
+  fluentBox,
+  fluentRing,
+  numericSliders,
+  boardPanel,
+}
+
+extension _ColorAdjustModeLabel on _ColorAdjustMode {
+  String get label {
+    switch (this) {
+      case _ColorAdjustMode.fluentBox:
+        return 'HSV 方形光谱';
+      case _ColorAdjustMode.fluentRing:
+        return '色相环光谱';
+      case _ColorAdjustMode.numericSliders:
+        return 'RGB / HSV 滑块';
+      case _ColorAdjustMode.boardPanel:
+        return '画板取色器';
+    }
+  }
+}
+
+class _ColorSliderEditor extends StatelessWidget {
+  const _ColorSliderEditor({
+    super.key,
+    required this.color,
+    required this.onChanged,
+  });
+
+  final Color color;
+  final ValueChanged<Color> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final HSVColor hsv = HSVColor.fromColor(color);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('RGB', style: theme.typography.bodyStrong),
+        const SizedBox(height: 4),
+        _buildSliderRow(
+          context,
+          label: '红',
+          value: color.red.toDouble(),
+          min: 0,
+          max: 255,
+          divisions: 255,
+          displayValue: color.red.toString(),
+          onChanged: (value) => onChanged(color.withRed(value.round())),
+        ),
+        _buildSliderRow(
+          context,
+          label: '绿',
+          value: color.green.toDouble(),
+          min: 0,
+          max: 255,
+          divisions: 255,
+          displayValue: color.green.toString(),
+          onChanged: (value) => onChanged(color.withGreen(value.round())),
+        ),
+        _buildSliderRow(
+          context,
+          label: '蓝',
+          value: color.blue.toDouble(),
+          min: 0,
+          max: 255,
+          divisions: 255,
+          displayValue: color.blue.toString(),
+          onChanged: (value) => onChanged(color.withBlue(value.round())),
+        ),
+        const SizedBox(height: 12),
+        Text('HSV', style: theme.typography.bodyStrong),
+        const SizedBox(height: 4),
+        _buildSliderRow(
+          context,
+          label: '色相',
+          value: hsv.hue.clamp(0, 360),
+          min: 0,
+          max: 360,
+          divisions: 360,
+          displayValue: hsv.hue.round().toString(),
+          onChanged: (value) => onChanged(hsv.withHue(value).toColor()),
+        ),
+        _buildSliderRow(
+          context,
+          label: '饱和度',
+          value: hsv.saturation.clamp(0, 1),
+          min: 0,
+          max: 1,
+          divisions: 100,
+          displayValue: '${(hsv.saturation * 100).round()}%',
+          onChanged: (value) =>
+              onChanged(hsv.withSaturation(value.clamp(0.0, 1.0)).toColor()),
+        ),
+        _buildSliderRow(
+          context,
+          label: '明度',
+          value: hsv.value.clamp(0, 1),
+          min: 0,
+          max: 1,
+          divisions: 100,
+          displayValue: '${(hsv.value * 100).round()}%',
+          onChanged: (value) =>
+              onChanged(hsv.withValue(value.clamp(0.0, 1.0)).toColor()),
+        ),
+        const SizedBox(height: 16),
+        _ColorHexPreview(color: color),
+      ],
+    );
+  }
+
+  Widget _buildSliderRow(
+    BuildContext context, {
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+    String? displayValue,
+    int? divisions,
+  }) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final String resolvedDisplay = displayValue ?? value.toStringAsFixed(0);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: theme.typography.body),
+              Text(resolvedDisplay, style: theme.typography.caption),
+            ],
+          ),
+          Slider(
+            min: min,
+            max: max,
+            divisions: divisions,
+            value: value.clamp(min, max),
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BoardPanelColorPicker extends StatefulWidget {
+  const _BoardPanelColorPicker({
+    super.key,
+    required this.color,
+    required this.onChanged,
+  });
+
+  final Color color;
+  final ValueChanged<Color> onChanged;
+
+  @override
+  State<_BoardPanelColorPicker> createState() => _BoardPanelColorPickerState();
+}
+
+class _BoardPanelColorPickerState extends State<_BoardPanelColorPicker> {
+  late HSVColor _currentHsv;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentHsv = HSVColor.fromColor(widget.color);
+  }
+
+  @override
+  void didUpdateWidget(covariant _BoardPanelColorPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.color.value != widget.color.value) {
+      _currentHsv = HSVColor.fromColor(widget.color);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const double spacing = 12;
+    final Color displayColor = _currentHsv.toColor();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            double sliderWidth = 24;
+            double availableWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : 320;
+            double squareSize = availableWidth - sliderWidth - spacing;
+            if (squareSize <= 0) {
+              squareSize = availableWidth;
+              sliderWidth = 0;
+            }
+            final double colorHeight =
+                squareSize > 0 ? squareSize : availableWidth;
+
+            return ConstrainedBox(
+              constraints: BoxConstraints(minHeight: colorHeight),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: squareSize,
+                    height: colorHeight,
+                    child: _buildColorSquare(squareSize, colorHeight),
+                  ),
+                  if (sliderWidth > 0) ...[
+                    const SizedBox(width: spacing),
+                    SizedBox(
+                      width: sliderWidth,
+                      height: colorHeight,
+                      child: _buildHueSlider(colorHeight),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        _ColorHexPreview(color: displayColor),
+      ],
+    );
+  }
+
+  Widget _buildColorSquare(double width, double height) {
+    final HSVColor hsv = _currentHsv;
+    return GestureDetector(
+      onPanDown: (details) =>
+          _updateFromSquare(details.localPosition, width, height),
+      onPanUpdate: (details) =>
+          _updateFromSquare(details.localPosition, width, height),
+      onTapUp: (_) => _updateFromSquare(
+        Offset(
+          hsv.saturation.clamp(0.0, 1.0) * width,
+          (1 - hsv.value.clamp(0.0, 1.0)) * height,
+        ),
+        width,
+        height,
+      ),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Colors.white,
+                            HSVColor.fromAHSV(1, hsv.hue, 1, 1).toColor(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x00FFFFFF),
+                            Color(0xFF000000),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: hsv.saturation.clamp(0.0, 1.0) * width - 8,
+              top: (1 - hsv.value.clamp(0.0, 1.0)) * height - 8,
+              child: _ColorPickerHandle(color: hsv.toColor()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHueSlider(double height) {
+    const List<Color> hueColors = [
+      Color(0xFFFF0000),
+      Color(0xFFFFFF00),
+      Color(0xFF00FF00),
+      Color(0xFF00FFFF),
+      Color(0xFF0000FF),
+      Color(0xFFFF00FF),
+      Color(0xFFFF0000),
+    ];
+    final double handleY =
+        (_currentHsv.hue.clamp(0.0, 360.0) / 360.0) * height;
+    return GestureDetector(
+      onPanDown: (details) => _updateHue(details.localPosition.dy, height),
+      onPanUpdate: (details) => _updateHue(details.localPosition.dy, height),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: hueColors,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: handleY - 8,
+            left: -4,
+            right: -4,
+            child: const _HueSliderHandle(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateFromSquare(Offset position, double width, double height) {
+    final double safeWidth = width <= 0 ? 1 : width;
+    final double safeHeight = height <= 0 ? 1 : height;
+    final double x = position.dx.clamp(0.0, safeWidth);
+    final double y = position.dy.clamp(0.0, safeHeight);
+    final double saturation = (x / safeWidth).clamp(0.0, 1.0);
+    final double value = (1 - y / safeHeight).clamp(0.0, 1.0);
+    _setColor(_currentHsv.withSaturation(saturation).withValue(value));
+  }
+
+  void _updateHue(double dy, double height) {
+    final double y = dy.clamp(0.0, height);
+    final double hue = (y / height).clamp(0.0, 1.0) * 360.0;
+    _setColor(_currentHsv.withHue(hue));
+  }
+
+  void _setColor(HSVColor hsv) {
+    setState(() {
+      _currentHsv = hsv;
+    });
+    widget.onChanged(hsv.toColor());
   }
 }

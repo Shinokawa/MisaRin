@@ -15,7 +15,8 @@ import 'package:flutter/foundation.dart'
         debugPrint,
         defaultTargetPlatform,
         TargetPlatform,
-        kIsWeb;
+        kIsWeb,
+        protected;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -23,6 +24,8 @@ import 'package:flutter/material.dart'
 import 'package:flutter/painting.dart' show MatrixUtils;
 import 'package:flutter/services.dart'
     show
+        Clipboard,
+        ClipboardData,
         FilteringTextInputFormatter,
         HardwareKeyboard,
         KeyDownEvent,
@@ -70,6 +73,7 @@ import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/vector_stroke_painter.dart';
+import '../../canvas/text_renderer.dart';
 import '../toolbars/widgets/canvas_toolbar.dart';
 import '../toolbars/widgets/tool_settings_card.dart';
 import '../toolbars/layouts/layouts.dart';
@@ -78,6 +82,7 @@ import '../../painting/krita_spray_engine.dart';
 import 'tool_cursor_overlay.dart';
 import 'bitmap_canvas_surface.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
+import '../menu/menu_action_dispatcher.dart';
 import '../constants/color_line_presets.dart';
 import '../preferences/app_preferences.dart';
 import '../constants/pen_constants.dart';
@@ -88,8 +93,10 @@ import '../utils/color_filter_generator.dart';
 import '../palette/palette_exporter.dart';
 import '../utils/web_file_dialog.dart';
 import '../utils/web_file_saver.dart';
+import '../utils/platform_target.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
+import '../native/system_fonts.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
@@ -105,6 +112,7 @@ part 'painting_board_marching_ants.dart';
 part 'painting_board_selection.dart';
 part 'painting_board_layer_transform.dart';
 part 'painting_board_shapes.dart';
+part 'painting_board_text.dart';
 part 'painting_board_clipboard.dart';
 part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
@@ -323,6 +331,12 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   final ScrollController _layerScrollController = ScrollController();
   Color _primaryColor = AppPreferences.defaultPrimaryColor;
   late HSVColor _primaryHsv;
+
+  /// 颜色更新后由颜色面板调用的钩子，子类/混入可以覆写以响应颜色变化。
+  @protected
+  void _handlePrimaryColorChanged() {}
+  @protected
+  void _handleTextStrokeColorChanged(Color color) {}
   final List<Color> _recentColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
@@ -1669,6 +1683,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardColorMixin,
         _PaintingBoardPaletteMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardTextMixin,
         _PaintingBoardSelectionMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardClipboardMixin,
@@ -1678,6 +1693,7 @@ class PaintingBoardState extends _PaintingBoardBase
   @override
   void initState() {
     super.initState();
+    initializeTextTool();
     initializeSelectionTicker(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
@@ -1735,10 +1751,12 @@ class PaintingBoardState extends _PaintingBoardBase
       widget.onReadyChanged?.call(true);
     }
     _resetHistory();
+    _syncRasterizeMenuAvailability();
   }
 
   @override
   void dispose() {
+    disposeTextTool();
     _removeFilterOverlay(restoreOriginal: false);
     _disposeReferenceCards();
     disposeSelectionTicker();
@@ -1993,6 +2011,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _shapeVectorFillOverlayColor = null;
       }
     });
+    _syncRasterizeMenuAvailability();
     _notifyBoardReadyIfNeeded();
   }
 
@@ -2052,6 +2071,15 @@ class PaintingBoardState extends _PaintingBoardBase
       shapeFillEnabled: _shapeFillEnabled,
       selectionShape: _selectionShape,
       shapeToolVariant: _shapeToolVariant,
+      textFontSize: _textFontSize,
+      textLineHeight: _textLineHeight,
+      textLetterSpacing: _textLetterSpacing,
+      textFontFamily: _textFontFamily,
+      textAlign: _textAlign,
+      textOrientation: _textOrientation,
+      textAntialias: _textAntialias,
+      textStrokeEnabled: _textStrokeEnabled,
+      textStrokeWidth: _textStrokeWidth,
     );
   }
 
@@ -2060,6 +2088,15 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateShapeToolVariant(snapshot.shapeToolVariant);
     _updateShapeFillEnabled(snapshot.shapeFillEnabled);
     _updateSelectionShape(snapshot.selectionShape);
+    _updateTextFontSize(snapshot.textFontSize);
+    _updateTextLineHeight(snapshot.textLineHeight);
+    _updateTextLetterSpacing(snapshot.textLetterSpacing);
+    _updateTextFontFamily(snapshot.textFontFamily);
+    _updateTextAlign(snapshot.textAlign);
+    _updateTextOrientation(snapshot.textOrientation);
+    _updateTextAntialias(snapshot.textAntialias);
+    _updateTextStrokeEnabled(snapshot.textStrokeEnabled);
+    _updateTextStrokeWidth(snapshot.textStrokeWidth);
     _updatePenStrokeWidth(snapshot.penStrokeWidth);
     _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
     _updateSprayMode(snapshot.sprayMode);

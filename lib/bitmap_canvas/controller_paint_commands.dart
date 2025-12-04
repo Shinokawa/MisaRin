@@ -251,7 +251,7 @@ Rect? _controllerDirtyRectForCommand(
       }
       final double softness = (command.softness ?? 0.0).clamp(0.0, 1.0);
       final double expandedRadius = softness > 0
-          ? radius + radius * (0.35 + softness * 1.65)
+          ? radius + radius * softBrushExtentMultiplier(softness)
           : radius;
       return _strokeDirtyRectForCircle(center, expandedRadius);
     case PaintingDrawCommandType.line:

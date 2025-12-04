@@ -6,7 +6,9 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardInteractionMixin,
         _PaintingBoardPaletteMixin,
+        _PaintingBoardColorMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
   @override
   Widget build(BuildContext context) {
@@ -14,9 +16,11 @@ mixin _PaintingBoardBuildMixin
     _refreshHistoryLimit();
     final bool canUndo = this.canUndo || widget.externalCanUndo;
     final bool canRedo = this.canRedo || widget.externalCanRedo;
-    final Map<LogicalKeySet, Intent> shortcutBindings = {
-      for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
-        key: const UndoIntent(),
+    final Map<LogicalKeySet, Intent> shortcutBindings = _isTextEditingActive
+        ? <LogicalKeySet, Intent>{}
+        : {
+            for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
+              key: const UndoIntent(),
       for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
         key: const RedoIntent(),
       for (final key in ToolbarShortcuts.of(
@@ -77,6 +81,10 @@ mixin _PaintingBoardBuildMixin
         ToolbarAction.selectionTool,
       ).shortcuts)
         key: const SelectToolIntent(CanvasTool.selection),
+      for (final key in ToolbarShortcuts.of(
+        ToolbarAction.textTool,
+      ).shortcuts)
+        key: const SelectToolIntent(CanvasTool.text),
       for (final key in ToolbarShortcuts.of(ToolbarAction.handTool).shortcuts)
         key: const SelectToolIntent(CanvasTool.hand),
       for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
@@ -168,6 +176,8 @@ mixin _PaintingBoardBuildMixin
         final Widget? transformCursorOverlay = buildLayerTransformCursorOverlay(
           theme,
         );
+        final Widget? textHoverOverlay = buildTextHoverOverlay();
+        final Widget? textOverlay = buildTextEditingOverlay();
 
         final bool transformActive = _isLayerFreeTransformActive;
         final MouseCursor boardCursor;
@@ -179,6 +189,8 @@ mixin _PaintingBoardBuildMixin
           boardCursor = _isLayerDragging
               ? SystemMouseCursors.grabbing
               : SystemMouseCursors.move;
+        } else if (_effectiveActiveTool == CanvasTool.text) {
+          boardCursor = SystemMouseCursors.text;
         } else {
           boardCursor = MouseCursor.defer;
         }
@@ -212,6 +224,9 @@ mixin _PaintingBoardBuildMixin
                 break;
               case CanvasTool.eyedropper:
                 workspaceCursor = SystemMouseCursors.basic;
+                break;
+              case CanvasTool.text:
+                workspaceCursor = SystemMouseCursors.text;
                 break;
               default:
                 workspaceCursor = SystemMouseCursors.basic;
@@ -293,6 +308,28 @@ mixin _PaintingBoardBuildMixin
           onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
           compactLayout: isSai2Layout,
+          textFontSize: _textFontSize,
+          onTextFontSizeChanged: _updateTextFontSize,
+          textLineHeight: _textLineHeight,
+          onTextLineHeightChanged: _updateTextLineHeight,
+          textLetterSpacing: _textLetterSpacing,
+          onTextLetterSpacingChanged: _updateTextLetterSpacing,
+          textFontFamily: _textFontFamily,
+          onTextFontFamilyChanged: _updateTextFontFamily,
+          availableFontFamilies: _textFontFamilies,
+          fontsLoading: _textFontsLoading,
+          textAlign: _textAlign,
+          onTextAlignChanged: _updateTextAlign,
+          textOrientation: _textOrientation,
+          onTextOrientationChanged: _updateTextOrientation,
+          textAntialias: _textAntialias,
+          onTextAntialiasChanged: _updateTextAntialias,
+          textStrokeEnabled: _textStrokeEnabled,
+          onTextStrokeEnabledChanged: _updateTextStrokeEnabled,
+          textStrokeWidth: _textStrokeWidth,
+          onTextStrokeWidthChanged: _updateTextStrokeWidth,
+          textStrokeColor: _colorLineColor,
+          onTextStrokeColorPressed: _handleEditTextStrokeColor,
         );
         final ToolbarPanelData colorPanelData = ToolbarPanelData(
           title: '取色',
@@ -750,6 +787,8 @@ mixin _PaintingBoardBuildMixin
                               ),
                             ),
                           ),
+                          if (textHoverOverlay != null) textHoverOverlay,
+                          if (textOverlay != null) textOverlay,
                           ...toolbarLayoutResult.widgets,
                           ..._buildReferenceCards(),
                           ..._buildPaletteCards(),

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../../canvas/canvas_tools.dart';
+import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../../preferences/app_preferences.dart' show PenStrokeSliderRange;
 import '../../constants/pen_constants.dart'
     show kSprayStrokeMin, kSprayStrokeMax;
@@ -61,6 +62,28 @@ class ToolSettingsCard extends StatefulWidget {
     required this.vectorDrawingEnabled,
     required this.onVectorDrawingEnabledChanged,
     required this.strokeStabilizerMaxLevel,
+    required this.textFontSize,
+    required this.onTextFontSizeChanged,
+    required this.textLineHeight,
+    required this.onTextLineHeightChanged,
+    required this.textLetterSpacing,
+    required this.onTextLetterSpacingChanged,
+    required this.textFontFamily,
+    required this.onTextFontFamilyChanged,
+    required this.availableFontFamilies,
+    required this.fontsLoading,
+    required this.textAlign,
+    required this.onTextAlignChanged,
+    required this.textOrientation,
+    required this.onTextOrientationChanged,
+    required this.textAntialias,
+    required this.onTextAntialiasChanged,
+    required this.textStrokeEnabled,
+    required this.onTextStrokeEnabledChanged,
+    required this.textStrokeWidth,
+    required this.onTextStrokeWidthChanged,
+    required this.textStrokeColor,
+    required this.onTextStrokeColorPressed,
     this.compactLayout = false,
   });
 
@@ -113,6 +136,28 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onVectorDrawingEnabledChanged;
   final int strokeStabilizerMaxLevel;
   final bool compactLayout;
+  final double textFontSize;
+  final ValueChanged<double> onTextFontSizeChanged;
+  final double textLineHeight;
+  final ValueChanged<double> onTextLineHeightChanged;
+  final double textLetterSpacing;
+  final ValueChanged<double> onTextLetterSpacingChanged;
+  final String textFontFamily;
+  final ValueChanged<String> onTextFontFamilyChanged;
+  final List<String> availableFontFamilies;
+  final bool fontsLoading;
+  final TextAlign textAlign;
+  final ValueChanged<TextAlign> onTextAlignChanged;
+  final CanvasTextOrientation textOrientation;
+  final ValueChanged<CanvasTextOrientation> onTextOrientationChanged;
+  final bool textAntialias;
+  final ValueChanged<bool> onTextAntialiasChanged;
+  final bool textStrokeEnabled;
+  final ValueChanged<bool> onTextStrokeEnabledChanged;
+  final double textStrokeWidth;
+  final ValueChanged<double> onTextStrokeWidthChanged;
+  final Color textStrokeColor;
+  final VoidCallback onTextStrokeColorPressed;
 
   @override
   State<ToolSettingsCard> createState() => _ToolSettingsCardState();
@@ -263,6 +308,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         break;
       case CanvasTool.selection:
         content = _buildSelectionShapeRow(theme);
+        break;
+      case CanvasTool.text:
+        content = _buildTextControls(theme);
         break;
       default:
         content = Text('该工具暂无可调节参数', style: theme.typography.body);
@@ -500,6 +548,360 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         Text('选区形状', style: theme.typography.bodyStrong),
         const SizedBox(height: 8),
         selector,
+      ],
+    );
+  }
+
+  Widget _buildTextControls(FluentThemeData theme) {
+    final List<String> fontOptions = <String>[
+      '系统默认',
+      ...widget.availableFontFamilies,
+    ];
+    final bool fontAvailable = widget.textFontFamily.isNotEmpty &&
+        widget.availableFontFamilies.contains(widget.textFontFamily);
+    final String selectedFont =
+        fontAvailable ? widget.textFontFamily : '系统默认';
+    final List<Widget> children = <Widget>[
+      _buildFontSelectorRow(
+        theme,
+        fontOptions: fontOptions,
+        selectedFont: selectedFont,
+        isLoading: widget.fontsLoading,
+      ),
+      _buildLabeledSlider(
+        theme: theme,
+        label: '字号',
+        value: widget.textFontSize,
+        min: 6,
+        max: 200,
+        formatter: (value) => '${value.toStringAsFixed(0)} px',
+        onChanged: widget.onTextFontSizeChanged,
+      ),
+      _buildLabeledSlider(
+        theme: theme,
+        label: '行距',
+        value: widget.textLineHeight,
+        min: 0.5,
+        max: 3.0,
+        formatter: (value) => value.toStringAsFixed(2),
+        onChanged: widget.onTextLineHeightChanged,
+      ),
+      _buildLabeledSlider(
+        theme: theme,
+        label: '文字间距',
+        value: widget.textLetterSpacing,
+        min: -100,
+        max: 200,
+        formatter: (value) => '${value.toStringAsFixed(1)} px',
+        onChanged: widget.onTextLetterSpacingChanged,
+      ),
+      _buildTextAlignRow(theme),
+      _buildTextOrientationRow(theme),
+      _buildToggleSwitchRow(
+        theme,
+        label: '抗锯齿',
+        value: widget.textAntialias,
+        onChanged: widget.onTextAntialiasChanged,
+      ),
+      _buildToggleSwitchRow(
+        theme,
+        label: '文字描边',
+        value: widget.textStrokeEnabled,
+        onChanged: widget.onTextStrokeEnabledChanged,
+      ),
+    ];
+
+    if (widget.textStrokeEnabled) {
+      children.add(_buildTextStrokeColorRow(theme));
+      children.add(
+        _buildLabeledSlider(
+          theme: theme,
+          label: '描边宽度',
+          value: widget.textStrokeWidth,
+          min: 0.5,
+          max: 20,
+          formatter: (value) => value.toStringAsFixed(1),
+          onChanged: widget.onTextStrokeWidthChanged,
+        ),
+      );
+    }
+    return _buildControlsGroup(
+      children,
+      spacing: 16,
+      runSpacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.center,
+    );
+  }
+
+  Widget _buildFontSelectorRow(
+    FluentThemeData theme, {
+    required List<String> fontOptions,
+    required String selectedFont,
+    required bool isLoading,
+  }) {
+    final ComboBox<String> comboBox = ComboBox<String>(
+      value: selectedFont,
+      isExpanded: true,
+      items: fontOptions
+          .map(
+            (family) => ComboBoxItem<String>(
+              value: family,
+              child: Text(
+                _sanitizeDisplayText(family),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (value) {
+        if (value == null) {
+          return;
+        }
+        widget.onTextFontFamilyChanged(
+          value == '系统默认' ? '' : value,
+        );
+      },
+    );
+
+    final Widget loadingIndicator = SizedBox(
+      width: 18,
+      height: 18,
+      child: const ProgressRing(strokeWidth: 2.0),
+    );
+
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('字体', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          SizedBox(width: 220, child: comboBox),
+          if (isLoading) ...[
+            const SizedBox(width: 8),
+            loadingIndicator,
+          ],
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('字体', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: comboBox),
+            if (isLoading) ...[
+              const SizedBox(width: 8),
+              loadingIndicator,
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextStrokeColorRow(FluentThemeData theme) {
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('描边颜色', style: theme.typography.bodyStrong),
+        const SizedBox(width: 12),
+        Button(
+          onPressed: widget.onTextStrokeColorPressed,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: widget.textStrokeColor,
+                  border: Border.all(color: borderColor),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('选择颜色'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextAlignRow(FluentThemeData theme) {
+    final List<TextAlign> alignments = <TextAlign>[
+      TextAlign.left,
+      TextAlign.center,
+      TextAlign.right,
+    ];
+    final Wrap alignSelector = Wrap(
+      spacing: 8,
+      children: alignments.map((alignment) {
+        final bool selected = widget.textAlign == alignment;
+        final IconData icon;
+        switch (alignment) {
+          case TextAlign.center:
+            icon = FluentIcons.align_center;
+            break;
+          case TextAlign.right:
+            icon = FluentIcons.align_right;
+            break;
+          case TextAlign.left:
+          default:
+            icon = FluentIcons.align_left;
+            break;
+        }
+        return ToggleButton(
+          checked: selected,
+          onChanged: (_) => widget.onTextAlignChanged(alignment),
+          child: Icon(icon),
+        );
+      }).toList(growable: false),
+    );
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('对齐方式', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          alignSelector,
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('对齐方式', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        alignSelector,
+      ],
+    );
+  }
+
+  Widget _buildTextOrientationRow(FluentThemeData theme) {
+    final Wrap orientationSelector = Wrap(
+      spacing: 8,
+      children: CanvasTextOrientation.values.map((orientation) {
+        final bool selected = widget.textOrientation == orientation;
+        final String label =
+            orientation == CanvasTextOrientation.horizontal ? '横排' : '竖排';
+        return ToggleButton(
+          checked: selected,
+          onChanged: (_) => widget.onTextOrientationChanged(orientation),
+          child: Text(label),
+        );
+      }).toList(growable: false),
+    );
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('排列方向', style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          orientationSelector,
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('排列方向', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        orientationSelector,
+      ],
+    );
+  }
+
+  Widget _buildTextToolHint(FluentThemeData theme) {
+    return SizedBox(
+      width: widget.compactLayout ? double.infinity : 320,
+      child: Text(
+        '文字填充颜色使用左下角取色器，描边颜色使用当前辅助色。',
+        style: theme.typography.caption,
+      ),
+    );
+  }
+
+  String _sanitizeDisplayText(String raw) {
+    if (raw.isEmpty) {
+      return raw;
+    }
+    final List<int> units = raw.codeUnits;
+    final StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < units.length; i++) {
+      final int unit = units[i];
+      if (unit < 0x20) {
+        continue;
+      }
+      if (_isLowSurrogate(unit)) {
+        // 忽略孤立的低代理项，避免渲染异常。
+        continue;
+      }
+      if (_isHighSurrogate(unit)) {
+        if (i + 1 < units.length && _isLowSurrogate(units[i + 1])) {
+          final int high = unit;
+          final int low = units[++i];
+          final int codePoint = 0x10000 +
+              ((high - 0xD800) << 10) +
+              (low - 0xDC00);
+          buffer.writeCharCode(codePoint);
+        } else {
+          buffer.writeCharCode(0xFFFD);
+        }
+        continue;
+      }
+      buffer.writeCharCode(unit);
+    }
+    return buffer.toString();
+  }
+
+  bool _isHighSurrogate(int value) => value >= 0xD800 && value <= 0xDBFF;
+
+  bool _isLowSurrogate(int value) => value >= 0xDC00 && value <= 0xDFFF;
+
+  Widget _buildLabeledSlider({
+    required FluentThemeData theme,
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+    String Function(double)? formatter,
+  }) {
+    final String display =
+        formatter == null ? value.toStringAsFixed(1) : formatter(value);
+    final Slider slider = Slider(
+      min: min,
+      max: max,
+      value: value.clamp(min, max),
+      onChanged: onChanged,
+    );
+    if (!widget.compactLayout) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('$label：$display', style: theme.typography.body),
+          const SizedBox(width: 8),
+          SizedBox(width: _defaultSliderWidth, child: slider),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$label：$display', style: theme.typography.body),
+        const SizedBox(height: 4),
+        slider,
       ],
     );
   }

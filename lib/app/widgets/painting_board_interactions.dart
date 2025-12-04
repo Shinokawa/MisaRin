@@ -8,8 +8,12 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardTextMixin,
         TickerProvider {
   void clear() async {
+    if (_isTextEditingActive) {
+      await _cancelTextEditingSession();
+    }
     await _pushUndoSnapshot();
     _controller.clear();
     _emitClean();
@@ -104,8 +108,13 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _setActiveTool(CanvasTool tool) {
+    final bool shouldCommitText =
+        tool != CanvasTool.text && _isTextEditingActive;
     if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
       return;
+    }
+    if (shouldCommitText) {
+      unawaited(_commitTextEditingSession());
     }
     if (_activeTool == tool) {
       return;
@@ -121,6 +130,9 @@ mixin _PaintingBoardInteractionMixin
     }
     if (_activeTool == CanvasTool.eyedropper && _isEyedropperSampling) {
       _finishEyedropperSample();
+    }
+    if (tool != CanvasTool.text) {
+      _clearTextHoverHighlight();
     }
     setState(() {
       if (_activeTool == CanvasTool.magicWand) {
@@ -754,16 +766,13 @@ mixin _PaintingBoardInteractionMixin
     final Offset delta = boardLocal - last;
     final double distance = delta.distance;
     if (distance <= 1e-4) {
-      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
-      _markDirty();
+      _softSprayLastPoint = boardLocal;
       return;
     }
     final double totalDistance = _softSprayResidual + distance;
     if (totalDistance < spacing) {
       _softSprayResidual = totalDistance;
       _softSprayLastPoint = boardLocal;
-      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
-      _markDirty();
       return;
     }
     final Offset direction = delta / distance;
@@ -804,7 +813,7 @@ mixin _PaintingBoardInteractionMixin
       brushShape: BrushShape.circle,
       antialiasLevel: 3,
       erase: erase,
-      softness: 0.9,
+      softness: 1.0,
     );
   }
 
@@ -1103,6 +1112,7 @@ mixin _PaintingBoardInteractionMixin
     if (_effectiveActiveTool == CanvasTool.selection) {
       _clearSelectionHover();
     }
+    _clearTextHoverHighlight();
     _clearToolCursorOverlay();
     _clearLayerTransformCursorIndicator();
     _lastWorkspacePointer = null;
@@ -1586,7 +1596,14 @@ mixin _PaintingBoardInteractionMixin
     if (!pointerInsideBoard && !toolCanStartOutsideCanvas) {
       return;
     }
+    if (_shouldBlockToolOnTextLayer(tool)) {
+      _showTextToolConflictWarning();
+      return;
+    }
     final Offset boardLocal = _toBoardLocal(pointer);
+    if (_isTextEditingActive) {
+      return;
+    }
     if (_layerTransformModeActive) {
       if (pointerInsideBoard) {
         _handleLayerTransformPointerDown(boardLocal);
@@ -1643,6 +1660,18 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.selection:
         _focusNode.requestFocus();
         _handleSelectionPointerDown(boardLocal, event.timeStamp);
+        break;
+      case CanvasTool.text:
+        _focusNode.requestFocus();
+        if (!pointerInsideBoard) {
+          return;
+        }
+        final BitmapLayerState? targetLayer = _hitTestTextLayer(boardLocal);
+        if (targetLayer != null) {
+          _beginEditExistingTextLayer(targetLayer);
+        } else {
+          _beginNewTextSession(boardLocal);
+        }
         break;
       case CanvasTool.hand:
         _beginDragBoard();
@@ -1711,6 +1740,8 @@ mixin _PaintingBoardInteractionMixin
           _updateSprayStroke(boardLocal, event);
         }
         break;
+      case CanvasTool.text:
+        break;
     }
   }
 
@@ -1767,13 +1798,7 @@ mixin _PaintingBoardInteractionMixin
           _finishSprayStroke();
         }
         break;
-      case CanvasTool.curvePen:
-        await _handleCurvePenPointerUp();
-        break;
-      case CanvasTool.layerAdjust:
-        if (_isLayerDragging) {
-          _finishLayerAdjustDrag();
-        }
+      case CanvasTool.text:
         break;
     }
   }
@@ -1820,6 +1845,8 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
         break;
+      case CanvasTool.text:
+        break;
     }
   }
 
@@ -1831,15 +1858,34 @@ mixin _PaintingBoardInteractionMixin
       _updateLayerTransformHover(boardLocal);
       return;
     }
-    if (_effectiveActiveTool != CanvasTool.selection) {
+    final CanvasTool tool = _effectiveActiveTool;
+    if (tool == CanvasTool.selection) {
+      final Offset boardLocal = _toBoardLocal(event.localPosition);
+      _handleSelectionHover(boardLocal);
       return;
     }
-    final Offset boardLocal = _toBoardLocal(event.localPosition);
-    _handleSelectionHover(boardLocal);
+    if (tool == CanvasTool.text) {
+      if (_isTextEditingActive) {
+        _clearTextHoverHighlight();
+        return;
+      }
+      final Rect boardRect = _boardRect;
+      if (!boardRect.contains(event.localPosition)) {
+        _clearTextHoverHighlight();
+        return;
+      }
+      final Offset boardLocal = _toBoardLocal(event.localPosition);
+      _handleTextHover(boardLocal);
+      return;
+    }
+    _clearTextHoverHighlight();
   }
 
   @override
   KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event) {
+    if (_isTextEditingActive) {
+      return KeyEventResult.ignored;
+    }
     final LogicalKeyboardKey key = event.logicalKey;
     if (_layerTransformModeActive) {
       if (event is KeyDownEvent || event is KeyRepeatEvent) {
@@ -1996,6 +2042,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handleUndo() {
+    if (_isTextEditingActive) {
+      unawaited(_cancelTextEditingSession());
+    }
     unawaited(_performUndo());
   }
 
@@ -2006,6 +2055,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handleRedo() {
+    if (_isTextEditingActive) {
+      unawaited(_cancelTextEditingSession());
+    }
     unawaited(_performRedo());
   }
 

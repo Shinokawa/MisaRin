@@ -5,6 +5,8 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import 'text_renderer.dart';
+
 enum CanvasLayerBlendMode {
   normal,
   multiply,
@@ -46,6 +48,7 @@ class CanvasLayerData {
     this.clippingMask = false,
     this.blendMode = CanvasLayerBlendMode.normal,
     Color? fillColor,
+    CanvasTextData? text,
     Uint8List? bitmap,
     int? bitmapWidth,
     int? bitmapHeight,
@@ -59,7 +62,8 @@ class CanvasLayerData {
        bitmapWidth = bitmap != null ? bitmapWidth : null,
        bitmapHeight = bitmap != null ? bitmapHeight : null,
        bitmapLeft = bitmap != null ? bitmapLeft ?? 0 : null,
-       bitmapTop = bitmap != null ? bitmapTop ?? 0 : null;
+       bitmapTop = bitmap != null ? bitmapTop ?? 0 : null,
+       text = text;
 
   final String id;
   final String name;
@@ -74,6 +78,7 @@ class CanvasLayerData {
   final int? bitmapHeight;
   final int? bitmapLeft;
   final int? bitmapTop;
+  final CanvasTextData? text;
 
   bool get hasFill => fillColor != null;
   bool get hasBitmap =>
@@ -94,6 +99,8 @@ class CanvasLayerData {
     int? bitmapHeight,
     int? bitmapLeft,
     int? bitmapTop,
+    CanvasTextData? text,
+    bool clearText = false,
     bool clearBitmap = false,
     bool cloneBitmap = true,
   }) {
@@ -123,6 +130,15 @@ class CanvasLayerData {
       resolvedTop = bitmapTop ?? this.bitmapTop ?? 0;
     }
 
+    final CanvasTextData? nextText;
+    if (clearText) {
+      nextText = null;
+    } else if (text != null) {
+      nextText = text;
+    } else {
+      nextText = this.text;
+    }
+
     return CanvasLayerData(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -137,6 +153,7 @@ class CanvasLayerData {
       bitmapHeight: resolvedHeight,
       bitmapLeft: resolvedLeft,
       bitmapTop: resolvedTop,
+      text: nextText,
     );
   }
 
@@ -158,6 +175,7 @@ class CanvasLayerData {
           'height': bitmapHeight,
           'pixels': base64Encode(bitmap!),
         },
+      if (text != null) 'text': text!.toJson(),
     };
   }
 
@@ -208,6 +226,9 @@ class CanvasLayerData {
       bitmapHeight: bitmapHeight,
       bitmapLeft: bitmapLeft,
       bitmapTop: bitmapTop,
+      text: json['text'] is Map<String, dynamic>
+          ? CanvasTextData.fromJson(json['text'] as Map<String, dynamic>)
+          : null,
     );
   }
 

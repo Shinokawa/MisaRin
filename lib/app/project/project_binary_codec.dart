@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
+import '../../canvas/text_renderer.dart';
 import 'project_document.dart';
 
 const int _kUint32Bits = 32;
@@ -14,14 +15,14 @@ const int _kInt64SignBit = 0x80000000;
 final BigInt _kBigUint64 = BigInt.one << 64;
 final BigInt _kBigUint32Mask = BigInt.from(_kUint32Mask);
 
-/// `.rin` 二进制编解码器（v6，向后兼容 v4）
+/// `.rin` 二进制编解码器（v8，向后兼容 v4）
 ///
 /// 结构参考 PSD 分块思路：头部 + 文档元数据 + 图层块 + 预览块。
 /// 所有字符串按 UTF-8 存储并携带 32bit 长度前缀；位图数据按需使用
 /// zlib 压缩，避免 JSON 与 Base64 的额外开销。
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
-  static const int _version = 6;
+  static const int _version = 8;
   static const int _minSupportedVersion = 4;
 
   static final ZLibEncoder _encoder = ZLibEncoder();
@@ -75,6 +76,10 @@ class ProjectBinaryCodec {
             useCompression ? compressedBitmap : rawBitmap;
         writer.writeUint32(storedBitmap.length);
         writer.writeBytes(storedBitmap);
+      }
+      writer.writeBool(layer.text != null);
+      if (layer.text != null) {
+        _writeTextBlock(writer, layer.text!);
       }
     }
 
@@ -162,6 +167,14 @@ class ProjectBinaryCodec {
             : encoded;
       }
 
+      CanvasTextData? text;
+      if (version >= 7) {
+        final bool hasText = reader.readBool();
+        if (hasText) {
+          text = _readTextBlock(reader, version);
+        }
+      }
+
       layers.add(CanvasLayerData(
         id: layerId,
         name: layerName,
@@ -176,6 +189,7 @@ class ProjectBinaryCodec {
         bitmapHeight: bitmapHeight,
         bitmapLeft: bitmap != null ? bitmapLeft : null,
         bitmapTop: bitmap != null ? bitmapTop : null,
+        text: text,
       ));
     }
 
@@ -249,6 +263,12 @@ class ProjectBinaryCodec {
         final int dataLength = reader.readUint32();
         reader.skip(dataLength);
       }
+      if (version >= 7) {
+        final bool hasText = reader.readBool();
+        if (hasText) {
+          _readTextBlock(reader, version);
+        }
+      }
     }
 
     Uint8List? preview;
@@ -295,6 +315,74 @@ class ProjectBinaryCodec {
     if (version < _minSupportedVersion || version > _version) {
       throw UnsupportedError('不支持的项目文件版本：$version');
     }
+  }
+
+  static void _writeTextBlock(_ByteWriter writer, CanvasTextData text) {
+    writer.writeFloat32(text.origin.dx);
+    writer.writeFloat32(text.origin.dy);
+    writer.writeFloat32(text.fontSize);
+    writer.writeFloat32(text.lineHeight);
+    writer.writeFloat32(text.letterSpacing);
+    final bool hasWidth = text.maxWidth != null;
+    writer.writeBool(hasWidth);
+    if (hasWidth) {
+      writer.writeFloat32(text.maxWidth!);
+    }
+    writer.writeUint8(text.align.index);
+    writer.writeUint8(text.orientation.index);
+    writer.writeBool(text.antialias);
+    writer.writeBool(text.strokeEnabled);
+    writer.writeFloat32(text.strokeWidth);
+    writer.writeUint32(text.color.value);
+    writer.writeUint32(text.strokeColor.value);
+    writer.writeString(text.fontFamily);
+    writer.writeString(text.text);
+  }
+
+  static CanvasTextData _readTextBlock(_ByteReader reader, int version) {
+    final double originX = reader.readFloat32();
+    final double originY = reader.readFloat32();
+    final double fontSize = reader.readFloat32();
+    final double lineHeight = reader.readFloat32();
+    final double spacingField = reader.readFloat32();
+    final bool hasWidth = reader.readBool();
+    final double? maxWidth = hasWidth ? reader.readFloat32() : null;
+    final int alignIndex = reader.readUint8();
+    final int orientationIndex = reader.readUint8();
+    final bool antialias = reader.readBool();
+    final bool strokeEnabled = reader.readBool();
+    final double strokeWidth = reader.readFloat32();
+    final Color fillColor = Color(reader.readUint32());
+    final Color strokeColor = Color(reader.readUint32());
+    final String fontFamily = reader.readString();
+    final String text = reader.readString();
+    final TextAlign align = alignIndex >= 0 &&
+            alignIndex < TextAlign.values.length
+        ? TextAlign.values[alignIndex]
+        : TextAlign.left;
+    final CanvasTextOrientation orientation = orientationIndex >= 0 &&
+            orientationIndex < CanvasTextOrientation.values.length
+        ? CanvasTextOrientation.values[orientationIndex]
+        : CanvasTextOrientation.horizontal;
+    final double resolvedOriginX =
+        version < 8 ? originX + spacingField : originX;
+    final double letterSpacing = version >= 8 ? spacingField : 0.0;
+    return CanvasTextData(
+      text: text,
+      origin: Offset(resolvedOriginX, originY),
+      fontSize: fontSize,
+      fontFamily: fontFamily,
+      color: fillColor,
+      lineHeight: lineHeight,
+      letterSpacing: letterSpacing,
+      maxWidth: maxWidth,
+      align: align,
+      orientation: orientation,
+      antialias: antialias,
+      strokeEnabled: strokeEnabled,
+      strokeWidth: strokeWidth,
+      strokeColor: strokeColor,
+    );
   }
 }
 

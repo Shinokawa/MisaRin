@@ -1,11 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart';
-
 import '../../../canvas/canvas_tools.dart';
 import '../../shortcuts/toolbar_shortcuts.dart';
-import 'hand_tool_button.dart';
+import '../../utils/platform_target.dart';
 import 'bucket_tool_button.dart';
 import 'magic_wand_tool_button.dart';
 import 'pen_tool_button.dart';
@@ -18,6 +16,8 @@ import 'curve_pen_tool_button.dart';
 import 'eyedropper_tool_button.dart';
 import 'shape_tool_button.dart';
 import 'spray_tool_button.dart';
+import 'text_tool_button.dart';
+import 'hand_tool_button.dart';
 
 class CanvasToolbar extends StatelessWidget {
   const CanvasToolbar({
@@ -45,7 +45,7 @@ class CanvasToolbar extends StatelessWidget {
   final CanvasToolbarLayout layout;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 11;
+  static const int buttonCount = 12;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;
   static const double spacing = 9;
@@ -115,7 +115,7 @@ class CanvasToolbar extends StatelessWidget {
   static String _tooltipMessage(String base, ToolbarAction action) {
     final shortcutLabel = ToolbarShortcuts.labelForPlatform(
       action,
-      defaultTargetPlatform,
+      resolvedTargetPlatform(),
     );
     if (shortcutLabel.isEmpty) {
       return base;
@@ -243,6 +243,16 @@ class CanvasToolbar extends StatelessWidget {
           isSelected: activeTool == CanvasTool.selection,
           selectionShape: selectionShape,
           onPressed: () => onToolSelected(CanvasTool.selection),
+        ),
+      ),
+      Tooltip(
+        message: _tooltipMessage('文字工具', ToolbarAction.textTool),
+        displayHorizontally: true,
+        style: _rightTooltipStyle,
+        useMousePosition: false,
+        child: TextToolButton(
+          isSelected: activeTool == CanvasTool.text,
+          onPressed: () => onToolSelected(CanvasTool.text),
         ),
       ),
       Tooltip(

@@ -40,6 +40,7 @@ dependencies:
   pasteboard: ^0.4.0
   flutter_performance_pulse: ^1.0.6
   shared_preferences: ^2.3.2
+  system_fonts: ^1.0.1
   flutter_localizations:
     sdk: flutter
 
@@ -73,6 +74,7 @@ flutter:
     - icons/warp3.png
     - icons/line.png
     - icons/line2.png
+    - icons/spray.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
