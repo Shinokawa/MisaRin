@@ -297,6 +297,7 @@ void _applyClippedLayerTranslation(
   }
   controller._layerOverflowStores[layerId]?.clear();
   _resetActiveLayerTranslationState(controller);
+  _textLayerApplyTranslation(target, dx, dy);
 }
 
 void _applyOverflowLayerTranslation(
@@ -348,6 +349,7 @@ void _applyOverflowLayerTranslation(
     controller._layerOverflowStores[layerId]!.clear();
   }
   _resetActiveLayerTranslationState(controller);
+  _textLayerApplyTranslation(target, dx, dy);
 }
 
 void _restoreOverflowLayerSnapshot(

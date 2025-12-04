@@ -9,6 +9,7 @@ enum CanvasTool {
   magicWand,
   eyedropper,
   selection,
+  text,
   hand,
 }
 

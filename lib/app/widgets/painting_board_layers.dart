@@ -491,7 +491,7 @@ mixin _PaintingBoardLayerMixin
     final bool isVisible = layer.visible;
     final bool isClipping = layer.clippingMask;
 
-    return <MenuFlyoutItemBase>[
+    final List<MenuFlyoutItemBase> items = <MenuFlyoutItemBase>[
       MenuFlyoutItem(
         leading: Icon(isLocked ? FluentIcons.lock : FluentIcons.unlock),
         text: Text(isLocked ? '解锁图层' : '锁定图层'),
@@ -526,6 +526,21 @@ mixin _PaintingBoardLayerMixin
         onPressed: () => _handleDuplicateLayer(layer),
       ),
     ];
+    if (layer.text != null) {
+      items.insert(
+        0,
+        MenuFlyoutItem(
+          leading: const Icon(FluentIcons.text_font),
+          text: const Text('栅格化文字图层'),
+          onPressed: () async {
+            await _pushUndoSnapshot();
+            _controller.rasterizeTextLayer(layer.id);
+            setState(() {});
+          },
+        ),
+      );
+    }
+    return items;
   }
 
   void _updateActiveLayerClipping(bool clipping) async {

@@ -21,7 +21,7 @@ final BigInt _kBigUint32Mask = BigInt.from(_kUint32Mask);
 /// zlib 压缩，避免 JSON 与 Base64 的额外开销。
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
-  static const int _version = 6;
+  static const int _version = 7;
   static const int _minSupportedVersion = 4;
 
   static final ZLibEncoder _encoder = ZLibEncoder();
@@ -75,6 +75,10 @@ class ProjectBinaryCodec {
             useCompression ? compressedBitmap : rawBitmap;
         writer.writeUint32(storedBitmap.length);
         writer.writeBytes(storedBitmap);
+      }
+      writer.writeBool(layer.text != null);
+      if (layer.text != null) {
+        _writeTextBlock(writer, layer.text!);
       }
     }
 
@@ -162,6 +166,14 @@ class ProjectBinaryCodec {
             : encoded;
       }
 
+      CanvasTextData? text;
+      if (version >= 7) {
+        final bool hasText = reader.readBool();
+        if (hasText) {
+          text = _readTextBlock(reader);
+        }
+      }
+
       layers.add(CanvasLayerData(
         id: layerId,
         name: layerName,
@@ -176,6 +188,7 @@ class ProjectBinaryCodec {
         bitmapHeight: bitmapHeight,
         bitmapLeft: bitmap != null ? bitmapLeft : null,
         bitmapTop: bitmap != null ? bitmapTop : null,
+        text: text,
       ));
     }
 
@@ -249,6 +262,12 @@ class ProjectBinaryCodec {
         final int dataLength = reader.readUint32();
         reader.skip(dataLength);
       }
+      if (version >= 7) {
+        final bool hasText = reader.readBool();
+        if (hasText) {
+          _readTextBlock(reader);
+        }
+      }
     }
 
     Uint8List? preview;
@@ -295,6 +314,71 @@ class ProjectBinaryCodec {
     if (version < _minSupportedVersion || version > _version) {
       throw UnsupportedError('不支持的项目文件版本：$version');
     }
+  }
+
+  static void _writeTextBlock(_ByteWriter writer, CanvasTextData text) {
+    writer.writeFloat32(text.origin.dx);
+    writer.writeFloat32(text.origin.dy);
+    writer.writeFloat32(text.fontSize);
+    writer.writeFloat32(text.lineHeight);
+    writer.writeFloat32(text.leftMargin);
+    final bool hasWidth = text.maxWidth != null;
+    writer.writeBool(hasWidth);
+    if (hasWidth) {
+      writer.writeFloat32(text.maxWidth!);
+    }
+    writer.writeUint8(text.align.index);
+    writer.writeUint8(text.orientation.index);
+    writer.writeBool(text.antialias);
+    writer.writeBool(text.strokeEnabled);
+    writer.writeFloat32(text.strokeWidth);
+    writer.writeUint32(text.color.value);
+    writer.writeUint32(text.strokeColor.value);
+    writer.writeString(text.fontFamily);
+    writer.writeString(text.text);
+  }
+
+  static CanvasTextData _readTextBlock(_ByteReader reader) {
+    final double originX = reader.readFloat32();
+    final double originY = reader.readFloat32();
+    final double fontSize = reader.readFloat32();
+    final double lineHeight = reader.readFloat32();
+    final double leftMargin = reader.readFloat32();
+    final bool hasWidth = reader.readBool();
+    final double? maxWidth = hasWidth ? reader.readFloat32() : null;
+    final int alignIndex = reader.readUint8();
+    final int orientationIndex = reader.readUint8();
+    final bool antialias = reader.readBool();
+    final bool strokeEnabled = reader.readBool();
+    final double strokeWidth = reader.readFloat32();
+    final Color fillColor = Color(reader.readUint32());
+    final Color strokeColor = Color(reader.readUint32());
+    final String fontFamily = reader.readString();
+    final String text = reader.readString();
+    final TextAlign align = alignIndex >= 0 &&
+            alignIndex < TextAlign.values.length
+        ? TextAlign.values[alignIndex]
+        : TextAlign.left;
+    final CanvasTextOrientation orientation = orientationIndex >= 0 &&
+            orientationIndex < CanvasTextOrientation.values.length
+        ? CanvasTextOrientation.values[orientationIndex]
+        : CanvasTextOrientation.horizontal;
+    return CanvasTextData(
+      text: text,
+      origin: Offset(originX, originY),
+      fontSize: fontSize,
+      fontFamily: fontFamily,
+      color: fillColor,
+      lineHeight: lineHeight,
+      leftMargin: leftMargin,
+      maxWidth: maxWidth,
+      align: align,
+      orientation: orientation,
+      antialias: antialias,
+      strokeEnabled: strokeEnabled,
+      strokeWidth: strokeWidth,
+      strokeColor: strokeColor,
+    );
   }
 }
 

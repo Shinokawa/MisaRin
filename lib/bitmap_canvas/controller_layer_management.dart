@@ -706,6 +706,10 @@ String _layerManagerInsertFromData(
     locked: false,
     clippingMask: false,
     blendMode: data.blendMode,
+    text: data.text,
+    textBounds: data.text == null
+        ? null
+        : controller._textRenderer.layout(data.text!).bounds,
   );
   int insertIndex = controller._layers.length;
   if (aboveLayerId != null) {
@@ -749,7 +753,13 @@ void _layerManagerReplaceLayer(
     if (index == 0) {
       controller._backgroundColor = data.fillColor!;
     }
+  } else {
+    layer.surface.fill(const Color(0x00000000));
   }
+  layer.text = data.text;
+  layer.textBounds = data.text == null
+      ? null
+      : controller._textRenderer.layout(data.text!).bounds;
   controller._layerOverflowStores[layer.id] = overflowStore;
   controller._resetWorkerSurfaceSync();
   controller._markDirty(layerId: id, pixelsDirty: true);
@@ -812,6 +822,7 @@ List<CanvasLayerData> _layerManagerSnapshotLayers(
         bitmapHeight: bitmapHeight,
         bitmapLeft: bitmapLeft,
         bitmapTop: bitmapTop,
+        text: layer.text,
       ),
     );
   }
@@ -880,6 +891,7 @@ CanvasLayerData? _layerManagerBuildClipboardLayer(
     bitmapHeight: bitmapHeight,
     bitmapLeft: bitmapLeft,
     bitmapTop: bitmapTop,
+    text: effectiveMask == null ? layer.text : null,
   );
 }
 
@@ -944,6 +956,10 @@ void _loadFromCanvasLayers(
         clippingMask: layer.clippingMask,
         blendMode: layer.blendMode,
         surface: surface,
+        text: layer.text,
+        textBounds: layer.text == null
+            ? null
+            : controller._textRenderer.layout(layer.text!).bounds,
       ),
     );
     controller._layerOverflowStores[layer.id] = overflowStore;

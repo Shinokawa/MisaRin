@@ -10,6 +10,9 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardReferenceMixin,
         TickerProvider {
   void clear() async {
+    if (_isTextEditingActive) {
+      _cancelTextEditingSession();
+    }
     await _pushUndoSnapshot();
     _controller.clear();
     _emitClean();
@@ -104,6 +107,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _setActiveTool(CanvasTool tool) {
+    if (tool != CanvasTool.text && _isTextEditingActive) {
+      _cancelTextEditingSession();
+    }
     if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
       return;
     }
@@ -1584,6 +1590,17 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     final Offset boardLocal = _toBoardLocal(pointer);
+    if (_isTextEditingActive) {
+      final Rect? overlayRect = _textOverlayWorkspaceRect();
+      if (overlayRect != null && overlayRect.contains(pointer)) {
+        return;
+      }
+      await _commitTextEditingSession();
+      if (_effectiveActiveTool == CanvasTool.text && pointerInsideBoard) {
+        _beginNewTextSession(boardLocal);
+      }
+      return;
+    }
     if (_layerTransformModeActive) {
       if (pointerInsideBoard) {
         _handleLayerTransformPointerDown(boardLocal);
@@ -1596,6 +1613,10 @@ mixin _PaintingBoardInteractionMixin
         break;
       case CanvasTool.pen:
       case CanvasTool.eraser:
+        if (_activeLayerIsText()) {
+          _showTextToolConflictWarning();
+          return;
+        }
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
@@ -1604,6 +1625,10 @@ mixin _PaintingBoardInteractionMixin
         await _startStroke(boardLocal, event.timeStamp, event);
         break;
       case CanvasTool.curvePen:
+        if (_activeLayerIsText()) {
+          _showTextToolConflictWarning();
+          return;
+        }
         if (_isCurveCancelModifierPressed() &&
             (_curveAnchor != null || _isCurvePlacingSegment)) {
           _resetCurvePenState();
@@ -1612,10 +1637,18 @@ mixin _PaintingBoardInteractionMixin
         await _handleCurvePenPointerDown(boardLocal);
         break;
       case CanvasTool.shape:
+        if (_activeLayerIsText()) {
+          _showTextToolConflictWarning();
+          return;
+        }
         _focusNode.requestFocus();
         await _beginShapeDrawing(boardLocal);
         break;
       case CanvasTool.spray:
+        if (_activeLayerIsText()) {
+          _showTextToolConflictWarning();
+          return;
+        }
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
@@ -1623,6 +1656,10 @@ mixin _PaintingBoardInteractionMixin
         await _startSprayStroke(boardLocal, event);
         break;
       case CanvasTool.bucket:
+        if (_activeLayerIsText()) {
+          _showTextToolConflictWarning();
+          return;
+        }
         _focusNode.requestFocus();
         if (!isPointInsideSelection(boardLocal)) {
           return;
@@ -1640,6 +1677,18 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.selection:
         _focusNode.requestFocus();
         _handleSelectionPointerDown(boardLocal, event.timeStamp);
+        break;
+      case CanvasTool.text:
+        _focusNode.requestFocus();
+        if (!pointerInsideBoard) {
+          return;
+        }
+        final BitmapLayerState? targetLayer = _hitTestTextLayer(boardLocal);
+        if (targetLayer != null) {
+          _beginEditExistingTextLayer(targetLayer);
+        } else {
+          _beginNewTextSession(boardLocal);
+        }
         break;
       case CanvasTool.hand:
         _beginDragBoard();
@@ -1763,6 +1812,10 @@ mixin _PaintingBoardInteractionMixin
         if (_isSpraying) {
           _finishSprayStroke();
         }
+        break;
+      case CanvasTool.text:
+        break;
+      case CanvasTool.text:
         break;
       case CanvasTool.curvePen:
         await _handleCurvePenPointerUp();
@@ -1993,6 +2046,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handleUndo() {
+    if (_isTextEditingActive) {
+      _cancelTextEditingSession();
+    }
     unawaited(_performUndo());
   }
 
@@ -2003,6 +2059,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handleRedo() {
+    if (_isTextEditingActive) {
+      _cancelTextEditingSession();
+    }
     unawaited(_performRedo());
   }
 

@@ -61,6 +61,26 @@ class ToolSettingsCard extends StatefulWidget {
     required this.vectorDrawingEnabled,
     required this.onVectorDrawingEnabledChanged,
     required this.strokeStabilizerMaxLevel,
+    required this.textFontSize,
+    required this.onTextFontSizeChanged,
+    required this.textLineHeight,
+    required this.onTextLineHeightChanged,
+    required this.textLeftMargin,
+    required this.onTextLeftMarginChanged,
+    required this.textFontFamily,
+    required this.onTextFontFamilyChanged,
+    required this.availableFontFamilies,
+    required this.fontsLoading,
+    required this.textAlign,
+    required this.onTextAlignChanged,
+    required this.textOrientation,
+    required this.onTextOrientationChanged,
+    required this.textAntialias,
+    required this.onTextAntialiasChanged,
+    required this.textStrokeEnabled,
+    required this.onTextStrokeEnabledChanged,
+    required this.textStrokeWidth,
+    required this.onTextStrokeWidthChanged,
     this.compactLayout = false,
   });
 
@@ -113,6 +133,26 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onVectorDrawingEnabledChanged;
   final int strokeStabilizerMaxLevel;
   final bool compactLayout;
+  final double textFontSize;
+  final ValueChanged<double> onTextFontSizeChanged;
+  final double textLineHeight;
+  final ValueChanged<double> onTextLineHeightChanged;
+  final double textLeftMargin;
+  final ValueChanged<double> onTextLeftMarginChanged;
+  final String textFontFamily;
+  final ValueChanged<String> onTextFontFamilyChanged;
+  final List<String> availableFontFamilies;
+  final bool fontsLoading;
+  final TextAlign textAlign;
+  final ValueChanged<TextAlign> onTextAlignChanged;
+  final CanvasTextOrientation textOrientation;
+  final ValueChanged<CanvasTextOrientation> onTextOrientationChanged;
+  final bool textAntialias;
+  final ValueChanged<bool> onTextAntialiasChanged;
+  final bool textStrokeEnabled;
+  final ValueChanged<bool> onTextStrokeEnabledChanged;
+  final double textStrokeWidth;
+  final ValueChanged<double> onTextStrokeWidthChanged;
 
   @override
   State<ToolSettingsCard> createState() => _ToolSettingsCardState();
@@ -263,6 +303,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         break;
       case CanvasTool.selection:
         content = _buildSelectionShapeRow(theme);
+        break;
+      case CanvasTool.text:
+        content = _buildTextControls(theme);
         break;
       default:
         content = Text('该工具暂无可调节参数', style: theme.typography.body);
@@ -500,6 +543,180 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         Text('选区形状', style: theme.typography.bodyStrong),
         const SizedBox(height: 8),
         selector,
+      ],
+    );
+  }
+
+  Widget _buildTextControls(FluentThemeData theme) {
+    final List<String> fontOptions = <String>[
+      '系统默认',
+      ...widget.availableFontFamilies,
+    ];
+    final bool fontAvailable = widget.textFontFamily.isNotEmpty &&
+        widget.availableFontFamilies.contains(widget.textFontFamily);
+    final String selectedFont =
+        fontAvailable ? widget.textFontFamily : '系统默认';
+    final List<TextAlign> alignments = <TextAlign>[
+      TextAlign.left,
+      TextAlign.center,
+      TextAlign.right,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('字体', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        widget.fontsLoading
+            ? const ProgressRing()
+            : ComboBox<String>(
+                value: selectedFont,
+                items: fontOptions
+                    .map(
+                      (family) => ComboBoxItem<String>(
+                        value: family,
+                        child: Text(family),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  widget.onTextFontFamilyChanged(
+                    value == '系统默认' ? '' : value,
+                  );
+                },
+              ),
+        const SizedBox(height: 16),
+        _buildLabeledSlider(
+          theme: theme,
+          label: '字号',
+          value: widget.textFontSize,
+          min: 6,
+          max: 200,
+          formatter: (value) => '${value.toStringAsFixed(0)} px',
+          onChanged: widget.onTextFontSizeChanged,
+        ),
+        const SizedBox(height: 12),
+        _buildLabeledSlider(
+          theme: theme,
+          label: '行距',
+          value: widget.textLineHeight,
+          min: 0.5,
+          max: 3.0,
+          formatter: (value) => value.toStringAsFixed(2),
+          onChanged: widget.onTextLineHeightChanged,
+        ),
+        const SizedBox(height: 12),
+        _buildLabeledSlider(
+          theme: theme,
+          label: '左间距',
+          value: widget.textLeftMargin,
+          min: -200,
+          max: 400,
+          formatter: (value) => '${value.toStringAsFixed(0)} px',
+          onChanged: widget.onTextLeftMarginChanged,
+        ),
+        const SizedBox(height: 12),
+        Text('对齐方式', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: alignments.map((alignment) {
+            final bool selected = widget.textAlign == alignment;
+            final IconData icon;
+            switch (alignment) {
+              case TextAlign.center:
+                icon = FluentIcons.align_center;
+                break;
+              case TextAlign.right:
+                icon = FluentIcons.align_right;
+                break;
+              case TextAlign.left:
+              default:
+                icon = FluentIcons.align_left;
+                break;
+            }
+            return ToggleButton(
+              checked: selected,
+              onChanged: (_) => widget.onTextAlignChanged(alignment),
+              child: Icon(icon),
+            );
+          }).toList(growable: false),
+        ),
+        const SizedBox(height: 12),
+        Text('排列方向', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: CanvasTextOrientation.values.map((orientation) {
+            final bool selected = widget.textOrientation == orientation;
+            final String label =
+                orientation == CanvasTextOrientation.horizontal ? '横排' : '竖排';
+            return ToggleButton(
+              checked: selected,
+              onChanged: (_) => widget.onTextOrientationChanged(orientation),
+              child: Text(label),
+            );
+          }).toList(growable: false),
+        ),
+        const SizedBox(height: 12),
+        _buildToggleSwitchRow(
+          theme,
+          label: '抗锯齿',
+          value: widget.textAntialias,
+          onChanged: widget.onTextAntialiasChanged,
+        ),
+        const SizedBox(height: 8),
+        _buildToggleSwitchRow(
+          theme,
+          label: '文字描边',
+          value: widget.textStrokeEnabled,
+          onChanged: widget.onTextStrokeEnabledChanged,
+        ),
+        if (widget.textStrokeEnabled) ...[
+          const SizedBox(height: 8),
+          _buildLabeledSlider(
+            theme: theme,
+            label: '描边宽度',
+            value: widget.textStrokeWidth,
+            min: 0.5,
+            max: 20,
+            formatter: (value) => value.toStringAsFixed(1),
+            onChanged: widget.onTextStrokeWidthChanged,
+          ),
+        ],
+        const SizedBox(height: 12),
+        Text(
+          '文字填充颜色使用左下角取色器，描边颜色使用当前辅助色。',
+          style: theme.typography.caption,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLabeledSlider({
+    required FluentThemeData theme,
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+    String Function(double)? formatter,
+  }) {
+    final String display =
+        formatter == null ? value.toStringAsFixed(1) : formatter(value);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$label：$display', style: theme.typography.body),
+        const SizedBox(height: 4),
+        Slider(
+          min: min,
+          max: max,
+          value: value.clamp(min, max),
+          onChanged: onChanged,
+        ),
       ],
     );
   }

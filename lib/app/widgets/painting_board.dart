@@ -90,6 +90,7 @@ import '../utils/web_file_dialog.dart';
 import '../utils/web_file_saver.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
+import '../native/system_fonts.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
@@ -105,6 +106,7 @@ part 'painting_board_marching_ants.dart';
 part 'painting_board_selection.dart';
 part 'painting_board_layer_transform.dart';
 part 'painting_board_shapes.dart';
+part 'painting_board_text.dart';
 part 'painting_board_clipboard.dart';
 part 'painting_board_interactions.dart';
 part 'painting_board_build.dart';
@@ -1669,6 +1671,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardColorMixin,
         _PaintingBoardPaletteMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardTextMixin,
         _PaintingBoardSelectionMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardClipboardMixin,
@@ -1678,6 +1681,7 @@ class PaintingBoardState extends _PaintingBoardBase
   @override
   void initState() {
     super.initState();
+    initializeTextTool();
     initializeSelectionTicker(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
@@ -1739,6 +1743,7 @@ class PaintingBoardState extends _PaintingBoardBase
 
   @override
   void dispose() {
+    disposeTextTool();
     _removeFilterOverlay(restoreOriginal: false);
     _disposeReferenceCards();
     disposeSelectionTicker();
@@ -2052,6 +2057,15 @@ class PaintingBoardState extends _PaintingBoardBase
       shapeFillEnabled: _shapeFillEnabled,
       selectionShape: _selectionShape,
       shapeToolVariant: _shapeToolVariant,
+      textFontSize: _textFontSize,
+      textLineHeight: _textLineHeight,
+      textLeftMargin: _textLeftMargin,
+      textFontFamily: _textFontFamily,
+      textAlign: _textAlign,
+      textOrientation: _textOrientation,
+      textAntialias: _textAntialias,
+      textStrokeEnabled: _textStrokeEnabled,
+      textStrokeWidth: _textStrokeWidth,
     );
   }
 
@@ -2060,6 +2074,15 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateShapeToolVariant(snapshot.shapeToolVariant);
     _updateShapeFillEnabled(snapshot.shapeFillEnabled);
     _updateSelectionShape(snapshot.selectionShape);
+    _updateTextFontSize(snapshot.textFontSize);
+    _updateTextLineHeight(snapshot.textLineHeight);
+    _updateTextLeftMargin(snapshot.textLeftMargin);
+    _updateTextFontFamily(snapshot.textFontFamily);
+    _updateTextAlign(snapshot.textAlign);
+    _updateTextOrientation(snapshot.textOrientation);
+    _updateTextAntialias(snapshot.textAntialias);
+    _updateTextStrokeEnabled(snapshot.textStrokeEnabled);
+    _updateTextStrokeWidth(snapshot.textStrokeWidth);
     _updatePenStrokeWidth(snapshot.penStrokeWidth);
     _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
     _updateSprayMode(snapshot.sprayMode);

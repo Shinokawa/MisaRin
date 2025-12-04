@@ -14,6 +14,7 @@ import '../backend/canvas_raster_backend.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
+import '../canvas/text_renderer.dart';
 import '../performance/stroke_latency_monitor.dart';
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
@@ -37,6 +38,7 @@ part 'controller_composite.dart';
 part 'controller_paint_commands.dart';
 part 'controller_filters.dart';
 part 'controller_worker_queue.dart';
+part 'controller_text.dart';
 
 class BitmapCanvasController extends ChangeNotifier {
   BitmapCanvasController({
@@ -169,6 +171,7 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _compositeProcessing = false;
   Uint8List? _selectionMask;
   final CanvasRasterBackend _rasterBackend;
+  final CanvasTextRenderer _textRenderer = CanvasTextRenderer();
   late final RasterTileCache _tileCache;
   BitmapCanvasFrame? _currentFrame;
   final List<ui.Image> _pendingTileDisposals = <ui.Image>[];
@@ -443,6 +446,23 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void addLayer({String? aboveLayerId, String? name}) =>
       _layerManagerAddLayer(this, aboveLayerId: aboveLayerId, name: name);
+
+  Future<String> createTextLayer(
+    CanvasTextData data, {
+    String? aboveLayerId,
+    String? name,
+  }) =>
+      _textLayerCreate(
+        this,
+        data,
+        aboveLayerId: aboveLayerId,
+        name: name,
+      );
+
+  Future<void> updateTextLayer(String id, CanvasTextData data) =>
+      _textLayerUpdate(this, id, data);
+
+  void rasterizeTextLayer(String id) => _textLayerRasterize(this, id);
 
   void removeLayer(String id) => _layerManagerRemoveLayer(this, id);
 
