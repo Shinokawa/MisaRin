@@ -28,6 +28,20 @@ class _CancelTextEditingIntent extends Intent {
   const _CancelTextEditingIntent();
 }
 
+class _SelectAllTextOverlayIntent extends Intent {
+  const _SelectAllTextOverlayIntent();
+}
+
+class _MoveTextCaretIntent extends Intent {
+  const _MoveTextCaretIntent(
+    this.delta, {
+    this.expandSelection = false,
+  });
+
+  final int delta;
+  final bool expandSelection;
+}
+
 mixin _PaintingBoardTextMixin on _PaintingBoardBase {
   final CanvasTextRenderer _textOverlayRenderer = CanvasTextRenderer();
   final TextEditingController _textEditingController = TextEditingController();
@@ -474,7 +488,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
   }
 }
 
-class _TextEditorOverlay extends StatelessWidget {
+class _TextEditorOverlay extends StatefulWidget {
   const _TextEditorOverlay({
     required this.renderer,
     required this.data,
@@ -502,77 +516,278 @@ class _TextEditorOverlay extends StatelessWidget {
   final bool paintPreview;
 
   @override
+  State<_TextEditorOverlay> createState() => _TextEditorOverlayState();
+}
+
+class _TextEditorOverlayState extends State<_TextEditorOverlay> {
+  final GlobalKey<EditableTextState> _editableKey =
+      GlobalKey<EditableTextState>();
+  Offset? _selectionDragOrigin;
+  int? _selectionPointer;
+
+  @override
   Widget build(BuildContext context) {
     final Size scaledSize = Size(
-      math.max(bounds.width * scale, 4),
-      math.max(bounds.height * scale, 4),
+      math.max(widget.bounds.width * widget.scale, 4),
+      math.max(widget.bounds.height * widget.scale, 4),
     );
+    final double scaledFontSize =
+        (widget.data.fontSize * widget.scale).clamp(0.1, 4096.0);
+    final Map<LogicalKeySet, Intent> shortcuts = <LogicalKeySet, Intent>{
+      LogicalKeySet(LogicalKeyboardKey.escape):
+          const _CancelTextEditingIntent(),
+      LogicalKeySet(
+        LogicalKeyboardKey.meta,
+        LogicalKeyboardKey.enter,
+      ): const _CommitTextEditingIntent(),
+      LogicalKeySet(
+        LogicalKeyboardKey.control,
+        LogicalKeyboardKey.enter,
+      ): const _CommitTextEditingIntent(),
+      LogicalKeySet(
+        LogicalKeyboardKey.meta,
+        LogicalKeyboardKey.keyA,
+      ): const _SelectAllTextOverlayIntent(),
+      LogicalKeySet(
+        LogicalKeyboardKey.control,
+        LogicalKeyboardKey.keyA,
+      ): const _SelectAllTextOverlayIntent(),
+      LogicalKeySet(LogicalKeyboardKey.arrowLeft):
+          const _MoveTextCaretIntent(-1),
+      LogicalKeySet(LogicalKeyboardKey.arrowRight):
+          const _MoveTextCaretIntent(1),
+      LogicalKeySet(
+        LogicalKeyboardKey.shift,
+        LogicalKeyboardKey.arrowLeft,
+      ): const _MoveTextCaretIntent(-1, expandSelection: true),
+      LogicalKeySet(
+        LogicalKeyboardKey.shift,
+        LogicalKeyboardKey.arrowRight,
+      ): const _MoveTextCaretIntent(1, expandSelection: true),
+    };
     return Shortcuts(
-      shortcuts: <LogicalKeySet, Intent>{
-        LogicalKeySet(LogicalKeyboardKey.escape):
-            _CancelTextEditingIntent(),
-        LogicalKeySet(
-          LogicalKeyboardKey.meta,
-          LogicalKeyboardKey.enter,
-        ): _CommitTextEditingIntent(),
-        LogicalKeySet(
-          LogicalKeyboardKey.control,
-          LogicalKeyboardKey.enter,
-        ): _CommitTextEditingIntent(),
-      },
+      shortcuts: shortcuts,
       child: Actions(
         actions: <Type, Action<Intent>>{
           _CommitTextEditingIntent: CallbackAction<_CommitTextEditingIntent>(
             onInvoke: (intent) {
-              onConfirm();
+              widget.onConfirm();
               return null;
             },
           ),
           _CancelTextEditingIntent: CallbackAction<_CancelTextEditingIntent>(
             onInvoke: (intent) {
-              onCancel();
+              widget.onCancel();
+              return null;
+            },
+          ),
+          _SelectAllTextOverlayIntent:
+              CallbackAction<_SelectAllTextOverlayIntent>(
+            onInvoke: (intent) {
+              _handleSelectAll();
+              return null;
+            },
+          ),
+          _MoveTextCaretIntent: CallbackAction<_MoveTextCaretIntent>(
+            onInvoke: (intent) {
+              _handleMoveCaret(intent);
               return null;
             },
           ),
         },
-        child: SizedBox(
-          width: scaledSize.width,
-          height: scaledSize.height,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (paintPreview)
-                CustomPaint(
-                  painter: _TextPreviewPainter(
-                    renderer: renderer,
-                    data: data,
-                    bounds: bounds,
-                    scale: scale,
-                  ),
-                ),
-              EditableText(
-                controller: controller,
-                focusNode: focusNode,
-                cursorColor: cursorColor,
-                backgroundCursorColor: Colors.transparent,
-                style: TextStyle(
-                  color: Colors.transparent,
-                  fontSize: data.fontSize,
-                  fontFamily:
-                      data.fontFamily.isEmpty ? null : data.fontFamily,
-                  height: data.lineHeight,
-                ),
-                selectionColor: selectionColor,
-                keyboardType: TextInputType.multiline,
-                maxLines: null,
-                textAlign: data.align,
-                textDirection: TextDirection.ltr,
-              ),
-            ],
-          ),
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _handlePointerDown,
+          onPointerMove: _handlePointerMove,
+          onPointerUp: _handlePointerUp,
+          onPointerCancel: _handlePointerCancel,
+          child: SizedBox(
+            width: scaledSize.width,
+            height: scaledSize.height,
+                        child: Stack(
+                          fit: StackFit.loose,
+                          clipBehavior: Clip.none,
+                          children: [
+                            if (widget.paintPreview)
+                              Positioned.fill(
+                                child: CustomPaint(
+                                  painter: _TextPreviewPainter(
+                                    renderer: widget.renderer,
+                                    data: widget.data,
+                                    bounds: widget.bounds,
+                                    scale: widget.scale,
+                                  ),
+                                ),
+                              ),
+                            Positioned(
+                              left: widget.data.align == TextAlign.right ||
+                                      widget.data.align == TextAlign.end ||
+                                      widget.data.align == TextAlign.center
+                                  ? -scaledFontSize
+                                  : 0,
+                              right: widget.data.align == TextAlign.left ||
+                                      widget.data.align == TextAlign.start ||
+                                      widget.data.align == TextAlign.justify ||
+                                      widget.data.align == TextAlign.center
+                                  ? -scaledFontSize
+                                  : 0,
+                              top: 0,
+                              bottom: 0,
+                              child: EditableText(
+                                key: _editableKey,
+                                controller: widget.controller,
+                                focusNode: widget.focusNode,
+                                cursorColor: widget.cursorColor,
+                                backgroundCursorColor: Colors.transparent,
+                                style: TextStyle(
+                                  color: Colors.transparent,
+                                  fontSize: scaledFontSize,
+                                  fontFamily: widget.data.fontFamily.isEmpty
+                                      ? null
+                                      : widget.data.fontFamily,
+                                  height: widget.data.lineHeight,
+                                ),
+                                selectionColor: widget.selectionColor,
+                                keyboardType: TextInputType.multiline,
+                                maxLines: null,
+                                textAlign: widget.data.align,
+                                textDirection: TextDirection.ltr,
+                              ),
+                            ),
+                          ],
+                        ),          ),
         ),
       ),
     );
+  }
+
+  void _handleSelectAll() {
+    final EditableTextState? state = _editableKey.currentState;
+    if (state != null && state.mounted) {
+      state.selectAll(SelectionChangedCause.keyboard);
+      return;
+    }
+    final String value = widget.controller.text;
+    widget.controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: value.length,
+    );
+  }
+
+  void _handleMoveCaret(_MoveTextCaretIntent intent) {
+    final TextSelection selection = widget.controller.selection;
+    final String text = widget.controller.text;
+    final int textLength = text.length;
+    final int normalizedBase = _clampOffset(selection.baseOffset, textLength);
+    final int normalizedExtent =
+        _clampOffset(selection.extentOffset, textLength);
+    final bool hasSelection = normalizedBase != normalizedExtent;
+    if (hasSelection && !intent.expandSelection) {
+      final int collapseOffset = intent.delta < 0
+          ? math.min(normalizedBase, normalizedExtent)
+          : math.max(normalizedBase, normalizedExtent);
+      widget.controller.selection = TextSelection.collapsed(
+        offset: collapseOffset,
+      );
+      return;
+    }
+    final int targetExtent =
+        (normalizedExtent + intent.delta).clamp(0, textLength);
+    if (intent.expandSelection) {
+      widget.controller.selection = TextSelection(
+        baseOffset: normalizedBase,
+        extentOffset: targetExtent,
+      );
+    } else {
+      widget.controller.selection = TextSelection.collapsed(
+        offset: targetExtent,
+      );
+    }
+  }
+
+  int _clampOffset(int offset, int length) {
+    if (offset.isNegative) {
+      return 0;
+    }
+    if (offset > length) {
+      return length;
+    }
+    return offset;
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!_isPrimarySelectionPointer(event)) {
+      return;
+    }
+    widget.focusNode.requestFocus();
+    _selectionPointer = event.pointer;
+    _selectionDragOrigin = event.position;
+    _selectFromGlobalPosition(
+      from: event.position,
+      cause: SelectionChangedCause.tap,
+    );
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (_selectionPointer != event.pointer || _selectionDragOrigin == null) {
+      return;
+    }
+    _selectFromGlobalPosition(
+      from: _selectionDragOrigin!,
+      to: event.position,
+      cause: SelectionChangedCause.drag,
+    );
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (_selectionPointer != event.pointer) {
+      return;
+    }
+    if (_selectionDragOrigin != null) {
+      _selectFromGlobalPosition(
+        from: _selectionDragOrigin!,
+        to: event.position,
+        cause: SelectionChangedCause.drag,
+      );
+    }
+    _selectionPointer = null;
+    _selectionDragOrigin = null;
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (_selectionPointer != event.pointer) {
+      return;
+    }
+    _selectionPointer = null;
+    _selectionDragOrigin = null;
+  }
+
+  void _selectFromGlobalPosition({
+    required Offset from,
+    Offset? to,
+    required SelectionChangedCause cause,
+  }) {
+    final EditableTextState? state = _editableKey.currentState;
+    if (state == null || !state.mounted) {
+      return;
+    }
+    state.renderEditable.selectPositionAt(
+      from: from,
+      to: to,
+      cause: cause,
+    );
+  }
+
+  bool _isPrimarySelectionPointer(PointerDownEvent event) {
+    switch (event.kind) {
+      case PointerDeviceKind.mouse:
+        return (event.buttons & kPrimaryMouseButton) != 0;
+      case PointerDeviceKind.stylus:
+      case PointerDeviceKind.invertedStylus:
+        return (event.buttons & kPrimaryStylusButton) != 0 || event.down;
+      default:
+        return event.down;
+    }
   }
 }
 
