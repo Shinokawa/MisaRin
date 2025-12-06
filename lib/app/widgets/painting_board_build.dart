@@ -44,6 +44,10 @@ mixin _PaintingBoardBuildMixin
       ).shortcuts)
         key: const AdjustGaussianBlurIntent(),
       for (final key in ToolbarShortcuts.of(
+        ToolbarAction.removeColorLeak,
+      ).shortcuts)
+        key: const RemoveColorLeakIntent(),
+      for (final key in ToolbarShortcuts.of(
         ToolbarAction.layerAntialiasPanel,
       ).shortcuts)
         key: const ShowLayerAntialiasIntent(),
@@ -474,6 +478,13 @@ mixin _PaintingBoardBuildMixin
                   CallbackAction<AdjustGaussianBlurIntent>(
                     onInvoke: (intent) {
                       showGaussianBlurAdjustments();
+                      return null;
+                    },
+                  ),
+              RemoveColorLeakIntent:
+                  CallbackAction<RemoveColorLeakIntent>(
+                    onInvoke: (intent) {
+                      showLeakRemovalAdjustments();
                       return null;
                     },
                   ),

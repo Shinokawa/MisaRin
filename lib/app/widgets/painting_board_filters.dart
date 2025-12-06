@@ -5,8 +5,14 @@ const double _kFilterPanelMinHeight = 180;
 const double _kAntialiasPanelWidth = 280;
 const double _kAntialiasPanelMinHeight = 140;
 const double _kGaussianBlurMaxRadius = 1000.0;
+const double _kLeakRemovalMaxRadius = 20.0;
 
-enum _FilterPanelType { hueSaturation, brightnessContrast, gaussianBlur }
+enum _FilterPanelType {
+  hueSaturation,
+  brightnessContrast,
+  gaussianBlur,
+  leakRemoval,
+}
 
 class _HueSaturationSettings {
   _HueSaturationSettings({
@@ -33,6 +39,12 @@ class _GaussianBlurSettings {
   double radius;
 }
 
+class _LeakRemovalSettings {
+  _LeakRemovalSettings({this.radius = 0});
+
+  double radius;
+}
+
 class _FilterSession {
   _FilterSession({
     required this.type,
@@ -49,6 +61,7 @@ class _FilterSession {
   final _BrightnessContrastSettings brightnessContrast =
       _BrightnessContrastSettings();
   final _GaussianBlurSettings gaussianBlur = _GaussianBlurSettings();
+  final _LeakRemovalSettings leakRemoval = _LeakRemovalSettings();
   CanvasLayerData? previewLayer;
 }
 
@@ -95,6 +108,10 @@ mixin _PaintingBoardFilterMixin
 
   void showGaussianBlurAdjustments() {
     _openFilterPanel(_FilterPanelType.gaussianBlur);
+  }
+
+  void showLeakRemovalAdjustments() {
+    _openFilterPanel(_FilterPanelType.leakRemoval);
   }
 
   void _openFilterPanel(_FilterPanelType type) async {
@@ -394,6 +411,13 @@ mixin _PaintingBoardFilterMixin
               onRadiusChanged: _updateGaussianBlur,
             );
             break;
+          case _FilterPanelType.leakRemoval:
+            panelTitle = '去除漏色';
+            panelBody = _LeakRemovalControls(
+              radius: session.leakRemoval.radius,
+              onRadiusChanged: _updateLeakRemovalRadius,
+            );
+            break;
         }
 
         if (_filterLoading) {
@@ -501,6 +525,7 @@ mixin _PaintingBoardFilterMixin
       ..brightness = 0
       ..contrast = 0;
     session.gaussianBlur.radius = 0;
+    session.leakRemoval.radius = 0;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleHueSaturationPreviewImageUpdate();
@@ -546,6 +571,16 @@ mixin _PaintingBoardFilterMixin
     _filterOverlayEntry?.markNeedsBuild();
   }
 
+  void _updateLeakRemovalRadius(double radius) {
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    session.leakRemoval.radius = radius.clamp(0.0, _kLeakRemovalMaxRadius);
+    setState(() {});
+    _filterOverlayEntry?.markNeedsBuild();
+  }
+
   void _requestFilterPreview({bool immediate = false}) {
     // Only used for final apply now
     _applyFilterPreview();
@@ -586,6 +621,7 @@ mixin _PaintingBoardFilterMixin
         hueSaturation: session.hueSaturation,
         brightnessContrast: session.brightnessContrast,
         blurRadius: session.gaussianBlur.radius,
+        leakRadius: session.leakRemoval.radius,
       ),
     );
   }
@@ -700,6 +736,15 @@ mixin _PaintingBoardFilterMixin
         return settings.brightness == 0 && settings.contrast == 0;
       case _FilterPanelType.gaussianBlur:
         final double radius = session.gaussianBlur.radius;
+        final CanvasLayerData layer =
+            session.originalLayers[session.activeLayerIndex];
+        final bool hasBitmap =
+            layer.bitmap != null &&
+            (layer.bitmapWidth ?? 0) > 0 &&
+            (layer.bitmapHeight ?? 0) > 0;
+        return radius <= 0 || !hasBitmap;
+      case _FilterPanelType.leakRemoval:
+        final double radius = session.leakRemoval.radius;
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
         final bool hasBitmap =
@@ -1185,6 +1230,50 @@ class _GaussianBlurControls extends StatelessWidget {
   }
 }
 
+class _LeakRemovalControls extends StatelessWidget {
+  const _LeakRemovalControls({
+    required this.radius,
+    required this.onRadiusChanged,
+  });
+
+  final double radius;
+  final ValueChanged<double> onRadiusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final double clamped = radius.clamp(0, _kLeakRemovalMaxRadius);
+    final int divisions =
+        _kLeakRemovalMaxRadius.round().clamp(1, 1000).toInt();
+    final int rounded = clamped.round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text('修复范围', style: theme.typography.bodyStrong),
+            const Spacer(),
+            Text('$rounded px', style: theme.typography.caption),
+          ],
+        ),
+        Slider(
+          min: 0,
+          max: _kLeakRemovalMaxRadius,
+          divisions: divisions,
+          value: clamped,
+          onChanged: onRadiusChanged,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '填充完全被线稿包围的透明针眼，可设置填补半径（像素）。数值越大，可修复的漏色面积越大。',
+          style: theme.typography.caption,
+        ),
+      ],
+    );
+  }
+}
+
 class _AntialiasPanelBody extends StatelessWidget {
   const _AntialiasPanelBody({
     required this.level,
@@ -1285,6 +1374,7 @@ class _FilterSlider extends StatelessWidget {
 const int _kFilterTypeHueSaturation = 0;
 const int _kFilterTypeBrightnessContrast = 1;
 const int _kFilterTypeGaussianBlur = 2;
+const int _kFilterTypeLeakRemoval = 3;
 
 class _FilterPreviewWorker {
   _FilterPreviewWorker({
@@ -1341,6 +1431,9 @@ class _FilterPreviewWorker {
         break;
       case _FilterPanelType.gaussianBlur:
         filterType = _kFilterTypeGaussianBlur;
+        break;
+      case _FilterPanelType.leakRemoval:
+        filterType = _kFilterTypeLeakRemoval;
         break;
     }
     final Map<String, Object?> initData = <String, Object?>{
@@ -1423,6 +1516,7 @@ class _FilterPreviewWorker {
     required _HueSaturationSettings hueSaturation,
     required _BrightnessContrastSettings brightnessContrast,
     required double blurRadius,
+    required double leakRadius,
   }) async {
     if (_disposed) {
       return;
@@ -1438,6 +1532,7 @@ class _FilterPreviewWorker {
         hueSaturation: hueSaturation,
         brightnessContrast: brightnessContrast,
         blurRadius: blurRadius,
+        leakRadius: leakRadius,
       );
       return;
     }
@@ -1458,6 +1553,7 @@ class _FilterPreviewWorker {
         brightnessContrast.contrast,
       ],
       'blur': blurRadius,
+      'leakRadius': leakRadius,
     });
   }
 
@@ -1466,11 +1562,14 @@ class _FilterPreviewWorker {
     required _HueSaturationSettings hueSaturation,
     required _BrightnessContrastSettings brightnessContrast,
     required double blurRadius,
+    required double leakRadius,
   }) {
     Uint8List? bitmap;
     final Uint8List? source = _baseBitmapSnapshot;
     if (source != null) {
       bitmap = Uint8List.fromList(source);
+      final int leakSteps =
+          leakRadius.round().clamp(0, _kLeakRemovalMaxRadius.toInt());
       if (_type == _FilterPanelType.hueSaturation) {
         _filterApplyHueSaturationToBitmap(
           bitmap,
@@ -1493,6 +1592,16 @@ class _FilterPreviewWorker {
           _baseBitmapWidth,
           _baseBitmapHeight,
           blurRadius,
+        );
+      } else if (_type == _FilterPanelType.leakRemoval &&
+          leakSteps > 0 &&
+          _baseBitmapWidth > 0 &&
+          _baseBitmapHeight > 0) {
+        _filterApplyLeakRemovalToBitmap(
+          bitmap,
+          _baseBitmapWidth,
+          _baseBitmapHeight,
+          leakSteps,
         );
       }
       if (bitmap != null && !_filterBitmapHasVisiblePixels(bitmap)) {
@@ -1631,10 +1740,15 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
     final double blurRadius = (message['blur'] is num)
         ? (message['blur'] as num).toDouble()
         : 0.0;
+    final double leakRadius = (message['leakRadius'] is num)
+        ? (message['leakRadius'] as num).toDouble()
+        : 0.0;
 
     Uint8List? bitmap;
     if (baseBitmap != null) {
       bitmap = Uint8List.fromList(baseBitmap);
+      final int leakSteps =
+          leakRadius.round().clamp(0, _kLeakRemovalMaxRadius.toInt());
       if (type == _kFilterTypeHueSaturation) {
         _filterApplyHueSaturationToBitmap(
           bitmap,
@@ -1657,6 +1771,16 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
           bitmapWidth,
           bitmapHeight,
           blurRadius,
+        );
+      } else if (type == _kFilterTypeLeakRemoval &&
+          leakSteps > 0 &&
+          bitmapWidth > 0 &&
+          bitmapHeight > 0) {
+        _filterApplyLeakRemovalToBitmap(
+          bitmap,
+          bitmapWidth,
+          bitmapHeight,
+          leakSteps,
         );
       }
       if (!_filterBitmapHasVisiblePixels(bitmap)) {
@@ -1907,6 +2031,208 @@ void _filterApplyGaussianBlurToBitmap(
     );
   }
   _filterUnpremultiplyAlpha(bitmap);
+}
+
+void _filterApplyLeakRemovalToBitmap(
+  Uint8List bitmap,
+  int width,
+  int height,
+  int radius,
+) {
+  if (bitmap.isEmpty || width <= 0 || height <= 0) {
+    return;
+  }
+  final int clampedRadius = radius.clamp(0, _kLeakRemovalMaxRadius.toInt());
+  if (clampedRadius <= 0) {
+    return;
+  }
+  final int pixelCount = width * height;
+  final Uint8List holeMask = Uint8List(pixelCount);
+  bool hasTransparent = false;
+  for (int index = 0, offset = 0; index < pixelCount; index++, offset += 4) {
+    if (bitmap[offset + 3] == 0) {
+      holeMask[index] = 1;
+      hasTransparent = true;
+    }
+  }
+  if (!hasTransparent) {
+    return;
+  }
+  _filterMarkLeakBackground(holeMask, width, height);
+  bool hasHole = false;
+  for (final int value in holeMask) {
+    if (value == 1) {
+      hasHole = true;
+      break;
+    }
+  }
+  if (!hasHole) {
+    return;
+  }
+  List<int> frontier =
+      _filterCollectLeakSeeds(bitmap, width, height, holeMask);
+  if (frontier.isEmpty) {
+    return;
+  }
+  int stepsRemaining = clampedRadius;
+  while (stepsRemaining > 0 && frontier.isNotEmpty) {
+    final List<int> nextFrontier = <int>[];
+    for (final int sourceIndex in frontier) {
+      final int srcOffset = sourceIndex << 2;
+      final int alpha = bitmap[srcOffset + 3];
+      if (alpha == 0) {
+        continue;
+      }
+      final int r = bitmap[srcOffset];
+      final int g = bitmap[srcOffset + 1];
+      final int b = bitmap[srcOffset + 2];
+      final int sy = sourceIndex ~/ width;
+      final int sx = sourceIndex - sy * width;
+      for (int dy = -1; dy <= 1; dy++) {
+        final int ny = sy + dy;
+        if (ny < 0 || ny >= height) {
+          continue;
+        }
+        for (int dx = -1; dx <= 1; dx++) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          final int nx = sx + dx;
+          if (nx < 0 || nx >= width) {
+            continue;
+          }
+          final int neighborIndex = ny * width + nx;
+          if (holeMask[neighborIndex] != 1) {
+            continue;
+          }
+          final int destOffset = neighborIndex << 2;
+          bitmap[destOffset] = r;
+          bitmap[destOffset + 1] = g;
+          bitmap[destOffset + 2] = b;
+          bitmap[destOffset + 3] = alpha;
+          holeMask[neighborIndex] = 0;
+          nextFrontier.add(neighborIndex);
+        }
+      }
+    }
+    frontier = nextFrontier;
+    stepsRemaining--;
+  }
+}
+
+void _filterMarkLeakBackground(
+  Uint8List holeMask,
+  int width,
+  int height,
+) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  final int pixelCount = width * height;
+  final Uint32List queue = Uint32List(pixelCount);
+  int head = 0;
+  int tail = 0;
+
+  void tryEnqueue(int index) {
+    if (index < 0 || index >= pixelCount) {
+      return;
+    }
+    if (holeMask[index] != 1) {
+      return;
+    }
+    holeMask[index] = 0;
+    queue[tail++] = index;
+  }
+
+  for (int x = 0; x < width; x++) {
+    tryEnqueue(x);
+    if (height > 1) {
+      tryEnqueue((height - 1) * width + x);
+    }
+  }
+  for (int y = 1; y < height - 1; y++) {
+    tryEnqueue(y * width);
+    if (width > 1) {
+      tryEnqueue(y * width + (width - 1));
+    }
+  }
+
+  while (head < tail) {
+    final int index = queue[head++];
+    final int row = index ~/ width;
+    final int col = index - row * width;
+    if (row > 0) {
+      final int up = index - width;
+      if (holeMask[up] == 1) {
+        holeMask[up] = 0;
+        queue[tail++] = up;
+      }
+    }
+    if (row + 1 < height) {
+      final int down = index + width;
+      if (holeMask[down] == 1) {
+        holeMask[down] = 0;
+        queue[tail++] = down;
+      }
+    }
+    if (col > 0) {
+      final int left = index - 1;
+      if (holeMask[left] == 1) {
+        holeMask[left] = 0;
+        queue[tail++] = left;
+      }
+    }
+    if (col + 1 < width) {
+      final int right = index + 1;
+      if (holeMask[right] == 1) {
+        holeMask[right] = 0;
+        queue[tail++] = right;
+      }
+    }
+  }
+}
+
+List<int> _filterCollectLeakSeeds(
+  Uint8List bitmap,
+  int width,
+  int height,
+  Uint8List holeMask,
+) {
+  final List<int> seeds = <int>[];
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      final int index = y * width + x;
+      final int pixelOffset = index << 2;
+      if (bitmap[pixelOffset + 3] == 0) {
+        continue;
+      }
+      bool touchesHole = false;
+      for (int dy = -1; dy <= 1 && !touchesHole; dy++) {
+        final int ny = y + dy;
+        if (ny < 0 || ny >= height) {
+          continue;
+        }
+        for (int dx = -1; dx <= 1; dx++) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          final int nx = x + dx;
+          if (nx < 0 || nx >= width) {
+            continue;
+          }
+          final int neighborIndex = ny * width + nx;
+          if (holeMask[neighborIndex] == 1) {
+            touchesHole = true;
+            break;
+          }
+        }
+      }
+      if (touchesHole) {
+        seeds.add(index);
+      }
+    }
+  }
+  return seeds;
 }
 
 List<int> _filterComputeBoxSizes(double sigma, int boxCount) {

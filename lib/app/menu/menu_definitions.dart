@@ -533,6 +533,16 @@ class MenuDefinitionBuilder {
             alt: true,
           ),
         ),
+      if (handler.removeColorLeak != null)
+        MenuActionEntry(
+          label: '去除漏色…',
+          action: handler.removeColorLeak,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyL,
+            meta: true,
+            alt: true,
+          ),
+        ),
       if (handler.adjustHueSaturation != null)
         MenuActionEntry(
           label: '色相/饱和度…',

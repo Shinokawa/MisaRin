@@ -44,6 +44,10 @@ class AdjustGaussianBlurIntent extends Intent {
   const AdjustGaussianBlurIntent();
 }
 
+class RemoveColorLeakIntent extends Intent {
+  const RemoveColorLeakIntent();
+}
+
 class ShowLayerAntialiasIntent extends Intent {
   const ShowLayerAntialiasIntent();
 }

@@ -23,6 +23,7 @@ enum ToolbarAction {
   adjustHueSaturation,
   adjustBrightnessContrast,
   gaussianBlur,
+  removeColorLeak,
   layerAntialiasPanel,
   deselect,
   importReferenceImage,
@@ -198,6 +199,22 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+Alt+G',
       macLabel: 'Command+Option+G',
+    ),
+    ToolbarAction.removeColorLeak: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyL,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyL,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+L',
+      macLabel: 'Command+Option+L',
     ),
     ToolbarAction.layerAntialiasPanel: ShortcutInfo(
       shortcuts: <LogicalKeySet>[

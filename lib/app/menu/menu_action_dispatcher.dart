@@ -59,6 +59,7 @@ class MenuActionHandler {
     this.invertSelection,
     this.showLayerAntialiasPanel,
     this.gaussianBlur,
+    this.removeColorLeak,
     this.createReferenceImage,
     this.importReferenceImage,
     this.workspaceLayoutPreference,
@@ -107,6 +108,7 @@ class MenuActionHandler {
       invertSelection = null,
       showLayerAntialiasPanel = null,
       gaussianBlur = null,
+      removeColorLeak = null,
       createReferenceImage = null,
       importReferenceImage = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[],
@@ -155,6 +157,7 @@ class MenuActionHandler {
   final MenuAsyncAction? invertSelection;
   final MenuAsyncAction? showLayerAntialiasPanel;
   final MenuAsyncAction? gaussianBlur;
+  final MenuAsyncAction? removeColorLeak;
   final MenuAsyncAction? createReferenceImage;
   final MenuAsyncAction? importReferenceImage;
   final WorkspaceLayoutPreference? workspaceLayoutPreference;

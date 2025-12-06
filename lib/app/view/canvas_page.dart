@@ -1551,6 +1551,17 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.showGaussianBlurAdjustments();
       },
+      removeColorLeak: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar(
+            '画布尚未准备好，无法去除漏色。',
+            severity: InfoBarSeverity.warning,
+          );
+          return;
+        }
+        board.showLeakRemovalAdjustments();
+      },
       resizeImage: _handleResizeImage,
       resizeCanvas: _handleResizeCanvas,
       mergeLayerDown: () {
