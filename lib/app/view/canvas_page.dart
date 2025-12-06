@@ -3,15 +3,13 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart'
-    show
-        StatefulBuilder,
-        StateSetter,
-        TextEditingController,
-        WidgetsBinding;
+    show StatefulBuilder, StateSetter, TextEditingController, WidgetsBinding;
+import 'package:path/path.dart' as p;
 
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_settings.dart';
@@ -82,6 +80,13 @@ class CanvasPageState extends State<CanvasPage> {
       <_ImportedPaletteEntry>[];
   int _paletteLibrarySerial = 0;
   CanvasResizeAnchor _lastCanvasAnchor = CanvasResizeAnchor.center;
+  static const Set<String> _kDropImageExtensions = <String>{
+    'png',
+    'jpg',
+    'jpeg',
+    'bmp',
+    'gif',
+  };
 
   late ProjectDocument _document;
   bool _hasUnsavedChanges = false;
@@ -95,6 +100,8 @@ class CanvasPageState extends State<CanvasPage> {
   bool _initialBoardReadyDispatched = false;
 
   PaintingBoardState? get _activeBoard => _boardFor(_document.id);
+  bool get _supportsFileDrops =>
+      !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
 
   List<ProjectDocument> _undoStackFor(String id) {
     return _documentUndoStacks.putIfAbsent(id, () => <ProjectDocument>[]);
@@ -748,6 +755,7 @@ class CanvasPageState extends State<CanvasPage> {
     final CanvasExportOptions? options = await showCanvasExportDialog(
       context: context,
       settings: _document.settings,
+      onApplyAntialias: board.applyLayerAntialiasLevel,
     );
     if (options == null) {
       return false;
@@ -803,10 +811,7 @@ class CanvasPageState extends State<CanvasPage> {
       } else {
         final file = File(normalizedPath!);
         await file.writeAsBytes(bytes, flush: true);
-        _showInfoBar(
-          '已导出到 $normalizedPath',
-          severity: InfoBarSeverity.success,
-        );
+        _showInfoBar('已导出到 $normalizedPath', severity: InfoBarSeverity.success);
       }
       return true;
     } catch (error) {
@@ -1098,8 +1103,9 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   Future<String?> _showProjectRenameDialog(String currentName) async {
-    final TextEditingController controller =
-        TextEditingController(text: currentName);
+    final TextEditingController controller = TextEditingController(
+      text: currentName,
+    );
     String? errorText;
     StateSetter? dialogSetState;
 
@@ -1154,10 +1160,7 @@ class CanvasPageState extends State<CanvasPage> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
-        FilledButton(
-          onPressed: submit,
-          child: const Text('重命名'),
-        ),
+        FilledButton(onPressed: submit, child: const Text('重命名')),
       ],
     );
     controller.dispose();
@@ -1202,6 +1205,225 @@ class CanvasPageState extends State<CanvasPage> {
     _applyDocumentState(updated);
   }
 
+  Future<void> _handleTabBarFileDrop(List<DropItem> items) async {
+    if (!_supportsFileDrops || items.isEmpty) {
+      return;
+    }
+    final List<DropItem> candidates = _filterSupportedDropItems(items);
+    if (candidates.isEmpty) {
+      _showInfoBar('拖放的文件中未找到支持的图像格式。', severity: InfoBarSeverity.warning);
+      return;
+    }
+    int createdCount = 0;
+    for (final DropItem item in candidates) {
+      if (!mounted) {
+        return;
+      }
+      try {
+        final ProjectDocument? document = await _createDocumentFromDropItem(
+          item,
+        );
+        if (document == null) {
+          continue;
+        }
+        await openDocument(document);
+        createdCount += 1;
+      } catch (error) {
+        _showInfoBar(
+          '导入 ${_describeDropItem(item)} 失败：$error',
+          severity: InfoBarSeverity.error,
+        );
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    if (createdCount > 0) {
+      _showInfoBar(
+        createdCount == 1 ? '已从拖放图像创建新画布。' : '已创建 $createdCount 个拖放图像画布。',
+        severity: InfoBarSeverity.success,
+      );
+    } else {
+      _showInfoBar('拖放的图像无法创建画布，请确认文件是否有效。', severity: InfoBarSeverity.warning);
+    }
+  }
+
+  Future<void> _handleCanvasFileDrop(List<DropItem> items) async {
+    if (!_supportsFileDrops || items.isEmpty) {
+      return;
+    }
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null || !board.isBoardReady) {
+      _showInfoBar('画布尚未准备好，暂无法插入拖放图像。', severity: InfoBarSeverity.warning);
+      return;
+    }
+    final List<DropItem> candidates = _filterSupportedDropItems(items);
+    if (candidates.isEmpty) {
+      _showInfoBar('拖放的文件中未包含支持的图像格式。', severity: InfoBarSeverity.warning);
+      return;
+    }
+    int insertedCount = 0;
+    for (final DropItem item in candidates) {
+      final Uint8List? bytes = await _readDropItemBytes(item);
+      if (bytes == null) {
+        continue;
+      }
+      final bool inserted = await board.insertImageLayerFromBytes(
+        bytes,
+        name: _preferredLayerNameForDrop(item),
+      );
+      if (inserted) {
+        insertedCount += 1;
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    if (insertedCount > 0) {
+      _showInfoBar(
+        insertedCount == 1 ? '已将拖放图像插入为新图层。' : '已插入 $insertedCount 个拖放图像图层。',
+        severity: InfoBarSeverity.success,
+      );
+    } else {
+      _showInfoBar(
+        '拖放图像无法插入当前画布，请确认文件内容是否有效。',
+        severity: InfoBarSeverity.error,
+      );
+    }
+  }
+
+  List<DropItem> _filterSupportedDropItems(List<DropItem> items) {
+    return <DropItem>[
+      for (final DropItem item in items)
+        if (_isSupportedDropItem(item)) item,
+    ];
+  }
+
+  bool _isSupportedDropItem(DropItem item) {
+    if (item is DropItemDirectory) {
+      return false;
+    }
+    final String extension = _dropItemExtension(item);
+    return extension.isNotEmpty &&
+        _kDropImageExtensions.contains(extension.toLowerCase());
+  }
+
+  String _dropItemExtension(DropItem item) {
+    final String name = (item.name ?? item.path).trim();
+    final String target = name.isNotEmpty ? name : item.path.trim();
+    if (target.isEmpty) {
+      return '';
+    }
+    final String lower = target.toLowerCase();
+    final int dotIndex = lower.lastIndexOf('.');
+    if (dotIndex < 0 || dotIndex + 1 >= lower.length) {
+      return '';
+    }
+    return lower.substring(dotIndex + 1);
+  }
+
+  Future<ProjectDocument?> _createDocumentFromDropItem(DropItem item) async {
+    if (!kIsWeb) {
+      final String path = item.path.trim();
+      if (path.isNotEmpty) {
+        return _runWithSecurityScopedAccess<ProjectDocument?>(
+          item,
+          () => _repository.createDocumentFromImage(
+            path,
+            name: _preferredDocumentNameForDrop(item),
+          ),
+        );
+      }
+    }
+    final Uint8List? bytes = await _readDropItemBytes(item);
+    if (bytes == null) {
+      return null;
+    }
+    return _repository.createDocumentFromImageBytes(
+      bytes,
+      name: _preferredDocumentNameForDrop(item),
+    );
+  }
+
+  Future<Uint8List?> _readDropItemBytes(DropItem item) async {
+    if (!kIsWeb) {
+      final String path = item.path.trim();
+      if (path.isNotEmpty) {
+        return _runWithSecurityScopedAccess<Uint8List?>(item, () async {
+          final File file = File(path);
+          if (!await file.exists()) {
+            return null;
+          }
+          return file.readAsBytes();
+        });
+      }
+    }
+    try {
+      return await item.readAsBytes();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _preferredDocumentNameForDrop(DropItem item) {
+    final String candidate = item.name.trim().isNotEmpty
+        ? item.name.trim()
+        : item.path.trim();
+    if (candidate.isEmpty) {
+      return null;
+    }
+    final String base = p.basename(candidate);
+    final String resolved = p.basenameWithoutExtension(base);
+    return resolved.isEmpty ? base : resolved;
+  }
+
+  String? _preferredLayerNameForDrop(DropItem item) {
+    final String source = item.name.trim().isNotEmpty
+        ? item.name.trim()
+        : item.path.trim();
+    if (source.isEmpty) {
+      return null;
+    }
+    final String base = p.basenameWithoutExtension(source);
+    return base.isEmpty ? source : base;
+  }
+
+  String _describeDropItem(DropItem item) {
+    final String name = item.name.trim();
+    if (name.isNotEmpty) {
+      return name;
+    }
+    final String path = item.path.trim();
+    if (path.isNotEmpty) {
+      return path;
+    }
+    return '图像';
+  }
+
+  Future<T> _runWithSecurityScopedAccess<T>(
+    DropItem item,
+    Future<T> Function() action,
+  ) async {
+    if (kIsWeb ||
+        !Platform.isMacOS ||
+        item.extraAppleBookmark == null ||
+        item.extraAppleBookmark!.isEmpty) {
+      return action();
+    }
+    final Uint8List bookmark = item.extraAppleBookmark!;
+    final bool started = await DesktopDrop.instance
+        .startAccessingSecurityScopedResource(bookmark: bookmark);
+    try {
+      return await action();
+    } finally {
+      if (started) {
+        await DesktopDrop.instance.stopAccessingSecurityScopedResource(
+          bookmark: bookmark,
+        );
+      }
+    }
+  }
+
   Widget _buildBoard(CanvasWorkspaceEntry entry) {
     final String id = entry.id;
     return PaintingBoard(
@@ -1216,8 +1438,9 @@ class CanvasPageState extends State<CanvasPage> {
       externalCanRedo: _canRedoDocumentFor(id),
       onResizeImage: _handleResizeImage,
       onResizeCanvas: _handleResizeCanvas,
-      onReadyChanged:
-          kIsWeb ? (ready) => _handleBoardReadyChanged(id, ready) : null,
+      onReadyChanged: kIsWeb
+          ? (ready) => _handleBoardReadyChanged(id, ready)
+          : null,
       toolbarLayoutStyle: _toolbarLayoutStyle,
     );
   }
@@ -1342,8 +1565,10 @@ class CanvasPageState extends State<CanvasPage> {
         }
         final bool success = await board.rasterizeActiveTextLayer();
         if (!success) {
-          _showInfoBar('当前图层无法栅格化，仅文字图层支持该操作。',
-              severity: InfoBarSeverity.warning);
+          _showInfoBar(
+            '当前图层无法栅格化，仅文字图层支持该操作。',
+            severity: InfoBarSeverity.warning,
+          );
         }
       },
       rasterizeLayerEnabled: () {
@@ -1392,6 +1617,54 @@ class CanvasPageState extends State<CanvasPage> {
       },
     );
 
+    Widget titleBar = CanvasTitleBar(
+      onSelectTab: _handleTabSelected,
+      onCloseTab: _handleTabClosed,
+      onCreateTab: () => AppMenuActions.createProject(context),
+      onRenameTab: _handleTabRename,
+    );
+    if (_supportsFileDrops) {
+      titleBar = DropTarget(
+        onDragDone: (details) =>
+            unawaited(_handleTabBarFileDrop(details.files)),
+        child: titleBar,
+      );
+    }
+
+    Widget workspace = Container(
+      color: FluentTheme.of(context).micaBackgroundColor,
+      child: AnimatedBuilder(
+        animation: _workspace,
+        builder: (context, _) {
+          final List<CanvasWorkspaceEntry> entries = _workspace.entries;
+          if (entries.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          final int activeIndex = entries.indexWhere(
+            (entry) => entry.id == _document.id,
+          );
+          if (activeIndex < 0) {
+            return const SizedBox.shrink();
+          }
+          return IndexedStack(
+            index: activeIndex,
+            alignment: Alignment.center,
+            children: [
+              for (final CanvasWorkspaceEntry entry in entries)
+                Align(alignment: Alignment.center, child: _buildBoard(entry)),
+            ],
+          );
+        },
+      ),
+    );
+    if (_supportsFileDrops) {
+      workspace = DropTarget(
+        onDragDone: (details) =>
+            unawaited(_handleCanvasFileDrop(details.files)),
+        child: workspace,
+      );
+    }
+
     return MenuActionBinding(
       handler: handler,
       child: NavigationView(
@@ -1399,44 +1672,8 @@ class CanvasPageState extends State<CanvasPage> {
           padding: EdgeInsets.zero,
           content: Column(
             children: [
-              CanvasTitleBar(
-                onSelectTab: _handleTabSelected,
-                onCloseTab: _handleTabClosed,
-                onCreateTab: () => AppMenuActions.createProject(context),
-                onRenameTab: _handleTabRename,
-              ),
-              Expanded(
-                child: Container(
-                  color: FluentTheme.of(context).micaBackgroundColor,
-                  child: AnimatedBuilder(
-                    animation: _workspace,
-                    builder: (context, _) {
-                      final List<CanvasWorkspaceEntry> entries =
-                          _workspace.entries;
-                      if (entries.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      final int activeIndex = entries.indexWhere(
-                        (entry) => entry.id == _document.id,
-                      );
-                      if (activeIndex < 0) {
-                        return const SizedBox.shrink();
-                      }
-                      return IndexedStack(
-                        index: activeIndex,
-                        alignment: Alignment.center,
-                        children: [
-                          for (final CanvasWorkspaceEntry entry in entries)
-                            Align(
-                              alignment: Alignment.center,
-                              child: _buildBoard(entry),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
+              titleBar,
+              Expanded(child: workspace),
             ],
           ),
         ),

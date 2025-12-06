@@ -2,13 +2,11 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../canvas/canvas_settings.dart';
+import '../constants/antialias_levels.dart';
 import 'misarin_dialog.dart';
 
 class CanvasExportOptions {
-  const CanvasExportOptions({
-    required this.width,
-    required this.height,
-  });
+  const CanvasExportOptions({required this.width, required this.height});
 
   final int width;
   final int height;
@@ -17,12 +15,18 @@ class CanvasExportOptions {
 Future<CanvasExportOptions?> showCanvasExportDialog({
   required BuildContext context,
   required CanvasSettings settings,
+  Future<bool> Function(int level)? onApplyAntialias,
 }) async {
-  final TextEditingController scaleController =
-      TextEditingController(text: '1.0');
+  final TextEditingController scaleController = TextEditingController(
+    text: '1.0',
+  );
   double scale = 1.0;
   String? scaleError;
   StateSetter? dialogSetState;
+  int antialiasLevel = 2;
+  bool antialiasApplying = false;
+  String? antialiasStatus;
+  bool antialiasFailed = false;
   CanvasExportOptions? result;
 
   await showMisarinDialog<CanvasExportOptions>(
@@ -32,6 +36,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
     content: StatefulBuilder(
       builder: (BuildContext context, StateSetter setState) {
         dialogSetState = setState;
+        final FluentThemeData theme = FluentTheme.of(context);
         final double outputWidth = settings.width * scale;
         final double outputHeight = settings.height * scale;
         final List<double> presets = <double>[0.25, 0.5, 1.0, 2.0, 4.0];
@@ -103,6 +108,74 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 scaleError!,
                 style: const TextStyle(color: Color(0xFFD13438)),
               ),
+            ],
+            if (onApplyAntialias != null) ...[
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+              Text('导出前的抗锯齿处理', style: theme.typography.bodyStrong),
+              const SizedBox(height: 8),
+              Slider(
+                min: 0,
+                max: 3,
+                divisions: 3,
+                value: antialiasLevel.toDouble(),
+                label: '等级 $antialiasLevel',
+                onChanged: (value) {
+                  dialogSetState?.call(() {
+                    antialiasLevel = value.round();
+                    antialiasStatus = null;
+                    antialiasFailed = false;
+                  });
+                },
+              ),
+              const SizedBox(height: 4),
+              Text(
+                kAntialiasLevelDescriptions[antialiasLevel],
+                style: theme.typography.caption,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Button(
+                    onPressed: antialiasApplying
+                        ? null
+                        : () async {
+                            dialogSetState?.call(() {
+                              antialiasApplying = true;
+                              antialiasStatus = null;
+                              antialiasFailed = false;
+                            });
+                            bool success = false;
+                            try {
+                              success = await onApplyAntialias(antialiasLevel);
+                            } finally {
+                              dialogSetState?.call(() {
+                                antialiasApplying = false;
+                                antialiasFailed = !success;
+                                antialiasStatus = success
+                                    ? '已对当前图层应用等级 $antialiasLevel 抗锯齿。'
+                                    : '无法应用抗锯齿，请确保图层未锁定且包含像素。';
+                              });
+                            }
+                          },
+                    child: antialiasApplying
+                        ? const ProgressRing()
+                        : const Text('应用到当前图层'),
+                  ),
+                ],
+              ),
+              if (antialiasStatus != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  antialiasStatus!,
+                  style: TextStyle(
+                    color: antialiasFailed
+                        ? const Color(0xFFD13438)
+                        : const Color(0xFF107C10),
+                  ),
+                ),
+              ],
             ],
           ],
         );

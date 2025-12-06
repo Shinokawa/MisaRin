@@ -84,6 +84,7 @@ import 'bitmap_canvas_surface.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../constants/color_line_presets.dart';
+import '../constants/antialias_levels.dart';
 import '../preferences/app_preferences.dart';
 import '../constants/pen_constants.dart';
 import '../models/canvas_resize_anchor.dart';
@@ -94,6 +95,7 @@ import '../palette/palette_exporter.dart';
 import '../utils/web_file_dialog.dart';
 import '../utils/web_file_saver.dart';
 import '../utils/platform_target.dart';
+import '../utils/clipboard_image_reader.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 import '../native/system_fonts.dart';
@@ -182,6 +184,18 @@ class CanvasResizeResult {
   final List<CanvasLayerData> layers;
   final int width;
   final int height;
+}
+
+class _ImportedImageData {
+  const _ImportedImageData({
+    required this.width,
+    required this.height,
+    required this.bytes,
+  });
+
+  final int width;
+  final int height;
+  final Uint8List bytes;
 }
 
 class PaintingBoard extends StatefulWidget {
@@ -353,9 +367,15 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
   double _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
 
+  Future<bool> insertImageLayerFromBytes(
+    Uint8List bytes, {
+    String? name,
+  });
+
   bool get _includeHistoryOnToolbar => false;
 
-  int get _toolbarButtonCount => CanvasToolbar.buttonCount +
+  int get _toolbarButtonCount =>
+      CanvasToolbar.buttonCount +
       (_includeHistoryOnToolbar ? CanvasToolbar.historyButtonCount : 0);
 
   bool _isInsidePaletteCardArea(Offset workspacePosition) {
@@ -755,9 +775,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final Rect colorRect = _toolbarHitRegions[2];
     final double gap = colorRect.top - toolbarRect.bottom;
     final double fullAvailableHeight =
-        _workspaceSize.height -
-        _toolButtonPadding * 2 -
-        _colorIndicatorSize;
+        _workspaceSize.height - _toolButtonPadding * 2 - _colorIndicatorSize;
     final double safeAvailableHeight =
         fullAvailableHeight - CanvasToolbar.spacing;
     if (!safeAvailableHeight.isFinite || safeAvailableHeight <= 0) {
@@ -767,9 +785,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       if (_toolbarLayout.isMultiColumn) {
         final CanvasToolbarLayout candidate =
             CanvasToolbar.layoutForAvailableHeight(
-          safeAvailableHeight,
-          toolCount: _toolbarButtonCount,
-        );
+              safeAvailableHeight,
+              toolCount: _toolbarButtonCount,
+            );
         if (candidate.columns == 1) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) {
@@ -787,9 +805,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       }
       final CanvasToolbarLayout wrappedLayout =
           CanvasToolbar.layoutForAvailableHeight(
-        safeAvailableHeight,
-        toolCount: _toolbarButtonCount,
-      );
+            safeAvailableHeight,
+            toolCount: _toolbarButtonCount,
+          );
       _applyToolbarLayout(wrappedLayout);
     });
   }
@@ -1698,8 +1716,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
     _pixelGridVisible = prefs.pixelGridVisible;
-    AppPreferences.pixelGridVisibleNotifier
-        .addListener(_handlePixelGridPreferenceChanged);
+    AppPreferences.pixelGridVisibleNotifier.addListener(
+      _handlePixelGridPreferenceChanged,
+    );
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
     _bucketSwallowColorLine = prefs.bucketSwallowColorLine;
@@ -1774,13 +1793,81 @@ class PaintingBoardState extends _PaintingBoardBase
     unawaited(_layoutWorker?.dispose());
     _focusNode.dispose();
     _sprayTicker?.dispose();
-    AppPreferences.pixelGridVisibleNotifier
-        .removeListener(_handlePixelGridPreferenceChanged);
+    AppPreferences.pixelGridVisibleNotifier.removeListener(
+      _handlePixelGridPreferenceChanged,
+    );
     super.dispose();
   }
 
   void addLayerAboveActiveLayer() {
     _handleAddLayer();
+  }
+
+  @override
+  Future<bool> insertImageLayerFromBytes(
+    Uint8List bytes, {
+    String? name,
+  }) async {
+    if (!isBoardReady) {
+      return false;
+    }
+    try {
+      final _ImportedImageData decoded = await _decodeExternalImage(bytes);
+      final int canvasWidth = widget.settings.width.round();
+      final int canvasHeight = widget.settings.height.round();
+      final int offsetX = ((canvasWidth - decoded.width) / 2).floor();
+      final int offsetY = ((canvasHeight - decoded.height) / 2).floor();
+      final String resolvedName = _normalizeImportedLayerName(name);
+      final CanvasLayerData layerData = CanvasLayerData(
+        id: generateLayerId(),
+        name: resolvedName,
+        bitmap: decoded.bytes,
+        bitmapWidth: decoded.width,
+        bitmapHeight: decoded.height,
+        bitmapLeft: offsetX,
+        bitmapTop: offsetY,
+        cloneBitmap: false,
+      );
+      await _pushUndoSnapshot();
+      _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
+      _controller.setActiveLayer(layerData.id);
+      setState(() {});
+      _markDirty();
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Failed to insert image layer: $error\n$stackTrace');
+      return false;
+    }
+  }
+
+  String _normalizeImportedLayerName(String? raw) {
+    final String? trimmed = raw?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return '导入图层';
+    }
+    return trimmed;
+  }
+
+  Future<_ImportedImageData> _decodeExternalImage(Uint8List bytes) async {
+    final ui.Codec codec = await ui.instantiateImageCodec(bytes);
+    final ui.FrameInfo frame = await codec.getNextFrame();
+    final ui.Image image = frame.image;
+    final ByteData? pixelData = await image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+    codec.dispose();
+    if (pixelData == null) {
+      image.dispose();
+      throw StateError('无法读取位图像素数据');
+    }
+    final Uint8List rgba = Uint8List.fromList(pixelData.buffer.asUint8List());
+    final _ImportedImageData result = _ImportedImageData(
+      width: image.width,
+      height: image.height,
+      bytes: rgba,
+    );
+    image.dispose();
+    return result;
   }
 
   bool get isPixelGridVisible => _pixelGridVisible;
@@ -1791,8 +1878,7 @@ class PaintingBoardState extends _PaintingBoardBase
     if (!mounted) {
       return;
     }
-    final bool visible =
-        AppPreferences.pixelGridVisibleNotifier.value;
+    final bool visible = AppPreferences.pixelGridVisibleNotifier.value;
     if (visible == _pixelGridVisible) {
       return;
     }
@@ -2156,7 +2242,8 @@ void _layerOpacityPreviewReset(
   _PaintingBoardBase board, {
   bool notifyListeners = false,
 }) {
-  final bool hadPreview = board._layerOpacityPreviewActive ||
+  final bool hadPreview =
+      board._layerOpacityPreviewActive ||
       board._layerOpacityPreviewLayerId != null ||
       board._layerOpacityPreviewValue != null;
   board._layerOpacityPreviewActive = false;
@@ -2176,7 +2263,8 @@ void _layerOpacityPreviewDeactivate(
   _PaintingBoardBase board, {
   bool notifyListeners = false,
 }) {
-  final bool hadPreview = board._layerOpacityPreviewActive ||
+  final bool hadPreview =
+      board._layerOpacityPreviewActive ||
       board._layerOpacityPreviewValue != null ||
       board._layerOpacityPreviewAwaitedGeneration != null;
   board._layerOpacityPreviewActive = false;

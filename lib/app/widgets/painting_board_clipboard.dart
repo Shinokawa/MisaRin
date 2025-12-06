@@ -56,13 +56,11 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
   Future<bool> _performPaste() async {
     final _ClipboardPayload? payload = _clipboard;
     if (payload == null) {
-      return false;
+      return _pasteImageFromSystemClipboard();
     }
     final CanvasLayerData source = payload.layerData;
     final String newId = generateLayerId();
-    final String pasteName = source.name.isEmpty
-        ? '粘贴图层'
-        : '${source.name} 副本';
+    final String pasteName = source.name.isEmpty ? '粘贴图层' : '${source.name} 副本';
     final CanvasLayerData layerData = source.copyWith(
       id: newId,
       name: pasteName,
@@ -71,10 +69,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       clippingMask: false,
     );
     await _pushUndoSnapshot();
-    _controller.insertLayerFromData(
-      layerData,
-      aboveLayerId: _activeLayerId,
-    );
+    _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
     _controller.setActiveLayer(newId);
     setState(() {
       setSelectionState(path: null, mask: null);
@@ -83,5 +78,13 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     _updateSelectionAnimation();
     _markDirty();
     return true;
+  }
+
+  Future<bool> _pasteImageFromSystemClipboard() async {
+    final ClipboardImageData? payload = await ClipboardImageReader.readImage();
+    if (payload == null) {
+      return false;
+    }
+    return insertImageLayerFromBytes(payload.bytes, name: payload.fileName);
   }
 }

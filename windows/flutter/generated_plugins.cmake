@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
+  desktop_drop
   pasteboard
   screen_retriever
   window_manager
