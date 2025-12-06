@@ -41,6 +41,8 @@ class AppPreferences {
     this.magicWandTolerance = _defaultMagicWandTolerance,
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
     this.vectorDrawingEnabled = _defaultVectorDrawingEnabled,
+    this.vectorStrokeSmoothingEnabled =
+        _defaultVectorStrokeSmoothingEnabled,
     this.showFpsOverlay = _defaultShowFpsOverlay,
     this.pixelGridVisible = _defaultPixelGridVisible,
     this.workspaceLayout = _defaultWorkspaceLayout,
@@ -55,7 +57,7 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 27;
+  static const int _version = 28;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -83,6 +85,7 @@ class AppPreferences {
   static const int _defaultMagicWandTolerance = 0;
   static const bool _defaultBrushToolsEraserMode = false;
   static const bool _defaultVectorDrawingEnabled = true;
+  static const bool _defaultVectorStrokeSmoothingEnabled = false;
   static const bool _defaultShapeToolFillEnabled = false;
   static const int _defaultBucketAntialiasLevel = 0;
   static const bool _defaultShowFpsOverlay = false;
@@ -118,6 +121,8 @@ class AppPreferences {
   static const int defaultMagicWandTolerance = _defaultMagicWandTolerance;
   static const bool defaultBrushToolsEraserMode = _defaultBrushToolsEraserMode;
   static const bool defaultVectorDrawingEnabled = _defaultVectorDrawingEnabled;
+  static const bool defaultVectorStrokeSmoothingEnabled =
+      _defaultVectorStrokeSmoothingEnabled;
   static const bool defaultShapeToolFillEnabled = _defaultShapeToolFillEnabled;
   static const int defaultBucketAntialiasLevel = _defaultBucketAntialiasLevel;
   static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
@@ -157,6 +162,7 @@ class AppPreferences {
   int magicWandTolerance;
   bool brushToolsEraserMode;
   bool vectorDrawingEnabled;
+  bool vectorStrokeSmoothingEnabled;
   int bucketAntialiasLevel;
   bool showFpsOverlay;
   bool pixelGridVisible;
@@ -227,14 +233,79 @@ class AppPreferences {
                 ? bytes[32] != 0
                 : _defaultVectorDrawingEnabled;
             final bool decodedShapeToolFillEnabled =
-                version >= 23 && bytes.length >= 34
-                ? bytes[33] != 0
+                version >= 23 && (
+                        (version >= 28 && bytes.length >= 35) ||
+                        (version < 28 && bytes.length >= 34)
+                      )
+                ? bytes[version >= 28 ? 34 : 33] != 0
                 : _defaultShapeToolFillEnabled;
             final double decodedSprayStrokeWidth =
-                version >= 24 && bytes.length >= 36
-                ? _decodeSprayStrokeWidth(bytes[34] | (bytes[35] << 8))
+                version >= 24 && (
+                        (version >= 28 && bytes.length >= 37) ||
+                        (version < 28 && bytes.length >= 36)
+                      )
+                ? _decodeSprayStrokeWidth(
+                    bytes[version >= 28 ? 35 : 34] |
+                        (bytes[version >= 28 ? 36 : 35] << 8),
+                  )
                 : _defaultSprayStrokeWidth;
-            if (version >= 27 && bytes.length >= 42) {
+            if (version >= 28 && bytes.length >= 43) {
+              final bool decodedVectorStrokeSmoothingEnabled =
+                  bytes[33] != 0;
+              final SprayMode decodedSprayMode = _decodeSprayMode(bytes[37]);
+              final bool decodedPixelGridVisible = bytes[38] != 0;
+              final int primaryColorValue = bytes[39] |
+                  (bytes[40] << 8) |
+                  (bytes[41] << 16) |
+                  (bytes[42] << 24);
+              final Color decodedPrimaryColor = Color(primaryColorValue);
+              final int rawHistory = bytes[3] | (bytes[4] << 8);
+              final int rawStroke = bytes[6] | (bytes[7] << 8);
+              _instance = AppPreferences._(
+                bucketSampleAllLayers: bytes[1] != 0,
+                bucketContiguous: bytes[2] != 0,
+                historyLimit: _clampHistoryLimit(rawHistory),
+                themeMode: _decodeThemeMode(bytes[5]),
+                penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+                simulatePenPressure: bytes[8] != 0,
+                penPressureProfile: _decodePressureProfile(bytes[9]),
+                penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
+                stylusPressureEnabled: bytes[11] != 0,
+                stylusPressureCurve: _decodeStylusFactor(
+                  bytes[12],
+                  lower: _stylusCurveLowerBound,
+                  upper: _stylusCurveUpperBound,
+                ),
+                autoSharpPeakEnabled: bytes[13] != 0,
+                penStrokeSliderRange: _decodePenStrokeSliderRange(bytes[14]),
+                strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
+                  bytes[15],
+                ),
+                brushShape: _decodeBrushShape(bytes[16]),
+                layerAdjustCropOutside: bytes[17] != 0,
+                colorLineColor: decodedColorLineColor,
+                bucketSwallowColorLine: decodedBucketSwallowColorLine,
+                shapeToolFillEnabled: decodedShapeToolFillEnabled,
+                bucketTolerance: _clampToleranceValue(bytes[20]),
+                magicWandTolerance: _clampToleranceValue(bytes[21]),
+                brushToolsEraserMode: bytes[22] != 0,
+                bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
+                vectorDrawingEnabled: decodedVectorDrawingEnabled,
+                vectorStrokeSmoothingEnabled:
+                    decodedVectorStrokeSmoothingEnabled,
+                showFpsOverlay: bytes[24] != 0,
+                workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
+                floatingColorPanelHeight: decodedFloatingColorHeight,
+                sai2ColorPanelHeight: decodedSai2ColorHeight,
+                sai2ToolPanelSplit: decodedSai2ToolSplit,
+                sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
+                sprayStrokeWidth: decodedSprayStrokeWidth,
+                sprayMode: decodedSprayMode,
+                pixelGridVisible: decodedPixelGridVisible,
+                primaryColor: decodedPrimaryColor,
+              );
+              return _finalizeLoadedPreferences();
+            } else if (version >= 27 && bytes.length >= 42) {
               final SprayMode decodedSprayMode = _decodeSprayMode(bytes[36]);
               final bool decodedPixelGridVisible = bytes[37] != 0;
               final int primaryColorValue = bytes[38] |
@@ -993,6 +1064,7 @@ class AppPreferences {
       colorLineColor: _defaultColorLineColor,
       bucketSwallowColorLine: _defaultBucketSwallowColorLine,
       vectorDrawingEnabled: _defaultVectorDrawingEnabled,
+      vectorStrokeSmoothingEnabled: _defaultVectorStrokeSmoothingEnabled,
       workspaceLayout: _defaultWorkspaceLayout,
       floatingColorPanelHeight: null,
       sai2ColorPanelHeight: null,
@@ -1091,6 +1163,7 @@ class AppPreferences {
       sai2ToolSplitEncoded,
       sai2LayerSplitEncoded,
       prefs.vectorDrawingEnabled ? 1 : 0,
+      prefs.vectorStrokeSmoothingEnabled ? 1 : 0,
       prefs.shapeToolFillEnabled ? 1 : 0,
       sprayWidth & 0xff,
       (sprayWidth >> 8) & 0xff,

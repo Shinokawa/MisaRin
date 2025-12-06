@@ -70,6 +70,7 @@ class ToolSettingsSnapshot {
     required this.bucketAntialiasLevel,
     required this.autoSharpPeakEnabled,
     required this.vectorDrawingEnabled,
+    required this.vectorStrokeSmoothingEnabled,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.bucketSwallowColorLine,
@@ -108,6 +109,7 @@ class ToolSettingsSnapshot {
   final int bucketAntialiasLevel;
   final bool autoSharpPeakEnabled;
   final bool vectorDrawingEnabled;
+  final bool vectorStrokeSmoothingEnabled;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final bool bucketSwallowColorLine;

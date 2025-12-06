@@ -256,6 +256,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
   bool _vectorDrawingEnabled = AppPreferences.defaultVectorDrawingEnabled;
+  bool _vectorStrokeSmoothingEnabled =
+      AppPreferences.defaultVectorStrokeSmoothingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
@@ -1743,6 +1745,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
+    _vectorStrokeSmoothingEnabled = prefs.vectorStrokeSmoothingEnabled;
     _brushShape = prefs.brushShape;
     _colorLineColor = prefs.colorLineColor;
     _primaryColor = prefs.primaryColor;
@@ -1754,14 +1757,20 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();
-    _controller = BitmapCanvasController(
-      width: widget.settings.width.round(),
-      height: widget.settings.height.round(),
-      backgroundColor: widget.settings.backgroundColor,
-      initialLayers: layers,
-      creationLogic: widget.settings.creationLogic,
+      _controller = BitmapCanvasController(
+        width: widget.settings.width.round(),
+        height: widget.settings.height.round(),
+        backgroundColor: widget.settings.backgroundColor,
+        initialLayers: layers,
+        creationLogic: widget.settings.creationLogic,
+      );
+      _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
+      _controller.setVectorStrokeSmoothingEnabled(
+        _vectorStrokeSmoothingEnabled,
+      );
+    _controller.setVectorStrokeSmoothingEnabled(
+      _vectorStrokeSmoothingEnabled,
     );
-    _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
@@ -2147,6 +2156,7 @@ class PaintingBoardState extends _PaintingBoardBase
       bucketAntialiasLevel: _bucketAntialiasLevel,
       autoSharpPeakEnabled: _autoSharpPeakEnabled,
       vectorDrawingEnabled: _vectorDrawingEnabled,
+      vectorStrokeSmoothingEnabled: _vectorStrokeSmoothingEnabled,
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -2198,6 +2208,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
     _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
     _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
+    _updateVectorStrokeSmoothingEnabled(
+      snapshot.vectorStrokeSmoothingEnabled,
+    );
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);

@@ -61,6 +61,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onBrushToolsEraserModeChanged,
     required this.vectorDrawingEnabled,
     required this.onVectorDrawingEnabledChanged,
+    required this.vectorStrokeSmoothingEnabled,
+    required this.onVectorStrokeSmoothingChanged,
     required this.strokeStabilizerMaxLevel,
     required this.textFontSize,
     required this.onTextFontSizeChanged,
@@ -134,6 +136,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onBrushToolsEraserModeChanged;
   final bool vectorDrawingEnabled;
   final ValueChanged<bool> onVectorDrawingEnabledChanged;
+  final bool vectorStrokeSmoothingEnabled;
+  final ValueChanged<bool> onVectorStrokeSmoothingChanged;
   final int strokeStabilizerMaxLevel;
   final bool compactLayout;
   final double textFontSize;
@@ -411,6 +415,16 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           label: '矢量作画',
           value: widget.vectorDrawingEnabled,
           onChanged: widget.onVectorDrawingEnabledChanged,
+        ),
+      );
+      wrapChildren.add(
+        _buildToggleSwitchRow(
+          theme,
+          label: '平滑曲线',
+          value: widget.vectorStrokeSmoothingEnabled,
+          onChanged: widget.vectorDrawingEnabled
+              ? widget.onVectorStrokeSmoothingChanged
+              : null,
         ),
       );
       if (widget.simulatePenPressure) {
@@ -1443,7 +1457,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     FluentThemeData theme, {
     required String label,
     required bool value,
-    required ValueChanged<bool> onChanged,
+    ValueChanged<bool>? onChanged,
   }) {
     return Row(
       mainAxisSize: MainAxisSize.min,

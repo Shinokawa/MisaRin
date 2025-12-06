@@ -310,6 +310,9 @@ mixin _PaintingBoardBuildMixin
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
           vectorDrawingEnabled: _vectorDrawingEnabled,
           onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
+          vectorStrokeSmoothingEnabled: _vectorStrokeSmoothingEnabled,
+          onVectorStrokeSmoothingChanged:
+              _updateVectorStrokeSmoothingEnabled,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
           compactLayout: isSai2Layout,
           textFontSize: _textFontSize,
@@ -933,7 +936,7 @@ mixin _PaintingBoardBuildMixin
     }
     Widget activeLayerWidget = RawImage(
       image: activeImage,
-      filterQuality: FilterQuality.low,
+      filterQuality: FilterQuality.none,
     );
 
     // Apply Filters
@@ -989,10 +992,16 @@ mixin _PaintingBoardBuildMixin
       fit: StackFit.expand,
       children: [
         if (_previewBackground != null)
-          RawImage(image: _previewBackground),
+          RawImage(
+            image: _previewBackground,
+            filterQuality: FilterQuality.none,
+          ),
         activeLayerWidget,
         if (_previewForeground != null)
-          RawImage(image: _previewForeground),
+          RawImage(
+            image: _previewForeground,
+            filterQuality: FilterQuality.none,
+          ),
       ],
     );
   }

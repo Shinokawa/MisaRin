@@ -2069,27 +2069,88 @@ void _filterApplyLeakRemovalToBitmap(
   if (!hasHole) {
     return;
   }
-  List<int> frontier =
-      _filterCollectLeakSeeds(bitmap, width, height, holeMask);
-  if (frontier.isEmpty) {
-    return;
-  }
-  int stepsRemaining = clampedRadius;
-  while (stepsRemaining > 0 && frontier.isNotEmpty) {
-    final List<int> nextFrontier = <int>[];
-    for (final int sourceIndex in frontier) {
-      final int srcOffset = sourceIndex << 2;
-      final int alpha = bitmap[srcOffset + 3];
-      if (alpha == 0) {
+  final int maxComponentExtent = clampedRadius * 2 + 1;
+  final int maxComponentPixels = maxComponentExtent * maxComponentExtent;
+  final ListQueue<int> queue = ListQueue<int>();
+  final List<int> componentPixels = <int>[];
+  final List<int> seeds = <int>[];
+  final Set<int> seedSet = <int>{};
+
+  for (int start = 0; start < pixelCount; start++) {
+    if (holeMask[start] != 1) {
+      continue;
+    }
+    queue.clear();
+    componentPixels.clear();
+    seeds.clear();
+    seedSet.clear();
+    queue.add(start);
+    holeMask[start] = 2;
+    bool touchesOpaque = false;
+    bool componentTooLarge = false;
+    int minX = start % width;
+    int maxX = minX;
+    int minY = start ~/ width;
+    int maxY = minY;
+
+    while (queue.isNotEmpty) {
+      final int index = queue.removeFirst();
+      final int y = index ~/ width;
+      final int x = index - y * width;
+
+      if (componentTooLarge) {
+        holeMask[index] = 0;
+      } else {
+        componentPixels.add(index);
+        if (x < minX) {
+          minX = x;
+        }
+        if (x > maxX) {
+          maxX = x;
+        }
+        if (y < minY) {
+          minY = y;
+        }
+        if (y > maxY) {
+          maxY = y;
+        }
+      }
+
+      if (x > 0) {
+        final int left = index - 1;
+        if (holeMask[left] == 1) {
+          holeMask[left] = 2;
+          queue.add(left);
+        }
+      }
+      if (x + 1 < width) {
+        final int right = index + 1;
+        if (holeMask[right] == 1) {
+          holeMask[right] = 2;
+          queue.add(right);
+        }
+      }
+      if (y > 0) {
+        final int up = index - width;
+        if (holeMask[up] == 1) {
+          holeMask[up] = 2;
+          queue.add(up);
+        }
+      }
+      if (y + 1 < height) {
+        final int down = index + width;
+        if (holeMask[down] == 1) {
+          holeMask[down] = 2;
+          queue.add(down);
+        }
+      }
+
+      if (componentTooLarge) {
         continue;
       }
-      final int r = bitmap[srcOffset];
-      final int g = bitmap[srcOffset + 1];
-      final int b = bitmap[srcOffset + 2];
-      final int sy = sourceIndex ~/ width;
-      final int sx = sourceIndex - sy * width;
+
       for (int dy = -1; dy <= 1; dy++) {
-        final int ny = sy + dy;
+        final int ny = y + dy;
         if (ny < 0 || ny >= height) {
           continue;
         }
@@ -2097,26 +2158,66 @@ void _filterApplyLeakRemovalToBitmap(
           if (dx == 0 && dy == 0) {
             continue;
           }
-          final int nx = sx + dx;
+          final int nx = x + dx;
           if (nx < 0 || nx >= width) {
             continue;
           }
           final int neighborIndex = ny * width + nx;
-          if (holeMask[neighborIndex] != 1) {
+          if (holeMask[neighborIndex] == 2) {
             continue;
           }
-          final int destOffset = neighborIndex << 2;
-          bitmap[destOffset] = r;
-          bitmap[destOffset + 1] = g;
-          bitmap[destOffset + 2] = b;
-          bitmap[destOffset + 3] = alpha;
-          holeMask[neighborIndex] = 0;
-          nextFrontier.add(neighborIndex);
+          final int neighborOffset = neighborIndex << 2;
+          if (bitmap[neighborOffset + 3] == 0) {
+            continue;
+          }
+          touchesOpaque = true;
+          if (seedSet.add(neighborIndex)) {
+            seeds.add(neighborIndex);
+          }
         }
       }
+
+      final int componentWidth = maxX - minX + 1;
+      final int componentHeight = maxY - minY + 1;
+      if (componentPixels.length > maxComponentPixels ||
+          componentWidth > maxComponentExtent ||
+          componentHeight > maxComponentExtent) {
+        componentTooLarge = true;
+        touchesOpaque = false;
+        for (final int visitedIndex in componentPixels) {
+          holeMask[visitedIndex] = 0;
+        }
+        componentPixels.clear();
+        seeds.clear();
+        seedSet.clear();
+      }
     }
-    frontier = nextFrontier;
-    stepsRemaining--;
+
+    if (componentTooLarge) {
+      continue;
+    }
+    if (componentPixels.isEmpty || seeds.isEmpty || !touchesOpaque) {
+      _filterClearLeakComponent(componentPixels, holeMask);
+      continue;
+    }
+    if (!_filterIsLeakComponentWithinRadius(
+      componentPixels,
+      width,
+      height,
+      clampedRadius,
+      holeMask,
+    )) {
+      _filterClearLeakComponent(componentPixels, holeMask);
+      continue;
+    }
+    _filterFillLeakComponent(
+      bitmap: bitmap,
+      width: width,
+      height: height,
+      holeMask: holeMask,
+      seeds: seeds,
+    );
+    _filterClearLeakComponent(componentPixels, holeMask);
   }
 }
 
@@ -2192,23 +2293,147 @@ void _filterMarkLeakBackground(
   }
 }
 
-List<int> _filterCollectLeakSeeds(
-  Uint8List bitmap,
+void _filterClearLeakComponent(
+  List<int> componentPixels,
+  Uint8List holeMask,
+) {
+  for (final int index in componentPixels) {
+    holeMask[index] = 0;
+  }
+}
+
+bool _filterIsLeakComponentWithinRadius(
+  List<int> componentPixels,
+  int width,
+  int height,
+  int maxRadius,
+  Uint8List holeMask,
+) {
+  if (componentPixels.isEmpty || maxRadius <= 0) {
+    return false;
+  }
+  final ListQueue<_LeakDistanceNode> queue = ListQueue<_LeakDistanceNode>();
+  for (final int index in componentPixels) {
+    if (_filterIsLeakBoundaryIndex(index, width, height, holeMask)) {
+      queue.add(_LeakDistanceNode(index, 0));
+      holeMask[index] = 3;
+    }
+  }
+  if (queue.isEmpty) {
+    for (final int index in componentPixels) {
+      if (holeMask[index] == 3) {
+        holeMask[index] = 2;
+      }
+    }
+    return false;
+  }
+  int visitedCount = 0;
+  int maxDistance = 0;
+  while (queue.isNotEmpty) {
+    final _LeakDistanceNode node = queue.removeFirst();
+    visitedCount++;
+    if (node.distance > maxDistance) {
+      maxDistance = node.distance;
+      if (maxDistance > maxRadius) {
+        for (final int index in componentPixels) {
+          if (holeMask[index] == 3) {
+            holeMask[index] = 2;
+          }
+        }
+        return false;
+      }
+    }
+    final int index = node.index;
+    final int y = index ~/ width;
+    final int x = index - y * width;
+    if (x > 0) {
+      final int left = index - 1;
+      if (holeMask[left] == 2) {
+        holeMask[left] = 3;
+        queue.add(_LeakDistanceNode(left, node.distance + 1));
+      }
+    }
+    if (x + 1 < width) {
+      final int right = index + 1;
+      if (holeMask[right] == 2) {
+        holeMask[right] = 3;
+        queue.add(_LeakDistanceNode(right, node.distance + 1));
+      }
+    }
+    if (y > 0) {
+      final int up = index - width;
+      if (holeMask[up] == 2) {
+        holeMask[up] = 3;
+        queue.add(_LeakDistanceNode(up, node.distance + 1));
+      }
+    }
+    if (y + 1 < height) {
+      final int down = index + width;
+      if (holeMask[down] == 2) {
+        holeMask[down] = 3;
+        queue.add(_LeakDistanceNode(down, node.distance + 1));
+      }
+    }
+  }
+  final bool fullyCovered = visitedCount == componentPixels.length;
+  for (final int index in componentPixels) {
+    if (holeMask[index] == 3) {
+      holeMask[index] = 2;
+    }
+  }
+  return fullyCovered;
+}
+
+bool _filterIsLeakBoundaryIndex(
+  int index,
   int width,
   int height,
   Uint8List holeMask,
 ) {
-  final List<int> seeds = <int>[];
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      final int index = y * width + x;
-      final int pixelOffset = index << 2;
-      if (bitmap[pixelOffset + 3] == 0) {
+  final int y = index ~/ width;
+  final int x = index - y * width;
+  if (x == 0 || x == width - 1 || y == 0 || y == height - 1) {
+    return true;
+  }
+  if (holeMask[index - 1] != 2) {
+    return true;
+  }
+  if (holeMask[index + 1] != 2) {
+    return true;
+  }
+  if (holeMask[index - width] != 2) {
+    return true;
+  }
+  if (holeMask[index + width] != 2) {
+    return true;
+  }
+  return false;
+}
+
+void _filterFillLeakComponent({
+  required Uint8List bitmap,
+  required int width,
+  required int height,
+  required Uint8List holeMask,
+  required List<int> seeds,
+}) {
+  if (seeds.isEmpty) {
+    return;
+  }
+  List<int> frontier = List<int>.from(seeds);
+  List<int> nextFrontier = <int>[];
+  while (frontier.isNotEmpty) {
+    nextFrontier.clear();
+    for (final int sourceIndex in frontier) {
+      final int srcOffset = sourceIndex << 2;
+      final int alpha = bitmap[srcOffset + 3];
+      if (alpha == 0) {
         continue;
       }
-      bool touchesHole = false;
-      for (int dy = -1; dy <= 1 && !touchesHole; dy++) {
-        final int ny = y + dy;
+      final int sy = sourceIndex ~/ width;
+      final int sx = sourceIndex - sy * width;
+      for (int dy = -1; dy <= 1; dy++) {
+        final int ny = sy + dy;
         if (ny < 0 || ny >= height) {
           continue;
         }
@@ -2216,23 +2441,35 @@ List<int> _filterCollectLeakSeeds(
           if (dx == 0 && dy == 0) {
             continue;
           }
-          final int nx = x + dx;
+          final int nx = sx + dx;
           if (nx < 0 || nx >= width) {
             continue;
           }
           final int neighborIndex = ny * width + nx;
-          if (holeMask[neighborIndex] == 1) {
-            touchesHole = true;
-            break;
+          if (holeMask[neighborIndex] != 2) {
+            continue;
           }
+          final int destOffset = neighborIndex << 2;
+          bitmap[destOffset] = bitmap[srcOffset];
+          bitmap[destOffset + 1] = bitmap[srcOffset + 1];
+          bitmap[destOffset + 2] = bitmap[srcOffset + 2];
+          bitmap[destOffset + 3] = alpha;
+          holeMask[neighborIndex] = 0;
+          nextFrontier.add(neighborIndex);
         }
       }
-      if (touchesHole) {
-        seeds.add(index);
-      }
     }
+    final List<int> temp = frontier;
+    frontier = nextFrontier;
+    nextFrontier = temp;
   }
-  return seeds;
+}
+
+class _LeakDistanceNode {
+  const _LeakDistanceNode(this.index, this.distance);
+
+  final int index;
+  final int distance;
 }
 
 List<int> _filterComputeBoxSizes(double sigma, int boxCount) {

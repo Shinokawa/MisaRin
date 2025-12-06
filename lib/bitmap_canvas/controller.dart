@@ -105,6 +105,7 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
   bool _vectorDrawingEnabled = true;
+  bool _vectorStrokeSmoothingEnabled = false;
   static const double _kStylusSmoothing = 0.55;
   CanvasPaintingWorker? _paintingWorker;
   _PendingWorkerDrawBatch? _pendingWorkerDrawBatch;
@@ -310,6 +311,7 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   bool get vectorDrawingEnabled => _vectorDrawingEnabled;
+  bool get vectorStrokeSmoothingEnabled => _vectorStrokeSmoothingEnabled;
 
   void runSynchronousRasterization(VoidCallback action) {
     final bool previous = _synchronousRasterOverride;
@@ -329,6 +331,13 @@ class BitmapCanvasController extends ChangeNotifier {
     if (!_vectorDrawingEnabled && _deferredStrokeCommands.isNotEmpty) {
       _commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
     }
+  }
+
+  void setVectorStrokeSmoothingEnabled(bool enabled) {
+    if (_vectorStrokeSmoothingEnabled == enabled) {
+      return;
+    }
+    _vectorStrokeSmoothingEnabled = enabled;
   }
 
   void configureStylusPressure({
