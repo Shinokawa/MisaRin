@@ -417,16 +417,16 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           onChanged: widget.onVectorDrawingEnabledChanged,
         ),
       );
-      wrapChildren.add(
-        _buildToggleSwitchRow(
-          theme,
-          label: '平滑曲线',
-          value: widget.vectorStrokeSmoothingEnabled,
-          onChanged: widget.vectorDrawingEnabled
-              ? widget.onVectorStrokeSmoothingChanged
-              : null,
-        ),
-      );
+      if (widget.vectorDrawingEnabled) {
+        wrapChildren.add(
+          _buildToggleSwitchRow(
+            theme,
+            label: '平滑曲线',
+            value: widget.vectorStrokeSmoothingEnabled,
+            onChanged: widget.onVectorStrokeSmoothingChanged,
+          ),
+        );
+      }
       if (widget.simulatePenPressure) {
         wrapChildren.add(
           SizedBox(
