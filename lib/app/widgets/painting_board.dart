@@ -99,6 +99,7 @@ import '../utils/clipboard_image_reader.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 import '../native/system_fonts.dart';
+import '../tooltips/hover_detail_tooltip.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
@@ -369,10 +370,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
   double _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
 
-  Future<bool> insertImageLayerFromBytes(
-    Uint8List bytes, {
-    String? name,
-  });
+  Future<bool> insertImageLayerFromBytes(Uint8List bytes, {String? name});
 
   bool get _includeHistoryOnToolbar => false;
 
@@ -1757,20 +1755,16 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
     final List<CanvasLayerData> layers = _buildInitialLayers();
-      _controller = BitmapCanvasController(
-        width: widget.settings.width.round(),
-        height: widget.settings.height.round(),
-        backgroundColor: widget.settings.backgroundColor,
-        initialLayers: layers,
-        creationLogic: widget.settings.creationLogic,
-      );
-      _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
-      _controller.setVectorStrokeSmoothingEnabled(
-        _vectorStrokeSmoothingEnabled,
-      );
-    _controller.setVectorStrokeSmoothingEnabled(
-      _vectorStrokeSmoothingEnabled,
+    _controller = BitmapCanvasController(
+      width: widget.settings.width.round(),
+      height: widget.settings.height.round(),
+      backgroundColor: widget.settings.backgroundColor,
+      initialLayers: layers,
+      creationLogic: widget.settings.creationLogic,
     );
+    _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
+    _controller.setVectorStrokeSmoothingEnabled(_vectorStrokeSmoothingEnabled);
+    _controller.setVectorStrokeSmoothingEnabled(_vectorStrokeSmoothingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
@@ -2208,9 +2202,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
     _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
     _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
-    _updateVectorStrokeSmoothingEnabled(
-      snapshot.vectorStrokeSmoothingEnabled,
-    );
+    _updateVectorStrokeSmoothingEnabled(snapshot.vectorStrokeSmoothingEnabled);
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);

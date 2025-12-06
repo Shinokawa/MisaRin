@@ -18,6 +18,7 @@ class HoverDetailTooltip extends StatefulWidget {
     this.style,
     this.displayHorizontally = false,
     this.useMousePosition = true,
+    this.tooltipWaitDuration = Duration.zero,
   });
 
   /// Tooltip 第一行的文字，会立即显示。
@@ -33,6 +34,7 @@ class HoverDetailTooltip extends StatefulWidget {
   final TooltipThemeData? style;
   final bool displayHorizontally;
   final bool useMousePosition;
+  final Duration tooltipWaitDuration;
 
   @override
   State<HoverDetailTooltip> createState() => _HoverDetailTooltipState();
@@ -130,9 +132,12 @@ class _HoverDetailTooltipState extends State<HoverDetailTooltip> {
 
   @override
   Widget build(BuildContext context) {
+    final TooltipThemeData effectiveStyle = TooltipThemeData(
+      waitDuration: widget.tooltipWaitDuration,
+    ).merge(widget.style);
     return Tooltip(
       richMessage: _buildRichMessage(context),
-      style: widget.style,
+      style: effectiveStyle,
       displayHorizontally: widget.displayHorizontally,
       useMousePosition: widget.useMousePosition,
       child: MouseRegion(

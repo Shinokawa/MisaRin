@@ -533,8 +533,9 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
         : const Color(0xFFD6D6D6);
     final Color background = isDark ? const Color(0xFF1B1B1F) : Colors.white;
     return AppNotificationAnchor(
-      child: Tooltip(
+      child: HoverDetailTooltip(
         message: '当前颜色 ${_hexStringForColor(_primaryColor)}',
+        detail: '点击打开颜色编辑器，可输入数值或复制 HEX 色值',
         child: _ColorIndicatorButton(
           color: _primaryColor,
           borderColor: borderColor,
@@ -877,9 +878,7 @@ class _ColorHexPreview extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.resources.subtleFillColorSecondary,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: theme.resources.controlStrokeColorDefault,
-        ),
+        border: Border.all(color: theme.resources.controlStrokeColorDefault),
       ),
       child: Row(
         children: [
@@ -896,9 +895,7 @@ class _ColorHexPreview extends StatelessWidget {
               ),
             ),
             clipBehavior: Clip.antiAlias,
-            child: DecoratedBox(
-              decoration: BoxDecoration(color: color),
-            ),
+            child: DecoratedBox(decoration: BoxDecoration(color: color)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -980,12 +977,7 @@ class _FluentColorPickerHost extends StatelessWidget {
   }
 }
 
-enum _ColorAdjustMode {
-  fluentBox,
-  fluentRing,
-  numericSliders,
-  boardPanel,
-}
+enum _ColorAdjustMode { fluentBox, fluentRing, numericSliders, boardPanel }
 
 extension _ColorAdjustModeLabel on _ColorAdjustMode {
   String get label {
@@ -1180,8 +1172,9 @@ class _BoardPanelColorPickerState extends State<_BoardPanelColorPicker> {
               squareSize = availableWidth;
               sliderWidth = 0;
             }
-            final double colorHeight =
-                squareSize > 0 ? squareSize : availableWidth;
+            final double colorHeight = squareSize > 0
+                ? squareSize
+                : availableWidth;
 
             return ConstrainedBox(
               constraints: BoxConstraints(minHeight: colorHeight),
@@ -1257,10 +1250,7 @@ class _BoardPanelColorPickerState extends State<_BoardPanelColorPicker> {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [
-                            Color(0x00FFFFFF),
-                            Color(0xFF000000),
-                          ],
+                          colors: [Color(0x00FFFFFF), Color(0xFF000000)],
                         ),
                       ),
                     ),
@@ -1289,8 +1279,7 @@ class _BoardPanelColorPickerState extends State<_BoardPanelColorPicker> {
       Color(0xFFFF00FF),
       Color(0xFFFF0000),
     ];
-    final double handleY =
-        (_currentHsv.hue.clamp(0.0, 360.0) / 360.0) * height;
+    final double handleY = (_currentHsv.hue.clamp(0.0, 360.0) / 360.0) * height;
     return GestureDetector(
       onPanDown: (details) => _updateHue(details.localPosition.dy, height),
       onPanUpdate: (details) => _updateHue(details.localPosition.dy, height),
