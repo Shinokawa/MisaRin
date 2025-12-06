@@ -14,7 +14,7 @@ class HoverDetailTooltip extends StatefulWidget {
     required this.message,
     required this.child,
     this.detail,
-    this.detailDelay = const Duration(seconds: 3),
+    this.detailDelay = const Duration(milliseconds: 500),
     this.style,
     this.displayHorizontally = false,
     this.useMousePosition = true,
