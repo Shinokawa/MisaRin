@@ -8,6 +8,7 @@ import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../../preferences/app_preferences.dart' show PenStrokeSliderRange;
 import '../../constants/pen_constants.dart'
     show kSprayStrokeMin, kSprayStrokeMax;
+import '../../tooltips/hover_detail_tooltip.dart';
 import 'measured_size.dart';
 import 'selection_shape_icon.dart';
 
@@ -571,10 +572,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       '系统默认',
       ...widget.availableFontFamilies,
     ];
-    final bool fontAvailable = widget.textFontFamily.isNotEmpty &&
+    final bool fontAvailable =
+        widget.textFontFamily.isNotEmpty &&
         widget.availableFontFamilies.contains(widget.textFontFamily);
-    final String selectedFont =
-        fontAvailable ? widget.textFontFamily : '系统默认';
+    final String selectedFont = fontAvailable ? widget.textFontFamily : '系统默认';
     final List<Widget> children = <Widget>[
       _buildFontSelectorRow(
         theme,
@@ -673,9 +674,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         if (value == null) {
           return;
         }
-        widget.onTextFontFamilyChanged(
-          value == '系统默认' ? '' : value,
-        );
+        widget.onTextFontFamilyChanged(value == '系统默认' ? '' : value);
       },
     );
 
@@ -693,10 +692,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           Text('字体', style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
           SizedBox(width: 220, child: comboBox),
-          if (isLoading) ...[
-            const SizedBox(width: 8),
-            loadingIndicator,
-          ],
+          if (isLoading) ...[const SizedBox(width: 8), loadingIndicator],
         ],
       );
     }
@@ -709,10 +705,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         Row(
           children: [
             Expanded(child: comboBox),
-            if (isLoading) ...[
-              const SizedBox(width: 8),
-              loadingIndicator,
-            ],
+            if (isLoading) ...[const SizedBox(width: 8), loadingIndicator],
           ],
         ),
       ],
@@ -721,30 +714,35 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
   Widget _buildTextStrokeColorRow(FluentThemeData theme) {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Widget colorButton = _wrapButtonTooltip(
+      label: '描边颜色',
+      detail: '打开颜色选择器以调整文字描边颜色',
+      child: Button(
+        onPressed: widget.onTextStrokeColorPressed,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                color: widget.textStrokeColor,
+                border: Border.all(color: borderColor),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('选择颜色'),
+          ],
+        ),
+      ),
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('描边颜色', style: theme.typography.bodyStrong),
         const SizedBox(width: 12),
-        Button(
-          onPressed: widget.onTextStrokeColorPressed,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4),
-                  color: widget.textStrokeColor,
-                  border: Border.all(color: borderColor),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text('选择颜色'),
-            ],
-          ),
-        ),
+        colorButton,
       ],
     );
   }
@@ -757,27 +755,37 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     ];
     final Wrap alignSelector = Wrap(
       spacing: 8,
-      children: alignments.map((alignment) {
-        final bool selected = widget.textAlign == alignment;
-        final IconData icon;
-        switch (alignment) {
-          case TextAlign.center:
-            icon = FluentIcons.align_center;
-            break;
-          case TextAlign.right:
-            icon = FluentIcons.align_right;
-            break;
-          case TextAlign.left:
-          default:
-            icon = FluentIcons.align_left;
-            break;
-        }
-        return ToggleButton(
-          checked: selected,
-          onChanged: (_) => widget.onTextAlignChanged(alignment),
-          child: Icon(icon),
-        );
-      }).toList(growable: false),
+      children: alignments
+          .map((alignment) {
+            final bool selected = widget.textAlign == alignment;
+            final IconData icon;
+            final String optionLabel;
+            switch (alignment) {
+              case TextAlign.center:
+                icon = FluentIcons.align_center;
+                optionLabel = '居中';
+                break;
+              case TextAlign.right:
+                icon = FluentIcons.align_right;
+                optionLabel = '右对齐';
+                break;
+              case TextAlign.left:
+              default:
+                icon = FluentIcons.align_left;
+                optionLabel = '左对齐';
+                break;
+            }
+            return _wrapButtonTooltip(
+              label: '对齐方式：$optionLabel',
+              detail: '切换文字对齐方式',
+              child: ToggleButton(
+                checked: selected,
+                onChanged: (_) => widget.onTextAlignChanged(alignment),
+                child: Icon(icon),
+              ),
+            );
+          })
+          .toList(growable: false),
     );
     if (!widget.compactLayout) {
       return Row(
@@ -803,16 +811,23 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   Widget _buildTextOrientationRow(FluentThemeData theme) {
     final Wrap orientationSelector = Wrap(
       spacing: 8,
-      children: CanvasTextOrientation.values.map((orientation) {
-        final bool selected = widget.textOrientation == orientation;
-        final String label =
-            orientation == CanvasTextOrientation.horizontal ? '横排' : '竖排';
-        return ToggleButton(
-          checked: selected,
-          onChanged: (_) => widget.onTextOrientationChanged(orientation),
-          child: Text(label),
-        );
-      }).toList(growable: false),
+      children: CanvasTextOrientation.values
+          .map((orientation) {
+            final bool selected = widget.textOrientation == orientation;
+            final String label = orientation == CanvasTextOrientation.horizontal
+                ? '横排'
+                : '竖排';
+            return _wrapButtonTooltip(
+              label: '文字方向：$label',
+              detail: '切换文字排版方向',
+              child: ToggleButton(
+                checked: selected,
+                onChanged: (_) => widget.onTextOrientationChanged(orientation),
+                child: Text(label),
+              ),
+            );
+          })
+          .toList(growable: false),
     );
     if (!widget.compactLayout) {
       return Row(
@@ -864,9 +879,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         if (i + 1 < units.length && _isLowSurrogate(units[i + 1])) {
           final int high = unit;
           final int low = units[++i];
-          final int codePoint = 0x10000 +
-              ((high - 0xD800) << 10) +
-              (low - 0xDC00);
+          final int codePoint =
+              0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
           buffer.writeCharCode(codePoint);
         } else {
           buffer.writeCharCode(0xFFFD);
@@ -891,8 +905,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required ValueChanged<double> onChanged,
     String Function(double)? formatter,
   }) {
-    final String display =
-        formatter == null ? value.toStringAsFixed(1) : formatter(value);
+    final String display = formatter == null
+        ? value.toStringAsFixed(1)
+        : formatter(value);
     final Slider slider = Slider(
       min: min,
       max: max,
@@ -900,13 +915,18 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       onChanged: onChanged,
     );
     if (!widget.compactLayout) {
+      final Widget sliderControl = _wrapSliderTooltip(
+        label: label,
+        valueText: display,
+        child: SizedBox(width: _defaultSliderWidth, child: slider),
+      );
       return Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text('$label：$display', style: theme.typography.body),
           const SizedBox(width: 8),
-          SizedBox(width: _defaultSliderWidth, child: slider),
+          sliderControl,
         ],
       );
     }
@@ -915,7 +935,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       children: [
         Text('$label：$display', style: theme.typography.body),
         const SizedBox(height: 4),
-        slider,
+        _wrapSliderTooltip(label: label, valueText: display, child: slider),
       ],
     );
   }
@@ -1026,8 +1046,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         ? accent
         : theme.typography.body?.color ?? theme.resources.textFillColorPrimary;
 
-    return Tooltip(
-      message: tooltip,
+    return _wrapButtonTooltip(
+      label: tooltip,
       child: Button(
         onPressed: onPressed,
         style: ButtonStyle(
@@ -1081,8 +1101,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
         );
 
-    return Tooltip(
-      message: _brushShapeLabel(shape),
+    return _wrapButtonTooltip(
+      label: _brushShapeLabel(shape),
       child: Button(
         onPressed: () => widget.onBrushShapeChanged(shape),
         style: ButtonStyle(
@@ -1151,13 +1171,18 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       onChanged: (raw) => onChanged(raw.round()),
     );
     if (!widget.compactLayout) {
+      final Widget sliderControl = _wrapSliderTooltip(
+        label: label,
+        valueText: '$value',
+        child: SizedBox(width: _defaultSliderWidth, child: slider),
+      );
       return Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(label, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          SizedBox(width: _defaultSliderWidth, child: slider),
+          sliderControl,
           const SizedBox(width: 8),
           SizedBox(
             width: 44,
@@ -1319,13 +1344,18 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     }
 
     if (!widget.compactLayout) {
+      final Widget sliderControl = _wrapSliderTooltip(
+        label: labelText,
+        valueText: '$brushLabel px',
+        child: SizedBox(width: _defaultSliderWidth, child: slider),
+      );
       return Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(labelText, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          SizedBox(width: _defaultSliderWidth, child: slider),
+          sliderControl,
           const SizedBox(width: 8),
           buildStandardAdjustRow(),
         ],
@@ -1377,12 +1407,17 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       onChanged: (raw) => onChanged(raw.round()),
     );
     if (!widget.compactLayout) {
+      final Widget sliderControl = _wrapSliderTooltip(
+        label: '抗锯齿',
+        valueText: '等级 $value',
+        child: SizedBox(width: _defaultSliderWidth, child: slider),
+      );
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('抗锯齿', style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          SizedBox(width: _defaultSliderWidth, child: slider),
+          sliderControl,
           const SizedBox(width: 8),
           SizedBox(
             width: 64,
@@ -1426,12 +1461,17 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       ),
     );
     if (!widget.compactLayout) {
+      final Widget sliderControl = _wrapSliderTooltip(
+        label: '手抖修正',
+        valueText: label,
+        child: SizedBox(width: _defaultSliderWidth, child: slider),
+      );
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('手抖修正', style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          SizedBox(width: _defaultSliderWidth, child: slider),
+          sliderControl,
           const SizedBox(width: 8),
           SizedBox(
             width: 56,
@@ -1459,12 +1499,16 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required bool value,
     ValueChanged<bool>? onChanged,
   }) {
+    final Widget toggle = _wrapToggleTooltip(
+      label: label,
+      child: ToggleSwitch(checked: value, onChanged: onChanged),
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label, style: theme.typography.bodyStrong),
         const SizedBox(width: 8),
-        ToggleSwitch(checked: value, onChanged: onChanged),
+        toggle,
       ],
     );
   }
@@ -1501,15 +1545,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         return SizedBox(width: constraints.maxWidth, child: slider);
       },
     );
-    if (widget.compactLayout && tooltipText != null) {
-      sliderWidget = Tooltip(
-        message: tooltipText,
-        style: const TooltipThemeData(waitDuration: Duration.zero),
-        useMousePosition: true,
-        displayHorizontally: true,
-        child: sliderWidget,
-      );
-    }
+    sliderWidget = _wrapSliderTooltip(
+      label: label,
+      valueText: valueText,
+      child: sliderWidget,
+      messageOverride: tooltipText,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1524,6 +1565,60 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         const SizedBox(height: 8),
         sliderWidget,
       ],
+    );
+  }
+
+  Widget _wrapSliderTooltip({
+    required String label,
+    required String valueText,
+    required Widget child,
+    String? detail,
+    String? messageOverride,
+  }) {
+    final String message = messageOverride ?? '$label：$valueText';
+    final String resolvedDetail =
+        detail ?? _sliderDetails[label] ?? '调整$label 以获得更合适的效果';
+    return HoverDetailTooltip(
+      message: message,
+      detail: resolvedDetail,
+      child: child,
+    );
+  }
+
+  Widget _wrapButtonTooltip({
+    required String label,
+    required Widget child,
+    String? detail,
+  }) {
+    final String resolvedDetail =
+        detail ?? _buttonDetails[label] ?? '点击切换或应用$label';
+    return HoverDetailTooltip(
+      message: label,
+      detail: resolvedDetail,
+      child: child,
+    );
+  }
+
+  Widget _wrapToggleTooltip({required String label, required Widget child}) {
+    final String detail = _toggleDetails[label] ?? '点击开启或关闭$label';
+    return HoverDetailTooltip(
+      message: label,
+      detail: detail,
+      child: child,
+    );
+  }
+
+  Widget _wrapComboTooltip({
+    required String label,
+    required Widget child,
+    String? detail,
+  }) {
+    final String resolvedDetail =
+        detail ?? _comboDetails[label] ?? '点击展开并选择$label';
+    return HoverDetailTooltip(
+      message: label,
+      detail: resolvedDetail,
+      child: child,
     );
   }
 
@@ -1549,9 +1644,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required List<ComboBoxItem<T>> items,
     required ValueChanged<T?> onChanged,
   }) {
-    final Widget combo = SizedBox(
-      width: widget.compactLayout ? double.infinity : width,
-      child: ComboBox<T>(value: value, items: items, onChanged: onChanged),
+    final Widget combo = _wrapComboTooltip(
+      label: label,
+      child: SizedBox(
+        width: widget.compactLayout ? double.infinity : width,
+        child: ComboBox<T>(value: value, items: items, onChanged: onChanged),
+      ),
     );
     if (!widget.compactLayout) {
       return Row(
@@ -1648,12 +1746,20 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required IconData icon,
     required int delta,
   }) {
+    final String action = delta > 0 ? '增大' : '减小';
+    final int amount = delta.abs();
+    final String label = '笔刷微调';
+    final String detail = '$action笔刷大小 ${amount}px';
     return SizedBox(
       width: 28,
       height: 28,
-      child: IconButton(
-        icon: Icon(icon, size: 14),
-        onPressed: () => _adjustBrushSizeBy(delta),
+      child: HoverDetailTooltip(
+        message: '$label（$action）',
+        detail: detail,
+        child: IconButton(
+          icon: Icon(icon, size: 14),
+          onPressed: () => _adjustBrushSizeBy(delta),
+        ),
       ),
     );
   }
@@ -1701,6 +1807,8 @@ class _BucketOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final String detail =
+        _toggleDetails[title] ?? '点击开启或关闭$title';
     return Row(
       mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1722,7 +1830,11 @@ class _BucketOptionTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         const SizedBox(width: 8),
-        ToggleSwitch(checked: value, onChanged: onChanged),
+        HoverDetailTooltip(
+          message: title,
+          detail: detail,
+          child: ToggleSwitch(checked: value, onChanged: onChanged),
+        ),
       ],
     );
   }
@@ -1773,3 +1885,47 @@ IconData _brushShapeIcon(BrushShape shape) {
       return FluentIcons.square_shape;
   }
 }
+
+const Map<String, String> _sliderDetails = <String, String>{
+  '笔刷大小': '设置当前笔刷的像素直径，数值越大线条越粗，越小越适合描画细节。',
+  '喷枪大小': '决定喷枪喷洒区域的半径，半径大时覆盖面更广但颗粒更分散。',
+  '容差': '控制油漆桶或魔棒判断"颜色足够相似"的阈值，容差高会一次抓取更多相近颜色。',
+  '抗锯齿': '为笔刷或填色的边缘增加多重采样平滑，等级越高边缘越柔和，0 级保持像素风格。',
+  '手抖修正': '实时平滑指针轨迹来抵消手抖，等级越高线条越稳但响应会稍慢。',
+  '字号': '调整文字的像素高度，用于整体放大或缩小当前文本。',
+  '行距': '控制多行文字之间的垂直距离，便于营造疏朗或紧凑的段落。',
+  '文字间距': '改变字符之间的水平间隔，可实现紧凑压缩或加宽排版。',
+  '描边宽度': '设置文字描边的粗细，用来强调字形或营造漫画嵌字效果。',
+};
+
+const Map<String, String> _toggleDetails = <String, String>{
+  '实心': '决定形状工具是绘制填充色块还是空心轮廓，开启后直接生成实心图形。',
+  '自动尖锐出入峰': '为笔刷起笔与收笔自动收尖，营造赛璐璐式的利落线条。',
+  '数位笔笔压': '让数位笔的压力实时影响笔刷粗细或透明度，关闭后忽略硬件笔压。',
+  '模拟笔压': '在没有压感设备时根据鼠标速度模拟笔压变化，开启后也能画出有粗细变化的线条。',
+  '转换为擦除': '把当前笔刷/喷枪切换为带同样纹理的橡皮擦，方便精确擦除。',
+  '矢量作画': '以矢量曲线实时预览笔触，获得 120Hz 丝滑反馈并可无损缩放，关闭则直接落笔成像素。',
+  '平滑曲线': '矢量作画开启时进一步平滑曲线节点，减少拐角但会牺牲一点跟手性。',
+  '跨图层': '油漆桶采样所有可见图层的颜色，适合参考线稿填色；关闭只检测当前图层。',
+  '连续': '仅在相邻像素间扩散，防止填充穿过未闭合的边界；关闭后会匹配整幅画布。',
+  '吞并色线': '色块填充时自动吞并指定色线，消除描线与色块之间的白边，是 Retas 色线流程专用。',
+  '裁剪出界画面': '调整图层时把超过画布的像素裁掉，保持文档边缘干净；关闭可保留全部像素。',
+  '抗锯齿': '为文字绘制过程启用抗锯齿，让字形更平滑；关闭可保留像素感。',
+  '文字描边': '为文字轮廓开启描边通道，配合描边宽度与颜色突出文字。',
+};
+
+const Map<String, String> _comboDetails = <String, String>{
+  '喷枪效果': '切换喷枪的散布模型："柔和喷枪"呈现雾状渐变，"喷溅"会喷出颗粒噪点，依据素材质感选择。',
+};
+
+const Map<String, String> _buttonDetails = <String, String>{
+  '矩形选区': '使用矩形框快速圈选规则区域。',
+  '圆形选区': '创建圆形或椭圆选区，适合柔和的局部限制。',
+  '多边形套索': '逐点连线绘制任意多边形选区，适合复杂形状。',
+  '矩形': '形状工具绘制水平矩形或正方形框/填充。',
+  '椭圆': '绘制椭圆或圆形轮廓与填充。',
+  '三角形': '绘制三角形几何或使用带尖角的三角形笔尖，获得锋利的轮廓。',
+  '直线': '从起点到终点绘制直线段，适合构造硬质结构。',
+  '圆形': '笔尖保持圆形，适合顺滑、柔和的笔触。',
+  '正方形': '使用方形笔尖绘制硬边像素风笔触。',
+};
