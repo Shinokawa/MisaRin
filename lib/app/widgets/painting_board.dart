@@ -244,6 +244,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isDirty = false;
   bool _isScalingGesture = false;
   bool _pixelGridVisible = false;
+  bool _viewBlackWhiteOverlay = false;
+  bool _viewMirrorOverlay = false;
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   double _sprayStrokeWidth = _defaultSprayStrokeWidth;
@@ -1691,6 +1693,44 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _viewport.setOffset(Offset.zero);
     _viewportInitialized = true;
   }
+
+  bool get isPixelGridVisible => _pixelGridVisible;
+  bool get isViewBlackWhiteEnabled => _viewBlackWhiteOverlay;
+  bool get isViewMirrorEnabled => _viewMirrorOverlay;
+
+  bool get isBoardReady => _controller.frame != null;
+
+  void _handlePixelGridPreferenceChanged() {
+    if (!mounted) {
+      return;
+    }
+    final bool visible = AppPreferences.pixelGridVisibleNotifier.value;
+    if (visible == _pixelGridVisible) {
+      return;
+    }
+    setState(() {
+      _pixelGridVisible = visible;
+    });
+  }
+
+  void togglePixelGridVisibility() {
+    final AppPreferences prefs = AppPreferences.instance;
+    final bool nextVisible = !prefs.pixelGridVisible;
+    prefs.updatePixelGridVisible(nextVisible);
+    unawaited(AppPreferences.save());
+  }
+
+  void toggleViewBlackWhiteOverlay() {
+    setState(() {
+      _viewBlackWhiteOverlay = !_viewBlackWhiteOverlay;
+    });
+  }
+
+  void toggleViewMirrorOverlay() {
+    setState(() {
+      _viewMirrorOverlay = !_viewMirrorOverlay;
+    });
+  }
 }
 
 class PaintingBoardState extends _PaintingBoardBase
@@ -1873,30 +1913,6 @@ class PaintingBoardState extends _PaintingBoardBase
     return result;
   }
 
-  bool get isPixelGridVisible => _pixelGridVisible;
-
-  bool get isBoardReady => _controller.frame != null;
-
-  void _handlePixelGridPreferenceChanged() {
-    if (!mounted) {
-      return;
-    }
-    final bool visible = AppPreferences.pixelGridVisibleNotifier.value;
-    if (visible == _pixelGridVisible) {
-      return;
-    }
-    setState(() {
-      _pixelGridVisible = visible;
-    });
-  }
-
-  void togglePixelGridVisibility() {
-    final AppPreferences prefs = AppPreferences.instance;
-    final bool nextVisible = !prefs.pixelGridVisible;
-    prefs.updatePixelGridVisible(nextVisible);
-    unawaited(AppPreferences.save());
-  }
-
   void mergeActiveLayerDown() {
     final String? activeLayerId = _activeLayerId;
     if (activeLayerId == null) {
@@ -1941,8 +1957,9 @@ class PaintingBoardState extends _PaintingBoardBase
       return;
     }
     final CanvasLayerData data = snapshot[index];
-    Uint8List? bitmap =
-        data.bitmap != null ? Uint8List.fromList(data.bitmap!) : null;
+    Uint8List? bitmap = data.bitmap != null
+        ? Uint8List.fromList(data.bitmap!)
+        : null;
     Color? fillColor = data.fillColor;
     if (bitmap == null && fillColor == null) {
       _showBinarizeMessage('当前图层为空，无法二值化。');

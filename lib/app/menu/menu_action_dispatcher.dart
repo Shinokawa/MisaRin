@@ -70,6 +70,10 @@ class MenuActionHandler {
     this.resetWorkspaceLayout,
     this.togglePixelGrid,
     this.pixelGridVisible = false,
+    this.toggleViewBlackWhite,
+    this.viewBlackWhiteEnabled = false,
+    this.toggleViewMirror,
+    this.viewMirrorEnabled = false,
   });
 
   const MenuActionHandler.empty()
@@ -122,7 +126,11 @@ class MenuActionHandler {
       switchWorkspaceLayout = null,
       resetWorkspaceLayout = null,
       togglePixelGrid = null,
-      pixelGridVisible = false;
+      pixelGridVisible = false,
+      toggleViewBlackWhite = null,
+      viewBlackWhiteEnabled = false,
+      toggleViewMirror = null,
+      viewMirrorEnabled = false;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -174,6 +182,10 @@ class MenuActionHandler {
   final MenuAsyncAction? resetWorkspaceLayout;
   final MenuAsyncAction? togglePixelGrid;
   final bool pixelGridVisible;
+  final MenuAsyncAction? toggleViewBlackWhite;
+  final bool viewBlackWhiteEnabled;
+  final MenuAsyncAction? toggleViewMirror;
+  final bool viewMirrorEnabled;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

@@ -16,6 +16,12 @@ mixin _PaintingBoardBuildMixin
     _refreshHistoryLimit();
     final bool canUndo = this.canUndo || widget.externalCanUndo;
     final bool canRedo = this.canRedo || widget.externalCanRedo;
+
+    // Shortcuts callbacks below rely on base toggles; provide local wrappers to
+    // keep the mixin type happy.
+    void toggleViewBlackWhiteOverlay() => super.toggleViewBlackWhiteOverlay();
+    void togglePixelGridVisibility() => super.togglePixelGridVisibility();
+    void toggleViewMirrorOverlay() => super.toggleViewMirrorOverlay();
     final Map<LogicalKeySet, Intent> shortcutBindings = _isTextEditingActive
         ? <LogicalKeySet, Intent>{}
         : {
@@ -113,6 +119,18 @@ mixin _PaintingBoardBuildMixin
               ToolbarAction.importReferenceImage,
             ).shortcuts)
               key: const ImportReferenceImageIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.viewBlackWhiteOverlay,
+            ).shortcuts)
+              key: const ToggleViewBlackWhiteIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.togglePixelGrid,
+            ).shortcuts)
+              key: const TogglePixelGridIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.viewMirrorOverlay,
+            ).shortcuts)
+              key: const ToggleViewMirrorIntent(),
             LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyX):
                 const CutIntent(),
             LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyX):
@@ -464,6 +482,25 @@ mixin _PaintingBoardBuildMixin
                   return null;
                 },
               ),
+              ToggleViewBlackWhiteIntent:
+                  CallbackAction<ToggleViewBlackWhiteIntent>(
+                    onInvoke: (intent) {
+                      toggleViewBlackWhiteOverlay();
+                      return null;
+                    },
+                  ),
+              TogglePixelGridIntent: CallbackAction<TogglePixelGridIntent>(
+                onInvoke: (intent) {
+                  togglePixelGridVisibility();
+                  return null;
+                },
+              ),
+              ToggleViewMirrorIntent: CallbackAction<ToggleViewMirrorIntent>(
+                onInvoke: (intent) {
+                  toggleViewMirrorOverlay();
+                  return null;
+                },
+              ),
               ResizeImageIntent: CallbackAction<ResizeImageIntent>(
                 onInvoke: (intent) {
                   widget.onResizeImage?.call();
@@ -651,7 +688,7 @@ mixin _PaintingBoardBuildMixin
                                             pendingFillOverlayColor =
                                                 shapeVectorFillOverlayColor;
 
-                                            return Stack(
+                                            Widget content = Stack(
                                               fit: StackFit.expand,
                                               children: [
                                                 const _CheckboardBackground(),
@@ -804,6 +841,23 @@ mixin _PaintingBoardBuildMixin
                                                   ),
                                               ],
                                             );
+                                            if (_viewMirrorOverlay) {
+                                              content = Transform(
+                                                transform:
+                                                    _kViewMirrorTransform,
+                                                alignment: Alignment.center,
+                                                transformHitTests: false,
+                                                child: content,
+                                              );
+                                            }
+                                            if (_viewBlackWhiteOverlay) {
+                                              content = ColorFiltered(
+                                                colorFilter:
+                                                    _kViewBlackWhiteColorFilter,
+                                                child: content,
+                                              );
+                                            }
+                                            return content;
                                           },
                                         ),
                                       ),

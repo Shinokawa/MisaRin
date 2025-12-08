@@ -1521,6 +1521,24 @@ class CanvasPageState extends State<CanvasPage> {
         setState(() {});
       },
       pixelGridVisible: _activeBoard?.isPixelGridVisible ?? false,
+      toggleViewBlackWhite: () {
+        final board = _activeBoard;
+        if (board == null) {
+          return;
+        }
+        board.toggleViewBlackWhiteOverlay();
+        setState(() {});
+      },
+      viewBlackWhiteEnabled: _activeBoard?.isViewBlackWhiteEnabled ?? false,
+      toggleViewMirror: () {
+        final board = _activeBoard;
+        if (board == null) {
+          return;
+        }
+        board.toggleViewMirrorOverlay();
+        setState(() {});
+      },
+      viewMirrorEnabled: _activeBoard?.isViewMirrorEnabled ?? false,
       rotateCanvas90Clockwise: () {
         _applyCanvasRotation(CanvasRotation.clockwise90);
       },

@@ -7,6 +7,29 @@ const double _kAntialiasPanelMinHeight = 140;
 const double _kGaussianBlurMaxRadius = 1000.0;
 const double _kLeakRemovalMaxRadius = 20.0;
 const double _kBlackWhiteMinRange = 1.0;
+const ColorFilter _kViewBlackWhiteColorFilter = ColorFilter.matrix(<double>[
+  0.299,
+  0.587,
+  0.114,
+  0,
+  0,
+  0.299,
+  0.587,
+  0.114,
+  0,
+  0,
+  0.299,
+  0.587,
+  0.114,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+]);
+final Matrix4 _kViewMirrorTransform = Matrix4.diagonal3Values(-1, 1, 1);
 
 enum _FilterPanelType {
   hueSaturation,

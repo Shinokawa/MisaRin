@@ -471,6 +471,33 @@ class MenuDefinitionBuilder {
           label: handler.pixelGridVisible ? '隐藏网格' : '显示网格',
           action: handler.togglePixelGrid,
           checked: handler.pixelGridVisible,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyQ),
+        ),
+      );
+    }
+    if (handler.toggleViewBlackWhite != null) {
+      if (entries.isNotEmpty) {
+        entries.add(const MenuSeparatorEntry());
+      }
+      entries.add(
+        MenuActionEntry(
+          label: handler.viewBlackWhiteEnabled ? '取消黑白' : '黑白',
+          action: handler.toggleViewBlackWhite,
+          checked: handler.viewBlackWhiteEnabled,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyK),
+        ),
+      );
+    }
+    if (handler.toggleViewMirror != null) {
+      if (entries.isNotEmpty) {
+        entries.add(const MenuSeparatorEntry());
+      }
+      entries.add(
+        MenuActionEntry(
+          label: handler.viewMirrorEnabled ? '取消镜像' : '镜像预览',
+          action: handler.toggleViewMirror,
+          checked: handler.viewMirrorEnabled,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyF),
         ),
       );
     }

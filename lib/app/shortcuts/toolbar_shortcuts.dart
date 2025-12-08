@@ -27,6 +27,9 @@ enum ToolbarAction {
   layerAntialiasPanel,
   deselect,
   importReferenceImage,
+  viewBlackWhiteOverlay,
+  togglePixelGrid,
+  viewMirrorOverlay,
 }
 
 class ShortcutInfo {
@@ -255,6 +258,18 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+Alt+R',
       macLabel: 'Command+Option+R',
+    ),
+    ToolbarAction.viewBlackWhiteOverlay: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyK)],
+      primaryLabel: 'K',
+    ),
+    ToolbarAction.togglePixelGrid: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyQ)],
+      primaryLabel: 'Q',
+    ),
+    ToolbarAction.viewMirrorOverlay: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyF)],
+      primaryLabel: 'F',
     ),
   };
 
