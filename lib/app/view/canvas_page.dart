@@ -755,7 +755,6 @@ class CanvasPageState extends State<CanvasPage> {
     final CanvasExportOptions? options = await showCanvasExportDialog(
       context: context,
       settings: _document.settings,
-      onApplyAntialias: board.applyLayerAntialiasLevel,
     );
     if (options == null) {
       return false;
@@ -793,6 +792,8 @@ class CanvasPageState extends State<CanvasPage> {
       final Uint8List bytes = await _exporter.exportToPng(
         settings: _document.settings,
         layers: layers,
+        applyEdgeSoftening: options.edgeSofteningEnabled,
+        edgeSofteningLevel: options.edgeSofteningLevel,
         outputSize: ui.Size(
           options.width.toDouble(),
           options.height.toDouble(),

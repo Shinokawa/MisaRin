@@ -930,7 +930,7 @@ mixin _PaintingBoardFilterMixin
     }
     final bool applied = await applyLayerAntialiasLevel(_antialiasCardLevel);
     if (!applied) {
-      _showFilterMessage('无法对当前图层应用抗锯齿，图层可能为空或已锁定。');
+      _showFilterMessage('无法对当前图层应用边缘柔化，图层可能为空或已锁定。');
       return;
     }
     setState(() {
@@ -986,7 +986,7 @@ mixin _PaintingBoardFilterMixin
       return false;
     }
     if (layer.locked) {
-      _showFilterMessage('当前图层已锁定，无法应用抗锯齿。');
+      _showFilterMessage('当前图层已锁定，无法应用边缘柔化。');
       return false;
     }
     return true;
@@ -1291,7 +1291,12 @@ class _AntialiasPanelBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('选择抗锯齿级别', style: theme.typography.bodyStrong),
+        Text('选择边缘柔化级别', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        Text(
+          '在平滑边缘的同时保留线条密度，呈现接近 Retas 的细腻质感。',
+          style: theme.typography.caption,
+        ),
         const SizedBox(height: 12),
         Slider(
           value: safeLevel.toDouble(),

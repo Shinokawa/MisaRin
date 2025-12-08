@@ -1052,7 +1052,7 @@ mixin _PaintingBoardBuildMixin
         child: WorkspaceFloatingPanel(
           width: _kAntialiasPanelWidth,
           minHeight: _kAntialiasPanelMinHeight,
-          title: '抗锯齿',
+          title: '边缘柔化',
           onClose: hideLayerAntialiasPanel,
           onDragUpdate: _updateAntialiasCardOffset,
           bodyPadding: const EdgeInsets.symmetric(horizontal: 16),

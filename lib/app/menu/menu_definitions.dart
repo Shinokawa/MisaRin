@@ -515,7 +515,7 @@ class MenuDefinitionBuilder {
     final List<MenuEntry> entries = <MenuEntry>[
       if (handler.showLayerAntialiasPanel != null)
         MenuActionEntry(
-          label: '抗锯齿…',
+          label: '边缘柔化…',
           action: handler.showLayerAntialiasPanel,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyA,

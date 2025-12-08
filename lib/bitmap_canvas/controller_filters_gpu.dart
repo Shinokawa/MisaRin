@@ -1,6 +1,6 @@
 part of 'controller.dart';
 
-/// GPU 旁路版的图层抗锯齿，失败时回退到 CPU。
+/// GPU 旁路版的图层边缘柔化，失败时回退到 CPU。
 Future<bool> _controllerApplyAntialiasToActiveLayer(
   BitmapCanvasController controller,
   int level, {

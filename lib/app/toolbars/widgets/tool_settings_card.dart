@@ -614,7 +614,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       _buildTextOrientationRow(theme),
       _buildToggleSwitchRow(
         theme,
-        label: '抗锯齿',
+        label: '边缘柔化',
         value: widget.textAntialias,
         onChanged: widget.onTextAntialiasChanged,
       ),
@@ -1408,14 +1408,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
     if (!widget.compactLayout) {
       final Widget sliderControl = _wrapSliderTooltip(
-        label: '抗锯齿',
+        label: '边缘柔化',
         valueText: '等级 $value',
         child: SizedBox(width: _defaultSliderWidth, child: slider),
       );
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('抗锯齿', style: theme.typography.bodyStrong),
+          Text('边缘柔化', style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
           sliderControl,
           const SizedBox(width: 8),
@@ -1432,10 +1432,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     }
     return _buildSliderSection(
       theme,
-      label: '抗锯齿',
+      label: '边缘柔化',
       valueText: '等级 $value',
       slider: slider,
-      tooltipText: '抗锯齿：等级 $value',
+      tooltipText: '边缘柔化：等级 $value',
     );
   }
 
@@ -1890,7 +1890,7 @@ const Map<String, String> _sliderDetails = <String, String>{
   '笔刷大小': '设置当前笔刷的像素直径，数值越大线条越粗，越小越适合描画细节。',
   '喷枪大小': '决定喷枪喷洒区域的半径，半径大时覆盖面更广但颗粒更分散。',
   '容差': '控制油漆桶或魔棒判断"颜色足够相似"的阈值，容差高会一次抓取更多相近颜色。',
-  '抗锯齿': '为笔刷或填色的边缘增加多重采样平滑，等级越高边缘越柔和，0 级保持像素风格。',
+  '边缘柔化': '为笔刷或填色的边缘增加多重采样平滑，在平滑边缘的同时保留线条密度，0 级保持像素风格。',
   '手抖修正': '实时平滑指针轨迹来抵消手抖，等级越高线条越稳但响应会稍慢。',
   '字号': '调整文字的像素高度，用于整体放大或缩小当前文本。',
   '行距': '控制多行文字之间的垂直距离，便于营造疏朗或紧凑的段落。',
@@ -1910,7 +1910,7 @@ const Map<String, String> _toggleDetails = <String, String>{
   '连续': '仅在相邻像素间扩散，防止填充穿过未闭合的边界；关闭后会匹配整幅画布。',
   '吞并色线': '色块填充时自动吞并指定色线，消除描线与色块之间的白边，是 Retas 色线流程专用。',
   '裁剪出界画面': '调整图层时把超过画布的像素裁掉，保持文档边缘干净；关闭可保留全部像素。',
-  '抗锯齿': '为文字绘制过程启用抗锯齿，让字形更平滑；关闭可保留像素感。',
+  '边缘柔化': '为文字绘制过程启用边缘柔化，平滑字形的同时保留线条密度；关闭可保留像素感。',
   '文字描边': '为文字轮廓开启描边通道，配合描边宽度与颜色突出文字。',
 };
 
