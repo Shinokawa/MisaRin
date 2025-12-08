@@ -11,6 +11,8 @@ import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/foundation.dart'
     show
         ValueChanged,
+        ValueListenable,
+        ValueNotifier,
         compute,
         debugPrint,
         defaultTargetPlatform,
@@ -88,6 +90,7 @@ import '../constants/antialias_levels.dart';
 import '../preferences/app_preferences.dart';
 import '../constants/pen_constants.dart';
 import '../models/canvas_resize_anchor.dart';
+import '../models/canvas_view_info.dart';
 import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
 import '../utils/color_filter_generator.dart';
@@ -348,6 +351,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset _layoutBaseOffset = Offset.zero;
   bool _workspaceMeasurementScheduled = false;
   final ScrollController _layerScrollController = ScrollController();
+  late final ValueNotifier<CanvasViewInfo> _viewInfoNotifier;
   Color _primaryColor = AppPreferences.defaultPrimaryColor;
   late HSVColor _primaryHsv;
 
@@ -859,6 +863,39 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final Rect boardRect = _boardRect;
     return (workspacePosition - boardRect.topLeft) / _viewport.scale;
   }
+
+  Offset? _boardCursorPosition() {
+    final Offset? workspacePointer = _lastWorkspacePointer;
+    if (workspacePointer == null) {
+      return null;
+    }
+    final Rect boardRect = _boardRect;
+    if (!boardRect.contains(workspacePointer)) {
+      return null;
+    }
+    return _toBoardLocal(workspacePointer);
+  }
+
+  CanvasViewInfo _buildViewInfo() {
+    return CanvasViewInfo(
+      canvasSize: _canvasSize,
+      scale: _viewport.scale,
+      cursorPosition: _boardCursorPosition(),
+      pixelGridVisible: _pixelGridVisible,
+      viewBlackWhiteEnabled: _viewBlackWhiteOverlay,
+      viewMirrorEnabled: _viewMirrorOverlay,
+    );
+  }
+
+  void _notifyViewInfoChanged() {
+    final CanvasViewInfo next = _buildViewInfo();
+    if (_viewInfoNotifier.value == next) {
+      return;
+    }
+    _viewInfoNotifier.value = next;
+  }
+
+  ValueListenable<CanvasViewInfo> get viewInfoListenable => _viewInfoNotifier;
 
   CanvasTool get activeTool => _activeTool;
   CanvasTool get _effectiveActiveTool {
@@ -1692,6 +1729,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _viewport.setScale(targetScale);
     _viewport.setOffset(Offset.zero);
     _viewportInitialized = true;
+    _notifyViewInfoChanged();
   }
 
   bool get isPixelGridVisible => _pixelGridVisible;
@@ -1711,6 +1749,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     setState(() {
       _pixelGridVisible = visible;
     });
+    _notifyViewInfoChanged();
   }
 
   void togglePixelGridVisibility() {
@@ -1724,12 +1763,14 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     setState(() {
       _viewBlackWhiteOverlay = !_viewBlackWhiteOverlay;
     });
+    _notifyViewInfoChanged();
   }
 
   void toggleViewMirrorOverlay() {
     setState(() {
       _viewMirrorOverlay = !_viewMirrorOverlay;
     });
+    _notifyViewInfoChanged();
   }
 }
 
@@ -1751,6 +1792,7 @@ class PaintingBoardState extends _PaintingBoardBase
   @override
   void initState() {
     super.initState();
+    _viewInfoNotifier = ValueNotifier<CanvasViewInfo>(_buildViewInfo());
     initializeTextTool();
     initializeSelectionTicker(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
@@ -1814,6 +1856,7 @@ class PaintingBoardState extends _PaintingBoardBase
     }
     _resetHistory();
     _syncRasterizeMenuAvailability();
+    _notifyViewInfoChanged();
   }
 
   @override
@@ -1836,6 +1879,7 @@ class PaintingBoardState extends _PaintingBoardBase
     unawaited(_layoutWorker?.dispose());
     _focusNode.dispose();
     _sprayTicker?.dispose();
+    _viewInfoNotifier.dispose();
     AppPreferences.pixelGridVisibleNotifier.removeListener(
       _handlePixelGridPreferenceChanged,
     );
@@ -2207,6 +2251,7 @@ class PaintingBoardState extends _PaintingBoardBase
           _viewportInitialized = false;
         }
       });
+      _notifyViewInfoChanged();
     }
   }
 

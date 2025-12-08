@@ -966,6 +966,7 @@ mixin _PaintingBoardInteractionMixin
     setState(() {
       _viewport.translate(delta);
     });
+    _notifyViewInfoChanged();
   }
 
   void _finishDragBoard() {
@@ -1100,7 +1101,7 @@ mixin _PaintingBoardInteractionMixin
     }
   }
 
-  void _clearToolCursorOverlay() {
+void _clearToolCursorOverlay() {
     if (_toolCursorPosition == null && _penCursorWorkspacePosition == null) {
       return;
     }
@@ -1111,10 +1112,14 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _recordWorkspacePointer(Offset workspacePosition) {
+    final Offset? previous = _lastWorkspacePointer;
     if (_isInsideToolArea(workspacePosition)) {
       _lastWorkspacePointer = null;
     } else {
       _lastWorkspacePointer = workspacePosition;
+    }
+    if (_lastWorkspacePointer != previous) {
+      _notifyViewInfoChanged();
     }
   }
 
@@ -1126,7 +1131,10 @@ mixin _PaintingBoardInteractionMixin
     _clearTextHoverHighlight();
     _clearToolCursorOverlay();
     _clearLayerTransformCursorIndicator();
-    _lastWorkspacePointer = null;
+    if (_lastWorkspacePointer != null) {
+      _lastWorkspacePointer = null;
+      _notifyViewInfoChanged();
+    }
   }
 
   BitmapLayerState? _activeLayerForAdjustment() {
@@ -1998,6 +2006,7 @@ mixin _PaintingBoardInteractionMixin
       _viewport.setScale(clamped);
       _viewport.setOffset(newOffset);
     });
+    _notifyViewInfoChanged();
   }
 
   void _handlePointerSignal(PointerSignalEvent event) {

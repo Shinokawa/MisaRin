@@ -19,12 +19,14 @@ class CanvasTitleBar extends StatelessWidget {
     required this.onCloseTab,
     required this.onCreateTab,
     required this.onRenameTab,
+    this.centerOverlay,
   });
 
   final CanvasTabCallback onSelectTab;
   final CanvasTabCallback onCloseTab;
   final VoidCallback onCreateTab;
   final CanvasTabCallback onRenameTab;
+  final Widget? centerOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -50,32 +52,44 @@ class CanvasTitleBar extends StatelessWidget {
           ),
         ),
       ),
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Expanded(
-            child: AnimatedBuilder(
-              animation: controller,
-              builder: (context, _) {
-                final List<CanvasWorkspaceEntry> entries = controller.entries;
-                final String? activeId = controller.activeId;
-                if (entries.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return _WorkspaceTabStrip(
-                  entries: entries,
-                  activeId: activeId,
-                  onSelectTab: onSelectTab,
-                  onCloseTab: onCloseTab,
-                  onCreateTab: onCreateTab,
-                  onRenameTab: onRenameTab,
-                );
-              },
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: AnimatedBuilder(
+                  animation: controller,
+                  builder: (context, _) {
+                    final List<CanvasWorkspaceEntry> entries = controller.entries;
+                    final String? activeId = controller.activeId;
+                    if (entries.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return _WorkspaceTabStrip(
+                      entries: entries,
+                      activeId: activeId,
+                      onSelectTab: onSelectTab,
+                      onCloseTab: onCloseTab,
+                      onCreateTab: onCreateTab,
+                      onRenameTab: onRenameTab,
+                    );
+                  },
+                ),
+              ),
+              if (showLinuxControls) ...[
+                const SizedBox(width: 12),
+                const _LinuxWindowControls(),
+              ],
+            ],
           ),
-          if (showLinuxControls) ...[
-            const SizedBox(width: 12),
-            const _LinuxWindowControls(),
-          ],
+          if (centerOverlay != null)
+            IgnorePointer(
+              child: Align(
+                alignment: Alignment.center,
+                child: centerOverlay,
+              ),
+            ),
         ],
       ),
     );

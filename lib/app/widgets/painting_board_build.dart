@@ -160,6 +160,7 @@ mixin _PaintingBoardBuildMixin
         _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
+        _notifyViewInfoChanged();
         final BoardLayoutMetrics? layoutMetrics = _layoutMetrics;
         final CanvasToolbarLayout toolbarLayout =
             layoutMetrics?.layout ?? _toolbarLayout;

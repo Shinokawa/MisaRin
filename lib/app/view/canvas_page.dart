@@ -8,7 +8,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart'
-    show StatefulBuilder, StateSetter, TextEditingController, WidgetsBinding;
+    show
+        StatefulBuilder,
+        StateSetter,
+        TextEditingController,
+        ValueListenableBuilder,
+        WidgetsBinding;
 import 'package:path/path.dart' as p;
 
 import '../../canvas/canvas_exporter.dart';
@@ -17,9 +22,11 @@ import '../dialogs/canvas_size_dialog.dart';
 import '../dialogs/export_dialog.dart';
 import '../dialogs/image_size_dialog.dart';
 import '../dialogs/misarin_dialog.dart';
+import '../menu/custom_menu_bar.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
 import '../models/canvas_resize_anchor.dart';
+import '../models/canvas_view_info.dart';
 import '../models/workspace_layout.dart';
 import '../palette/palette_importer.dart';
 import '../preferences/app_preferences.dart';
@@ -97,6 +104,7 @@ class CanvasPageState extends State<CanvasPage> {
       AppPreferences.instance.workspaceLayout;
   final Map<String, Completer<void>> _boardReadyCompleters =
       <String, Completer<void>>{};
+  Widget? _menuOverlay;
   bool _initialBoardReadyDispatched = false;
 
   PaintingBoardState? get _activeBoard => _boardFor(_document.id);
@@ -300,6 +308,9 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
     _boardReadyCompleters.remove(id)?.complete();
+    if (id == _document.id) {
+      _updateMenuOverlay();
+    }
     if (!_initialBoardReadyDispatched && id == widget.document.id) {
       _initialBoardReadyDispatched = true;
       widget.onInitialBoardReady?.call();
@@ -434,6 +445,24 @@ class CanvasPageState extends State<CanvasPage> {
     _workspace.markDirty(id, dirty);
   }
 
+  void _updateMenuOverlay() {
+    final Widget overlay = _CanvasStatusOverlay(board: _activeBoard);
+    _menuOverlay = overlay;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _menuOverlay != overlay) {
+        return;
+      }
+      CustomMenuBarOverlay.centerOverlay.value = overlay;
+    });
+  }
+
+  void _clearMenuOverlay() {
+    if (CustomMenuBarOverlay.centerOverlay.value == _menuOverlay) {
+      CustomMenuBarOverlay.centerOverlay.value = null;
+    }
+    _menuOverlay = null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -441,6 +470,7 @@ class CanvasPageState extends State<CanvasPage> {
     _workspace.open(_document, activate: true);
     _workspace.markDirty(_document.id, false);
     _ensureBoardKey(_document.id);
+    _updateMenuOverlay();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureInitialSave();
     });
@@ -452,6 +482,7 @@ class CanvasPageState extends State<CanvasPage> {
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
+    _clearMenuOverlay();
     super.dispose();
   }
 
@@ -1183,6 +1214,7 @@ class CanvasPageState extends State<CanvasPage> {
       _isSaving = false;
       _isAutoSaving = false;
     });
+    _updateMenuOverlay();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -1439,9 +1471,7 @@ class CanvasPageState extends State<CanvasPage> {
       externalCanRedo: _canRedoDocumentFor(id),
       onResizeImage: _handleResizeImage,
       onResizeCanvas: _handleResizeCanvas,
-      onReadyChanged: kIsWeb
-          ? (ready) => _handleBoardReadyChanged(id, ready)
-          : null,
+      onReadyChanged: (ready) => _handleBoardReadyChanged(id, ready),
       toolbarLayoutStyle: _toolbarLayoutStyle,
     );
   }
@@ -1670,6 +1700,7 @@ class CanvasPageState extends State<CanvasPage> {
       onCreateTab: () => AppMenuActions.createProject(context),
       onRenameTab: _handleTabRename,
     );
+
     if (_supportsFileDrops) {
       titleBar = DropTarget(
         onDragDone: (details) =>
@@ -1725,6 +1756,57 @@ class CanvasPageState extends State<CanvasPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CanvasStatusOverlay extends StatelessWidget {
+  const _CanvasStatusOverlay({required this.board});
+
+  final PaintingBoardState? board;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+
+    final TextStyle textStyle = (theme.typography.body ??
+            const TextStyle(fontSize: 14, fontWeight: FontWeight.w400))
+        .copyWith(color: theme.resources.textFillColorSecondary);
+
+    if (board == null) {
+      return Text('画布尚未准备好', style: textStyle, maxLines: 1);
+    }
+
+    return ValueListenableBuilder<CanvasViewInfo>(
+      valueListenable: board!.viewInfoListenable,
+      builder: (context, info, _) {
+        final String resolution =
+            '${info.canvasSize.width.round()} x ${info.canvasSize.height.round()}';
+        final double zoomPercent =
+            (info.scale * 100).clamp(-100000.0, 100000.0).toDouble();
+        final String zoom = '${zoomPercent.toStringAsFixed(1)}%';
+        final String position = info.cursorPosition != null
+            ? '${info.cursorPosition!.dx.round()}, ${info.cursorPosition!.dy.round()}'
+            : '--';
+        final String grid = info.pixelGridVisible ? '开' : '关';
+        final String blackWhite = info.viewBlackWhiteEnabled ? '开' : '关';
+        final String mirror = info.viewMirrorEnabled ? '开' : '关';
+        final List<String> parts = <String>[
+          '分辨率: $resolution',
+          '缩放: $zoom',
+          '坐标: $position',
+          '网格: $grid',
+          '黑白: $blackWhite',
+          '镜像: $mirror',
+        ];
+        return Text(
+          parts.join(' | '),
+          style: textStyle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        );
+      },
     );
   }
 }
