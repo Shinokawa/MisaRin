@@ -6,16 +6,22 @@ import '../constants/antialias_levels.dart';
 import 'misarin_dialog.dart';
 
 class CanvasExportOptions {
-  const CanvasExportOptions({required this.width, required this.height});
+  const CanvasExportOptions({
+    required this.width,
+    required this.height,
+    this.edgeSofteningEnabled = false,
+    this.edgeSofteningLevel = 2,
+  });
 
   final int width;
   final int height;
+  final bool edgeSofteningEnabled;
+  final int edgeSofteningLevel;
 }
 
 Future<CanvasExportOptions?> showCanvasExportDialog({
   required BuildContext context,
   required CanvasSettings settings,
-  Future<bool> Function(int level)? onApplyAntialias,
 }) async {
   final TextEditingController scaleController = TextEditingController(
     text: '1.0',
@@ -24,9 +30,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
   String? scaleError;
   StateSetter? dialogSetState;
   int antialiasLevel = 2;
-  bool antialiasApplying = false;
-  String? antialiasStatus;
-  bool antialiasFailed = false;
+  bool antialiasEnabled = false;
   CanvasExportOptions? result;
 
   await showMisarinDialog<CanvasExportOptions>(
@@ -109,12 +113,40 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 style: const TextStyle(color: Color(0xFFD13438)),
               ),
             ],
-            if (onApplyAntialias != null) ...[
-              const SizedBox(height: 20),
-              const Divider(),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 12),
+            Text('导出前的边缘柔化', style: theme.typography.bodyStrong),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ToggleSwitch(
+                  checked: antialiasEnabled,
+                  onChanged: (value) {
+                    dialogSetState?.call(() {
+                      antialiasEnabled = value;
+                    });
+                  },
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('启用边缘柔化'),
+                      const SizedBox(height: 4),
+                      Text(
+                        '在平滑边缘的同时保留线条密度，致敬日本动画软件 Retas 的质感。',
+                        style: theme.typography.caption,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (antialiasEnabled) ...[
               const SizedBox(height: 12),
-              Text('导出前的抗锯齿处理', style: theme.typography.bodyStrong),
-              const SizedBox(height: 8),
               Slider(
                 min: 0,
                 max: 3,
@@ -124,8 +156,6 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 onChanged: (value) {
                   dialogSetState?.call(() {
                     antialiasLevel = value.round();
-                    antialiasStatus = null;
-                    antialiasFailed = false;
                   });
                 },
               ),
@@ -134,48 +164,6 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 kAntialiasLevelDescriptions[antialiasLevel],
                 style: theme.typography.caption,
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Button(
-                    onPressed: antialiasApplying
-                        ? null
-                        : () async {
-                            dialogSetState?.call(() {
-                              antialiasApplying = true;
-                              antialiasStatus = null;
-                              antialiasFailed = false;
-                            });
-                            bool success = false;
-                            try {
-                              success = await onApplyAntialias(antialiasLevel);
-                            } finally {
-                              dialogSetState?.call(() {
-                                antialiasApplying = false;
-                                antialiasFailed = !success;
-                                antialiasStatus = success
-                                    ? '已对当前图层应用等级 $antialiasLevel 抗锯齿。'
-                                    : '无法应用抗锯齿，请确保图层未锁定且包含像素。';
-                              });
-                            }
-                          },
-                    child: antialiasApplying
-                        ? const ProgressRing()
-                        : const Text('应用到当前图层'),
-                  ),
-                ],
-              ),
-              if (antialiasStatus != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  antialiasStatus!,
-                  style: TextStyle(
-                    color: antialiasFailed
-                        ? const Color(0xFFD13438)
-                        : const Color(0xFF107C10),
-                  ),
-                ),
-              ],
             ],
           ],
         );
@@ -199,6 +187,8 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
           final CanvasExportOptions options = CanvasExportOptions(
             width: (settings.width * scale).round().clamp(1, 100000),
             height: (settings.height * scale).round().clamp(1, 100000),
+            edgeSofteningEnabled: antialiasEnabled,
+            edgeSofteningLevel: antialiasLevel.clamp(0, 3),
           );
           Navigator.of(context).pop(options);
         },

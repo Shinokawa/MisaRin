@@ -23,9 +23,13 @@ enum ToolbarAction {
   adjustHueSaturation,
   adjustBrightnessContrast,
   gaussianBlur,
+  removeColorLeak,
   layerAntialiasPanel,
   deselect,
   importReferenceImage,
+  viewBlackWhiteOverlay,
+  togglePixelGrid,
+  viewMirrorOverlay,
 }
 
 class ShortcutInfo {
@@ -199,6 +203,22 @@ class ToolbarShortcuts {
       primaryLabel: 'Ctrl+Alt+G',
       macLabel: 'Command+Option+G',
     ),
+    ToolbarAction.removeColorLeak: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyL,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyL,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+L',
+      macLabel: 'Command+Option+L',
+    ),
     ToolbarAction.layerAntialiasPanel: ShortcutInfo(
       shortcuts: <LogicalKeySet>[
         LogicalKeySet(
@@ -238,6 +258,18 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+Alt+R',
       macLabel: 'Command+Option+R',
+    ),
+    ToolbarAction.viewBlackWhiteOverlay: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyK)],
+      primaryLabel: 'K',
+    ),
+    ToolbarAction.togglePixelGrid: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyQ)],
+      primaryLabel: 'Q',
+    ),
+    ToolbarAction.viewMirrorOverlay: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyF)],
+      primaryLabel: 'F',
     ),
   };
 

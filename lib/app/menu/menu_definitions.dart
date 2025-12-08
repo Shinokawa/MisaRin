@@ -341,6 +341,10 @@ class MenuDefinitionBuilder {
       );
     }
 
+    if (handler.binarizeLayer != null) {
+      entries.add(MenuActionEntry(label: '二值化', action: handler.binarizeLayer));
+    }
+
     if (handler.layerFreeTransform != null) {
       entries.add(
         MenuActionEntry(
@@ -385,10 +389,7 @@ class MenuDefinitionBuilder {
   static MenuDefinition? _toolMenu(MenuActionHandler handler) {
     final List<MenuEntry> paletteEntries = <MenuEntry>[
       if (handler.generatePalette != null)
-        MenuActionEntry(
-          label: '取色当前画布生成调色盘…',
-          action: handler.generatePalette,
-        ),
+        MenuActionEntry(label: '取色当前画布生成调色盘…', action: handler.generatePalette),
       if (handler.generateGradientPalette != null)
         MenuActionEntry(
           label: '使用当前颜色生成渐变调色盘',
@@ -470,6 +471,33 @@ class MenuDefinitionBuilder {
           label: handler.pixelGridVisible ? '隐藏网格' : '显示网格',
           action: handler.togglePixelGrid,
           checked: handler.pixelGridVisible,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyQ),
+        ),
+      );
+    }
+    if (handler.toggleViewBlackWhite != null) {
+      if (entries.isNotEmpty) {
+        entries.add(const MenuSeparatorEntry());
+      }
+      entries.add(
+        MenuActionEntry(
+          label: handler.viewBlackWhiteEnabled ? '取消黑白' : '黑白',
+          action: handler.toggleViewBlackWhite,
+          checked: handler.viewBlackWhiteEnabled,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyK),
+        ),
+      );
+    }
+    if (handler.toggleViewMirror != null) {
+      if (entries.isNotEmpty) {
+        entries.add(const MenuSeparatorEntry());
+      }
+      entries.add(
+        MenuActionEntry(
+          label: handler.viewMirrorEnabled ? '取消镜像' : '镜像预览',
+          action: handler.toggleViewMirror,
+          checked: handler.viewMirrorEnabled,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyF),
         ),
       );
     }
@@ -515,7 +543,7 @@ class MenuDefinitionBuilder {
     final List<MenuEntry> entries = <MenuEntry>[
       if (handler.showLayerAntialiasPanel != null)
         MenuActionEntry(
-          label: '抗锯齿…',
+          label: '边缘柔化…',
           action: handler.showLayerAntialiasPanel,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyA,
@@ -533,6 +561,16 @@ class MenuDefinitionBuilder {
             alt: true,
           ),
         ),
+      if (handler.removeColorLeak != null)
+        MenuActionEntry(
+          label: '去除漏色…',
+          action: handler.removeColorLeak,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyL,
+            meta: true,
+            alt: true,
+          ),
+        ),
       if (handler.adjustHueSaturation != null)
         MenuActionEntry(
           label: '色相/饱和度…',
@@ -545,6 +583,10 @@ class MenuDefinitionBuilder {
           action: handler.adjustBrightnessContrast,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyM, meta: true),
         ),
+      if (handler.adjustBlackWhite != null)
+        MenuActionEntry(label: '黑白…', action: handler.adjustBlackWhite),
+      if (handler.invertColors != null)
+        MenuActionEntry(label: '颜色反转', action: handler.invertColors),
     ];
     if (entries.isEmpty) {
       return null;

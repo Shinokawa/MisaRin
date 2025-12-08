@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
 import '../../../canvas/canvas_tools.dart';
 import '../../shortcuts/toolbar_shortcuts.dart';
+import '../../tooltips/hover_detail_tooltip.dart';
 import '../../utils/platform_target.dart';
 import 'bucket_tool_button.dart';
 import 'magic_wand_tool_button.dart';
@@ -112,6 +113,35 @@ class CanvasToolbar extends StatelessWidget {
     waitDuration: Duration.zero,
   );
 
+  static const Map<ToolbarAction, String> _tooltipDetails = {
+    ToolbarAction.layerAdjustTool: '调整图层顺序、透明度以及混合模式，快速整理画面结构',
+    ToolbarAction.penTool: '使用当前画笔绘制连续笔触，兼容压力与速度控制',
+    ToolbarAction.sprayTool: '喷洒颗粒色点，适合铺色或叠加随机纹理',
+    ToolbarAction.curvePenTool: '通过锚点绘制可编辑的曲线路径',
+    ToolbarAction.eraserTool: '擦除当前图层内容，可调节笔刷大小和硬度',
+    ToolbarAction.bucketTool: '在闭合区域内填充颜色，并沿用前景色配置',
+    ToolbarAction.magicWandTool: '根据颜色相似度自动生成选区',
+    ToolbarAction.eyedropperTool: '拾取画布上的颜色并设置为当前前景色',
+    ToolbarAction.selectionTool: '创建矩形或椭圆选区以移动、复制或裁剪内容',
+    ToolbarAction.textTool: '在画布上插入文本并调整字体样式',
+    ToolbarAction.handTool: '拖拽画布以平移视图，便于查看不同区域',
+    ToolbarAction.undo: '撤销最近的操作，逐步回退修改',
+    ToolbarAction.redo: '重做刚刚撤销的操作，恢复修改',
+  };
+
+  static String? _tooltipDetail(
+    ToolbarAction action,
+    ShapeToolVariant shapeVariant,
+  ) {
+    if (action == ToolbarAction.shapeTool) {
+      final String shapeName = _shapeTooltipLabel(
+        shapeVariant,
+      ).replaceAll('工具', '');
+      return '绘制$shapeName，并可直接调整描边与填充';
+    }
+    return _tooltipDetails[action];
+  }
+
   static String _tooltipMessage(String base, ToolbarAction action) {
     final shortcutLabel = ToolbarShortcuts.labelForPlatform(
       action,
@@ -138,128 +168,116 @@ class CanvasToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> items = <Widget>[];
-    items.addAll([
-      Tooltip(
-        message: _tooltipMessage('图层调节', ToolbarAction.layerAdjustTool),
+    Widget wrapWithTooltip({
+      required ToolbarAction action,
+      required String label,
+      required Widget child,
+    }) {
+      return HoverDetailTooltip(
+        message: _tooltipMessage(label, action),
+        detail: _tooltipDetail(action, shapeToolVariant),
         displayHorizontally: true,
         style: _rightTooltipStyle,
         useMousePosition: false,
+        child: child,
+      );
+    }
+
+    final List<Widget> items = <Widget>[];
+    items.addAll([
+      wrapWithTooltip(
+        action: ToolbarAction.layerAdjustTool,
+        label: '图层调节',
         child: LayerAdjustToolButton(
           isSelected: activeTool == CanvasTool.layerAdjust,
           onPressed: () => onToolSelected(CanvasTool.layerAdjust),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('画笔工具', ToolbarAction.penTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.penTool,
+        label: '画笔工具',
         child: PenToolButton(
           isSelected: activeTool == CanvasTool.pen,
           onPressed: () => onToolSelected(CanvasTool.pen),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('喷枪工具', ToolbarAction.sprayTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.sprayTool,
+        label: '喷枪工具',
         child: SprayToolButton(
           isSelected: activeTool == CanvasTool.spray,
           onPressed: () => onToolSelected(CanvasTool.spray),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('曲线画笔', ToolbarAction.curvePenTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.curvePenTool,
+        label: '曲线画笔',
         child: CurvePenToolButton(
           isSelected: activeTool == CanvasTool.curvePen,
           onPressed: () => onToolSelected(CanvasTool.curvePen),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage(
-          _shapeTooltipLabel(shapeToolVariant),
-          ToolbarAction.shapeTool,
-        ),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.shapeTool,
+        label: _shapeTooltipLabel(shapeToolVariant),
         child: ShapeToolButton(
           isSelected: activeTool == CanvasTool.shape,
           variant: shapeToolVariant,
           onPressed: () => onToolSelected(CanvasTool.shape),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('橡皮擦', ToolbarAction.eraserTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.eraserTool,
+        label: '橡皮擦',
         child: EraserToolButton(
           isSelected: activeTool == CanvasTool.eraser,
           onPressed: () => onToolSelected(CanvasTool.eraser),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('油漆桶', ToolbarAction.bucketTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.bucketTool,
+        label: '油漆桶',
         child: BucketToolButton(
           isSelected: activeTool == CanvasTool.bucket,
           onPressed: () => onToolSelected(CanvasTool.bucket),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('魔棒工具', ToolbarAction.magicWandTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.magicWandTool,
+        label: '魔棒工具',
         child: MagicWandToolButton(
           isSelected: activeTool == CanvasTool.magicWand,
           onPressed: () => onToolSelected(CanvasTool.magicWand),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('吸管工具', ToolbarAction.eyedropperTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.eyedropperTool,
+        label: '吸管工具',
         child: EyedropperToolButton(
           isSelected: activeTool == CanvasTool.eyedropper,
           onPressed: () => onToolSelected(CanvasTool.eyedropper),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('选区工具', ToolbarAction.selectionTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.selectionTool,
+        label: '选区工具',
         child: SelectionToolButton(
           isSelected: activeTool == CanvasTool.selection,
           selectionShape: selectionShape,
           onPressed: () => onToolSelected(CanvasTool.selection),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('文字工具', ToolbarAction.textTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.textTool,
+        label: '文字工具',
         child: TextToolButton(
           isSelected: activeTool == CanvasTool.text,
           onPressed: () => onToolSelected(CanvasTool.text),
         ),
       ),
-      Tooltip(
-        message: _tooltipMessage('拖拽画布', ToolbarAction.handTool),
-        displayHorizontally: true,
-        style: _rightTooltipStyle,
-        useMousePosition: false,
+      wrapWithTooltip(
+        action: ToolbarAction.handTool,
+        label: '拖拽画布',
         child: HandToolButton(
           isSelected: activeTool == CanvasTool.hand,
           onPressed: () => onToolSelected(CanvasTool.hand),
@@ -269,18 +287,14 @@ class CanvasToolbar extends StatelessWidget {
 
     if (includeHistoryButtons) {
       items.addAll([
-        Tooltip(
-          message: _tooltipMessage('撤销', ToolbarAction.undo),
-          displayHorizontally: true,
-          style: _rightTooltipStyle,
-          useMousePosition: false,
+        wrapWithTooltip(
+          action: ToolbarAction.undo,
+          label: '撤销',
           child: UndoToolButton(enabled: canUndo, onPressed: onUndo),
         ),
-        Tooltip(
-          message: _tooltipMessage('恢复', ToolbarAction.redo),
-          displayHorizontally: true,
-          style: _rightTooltipStyle,
-          useMousePosition: false,
+        wrapWithTooltip(
+          action: ToolbarAction.redo,
+          label: '恢复',
           child: RedoToolButton(enabled: canRedo, onPressed: onRedo),
         ),
       ]);

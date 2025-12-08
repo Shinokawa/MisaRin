@@ -44,6 +44,10 @@ class AdjustGaussianBlurIntent extends Intent {
   const AdjustGaussianBlurIntent();
 }
 
+class RemoveColorLeakIntent extends Intent {
+  const RemoveColorLeakIntent();
+}
+
 class ShowLayerAntialiasIntent extends Intent {
   const ShowLayerAntialiasIntent();
 }
@@ -66,6 +70,18 @@ class PasteIntent extends Intent {
 
 class ImportReferenceImageIntent extends Intent {
   const ImportReferenceImageIntent();
+}
+
+class ToggleViewBlackWhiteIntent extends Intent {
+  const ToggleViewBlackWhiteIntent();
+}
+
+class TogglePixelGridIntent extends Intent {
+  const TogglePixelGridIntent();
+}
+
+class ToggleViewMirrorIntent extends Intent {
+  const ToggleViewMirrorIntent();
 }
 
 class _CheckboardBackground extends StatelessWidget {
@@ -240,10 +256,7 @@ class _PreviewPathPainter extends CustomPainter {
 }
 
 class _ShapeFillOverlayPainter extends CustomPainter {
-  const _ShapeFillOverlayPainter({
-    required this.path,
-    required this.color,
-  });
+  const _ShapeFillOverlayPainter({required this.path, required this.color});
 
   final Path path;
   final Color color;
@@ -288,8 +301,9 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     // Draw committing strokes (fading out/waiting for raster) first
     for (final PaintingDrawCommand command in committingStrokes) {
       if (command.points == null || command.radii == null) continue;
-      final Color commandColor =
-          command.erase ? eraserPreviewColor : Color(command.color);
+      final Color commandColor = command.erase
+          ? eraserPreviewColor
+          : Color(command.color);
       VectorStrokePainter.paint(
         canvas: canvas,
         points: command.points!,
@@ -302,8 +316,9 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
 
     // Draw active stroke on top
     if (points.isNotEmpty) {
-      final Color activeColor =
-          activeStrokeIsEraser ? eraserPreviewColor : color;
+      final Color activeColor = activeStrokeIsEraser
+          ? eraserPreviewColor
+          : color;
       VectorStrokePainter.paint(
         canvas: canvas,
         points: points,

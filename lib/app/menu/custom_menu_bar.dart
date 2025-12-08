@@ -11,6 +11,11 @@ import '../widgets/window_drag_area.dart';
 import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
 
+class CustomMenuBarOverlay {
+  static final ValueNotifier<Widget?> centerOverlay =
+      ValueNotifier<Widget?>(null);
+}
+
 class CustomMenuBar extends StatefulWidget {
   const CustomMenuBar({
     super.key,
@@ -140,6 +145,53 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
             ),
           )
         : const Spacer();
+    final Widget rowContent = ValueListenableBuilder<bool>(
+      valueListenable: _menuOpenNotifier,
+      builder: (context, anyMenuOpen, _) {
+        final Widget buttons = Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (int i = 0; i < visibleMenus.length; i++) ...[
+              _MenuButton(
+                definition: visibleMenus[i],
+                navigatorKey: widget.navigatorKey,
+                onMenuWillOpen: _handleMenuWillOpen,
+                onMenuClosed: _handleMenuClosed,
+                isAnyMenuOpen: anyMenuOpen,
+              ),
+              if (i != visibleMenus.length - 1) const SizedBox(width: 4),
+            ],
+            dragArea,
+            if (showWindowControls) ...[
+              const SizedBox(width: 8),
+              const _WindowControlButtons(),
+            ],
+          ],
+        );
+        return ValueListenableBuilder<Widget?>(
+          valueListenable: CustomMenuBarOverlay.centerOverlay,
+          builder: (context, overlay, _) {
+            if (overlay == null) {
+              return buttons;
+            }
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                buttons,
+                IgnorePointer(
+                  ignoring: true,
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: overlay,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: theme.micaBackgroundColor,
@@ -152,34 +204,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
       ),
       child: SafeArea(
         bottom: false,
-        child: SizedBox(
-          height: 36,
-          child: ValueListenableBuilder<bool>(
-            valueListenable: _menuOpenNotifier,
-            builder: (context, anyMenuOpen, _) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (int i = 0; i < visibleMenus.length; i++) ...[
-                    _MenuButton(
-                      definition: visibleMenus[i],
-                      navigatorKey: widget.navigatorKey,
-                      onMenuWillOpen: _handleMenuWillOpen,
-                      onMenuClosed: _handleMenuClosed,
-                      isAnyMenuOpen: anyMenuOpen,
-                    ),
-                    if (i != visibleMenus.length - 1) const SizedBox(width: 4),
-                  ],
-                  dragArea,
-                  if (showWindowControls) ...[
-                    const SizedBox(width: 8),
-                    const _WindowControlButtons(),
-                  ],
-                ],
-              );
-            },
-          ),
-        ),
+        child: SizedBox(height: 36, child: rowContent),
       ),
     );
   }

@@ -16,98 +16,134 @@ mixin _PaintingBoardBuildMixin
     _refreshHistoryLimit();
     final bool canUndo = this.canUndo || widget.externalCanUndo;
     final bool canRedo = this.canRedo || widget.externalCanRedo;
+
+    // Shortcuts callbacks below rely on base toggles; provide local wrappers to
+    // keep the mixin type happy.
+    void toggleViewBlackWhiteOverlay() => super.toggleViewBlackWhiteOverlay();
+    void togglePixelGridVisibility() => super.togglePixelGridVisibility();
+    void toggleViewMirrorOverlay() => super.toggleViewMirrorOverlay();
     final Map<LogicalKeySet, Intent> shortcutBindings = _isTextEditingActive
         ? <LogicalKeySet, Intent>{}
         : {
             for (final key in ToolbarShortcuts.of(ToolbarAction.undo).shortcuts)
               key: const UndoIntent(),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
-        key: const RedoIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.resizeImage,
-      ).shortcuts)
-        key: const ResizeImageIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.resizeCanvas,
-      ).shortcuts)
-        key: const ResizeCanvasIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.adjustHueSaturation,
-      ).shortcuts)
-        key: const AdjustHueSaturationIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.adjustBrightnessContrast,
-      ).shortcuts)
-        key: const AdjustBrightnessContrastIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.gaussianBlur,
-      ).shortcuts)
-        key: const AdjustGaussianBlurIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.layerAntialiasPanel,
-      ).shortcuts)
-        key: const ShowLayerAntialiasIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.freeTransform,
-      ).shortcuts)
-        key: const LayerFreeTransformIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.layerAdjustTool,
-      ).shortcuts)
-        key: const SelectToolIntent(CanvasTool.layerAdjust),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.penTool).shortcuts)
-        key: const SelectToolIntent(CanvasTool.pen),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.sprayTool).shortcuts)
-        key: const SelectToolIntent(CanvasTool.spray),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.curvePenTool,
-      ).shortcuts)
-        key: const SelectToolIntent(CanvasTool.curvePen),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.shapeTool).shortcuts)
-        key: const SelectToolIntent(CanvasTool.shape),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.eraserTool).shortcuts)
-        key: const SelectToolIntent(CanvasTool.eraser),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.bucketTool).shortcuts)
-        key: const SelectToolIntent(CanvasTool.bucket),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.magicWandTool,
-      ).shortcuts)
-        key: const SelectToolIntent(CanvasTool.magicWand),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.eyedropperTool,
-      ).shortcuts)
-        key: const SelectToolIntent(CanvasTool.eyedropper),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.selectionTool,
-      ).shortcuts)
-        key: const SelectToolIntent(CanvasTool.selection),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.textTool,
-      ).shortcuts)
-        key: const SelectToolIntent(CanvasTool.text),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.handTool).shortcuts)
-        key: const SelectToolIntent(CanvasTool.hand),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
-        key: const ExitBoardIntent(),
-      for (final key in ToolbarShortcuts.of(ToolbarAction.deselect).shortcuts)
-        key: const DeselectIntent(),
-      for (final key in ToolbarShortcuts.of(
-        ToolbarAction.importReferenceImage,
-      ).shortcuts)
-        key: const ImportReferenceImageIntent(),
-      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyX):
-          const CutIntent(),
-      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyX):
-          const CutIntent(),
-      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyC):
-          const CopyIntent(),
-      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyC):
-          const CopyIntent(),
-      LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyV):
-          const PasteIntent(),
-      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyV):
-          const PasteIntent(),
-    };
+            for (final key in ToolbarShortcuts.of(ToolbarAction.redo).shortcuts)
+              key: const RedoIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.resizeImage,
+            ).shortcuts)
+              key: const ResizeImageIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.resizeCanvas,
+            ).shortcuts)
+              key: const ResizeCanvasIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.adjustHueSaturation,
+            ).shortcuts)
+              key: const AdjustHueSaturationIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.adjustBrightnessContrast,
+            ).shortcuts)
+              key: const AdjustBrightnessContrastIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.gaussianBlur,
+            ).shortcuts)
+              key: const AdjustGaussianBlurIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.removeColorLeak,
+            ).shortcuts)
+              key: const RemoveColorLeakIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.layerAntialiasPanel,
+            ).shortcuts)
+              key: const ShowLayerAntialiasIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.freeTransform,
+            ).shortcuts)
+              key: const LayerFreeTransformIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.layerAdjustTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.layerAdjust),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.penTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.pen),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.sprayTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.spray),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.curvePenTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.curvePen),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.shapeTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.shape),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.eraserTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.eraser),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.bucketTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.bucket),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.magicWandTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.magicWand),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.eyedropperTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.eyedropper),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.selectionTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.selection),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.textTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.text),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.handTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.hand),
+            for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
+              key: const ExitBoardIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.deselect,
+            ).shortcuts)
+              key: const DeselectIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.importReferenceImage,
+            ).shortcuts)
+              key: const ImportReferenceImageIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.viewBlackWhiteOverlay,
+            ).shortcuts)
+              key: const ToggleViewBlackWhiteIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.togglePixelGrid,
+            ).shortcuts)
+              key: const TogglePixelGridIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.viewMirrorOverlay,
+            ).shortcuts)
+              key: const ToggleViewMirrorIntent(),
+            LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyX):
+                const CutIntent(),
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyX):
+                const CutIntent(),
+            LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyC):
+                const CopyIntent(),
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyC):
+                const CopyIntent(),
+            LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyV):
+                const PasteIntent(),
+            LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyV):
+                const PasteIntent(),
+          };
 
     final theme = FluentTheme.of(context);
     final bool isDark = theme.brightness.isDark;
@@ -124,6 +160,7 @@ mixin _PaintingBoardBuildMixin
         _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
         _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
+        _notifyViewInfoChanged();
         final BoardLayoutMetrics? layoutMetrics = _layoutMetrics;
         final CanvasToolbarLayout toolbarLayout =
             layoutMetrics?.layout ?? _toolbarLayout;
@@ -306,6 +343,8 @@ mixin _PaintingBoardBuildMixin
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
           vectorDrawingEnabled: _vectorDrawingEnabled,
           onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
+          vectorStrokeSmoothingEnabled: _vectorStrokeSmoothingEnabled,
+          onVectorStrokeSmoothingChanged: _updateVectorStrokeSmoothingEnabled,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
           compactLayout: isSai2Layout,
           textFontSize: _textFontSize,
@@ -444,6 +483,25 @@ mixin _PaintingBoardBuildMixin
                   return null;
                 },
               ),
+              ToggleViewBlackWhiteIntent:
+                  CallbackAction<ToggleViewBlackWhiteIntent>(
+                    onInvoke: (intent) {
+                      toggleViewBlackWhiteOverlay();
+                      return null;
+                    },
+                  ),
+              TogglePixelGridIntent: CallbackAction<TogglePixelGridIntent>(
+                onInvoke: (intent) {
+                  togglePixelGridVisibility();
+                  return null;
+                },
+              ),
+              ToggleViewMirrorIntent: CallbackAction<ToggleViewMirrorIntent>(
+                onInvoke: (intent) {
+                  toggleViewMirrorOverlay();
+                  return null;
+                },
+              ),
               ResizeImageIntent: CallbackAction<ResizeImageIntent>(
                 onInvoke: (intent) {
                   widget.onResizeImage?.call();
@@ -477,6 +535,12 @@ mixin _PaintingBoardBuildMixin
                       return null;
                     },
                   ),
+              RemoveColorLeakIntent: CallbackAction<RemoveColorLeakIntent>(
+                onInvoke: (intent) {
+                  showLeakRemovalAdjustments();
+                  return null;
+                },
+              ),
               ShowLayerAntialiasIntent:
                   CallbackAction<ShowLayerAntialiasIntent>(
                     onInvoke: (intent) {
@@ -625,7 +689,7 @@ mixin _PaintingBoardBuildMixin
                                             pendingFillOverlayColor =
                                                 shapeVectorFillOverlayColor;
 
-                                            return Stack(
+                                            Widget content = Stack(
                                               fit: StackFit.expand,
                                               children: [
                                                 const _CheckboardBackground(),
@@ -778,6 +842,23 @@ mixin _PaintingBoardBuildMixin
                                                   ),
                                               ],
                                             );
+                                            if (_viewMirrorOverlay) {
+                                              content = Transform(
+                                                transform:
+                                                    _kViewMirrorTransform,
+                                                alignment: Alignment.center,
+                                                transformHitTests: false,
+                                                child: content,
+                                              );
+                                            }
+                                            if (_viewBlackWhiteOverlay) {
+                                              content = ColorFiltered(
+                                                colorFilter:
+                                                    _kViewBlackWhiteColorFilter,
+                                                child: content,
+                                              );
+                                            }
+                                            return content;
                                           },
                                         ),
                                       ),
@@ -914,21 +995,22 @@ mixin _PaintingBoardBuildMixin
     if (session == null) return const SizedBox.shrink();
 
     ui.Image? activeImage = _previewActiveLayerImage;
-    final bool useHuePreviewImage =
-        session.type == _FilterPanelType.hueSaturation &&
+    final bool useFilteredPreviewImage =
+        _previewFilteredImageType == session.type &&
         _previewFilteredActiveLayerImage != null;
-    if (useHuePreviewImage) {
+    if (useFilteredPreviewImage) {
       activeImage = _previewFilteredActiveLayerImage;
     }
     Widget activeLayerWidget = RawImage(
       image: activeImage,
-      filterQuality: FilterQuality.low,
+      filterQuality: FilterQuality.none,
     );
 
     // Apply Filters
     if (session.type == _FilterPanelType.gaussianBlur) {
-      final double sigma =
-          _gaussianBlurSigmaForRadius(session.gaussianBlur.radius);
+      final double sigma = _gaussianBlurSigmaForRadius(
+        session.gaussianBlur.radius,
+      );
       if (sigma > 0) {
         activeLayerWidget = ImageFiltered(
           imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
@@ -941,7 +1023,7 @@ mixin _PaintingBoardBuildMixin
       final double lightness = session.hueSaturation.lightness;
       final bool requiresAdjustments =
           hue != 0 || saturation != 0 || lightness != 0;
-      if (requiresAdjustments && !useHuePreviewImage) {
+      if (requiresAdjustments && !useFilteredPreviewImage) {
         if (hue != 0) {
           activeLayerWidget = ColorFiltered(
             colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
@@ -950,38 +1032,91 @@ mixin _PaintingBoardBuildMixin
         }
         if (saturation != 0) {
           activeLayerWidget = ColorFiltered(
-            colorFilter:
-                ColorFilter.matrix(ColorFilterGenerator.saturation(saturation)),
+            colorFilter: ColorFilter.matrix(
+              ColorFilterGenerator.saturation(saturation),
+            ),
             child: activeLayerWidget,
           );
         }
         if (lightness != 0) {
           activeLayerWidget = ColorFiltered(
-            colorFilter:
-                ColorFilter.matrix(ColorFilterGenerator.brightness(lightness)),
+            colorFilter: ColorFilter.matrix(
+              ColorFilterGenerator.brightness(lightness),
+            ),
             child: activeLayerWidget,
           );
         }
       }
     } else if (session.type == _FilterPanelType.brightnessContrast) {
-       final double brightness = session.brightnessContrast.brightness;
-       final double contrast = session.brightnessContrast.contrast;
-       if (brightness != 0 || contrast != 0) {
-          activeLayerWidget = ColorFiltered(
-           colorFilter: ColorFilter.matrix(ColorFilterGenerator.brightnessContrast(brightness, contrast)),
-           child: activeLayerWidget,
-         );
-       }
+      final double brightness = session.brightnessContrast.brightness;
+      final double contrast = session.brightnessContrast.contrast;
+      if (brightness != 0 || contrast != 0) {
+        activeLayerWidget = ColorFiltered(
+          colorFilter: ColorFilter.matrix(
+            ColorFilterGenerator.brightnessContrast(brightness, contrast),
+          ),
+          child: activeLayerWidget,
+        );
+      }
+    } else if (session.type == _FilterPanelType.blackWhite) {
+      if (!useFilteredPreviewImage) {
+        final double black = session.blackWhite.blackPoint.clamp(0.0, 100.0);
+        final double white = session.blackWhite.whitePoint.clamp(0.0, 100.0);
+        final double clampedWhite = white <= black + _kBlackWhiteMinRange
+            ? math.min(100.0, black + _kBlackWhiteMinRange)
+            : white;
+        final double blackNorm = black / 100.0;
+        final double whiteNorm = math.max(
+          blackNorm + (_kBlackWhiteMinRange / 100.0),
+          clampedWhite / 100.0,
+        );
+        final double invRange = 1.0 / math.max(0.0001, whiteNorm - blackNorm);
+        final double offset = -blackNorm * 255.0 * invRange;
+        const double lwR = 0.299;
+        const double lwG = 0.587;
+        const double lwB = 0.114;
+        activeLayerWidget = ColorFiltered(
+          colorFilter: ColorFilter.matrix(<double>[
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            0,
+            0,
+            0,
+            1,
+            0,
+          ]),
+          child: activeLayerWidget,
+        );
+      }
     }
 
     return Stack(
       fit: StackFit.expand,
       children: [
         if (_previewBackground != null)
-          RawImage(image: _previewBackground),
+          RawImage(
+            image: _previewBackground,
+            filterQuality: FilterQuality.none,
+          ),
         activeLayerWidget,
         if (_previewForeground != null)
-          RawImage(image: _previewForeground),
+          RawImage(
+            image: _previewForeground,
+            filterQuality: FilterQuality.none,
+          ),
       ],
     );
   }
@@ -996,8 +1131,10 @@ mixin _PaintingBoardBuildMixin
       image: _layerOpacityPreviewActiveLayerImage,
       filterQuality: FilterQuality.low,
     );
-    final double previewOpacity =
-        (_layerOpacityPreviewValue ?? 1.0).clamp(0.0, 1.0);
+    final double previewOpacity = (_layerOpacityPreviewValue ?? 1.0).clamp(
+      0.0,
+      1.0,
+    );
     if (previewOpacity < 0.999) {
       activeLayerWidget = Opacity(
         opacity: previewOpacity,
@@ -1014,10 +1151,7 @@ mixin _PaintingBoardBuildMixin
     if (_layerOpacityPreviewForeground != null) {
       children.add(RawImage(image: _layerOpacityPreviewForeground));
     }
-    return Stack(
-      fit: StackFit.expand,
-      children: children,
-    );
+    return Stack(fit: StackFit.expand, children: children);
   }
 
   Widget? _buildAntialiasCard() {
@@ -1032,7 +1166,7 @@ mixin _PaintingBoardBuildMixin
         child: WorkspaceFloatingPanel(
           width: _kAntialiasPanelWidth,
           minHeight: _kAntialiasPanelMinHeight,
-          title: '抗锯齿',
+          title: '边缘柔化',
           onClose: hideLayerAntialiasPanel,
           onDragUpdate: _updateAntialiasCardOffset,
           bodyPadding: const EdgeInsets.symmetric(horizontal: 16),

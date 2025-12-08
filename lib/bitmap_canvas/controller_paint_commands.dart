@@ -12,14 +12,23 @@ void _controllerFlushDeferredStrokeCommands(
     return;
   }
 
-  final List<Offset> points =
+  List<Offset> points =
       List<Offset>.from(controller._currentStrokePoints);
-  final List<double> radii =
+  List<double> radii =
       List<double>.from(controller._currentStrokeRadii);
   final Color color = controller._currentStrokeColor;
   final BrushShape shape = controller._currentBrushShape;
   final bool erase = controller._currentStrokeEraseMode;
   final int antialiasLevel = controller._currentStrokeAntialiasLevel;
+
+  if (controller._vectorStrokeSmoothingEnabled && points.length >= 3) {
+    final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
+      points,
+      radii,
+    );
+    points = smoothed.points;
+    radii = smoothed.radii;
+  }
 
   final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
     points: points,
@@ -644,4 +653,126 @@ void _controllerApplyStampSegmentFallback({
       erase: erase,
     );
   }
+}
+
+const double _kVectorStrokeSmoothSampleSpacing = 4.0;
+const double _kVectorStrokeSmoothMinSegment = 0.5;
+const int _kVectorStrokeSmoothMaxSamplesPerSegment = 48;
+
+class _VectorStrokePathData {
+  const _VectorStrokePathData({
+    required this.points,
+    required this.radii,
+  });
+
+  final List<Offset> points;
+  final List<double> radii;
+}
+
+_VectorStrokePathData _smoothVectorStrokePath(
+  List<Offset> points,
+  List<double> radii,
+) {
+  if (points.length < 3) {
+    return _VectorStrokePathData(points: points, radii: radii);
+  }
+
+  final List<Offset> smoothedPoints = <Offset>[points.first];
+  final List<double> smoothedRadii = <double>[
+    _strokeRadiusAtIndex(radii, 0),
+  ];
+
+  for (int i = 0; i < points.length - 1; i++) {
+    final Offset p0 = i == 0 ? points[i] : points[i - 1];
+    final Offset p1 = points[i];
+    final Offset p2 = points[i + 1];
+    final Offset p3 = (i + 2 < points.length) ? points[i + 2] : points[i + 1];
+    final double r0 = i == 0
+        ? _strokeRadiusAtIndex(radii, i)
+        : _strokeRadiusAtIndex(radii, i - 1);
+    final double r1 = _strokeRadiusAtIndex(radii, i);
+    final double r2 = _strokeRadiusAtIndex(radii, i + 1);
+    final double r3 = (i + 2 < points.length)
+        ? _strokeRadiusAtIndex(radii, i + 2)
+        : _strokeRadiusAtIndex(radii, i + 1);
+
+    final double segmentLength = (p2 - p1).distance;
+    if (segmentLength < _kVectorStrokeSmoothMinSegment) {
+      continue;
+    }
+
+    final int samples = math.max(
+      2,
+      math.min(
+        _kVectorStrokeSmoothMaxSamplesPerSegment,
+        (segmentLength / _kVectorStrokeSmoothSampleSpacing).ceil() + 1,
+      ),
+    );
+
+    for (int s = 1; s < samples; s++) {
+      final double t = s / (samples - 1);
+      final Offset smoothedPoint = _catmullRomOffset(p0, p1, p2, p3, t);
+      final double smoothedRadius =
+          _catmullRomScalar(r0, r1, r2, r3, t).clamp(0.0, double.infinity);
+      smoothedPoints.add(smoothedPoint);
+      smoothedRadii.add(smoothedRadius);
+    }
+  }
+
+  if (smoothedPoints.length == 1) {
+    smoothedPoints.add(points.last);
+    smoothedRadii.add(_strokeRadiusAtIndex(radii, points.length - 1));
+  } else {
+    smoothedPoints[smoothedPoints.length - 1] = points.last;
+    smoothedRadii[smoothedRadii.length - 1] =
+        _strokeRadiusAtIndex(radii, points.length - 1);
+  }
+
+  return _VectorStrokePathData(points: smoothedPoints, radii: smoothedRadii);
+}
+
+double _strokeRadiusAtIndex(List<double> radii, int index) {
+  if (radii.isEmpty) {
+    return 1.0;
+  }
+  if (index < 0) {
+    return radii.first;
+  }
+  if (index >= radii.length) {
+    return radii.last;
+  }
+  final double value = radii[index];
+  if (value.isFinite && value >= 0) {
+    return value;
+  }
+  return radii.last >= 0 ? radii.last : 1.0;
+}
+
+Offset _catmullRomOffset(
+  Offset p0,
+  Offset p1,
+  Offset p2,
+  Offset p3,
+  double t,
+) {
+  return Offset(
+    _catmullRomScalar(p0.dx, p1.dx, p2.dx, p3.dx, t),
+    _catmullRomScalar(p0.dy, p1.dy, p2.dy, p3.dy, t),
+  );
+}
+
+double _catmullRomScalar(
+  double p0,
+  double p1,
+  double p2,
+  double p3,
+  double t,
+) {
+  final double t2 = t * t;
+  final double t3 = t2 * t;
+  return 0.5 *
+      ((2 * p1) +
+          (-p0 + p2) * t +
+          (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+          (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
 }

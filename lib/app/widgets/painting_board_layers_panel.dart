@@ -139,6 +139,14 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     );
   }
 
+  Widget _buildLayerActionTooltip({
+    required String message,
+    required Widget child,
+    String? detail,
+  }) {
+    return HoverDetailTooltip(message: message, detail: detail, child: child);
+  }
+
   Widget? _buildLayerControlStripImpl(
     FluentThemeData theme,
     BitmapLayerState? activeLayer,
@@ -436,11 +444,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     ui.Image? image;
     if (pixels != null) {
       try {
-        image = await _decodeImage(
-          pixels.bytes,
-          pixels.width,
-          pixels.height,
-        );
+        image = await _decodeImage(pixels.bytes, pixels.width, pixels.height);
       } catch (error, stackTrace) {
         debugPrint('Failed to build layer preview for $layerId: $error');
         debugPrint('$stackTrace');
@@ -512,7 +516,11 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
         rgba[dest++] = (argb >> 24) & 0xFF;
       }
     }
-    return _LayerPreviewPixels(bytes: rgba, width: targetWidth, height: targetHeight);
+    return _LayerPreviewPixels(
+      bytes: rgba,
+      width: targetWidth,
+      height: targetHeight,
+    );
   }
 
   void _disposeLayerPreviewCacheImpl() {
@@ -613,6 +621,16 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                     final bool showTileButtons = !isSai2Layout;
                     _ensureLayerPreview(layer);
                     final ui.Image? layerPreview = _layerPreviewImage(layer.id);
+                    final String lockTooltip = layerLocked ? '解锁图层' : '锁定图层';
+                    final String lockDetail = layerLocked
+                        ? '解除保护后即可继续编辑此图层'
+                        : '锁定后不可绘制或移动，防止误操作';
+                    final String clippingTooltip = layerClipping
+                        ? '取消剪贴蒙版'
+                        : '创建剪贴蒙版';
+                    final String clippingDetail = layerClipping
+                        ? '恢复为普通图层，显示全部像素'
+                        : '仅显示落在下方图层不透明区域内的内容';
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
@@ -634,8 +652,9 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                     Widget? lockButton;
                     Widget? clippingButton;
                     if (showTileButtons) {
-                      lockButton = Tooltip(
-                        message: layerLocked ? '解锁图层' : '锁定图层',
+                      lockButton = _buildLayerActionTooltip(
+                        message: lockTooltip,
+                        detail: lockDetail,
                         child: IconButton(
                           icon: Icon(
                             layerLocked ? FluentIcons.lock : FluentIcons.unlock,
@@ -648,8 +667,9 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                             .withOpacity(theme.brightness.isDark ? 0.18 : 0.08),
                         background,
                       );
-                      clippingButton = Tooltip(
-                        message: layerClipping ? '取消剪贴蒙版' : '创建剪贴蒙版',
+                      clippingButton = _buildLayerActionTooltip(
+                        message: clippingTooltip,
+                        detail: clippingDetail,
                         child: IconButton(
                           icon: const Icon(FluentIcons.subtract_shape),
                           style: ButtonStyle(
@@ -673,16 +693,21 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                     }
 
                     final bool canDelete = _layers.length > 1 && !layerLocked;
-                    final Widget deleteButton = IconButton(
-                      icon: const Icon(FluentIcons.delete),
-                      onPressed: canDelete
-                          ? () => _handleRemoveLayer(layer.id)
-                          : null,
+                    final Widget deleteButton = _buildLayerActionTooltip(
+                      message: '删除图层',
+                      detail: '移除该图层，若误删可立即撤销恢复',
+                      child: IconButton(
+                        icon: const Icon(FluentIcons.delete),
+                        onPressed: canDelete
+                            ? () => _handleRemoveLayer(layer.id)
+                            : null,
+                      ),
                     );
                     Widget? trailingWidget;
                     if (isSai2Layout) {
-                      final Widget lockToggleButton = Tooltip(
-                        message: layerLocked ? '解锁图层' : '锁定图层',
+                      final Widget lockToggleButton = _buildLayerActionTooltip(
+                        message: lockTooltip,
+                        detail: lockDetail,
                         child: IconButton(
                           icon: Icon(
                             layerLocked ? FluentIcons.lock : FluentIcons.unlock,
@@ -718,15 +743,18 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                       Widget wrapIconButton({
                         required Widget child,
                         required String tooltip,
+                        String? detail,
                       }) {
-                        return Tooltip(
+                        return _buildLayerActionTooltip(
                           message: tooltip,
+                          detail: detail,
                           child: child,
                         );
                       }
 
                       final Widget mergeButton = wrapIconButton(
                         tooltip: '向下合并',
+                        detail: '将该图层与下方图层合并为一个，并保留像素结果',
                         child: IconButton(
                           icon: const Icon(FluentIcons.download),
                           onPressed: canMergeDown
@@ -736,6 +764,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                       );
                       final Widget duplicateButton = wrapIconButton(
                         tooltip: '复制图层',
+                        detail: '复制整层内容，新的副本会出现在原图层上方',
                         child: IconButton(
                           icon: const Icon(FluentIcons.copy),
                           onPressed: () => _handleDuplicateLayer(layer),
@@ -743,6 +772,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                       );
                       final Widget placeholderButton = wrapIconButton(
                         tooltip: '更多',
+                        detail: null,
                         child: const IconButton(
                           icon: Icon(FluentIcons.more),
                           onPressed: null,
@@ -807,7 +837,8 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                                             theme: theme,
                                             layer: layer,
                                             isActive: isActive,
-                                            isRenaming: !layerLocked &&
+                                            isRenaming:
+                                                !layerLocked &&
                                                 _renamingLayerId == layer.id,
                                             isLocked: layerLocked,
                                             isTextLayer: isTextLayer,
@@ -888,11 +919,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(
-          FluentIcons.font,
-          size: 12,
-          color: iconColor,
-        ),
+        Icon(FluentIcons.font, size: 12, color: iconColor),
         const SizedBox(width: 6),
         Expanded(child: name),
       ],

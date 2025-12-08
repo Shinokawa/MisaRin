@@ -52,13 +52,17 @@ class MenuActionHandler {
     this.mergeLayerDown,
     this.rasterizeLayer,
     this.rasterizeLayerEnabled,
+    this.binarizeLayer,
     this.layerFreeTransform,
     this.adjustHueSaturation,
     this.adjustBrightnessContrast,
+    this.adjustBlackWhite,
+    this.invertColors,
     this.selectAll,
     this.invertSelection,
     this.showLayerAntialiasPanel,
     this.gaussianBlur,
+    this.removeColorLeak,
     this.createReferenceImage,
     this.importReferenceImage,
     this.workspaceLayoutPreference,
@@ -66,6 +70,10 @@ class MenuActionHandler {
     this.resetWorkspaceLayout,
     this.togglePixelGrid,
     this.pixelGridVisible = false,
+    this.toggleViewBlackWhite,
+    this.viewBlackWhiteEnabled = false,
+    this.toggleViewMirror,
+    this.viewMirrorEnabled = false,
   });
 
   const MenuActionHandler.empty()
@@ -100,13 +108,17 @@ class MenuActionHandler {
       mergeLayerDown = null,
       rasterizeLayer = null,
       rasterizeLayerEnabled = null,
+      binarizeLayer = null,
       layerFreeTransform = null,
       adjustHueSaturation = null,
       adjustBrightnessContrast = null,
+      adjustBlackWhite = null,
+      invertColors = null,
       selectAll = null,
       invertSelection = null,
       showLayerAntialiasPanel = null,
       gaussianBlur = null,
+      removeColorLeak = null,
       createReferenceImage = null,
       importReferenceImage = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[],
@@ -114,7 +126,11 @@ class MenuActionHandler {
       switchWorkspaceLayout = null,
       resetWorkspaceLayout = null,
       togglePixelGrid = null,
-      pixelGridVisible = false;
+      pixelGridVisible = false,
+      toggleViewBlackWhite = null,
+      viewBlackWhiteEnabled = false,
+      toggleViewMirror = null,
+      viewMirrorEnabled = false;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -148,13 +164,17 @@ class MenuActionHandler {
   final MenuAsyncAction? mergeLayerDown;
   final MenuAsyncAction? rasterizeLayer;
   final MenuActionEnabledResolver? rasterizeLayerEnabled;
+  final MenuAsyncAction? binarizeLayer;
   final MenuAsyncAction? layerFreeTransform;
   final MenuAsyncAction? adjustHueSaturation;
   final MenuAsyncAction? adjustBrightnessContrast;
+  final MenuAsyncAction? adjustBlackWhite;
+  final MenuAsyncAction? invertColors;
   final MenuAsyncAction? selectAll;
   final MenuAsyncAction? invertSelection;
   final MenuAsyncAction? showLayerAntialiasPanel;
   final MenuAsyncAction? gaussianBlur;
+  final MenuAsyncAction? removeColorLeak;
   final MenuAsyncAction? createReferenceImage;
   final MenuAsyncAction? importReferenceImage;
   final WorkspaceLayoutPreference? workspaceLayoutPreference;
@@ -162,6 +182,10 @@ class MenuActionHandler {
   final MenuAsyncAction? resetWorkspaceLayout;
   final MenuAsyncAction? togglePixelGrid;
   final bool pixelGridVisible;
+  final MenuAsyncAction? toggleViewBlackWhite;
+  final bool viewBlackWhiteEnabled;
+  final MenuAsyncAction? toggleViewMirror;
+  final bool viewMirrorEnabled;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

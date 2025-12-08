@@ -5,8 +5,39 @@ const double _kFilterPanelMinHeight = 180;
 const double _kAntialiasPanelWidth = 280;
 const double _kAntialiasPanelMinHeight = 140;
 const double _kGaussianBlurMaxRadius = 1000.0;
+const double _kLeakRemovalMaxRadius = 20.0;
+const double _kBlackWhiteMinRange = 1.0;
+const ColorFilter _kViewBlackWhiteColorFilter = ColorFilter.matrix(<double>[
+  0.299,
+  0.587,
+  0.114,
+  0,
+  0,
+  0.299,
+  0.587,
+  0.114,
+  0,
+  0,
+  0.299,
+  0.587,
+  0.114,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+]);
+final Matrix4 _kViewMirrorTransform = Matrix4.diagonal3Values(-1, 1, 1);
 
-enum _FilterPanelType { hueSaturation, brightnessContrast, gaussianBlur }
+enum _FilterPanelType {
+  hueSaturation,
+  brightnessContrast,
+  blackWhite,
+  gaussianBlur,
+  leakRemoval,
+}
 
 class _HueSaturationSettings {
   _HueSaturationSettings({
@@ -33,6 +64,24 @@ class _GaussianBlurSettings {
   double radius;
 }
 
+class _LeakRemovalSettings {
+  _LeakRemovalSettings({this.radius = 0});
+
+  double radius;
+}
+
+class _BlackWhiteSettings {
+  _BlackWhiteSettings({
+    this.blackPoint = 0,
+    this.whitePoint = 100,
+    this.midTone = 0,
+  });
+
+  double blackPoint;
+  double whitePoint;
+  double midTone;
+}
+
 class _FilterSession {
   _FilterSession({
     required this.type,
@@ -48,7 +97,9 @@ class _FilterSession {
   final _HueSaturationSettings hueSaturation = _HueSaturationSettings();
   final _BrightnessContrastSettings brightnessContrast =
       _BrightnessContrastSettings();
+  final _BlackWhiteSettings blackWhite = _BlackWhiteSettings();
   final _GaussianBlurSettings gaussianBlur = _GaussianBlurSettings();
+  final _LeakRemovalSettings leakRemoval = _LeakRemovalSettings();
   CanvasLayerData? previewLayer;
 }
 
@@ -75,11 +126,15 @@ mixin _PaintingBoardFilterMixin
   ui.Image? _previewBackground;
   ui.Image? _previewActiveLayerImage;
   ui.Image? _previewFilteredActiveLayerImage;
+  _FilterPanelType? _previewFilteredImageType;
   ui.Image? _previewForeground;
   Uint8List? _previewActiveLayerPixels;
   bool _previewHueSaturationUpdateScheduled = false;
   bool _previewHueSaturationUpdateInFlight = false;
   int _previewHueSaturationUpdateToken = 0;
+  bool _previewBlackWhiteUpdateScheduled = false;
+  bool _previewBlackWhiteUpdateInFlight = false;
+  int _previewBlackWhiteUpdateToken = 0;
   bool _filterApplying = false;
   Completer<_FilterPreviewResult>? _filterApplyCompleter;
   bool _filterAwaitingFrameSwap = false;
@@ -93,8 +148,16 @@ mixin _PaintingBoardFilterMixin
     _openFilterPanel(_FilterPanelType.brightnessContrast);
   }
 
+  void showBlackWhiteAdjustments() {
+    _openFilterPanel(_FilterPanelType.blackWhite);
+  }
+
   void showGaussianBlurAdjustments() {
     _openFilterPanel(_FilterPanelType.gaussianBlur);
+  }
+
+  void showLeakRemovalAdjustments() {
+    _openFilterPanel(_FilterPanelType.leakRemoval);
   }
 
   void _openFilterPanel(_FilterPanelType type) async {
@@ -131,10 +194,14 @@ mixin _PaintingBoardFilterMixin
     );
     _previewFilteredActiveLayerImage?.dispose();
     _previewFilteredActiveLayerImage = null;
+    _previewFilteredImageType = null;
     _previewActiveLayerPixels = null;
     _previewHueSaturationUpdateScheduled = false;
     _previewHueSaturationUpdateInFlight = false;
     _previewHueSaturationUpdateToken++;
+    _previewBlackWhiteUpdateScheduled = false;
+    _previewBlackWhiteUpdateInFlight = false;
+    _previewBlackWhiteUpdateToken++;
 
     if (_filterPanelOffset == Offset.zero) {
       final Offset workspaceOffset = _workspacePanelSpawnOffset(
@@ -185,6 +252,7 @@ mixin _PaintingBoardFilterMixin
     _previewForeground = previews.foreground;
     _previewFilteredActiveLayerImage?.dispose();
     _previewFilteredActiveLayerImage = null;
+    _previewFilteredImageType = null;
     _previewActiveLayerPixels = null;
     if (_previewActiveLayerImage != null) {
       await _prepareActiveLayerPreviewPixels();
@@ -192,8 +260,13 @@ mixin _PaintingBoardFilterMixin
     _previewHueSaturationUpdateToken++;
     _previewHueSaturationUpdateScheduled = false;
     _previewHueSaturationUpdateInFlight = false;
+    _previewBlackWhiteUpdateToken++;
+    _previewBlackWhiteUpdateScheduled = false;
+    _previewBlackWhiteUpdateInFlight = false;
     if (session.type == _FilterPanelType.hueSaturation) {
       _scheduleHueSaturationPreviewImageUpdate();
+    } else if (session.type == _FilterPanelType.blackWhite) {
+      _scheduleBlackWhitePreviewImageUpdate();
     }
   }
 
@@ -259,6 +332,7 @@ mixin _PaintingBoardFilterMixin
           setState(() {
             _previewFilteredActiveLayerImage?.dispose();
             _previewFilteredActiveLayerImage = null;
+            _previewFilteredImageType = null;
           });
         }
         continue;
@@ -296,11 +370,80 @@ mixin _PaintingBoardFilterMixin
       setState(() {
         _previewFilteredActiveLayerImage?.dispose();
         _previewFilteredActiveLayerImage = image;
+        _previewFilteredImageType = _FilterPanelType.hueSaturation;
       });
     }
     _previewHueSaturationUpdateInFlight = false;
     if (_previewHueSaturationUpdateScheduled) {
       unawaited(_runHueSaturationPreviewImageUpdate());
+    }
+  }
+
+  void _scheduleBlackWhitePreviewImageUpdate() {
+    if (_filterSession?.type != _FilterPanelType.blackWhite) {
+      return;
+    }
+    if (_previewActiveLayerPixels == null || _previewActiveLayerImage == null) {
+      return;
+    }
+    _previewBlackWhiteUpdateScheduled = true;
+    if (!_previewBlackWhiteUpdateInFlight) {
+      unawaited(_runBlackWhitePreviewImageUpdate());
+    }
+  }
+
+  Future<void> _runBlackWhitePreviewImageUpdate() async {
+    if (_previewBlackWhiteUpdateInFlight) {
+      return;
+    }
+    _previewBlackWhiteUpdateInFlight = true;
+    while (_previewBlackWhiteUpdateScheduled) {
+      _previewBlackWhiteUpdateScheduled = false;
+      final _FilterSession? session = _filterSession;
+      final ui.Image? baseImage = _previewActiveLayerImage;
+      final Uint8List? source = _previewActiveLayerPixels;
+      if (session == null ||
+          session.type != _FilterPanelType.blackWhite ||
+          baseImage == null ||
+          source == null) {
+        break;
+      }
+      final _BlackWhiteSettings settings = session.blackWhite;
+      final int token = ++_previewBlackWhiteUpdateToken;
+      final List<Object?> args = <Object?>[
+        source,
+        settings.blackPoint,
+        settings.whitePoint,
+        settings.midTone,
+      ];
+      Uint8List processed;
+      try {
+        processed = await _generateBlackWhitePreviewBytes(args);
+      } catch (error) {
+        debugPrint('Failed to compute black & white preview: $error');
+        break;
+      }
+      if (!mounted || token != _previewBlackWhiteUpdateToken) {
+        break;
+      }
+      final ui.Image image = await _decodeImage(
+        processed,
+        baseImage.width,
+        baseImage.height,
+      );
+      if (!mounted || token != _previewBlackWhiteUpdateToken) {
+        image.dispose();
+        break;
+      }
+      setState(() {
+        _previewFilteredActiveLayerImage?.dispose();
+        _previewFilteredActiveLayerImage = image;
+        _previewFilteredImageType = _FilterPanelType.blackWhite;
+      });
+    }
+    _previewBlackWhiteUpdateInFlight = false;
+    if (_previewBlackWhiteUpdateScheduled) {
+      unawaited(_runBlackWhitePreviewImageUpdate());
     }
   }
 
@@ -387,11 +530,29 @@ mixin _PaintingBoardFilterMixin
                   _updateBrightnessContrast(contrast: value),
             );
             break;
+          case _FilterPanelType.blackWhite:
+            panelTitle = '黑白';
+            panelBody = _BlackWhiteControls(
+              settings: session.blackWhite,
+              onBlackPointChanged: (value) =>
+                  _updateBlackWhite(blackPoint: value),
+              onWhitePointChanged: (value) =>
+                  _updateBlackWhite(whitePoint: value),
+              onMidToneChanged: (value) => _updateBlackWhite(midTone: value),
+            );
+            break;
           case _FilterPanelType.gaussianBlur:
             panelTitle = '高斯模糊';
             panelBody = _GaussianBlurControls(
               radius: session.gaussianBlur.radius,
               onRadiusChanged: _updateGaussianBlur,
+            );
+            break;
+          case _FilterPanelType.leakRemoval:
+            panelTitle = '去除漏色';
+            panelBody = _LeakRemovalControls(
+              radius: session.leakRemoval.radius,
+              onRadiusChanged: _updateLeakRemovalRadius,
             );
             break;
         }
@@ -500,10 +661,16 @@ mixin _PaintingBoardFilterMixin
     session.brightnessContrast
       ..brightness = 0
       ..contrast = 0;
+    session.blackWhite
+      ..blackPoint = 0
+      ..whitePoint = 100
+      ..midTone = 0;
     session.gaussianBlur.radius = 0;
+    session.leakRemoval.radius = 0;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleHueSaturationPreviewImageUpdate();
+    _scheduleBlackWhitePreviewImageUpdate();
   }
 
   void _updateHueSaturation({
@@ -536,12 +703,49 @@ mixin _PaintingBoardFilterMixin
     _filterOverlayEntry?.markNeedsBuild();
   }
 
+  void _updateBlackWhite({
+    double? blackPoint,
+    double? whitePoint,
+    double? midTone,
+  }) {
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    final double nextBlack = (blackPoint ?? session.blackWhite.blackPoint)
+        .clamp(0.0, 100.0);
+    double nextWhite = (whitePoint ?? session.blackWhite.whitePoint).clamp(
+      0.0,
+      100.0,
+    );
+    if (nextWhite <= nextBlack + _kBlackWhiteMinRange) {
+      nextWhite = math.min(100.0, nextBlack + _kBlackWhiteMinRange);
+    }
+    session.blackWhite
+      ..blackPoint = nextBlack
+      ..whitePoint = nextWhite
+      ..midTone = (midTone ?? session.blackWhite.midTone).clamp(-100.0, 100.0);
+    setState(() {});
+    _filterOverlayEntry?.markNeedsBuild();
+    _scheduleBlackWhitePreviewImageUpdate();
+  }
+
   void _updateGaussianBlur(double radius) {
     final _FilterSession? session = _filterSession;
     if (session == null) {
       return;
     }
     session.gaussianBlur.radius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
+    setState(() {});
+    _filterOverlayEntry?.markNeedsBuild();
+  }
+
+  void _updateLeakRemovalRadius(double radius) {
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    session.leakRemoval.radius = radius.clamp(0.0, _kLeakRemovalMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
   }
@@ -585,7 +789,9 @@ mixin _PaintingBoardFilterMixin
         token: token,
         hueSaturation: session.hueSaturation,
         brightnessContrast: session.brightnessContrast,
+        blackWhite: session.blackWhite,
         blurRadius: session.gaussianBlur.radius,
+        leakRadius: session.leakRemoval.radius,
       ),
     );
   }
@@ -698,8 +904,26 @@ mixin _PaintingBoardFilterMixin
       case _FilterPanelType.brightnessContrast:
         final _BrightnessContrastSettings settings = session.brightnessContrast;
         return settings.brightness == 0 && settings.contrast == 0;
+      case _FilterPanelType.blackWhite:
+        final CanvasLayerData layer =
+            session.originalLayers[session.activeLayerIndex];
+        final bool hasBitmap =
+            layer.bitmap != null &&
+            (layer.bitmapWidth ?? 0) > 0 &&
+            (layer.bitmapHeight ?? 0) > 0;
+        final bool hasFill = layer.fillColor != null;
+        return !hasBitmap && !hasFill;
       case _FilterPanelType.gaussianBlur:
         final double radius = session.gaussianBlur.radius;
+        final CanvasLayerData layer =
+            session.originalLayers[session.activeLayerIndex];
+        final bool hasBitmap =
+            layer.bitmap != null &&
+            (layer.bitmapWidth ?? 0) > 0 &&
+            (layer.bitmapHeight ?? 0) > 0;
+        return radius <= 0 || !hasBitmap;
+      case _FilterPanelType.leakRemoval:
+        final double radius = session.leakRemoval.radius;
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
         final bool hasBitmap =
@@ -800,12 +1024,16 @@ mixin _PaintingBoardFilterMixin
     _previewActiveLayerImage = null;
     _previewFilteredActiveLayerImage?.dispose();
     _previewFilteredActiveLayerImage = null;
+    _previewFilteredImageType = null;
     _previewForeground?.dispose();
     _previewForeground = null;
     _previewActiveLayerPixels = null;
     _previewHueSaturationUpdateScheduled = false;
     _previewHueSaturationUpdateInFlight = false;
     _previewHueSaturationUpdateToken++;
+    _previewBlackWhiteUpdateScheduled = false;
+    _previewBlackWhiteUpdateInFlight = false;
+    _previewBlackWhiteUpdateToken++;
     _filterLoading = false;
     _filterApplying = false;
 
@@ -841,6 +1069,106 @@ mixin _PaintingBoardFilterMixin
       bitmapTop: hasBitmap ? original.bitmapTop : null,
       cloneBitmap: false,
     );
+  }
+
+  Future<void> invertActiveLayerColors() async {
+    if (_controller.frame == null) {
+      _showFilterMessage('画布尚未准备好，无法颜色反转。');
+      return;
+    }
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      _showFilterMessage('请先选择一个可编辑的图层。');
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      _showFilterMessage('无法定位当前图层。');
+      return;
+    }
+    if (layer.locked) {
+      _showFilterMessage('当前图层已锁定，无法颜色反转。');
+      return;
+    }
+
+    await _controller.waitForPendingWorkerTasks();
+    final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
+    final int index = snapshot.indexWhere((item) => item.id == activeLayerId);
+    if (index < 0) {
+      _showFilterMessage('无法定位当前图层。');
+      return;
+    }
+    final CanvasLayerData data = snapshot[index];
+    if (data.bitmap == null && data.fillColor == null) {
+      _showFilterMessage('当前图层为空，无法颜色反转。');
+      return;
+    }
+
+    Uint8List? bitmap = data.bitmap != null
+        ? Uint8List.fromList(data.bitmap!)
+        : null;
+    Color? fillColor = data.fillColor;
+    bool bitmapModified = false;
+    if (bitmap != null) {
+      bool hasCoverage = false;
+      for (int i = 0; i < bitmap.length; i += 4) {
+        final int alpha = bitmap[i + 3];
+        if (alpha == 0) {
+          continue;
+        }
+        hasCoverage = true;
+        bitmap[i] = 255 - bitmap[i];
+        bitmap[i + 1] = 255 - bitmap[i + 1];
+        bitmap[i + 2] = 255 - bitmap[i + 2];
+      }
+      if (hasCoverage) {
+        bitmapModified = true;
+      } else {
+        bitmap = null;
+      }
+    }
+
+    bool fillChanged = false;
+    if (fillColor != null) {
+      final Color inverted = Color.fromARGB(
+        fillColor.alpha,
+        255 - fillColor.red,
+        255 - fillColor.green,
+        255 - fillColor.blue,
+      );
+      if (inverted != fillColor) {
+        fillColor = inverted;
+        fillChanged = true;
+      }
+    }
+
+    if (!bitmapModified && !fillChanged) {
+      _showFilterMessage('当前图层没有可反转的像素。');
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    final CanvasLayerData updated = CanvasLayerData(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      opacity: data.opacity,
+      locked: data.locked,
+      clippingMask: data.clippingMask,
+      blendMode: data.blendMode,
+      fillColor: fillColor,
+      bitmap: bitmap,
+      bitmapWidth: bitmap != null ? data.bitmapWidth : null,
+      bitmapHeight: bitmap != null ? data.bitmapHeight : null,
+      bitmapLeft: bitmap != null ? data.bitmapLeft : null,
+      bitmapTop: bitmap != null ? data.bitmapTop : null,
+      text: data.text,
+      cloneBitmap: false,
+    );
+    _controller.replaceLayer(activeLayerId, updated);
+    _controller.setActiveLayer(activeLayerId);
+    setState(() {});
+    _markDirty();
   }
 
   void showLayerAntialiasPanel() {
@@ -885,7 +1213,7 @@ mixin _PaintingBoardFilterMixin
     }
     final bool applied = await applyLayerAntialiasLevel(_antialiasCardLevel);
     if (!applied) {
-      _showFilterMessage('无法对当前图层应用抗锯齿，图层可能为空或已锁定。');
+      _showFilterMessage('无法对当前图层应用边缘柔化，图层可能为空或已锁定。');
       return;
     }
     setState(() {
@@ -941,7 +1269,7 @@ mixin _PaintingBoardFilterMixin
       return false;
     }
     if (layer.locked) {
-      _showFilterMessage('当前图层已锁定，无法应用抗锯齿。');
+      _showFilterMessage('当前图层已锁定，无法应用边缘柔化。');
       return false;
     }
     return true;
@@ -1043,6 +1371,56 @@ class _BrightnessContrastControls extends StatelessWidget {
           min: -100,
           max: 100,
           onChanged: onContrastChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _BlackWhiteControls extends StatelessWidget {
+  const _BlackWhiteControls({
+    required this.settings,
+    required this.onBlackPointChanged,
+    required this.onWhitePointChanged,
+    required this.onMidToneChanged,
+  });
+
+  final _BlackWhiteSettings settings;
+  final ValueChanged<double> onBlackPointChanged;
+  final ValueChanged<double> onWhitePointChanged;
+  final ValueChanged<double> onMidToneChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _FilterSlider(
+          label: '黑场',
+          value: settings.blackPoint,
+          min: 0,
+          max: 100,
+          onChanged: onBlackPointChanged,
+        ),
+        _FilterSlider(
+          label: '白场',
+          value: settings.whitePoint,
+          min: 0,
+          max: 100,
+          onChanged: onWhitePointChanged,
+        ),
+        _FilterSlider(
+          label: '中间灰',
+          value: settings.midTone,
+          min: -100,
+          max: 100,
+          onChanged: onMidToneChanged,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '将图像转换为灰度后微调黑场、白场与中间灰。白场会自动保持略高于黑场，避免出现色阶断层。',
+          style: theme.typography.caption,
         ),
       ],
     );
@@ -1185,6 +1563,49 @@ class _GaussianBlurControls extends StatelessWidget {
   }
 }
 
+class _LeakRemovalControls extends StatelessWidget {
+  const _LeakRemovalControls({
+    required this.radius,
+    required this.onRadiusChanged,
+  });
+
+  final double radius;
+  final ValueChanged<double> onRadiusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final double clamped = radius.clamp(0, _kLeakRemovalMaxRadius);
+    final int divisions = _kLeakRemovalMaxRadius.round().clamp(1, 1000).toInt();
+    final int rounded = clamped.round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text('修复范围', style: theme.typography.bodyStrong),
+            const Spacer(),
+            Text('$rounded px', style: theme.typography.caption),
+          ],
+        ),
+        Slider(
+          min: 0,
+          max: _kLeakRemovalMaxRadius,
+          divisions: divisions,
+          value: clamped,
+          onChanged: onRadiusChanged,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '填充完全被线稿包围的透明针眼，可设置填补半径（像素）。数值越大，可修复的漏色面积越大。',
+          style: theme.typography.caption,
+        ),
+      ],
+    );
+  }
+}
+
 class _AntialiasPanelBody extends StatelessWidget {
   const _AntialiasPanelBody({
     required this.level,
@@ -1202,7 +1623,12 @@ class _AntialiasPanelBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('选择抗锯齿级别', style: theme.typography.bodyStrong),
+        Text('选择边缘柔化级别', style: theme.typography.bodyStrong),
+        const SizedBox(height: 8),
+        Text(
+          '在平滑边缘的同时保留线条密度，呈现接近 Retas 的细腻质感。',
+          style: theme.typography.caption,
+        ),
         const SizedBox(height: 12),
         Slider(
           value: safeLevel.toDouble(),
@@ -1284,7 +1710,9 @@ class _FilterSlider extends StatelessWidget {
 
 const int _kFilterTypeHueSaturation = 0;
 const int _kFilterTypeBrightnessContrast = 1;
-const int _kFilterTypeGaussianBlur = 2;
+const int _kFilterTypeBlackWhite = 2;
+const int _kFilterTypeGaussianBlur = 3;
+const int _kFilterTypeLeakRemoval = 4;
 
 class _FilterPreviewWorker {
   _FilterPreviewWorker({
@@ -1339,8 +1767,14 @@ class _FilterPreviewWorker {
       case _FilterPanelType.brightnessContrast:
         filterType = _kFilterTypeBrightnessContrast;
         break;
+      case _FilterPanelType.blackWhite:
+        filterType = _kFilterTypeBlackWhite;
+        break;
       case _FilterPanelType.gaussianBlur:
         filterType = _kFilterTypeGaussianBlur;
+        break;
+      case _FilterPanelType.leakRemoval:
+        filterType = _kFilterTypeLeakRemoval;
         break;
     }
     final Map<String, Object?> initData = <String, Object?>{
@@ -1422,7 +1856,9 @@ class _FilterPreviewWorker {
     required int token,
     required _HueSaturationSettings hueSaturation,
     required _BrightnessContrastSettings brightnessContrast,
+    required _BlackWhiteSettings blackWhite,
     required double blurRadius,
+    required double leakRadius,
   }) async {
     if (_disposed) {
       return;
@@ -1437,7 +1873,9 @@ class _FilterPreviewWorker {
         token: token,
         hueSaturation: hueSaturation,
         brightnessContrast: brightnessContrast,
+        blackWhite: blackWhite,
         blurRadius: blurRadius,
+        leakRadius: leakRadius,
       );
       return;
     }
@@ -1457,7 +1895,13 @@ class _FilterPreviewWorker {
         brightnessContrast.brightness,
         brightnessContrast.contrast,
       ],
+      'blackWhite': <double>[
+        blackWhite.blackPoint,
+        blackWhite.whitePoint,
+        blackWhite.midTone,
+      ],
       'blur': blurRadius,
+      'leakRadius': leakRadius,
     });
   }
 
@@ -1465,12 +1909,18 @@ class _FilterPreviewWorker {
     required int token,
     required _HueSaturationSettings hueSaturation,
     required _BrightnessContrastSettings brightnessContrast,
+    required _BlackWhiteSettings blackWhite,
     required double blurRadius,
+    required double leakRadius,
   }) {
     Uint8List? bitmap;
     final Uint8List? source = _baseBitmapSnapshot;
     if (source != null) {
       bitmap = Uint8List.fromList(source);
+      final int leakSteps = leakRadius.round().clamp(
+        0,
+        _kLeakRemovalMaxRadius.toInt(),
+      );
       if (_type == _FilterPanelType.hueSaturation) {
         _filterApplyHueSaturationToBitmap(
           bitmap,
@@ -1484,6 +1934,13 @@ class _FilterPreviewWorker {
           brightnessContrast.brightness,
           brightnessContrast.contrast,
         );
+      } else if (_type == _FilterPanelType.blackWhite) {
+        _filterApplyBlackWhiteToBitmap(
+          bitmap,
+          blackWhite.blackPoint,
+          blackWhite.whitePoint,
+          blackWhite.midTone,
+        );
       } else if (_type == _FilterPanelType.gaussianBlur &&
           blurRadius > 0 &&
           _baseBitmapWidth > 0 &&
@@ -1493,6 +1950,16 @@ class _FilterPreviewWorker {
           _baseBitmapWidth,
           _baseBitmapHeight,
           blurRadius,
+        );
+      } else if (_type == _FilterPanelType.leakRemoval &&
+          leakSteps > 0 &&
+          _baseBitmapWidth > 0 &&
+          _baseBitmapHeight > 0) {
+        _filterApplyLeakRemovalToBitmap(
+          bitmap,
+          _baseBitmapWidth,
+          _baseBitmapHeight,
+          leakSteps,
         );
       }
       if (bitmap != null && !_filterBitmapHasVisiblePixels(bitmap)) {
@@ -1515,6 +1982,13 @@ class _FilterPreviewWorker {
           baseColor,
           brightnessContrast.brightness,
           brightnessContrast.contrast,
+        );
+      } else if (_type == _FilterPanelType.blackWhite) {
+        output = _filterApplyBlackWhiteToColor(
+          baseColor,
+          blackWhite.blackPoint,
+          blackWhite.whitePoint,
+          blackWhite.midTone,
         );
       }
       adjustedFill = output.value;
@@ -1623,18 +2097,30 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
     final List<dynamic>? rawHue = message['hue'] as List<dynamic>?;
     final List<dynamic>? rawBrightness =
         message['brightness'] as List<dynamic>?;
+    final List<dynamic>? rawBlackWhite =
+        message['blackWhite'] as List<dynamic>?;
     final double hueDelta = _filterReadListValue(rawHue, 0);
     final double saturationPercent = _filterReadListValue(rawHue, 1);
     final double lightnessPercent = _filterReadListValue(rawHue, 2);
     final double brightnessPercent = _filterReadListValue(rawBrightness, 0);
     final double contrastPercent = _filterReadListValue(rawBrightness, 1);
+    final double blackPoint = _filterReadListValue(rawBlackWhite, 0);
+    final double whitePoint = _filterReadListValue(rawBlackWhite, 1);
+    final double midTone = _filterReadListValue(rawBlackWhite, 2);
     final double blurRadius = (message['blur'] is num)
         ? (message['blur'] as num).toDouble()
+        : 0.0;
+    final double leakRadius = (message['leakRadius'] is num)
+        ? (message['leakRadius'] as num).toDouble()
         : 0.0;
 
     Uint8List? bitmap;
     if (baseBitmap != null) {
       bitmap = Uint8List.fromList(baseBitmap);
+      final int leakSteps = leakRadius.round().clamp(
+        0,
+        _kLeakRemovalMaxRadius.toInt(),
+      );
       if (type == _kFilterTypeHueSaturation) {
         _filterApplyHueSaturationToBitmap(
           bitmap,
@@ -1648,6 +2134,8 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
           brightnessPercent,
           contrastPercent,
         );
+      } else if (type == _kFilterTypeBlackWhite) {
+        _filterApplyBlackWhiteToBitmap(bitmap, blackPoint, whitePoint, midTone);
       } else if (type == _kFilterTypeGaussianBlur &&
           blurRadius > 0 &&
           bitmapWidth > 0 &&
@@ -1657,6 +2145,16 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
           bitmapWidth,
           bitmapHeight,
           blurRadius,
+        );
+      } else if (type == _kFilterTypeLeakRemoval &&
+          leakSteps > 0 &&
+          bitmapWidth > 0 &&
+          bitmapHeight > 0) {
+        _filterApplyLeakRemovalToBitmap(
+          bitmap,
+          bitmapWidth,
+          bitmapHeight,
+          leakSteps,
         );
       }
       if (!_filterBitmapHasVisiblePixels(bitmap)) {
@@ -1680,6 +2178,13 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
           source,
           brightnessPercent,
           contrastPercent,
+        );
+      } else if (type == _kFilterTypeBlackWhite) {
+        adjusted = _filterApplyBlackWhiteToColor(
+          source,
+          blackPoint,
+          whitePoint,
+          midTone,
         );
       }
       adjustedFill = adjusted.value;
@@ -1728,6 +2233,30 @@ Uint8List _computeHueSaturationPreviewPixels(List<Object?> args) {
   final double lightness = (args[3] as num).toDouble();
   final Uint8List pixels = Uint8List.fromList(source);
   _filterApplyHueSaturationToBitmap(pixels, hue, saturation, lightness);
+  return pixels;
+}
+
+Future<Uint8List> _generateBlackWhitePreviewBytes(List<Object?> args) async {
+  if (kIsWeb) {
+    return _computeBlackWhitePreviewPixels(args);
+  }
+  try {
+    return await compute<List<Object?>, Uint8List>(
+      _computeBlackWhitePreviewPixels,
+      args,
+    );
+  } on UnsupportedError catch (_) {
+    return _computeBlackWhitePreviewPixels(args);
+  }
+}
+
+Uint8List _computeBlackWhitePreviewPixels(List<Object?> args) {
+  final Uint8List source = args[0] as Uint8List;
+  final double black = (args[1] as num).toDouble();
+  final double white = (args[2] as num).toDouble();
+  final double midTone = (args[3] as num).toDouble();
+  final Uint8List pixels = Uint8List.fromList(source);
+  _filterApplyBlackWhiteToBitmap(pixels, black, white, midTone);
   return pixels;
 }
 
@@ -1848,6 +2377,60 @@ int _filterApplyBrightnessContrastChannel(
   return adjusted.round();
 }
 
+void _filterApplyBlackWhiteToBitmap(
+  Uint8List bitmap,
+  double blackPoint,
+  double whitePoint,
+  double midTone,
+) {
+  final double black = blackPoint.clamp(0.0, 100.0) / 100.0;
+  final double white = whitePoint.clamp(0.0, 100.0) / 100.0;
+  final double safeWhite = math.max(
+    black + (_kBlackWhiteMinRange / 100.0),
+    white,
+  );
+  final double invRange = 1.0 / math.max(0.0001, safeWhite - black);
+  final double gamma = math.pow(2.0, midTone / 100.0).toDouble();
+  for (int i = 0; i < bitmap.length; i += 4) {
+    final int alpha = bitmap[i + 3];
+    if (alpha == 0) {
+      continue;
+    }
+    final double luminance =
+        (bitmap[i] * 0.299 + bitmap[i + 1] * 0.587 + bitmap[i + 2] * 0.114) /
+        255.0;
+    double normalized = ((luminance - black) * invRange).clamp(0.0, 1.0);
+    normalized = math.pow(normalized, gamma).clamp(0.0, 1.0).toDouble();
+    final int gray = _filterRoundChannel(normalized * 255.0);
+    bitmap[i] = gray;
+    bitmap[i + 1] = gray;
+    bitmap[i + 2] = gray;
+    bitmap[i + 3] = alpha;
+  }
+}
+
+Color _filterApplyBlackWhiteToColor(
+  Color color,
+  double blackPoint,
+  double whitePoint,
+  double midTone,
+) {
+  final double black = blackPoint.clamp(0.0, 100.0) / 100.0;
+  final double white = whitePoint.clamp(0.0, 100.0) / 100.0;
+  final double safeWhite = math.max(
+    black + (_kBlackWhiteMinRange / 100.0),
+    white,
+  );
+  final double invRange = 1.0 / math.max(0.0001, safeWhite - black);
+  final double gamma = math.pow(2.0, midTone / 100.0).toDouble();
+  final double luminance =
+      (color.red * 0.299 + color.green * 0.587 + color.blue * 0.114) / 255.0;
+  double normalized = ((luminance - black) * invRange).clamp(0.0, 1.0);
+  normalized = math.pow(normalized, gamma).clamp(0.0, 1.0).toDouble();
+  final int gray = _filterRoundChannel(normalized * 255.0);
+  return Color.fromARGB(color.alpha, gray, gray, gray);
+}
+
 bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
   for (int i = 3; i < bitmap.length; i += 4) {
     if (bitmap[i] != 0) {
@@ -1907,6 +2490,438 @@ void _filterApplyGaussianBlurToBitmap(
     );
   }
   _filterUnpremultiplyAlpha(bitmap);
+}
+
+void _filterApplyLeakRemovalToBitmap(
+  Uint8List bitmap,
+  int width,
+  int height,
+  int radius,
+) {
+  if (bitmap.isEmpty || width <= 0 || height <= 0) {
+    return;
+  }
+  final int clampedRadius = radius.clamp(0, _kLeakRemovalMaxRadius.toInt());
+  if (clampedRadius <= 0) {
+    return;
+  }
+  final int pixelCount = width * height;
+  final Uint8List holeMask = Uint8List(pixelCount);
+  bool hasTransparent = false;
+  for (int index = 0, offset = 0; index < pixelCount; index++, offset += 4) {
+    if (bitmap[offset + 3] == 0) {
+      holeMask[index] = 1;
+      hasTransparent = true;
+    }
+  }
+  if (!hasTransparent) {
+    return;
+  }
+  _filterMarkLeakBackground(holeMask, width, height);
+  bool hasHole = false;
+  for (final int value in holeMask) {
+    if (value == 1) {
+      hasHole = true;
+      break;
+    }
+  }
+  if (!hasHole) {
+    return;
+  }
+  final int maxComponentExtent = clampedRadius * 2 + 1;
+  final int maxComponentPixels = maxComponentExtent * maxComponentExtent;
+  final ListQueue<int> queue = ListQueue<int>();
+  final List<int> componentPixels = <int>[];
+  final List<int> seeds = <int>[];
+  final Set<int> seedSet = <int>{};
+
+  for (int start = 0; start < pixelCount; start++) {
+    if (holeMask[start] != 1) {
+      continue;
+    }
+    queue.clear();
+    componentPixels.clear();
+    seeds.clear();
+    seedSet.clear();
+    queue.add(start);
+    holeMask[start] = 2;
+    bool touchesOpaque = false;
+    bool componentTooLarge = false;
+    int minX = start % width;
+    int maxX = minX;
+    int minY = start ~/ width;
+    int maxY = minY;
+
+    while (queue.isNotEmpty) {
+      final int index = queue.removeFirst();
+      final int y = index ~/ width;
+      final int x = index - y * width;
+
+      if (componentTooLarge) {
+        holeMask[index] = 0;
+      } else {
+        componentPixels.add(index);
+        if (x < minX) {
+          minX = x;
+        }
+        if (x > maxX) {
+          maxX = x;
+        }
+        if (y < minY) {
+          minY = y;
+        }
+        if (y > maxY) {
+          maxY = y;
+        }
+      }
+
+      if (x > 0) {
+        final int left = index - 1;
+        if (holeMask[left] == 1) {
+          holeMask[left] = 2;
+          queue.add(left);
+        }
+      }
+      if (x + 1 < width) {
+        final int right = index + 1;
+        if (holeMask[right] == 1) {
+          holeMask[right] = 2;
+          queue.add(right);
+        }
+      }
+      if (y > 0) {
+        final int up = index - width;
+        if (holeMask[up] == 1) {
+          holeMask[up] = 2;
+          queue.add(up);
+        }
+      }
+      if (y + 1 < height) {
+        final int down = index + width;
+        if (holeMask[down] == 1) {
+          holeMask[down] = 2;
+          queue.add(down);
+        }
+      }
+
+      if (componentTooLarge) {
+        continue;
+      }
+
+      for (int dy = -1; dy <= 1; dy++) {
+        final int ny = y + dy;
+        if (ny < 0 || ny >= height) {
+          continue;
+        }
+        for (int dx = -1; dx <= 1; dx++) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          final int nx = x + dx;
+          if (nx < 0 || nx >= width) {
+            continue;
+          }
+          final int neighborIndex = ny * width + nx;
+          if (holeMask[neighborIndex] == 2) {
+            continue;
+          }
+          final int neighborOffset = neighborIndex << 2;
+          if (bitmap[neighborOffset + 3] == 0) {
+            continue;
+          }
+          touchesOpaque = true;
+          if (seedSet.add(neighborIndex)) {
+            seeds.add(neighborIndex);
+          }
+        }
+      }
+
+      final int componentWidth = maxX - minX + 1;
+      final int componentHeight = maxY - minY + 1;
+      if (componentPixels.length > maxComponentPixels ||
+          componentWidth > maxComponentExtent ||
+          componentHeight > maxComponentExtent) {
+        componentTooLarge = true;
+        touchesOpaque = false;
+        for (final int visitedIndex in componentPixels) {
+          holeMask[visitedIndex] = 0;
+        }
+        componentPixels.clear();
+        seeds.clear();
+        seedSet.clear();
+      }
+    }
+
+    if (componentTooLarge) {
+      continue;
+    }
+    if (componentPixels.isEmpty || seeds.isEmpty || !touchesOpaque) {
+      _filterClearLeakComponent(componentPixels, holeMask);
+      continue;
+    }
+    if (!_filterIsLeakComponentWithinRadius(
+      componentPixels,
+      width,
+      height,
+      clampedRadius,
+      holeMask,
+    )) {
+      _filterClearLeakComponent(componentPixels, holeMask);
+      continue;
+    }
+    _filterFillLeakComponent(
+      bitmap: bitmap,
+      width: width,
+      height: height,
+      holeMask: holeMask,
+      seeds: seeds,
+    );
+    _filterClearLeakComponent(componentPixels, holeMask);
+  }
+}
+
+void _filterMarkLeakBackground(Uint8List holeMask, int width, int height) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  final int pixelCount = width * height;
+  final Uint32List queue = Uint32List(pixelCount);
+  int head = 0;
+  int tail = 0;
+
+  void tryEnqueue(int index) {
+    if (index < 0 || index >= pixelCount) {
+      return;
+    }
+    if (holeMask[index] != 1) {
+      return;
+    }
+    holeMask[index] = 0;
+    queue[tail++] = index;
+  }
+
+  for (int x = 0; x < width; x++) {
+    tryEnqueue(x);
+    if (height > 1) {
+      tryEnqueue((height - 1) * width + x);
+    }
+  }
+  for (int y = 1; y < height - 1; y++) {
+    tryEnqueue(y * width);
+    if (width > 1) {
+      tryEnqueue(y * width + (width - 1));
+    }
+  }
+
+  while (head < tail) {
+    final int index = queue[head++];
+    final int row = index ~/ width;
+    final int col = index - row * width;
+    if (row > 0) {
+      final int up = index - width;
+      if (holeMask[up] == 1) {
+        holeMask[up] = 0;
+        queue[tail++] = up;
+      }
+    }
+    if (row + 1 < height) {
+      final int down = index + width;
+      if (holeMask[down] == 1) {
+        holeMask[down] = 0;
+        queue[tail++] = down;
+      }
+    }
+    if (col > 0) {
+      final int left = index - 1;
+      if (holeMask[left] == 1) {
+        holeMask[left] = 0;
+        queue[tail++] = left;
+      }
+    }
+    if (col + 1 < width) {
+      final int right = index + 1;
+      if (holeMask[right] == 1) {
+        holeMask[right] = 0;
+        queue[tail++] = right;
+      }
+    }
+  }
+}
+
+void _filterClearLeakComponent(List<int> componentPixels, Uint8List holeMask) {
+  for (final int index in componentPixels) {
+    holeMask[index] = 0;
+  }
+}
+
+bool _filterIsLeakComponentWithinRadius(
+  List<int> componentPixels,
+  int width,
+  int height,
+  int maxRadius,
+  Uint8List holeMask,
+) {
+  if (componentPixels.isEmpty || maxRadius <= 0) {
+    return false;
+  }
+  final ListQueue<_LeakDistanceNode> queue = ListQueue<_LeakDistanceNode>();
+  for (final int index in componentPixels) {
+    if (_filterIsLeakBoundaryIndex(index, width, height, holeMask)) {
+      queue.add(_LeakDistanceNode(index, 0));
+      holeMask[index] = 3;
+    }
+  }
+  if (queue.isEmpty) {
+    for (final int index in componentPixels) {
+      if (holeMask[index] == 3) {
+        holeMask[index] = 2;
+      }
+    }
+    return false;
+  }
+  int visitedCount = 0;
+  int maxDistance = 0;
+  while (queue.isNotEmpty) {
+    final _LeakDistanceNode node = queue.removeFirst();
+    visitedCount++;
+    if (node.distance > maxDistance) {
+      maxDistance = node.distance;
+      if (maxDistance > maxRadius) {
+        for (final int index in componentPixels) {
+          if (holeMask[index] == 3) {
+            holeMask[index] = 2;
+          }
+        }
+        return false;
+      }
+    }
+    final int index = node.index;
+    final int y = index ~/ width;
+    final int x = index - y * width;
+    if (x > 0) {
+      final int left = index - 1;
+      if (holeMask[left] == 2) {
+        holeMask[left] = 3;
+        queue.add(_LeakDistanceNode(left, node.distance + 1));
+      }
+    }
+    if (x + 1 < width) {
+      final int right = index + 1;
+      if (holeMask[right] == 2) {
+        holeMask[right] = 3;
+        queue.add(_LeakDistanceNode(right, node.distance + 1));
+      }
+    }
+    if (y > 0) {
+      final int up = index - width;
+      if (holeMask[up] == 2) {
+        holeMask[up] = 3;
+        queue.add(_LeakDistanceNode(up, node.distance + 1));
+      }
+    }
+    if (y + 1 < height) {
+      final int down = index + width;
+      if (holeMask[down] == 2) {
+        holeMask[down] = 3;
+        queue.add(_LeakDistanceNode(down, node.distance + 1));
+      }
+    }
+  }
+  final bool fullyCovered = visitedCount == componentPixels.length;
+  for (final int index in componentPixels) {
+    if (holeMask[index] == 3) {
+      holeMask[index] = 2;
+    }
+  }
+  return fullyCovered;
+}
+
+bool _filterIsLeakBoundaryIndex(
+  int index,
+  int width,
+  int height,
+  Uint8List holeMask,
+) {
+  final int y = index ~/ width;
+  final int x = index - y * width;
+  if (x == 0 || x == width - 1 || y == 0 || y == height - 1) {
+    return true;
+  }
+  if (holeMask[index - 1] != 2) {
+    return true;
+  }
+  if (holeMask[index + 1] != 2) {
+    return true;
+  }
+  if (holeMask[index - width] != 2) {
+    return true;
+  }
+  if (holeMask[index + width] != 2) {
+    return true;
+  }
+  return false;
+}
+
+void _filterFillLeakComponent({
+  required Uint8List bitmap,
+  required int width,
+  required int height,
+  required Uint8List holeMask,
+  required List<int> seeds,
+}) {
+  if (seeds.isEmpty) {
+    return;
+  }
+  List<int> frontier = List<int>.from(seeds);
+  List<int> nextFrontier = <int>[];
+  while (frontier.isNotEmpty) {
+    nextFrontier.clear();
+    for (final int sourceIndex in frontier) {
+      final int srcOffset = sourceIndex << 2;
+      final int alpha = bitmap[srcOffset + 3];
+      if (alpha == 0) {
+        continue;
+      }
+      final int sy = sourceIndex ~/ width;
+      final int sx = sourceIndex - sy * width;
+      for (int dy = -1; dy <= 1; dy++) {
+        final int ny = sy + dy;
+        if (ny < 0 || ny >= height) {
+          continue;
+        }
+        for (int dx = -1; dx <= 1; dx++) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          final int nx = sx + dx;
+          if (nx < 0 || nx >= width) {
+            continue;
+          }
+          final int neighborIndex = ny * width + nx;
+          if (holeMask[neighborIndex] != 2) {
+            continue;
+          }
+          final int destOffset = neighborIndex << 2;
+          bitmap[destOffset] = bitmap[srcOffset];
+          bitmap[destOffset + 1] = bitmap[srcOffset + 1];
+          bitmap[destOffset + 2] = bitmap[srcOffset + 2];
+          bitmap[destOffset + 3] = alpha;
+          holeMask[neighborIndex] = 0;
+          nextFrontier.add(neighborIndex);
+        }
+      }
+    }
+    final List<int> temp = frontier;
+    frontier = nextFrontier;
+    nextFrontier = temp;
+  }
+}
+
+class _LeakDistanceNode {
+  const _LeakDistanceNode(this.index, this.distance);
+
+  final int index;
+  final int distance;
 }
 
 List<int> _filterComputeBoxSizes(double sigma, int boxCount) {

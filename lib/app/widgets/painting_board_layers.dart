@@ -624,11 +624,14 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     final int clamped = level.clamp(0, 3);
-    if (!_controller.applyAntialiasToActiveLayer(clamped, previewOnly: true)) {
+    if (!await _controller.applyAntialiasToActiveLayer(
+      clamped,
+      previewOnly: true,
+    )) {
       return false;
     }
     await _pushUndoSnapshot();
-    _controller.applyAntialiasToActiveLayer(clamped);
+    await _controller.applyAntialiasToActiveLayer(clamped);
     setState(() {});
     _markDirty();
     return true;

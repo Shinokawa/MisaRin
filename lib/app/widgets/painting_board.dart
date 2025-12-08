@@ -11,6 +11,8 @@ import 'package:flutter/animation.dart' show AnimationController;
 import 'package:flutter/foundation.dart'
     show
         ValueChanged,
+        ValueListenable,
+        ValueNotifier,
         compute,
         debugPrint,
         defaultTargetPlatform,
@@ -88,6 +90,7 @@ import '../constants/antialias_levels.dart';
 import '../preferences/app_preferences.dart';
 import '../constants/pen_constants.dart';
 import '../models/canvas_resize_anchor.dart';
+import '../models/canvas_view_info.dart';
 import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
 import '../utils/color_filter_generator.dart';
@@ -99,6 +102,7 @@ import '../utils/clipboard_image_reader.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
 import '../native/system_fonts.dart';
+import '../tooltips/hover_detail_tooltip.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
@@ -243,6 +247,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isDirty = false;
   bool _isScalingGesture = false;
   bool _pixelGridVisible = false;
+  bool _viewBlackWhiteOverlay = false;
+  bool _viewMirrorOverlay = false;
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   double _sprayStrokeWidth = _defaultSprayStrokeWidth;
@@ -256,6 +262,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
   bool _vectorDrawingEnabled = AppPreferences.defaultVectorDrawingEnabled;
+  bool _vectorStrokeSmoothingEnabled =
+      AppPreferences.defaultVectorStrokeSmoothingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
@@ -343,6 +351,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset _layoutBaseOffset = Offset.zero;
   bool _workspaceMeasurementScheduled = false;
   final ScrollController _layerScrollController = ScrollController();
+  late final ValueNotifier<CanvasViewInfo> _viewInfoNotifier;
   Color _primaryColor = AppPreferences.defaultPrimaryColor;
   late HSVColor _primaryHsv;
 
@@ -367,10 +376,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
   double _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
 
-  Future<bool> insertImageLayerFromBytes(
-    Uint8List bytes, {
-    String? name,
-  });
+  Future<bool> insertImageLayerFromBytes(Uint8List bytes, {String? name});
 
   bool get _includeHistoryOnToolbar => false;
 
@@ -857,6 +863,39 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     final Rect boardRect = _boardRect;
     return (workspacePosition - boardRect.topLeft) / _viewport.scale;
   }
+
+  Offset? _boardCursorPosition() {
+    final Offset? workspacePointer = _lastWorkspacePointer;
+    if (workspacePointer == null) {
+      return null;
+    }
+    final Rect boardRect = _boardRect;
+    if (!boardRect.contains(workspacePointer)) {
+      return null;
+    }
+    return _toBoardLocal(workspacePointer);
+  }
+
+  CanvasViewInfo _buildViewInfo() {
+    return CanvasViewInfo(
+      canvasSize: _canvasSize,
+      scale: _viewport.scale,
+      cursorPosition: _boardCursorPosition(),
+      pixelGridVisible: _pixelGridVisible,
+      viewBlackWhiteEnabled: _viewBlackWhiteOverlay,
+      viewMirrorEnabled: _viewMirrorOverlay,
+    );
+  }
+
+  void _notifyViewInfoChanged() {
+    final CanvasViewInfo next = _buildViewInfo();
+    if (_viewInfoNotifier.value == next) {
+      return;
+    }
+    _viewInfoNotifier.value = next;
+  }
+
+  ValueListenable<CanvasViewInfo> get viewInfoListenable => _viewInfoNotifier;
 
   CanvasTool get activeTool => _activeTool;
   CanvasTool get _effectiveActiveTool {
@@ -1690,6 +1729,48 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     _viewport.setScale(targetScale);
     _viewport.setOffset(Offset.zero);
     _viewportInitialized = true;
+    _notifyViewInfoChanged();
+  }
+
+  bool get isPixelGridVisible => _pixelGridVisible;
+  bool get isViewBlackWhiteEnabled => _viewBlackWhiteOverlay;
+  bool get isViewMirrorEnabled => _viewMirrorOverlay;
+
+  bool get isBoardReady => _controller.frame != null;
+
+  void _handlePixelGridPreferenceChanged() {
+    if (!mounted) {
+      return;
+    }
+    final bool visible = AppPreferences.pixelGridVisibleNotifier.value;
+    if (visible == _pixelGridVisible) {
+      return;
+    }
+    setState(() {
+      _pixelGridVisible = visible;
+    });
+    _notifyViewInfoChanged();
+  }
+
+  void togglePixelGridVisibility() {
+    final AppPreferences prefs = AppPreferences.instance;
+    final bool nextVisible = !prefs.pixelGridVisible;
+    prefs.updatePixelGridVisible(nextVisible);
+    unawaited(AppPreferences.save());
+  }
+
+  void toggleViewBlackWhiteOverlay() {
+    setState(() {
+      _viewBlackWhiteOverlay = !_viewBlackWhiteOverlay;
+    });
+    _notifyViewInfoChanged();
+  }
+
+  void toggleViewMirrorOverlay() {
+    setState(() {
+      _viewMirrorOverlay = !_viewMirrorOverlay;
+    });
+    _notifyViewInfoChanged();
   }
 }
 
@@ -1711,6 +1792,7 @@ class PaintingBoardState extends _PaintingBoardBase
   @override
   void initState() {
     super.initState();
+    _viewInfoNotifier = ValueNotifier<CanvasViewInfo>(_buildViewInfo());
     initializeTextTool();
     initializeSelectionTicker(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
@@ -1743,6 +1825,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
+    _vectorStrokeSmoothingEnabled = prefs.vectorStrokeSmoothingEnabled;
     _brushShape = prefs.brushShape;
     _colorLineColor = prefs.colorLineColor;
     _primaryColor = prefs.primaryColor;
@@ -1762,6 +1845,8 @@ class PaintingBoardState extends _PaintingBoardBase
       creationLogic: widget.settings.creationLogic,
     );
     _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
+    _controller.setVectorStrokeSmoothingEnabled(_vectorStrokeSmoothingEnabled);
+    _controller.setVectorStrokeSmoothingEnabled(_vectorStrokeSmoothingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
@@ -1771,6 +1856,7 @@ class PaintingBoardState extends _PaintingBoardBase
     }
     _resetHistory();
     _syncRasterizeMenuAvailability();
+    _notifyViewInfoChanged();
   }
 
   @override
@@ -1793,6 +1879,7 @@ class PaintingBoardState extends _PaintingBoardBase
     unawaited(_layoutWorker?.dispose());
     _focusNode.dispose();
     _sprayTicker?.dispose();
+    _viewInfoNotifier.dispose();
     AppPreferences.pixelGridVisibleNotifier.removeListener(
       _handlePixelGridPreferenceChanged,
     );
@@ -1870,30 +1957,6 @@ class PaintingBoardState extends _PaintingBoardBase
     return result;
   }
 
-  bool get isPixelGridVisible => _pixelGridVisible;
-
-  bool get isBoardReady => _controller.frame != null;
-
-  void _handlePixelGridPreferenceChanged() {
-    if (!mounted) {
-      return;
-    }
-    final bool visible = AppPreferences.pixelGridVisibleNotifier.value;
-    if (visible == _pixelGridVisible) {
-      return;
-    }
-    setState(() {
-      _pixelGridVisible = visible;
-    });
-  }
-
-  void togglePixelGridVisibility() {
-    final AppPreferences prefs = AppPreferences.instance;
-    final bool nextVisible = !prefs.pixelGridVisible;
-    prefs.updatePixelGridVisible(nextVisible);
-    unawaited(AppPreferences.save());
-  }
-
   void mergeActiveLayerDown() {
     final String? activeLayerId = _activeLayerId;
     if (activeLayerId == null) {
@@ -1904,6 +1967,131 @@ class PaintingBoardState extends _PaintingBoardBase
       return;
     }
     _handleMergeLayerDown(layer);
+  }
+
+  Future<void> binarizeActiveLayer() async {
+    if (!isBoardReady) {
+      _showBinarizeMessage('画布尚未准备好，无法二值化。');
+      return;
+    }
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      _showBinarizeMessage('请先选择一个可编辑的图层。');
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      _showBinarizeMessage('无法定位当前图层。');
+      return;
+    }
+    if (layer.locked) {
+      _showBinarizeMessage('当前图层已锁定，无法二值化。');
+      return;
+    }
+    if (layer.text != null) {
+      _showBinarizeMessage('当前图层是文字图层，请先栅格化或切换其他图层。');
+      return;
+    }
+
+    await _controller.waitForPendingWorkerTasks();
+    final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
+    final int index = snapshot.indexWhere((item) => item.id == activeLayerId);
+    if (index < 0) {
+      _showBinarizeMessage('无法定位当前图层。');
+      return;
+    }
+    final CanvasLayerData data = snapshot[index];
+    Uint8List? bitmap = data.bitmap != null
+        ? Uint8List.fromList(data.bitmap!)
+        : null;
+    Color? fillColor = data.fillColor;
+    if (bitmap == null && fillColor == null) {
+      _showBinarizeMessage('当前图层为空，无法二值化。');
+      return;
+    }
+
+    const int alphaThreshold = 128;
+    bool bitmapModified = false;
+    bool bitmapHasCoverage = false;
+    if (bitmap != null) {
+      for (int i = 0; i < bitmap.length; i += 4) {
+        final int alpha = bitmap[i + 3];
+        if (alpha == 0) {
+          continue;
+        }
+        if (alpha >= alphaThreshold) {
+          if (alpha != 255) {
+            bitmap[i + 3] = 255;
+            bitmapModified = true;
+          }
+          bitmapHasCoverage = true;
+          continue;
+        }
+        if (bitmap[i] != 0 || bitmap[i + 1] != 0 || bitmap[i + 2] != 0) {
+          bitmap[i] = 0;
+          bitmap[i + 1] = 0;
+          bitmap[i + 2] = 0;
+        }
+        if (alpha != 0) {
+          bitmap[i + 3] = 0;
+          bitmapModified = true;
+        }
+      }
+      if (!bitmapHasCoverage) {
+        bitmap = null;
+        if (data.bitmap != null) {
+          bitmapModified = true;
+        }
+      }
+    }
+
+    bool fillChanged = false;
+    if (fillColor != null) {
+      final int alpha = fillColor.alpha;
+      if (alpha > 0 && alpha < 255) {
+        final int nextAlpha = alpha >= alphaThreshold ? 255 : 0;
+        if (nextAlpha != alpha) {
+          fillColor = fillColor.withAlpha(nextAlpha);
+          fillChanged = true;
+        }
+      }
+    }
+
+    if (!bitmapModified && !fillChanged) {
+      _showBinarizeMessage('未检测到可处理的半透明像素。');
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    final CanvasLayerData updated = CanvasLayerData(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      opacity: data.opacity,
+      locked: data.locked,
+      clippingMask: data.clippingMask,
+      blendMode: data.blendMode,
+      fillColor: fillColor,
+      bitmap: bitmap,
+      bitmapWidth: bitmap != null ? data.bitmapWidth : null,
+      bitmapHeight: bitmap != null ? data.bitmapHeight : null,
+      bitmapLeft: bitmap != null ? data.bitmapLeft : null,
+      bitmapTop: bitmap != null ? data.bitmapTop : null,
+      text: data.text,
+      cloneBitmap: false,
+    );
+    _controller.replaceLayer(activeLayerId, updated);
+    _controller.setActiveLayer(activeLayerId);
+    setState(() {});
+    _markDirty();
+  }
+
+  void _showBinarizeMessage(String message) {
+    AppNotifications.show(
+      context,
+      message: message,
+      severity: InfoBarSeverity.warning,
+    );
   }
 
   void selectEntireCanvas() async {
@@ -2063,6 +2251,7 @@ class PaintingBoardState extends _PaintingBoardBase
           _viewportInitialized = false;
         }
       });
+      _notifyViewInfoChanged();
     }
   }
 
@@ -2147,6 +2336,7 @@ class PaintingBoardState extends _PaintingBoardBase
       bucketAntialiasLevel: _bucketAntialiasLevel,
       autoSharpPeakEnabled: _autoSharpPeakEnabled,
       vectorDrawingEnabled: _vectorDrawingEnabled,
+      vectorStrokeSmoothingEnabled: _vectorStrokeSmoothingEnabled,
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -2198,6 +2388,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
     _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
     _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
+    _updateVectorStrokeSmoothingEnabled(snapshot.vectorStrokeSmoothingEnabled);
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);

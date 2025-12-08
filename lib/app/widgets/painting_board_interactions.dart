@@ -333,6 +333,17 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateVectorStrokeSmoothingEnabled(bool value) {
+    if (_vectorStrokeSmoothingEnabled == value) {
+      return;
+    }
+    setState(() => _vectorStrokeSmoothingEnabled = value);
+    _controller.setVectorStrokeSmoothingEnabled(value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.vectorStrokeSmoothingEnabled = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateBucketSampleAllLayers(bool value) {
     if (_bucketSampleAllLayers == value) {
       return;
@@ -955,6 +966,7 @@ mixin _PaintingBoardInteractionMixin
     setState(() {
       _viewport.translate(delta);
     });
+    _notifyViewInfoChanged();
   }
 
   void _finishDragBoard() {
@@ -1089,7 +1101,7 @@ mixin _PaintingBoardInteractionMixin
     }
   }
 
-  void _clearToolCursorOverlay() {
+void _clearToolCursorOverlay() {
     if (_toolCursorPosition == null && _penCursorWorkspacePosition == null) {
       return;
     }
@@ -1100,10 +1112,14 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _recordWorkspacePointer(Offset workspacePosition) {
+    final Offset? previous = _lastWorkspacePointer;
     if (_isInsideToolArea(workspacePosition)) {
       _lastWorkspacePointer = null;
     } else {
       _lastWorkspacePointer = workspacePosition;
+    }
+    if (_lastWorkspacePointer != previous) {
+      _notifyViewInfoChanged();
     }
   }
 
@@ -1115,7 +1131,10 @@ mixin _PaintingBoardInteractionMixin
     _clearTextHoverHighlight();
     _clearToolCursorOverlay();
     _clearLayerTransformCursorIndicator();
-    _lastWorkspacePointer = null;
+    if (_lastWorkspacePointer != null) {
+      _lastWorkspacePointer = null;
+      _notifyViewInfoChanged();
+    }
   }
 
   BitmapLayerState? _activeLayerForAdjustment() {
@@ -1987,6 +2006,7 @@ mixin _PaintingBoardInteractionMixin
       _viewport.setScale(clamped);
       _viewport.setOffset(newOffset);
     });
+    _notifyViewInfoChanged();
   }
 
   void _handlePointerSignal(PointerSignalEvent event) {
@@ -2114,40 +2134,100 @@ mixin _PaintingBoardInteractionMixin
 }
 
 class _StrokeStabilizer {
+  static const int _minSampleWindow = 1;
+  static const int _maxSampleWindow = 64;
+
   Offset? _filtered;
+  final List<Offset> _recentSamples = <Offset>[];
 
   void start(Offset position) {
     _filtered = position;
+    _recentSamples
+      ..clear()
+      ..add(position);
   }
 
   Offset filter(Offset position, double strength) {
     final double clampedStrength = strength.clamp(0.0, 1.0);
     final Offset? previous = _filtered;
     if (previous == null) {
-      _filtered = position;
+      start(position);
       return position;
     }
-    final Offset delta = position - previous;
-    final double distance = delta.distance;
-    if (distance <= 1e-4) {
-      return previous;
+
+    final int maxSamples = _sampleWindowForStrength(clampedStrength);
+    _recentSamples.add(position);
+    while (_recentSamples.length > maxSamples) {
+      _recentSamples.removeAt(0);
     }
-    final double easedStrength = math.pow(clampedStrength, 0.82).toDouble();
-    final double extendedStrength = math.pow(clampedStrength, 1.12).toDouble();
-    final double followFloor = ui.lerpDouble(1.0, 0.08, easedStrength) ?? 1.0;
-    final double catchupDistance =
-        ui.lerpDouble(1.5, 48.0, extendedStrength) ?? 6.5;
-    final double releaseFactor = math
-        .pow((distance / catchupDistance).clamp(0.0, 1.0), 0.85)
-        .toDouble();
-    final double mix =
-        ui.lerpDouble(followFloor, 1.0, releaseFactor) ?? followFloor;
-    final Offset filtered = previous + delta * mix;
+
+    final Offset averaged = _weightedAverage(clampedStrength);
+    final double smoothingBias = ui.lerpDouble(
+          0.0,
+          0.95,
+          math.pow(clampedStrength, 0.9).toDouble(),
+        ) ??
+        0.0;
+    final Offset target = Offset.lerp(position, averaged, smoothingBias) ??
+        averaged;
+    final double followMix = ui.lerpDouble(
+          1.0,
+          0.18,
+          math.pow(clampedStrength, 0.85).toDouble(),
+        ) ??
+        1.0;
+    final Offset filtered = previous + (target - previous) * followMix.clamp(
+      0.0,
+      1.0,
+    );
     _filtered = filtered;
     return filtered;
   }
 
   void reset() {
     _filtered = null;
+    _recentSamples.clear();
+  }
+
+  int _sampleWindowForStrength(double strength) {
+    if (strength <= 0.0) {
+      return _minSampleWindow;
+    }
+    final double eased = math.pow(strength, 0.72).toDouble();
+    final double lerped =
+        ui.lerpDouble(_minSampleWindow.toDouble(), _maxSampleWindow.toDouble(), eased) ??
+            _minSampleWindow.toDouble();
+    final int rounded = lerped.round();
+    if (rounded <= _minSampleWindow) {
+      return _minSampleWindow;
+    }
+    if (rounded >= _maxSampleWindow) {
+      return _maxSampleWindow;
+    }
+    return rounded;
+  }
+
+  Offset _weightedAverage(double strength) {
+    if (_recentSamples.isEmpty) {
+      return _filtered ?? Offset.zero;
+    }
+    if (_recentSamples.length == 1) {
+      return _recentSamples.first;
+    }
+    final int length = _recentSamples.length;
+    final double exponent =
+        ui.lerpDouble(0.35, 2.4, math.pow(strength, 0.58).toDouble()) ?? 0.35;
+    Offset accumulator = Offset.zero;
+    double totalWeight = 0.0;
+    for (int i = 0; i < length; i++) {
+      final double progress = (i + 1) / length;
+      final double weight = math.pow(progress.clamp(0.0, 1.0), exponent).toDouble();
+      accumulator += _recentSamples[i] * weight;
+      totalWeight += weight;
+    }
+    if (totalWeight <= 1e-5) {
+      return _recentSamples.last;
+    }
+    return accumulator / totalWeight;
   }
 }

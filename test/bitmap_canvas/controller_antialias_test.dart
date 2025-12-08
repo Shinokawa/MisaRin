@@ -31,7 +31,7 @@ void main() {
     return controller;
   }
 
-  test('antialias lowers opaque diagonal edge alpha', () {
+  test('antialias lowers opaque diagonal edge alpha', () async {
     final controller = _buildControllerWithDiagonalStroke();
     final BitmapLayerState layer = controller.layers.last;
     final Uint32List pixels = layer.surface.pixels;
@@ -41,7 +41,7 @@ void main() {
 
     expect(alphaAt(0, 0), 255);
 
-    final bool result = controller.applyAntialiasToActiveLayer(3);
+    final bool result = await controller.applyAntialiasToActiveLayer(3);
     expect(result, isTrue);
 
     final int softenedAlpha = alphaAt(0, 0);
@@ -49,7 +49,7 @@ void main() {
     expect(softenedAlpha, lessThan(255));
   });
 
-  test('antialias adds blended coverage to neighboring pixels', () {
+  test('antialias adds blended coverage to neighboring pixels', () async {
     final controller = _buildControllerWithDiagonalStroke();
     final BitmapLayerState layer = controller.layers.last;
     final Uint32List pixels = layer.surface.pixels;
@@ -59,13 +59,13 @@ void main() {
 
     expect(alphaAt(1, 0), 0);
 
-    controller.applyAntialiasToActiveLayer(3);
+    await controller.applyAntialiasToActiveLayer(3);
 
     final int blendedAlpha = alphaAt(1, 0);
     expect(blendedAlpha, greaterThan(0));
   });
 
-  test('color edge antialias blends opaque neighboring colors', () {
+  test('color edge antialias blends opaque neighboring colors', () async {
     final BitmapCanvasController controller = BitmapCanvasController(
       width: 2,
       height: 1,
@@ -76,7 +76,7 @@ void main() {
     pixels[0] = BitmapSurface.encodeColor(const Color(0xFFFF0000));
     pixels[1] = BitmapSurface.encodeColor(const Color(0xFF0000FF));
 
-    controller.applyAntialiasToActiveLayer(3);
+    await controller.applyAntialiasToActiveLayer(3);
 
     final int left = pixels[0];
     final int right = pixels[1];
