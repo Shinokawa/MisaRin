@@ -1587,6 +1587,10 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         return board?.canRasterizeActiveLayer ?? false;
       },
+      binarizeLayer: () {
+        final board = _activeBoard;
+        board?.binarizeActiveLayer();
+      },
       layerFreeTransform: () {
         final board = _activeBoard;
         board?.toggleLayerFreeTransform();

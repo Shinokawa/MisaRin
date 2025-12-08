@@ -1909,6 +1909,130 @@ class PaintingBoardState extends _PaintingBoardBase
     _handleMergeLayerDown(layer);
   }
 
+  Future<void> binarizeActiveLayer() async {
+    if (!isBoardReady) {
+      _showBinarizeMessage('画布尚未准备好，无法二值化。');
+      return;
+    }
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      _showBinarizeMessage('请先选择一个可编辑的图层。');
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      _showBinarizeMessage('无法定位当前图层。');
+      return;
+    }
+    if (layer.locked) {
+      _showBinarizeMessage('当前图层已锁定，无法二值化。');
+      return;
+    }
+    if (layer.text != null) {
+      _showBinarizeMessage('当前图层是文字图层，请先栅格化或切换其他图层。');
+      return;
+    }
+
+    await _controller.waitForPendingWorkerTasks();
+    final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
+    final int index = snapshot.indexWhere((item) => item.id == activeLayerId);
+    if (index < 0) {
+      _showBinarizeMessage('无法定位当前图层。');
+      return;
+    }
+    final CanvasLayerData data = snapshot[index];
+    Uint8List? bitmap =
+        data.bitmap != null ? Uint8List.fromList(data.bitmap!) : null;
+    Color? fillColor = data.fillColor;
+    if (bitmap == null && fillColor == null) {
+      _showBinarizeMessage('当前图层为空，无法二值化。');
+      return;
+    }
+
+    const int alphaThreshold = 128;
+    bool bitmapModified = false;
+    bool bitmapHasCoverage = false;
+    if (bitmap != null) {
+      for (int i = 0; i < bitmap.length; i += 4) {
+        final int alpha = bitmap[i + 3];
+        if (alpha == 0) {
+          continue;
+        }
+        if (alpha >= alphaThreshold) {
+          if (alpha != 255) {
+            bitmap[i + 3] = 255;
+            bitmapModified = true;
+          }
+          bitmapHasCoverage = true;
+          continue;
+        }
+        if (bitmap[i] != 0 || bitmap[i + 1] != 0 || bitmap[i + 2] != 0) {
+          bitmap[i] = 0;
+          bitmap[i + 1] = 0;
+          bitmap[i + 2] = 0;
+        }
+        if (alpha != 0) {
+          bitmap[i + 3] = 0;
+          bitmapModified = true;
+        }
+      }
+      if (!bitmapHasCoverage) {
+        bitmap = null;
+        if (data.bitmap != null) {
+          bitmapModified = true;
+        }
+      }
+    }
+
+    bool fillChanged = false;
+    if (fillColor != null) {
+      final int alpha = fillColor.alpha;
+      if (alpha > 0 && alpha < 255) {
+        final int nextAlpha = alpha >= alphaThreshold ? 255 : 0;
+        if (nextAlpha != alpha) {
+          fillColor = fillColor.withAlpha(nextAlpha);
+          fillChanged = true;
+        }
+      }
+    }
+
+    if (!bitmapModified && !fillChanged) {
+      _showBinarizeMessage('未检测到可处理的半透明像素。');
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    final CanvasLayerData updated = CanvasLayerData(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      opacity: data.opacity,
+      locked: data.locked,
+      clippingMask: data.clippingMask,
+      blendMode: data.blendMode,
+      fillColor: fillColor,
+      bitmap: bitmap,
+      bitmapWidth: bitmap != null ? data.bitmapWidth : null,
+      bitmapHeight: bitmap != null ? data.bitmapHeight : null,
+      bitmapLeft: bitmap != null ? data.bitmapLeft : null,
+      bitmapTop: bitmap != null ? data.bitmapTop : null,
+      text: data.text,
+      cloneBitmap: false,
+    );
+    _controller.replaceLayer(activeLayerId, updated);
+    _controller.setActiveLayer(activeLayerId);
+    setState(() {});
+    _markDirty();
+  }
+
+  void _showBinarizeMessage(String message) {
+    AppNotifications.show(
+      context,
+      message: message,
+      severity: InfoBarSeverity.warning,
+    );
+  }
+
   void selectEntireCanvas() async {
     final int width = _controller.width;
     final int height = _controller.height;

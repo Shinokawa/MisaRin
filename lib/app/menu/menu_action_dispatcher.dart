@@ -52,6 +52,7 @@ class MenuActionHandler {
     this.mergeLayerDown,
     this.rasterizeLayer,
     this.rasterizeLayerEnabled,
+    this.binarizeLayer,
     this.layerFreeTransform,
     this.adjustHueSaturation,
     this.adjustBrightnessContrast,
@@ -101,6 +102,7 @@ class MenuActionHandler {
       mergeLayerDown = null,
       rasterizeLayer = null,
       rasterizeLayerEnabled = null,
+      binarizeLayer = null,
       layerFreeTransform = null,
       adjustHueSaturation = null,
       adjustBrightnessContrast = null,
@@ -150,6 +152,7 @@ class MenuActionHandler {
   final MenuAsyncAction? mergeLayerDown;
   final MenuAsyncAction? rasterizeLayer;
   final MenuActionEnabledResolver? rasterizeLayerEnabled;
+  final MenuAsyncAction? binarizeLayer;
   final MenuAsyncAction? layerFreeTransform;
   final MenuAsyncAction? adjustHueSaturation;
   final MenuAsyncAction? adjustBrightnessContrast;

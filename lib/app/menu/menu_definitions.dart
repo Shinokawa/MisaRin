@@ -341,6 +341,15 @@ class MenuDefinitionBuilder {
       );
     }
 
+    if (handler.binarizeLayer != null) {
+      entries.add(
+        MenuActionEntry(
+          label: '二值化',
+          action: handler.binarizeLayer,
+        ),
+      );
+    }
+
     if (handler.layerFreeTransform != null) {
       entries.add(
         MenuActionEntry(
