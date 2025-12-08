@@ -1742,7 +1742,6 @@ class CanvasPageState extends State<CanvasPage> {
         child: workspace,
       );
     }
-
     return MenuActionBinding(
       handler: handler,
       child: NavigationView(
