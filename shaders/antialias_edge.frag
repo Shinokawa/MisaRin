@@ -10,24 +10,44 @@ const float kEdgeMax = 0.4;
 const float kEdgeStrength = 1.0;
 const float kEdgeGamma = 0.55;
 
-const vec2 kNeighborOffsets[8] = vec2[8](
-  vec2(-1.0, -1.0),
-  vec2(0.0, -1.0),
-  vec2(1.0, -1.0),
-  vec2(-1.0, 0.0),
-  vec2(1.0, 0.0),
-  vec2(-1.0, 1.0),
-  vec2(0.0, 1.0),
-  vec2(1.0, 1.0)
-);
+vec2 _neighborOffset(int i) {
+  if (i == 0) return vec2(-1.0, -1.0);
+  if (i == 1) return vec2(0.0, -1.0);
+  if (i == 2) return vec2(1.0, -1.0);
+  if (i == 3) return vec2(-1.0, 0.0);
+  if (i == 4) return vec2(1.0, 0.0);
+  if (i == 5) return vec2(-1.0, 1.0);
+  if (i == 6) return vec2(0.0, 1.0);
+  return vec2(1.0, 1.0);
+}
 
-const float kGaussian5x5[25] = float[25](
-  1.0, 4.0, 6.0, 4.0, 1.0,
-  4.0, 16.0, 24.0, 16.0, 4.0,
-  6.0, 24.0, 36.0, 24.0, 6.0,
-  4.0, 16.0, 24.0, 16.0, 4.0,
-  1.0, 4.0, 6.0, 4.0, 1.0
-);
+float _gaussianWeight(int idx) {
+  if (idx == 0) return 1.0;
+  if (idx == 1) return 4.0;
+  if (idx == 2) return 6.0;
+  if (idx == 3) return 4.0;
+  if (idx == 4) return 1.0;
+  if (idx == 5) return 4.0;
+  if (idx == 6) return 16.0;
+  if (idx == 7) return 24.0;
+  if (idx == 8) return 16.0;
+  if (idx == 9) return 4.0;
+  if (idx == 10) return 6.0;
+  if (idx == 11) return 24.0;
+  if (idx == 12) return 36.0;
+  if (idx == 13) return 24.0;
+  if (idx == 14) return 6.0;
+  if (idx == 15) return 4.0;
+  if (idx == 16) return 16.0;
+  if (idx == 17) return 24.0;
+  if (idx == 18) return 16.0;
+  if (idx == 19) return 4.0;
+  if (idx == 20) return 1.0;
+  if (idx == 21) return 4.0;
+  if (idx == 22) return 6.0;
+  if (idx == 23) return 4.0;
+  return 1.0;
+}
 
 out vec4 fragColor;
 
@@ -52,7 +72,7 @@ void main() {
   float centerLuma = _luma(base.rgb);
   float maxDiff = 0.0;
   for (int i = 0; i < 8; i++) {
-    vec2 nCoord = _clampedCoord(coord + kNeighborOffsets[i]);
+    vec2 nCoord = _clampedCoord(coord + _neighborOffset(i));
     vec4 n = texture(uTexture, nCoord / uResolution);
     if (n.a == 0.0) {
       continue;
@@ -76,8 +96,8 @@ void main() {
   float totalWeight = 0.0;
   int kernelIndex = 0;
   for (int ky = -2; ky <= 2; ky++) {
-    for (int kx = -2; kx <= 2; kx++, kernelIndex++) {
-      float k = kGaussian5x5[kernelIndex];
+    for (int kx = -2; kx <= 2; kx++) {
+      float k = _gaussianWeight(kernelIndex);
       vec2 sampleCoord = _clampedCoord(coord + vec2(float(kx), float(ky)));
       vec4 s = texture(uTexture, sampleCoord / uResolution);
       if (s.a == 0.0) {
@@ -86,6 +106,7 @@ void main() {
       totalWeight += k;
       weightedAlpha += s.a * k;
       weightedPremul += s.rgb * s.a * k;
+      kernelIndex++;
     }
   }
 

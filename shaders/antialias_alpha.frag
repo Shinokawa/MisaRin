@@ -7,21 +7,28 @@ uniform vec2 uResolution;
 uniform float uBlend;
 
 const float kCenterWeight = 4.0;
-const vec2 kOffsets[8] = vec2[8](
-  vec2(-1.0, -1.0),
-  vec2(0.0, -1.0),
-  vec2(1.0, -1.0),
-  vec2(-1.0, 0.0),
-  vec2(1.0, 0.0),
-  vec2(-1.0, 1.0),
-  vec2(0.0, 1.0),
-  vec2(1.0, 1.0)
-);
-const float kWeights[8] = float[8](
-  1.0, 2.0, 1.0,
-  2.0, 2.0, 1.0,
-  2.0, 1.0
-);
+
+vec2 _offset(int i) {
+  if (i == 0) return vec2(-1.0, -1.0);
+  if (i == 1) return vec2(0.0, -1.0);
+  if (i == 2) return vec2(1.0, -1.0);
+  if (i == 3) return vec2(-1.0, 0.0);
+  if (i == 4) return vec2(1.0, 0.0);
+  if (i == 5) return vec2(-1.0, 1.0);
+  if (i == 6) return vec2(0.0, 1.0);
+  return vec2(1.0, 1.0);
+}
+
+float _weight(int i) {
+  if (i == 0) return 1.0;
+  if (i == 1) return 2.0;
+  if (i == 2) return 1.0;
+  if (i == 3) return 2.0;
+  if (i == 4) return 2.0;
+  if (i == 5) return 1.0;
+  if (i == 6) return 2.0;
+  return 1.0;
+}
 
 out vec4 fragColor;
 
@@ -42,9 +49,9 @@ void main() {
   vec3 weightedPremul = center.rgb * alpha * kCenterWeight;
 
   for (int i = 0; i < 8; i++) {
-    vec2 sampleCoord = _clampedCoord(coord + kOffsets[i]);
+    vec2 sampleCoord = _clampedCoord(coord + _offset(i));
     vec4 neighbor = texture(uTexture, sampleCoord / uResolution);
-    float w = kWeights[i];
+    float w = _weight(i);
     totalWeight += w;
     if (neighbor.a == 0.0) {
       continue;
