@@ -1555,10 +1555,7 @@ class CanvasPageState extends State<CanvasPage> {
       removeColorLeak: () {
         final board = _activeBoard;
         if (board == null) {
-          _showInfoBar(
-            '画布尚未准备好，无法去除漏色。',
-            severity: InfoBarSeverity.warning,
-          );
+          _showInfoBar('画布尚未准备好，无法去除漏色。', severity: InfoBarSeverity.warning);
           return;
         }
         board.showLeakRemovalAdjustments();
@@ -1624,6 +1621,22 @@ class CanvasPageState extends State<CanvasPage> {
           return;
         }
         board.showBrightnessContrastAdjustments();
+      },
+      adjustBlackWhite: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法调节黑白。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        board.showBlackWhiteAdjustments();
+      },
+      invertColors: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法颜色反转。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        unawaited(board.invertActiveLayerColors());
       },
       workspaceLayoutPreference: _workspaceLayoutPreference,
       switchWorkspaceLayout: _setWorkspaceLayoutPreference,

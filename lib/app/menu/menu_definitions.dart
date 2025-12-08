@@ -342,12 +342,7 @@ class MenuDefinitionBuilder {
     }
 
     if (handler.binarizeLayer != null) {
-      entries.add(
-        MenuActionEntry(
-          label: '二值化',
-          action: handler.binarizeLayer,
-        ),
-      );
+      entries.add(MenuActionEntry(label: '二值化', action: handler.binarizeLayer));
     }
 
     if (handler.layerFreeTransform != null) {
@@ -394,10 +389,7 @@ class MenuDefinitionBuilder {
   static MenuDefinition? _toolMenu(MenuActionHandler handler) {
     final List<MenuEntry> paletteEntries = <MenuEntry>[
       if (handler.generatePalette != null)
-        MenuActionEntry(
-          label: '取色当前画布生成调色盘…',
-          action: handler.generatePalette,
-        ),
+        MenuActionEntry(label: '取色当前画布生成调色盘…', action: handler.generatePalette),
       if (handler.generateGradientPalette != null)
         MenuActionEntry(
           label: '使用当前颜色生成渐变调色盘',
@@ -564,6 +556,10 @@ class MenuDefinitionBuilder {
           action: handler.adjustBrightnessContrast,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyM, meta: true),
         ),
+      if (handler.adjustBlackWhite != null)
+        MenuActionEntry(label: '黑白…', action: handler.adjustBlackWhite),
+      if (handler.invertColors != null)
+        MenuActionEntry(label: '颜色反转', action: handler.invertColors),
     ];
     if (entries.isEmpty) {
       return null;
