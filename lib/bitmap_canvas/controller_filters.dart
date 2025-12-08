@@ -266,7 +266,7 @@ int _controllerLerpArgb(int a, int b, double t) {
   return (outA << 24) | (outR << 16) | (outG << 8) | outB;
 }
 
-bool _controllerApplyAntialiasToActiveLayer(
+bool _controllerApplyAntialiasToActiveLayerCpu(
   BitmapCanvasController controller,
   int level, {
   bool previewOnly = false,

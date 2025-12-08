@@ -237,7 +237,11 @@ void _controllerApplyWorkerPatch(
   if (maxRight <= effectiveLeft || maxBottom <= effectiveTop) {
     return;
   }
-  final Uint32List destination = controller._activeSurface.pixels;
+  final BitmapSurface surface = controller._activeSurface;
+  final Uint32List destination = surface.pixels;
+  // Keep BitmapSurface.isClean in sync so filters that gate on coverage can run.
+  final bool checkCoverage = surface.isClean;
+  bool wroteCoverage = false;
   final int copyWidth = maxRight - effectiveLeft;
   final int copyHeight = maxBottom - effectiveTop;
   final int srcLeftOffset = effectiveLeft - patch.left;
@@ -247,12 +251,24 @@ void _controllerApplyWorkerPatch(
     final int destY = effectiveTop + row;
     final int srcOffset = srcRow * patch.width + srcLeftOffset;
     final int destOffset = destY * controller._width + effectiveLeft;
+    if (checkCoverage && !wroteCoverage) {
+      final int rowEnd = srcOffset + copyWidth;
+      for (int i = srcOffset; i < rowEnd; i++) {
+        if ((patch.pixels[i] & 0xff000000) != 0) {
+          wroteCoverage = true;
+          break;
+        }
+      }
+    }
     destination.setRange(
       destOffset,
       destOffset + copyWidth,
       patch.pixels,
       srcOffset,
     );
+  }
+  if (wroteCoverage) {
+    surface.markDirty();
   }
   controller._activeLayer.revision += 1;
   controller._paintingWorkerSyncedLayerId = controller._activeLayer.id;

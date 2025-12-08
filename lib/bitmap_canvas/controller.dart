@@ -37,6 +37,7 @@ part 'controller_fill.dart';
 part 'controller_composite.dart';
 part 'controller_paint_commands.dart';
 part 'controller_filters.dart';
+part 'controller_filters_gpu.dart';
 part 'controller_worker_queue.dart';
 part 'controller_text.dart';
 
@@ -583,7 +584,10 @@ class BitmapCanvasController extends ChangeNotifier {
     _dispatchDirectPaintCommand(command);
   }
 
-  bool applyAntialiasToActiveLayer(int level, {bool previewOnly = false}) =>
+  Future<bool> applyAntialiasToActiveLayer(
+    int level, {
+    bool previewOnly = false,
+  }) =>
       _controllerApplyAntialiasToActiveLayer(
         this,
         level,

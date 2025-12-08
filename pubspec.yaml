@@ -76,6 +76,8 @@ flutter:
     - icons/line.png
     - icons/line2.png
     - icons/spray.png
+    - assets/shaders/antialias_alpha.frag
+    - assets/shaders/antialias_edge.frag
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -128,3 +130,7 @@ flutter_launcher_icons:
   linux:
     generate: true
     image_path: "icons/icons-winLinuxAndroidWeb.png"
+
+dependency_overrides:
+  file_picker:
+    path: third_party/file_picker
