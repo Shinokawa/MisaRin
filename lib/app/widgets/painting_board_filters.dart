@@ -6,6 +6,7 @@ const double _kAntialiasPanelWidth = 280;
 const double _kAntialiasPanelMinHeight = 140;
 const double _kGaussianBlurMaxRadius = 1000.0;
 const double _kLeakRemovalMaxRadius = 20.0;
+const double _kMorphologyMaxRadius = 20.0;
 const double _kBlackWhiteMinRange = 1.0;
 const ColorFilter _kViewBlackWhiteColorFilter = ColorFilter.matrix(<double>[
   0.299,
@@ -37,6 +38,8 @@ enum _FilterPanelType {
   blackWhite,
   gaussianBlur,
   leakRemoval,
+  lineNarrow,
+  fillExpand,
 }
 
 class _HueSaturationSettings {
@@ -66,6 +69,12 @@ class _GaussianBlurSettings {
 
 class _LeakRemovalSettings {
   _LeakRemovalSettings({this.radius = 0});
+
+  double radius;
+}
+
+class _MorphologySettings {
+  _MorphologySettings({this.radius = 0});
 
   double radius;
 }
@@ -100,6 +109,8 @@ class _FilterSession {
   final _BlackWhiteSettings blackWhite = _BlackWhiteSettings();
   final _GaussianBlurSettings gaussianBlur = _GaussianBlurSettings();
   final _LeakRemovalSettings leakRemoval = _LeakRemovalSettings();
+  final _MorphologySettings lineNarrow = _MorphologySettings();
+  final _MorphologySettings fillExpand = _MorphologySettings();
   CanvasLayerData? previewLayer;
 }
 
@@ -158,6 +169,14 @@ mixin _PaintingBoardFilterMixin
 
   void showLeakRemovalAdjustments() {
     _openFilterPanel(_FilterPanelType.leakRemoval);
+  }
+
+  void showLineNarrowAdjustments() {
+    _openFilterPanel(_FilterPanelType.lineNarrow);
+  }
+
+  void showFillExpandAdjustments() {
+    _openFilterPanel(_FilterPanelType.fillExpand);
   }
 
   void _openFilterPanel(_FilterPanelType type) async {
@@ -555,6 +574,24 @@ mixin _PaintingBoardFilterMixin
               onRadiusChanged: _updateLeakRemovalRadius,
             );
             break;
+          case _FilterPanelType.lineNarrow:
+            panelTitle = '线条收窄';
+            panelBody = _MorphologyControls(
+              label: '收窄半径',
+              radius: session.lineNarrow.radius,
+              maxRadius: _kMorphologyMaxRadius,
+              onRadiusChanged: _updateLineNarrow,
+            );
+            break;
+          case _FilterPanelType.fillExpand:
+            panelTitle = '填色拉伸';
+            panelBody = _MorphologyControls(
+              label: '拉伸半径',
+              radius: session.fillExpand.radius,
+              maxRadius: _kMorphologyMaxRadius,
+              onRadiusChanged: _updateFillExpand,
+            );
+            break;
         }
 
         if (_filterLoading) {
@@ -667,6 +704,8 @@ mixin _PaintingBoardFilterMixin
       ..midTone = 0;
     session.gaussianBlur.radius = 0;
     session.leakRemoval.radius = 0;
+    session.lineNarrow.radius = 0;
+    session.fillExpand.radius = 0;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleHueSaturationPreviewImageUpdate();
@@ -750,6 +789,26 @@ mixin _PaintingBoardFilterMixin
     _filterOverlayEntry?.markNeedsBuild();
   }
 
+  void _updateLineNarrow(double radius) {
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    session.lineNarrow.radius = radius.clamp(0.0, _kMorphologyMaxRadius);
+    setState(() {});
+    _filterOverlayEntry?.markNeedsBuild();
+  }
+
+  void _updateFillExpand(double radius) {
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    session.fillExpand.radius = radius.clamp(0.0, _kMorphologyMaxRadius);
+    setState(() {});
+    _filterOverlayEntry?.markNeedsBuild();
+  }
+
   void _requestFilterPreview({bool immediate = false}) {
     // Only used for final apply now
     _applyFilterPreview();
@@ -784,6 +843,11 @@ mixin _PaintingBoardFilterMixin
     _filterPreviewPendingChange = false;
     _filterPreviewRequestInFlight = true;
     final int token = ++_filterPreviewLastIssuedToken;
+    final double morphRadius = switch (session.type) {
+      _FilterPanelType.lineNarrow => session.lineNarrow.radius,
+      _FilterPanelType.fillExpand => session.fillExpand.radius,
+      _ => 0.0,
+    };
     unawaited(
       worker.requestPreview(
         token: token,
@@ -792,6 +856,7 @@ mixin _PaintingBoardFilterMixin
         blackWhite: session.blackWhite,
         blurRadius: session.gaussianBlur.radius,
         leakRadius: session.leakRemoval.radius,
+        morphRadius: morphRadius,
       ),
     );
   }
@@ -924,6 +989,18 @@ mixin _PaintingBoardFilterMixin
         return radius <= 0 || !hasBitmap;
       case _FilterPanelType.leakRemoval:
         final double radius = session.leakRemoval.radius;
+        final CanvasLayerData layer =
+            session.originalLayers[session.activeLayerIndex];
+        final bool hasBitmap =
+            layer.bitmap != null &&
+            (layer.bitmapWidth ?? 0) > 0 &&
+            (layer.bitmapHeight ?? 0) > 0;
+        return radius <= 0 || !hasBitmap;
+      case _FilterPanelType.lineNarrow:
+      case _FilterPanelType.fillExpand:
+        final double radius = session.type == _FilterPanelType.lineNarrow
+            ? session.lineNarrow.radius
+            : session.fillExpand.radius;
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
         final bool hasBitmap =
@@ -1606,6 +1683,53 @@ class _LeakRemovalControls extends StatelessWidget {
   }
 }
 
+class _MorphologyControls extends StatelessWidget {
+  const _MorphologyControls({
+    required this.label,
+    required this.radius,
+    required this.maxRadius,
+    required this.onRadiusChanged,
+  });
+
+  final String label;
+  final double radius;
+  final double maxRadius;
+  final ValueChanged<double> onRadiusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final double clamped = radius.clamp(0, maxRadius);
+    final int divisions = maxRadius.round().clamp(1, 1000).toInt();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text(label, style: theme.typography.bodyStrong),
+            const Spacer(),
+            Text('${clamped.toStringAsFixed(0)} px',
+                style: theme.typography.caption),
+          ],
+        ),
+        Slider(
+          min: 0,
+          max: maxRadius,
+          divisions: divisions,
+          value: clamped,
+          onChanged: onRadiusChanged,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '基于透明度的形态学处理。收窄会让轮廓内缩，拉伸会让覆盖区域向外扩张。',
+          style: theme.typography.caption,
+        ),
+      ],
+    );
+  }
+}
+
 class _AntialiasPanelBody extends StatelessWidget {
   const _AntialiasPanelBody({
     required this.level,
@@ -1713,6 +1837,8 @@ const int _kFilterTypeBrightnessContrast = 1;
 const int _kFilterTypeBlackWhite = 2;
 const int _kFilterTypeGaussianBlur = 3;
 const int _kFilterTypeLeakRemoval = 4;
+const int _kFilterTypeLineNarrow = 5;
+const int _kFilterTypeFillExpand = 6;
 
 class _FilterPreviewWorker {
   _FilterPreviewWorker({
@@ -1775,6 +1901,12 @@ class _FilterPreviewWorker {
         break;
       case _FilterPanelType.leakRemoval:
         filterType = _kFilterTypeLeakRemoval;
+        break;
+      case _FilterPanelType.lineNarrow:
+        filterType = _kFilterTypeLineNarrow;
+        break;
+      case _FilterPanelType.fillExpand:
+        filterType = _kFilterTypeFillExpand;
         break;
     }
     final Map<String, Object?> initData = <String, Object?>{
@@ -1859,6 +1991,7 @@ class _FilterPreviewWorker {
     required _BlackWhiteSettings blackWhite,
     required double blurRadius,
     required double leakRadius,
+    required double morphRadius,
   }) async {
     if (_disposed) {
       return;
@@ -1876,6 +2009,7 @@ class _FilterPreviewWorker {
         blackWhite: blackWhite,
         blurRadius: blurRadius,
         leakRadius: leakRadius,
+        morphRadius: morphRadius,
       );
       return;
     }
@@ -1902,6 +2036,7 @@ class _FilterPreviewWorker {
       ],
       'blur': blurRadius,
       'leakRadius': leakRadius,
+      'morph': morphRadius,
     });
   }
 
@@ -1912,6 +2047,7 @@ class _FilterPreviewWorker {
     required _BlackWhiteSettings blackWhite,
     required double blurRadius,
     required double leakRadius,
+    required double morphRadius,
   }) {
     Uint8List? bitmap;
     final Uint8List? source = _baseBitmapSnapshot;
@@ -1960,6 +2096,36 @@ class _FilterPreviewWorker {
           _baseBitmapWidth,
           _baseBitmapHeight,
           leakSteps,
+        );
+      } else if (_type == _FilterPanelType.lineNarrow &&
+          morphRadius > 0 &&
+          _baseBitmapWidth > 0 &&
+          _baseBitmapHeight > 0) {
+        final int morphSteps = morphRadius
+            .round()
+            .clamp(1, _kMorphologyMaxRadius.toInt())
+            .toInt();
+        _filterApplyMorphologyToBitmap(
+          bitmap,
+          _baseBitmapWidth,
+          _baseBitmapHeight,
+          morphSteps,
+          dilate: false,
+        );
+      } else if (_type == _FilterPanelType.fillExpand &&
+          morphRadius > 0 &&
+          _baseBitmapWidth > 0 &&
+          _baseBitmapHeight > 0) {
+        final int morphSteps = morphRadius
+            .round()
+            .clamp(1, _kMorphologyMaxRadius.toInt())
+            .toInt();
+        _filterApplyMorphologyToBitmap(
+          bitmap,
+          _baseBitmapWidth,
+          _baseBitmapHeight,
+          morphSteps,
+          dilate: true,
         );
       }
       if (bitmap != null && !_filterBitmapHasVisiblePixels(bitmap)) {
@@ -2113,6 +2279,9 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
     final double leakRadius = (message['leakRadius'] is num)
         ? (message['leakRadius'] as num).toDouble()
         : 0.0;
+    final double morphRadius = (message['morph'] is num)
+        ? (message['morph'] as num).toDouble()
+        : 0.0;
 
     Uint8List? bitmap;
     if (baseBitmap != null) {
@@ -2155,6 +2324,36 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
           bitmapWidth,
           bitmapHeight,
           leakSteps,
+        );
+      } else if (type == _kFilterTypeLineNarrow &&
+          morphRadius > 0 &&
+          bitmapWidth > 0 &&
+          bitmapHeight > 0) {
+        final int morphSteps = morphRadius
+            .round()
+            .clamp(1, _kMorphologyMaxRadius.toInt())
+            .toInt();
+        _filterApplyMorphologyToBitmap(
+          bitmap,
+          bitmapWidth,
+          bitmapHeight,
+          morphSteps,
+          dilate: false,
+        );
+      } else if (type == _kFilterTypeFillExpand &&
+          morphRadius > 0 &&
+          bitmapWidth > 0 &&
+          bitmapHeight > 0) {
+        final int morphSteps = morphRadius
+            .round()
+            .clamp(1, _kMorphologyMaxRadius.toInt())
+            .toInt();
+        _filterApplyMorphologyToBitmap(
+          bitmap,
+          bitmapWidth,
+          bitmapHeight,
+          morphSteps,
+          dilate: true,
         );
       }
       if (!_filterBitmapHasVisiblePixels(bitmap)) {
@@ -2490,6 +2689,80 @@ void _filterApplyGaussianBlurToBitmap(
     );
   }
   _filterUnpremultiplyAlpha(bitmap);
+}
+
+void _filterApplyMorphologyToBitmap(
+  Uint8List bitmap,
+  int width,
+  int height,
+  int radius, {
+  required bool dilate,
+}) {
+  if (bitmap.isEmpty || width <= 0 || height <= 0) {
+    return;
+  }
+  final int clampedRadius =
+      radius.clamp(1, _kMorphologyMaxRadius.toInt()).toInt();
+  final Uint8List scratch = Uint8List(bitmap.length);
+  Uint8List src = bitmap;
+  Uint8List dest = scratch;
+
+  for (int iteration = 0; iteration < clampedRadius; iteration++) {
+    for (int y = 0; y < height; y++) {
+      final int rowOffset = y * width;
+      for (int x = 0; x < width; x++) {
+        int bestOffset = ((rowOffset + x) << 2);
+        int bestAlpha = src[bestOffset + 3];
+
+        for (int dy = -1; dy <= 1; dy++) {
+          final int ny = y + dy;
+          if (ny < 0 || ny >= height) {
+            continue;
+          }
+          final int neighborRow = ny * width;
+          for (int dx = -1; dx <= 1; dx++) {
+            final int nx = x + dx;
+            if (nx < 0 || nx >= width) {
+              continue;
+            }
+            final int neighborOffset = ((neighborRow + nx) << 2);
+            final int neighborAlpha = src[neighborOffset + 3];
+            if (dilate) {
+              if (neighborAlpha > bestAlpha) {
+                bestAlpha = neighborAlpha;
+                bestOffset = neighborOffset;
+              }
+            } else {
+              if (neighborAlpha < bestAlpha) {
+                bestAlpha = neighborAlpha;
+                bestOffset = neighborOffset;
+              }
+            }
+          }
+        }
+
+        final int outOffset = ((rowOffset + x) << 2);
+        if (bestAlpha == 0) {
+          dest[outOffset] = 0;
+          dest[outOffset + 1] = 0;
+          dest[outOffset + 2] = 0;
+          dest[outOffset + 3] = 0;
+        } else {
+          dest[outOffset] = src[bestOffset];
+          dest[outOffset + 1] = src[bestOffset + 1];
+          dest[outOffset + 2] = src[bestOffset + 2];
+          dest[outOffset + 3] = bestAlpha;
+        }
+      }
+    }
+    final Uint8List swap = src;
+    src = dest;
+    dest = swap;
+  }
+
+  if (!identical(src, bitmap)) {
+    bitmap.setAll(0, src);
+  }
 }
 
 void _filterApplyLeakRemovalToBitmap(

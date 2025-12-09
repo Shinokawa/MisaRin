@@ -551,6 +551,26 @@ class MenuDefinitionBuilder {
             alt: true,
           ),
         ),
+      if (handler.narrowLines != null)
+        MenuActionEntry(
+          label: '线条收窄…',
+          action: handler.narrowLines,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyN,
+            meta: true,
+            alt: true,
+          ),
+        ),
+      if (handler.expandFill != null)
+        MenuActionEntry(
+          label: '填色拉伸…',
+          action: handler.expandFill,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyE,
+            meta: true,
+            alt: true,
+          ),
+        ),
       if (handler.gaussianBlur != null)
         MenuActionEntry(
           label: '高斯模糊…',

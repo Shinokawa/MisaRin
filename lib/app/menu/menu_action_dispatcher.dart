@@ -58,6 +58,8 @@ class MenuActionHandler {
     this.adjustBrightnessContrast,
     this.adjustBlackWhite,
     this.invertColors,
+    this.narrowLines,
+    this.expandFill,
     this.selectAll,
     this.invertSelection,
     this.showLayerAntialiasPanel,
@@ -114,6 +116,8 @@ class MenuActionHandler {
       adjustBrightnessContrast = null,
       adjustBlackWhite = null,
       invertColors = null,
+      narrowLines = null,
+      expandFill = null,
       selectAll = null,
       invertSelection = null,
       showLayerAntialiasPanel = null,
@@ -170,6 +174,8 @@ class MenuActionHandler {
   final MenuAsyncAction? adjustBrightnessContrast;
   final MenuAsyncAction? adjustBlackWhite;
   final MenuAsyncAction? invertColors;
+  final MenuAsyncAction? narrowLines;
+  final MenuAsyncAction? expandFill;
   final MenuAsyncAction? selectAll;
   final MenuAsyncAction? invertSelection;
   final MenuAsyncAction? showLayerAntialiasPanel;

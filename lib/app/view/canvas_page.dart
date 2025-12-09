@@ -1670,6 +1670,22 @@ class CanvasPageState extends State<CanvasPage> {
         }
         board.showBrightnessContrastAdjustments();
       },
+      narrowLines: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法收窄线条。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        board.showLineNarrowAdjustments();
+      },
+      expandFill: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法拉伸填色。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        board.showFillExpandAdjustments();
+      },
       adjustBlackWhite: () {
         final board = _activeBoard;
         if (board == null) {

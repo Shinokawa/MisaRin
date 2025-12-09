@@ -46,6 +46,14 @@ mixin _PaintingBoardBuildMixin
             ).shortcuts)
               key: const AdjustBrightnessContrastIntent(),
             for (final key in ToolbarShortcuts.of(
+              ToolbarAction.narrowLines,
+            ).shortcuts)
+              key: const NarrowLinesIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.expandFill,
+            ).shortcuts)
+              key: const ExpandFillIntent(),
+            for (final key in ToolbarShortcuts.of(
               ToolbarAction.gaussianBlur,
             ).shortcuts)
               key: const AdjustGaussianBlurIntent(),
@@ -528,6 +536,18 @@ mixin _PaintingBoardBuildMixin
                       return null;
                     },
                   ),
+              NarrowLinesIntent: CallbackAction<NarrowLinesIntent>(
+                onInvoke: (intent) {
+                  showLineNarrowAdjustments();
+                  return null;
+                },
+              ),
+              ExpandFillIntent: CallbackAction<ExpandFillIntent>(
+                onInvoke: (intent) {
+                  showFillExpandAdjustments();
+                  return null;
+                },
+              ),
               AdjustGaussianBlurIntent:
                   CallbackAction<AdjustGaussianBlurIntent>(
                     onInvoke: (intent) {

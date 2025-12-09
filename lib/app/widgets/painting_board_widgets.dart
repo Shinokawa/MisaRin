@@ -44,6 +44,14 @@ class AdjustGaussianBlurIntent extends Intent {
   const AdjustGaussianBlurIntent();
 }
 
+class NarrowLinesIntent extends Intent {
+  const NarrowLinesIntent();
+}
+
+class ExpandFillIntent extends Intent {
+  const ExpandFillIntent();
+}
+
 class RemoveColorLeakIntent extends Intent {
   const RemoveColorLeakIntent();
 }

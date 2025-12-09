@@ -22,6 +22,8 @@ enum ToolbarAction {
   resizeCanvas,
   adjustHueSaturation,
   adjustBrightnessContrast,
+  narrowLines,
+  expandFill,
   gaussianBlur,
   removeColorLeak,
   layerAntialiasPanel,
@@ -186,6 +188,38 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+M',
       macLabel: 'Command+M',
+    ),
+    ToolbarAction.narrowLines: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyN,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyN,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+N',
+      macLabel: 'Command+Option+N',
+    ),
+    ToolbarAction.expandFill: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyE,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyE,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+E',
+      macLabel: 'Command+Option+E',
     ),
     ToolbarAction.gaussianBlur: ShortcutInfo(
       shortcuts: <LogicalKeySet>[
