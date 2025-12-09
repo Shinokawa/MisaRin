@@ -217,6 +217,7 @@ mixin _PaintingBoardBuildMixin
             ? BrushShape.circle
             : _brushShape;
         final Widget? antialiasCard = _buildAntialiasCard();
+        final Widget? colorRangeCard = _buildColorRangeCard();
         final Widget? transformPanel = buildLayerTransformPanel();
         final Widget? transformCursorOverlay = buildLayerTransformCursorOverlay(
           theme,
@@ -746,6 +747,30 @@ mixin _PaintingBoardBuildMixin
                                                       ),
                                                     ),
                                                   ),
+                                                if (_perspectiveVisible &&
+                                                    _perspectiveMode !=
+                                                        PerspectiveGuideMode
+                                                            .off)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter:
+                                                            _PerspectiveGuidePainter(
+                                                          canvasSize:
+                                                              _canvasSize,
+                                                          horizonY:
+                                                              _perspectiveHorizonY,
+                                                          vp1: _perspectiveVp1,
+                                                          vp2: _perspectiveVp2,
+                                                          vp3: _perspectiveVp3,
+                                                          mode: _perspectiveMode,
+                                                          activeHandle:
+                                                              _activePerspectiveHandle,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
                                                 if (showActiveStroke)
                                                   Positioned.fill(
                                                     child: CustomPaint(
@@ -893,6 +918,7 @@ mixin _PaintingBoardBuildMixin
                           ...toolbarLayoutResult.widgets,
                           ..._buildReferenceCards(),
                           ..._buildPaletteCards(),
+                          if (colorRangeCard != null) colorRangeCard,
                           if (antialiasCard != null) antialiasCard,
                           if (transformPanel != null) transformPanel,
                           if (transformCursorOverlay != null)
@@ -1172,6 +1198,44 @@ mixin _PaintingBoardBuildMixin
       children.add(RawImage(image: _layerOpacityPreviewForeground));
     }
     return Stack(fit: StackFit.expand, children: children);
+  }
+
+  Widget? _buildColorRangeCard() {
+    if (!_colorRangeCardVisible) {
+      return null;
+    }
+    final int totalColors = math.max(1, _colorRangeTotalColors);
+    final int selected =
+        _colorRangeSelectedColors.clamp(1, totalColors).toInt();
+    return Positioned(
+      left: _colorRangeCardOffset.dx,
+      top: _colorRangeCardOffset.dy,
+      child: MeasuredSize(
+        onChanged: _handleColorRangeCardSizeChanged,
+        child: WorkspaceFloatingPanel(
+          width: _kColorRangePanelWidth,
+          minHeight: _kColorRangePanelMinHeight,
+          title: '色彩范围',
+          onClose: hideColorRangeCard,
+          onDragUpdate: _updateColorRangeCardOffset,
+          bodyPadding: const EdgeInsets.symmetric(horizontal: 16),
+          headerPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          child: _colorRangeLoading
+              ? const SizedBox(
+                  height: _kColorRangePanelMinHeight,
+                  child: Center(child: ProgressRing()),
+                )
+              : _ColorRangeCardBody(
+                  totalColors: totalColors,
+                  selectedColors: selected,
+                  onChanged: _updateColorRangeSelection,
+                ),
+        ),
+      ),
+    );
   }
 
   Widget? _buildAntialiasCard() {

@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/widgets.dart';
 
 import '../models/workspace_layout.dart';
+import '../../canvas/perspective_guide.dart';
 
 typedef MenuAsyncAction = FutureOr<void> Function();
 typedef MenuPaletteAction = FutureOr<void> Function(String paletteId);
@@ -58,6 +59,7 @@ class MenuActionHandler {
     this.adjustBrightnessContrast,
     this.adjustBlackWhite,
     this.invertColors,
+    this.colorRange,
     this.narrowLines,
     this.expandFill,
     this.selectAll,
@@ -76,6 +78,12 @@ class MenuActionHandler {
     this.viewBlackWhiteEnabled = false,
     this.toggleViewMirror,
     this.viewMirrorEnabled = false,
+    this.togglePerspectiveGuide,
+    this.setPerspectiveOnePoint,
+    this.setPerspectiveTwoPoint,
+    this.setPerspectiveThreePoint,
+    this.perspectiveMode = PerspectiveGuideMode.off,
+    this.perspectiveVisible = false,
   });
 
   const MenuActionHandler.empty()
@@ -116,6 +124,7 @@ class MenuActionHandler {
       adjustBrightnessContrast = null,
       adjustBlackWhite = null,
       invertColors = null,
+      colorRange = null,
       narrowLines = null,
       expandFill = null,
       selectAll = null,
@@ -134,7 +143,13 @@ class MenuActionHandler {
       toggleViewBlackWhite = null,
       viewBlackWhiteEnabled = false,
       toggleViewMirror = null,
-      viewMirrorEnabled = false;
+      viewMirrorEnabled = false,
+      togglePerspectiveGuide = null,
+      setPerspectiveOnePoint = null,
+      setPerspectiveTwoPoint = null,
+      setPerspectiveThreePoint = null,
+      perspectiveMode = PerspectiveGuideMode.off,
+      perspectiveVisible = false;
 
   final MenuAsyncAction? newProject;
   final MenuAsyncAction? open;
@@ -174,6 +189,7 @@ class MenuActionHandler {
   final MenuAsyncAction? adjustBrightnessContrast;
   final MenuAsyncAction? adjustBlackWhite;
   final MenuAsyncAction? invertColors;
+  final MenuAsyncAction? colorRange;
   final MenuAsyncAction? narrowLines;
   final MenuAsyncAction? expandFill;
   final MenuAsyncAction? selectAll;
@@ -192,6 +208,12 @@ class MenuActionHandler {
   final bool viewBlackWhiteEnabled;
   final MenuAsyncAction? toggleViewMirror;
   final bool viewMirrorEnabled;
+  final MenuAsyncAction? togglePerspectiveGuide;
+  final MenuAsyncAction? setPerspectiveOnePoint;
+  final MenuAsyncAction? setPerspectiveTwoPoint;
+  final MenuAsyncAction? setPerspectiveThreePoint;
+  final PerspectiveGuideMode perspectiveMode;
+  final bool perspectiveVisible;
 }
 
 class MenuActionDispatcher extends ChangeNotifier {

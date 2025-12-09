@@ -863,6 +863,9 @@ List<List<ui.Offset>> _maskToPolygons({
   required int height,
   required double simplifyEpsilon,
 }) {
+  // Use a stride-based key instead of bit shifting to avoid 32-bit truncation
+  // on Web (JS bitwise ops are limited to 32 bits).
+  final int pointStride = width + 1;
   final List<_Edge> edges = <_Edge>[];
   for (int y = 0; y < height; y++) {
     final int rowOffset = y * width;
@@ -878,16 +881,36 @@ List<List<ui.Offset>> _maskToPolygons({
           x == width - 1 || mask[rowOffset + x + 1] == 0;
 
       if (topEmpty) {
-        edges.add(_Edge(_encodePoint(x, y), _encodePoint(x + 1, y)));
+        edges.add(
+          _Edge(
+            _encodePoint(x, y, pointStride),
+            _encodePoint(x + 1, y, pointStride),
+          ),
+        );
       }
       if (rightEmpty) {
-        edges.add(_Edge(_encodePoint(x + 1, y), _encodePoint(x + 1, y + 1)));
+        edges.add(
+          _Edge(
+            _encodePoint(x + 1, y, pointStride),
+            _encodePoint(x + 1, y + 1, pointStride),
+          ),
+        );
       }
       if (bottomEmpty) {
-        edges.add(_Edge(_encodePoint(x + 1, y + 1), _encodePoint(x, y + 1)));
+        edges.add(
+          _Edge(
+            _encodePoint(x + 1, y + 1, pointStride),
+            _encodePoint(x, y + 1, pointStride),
+          ),
+        );
       }
       if (leftEmpty) {
-        edges.add(_Edge(_encodePoint(x, y + 1), _encodePoint(x, y)));
+        edges.add(
+          _Edge(
+            _encodePoint(x, y + 1, pointStride),
+            _encodePoint(x, y, pointStride),
+          ),
+        );
       }
     }
   }
@@ -917,9 +940,9 @@ List<List<ui.Offset>> _maskToPolygons({
       final _Edge edge = edges[currentEdgeIndex];
       used[currentEdgeIndex] = true;
       if (points.isEmpty) {
-        points.add(_decodePoint(edge.start));
+        points.add(_decodePoint(edge.start, pointStride));
       }
-      points.add(_decodePoint(edge.end));
+      points.add(_decodePoint(edge.end, pointStride));
 
       if (edge.end == startKey) {
         closed = true;
@@ -967,11 +990,11 @@ List<List<ui.Offset>> _maskToPolygons({
   return polygons;
 }
 
-int _encodePoint(int x, int y) => (x << 32) | (y & 0xFFFFFFFF);
+int _encodePoint(int x, int y, int stride) => y * stride + x;
 
-ui.Offset _decodePoint(int key) {
-  final int x = key >> 32;
-  final int y = key & 0xFFFFFFFF;
+ui.Offset _decodePoint(int key, int stride) {
+  final int y = key ~/ stride;
+  final int x = key - y * stride;
   return ui.Offset(x.toDouble(), y.toDouble());
 }
 

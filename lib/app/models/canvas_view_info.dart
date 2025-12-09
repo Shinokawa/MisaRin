@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import '../../canvas/perspective_guide.dart';
 
 @immutable
 class CanvasViewInfo {
@@ -12,6 +13,9 @@ class CanvasViewInfo {
     required this.pixelGridVisible,
     required this.viewBlackWhiteEnabled,
     required this.viewMirrorEnabled,
+    required this.perspectiveMode,
+    required this.perspectiveEnabled,
+    required this.perspectiveVisible,
   });
 
   final Size canvasSize;
@@ -20,6 +24,9 @@ class CanvasViewInfo {
   final bool pixelGridVisible;
   final bool viewBlackWhiteEnabled;
   final bool viewMirrorEnabled;
+  final PerspectiveGuideMode perspectiveMode;
+  final bool perspectiveEnabled;
+  final bool perspectiveVisible;
 
   @override
   bool operator ==(Object other) {
@@ -29,7 +36,10 @@ class CanvasViewInfo {
         _offsetEquals(other.cursorPosition, cursorPosition) &&
         other.pixelGridVisible == pixelGridVisible &&
         other.viewBlackWhiteEnabled == viewBlackWhiteEnabled &&
-        other.viewMirrorEnabled == viewMirrorEnabled;
+        other.viewMirrorEnabled == viewMirrorEnabled &&
+        other.perspectiveMode == perspectiveMode &&
+        other.perspectiveEnabled == perspectiveEnabled &&
+        other.perspectiveVisible == perspectiveVisible;
   }
 
   @override
@@ -46,6 +56,9 @@ class CanvasViewInfo {
         pixelGridVisible,
         viewBlackWhiteEnabled,
         viewMirrorEnabled,
+        perspectiveMode,
+        perspectiveEnabled,
+        perspectiveVisible,
       );
 }
 

@@ -88,6 +88,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       );
       current = _clampToCanvas(current);
     }
+    current = _clampToCanvas(
+      _maybeSnapToPerspective(current, anchor: start),
+    );
 
     if (_shapeDragCurrent != null &&
         (_shapeDragCurrent! - current).distanceSquared < 0.25) {

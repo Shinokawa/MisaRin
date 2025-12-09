@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_settings.dart';
+import '../../canvas/perspective_guide.dart';
 import '../dialogs/canvas_size_dialog.dart';
 import '../dialogs/export_dialog.dart';
 import '../dialogs/image_size_dialog.dart';
@@ -40,6 +41,7 @@ import '../widgets/canvas_title_bar.dart';
 import '../widgets/painting_board.dart';
 import '../workspace/canvas_workspace_controller.dart';
 import '../workspace/workspace_shared_state.dart';
+import '../utils/platform_target.dart';
 import '../utils/web_file_dialog.dart';
 import '../utils/web_file_saver.dart';
 
@@ -530,6 +532,7 @@ class CanvasPageState extends State<CanvasPage> {
       final ProjectDocument updated = _document.copyWith(
         layers: layers,
         previewBytes: preview,
+        perspectiveGuide: board.snapshotPerspectiveGuide(),
       );
       final ProjectDocument saved = await _repository.saveDocument(updated);
       if (!mounted) {
@@ -631,6 +634,7 @@ class CanvasPageState extends State<CanvasPage> {
     setState(() => _isSaving = true);
     try {
       final layers = board.snapshotLayers();
+      final perspective = board.snapshotPerspectiveGuide();
       final preview = await _exporter.exportToPng(
         settings: _document.settings,
         layers: layers,
@@ -643,18 +647,24 @@ class CanvasPageState extends State<CanvasPage> {
           layers: layers,
           previewBytes: preview,
           path: normalizedPath,
+          perspectiveGuide: perspective,
         );
         saved = await _repository.saveDocumentAs(updated, normalizedPath);
         successMessage = '项目已保存到 $normalizedPath';
       } else {
         await _repository.exportDocumentAsPsd(
-          document: _document.copyWith(layers: layers, previewBytes: preview),
+          document: _document.copyWith(
+            layers: layers,
+            previewBytes: preview,
+            perspectiveGuide: perspective,
+          ),
           path: normalizedPath,
         );
         saved = _document.copyWith(
           layers: layers,
           previewBytes: preview,
           path: _document.path,
+          perspectiveGuide: perspective,
         );
         successMessage = 'PSD 已导出到 $normalizedPath';
       }
@@ -687,6 +697,7 @@ class CanvasPageState extends State<CanvasPage> {
     setState(() => _isSaving = true);
     try {
       final layers = board.snapshotLayers();
+      final perspective = board.snapshotPerspectiveGuide();
       final Uint8List preview = await _exporter.exportToPng(
         settings: _document.settings,
         layers: layers,
@@ -696,6 +707,7 @@ class CanvasPageState extends State<CanvasPage> {
         layers: layers,
         previewBytes: preview,
         updatedAt: DateTime.now(),
+        perspectiveGuide: perspective,
       );
       late Uint8List bytes;
       late String successMessage;
@@ -1473,6 +1485,7 @@ class CanvasPageState extends State<CanvasPage> {
       onRequestExit: _handleExitRequest,
       onDirtyChanged: (dirty) => _handleDirtyChanged(id, dirty),
       initialLayers: entry.document.layers,
+      initialPerspectiveGuide: entry.document.perspectiveGuide,
       onUndoFallback: _undoDocumentChange,
       onRedoFallback: _redoDocumentChange,
       externalCanUndo: _canUndoDocumentFor(id),
@@ -1577,6 +1590,32 @@ class CanvasPageState extends State<CanvasPage> {
         setState(() {});
       },
       viewMirrorEnabled: _activeBoard?.isViewMirrorEnabled ?? false,
+      togglePerspectiveGuide: () {
+        final board = _activeBoard;
+        if (board == null) {
+          return;
+        }
+        board.togglePerspectiveGuideVisibility();
+        setState(() {});
+      },
+      setPerspectiveOnePoint: () {
+        final board = _activeBoard;
+        board?.setPerspectiveGuideMode(PerspectiveGuideMode.onePoint);
+        setState(() {});
+      },
+      setPerspectiveTwoPoint: () {
+        final board = _activeBoard;
+        board?.setPerspectiveGuideMode(PerspectiveGuideMode.twoPoint);
+        setState(() {});
+      },
+      setPerspectiveThreePoint: () {
+        final board = _activeBoard;
+        board?.setPerspectiveGuideMode(PerspectiveGuideMode.threePoint);
+        setState(() {});
+      },
+      perspectiveMode:
+          _activeBoard?.perspectiveGuideMode ?? PerspectiveGuideMode.off,
+      perspectiveVisible: _activeBoard?.isPerspectiveGuideVisible ?? false,
       rotateCanvas90Clockwise: () {
         _applyCanvasRotation(CanvasRotation.clockwise90);
       },
@@ -1642,7 +1681,11 @@ class CanvasPageState extends State<CanvasPage> {
       },
       binarizeLayer: () {
         final board = _activeBoard;
-        board?.binarizeActiveLayer();
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法二值化。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        board.showBinarizeAdjustments();
       },
       layerFreeTransform: () {
         final board = _activeBoard;
@@ -1701,6 +1744,14 @@ class CanvasPageState extends State<CanvasPage> {
           return;
         }
         board.showBlackWhiteAdjustments();
+      },
+      colorRange: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法设置色彩范围。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        unawaited(board.showColorRangeCard());
       },
       invertColors: () {
         final board = _activeBoard;
@@ -1791,10 +1842,12 @@ class _CanvasStatusOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
+    final bool alignStatusLeft = !isResolvedPlatformMacOS();
 
-    final TextStyle textStyle = (theme.typography.body ??
-            const TextStyle(fontSize: 14, fontWeight: FontWeight.w400))
-        .copyWith(color: theme.resources.textFillColorSecondary);
+    final TextStyle textStyle =
+        (theme.typography.body ??
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w400))
+            .copyWith(color: theme.resources.textFillColorSecondary);
 
     if (board == null) {
       return Text('画布尚未准备好', style: textStyle, maxLines: 1);
@@ -1805,8 +1858,9 @@ class _CanvasStatusOverlay extends StatelessWidget {
       builder: (context, info, _) {
         final String resolution =
             '${info.canvasSize.width.round()} x ${info.canvasSize.height.round()}';
-        final double zoomPercent =
-            (info.scale * 100).clamp(-100000.0, 100000.0).toDouble();
+        final double zoomPercent = (info.scale * 100)
+            .clamp(-100000.0, 100000.0)
+            .toDouble();
         final String zoom = '${zoomPercent.toStringAsFixed(1)}%';
         final String position = info.cursorPosition != null
             ? '${info.cursorPosition!.dx.round()}, ${info.cursorPosition!.dy.round()}'
@@ -1814,6 +1868,22 @@ class _CanvasStatusOverlay extends StatelessWidget {
         final String grid = info.pixelGridVisible ? '开' : '关';
         final String blackWhite = info.viewBlackWhiteEnabled ? '开' : '关';
         final String mirror = info.viewMirrorEnabled ? '开' : '关';
+        final String perspective = (() {
+          final PerspectiveGuideMode mode = info.perspectiveMode;
+          if (!info.perspectiveEnabled || mode == PerspectiveGuideMode.off) {
+            return '关';
+          }
+          switch (mode) {
+            case PerspectiveGuideMode.onePoint:
+              return '1点';
+            case PerspectiveGuideMode.twoPoint:
+              return '2点';
+            case PerspectiveGuideMode.threePoint:
+              return '3点';
+            case PerspectiveGuideMode.off:
+              return '关';
+          }
+        })();
         final List<String> parts = <String>[
           '分辨率: $resolution',
           '缩放: $zoom',
@@ -1821,13 +1891,17 @@ class _CanvasStatusOverlay extends StatelessWidget {
           '网格: $grid',
           '黑白: $blackWhite',
           '镜像: $mirror',
+          '透视: $perspective',
         ];
+        final TextAlign textAlign = alignStatusLeft
+            ? TextAlign.start
+            : TextAlign.center;
         return Text(
           parts.join(' | '),
           style: textStyle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
+          textAlign: textAlign,
         );
       },
     );

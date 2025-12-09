@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'toolbar_tool_button_frame.dart';
 
@@ -18,13 +19,11 @@ class SprayToolButton extends StatelessWidget {
       isSelected: isSelected,
       onPressed: onPressed,
       builder: (context, iconColor, _) => Center(
-        child: Image.asset(
-          'icons/spray.png',
+        child: SvgPicture.asset(
+          'icons/spray.svg',
           width: 20,
           height: 20,
-          color: iconColor,
-          colorBlendMode: BlendMode.srcIn,
-          filterQuality: FilterQuality.high,
+          colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
         ),
       ),
     );

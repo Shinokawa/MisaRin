@@ -440,6 +440,7 @@ mixin _PaintingBoardInteractionMixin
     final Offset start = _sanitizeStrokePosition(
       position,
       isInitialSample: true,
+      anchor: _lastStrokeBoardPosition,
     );
     _activeStrokeUsesStylus =
         rawEvent != null && _stylusPressureEnabled && _isStylusEvent(rawEvent);
@@ -499,7 +500,10 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     final double? deltaMillis = _registerPenSample(timestamp);
-    final Offset clamped = _sanitizeStrokePosition(position);
+    final Offset clamped = _sanitizeStrokePosition(
+      position,
+      anchor: _lastStrokeBoardPosition,
+    );
     double? stylusPressure = _stylusPressureValue(rawEvent);
     if (_activeStrokeUsesStylus &&
         rawEvent != null &&
@@ -923,6 +927,7 @@ mixin _PaintingBoardInteractionMixin
   Offset _sanitizeStrokePosition(
     Offset position, {
     bool isInitialSample = false,
+    Offset? anchor,
   }) {
     final Offset clamped = _clampToCanvas(position);
     final bool enableStabilizer =
@@ -933,13 +938,15 @@ mixin _PaintingBoardInteractionMixin
       if (isInitialSample) {
         _strokeStabilizer.reset();
       }
-      return clamped;
+      return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
     if (isInitialSample) {
       _strokeStabilizer.start(clamped);
-      return clamped;
+      return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
-    return _strokeStabilizer.filter(clamped, _strokeStabilizerStrength);
+    final Offset filtered =
+        _strokeStabilizer.filter(clamped, _strokeStabilizerStrength);
+    return _maybeSnapToPerspective(filtered, anchor: anchor);
   }
 
   double? _registerPenSample(Duration timestamp) {
@@ -1232,10 +1239,14 @@ void _clearToolCursorOverlay() {
   }
 
   Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {
+    final Offset snapped = _maybeSnapToPerspective(
+      boardLocal,
+      anchor: _curveAnchor,
+    );
     _focusNode.requestFocus();
-    final bool insideCanvas = _isWithinCanvasBounds(boardLocal);
+    final bool insideCanvas = _isWithinCanvasBounds(snapped);
     if (_curveAnchor == null) {
-      if (insideCanvas && !isPointInsideSelection(boardLocal)) {
+      if (insideCanvas && !isPointInsideSelection(snapped)) {
         return;
       }
       if (insideCanvas) {
@@ -1245,7 +1256,7 @@ void _clearToolCursorOverlay() {
             ? const Color(0xFFFFFFFF)
             : _primaryColor;
         _controller.beginStroke(
-          boardLocal,
+          snapped,
           color: strokeColor,
           radius: _penStrokeWidth / 2,
           simulatePressure: _simulatePenPressure,
@@ -1258,7 +1269,7 @@ void _clearToolCursorOverlay() {
         _markDirty();
       }
       setState(() {
-        _curveAnchor = boardLocal;
+        _curveAnchor = snapped;
         _curvePreviewPath = null;
       });
       return;
@@ -1266,12 +1277,12 @@ void _clearToolCursorOverlay() {
     if (_isCurvePlacingSegment) {
       return;
     }
-    if (insideCanvas && !isPointInsideSelection(boardLocal)) {
+    if (insideCanvas && !isPointInsideSelection(snapped)) {
       return;
     }
     setState(() {
-      _curvePendingEnd = boardLocal;
-      _curveDragOrigin = boardLocal;
+      _curvePendingEnd = snapped;
+      _curveDragOrigin = snapped;
       _curveDragDelta = Offset.zero;
       _isCurvePlacingSegment = true;
       _curvePreviewPath = _buildCurvePreviewPath();
@@ -1286,8 +1297,12 @@ void _clearToolCursorOverlay() {
     if (!_isCurvePlacingSegment || _curveDragOrigin == null) {
       return;
     }
+    final Offset snapped = _maybeSnapToPerspective(
+      boardLocal,
+      anchor: _curveAnchor ?? _curveDragOrigin,
+    );
     setState(() {
-      _curveDragDelta = boardLocal - _curveDragOrigin!;
+      _curveDragDelta = snapped - _curveDragOrigin!;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
     if (!_vectorDrawingEnabled) {
@@ -1620,6 +1635,9 @@ void _clearToolCursorOverlay() {
       return;
     }
     final Offset boardLocal = _toBoardLocal(pointer);
+    if (_handlePerspectivePointerDown(boardLocal)) {
+      return;
+    }
     if (_isTextEditingActive) {
       return;
     }
@@ -1710,6 +1728,11 @@ void _clearToolCursorOverlay() {
     }
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
+    if (_isDraggingPerspectiveHandle) {
+      final Offset boardLocal = _toBoardLocal(event.localPosition);
+      _handlePerspectivePointerMove(boardLocal);
+      return;
+    }
     if (_layerTransformModeActive) {
       final Offset boardLocal = _toBoardLocal(event.localPosition);
       _handleLayerTransformPointerMove(boardLocal);
@@ -1769,6 +1792,10 @@ void _clearToolCursorOverlay() {
       _handleLayerTransformPointerUp();
       return;
     }
+    if (_isDraggingPerspectiveHandle) {
+      _handlePerspectivePointerUp();
+      return;
+    }
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
@@ -1825,6 +1852,10 @@ void _clearToolCursorOverlay() {
   void _handlePointerCancel(PointerCancelEvent event) {
     if (_layerTransformModeActive) {
       _handleLayerTransformPointerCancel();
+      return;
+    }
+    if (_isDraggingPerspectiveHandle) {
+      _handlePerspectivePointerUp();
       return;
     }
     switch (_effectiveActiveTool) {

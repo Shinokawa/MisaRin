@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../../canvas/canvas_tools.dart';
@@ -993,13 +994,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       case ShapeToolVariant.triangle:
         return Icon(FluentIcons.triangle_shape, size: 18, color: color);
       case ShapeToolVariant.line:
-        return Image.asset(
-          'icons/line2.png',
+        return SvgPicture.asset(
+          'icons/line2.svg',
           width: 24,
           height: 24,
-          color: color,
-          colorBlendMode: BlendMode.srcIn,
-          filterQuality: FilterQuality.high,
+          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
         );
     }
   }

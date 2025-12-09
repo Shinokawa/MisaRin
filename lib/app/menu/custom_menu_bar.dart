@@ -12,8 +12,9 @@ import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
 
 class CustomMenuBarOverlay {
-  static final ValueNotifier<Widget?> centerOverlay =
-      ValueNotifier<Widget?>(null);
+  static final ValueNotifier<Widget?> centerOverlay = ValueNotifier<Widget?>(
+    null,
+  );
 }
 
 class CustomMenuBar extends StatefulWidget {
@@ -122,13 +123,14 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
   Widget build(BuildContext context) {
     final List<MenuDefinition> visibleMenus = widget.showMenus
         ? widget.menus
-            .map(CustomMenuBar._pruneMenu)
-            .whereType<MenuDefinition>()
-            .toList(growable: false)
+              .map(CustomMenuBar._pruneMenu)
+              .whereType<MenuDefinition>()
+              .toList(growable: false)
         : const <MenuDefinition>[];
     final theme = FluentTheme.of(context);
     final bool canDrag = CustomMenuBar._supportsWindowDragArea();
     final bool showWindowControls = CustomMenuBar._shouldShowWindowControls();
+    final bool isMac = isResolvedPlatformMacOS();
     final bool hasMenuButtons = visibleMenus.isNotEmpty;
     if (!hasMenuButtons && !canDrag && !showWindowControls) {
       return const SizedBox.shrink();
@@ -148,42 +150,63 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
     final Widget rowContent = ValueListenableBuilder<bool>(
       valueListenable: _menuOpenNotifier,
       builder: (context, anyMenuOpen, _) {
-        final Widget buttons = Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (int i = 0; i < visibleMenus.length; i++) ...[
-              _MenuButton(
-                definition: visibleMenus[i],
-                navigatorKey: widget.navigatorKey,
-                onMenuWillOpen: _handleMenuWillOpen,
-                onMenuClosed: _handleMenuClosed,
-                isAnyMenuOpen: anyMenuOpen,
-              ),
-              if (i != visibleMenus.length - 1) const SizedBox(width: 4),
-            ],
-            dragArea,
-            if (showWindowControls) ...[
-              const SizedBox(width: 8),
-              const _WindowControlButtons(),
-            ],
-          ],
-        );
         return ValueListenableBuilder<Widget?>(
           valueListenable: CustomMenuBarOverlay.centerOverlay,
           builder: (context, overlay, _) {
-            if (overlay == null) {
+            final List<Widget> children = <Widget>[
+              for (int i = 0; i < visibleMenus.length; i++) ...[
+                _MenuButton(
+                  definition: visibleMenus[i],
+                  navigatorKey: widget.navigatorKey,
+                  onMenuWillOpen: _handleMenuWillOpen,
+                  onMenuClosed: _handleMenuClosed,
+                  isAnyMenuOpen: anyMenuOpen,
+                ),
+                if (i != visibleMenus.length - 1) const SizedBox(width: 4),
+              ],
+            ];
+
+            if (!isMac && overlay != null) {
+              if (children.isNotEmpty) {
+                children.add(const SizedBox(width: 8));
+              }
+              children.add(
+                Flexible(
+                  child: IgnorePointer(
+                    ignoring: true,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: overlay,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            children.add(dragArea);
+            if (showWindowControls) {
+              children.addAll(const <Widget>[
+                SizedBox(width: 8),
+                _WindowControlButtons(),
+              ]);
+            }
+
+            final Widget buttons = Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            );
+
+            if (overlay == null || !isMac) {
               return buttons;
             }
+
             return Stack(
               alignment: Alignment.center,
               children: [
                 buttons,
                 IgnorePointer(
                   ignoring: true,
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: overlay,
-                  ),
+                  child: Align(alignment: Alignment.center, child: overlay),
                 ),
               ],
             );

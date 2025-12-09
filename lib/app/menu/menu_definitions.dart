@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart'
 
 import '../models/workspace_layout.dart';
 import 'menu_action_dispatcher.dart';
+import '../../canvas/perspective_guide.dart';
 
 sealed class MenuEntry {
   const MenuEntry();
@@ -341,10 +342,6 @@ class MenuDefinitionBuilder {
       );
     }
 
-    if (handler.binarizeLayer != null) {
-      entries.add(MenuActionEntry(label: '二值化', action: handler.binarizeLayer));
-    }
-
     if (handler.layerFreeTransform != null) {
       entries.add(
         MenuActionEntry(
@@ -501,6 +498,43 @@ class MenuDefinitionBuilder {
         ),
       );
     }
+    if (handler.togglePerspectiveGuide != null) {
+      if (entries.isNotEmpty) {
+        entries.add(const MenuSeparatorEntry());
+      }
+      entries.add(
+        MenuActionEntry(
+          label: handler.perspectiveVisible ? '隐藏透视线' : '显示透视线',
+          action: handler.togglePerspectiveGuide,
+          checked: handler.perspectiveVisible,
+        ),
+      );
+      entries.add(
+        MenuSubmenuEntry(
+          label: '透视模式',
+          entries: <MenuEntry>[
+            MenuActionEntry(
+              label: '1 点透视',
+              action: handler.setPerspectiveOnePoint,
+              checked:
+                  handler.perspectiveMode == PerspectiveGuideMode.onePoint,
+            ),
+            MenuActionEntry(
+              label: '2 点透视',
+              action: handler.setPerspectiveTwoPoint,
+              checked:
+                  handler.perspectiveMode == PerspectiveGuideMode.twoPoint,
+            ),
+            MenuActionEntry(
+              label: '3 点透视',
+              action: handler.setPerspectiveThreePoint,
+              checked:
+                  handler.perspectiveMode == PerspectiveGuideMode.threePoint,
+            ),
+          ],
+        ),
+      );
+    }
     if (entries.isEmpty) {
       return null;
     }
@@ -603,8 +637,12 @@ class MenuDefinitionBuilder {
           action: handler.adjustBrightnessContrast,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyM, meta: true),
         ),
+      if (handler.colorRange != null)
+        MenuActionEntry(label: '色彩范围…', action: handler.colorRange),
       if (handler.adjustBlackWhite != null)
         MenuActionEntry(label: '黑白…', action: handler.adjustBlackWhite),
+      if (handler.binarizeLayer != null)
+        MenuActionEntry(label: '二值化…', action: handler.binarizeLayer),
       if (handler.invertColors != null)
         MenuActionEntry(label: '颜色反转', action: handler.invertColors),
     ];

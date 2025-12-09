@@ -4,10 +4,13 @@ const double _kFilterPanelWidth = 320;
 const double _kFilterPanelMinHeight = 180;
 const double _kAntialiasPanelWidth = 280;
 const double _kAntialiasPanelMinHeight = 140;
+const double _kColorRangePanelWidth = 280;
+const double _kColorRangePanelMinHeight = 150;
 const double _kGaussianBlurMaxRadius = 1000.0;
 const double _kLeakRemovalMaxRadius = 20.0;
 const double _kMorphologyMaxRadius = 20.0;
 const double _kBlackWhiteMinRange = 1.0;
+const double _kDefaultBinarizeAlphaThreshold = 128.0;
 const ColorFilter _kViewBlackWhiteColorFilter = ColorFilter.matrix(<double>[
   0.299,
   0.587,
@@ -36,6 +39,7 @@ enum _FilterPanelType {
   hueSaturation,
   brightnessContrast,
   blackWhite,
+  binarize,
   gaussianBlur,
   leakRemoval,
   lineNarrow,
@@ -91,6 +95,12 @@ class _BlackWhiteSettings {
   double midTone;
 }
 
+class _BinarizeSettings {
+  _BinarizeSettings({this.alphaThreshold = _kDefaultBinarizeAlphaThreshold});
+
+  double alphaThreshold;
+}
+
 class _FilterSession {
   _FilterSession({
     required this.type,
@@ -107,6 +117,7 @@ class _FilterSession {
   final _BrightnessContrastSettings brightnessContrast =
       _BrightnessContrastSettings();
   final _BlackWhiteSettings blackWhite = _BlackWhiteSettings();
+  final _BinarizeSettings binarize = _BinarizeSettings();
   final _GaussianBlurSettings gaussianBlur = _GaussianBlurSettings();
   final _LeakRemovalSettings leakRemoval = _LeakRemovalSettings();
   final _MorphologySettings lineNarrow = _MorphologySettings();
@@ -132,6 +143,12 @@ mixin _PaintingBoardFilterMixin
   Offset _antialiasCardOffset = Offset.zero;
   Size? _antialiasCardSize;
   int _antialiasCardLevel = 2;
+  bool _colorRangeCardVisible = false;
+  Offset _colorRangeCardOffset = Offset.zero;
+  Size? _colorRangeCardSize;
+  int _colorRangeTotalColors = 0;
+  int _colorRangeSelectedColors = 0;
+  bool _colorRangeLoading = false;
 
   bool _filterLoading = false;
   ui.Image? _previewBackground;
@@ -161,6 +178,10 @@ mixin _PaintingBoardFilterMixin
 
   void showBlackWhiteAdjustments() {
     _openFilterPanel(_FilterPanelType.blackWhite);
+  }
+
+  void showBinarizeAdjustments() {
+    _openFilterPanel(_FilterPanelType.binarize);
   }
 
   void showGaussianBlurAdjustments() {
@@ -193,6 +214,10 @@ mixin _PaintingBoardFilterMixin
     }
     if (layer.locked) {
       _showFilterMessage('当前图层已锁定，无法应用滤镜。');
+      return;
+    }
+    if (type == _FilterPanelType.binarize && layer.text != null) {
+      _showFilterMessage('当前图层是文字图层，请先栅格化或切换其他图层。');
       return;
     }
     final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
@@ -560,6 +585,13 @@ mixin _PaintingBoardFilterMixin
               onMidToneChanged: (value) => _updateBlackWhite(midTone: value),
             );
             break;
+          case _FilterPanelType.binarize:
+            panelTitle = '二值化';
+            panelBody = _BinarizeControls(
+              threshold: session.binarize.alphaThreshold,
+              onThresholdChanged: _updateBinarizeThreshold,
+            );
+            break;
           case _FilterPanelType.gaussianBlur:
             panelTitle = '高斯模糊';
             panelBody = _GaussianBlurControls(
@@ -702,6 +734,7 @@ mixin _PaintingBoardFilterMixin
       ..blackPoint = 0
       ..whitePoint = 100
       ..midTone = 0;
+    session.binarize.alphaThreshold = _kDefaultBinarizeAlphaThreshold;
     session.gaussianBlur.radius = 0;
     session.leakRemoval.radius = 0;
     session.lineNarrow.radius = 0;
@@ -767,6 +800,16 @@ mixin _PaintingBoardFilterMixin
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleBlackWhitePreviewImageUpdate();
+  }
+
+  void _updateBinarizeThreshold(double threshold) {
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    session.binarize.alphaThreshold = threshold.clamp(0.0, 255.0);
+    setState(() {});
+    _filterOverlayEntry?.markNeedsBuild();
   }
 
   void _updateGaussianBlur(double radius) {
@@ -848,6 +891,7 @@ mixin _PaintingBoardFilterMixin
       _FilterPanelType.fillExpand => session.fillExpand.radius,
       _ => 0.0,
     };
+    final double binarizeThreshold = session.binarize.alphaThreshold;
     unawaited(
       worker.requestPreview(
         token: token,
@@ -857,6 +901,7 @@ mixin _PaintingBoardFilterMixin
         blurRadius: session.gaussianBlur.radius,
         leakRadius: session.leakRemoval.radius,
         morphRadius: morphRadius,
+        binarizeThreshold: binarizeThreshold,
       ),
     );
   }
@@ -877,6 +922,9 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     if (_isFilterSessionIdentity(session)) {
+      if (session.type == _FilterPanelType.binarize) {
+        _showFilterMessage('未检测到可处理的半透明像素。');
+      }
       _removeFilterOverlay();
       return;
     }
@@ -978,6 +1026,31 @@ mixin _PaintingBoardFilterMixin
             (layer.bitmapHeight ?? 0) > 0;
         final bool hasFill = layer.fillColor != null;
         return !hasBitmap && !hasFill;
+      case _FilterPanelType.binarize:
+        final CanvasLayerData layer =
+            session.originalLayers[session.activeLayerIndex];
+        final Uint8List? bitmap = layer.bitmap;
+        bool hasPartialAlpha = false;
+        if (bitmap != null) {
+          for (int i = 3; i < bitmap.length; i += 4) {
+            final int alpha = bitmap[i];
+            if (alpha != 0 && alpha != 255) {
+              hasPartialAlpha = true;
+              break;
+            }
+          }
+        }
+        if (!hasPartialAlpha && layer.fillColor != null) {
+          final int alpha = layer.fillColor!.alpha;
+          if (alpha != 0 && alpha != 255) {
+            hasPartialAlpha = true;
+          }
+        }
+        final bool hasContent = (bitmap != null &&
+                (layer.bitmapWidth ?? 0) > 0 &&
+                (layer.bitmapHeight ?? 0) > 0) ||
+            layer.fillColor != null;
+        return !hasContent || !hasPartialAlpha;
       case _FilterPanelType.gaussianBlur:
         final double radius = session.gaussianBlur.radius;
         final CanvasLayerData layer =
@@ -1373,6 +1446,159 @@ mixin _PaintingBoardFilterMixin
     final double maxY = math.max(minY, _workspaceSize.height - height - margin);
     return Offset(value.dx.clamp(minX, maxX), value.dy.clamp(minY, maxY));
   }
+
+  Future<void> showColorRangeCard() async {
+    if (!isBoardReady) {
+      _showFilterMessage('画布尚未准备好，无法统计色彩范围。');
+      return;
+    }
+    if (_colorRangeLoading) {
+      setState(() {
+        _colorRangeCardVisible = true;
+      });
+      return;
+    }
+    setState(() {
+      if (_colorRangeCardOffset == Offset.zero) {
+        _colorRangeCardOffset = _initialColorRangeCardOffset();
+      } else {
+        _colorRangeCardOffset = _clampColorRangeCardOffset(
+          _colorRangeCardOffset,
+          _colorRangeCardSize,
+        );
+      }
+      _colorRangeCardVisible = true;
+      _colorRangeLoading = true;
+    });
+    final int count = await _computeCanvasColorCount();
+    if (!mounted) {
+      return;
+    }
+    if (count <= 0) {
+      setState(() {
+        _colorRangeLoading = false;
+        _colorRangeCardVisible = false;
+      });
+      _showFilterMessage('未检测到颜色，请确认画布中已有内容。');
+      return;
+    }
+    setState(() {
+      _colorRangeTotalColors = count;
+      final int previous = _colorRangeSelectedColors;
+      _colorRangeSelectedColors =
+          previous > 0 ? previous.clamp(1, count) : count;
+      _colorRangeLoading = false;
+    });
+  }
+
+  void hideColorRangeCard() {
+    if (!_colorRangeCardVisible) {
+      return;
+    }
+    setState(() {
+      _colorRangeCardVisible = false;
+    });
+  }
+
+  void _updateColorRangeCardOffset(Offset delta) {
+    if (!_colorRangeCardVisible) {
+      return;
+    }
+    setState(() {
+      _colorRangeCardOffset = _clampColorRangeCardOffset(
+        _colorRangeCardOffset + delta,
+        _colorRangeCardSize,
+      );
+    });
+  }
+
+  void _handleColorRangeCardSizeChanged(Size size) {
+    if (_colorRangeCardSize == size) {
+      return;
+    }
+    setState(() {
+      _colorRangeCardSize = size;
+      _colorRangeCardOffset = _clampColorRangeCardOffset(
+        _colorRangeCardOffset,
+        size,
+      );
+    });
+  }
+
+  void _updateColorRangeSelection(double value) {
+    if (!_colorRangeCardVisible) {
+      return;
+    }
+    final int maxColors = math.max(1, _colorRangeTotalColors);
+    final int clamped = value.round().clamp(1, maxColors);
+    if (clamped == _colorRangeSelectedColors) {
+      return;
+    }
+    setState(() {
+      _colorRangeSelectedColors = clamped;
+    });
+  }
+
+  bool _isInsideColorRangeCardArea(Offset workspacePosition) {
+    if (!_colorRangeCardVisible) {
+      return false;
+    }
+    final Size size =
+        _colorRangeCardSize ??
+        const Size(_kColorRangePanelWidth, _kColorRangePanelMinHeight);
+    final Rect rect = Rect.fromLTWH(
+      _colorRangeCardOffset.dx,
+      _colorRangeCardOffset.dy,
+      size.width,
+      size.height,
+    );
+    return rect.contains(workspacePosition);
+  }
+
+  Offset _initialColorRangeCardOffset() {
+    return _workspacePanelSpawnOffset(
+      this,
+      panelWidth: _kColorRangePanelWidth,
+      panelHeight: _kColorRangePanelMinHeight,
+      additionalDy: _antialiasCardVisible ? 32 : 0,
+    );
+  }
+
+  Offset _clampColorRangeCardOffset(Offset value, Size? size) {
+    if (_workspaceSize.isEmpty) {
+      return value;
+    }
+    final double width = size?.width ?? _kColorRangePanelWidth;
+    final double height = size?.height ?? _kColorRangePanelMinHeight;
+    const double margin = 12.0;
+    final double minX = margin;
+    final double minY = margin;
+    final double maxX = math.max(minX, _workspaceSize.width - width - margin);
+    final double maxY = math.max(minY, _workspaceSize.height - height - margin);
+    return Offset(value.dx.clamp(minX, maxX), value.dy.clamp(minY, maxY));
+  }
+
+  Future<int> _computeCanvasColorCount() async {
+    try {
+      final ui.Image image = await _controller.snapshotImage();
+      final ByteData? bytes = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      image.dispose();
+      if (bytes == null) {
+        return 0;
+      }
+      final Uint8List rgba = bytes.buffer.asUint8List();
+      try {
+        return await compute(_countUniqueColorsInRgba, rgba);
+      } catch (_) {
+        return _countUniqueColorsInRgba(rgba);
+      }
+    } catch (error) {
+      debugPrint('Failed to count canvas colors: $error');
+      return 0;
+    }
+  }
 }
 
 class _HueSaturationControls extends StatelessWidget {
@@ -1497,6 +1723,47 @@ class _BlackWhiteControls extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           '将图像转换为灰度后微调黑场、白场与中间灰。白场会自动保持略高于黑场，避免出现色阶断层。',
+          style: theme.typography.caption,
+        ),
+      ],
+    );
+  }
+}
+
+class _BinarizeControls extends StatelessWidget {
+  const _BinarizeControls({
+    required this.threshold,
+    required this.onThresholdChanged,
+  });
+
+  final double threshold;
+  final ValueChanged<double> onThresholdChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final double clamped = threshold.clamp(0.0, 255.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text('透明度阈值', style: theme.typography.bodyStrong),
+            const Spacer(),
+            Text(clamped.toStringAsFixed(0), style: theme.typography.caption),
+          ],
+        ),
+        Slider(
+          min: 0,
+          max: 255,
+          divisions: 255,
+          value: clamped,
+          onChanged: onThresholdChanged,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '低于阈值的半透明像素会被清除，其余像素提升为全不透明。默认阈值 128，适用于赛璐璐线稿与色块二值化。',
           style: theme.typography.caption,
         ),
       ],
@@ -1790,6 +2057,57 @@ class _AntialiasPanelBody extends StatelessWidget {
   }
 }
 
+class _ColorRangeCardBody extends StatelessWidget {
+  const _ColorRangeCardBody({
+    required this.totalColors,
+    required this.selectedColors,
+    required this.onChanged,
+  });
+
+  final int totalColors;
+  final int selectedColors;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final int maxColors = math.max(1, totalColors);
+    final int clampedSelection =
+        selectedColors.clamp(1, maxColors).toInt();
+    final int? divisions = maxColors > 1
+        ? (maxColors <= 200 ? math.max(1, maxColors - 1) : null)
+        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text('色彩数量', style: theme.typography.bodyStrong),
+            const Spacer(),
+            Text(
+              '$clampedSelection / $maxColors 种',
+              style: theme.typography.caption,
+            ),
+          ],
+        ),
+        Slider(
+          min: 1,
+          max: maxColors.toDouble(),
+          value: clampedSelection.toDouble(),
+          divisions: divisions,
+          onChanged: maxColors > 1 ? onChanged : null,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '检测到画布包含 $maxColors 种颜色。拖动滑块标记本幅画作计划使用的颜色数量，默认等于当前检测到的总数。',
+          style: theme.typography.caption,
+        ),
+      ],
+    );
+  }
+}
+
 class _FilterSlider extends StatelessWidget {
   const _FilterSlider({
     required this.label,
@@ -1839,6 +2157,7 @@ const int _kFilterTypeGaussianBlur = 3;
 const int _kFilterTypeLeakRemoval = 4;
 const int _kFilterTypeLineNarrow = 5;
 const int _kFilterTypeFillExpand = 6;
+const int _kFilterTypeBinarize = 7;
 
 class _FilterPreviewWorker {
   _FilterPreviewWorker({
@@ -1895,6 +2214,9 @@ class _FilterPreviewWorker {
         break;
       case _FilterPanelType.blackWhite:
         filterType = _kFilterTypeBlackWhite;
+        break;
+      case _FilterPanelType.binarize:
+        filterType = _kFilterTypeBinarize;
         break;
       case _FilterPanelType.gaussianBlur:
         filterType = _kFilterTypeGaussianBlur;
@@ -1992,6 +2314,7 @@ class _FilterPreviewWorker {
     required double blurRadius,
     required double leakRadius,
     required double morphRadius,
+    required double binarizeThreshold,
   }) async {
     if (_disposed) {
       return;
@@ -2010,6 +2333,7 @@ class _FilterPreviewWorker {
         blurRadius: blurRadius,
         leakRadius: leakRadius,
         morphRadius: morphRadius,
+        binarizeThreshold: binarizeThreshold,
       );
       return;
     }
@@ -2037,6 +2361,7 @@ class _FilterPreviewWorker {
       'blur': blurRadius,
       'leakRadius': leakRadius,
       'morph': morphRadius,
+      'binarize': binarizeThreshold,
     });
   }
 
@@ -2048,6 +2373,7 @@ class _FilterPreviewWorker {
     required double blurRadius,
     required double leakRadius,
     required double morphRadius,
+    required double binarizeThreshold,
   }) {
     Uint8List? bitmap;
     final Uint8List? source = _baseBitmapSnapshot;
@@ -2076,6 +2402,11 @@ class _FilterPreviewWorker {
           blackWhite.blackPoint,
           blackWhite.whitePoint,
           blackWhite.midTone,
+        );
+      } else if (_type == _FilterPanelType.binarize) {
+        _filterApplyBinarizeToBitmap(
+          bitmap,
+          binarizeThreshold.round().clamp(0, 255),
         );
       } else if (_type == _FilterPanelType.gaussianBlur &&
           blurRadius > 0 &&
@@ -2155,6 +2486,11 @@ class _FilterPreviewWorker {
           blackWhite.blackPoint,
           blackWhite.whitePoint,
           blackWhite.midTone,
+        );
+      } else if (_type == _FilterPanelType.binarize) {
+        output = _filterApplyBinarizeToColor(
+          baseColor,
+          binarizeThreshold.round().clamp(0, 255),
         );
       }
       adjustedFill = output.value;
@@ -2282,6 +2618,9 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
     final double morphRadius = (message['morph'] is num)
         ? (message['morph'] as num).toDouble()
         : 0.0;
+    final double binarizeThreshold = (message['binarize'] is num)
+        ? (message['binarize'] as num).toDouble()
+        : _kDefaultBinarizeAlphaThreshold;
 
     Uint8List? bitmap;
     if (baseBitmap != null) {
@@ -2305,6 +2644,11 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
         );
       } else if (type == _kFilterTypeBlackWhite) {
         _filterApplyBlackWhiteToBitmap(bitmap, blackPoint, whitePoint, midTone);
+      } else if (type == _kFilterTypeBinarize) {
+        _filterApplyBinarizeToBitmap(
+          bitmap,
+          binarizeThreshold.round().clamp(0, 255),
+        );
       } else if (type == _kFilterTypeGaussianBlur &&
           blurRadius > 0 &&
           bitmapWidth > 0 &&
@@ -2385,6 +2729,11 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
           whitePoint,
           midTone,
         );
+      } else if (type == _kFilterTypeBinarize) {
+        adjusted = _filterApplyBinarizeToColor(
+          source,
+          binarizeThreshold.round().clamp(0, 255),
+        );
       }
       adjustedFill = adjusted.value;
     }
@@ -2409,6 +2758,23 @@ double _filterReadListValue(List<dynamic>? values, int index) {
     return value.toDouble();
   }
   return 0.0;
+}
+
+int _countUniqueColorsInRgba(Uint8List rgba) {
+  if (rgba.isEmpty) {
+    return 0;
+  }
+  final Set<int> colors = <int>{};
+  for (int i = 0; i + 3 < rgba.length; i += 4) {
+    final int alpha = rgba[i + 3];
+    if (alpha == 0) {
+      continue;
+    }
+    final int color =
+        (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
+    colors.add(color);
+  }
+  return colors.length;
 }
 
 Future<Uint8List> _generateHueSaturationPreviewBytes(List<Object?> args) async {
@@ -2628,6 +2994,42 @@ Color _filterApplyBlackWhiteToColor(
   normalized = math.pow(normalized, gamma).clamp(0.0, 1.0).toDouble();
   final int gray = _filterRoundChannel(normalized * 255.0);
   return Color.fromARGB(color.alpha, gray, gray, gray);
+}
+
+void _filterApplyBinarizeToBitmap(Uint8List bitmap, int threshold) {
+  final int clamped = threshold.clamp(0, 255);
+  for (int i = 0; i < bitmap.length; i += 4) {
+    final int alpha = bitmap[i + 3];
+    if (alpha == 0) {
+      continue;
+    }
+    if (alpha >= clamped) {
+      if (alpha != 255) {
+        bitmap[i + 3] = 255;
+      }
+      continue;
+    }
+    if (bitmap[i] != 0 || bitmap[i + 1] != 0 || bitmap[i + 2] != 0) {
+      bitmap[i] = 0;
+      bitmap[i + 1] = 0;
+      bitmap[i + 2] = 0;
+    }
+    if (alpha != 0) {
+      bitmap[i + 3] = 0;
+    }
+  }
+}
+
+Color _filterApplyBinarizeToColor(Color color, int threshold) {
+  final int clamped = threshold.clamp(0, 255);
+  if (color.alpha == 0 || color.alpha == 255) {
+    return color;
+  }
+  final int nextAlpha = color.alpha >= clamped ? 255 : 0;
+  if (nextAlpha == color.alpha) {
+    return color;
+  }
+  return color.withAlpha(nextAlpha);
 }
 
 bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {

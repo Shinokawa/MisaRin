@@ -7,6 +7,7 @@ import 'package:archive/archive.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/text_renderer.dart';
+import '../../canvas/perspective_guide.dart';
 import 'project_document.dart';
 
 const int _kUint32Bits = 32;
@@ -15,14 +16,14 @@ const int _kInt64SignBit = 0x80000000;
 final BigInt _kBigUint64 = BigInt.one << 64;
 final BigInt _kBigUint32Mask = BigInt.from(_kUint32Mask);
 
-/// `.rin` 二进制编解码器（v8，向后兼容 v4）
+/// `.rin` 二进制编解码器（v9，向后兼容 v4）
 ///
 /// 结构参考 PSD 分块思路：头部 + 文档元数据 + 图层块 + 预览块。
 /// 所有字符串按 UTF-8 存储并携带 32bit 长度前缀；位图数据按需使用
 /// zlib 压缩，避免 JSON 与 Base64 的额外开销。
 class ProjectBinaryCodec {
   static const String _magic = 'MISARIN';
-  static const int _version = 8;
+  static const int _version = 9;
   static const int _minSupportedVersion = 4;
 
   static final ZLibEncoder _encoder = ZLibEncoder();
@@ -82,6 +83,8 @@ class ProjectBinaryCodec {
         _writeTextBlock(writer, layer.text!);
       }
     }
+
+    _writePerspectiveGuide(writer, document.perspectiveGuide);
 
     final Uint8List previewRaw = document.previewBytes == null
         ? Uint8List(0)
@@ -193,6 +196,10 @@ class ProjectBinaryCodec {
       ));
     }
 
+    final PerspectiveGuideState? perspectiveGuide = version >= 9
+        ? _readPerspectiveGuide(reader, settings.size)
+        : null;
+
     Uint8List? preview;
     if (reader.readBool()) {
       final int compression = reader.readUint8();
@@ -212,6 +219,8 @@ class ProjectBinaryCodec {
       layers: layers,
       previewBytes: preview,
       path: path,
+      perspectiveGuide:
+          perspectiveGuide ?? PerspectiveGuideState.defaults(settings.size),
     );
   }
 
@@ -271,6 +280,10 @@ class ProjectBinaryCodec {
       }
     }
 
+    if (version >= 9) {
+      _readPerspectiveGuide(reader, Size(width, height));
+    }
+
     Uint8List? preview;
     if (reader.readBool()) {
       final int compression = reader.readUint8();
@@ -309,6 +322,78 @@ class ProjectBinaryCodec {
       return CanvasCreationLogic.singleThread;
     }
     return CanvasCreationLogic.values[raw];
+  }
+
+  static void _writePerspectiveGuide(
+    _ByteWriter writer,
+    PerspectiveGuideState? guide,
+  ) {
+    if (guide == null) {
+      writer.writeBool(false);
+      return;
+    }
+    writer.writeBool(true);
+    writer.writeUint8(guide.mode.index);
+    writer.writeBool(guide.enabled);
+    writer.writeBool(guide.visible);
+    writer.writeFloat32(guide.horizonY);
+    writer.writeFloat32(guide.vp1.dx);
+    writer.writeFloat32(guide.vp1.dy);
+
+    writer.writeBool(guide.vp2 != null);
+    if (guide.vp2 != null) {
+      writer.writeFloat32(guide.vp2!.dx);
+      writer.writeFloat32(guide.vp2!.dy);
+    }
+
+    writer.writeBool(guide.vp3 != null);
+    if (guide.vp3 != null) {
+      writer.writeFloat32(guide.vp3!.dx);
+      writer.writeFloat32(guide.vp3!.dy);
+    }
+    writer.writeFloat32(guide.snapAngleToleranceDegrees);
+  }
+
+  static PerspectiveGuideState _readPerspectiveGuide(
+    _ByteReader reader,
+    Size canvasSize,
+  ) {
+    final bool hasData = reader.readBool();
+    if (!hasData) {
+      return PerspectiveGuideState.defaults(canvasSize);
+    }
+    final int modeIndex = reader.readUint8();
+    final PerspectiveGuideMode mode = modeIndex >= 0 &&
+            modeIndex < PerspectiveGuideMode.values.length
+        ? PerspectiveGuideMode.values[modeIndex]
+        : PerspectiveGuideMode.off;
+    final bool enabled = reader.readBool();
+    final bool visible = reader.readBool();
+    final double horizonY = reader.readFloat32();
+    final Offset vp1 = Offset(reader.readFloat32(), reader.readFloat32());
+
+    Offset? vp2;
+    if (reader.readBool()) {
+      vp2 = Offset(reader.readFloat32(), reader.readFloat32());
+    }
+
+    Offset? vp3;
+    if (reader.readBool()) {
+      vp3 = Offset(reader.readFloat32(), reader.readFloat32());
+    }
+
+    final double snapAngle = reader.readFloat32();
+
+    return PerspectiveGuideState(
+      mode: mode,
+      enabled: enabled,
+      visible: visible,
+      horizonY: horizonY,
+      vp1: vp1,
+      vp2: vp2,
+      vp3: vp3,
+      snapAngleToleranceDegrees: snapAngle,
+    );
   }
 
   static void _ensureSupportedVersion(int version) {

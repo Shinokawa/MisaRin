@@ -81,6 +81,7 @@ import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/vector_stroke_painter.dart';
 import '../../canvas/text_renderer.dart';
+import '../../canvas/perspective_guide.dart';
 import '../toolbars/widgets/canvas_toolbar.dart';
 import '../toolbars/widgets/tool_settings_card.dart';
 import '../toolbars/layouts/layouts.dart';
@@ -123,6 +124,7 @@ part 'painting_board_marching_ants.dart';
 part 'painting_board_selection.dart';
 part 'painting_board_layer_transform.dart';
 part 'painting_board_shapes.dart';
+part 'painting_board_perspective.dart';
 part 'painting_board_text.dart';
 part 'painting_board_clipboard.dart';
 part 'painting_board_interactions.dart';
@@ -214,6 +216,7 @@ class PaintingBoard extends StatefulWidget {
     required this.onRequestExit,
     this.onDirtyChanged,
     this.initialLayers,
+    this.initialPerspectiveGuide,
     this.onUndoFallback,
     this.onRedoFallback,
     this.externalCanUndo = false,
@@ -228,6 +231,7 @@ class PaintingBoard extends StatefulWidget {
   final VoidCallback onRequestExit;
   final ValueChanged<bool>? onDirtyChanged;
   final List<CanvasLayerData>? initialLayers;
+  final PerspectiveGuideState? initialPerspectiveGuide;
   final VoidCallback? onUndoFallback;
   final VoidCallback? onRedoFallback;
   final bool externalCanUndo;
@@ -411,11 +415,32 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   bool _isInsideAntialiasCardArea(Offset workspacePosition);
 
+  bool _isInsideColorRangeCardArea(Offset workspacePosition);
+
   bool _isInsideWorkspacePanelArea(Offset workspacePosition) {
     return _isInsidePaletteCardArea(workspacePosition) ||
         _isInsideReferenceCardArea(workspacePosition) ||
-        _isInsideAntialiasCardArea(workspacePosition);
+        _isInsideAntialiasCardArea(workspacePosition) ||
+        _isInsideColorRangeCardArea(workspacePosition);
   }
+
+  // 透视辅助线相关成员由 _PaintingBoardPerspectiveMixin 提供。
+  PerspectiveGuideMode get _perspectiveMode;
+  bool get _perspectiveEnabled;
+  bool get _perspectiveVisible;
+  double get _perspectiveHorizonY;
+  Offset get _perspectiveVp1;
+  Offset? get _perspectiveVp2;
+  Offset? get _perspectiveVp3;
+  double get _perspectiveSnapAngleTolerance;
+  _PerspectiveHandle? get _activePerspectiveHandle;
+  void togglePerspectiveGuide();
+  void setPerspectiveMode(PerspectiveGuideMode mode);
+  Offset _maybeSnapToPerspective(Offset position, {Offset? anchor});
+  bool _handlePerspectivePointerDown(Offset boardLocal);
+  bool get _isDraggingPerspectiveHandle;
+  void _handlePerspectivePointerMove(Offset boardLocal);
+  void _handlePerspectivePointerUp();
 
   void _clearLayerTransformCursorIndicator() {}
 
@@ -891,6 +916,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       pixelGridVisible: _pixelGridVisible,
       viewBlackWhiteEnabled: _viewBlackWhiteOverlay,
       viewMirrorEnabled: _viewMirrorOverlay,
+      perspectiveMode: _perspectiveMode,
+      perspectiveEnabled: _perspectiveEnabled,
+      perspectiveVisible: _perspectiveVisible,
     );
   }
 
@@ -1766,6 +1794,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool get isPixelGridVisible => _pixelGridVisible;
   bool get isViewBlackWhiteEnabled => _viewBlackWhiteOverlay;
   bool get isViewMirrorEnabled => _viewMirrorOverlay;
+  bool get isPerspectiveGuideEnabled => _perspectiveEnabled;
+  bool get isPerspectiveGuideVisible => _perspectiveVisible;
+  PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
 
   bool get isBoardReady => _controller.frame != null;
 
@@ -1803,6 +1834,14 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     });
     _notifyViewInfoChanged();
   }
+
+  void togglePerspectiveGuideVisibility() {
+    togglePerspectiveGuide();
+  }
+
+  void setPerspectiveGuideMode(PerspectiveGuideMode mode) {
+    setPerspectiveMode(mode);
+  }
 }
 
 class PaintingBoardState extends _PaintingBoardBase
@@ -1813,6 +1852,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardColorMixin,
         _PaintingBoardPaletteMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardSelectionMixin,
         _PaintingBoardShapeMixin,
@@ -1867,6 +1907,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _sai2LayerPanelWidthRatio = prefs.sai2LayerPanelWidthSplit.clamp(0.0, 1.0);
     _rememberColor(widget.settings.backgroundColor);
     _rememberColor(_primaryColor);
+    initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
     _controller = BitmapCanvasController(
       width: widget.settings.width.round(),

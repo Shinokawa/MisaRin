@@ -31,6 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
   fluent_ui: ^4.8.6
+  flutter_svg: ^2.0.10+1
   file_picker: ^6.1.1
   window_manager: ^0.3.9
   path: ^1.9.0
@@ -70,12 +71,12 @@ flutter:
   uses-material-design: true
 
   assets:
-    - icons/warp1.png
-    - icons/warp2.png
-    - icons/warp3.png
-    - icons/line.png
-    - icons/line2.png
-    - icons/spray.png
+    - icons/warp1.svg
+    - icons/warp2.svg
+    - icons/warp3.svg
+    - icons/line.svg
+    - icons/line2.svg
+    - icons/spray.svg
 
   shaders:
     - shaders/antialias_alpha.frag

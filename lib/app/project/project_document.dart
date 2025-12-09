@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:ui' show Size;
 
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
+import '../../canvas/perspective_guide.dart';
 
 Uint8List? _clonePreview(Uint8List? bytes) {
   if (bytes == null) {
@@ -33,8 +35,10 @@ class ProjectDocument {
     required List<CanvasLayerData> layers,
     Uint8List? previewBytes,
     this.path,
-  }) : layers = _cloneLayers(layers),
-       previewBytes = _clonePreview(previewBytes);
+    PerspectiveGuideState? perspectiveGuide,
+  })  : layers = _cloneLayers(layers),
+        previewBytes = _clonePreview(previewBytes),
+        perspectiveGuide = perspectiveGuide;
 
   factory ProjectDocument.newProject({
     required CanvasSettings settings,
@@ -60,6 +64,9 @@ class ProjectDocument {
           name: '图层 2',
         ),
       ],
+      perspectiveGuide: PerspectiveGuideState.defaults(
+        Size(width.toDouble(), height.toDouble()),
+      ),
     );
   }
 
@@ -71,6 +78,7 @@ class ProjectDocument {
   final List<CanvasLayerData> layers;
   final Uint8List? previewBytes;
   final String? path;
+  final PerspectiveGuideState? perspectiveGuide;
 
   ProjectDocument copyWith({
     String? id,
@@ -81,6 +89,7 @@ class ProjectDocument {
     List<CanvasLayerData>? layers,
     Uint8List? previewBytes,
     String? path,
+    PerspectiveGuideState? perspectiveGuide,
   }) {
     return ProjectDocument(
       id: id ?? this.id,
@@ -91,6 +100,7 @@ class ProjectDocument {
       layers: layers == null ? this.layers : _cloneLayers(layers),
       previewBytes: previewBytes ?? this.previewBytes,
       path: path ?? this.path,
+      perspectiveGuide: perspectiveGuide ?? this.perspectiveGuide,
     );
   }
 }

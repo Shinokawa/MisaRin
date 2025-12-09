@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../canvas/canvas_tools.dart';
 
@@ -15,20 +16,18 @@ class SelectionShapeIcon extends StatelessWidget {
   final double size;
 
   static const Map<SelectionShape, String> _assetMap = {
-    SelectionShape.rectangle: 'icons/warp1.png',
-    SelectionShape.ellipse: 'icons/warp2.png',
-    SelectionShape.polygon: 'icons/warp3.png',
+    SelectionShape.rectangle: 'icons/warp1.svg',
+    SelectionShape.ellipse: 'icons/warp2.svg',
+    SelectionShape.polygon: 'icons/warp3.svg',
   };
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
+    return SvgPicture.asset(
       _assetMap[shape]!,
       width: size,
       height: size,
-      color: color,
-      colorBlendMode: BlendMode.srcIn,
-      filterQuality: FilterQuality.high,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     );
   }
 }
