@@ -2821,11 +2821,18 @@ void _filterApplyLeakRemovalToBitmap(
   if (clampedRadius <= 0) {
     return;
   }
+  // 全不透明图层使用亮度掩码推导覆盖度，避免因缺少透明度信息而无法检测针眼。
+  final Uint8List? luminanceMask =
+      _filterBuildLuminanceMaskIfFullyOpaque(bitmap, width, height);
+  final bool useLuminanceMask = luminanceMask != null;
   final int pixelCount = width * height;
   final Uint8List holeMask = Uint8List(pixelCount);
   bool hasTransparent = false;
   for (int index = 0, offset = 0; index < pixelCount; index++, offset += 4) {
-    if (bitmap[offset + 3] == 0) {
+    final int coverage = useLuminanceMask
+        ? luminanceMask![index]
+        : bitmap[offset + 3];
+    if (coverage == 0) {
       holeMask[index] = 1;
       hasTransparent = true;
     }
@@ -2942,7 +2949,10 @@ void _filterApplyLeakRemovalToBitmap(
             continue;
           }
           final int neighborOffset = neighborIndex << 2;
-          if (bitmap[neighborOffset + 3] == 0) {
+          final int neighborCoverage = useLuminanceMask
+              ? luminanceMask![neighborIndex]
+              : bitmap[neighborOffset + 3];
+          if (neighborCoverage == 0) {
             continue;
           }
           touchesOpaque = true;
