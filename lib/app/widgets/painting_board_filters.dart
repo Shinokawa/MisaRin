@@ -1760,6 +1760,10 @@ mixin _PaintingBoardFilterMixin
     if (_colorRangeApplying) {
       return;
     }
+    _colorRangePreviewDebounceTimer?.cancel();
+    _colorRangePreviewDebounceTimer = null;
+    _colorRangePreviewScheduled = false;
+    _colorRangePreviewToken++;
     final int availableColors = math.max(1, _colorRangeTotalColors);
     final int targetColors = math.max(
       1,
@@ -1773,9 +1777,17 @@ mixin _PaintingBoardFilterMixin
     setState(() {
       _colorRangeApplying = true;
     });
-    final CanvasLayerData baseLayer =
-        session.originalLayers[session.activeLayerIndex];
     try {
+      // 确保撤销基于应用前的原始图层状态，而非预览态。
+      _restoreColorRangePreviewToOriginal(session);
+      final List<CanvasLayerData> currentLayers = _controller.snapshotLayers();
+      final int currentIndex = currentLayers.indexWhere(
+        (CanvasLayerData item) => item.id == session.layerId,
+      );
+      if (currentIndex < 0) {
+        throw StateError('无法定位当前图层。');
+      }
+      final CanvasLayerData baseLayer = currentLayers[currentIndex];
       final _ColorRangeComputeResult result = await _generateColorRangeResult(
         baseLayer.bitmap,
         baseLayer.fillColor,
