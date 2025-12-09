@@ -7,6 +7,10 @@ const double _kAntialiasPanelMinHeight = 140;
 const double _kColorRangePanelWidth = 280;
 const double _kColorRangePanelMinHeight = 150;
 const int _kColorRangeMaxSelectableColors = 256;
+const int _kColorRangeAlphaThreshold = 12;
+const int _kColorRangeQuantizationStep = 8; // 5-bit per channel
+const int _kColorRangeMinBucketSize = 3;
+const double _kColorRangeSmallBucketFraction = 0.0005; // 0.05% coverage
 const Duration _kColorRangePreviewDebounceDuration = Duration(
   milliseconds: 120,
 );
@@ -3166,10 +3170,17 @@ _ColorRangeComputeResult _applyColorRangeReduction(
   }
   final List<int> palette =
       buckets.map((bucket) => bucket.averageColor).toList(growable: false);
-  final Map<int, int> colorMap = <int, int>{};
-  for (final int color in histogram.keys) {
-    colorMap[color] = _findNearestPaletteColor(color, palette);
-  }
+  final Map<int, int> quantizedColorMap = <int, int>{};
+  final Map<int, int> quantizedWeights = <int, int>{};
+  histogram.forEach((int color, int count) {
+    final int quantKey = _quantizeColorInt(color);
+    final int mapped = _findNearestPaletteColor(color, palette);
+    final int existingWeight = quantizedWeights[quantKey] ?? -1;
+    if (count > existingWeight) {
+      quantizedColorMap[quantKey] = mapped;
+      quantizedWeights[quantKey] = count;
+    }
+  });
   Uint8List? reducedBitmap = bitmap != null ? Uint8List.fromList(bitmap) : null;
   if (reducedBitmap != null) {
     for (int i = 0; i + 3 < reducedBitmap.length; i += 4) {
@@ -3177,10 +3188,13 @@ _ColorRangeComputeResult _applyColorRangeReduction(
       if (alpha == 0) {
         continue;
       }
-      final int rgb = (reducedBitmap[i] << 16) |
-          (reducedBitmap[i + 1] << 8) |
-          reducedBitmap[i + 2];
-      final int mapped = colorMap[rgb] ?? rgb;
+      final int quantKey = _quantizeColor(
+        reducedBitmap[i],
+        reducedBitmap[i + 1],
+        reducedBitmap[i + 2],
+      );
+      final int mapped = quantizedColorMap[quantKey] ??
+          _findNearestPaletteColor(quantKey, palette);
       reducedBitmap[i] = (mapped >> 16) & 0xFF;
       reducedBitmap[i + 1] = (mapped >> 8) & 0xFF;
       reducedBitmap[i + 2] = mapped & 0xFF;
@@ -3190,8 +3204,9 @@ _ColorRangeComputeResult _applyColorRangeReduction(
   if (fillColor != null) {
     final int alpha = (fillColor >> 24) & 0xFF;
     if (alpha != 0) {
-      final int rgb = fillColor & 0xFFFFFF;
-      final int mapped = colorMap[rgb] ?? rgb;
+      final int quantKey = _quantizeColorInt(fillColor & 0xFFFFFF);
+      final int mapped = quantizedColorMap[quantKey] ??
+          _findNearestPaletteColor(quantKey, palette);
       mappedFill = (fillColor & 0xFF000000) | mapped;
     }
   }
@@ -3201,26 +3216,126 @@ _ColorRangeComputeResult _applyColorRangeReduction(
   );
 }
 
+int _quantizeColor(int r, int g, int b) {
+  final int qr = (r ~/ _kColorRangeQuantizationStep) *
+      _kColorRangeQuantizationStep;
+  final int qg = (g ~/ _kColorRangeQuantizationStep) *
+      _kColorRangeQuantizationStep;
+  final int qb = (b ~/ _kColorRangeQuantizationStep) *
+      _kColorRangeQuantizationStep;
+  return (qr << 16) | (qg << 8) | qb;
+}
+
+int _quantizeColorInt(int color) {
+  return _quantizeColor(
+    (color >> 16) & 0xFF,
+    (color >> 8) & 0xFF,
+    color & 0xFF,
+  );
+}
+
+class _ColorRangeHistogramBucket {
+  _ColorRangeHistogramBucket();
+
+  int count = 0;
+  int sumR = 0;
+  int sumG = 0;
+  int sumB = 0;
+}
+
 Map<int, int> _buildColorHistogram(Uint8List? bitmap, int? fillColor) {
-  final Map<int, int> histogram = <int, int>{};
+  final Map<int, _ColorRangeHistogramBucket> buckets =
+      <int, _ColorRangeHistogramBucket>{};
+
+  void addColor(int r, int g, int b) {
+    final int qr = (r ~/ _kColorRangeQuantizationStep) *
+        _kColorRangeQuantizationStep;
+    final int qg = (g ~/ _kColorRangeQuantizationStep) *
+        _kColorRangeQuantizationStep;
+    final int qb = (b ~/ _kColorRangeQuantizationStep) *
+        _kColorRangeQuantizationStep;
+    final int key = (qr << 16) | (qg << 8) | qb;
+    final _ColorRangeHistogramBucket bucket = buckets.putIfAbsent(
+      key,
+      _ColorRangeHistogramBucket.new,
+    );
+    bucket.count += 1;
+    bucket.sumR += r;
+    bucket.sumG += g;
+    bucket.sumB += b;
+  }
+
   if (bitmap != null) {
     for (int i = 0; i + 3 < bitmap.length; i += 4) {
       final int alpha = bitmap[i + 3];
-      if (alpha == 0) {
+      if (alpha < _kColorRangeAlphaThreshold) {
         continue;
       }
-      final int color = (bitmap[i] << 16) | (bitmap[i + 1] << 8) | bitmap[i + 2];
-      histogram[color] = (histogram[color] ?? 0) + 1;
+      addColor(bitmap[i], bitmap[i + 1], bitmap[i + 2]);
     }
   }
   if (fillColor != null) {
     final int alpha = (fillColor >> 24) & 0xFF;
-    if (alpha != 0) {
-      final int rgb = fillColor & 0xFFFFFF;
-      histogram[rgb] = (histogram[rgb] ?? 0) + 1;
+    if (alpha >= _kColorRangeAlphaThreshold) {
+      addColor(
+        (fillColor >> 16) & 0xFF,
+        (fillColor >> 8) & 0xFF,
+        fillColor & 0xFF,
+      );
     }
   }
-  return histogram;
+
+  final Map<int, int> histogram = <int, int>{};
+  buckets.forEach((_, _ColorRangeHistogramBucket bucket) {
+    final int count = math.max(bucket.count, 1);
+    final int r = (bucket.sumR / count).round().clamp(0, 255);
+    final int g = (bucket.sumG / count).round().clamp(0, 255);
+    final int b = (bucket.sumB / count).round().clamp(0, 255);
+    final int color = (r << 16) | (g << 8) | b;
+    histogram[color] = (histogram[color] ?? 0) + bucket.count;
+  });
+
+  if (histogram.length <= 1) {
+    return histogram;
+  }
+  return _mergeSmallHistogramBuckets(histogram);
+}
+
+Map<int, int> _mergeSmallHistogramBuckets(Map<int, int> histogram) {
+  final int total = histogram.values.fold<int>(0, (int acc, int value) {
+    return acc + value;
+  });
+  if (total <= 0) {
+    return histogram;
+  }
+  final int minCount = math.max(
+    _kColorRangeMinBucketSize,
+    (total * _kColorRangeSmallBucketFraction).round(),
+  );
+  if (minCount <= 1) {
+    return histogram;
+  }
+  final List<MapEntry<int, int>> sorted = histogram.entries.toList()
+    ..sort((MapEntry<int, int> a, MapEntry<int, int> b) {
+      return b.value.compareTo(a.value);
+    });
+  final List<int> anchors = sorted
+      .where((MapEntry<int, int> entry) => entry.value >= minCount)
+      .map((MapEntry<int, int> entry) => entry.key)
+      .toList();
+  if (anchors.isEmpty) {
+    return histogram;
+  }
+  final Map<int, int> merged = <int, int>{};
+  for (final MapEntry<int, int> entry in sorted) {
+    if (entry.value >= minCount) {
+      merged[entry.key] = (merged[entry.key] ?? 0) + entry.value;
+      continue;
+    }
+    final int nearest = _findNearestPaletteColor(entry.key, anchors);
+    merged[nearest] = (merged[nearest] ?? 0) + entry.value;
+  }
+  return merged;
 }
 
 class _ColorRangeComputeResult {
