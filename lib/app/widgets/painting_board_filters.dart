@@ -6,6 +6,10 @@ const double _kAntialiasPanelWidth = 280;
 const double _kAntialiasPanelMinHeight = 140;
 const double _kColorRangePanelWidth = 280;
 const double _kColorRangePanelMinHeight = 150;
+const int _kColorRangeMaxSelectableColors = 256;
+const Duration _kColorRangePreviewDebounceDuration = Duration(
+  milliseconds: 120,
+);
 const double _kGaussianBlurMaxRadius = 1000.0;
 const double _kLeakRemovalMaxRadius = 20.0;
 const double _kMorphologyMaxRadius = 20.0;
@@ -125,6 +129,19 @@ class _FilterSession {
   CanvasLayerData? previewLayer;
 }
 
+class _ColorRangeSession {
+  _ColorRangeSession({
+    required this.layerId,
+    required this.originalLayers,
+    required this.activeLayerIndex,
+  });
+
+  final String layerId;
+  final List<CanvasLayerData> originalLayers;
+  final int activeLayerIndex;
+  CanvasLayerData? previewLayer;
+}
+
 mixin _PaintingBoardFilterMixin
     on _PaintingBoardBase, _PaintingBoardLayerMixin {
   OverlayEntry? _filterOverlayEntry;
@@ -149,6 +166,12 @@ mixin _PaintingBoardFilterMixin
   int _colorRangeTotalColors = 0;
   int _colorRangeSelectedColors = 0;
   bool _colorRangeLoading = false;
+  _ColorRangeSession? _colorRangeSession;
+  bool _colorRangePreviewScheduled = false;
+  bool _colorRangePreviewInFlight = false;
+  int _colorRangePreviewToken = 0;
+  Timer? _colorRangePreviewDebounceTimer;
+  bool _colorRangeApplying = false;
 
   bool _filterLoading = false;
   ui.Image? _previewBackground;
@@ -1221,6 +1244,36 @@ mixin _PaintingBoardFilterMixin
     );
   }
 
+  CanvasLayerData _buildColorRangeAdjustedLayer(
+    CanvasLayerData original,
+    _ColorRangeComputeResult result,
+  ) {
+    final Uint8List? bitmap = result.bitmap ?? original.bitmap;
+    final int? fillValue = result.fillColor;
+    Color? fillColor = original.fillColor;
+    if (fillValue != null) {
+      fillColor = Color(fillValue);
+    }
+    final bool hasBitmap = bitmap != null;
+    return CanvasLayerData(
+      id: original.id,
+      name: original.name,
+      visible: original.visible,
+      opacity: original.opacity,
+      locked: original.locked,
+      clippingMask: original.clippingMask,
+      blendMode: original.blendMode,
+      fillColor: fillColor,
+      bitmap: bitmap,
+      bitmapWidth: hasBitmap ? original.bitmapWidth : null,
+      bitmapHeight: hasBitmap ? original.bitmapHeight : null,
+      bitmapLeft: hasBitmap ? original.bitmapLeft : null,
+      bitmapTop: hasBitmap ? original.bitmapTop : null,
+      text: original.text,
+      cloneBitmap: false,
+    );
+  }
+
   Future<void> invertActiveLayerColors() async {
     if (_controller.frame == null) {
       _showFilterMessage('画布尚未准备好，无法颜色反转。');
@@ -1452,26 +1505,74 @@ mixin _PaintingBoardFilterMixin
       _showFilterMessage('画布尚未准备好，无法统计色彩范围。');
       return;
     }
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      _showFilterMessage('请先选择一个可编辑的图层。');
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      _showFilterMessage('无法定位当前图层。');
+      return;
+    }
+    if (layer.locked) {
+      _showFilterMessage('当前图层已锁定，无法设置色彩范围。');
+      return;
+    }
     if (_colorRangeLoading) {
       setState(() {
         _colorRangeCardVisible = true;
       });
       return;
     }
+    await _controller.waitForPendingWorkerTasks();
+    final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
+    final int layerIndex = snapshot.indexWhere(
+      (item) => item.id == activeLayerId,
+    );
+    if (layerIndex < 0) {
+      _showFilterMessage('无法定位当前图层。');
+      return;
+    }
+    final CanvasLayerData activeLayer = snapshot[layerIndex];
+    final bool hasBitmap = activeLayer.bitmap != null &&
+        activeLayer.bitmap!.isNotEmpty &&
+        (activeLayer.bitmapWidth ?? 0) > 0 &&
+        (activeLayer.bitmapHeight ?? 0) > 0;
+    final Color? fillColor = activeLayer.fillColor;
+    final bool hasFill = fillColor != null && fillColor.alpha != 0;
+    if (!hasBitmap && !hasFill) {
+      _showFilterMessage('当前图层为空，无法设置色彩范围。');
+      return;
+    }
+    _teardownColorRangeSession();
+    _colorRangeSession = _ColorRangeSession(
+      layerId: activeLayerId,
+      originalLayers: snapshot,
+      activeLayerIndex: layerIndex,
+    );
+    _colorRangePreviewToken++;
+    _colorRangePreviewScheduled = false;
+    _colorRangePreviewInFlight = false;
+    _colorRangePreviewDebounceTimer?.cancel();
+    _colorRangePreviewDebounceTimer = null;
+    _colorRangeApplying = false;
+    Offset nextOffset = _colorRangeCardOffset;
+    if (nextOffset == Offset.zero) {
+      nextOffset = _initialColorRangeCardOffset();
+    } else {
+      nextOffset = _clampColorRangeCardOffset(
+        _colorRangeCardOffset,
+        _colorRangeCardSize,
+      );
+    }
     setState(() {
-      if (_colorRangeCardOffset == Offset.zero) {
-        _colorRangeCardOffset = _initialColorRangeCardOffset();
-      } else {
-        _colorRangeCardOffset = _clampColorRangeCardOffset(
-          _colorRangeCardOffset,
-          _colorRangeCardSize,
-        );
-      }
+      _colorRangeCardOffset = nextOffset;
       _colorRangeCardVisible = true;
       _colorRangeLoading = true;
     });
-    final int count = await _computeCanvasColorCount();
-    if (!mounted) {
+    final int count = await _computeLayerColorCount(activeLayer);
+    if (!mounted || _colorRangeSession?.layerId != activeLayerId) {
       return;
     }
     if (count <= 0) {
@@ -1479,25 +1580,24 @@ mixin _PaintingBoardFilterMixin
         _colorRangeLoading = false;
         _colorRangeCardVisible = false;
       });
-      _showFilterMessage('未检测到颜色，请确认画布中已有内容。');
+      _showFilterMessage('当前图层没有可处理的颜色。');
+      _teardownColorRangeSession(restoreOriginal: false);
       return;
     }
+    final int maxSelectable =
+        math.min(_kColorRangeMaxSelectableColors, math.max(1, count));
     setState(() {
       _colorRangeTotalColors = count;
       final int previous = _colorRangeSelectedColors;
       _colorRangeSelectedColors =
-          previous > 0 ? previous.clamp(1, count) : count;
+          previous > 0 ? previous.clamp(1, maxSelectable) : maxSelectable;
       _colorRangeLoading = false;
     });
+    _scheduleColorRangePreview(immediate: true);
   }
 
   void hideColorRangeCard() {
-    if (!_colorRangeCardVisible) {
-      return;
-    }
-    setState(() {
-      _colorRangeCardVisible = false;
-    });
+    _cancelColorRangeEditing();
   }
 
   void _updateColorRangeCardOffset(Offset delta) {
@@ -1526,10 +1626,13 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _updateColorRangeSelection(double value) {
-    if (!_colorRangeCardVisible) {
+    if (!_colorRangeCardVisible || _colorRangeSession == null) {
       return;
     }
-    final int maxColors = math.max(1, _colorRangeTotalColors);
+    if (_colorRangeLoading || _colorRangeApplying) {
+      return;
+    }
+    final int maxColors = _colorRangeMaxSelectable();
     final int clamped = value.round().clamp(1, maxColors);
     if (clamped == _colorRangeSelectedColors) {
       return;
@@ -1537,6 +1640,204 @@ mixin _PaintingBoardFilterMixin
     setState(() {
       _colorRangeSelectedColors = clamped;
     });
+    _scheduleColorRangePreview();
+  }
+
+  int _colorRangeMaxSelectable() {
+    final int total = math.max(1, _colorRangeTotalColors);
+    return math.min(_kColorRangeMaxSelectableColors, total);
+  }
+
+  void _resetColorRangeSelection() {
+    if (_colorRangeSession == null || !_colorRangeCardVisible) {
+      return;
+    }
+    final int target = _colorRangeMaxSelectable();
+    if (_colorRangeSelectedColors == target && !_colorRangePreviewInFlight) {
+      _scheduleColorRangePreview(immediate: true);
+      return;
+    }
+    setState(() {
+      _colorRangeSelectedColors = target;
+    });
+    _scheduleColorRangePreview(immediate: true);
+  }
+
+  void _scheduleColorRangePreview({bool immediate = false}) {
+    if (_colorRangeSession == null ||
+        !_colorRangeCardVisible ||
+        _colorRangeLoading) {
+      return;
+    }
+    _colorRangePreviewScheduled = true;
+    _colorRangePreviewDebounceTimer?.cancel();
+    if (immediate) {
+      unawaited(_runColorRangePreview());
+      return;
+    }
+    _colorRangePreviewDebounceTimer = Timer(
+      _kColorRangePreviewDebounceDuration,
+      () => unawaited(_runColorRangePreview()),
+    );
+  }
+
+  Future<void> _runColorRangePreview() async {
+    _colorRangePreviewDebounceTimer?.cancel();
+    _colorRangePreviewDebounceTimer = null;
+    if (_colorRangePreviewInFlight) {
+      _colorRangePreviewScheduled = true;
+      return;
+    }
+    final _ColorRangeSession? session = _colorRangeSession;
+    if (session == null || !_colorRangeCardVisible) {
+      _colorRangePreviewScheduled = false;
+      return;
+    }
+    _colorRangePreviewScheduled = false;
+    final int availableColors = math.max(1, _colorRangeTotalColors);
+    final int targetColors = math.max(
+      1,
+      math.min(_colorRangeSelectedColors, _colorRangeMaxSelectable()),
+    );
+    if (targetColors >= availableColors) {
+      _restoreColorRangePreviewToOriginal(session);
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+    final int token = ++_colorRangePreviewToken;
+    setState(() {
+      _colorRangePreviewInFlight = true;
+    });
+    final CanvasLayerData baseLayer =
+        session.originalLayers[session.activeLayerIndex];
+    try {
+      final _ColorRangeComputeResult result = await _generateColorRangeResult(
+        baseLayer.bitmap,
+        baseLayer.fillColor,
+        targetColors,
+      );
+      if (!mounted ||
+          token != _colorRangePreviewToken ||
+          _colorRangeSession?.layerId != session.layerId) {
+        return;
+      }
+      final CanvasLayerData adjusted =
+          _buildColorRangeAdjustedLayer(baseLayer, result);
+      session.previewLayer = adjusted;
+      _controller.replaceLayer(session.layerId, adjusted);
+      _controller.setActiveLayer(session.layerId);
+      setState(() {});
+    } catch (error, stackTrace) {
+      debugPrint('Color range preview failed: $error\n$stackTrace');
+      if (mounted) {
+        _showFilterMessage('生成色彩范围预览失败，请重试。');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _colorRangePreviewInFlight = false;
+        });
+      } else {
+        _colorRangePreviewInFlight = false;
+      }
+    }
+    if (_colorRangePreviewScheduled) {
+      unawaited(_runColorRangePreview());
+    }
+  }
+
+  Future<void> _applyColorRangeSelection() async {
+    final _ColorRangeSession? session = _colorRangeSession;
+    if (session == null || _colorRangeLoading || !_colorRangeCardVisible) {
+      return;
+    }
+    if (_colorRangeApplying) {
+      return;
+    }
+    final int availableColors = math.max(1, _colorRangeTotalColors);
+    final int targetColors = math.max(
+      1,
+      math.min(_colorRangeSelectedColors, _colorRangeMaxSelectable()),
+    );
+    if (targetColors >= availableColors) {
+      _showFilterMessage('目标颜色数量不少于当前颜色数量，图层保持不变。');
+      hideColorRangeCard();
+      return;
+    }
+    setState(() {
+      _colorRangeApplying = true;
+    });
+    final CanvasLayerData baseLayer =
+        session.originalLayers[session.activeLayerIndex];
+    try {
+      final _ColorRangeComputeResult result = await _generateColorRangeResult(
+        baseLayer.bitmap,
+        baseLayer.fillColor,
+        targetColors,
+      );
+      if (!mounted) {
+        return;
+      }
+      await _pushUndoSnapshot();
+      final CanvasLayerData adjusted =
+          _buildColorRangeAdjustedLayer(baseLayer, result);
+      _controller.replaceLayer(session.layerId, adjusted);
+      _controller.setActiveLayer(session.layerId);
+      _markDirty();
+      setState(() {
+        _colorRangeApplying = false;
+        _colorRangeCardVisible = false;
+      });
+      _teardownColorRangeSession(restoreOriginal: false);
+    } catch (error, stackTrace) {
+      debugPrint('Apply color range failed: $error\n$stackTrace');
+      if (mounted) {
+        setState(() {
+          _colorRangeApplying = false;
+        });
+        _showFilterMessage('应用色彩范围失败，请重试。');
+      }
+    }
+  }
+
+  void _cancelColorRangeEditing() {
+    _teardownColorRangeSession();
+    if (mounted) {
+      setState(() {
+        _colorRangeCardVisible = false;
+        _colorRangeLoading = false;
+        _colorRangeApplying = false;
+      });
+    }
+  }
+
+  void _teardownColorRangeSession({bool restoreOriginal = true}) {
+    _colorRangePreviewDebounceTimer?.cancel();
+    _colorRangePreviewDebounceTimer = null;
+    _colorRangePreviewScheduled = false;
+    _colorRangePreviewToken++;
+    final _ColorRangeSession? session = _colorRangeSession;
+    if (restoreOriginal && session != null) {
+      _restoreColorRangePreviewToOriginal(session);
+    }
+    _colorRangeSession = null;
+    _colorRangePreviewInFlight = false;
+  }
+
+  void _restoreColorRangePreviewToOriginal(_ColorRangeSession session) {
+    if (session.previewLayer == null) {
+      return;
+    }
+    final CanvasLayerData original =
+        session.originalLayers[session.activeLayerIndex];
+    _controller.replaceLayer(session.layerId, original);
+    _controller.setActiveLayer(session.layerId);
+    session.previewLayer = null;
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   bool _isInsideColorRangeCardArea(Offset workspacePosition) {
@@ -1578,27 +1879,23 @@ mixin _PaintingBoardFilterMixin
     return Offset(value.dx.clamp(minX, maxX), value.dy.clamp(minY, maxY));
   }
 
-  Future<int> _computeCanvasColorCount() async {
-    try {
-      final ui.Image image = await _controller.snapshotImage();
-      final ByteData? bytes = await image.toByteData(
-        format: ui.ImageByteFormat.rawRgba,
-      );
-      image.dispose();
-      if (bytes == null) {
-        return 0;
-      }
-      final Uint8List rgba = bytes.buffer.asUint8List();
-      try {
-        return await compute(_countUniqueColorsInRgba, rgba);
-      } catch (_) {
-        return _countUniqueColorsInRgba(rgba);
-      }
-    } catch (error) {
-      debugPrint('Failed to count canvas colors: $error');
+  Future<int> _computeLayerColorCount(CanvasLayerData layer) async {
+    final Uint8List? bitmap = layer.bitmap;
+    final int? fillColor = layer.fillColor?.value;
+    final bool hasFill = fillColor != null && ((fillColor >> 24) & 0xFF) != 0;
+    if ((bitmap == null || bitmap.isEmpty) && !hasFill) {
       return 0;
     }
+    try {
+      return await compute(
+        _countUniqueColorsForLayer,
+        <Object?>[bitmap, fillColor],
+      );
+    } catch (_) {
+      return _countUniqueColorsForLayer(<Object?>[bitmap, fillColor]);
+    }
   }
+
 }
 
 class _HueSaturationControls extends StatelessWidget {
@@ -2060,23 +2357,28 @@ class _AntialiasPanelBody extends StatelessWidget {
 class _ColorRangeCardBody extends StatelessWidget {
   const _ColorRangeCardBody({
     required this.totalColors,
+    required this.maxSelectableColors,
     required this.selectedColors,
+    required this.isBusy,
     required this.onChanged,
   });
 
   final int totalColors;
+  final int maxSelectableColors;
   final int selectedColors;
+  final bool isBusy;
   final ValueChanged<double> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
-    final int maxColors = math.max(1, totalColors);
-    final int clampedSelection =
-        selectedColors.clamp(1, maxColors).toInt();
+    final int maxColors = math.max(1, maxSelectableColors);
+    final int clampedSelection = selectedColors.clamp(1, maxColors).toInt();
     final int? divisions = maxColors > 1
         ? (maxColors <= 200 ? math.max(1, maxColors - 1) : null)
         : null;
+    final bool limited = totalColors > maxSelectableColors;
+    final bool sliderEnabled = !isBusy && maxColors > 1;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -2085,10 +2387,17 @@ class _ColorRangeCardBody extends StatelessWidget {
           children: [
             Text('色彩数量', style: theme.typography.bodyStrong),
             const Spacer(),
-            Text(
-              '$clampedSelection / $maxColors 种',
-              style: theme.typography.caption,
-            ),
+            if (isBusy)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: ProgressRing(strokeWidth: 2),
+              )
+            else
+              Text(
+                '$clampedSelection / $maxColors 种',
+                style: theme.typography.caption,
+              ),
           ],
         ),
         Slider(
@@ -2096,11 +2405,18 @@ class _ColorRangeCardBody extends StatelessWidget {
           max: maxColors.toDouble(),
           value: clampedSelection.toDouble(),
           divisions: divisions,
-          onChanged: maxColors > 1 ? onChanged : null,
+          onChanged: sliderEnabled ? onChanged : null,
         ),
         const SizedBox(height: 8),
         Text(
-          '检测到画布包含 $maxColors 种颜色。拖动滑块标记本幅画作计划使用的颜色数量，默认等于当前检测到的总数。',
+          limited
+              ? '当前图层包含 $totalColors 种颜色，为保证性能最多保留 $maxSelectableColors 种。'
+              : '检测到当前图层包含 $maxColors 种颜色。拖动滑块标记需要保留的颜色数量。',
+          style: theme.typography.caption,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '降低颜色数量会产生类似木刻/分色的效果，滑动后立即预览。',
           style: theme.typography.caption,
         ),
       ],
@@ -2775,6 +3091,326 @@ int _countUniqueColorsInRgba(Uint8List rgba) {
     colors.add(color);
   }
   return colors.length;
+}
+
+int _countUniqueColorsForLayer(List<Object?> args) {
+  final Uint8List? bitmap = args[0] as Uint8List?;
+  final int? fillColor = args[1] as int?;
+  return _buildColorHistogram(bitmap, fillColor).length;
+}
+
+Future<_ColorRangeComputeResult> _generateColorRangeResult(
+  Uint8List? bitmap,
+  Color? fillColor,
+  int targetColors,
+) async {
+  final List<Object?> args = <Object?>[
+    bitmap,
+    fillColor?.value,
+    targetColors,
+  ];
+  if (kIsWeb) {
+    return _computeColorRangeReduction(args);
+  }
+  try {
+    return await compute(_computeColorRangeReduction, args);
+  } on UnsupportedError catch (_) {
+    return _computeColorRangeReduction(args);
+  }
+}
+
+_ColorRangeComputeResult _computeColorRangeReduction(List<Object?> args) {
+  final Uint8List? bitmap = args[0] as Uint8List?;
+  final int? fillColor = args[1] as int?;
+  final int target = (args[2] as num?)?.toInt() ?? 1;
+  return _applyColorRangeReduction(bitmap, fillColor, target);
+}
+
+_ColorRangeComputeResult _applyColorRangeReduction(
+  Uint8List? bitmap,
+  int? fillColor,
+  int targetColors,
+) {
+  final Map<int, int> histogram = _buildColorHistogram(bitmap, fillColor);
+  if (histogram.isEmpty) {
+    return _ColorRangeComputeResult(
+      bitmap: bitmap != null ? Uint8List.fromList(bitmap) : null,
+      fillColor: fillColor,
+    );
+  }
+  final int cappedTarget = math.max(
+    1,
+    math.min(targetColors, histogram.length),
+  );
+  if (cappedTarget >= histogram.length) {
+    return _ColorRangeComputeResult(
+      bitmap: bitmap != null ? Uint8List.fromList(bitmap) : null,
+      fillColor: fillColor,
+    );
+  }
+  final List<_ColorRangeBucket> buckets = <_ColorRangeBucket>[
+    _ColorRangeBucket.fromHistogram(histogram),
+  ];
+  while (buckets.length < cappedTarget) {
+    final int index = _colorRangeBucketToSplitIndex(buckets);
+    if (index < 0) {
+      break;
+    }
+    final _ColorRangeBucket bucket = buckets.removeAt(index);
+    final List<_ColorRangeBucket> splits = bucket.split();
+    if (splits.length != 2 || splits[0].isEmpty || splits[1].isEmpty) {
+      buckets.add(bucket);
+      break;
+    }
+    buckets.addAll(splits);
+  }
+  final List<int> palette =
+      buckets.map((bucket) => bucket.averageColor).toList(growable: false);
+  final Map<int, int> colorMap = <int, int>{};
+  for (final int color in histogram.keys) {
+    colorMap[color] = _findNearestPaletteColor(color, palette);
+  }
+  Uint8List? reducedBitmap = bitmap != null ? Uint8List.fromList(bitmap) : null;
+  if (reducedBitmap != null) {
+    for (int i = 0; i + 3 < reducedBitmap.length; i += 4) {
+      final int alpha = reducedBitmap[i + 3];
+      if (alpha == 0) {
+        continue;
+      }
+      final int rgb = (reducedBitmap[i] << 16) |
+          (reducedBitmap[i + 1] << 8) |
+          reducedBitmap[i + 2];
+      final int mapped = colorMap[rgb] ?? rgb;
+      reducedBitmap[i] = (mapped >> 16) & 0xFF;
+      reducedBitmap[i + 1] = (mapped >> 8) & 0xFF;
+      reducedBitmap[i + 2] = mapped & 0xFF;
+    }
+  }
+  int? mappedFill = fillColor;
+  if (fillColor != null) {
+    final int alpha = (fillColor >> 24) & 0xFF;
+    if (alpha != 0) {
+      final int rgb = fillColor & 0xFFFFFF;
+      final int mapped = colorMap[rgb] ?? rgb;
+      mappedFill = (fillColor & 0xFF000000) | mapped;
+    }
+  }
+  return _ColorRangeComputeResult(
+    bitmap: reducedBitmap,
+    fillColor: mappedFill,
+  );
+}
+
+Map<int, int> _buildColorHistogram(Uint8List? bitmap, int? fillColor) {
+  final Map<int, int> histogram = <int, int>{};
+  if (bitmap != null) {
+    for (int i = 0; i + 3 < bitmap.length; i += 4) {
+      final int alpha = bitmap[i + 3];
+      if (alpha == 0) {
+        continue;
+      }
+      final int color = (bitmap[i] << 16) | (bitmap[i + 1] << 8) | bitmap[i + 2];
+      histogram[color] = (histogram[color] ?? 0) + 1;
+    }
+  }
+  if (fillColor != null) {
+    final int alpha = (fillColor >> 24) & 0xFF;
+    if (alpha != 0) {
+      final int rgb = fillColor & 0xFFFFFF;
+      histogram[rgb] = (histogram[rgb] ?? 0) + 1;
+    }
+  }
+  return histogram;
+}
+
+class _ColorRangeComputeResult {
+  _ColorRangeComputeResult({this.bitmap, this.fillColor});
+
+  final Uint8List? bitmap;
+  final int? fillColor;
+}
+
+class _ColorCountEntry {
+  _ColorCountEntry({required this.color, required this.count});
+
+  final int color;
+  final int count;
+
+  int get r => (color >> 16) & 0xFF;
+  int get g => (color >> 8) & 0xFF;
+  int get b => color & 0xFF;
+
+  int component(int channel) {
+    switch (channel) {
+      case 0:
+        return r;
+      case 1:
+        return g;
+      default:
+        return b;
+    }
+  }
+}
+
+class _ColorRangeBucket {
+  _ColorRangeBucket(this.entries) {
+    _recomputeBounds();
+  }
+
+  _ColorRangeBucket.fromHistogram(Map<int, int> histogram)
+    : entries = histogram.entries
+          .map((entry) => _ColorCountEntry(
+                color: entry.key,
+                count: entry.value,
+              ))
+          .toList() {
+    _recomputeBounds();
+  }
+
+  final List<_ColorCountEntry> entries;
+  int _minR = 0;
+  int _maxR = 0;
+  int _minG = 0;
+  int _maxG = 0;
+  int _minB = 0;
+  int _maxB = 0;
+  int totalCount = 0;
+
+  bool get isEmpty => entries.isEmpty;
+
+  int get maxRange => math.max(
+    _maxR - _minR,
+    math.max(_maxG - _minG, _maxB - _minB),
+  );
+
+  int get averageColor {
+    if (entries.isEmpty || totalCount <= 0) {
+      return 0;
+    }
+    int rSum = 0;
+    int gSum = 0;
+    int bSum = 0;
+    for (final _ColorCountEntry entry in entries) {
+      rSum += entry.r * entry.count;
+      gSum += entry.g * entry.count;
+      bSum += entry.b * entry.count;
+    }
+    final int r = (rSum / totalCount).round().clamp(0, 255).toInt();
+    final int g = (gSum / totalCount).round().clamp(0, 255).toInt();
+    final int b = (bSum / totalCount).round().clamp(0, 255).toInt();
+    return (r << 16) | (g << 8) | b;
+  }
+
+  List<_ColorRangeBucket> split() {
+    if (entries.length <= 1) {
+      return <_ColorRangeBucket>[this];
+    }
+    final int channel = _dominantChannel();
+    final List<_ColorCountEntry> sorted = List<_ColorCountEntry>.from(entries)
+      ..sort((a, b) => a.component(channel).compareTo(b.component(channel)));
+    final int medianTarget = totalCount ~/ 2;
+    int running = 0;
+    int splitIndex = 0;
+    for (int i = 0; i < sorted.length; i++) {
+      running += sorted[i].count;
+      splitIndex = i;
+      if (running >= medianTarget) {
+        break;
+      }
+    }
+    final List<_ColorCountEntry> first = sorted.sublist(0, splitIndex + 1);
+    final List<_ColorCountEntry> second =
+        sorted.sublist(splitIndex + 1, sorted.length);
+    if (first.isEmpty || second.isEmpty) {
+      final int mid = sorted.length ~/ 2;
+      return <_ColorRangeBucket>[
+        _ColorRangeBucket(sorted.sublist(0, mid)),
+        _ColorRangeBucket(sorted.sublist(mid)),
+      ];
+    }
+    return <_ColorRangeBucket>[
+      _ColorRangeBucket(first),
+      _ColorRangeBucket(second),
+    ];
+  }
+
+  int _dominantChannel() {
+    final int rRange = _maxR - _minR;
+    final int gRange = _maxG - _minG;
+    final int bRange = _maxB - _minB;
+    if (rRange >= gRange && rRange >= bRange) {
+      return 0;
+    }
+    if (gRange >= rRange && gRange >= bRange) {
+      return 1;
+    }
+    return 2;
+  }
+
+  void _recomputeBounds() {
+    totalCount = 0;
+    if (entries.isEmpty) {
+      _minR = _minG = _minB = 0;
+      _maxR = _maxG = _maxB = 0;
+      return;
+    }
+    _minR = _minG = _minB = 255;
+    _maxR = _maxG = _maxB = 0;
+    for (final _ColorCountEntry entry in entries) {
+      _minR = math.min(_minR, entry.r);
+      _maxR = math.max(_maxR, entry.r);
+      _minG = math.min(_minG, entry.g);
+      _maxG = math.max(_maxG, entry.g);
+      _minB = math.min(_minB, entry.b);
+      _maxB = math.max(_maxB, entry.b);
+      totalCount += entry.count;
+    }
+  }
+}
+
+int _colorRangeBucketToSplitIndex(List<_ColorRangeBucket> buckets) {
+  int bestIndex = -1;
+  int bestRange = -1;
+  int bestCount = -1;
+  for (int i = 0; i < buckets.length; i++) {
+    final _ColorRangeBucket bucket = buckets[i];
+    if (bucket.isEmpty || bucket.entries.length <= 1) {
+      continue;
+    }
+    final int range = bucket.maxRange;
+    if (range > bestRange ||
+        (range == bestRange && bucket.totalCount > bestCount)) {
+      bestRange = range;
+      bestCount = bucket.totalCount;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+}
+
+int _findNearestPaletteColor(int color, List<int> palette) {
+  if (palette.isEmpty) {
+    return color;
+  }
+  final int r = (color >> 16) & 0xFF;
+  final int g = (color >> 8) & 0xFF;
+  final int b = color & 0xFF;
+  int bestColor = palette.first;
+  int bestDistance = 0x7FFFFFFF;
+  for (final int candidate in palette) {
+    final int dr = r - ((candidate >> 16) & 0xFF);
+    final int dg = g - ((candidate >> 8) & 0xFF);
+    final int db = b - (candidate & 0xFF);
+    final int distance = dr * dr + dg * dg + db * db;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestColor = candidate;
+      if (bestDistance == 0) {
+        break;
+      }
+    }
+  }
+  return bestColor;
 }
 
 Future<Uint8List> _generateHueSaturationPreviewBytes(List<Object?> args) async {

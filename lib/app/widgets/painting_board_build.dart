@@ -1205,8 +1205,10 @@ mixin _PaintingBoardBuildMixin
       return null;
     }
     final int totalColors = math.max(1, _colorRangeTotalColors);
+    final int maxSelectable = math.max(1, _colorRangeMaxSelectable());
     final int selected =
-        _colorRangeSelectedColors.clamp(1, totalColors).toInt();
+        _colorRangeSelectedColors.clamp(1, maxSelectable).toInt();
+    final bool busy = _colorRangePreviewInFlight || _colorRangeApplying;
     return Positioned(
       left: _colorRangeCardOffset.dx,
       top: _colorRangeCardOffset.dy,
@@ -1216,9 +1218,14 @@ mixin _PaintingBoardBuildMixin
           width: _kColorRangePanelWidth,
           minHeight: _kColorRangePanelMinHeight,
           title: '色彩范围',
-          onClose: hideColorRangeCard,
+          onClose: _cancelColorRangeEditing,
           onDragUpdate: _updateColorRangeCardOffset,
           bodyPadding: const EdgeInsets.symmetric(horizontal: 16),
+          footerPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+          footerSpacing: 10,
           headerPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 12,
@@ -1230,9 +1237,42 @@ mixin _PaintingBoardBuildMixin
                 )
               : _ColorRangeCardBody(
                   totalColors: totalColors,
+                  maxSelectableColors: maxSelectable,
                   selectedColors: selected,
+                  isBusy: busy,
                   onChanged: _updateColorRangeSelection,
                 ),
+          footer: Row(
+            children: [
+              Button(
+                onPressed: (_colorRangeLoading || _colorRangeApplying)
+                    ? null
+                    : _resetColorRangeSelection,
+                child: const Text('重置'),
+              ),
+              const SizedBox(width: 8),
+              Button(
+                onPressed:
+                    _colorRangeApplying ? null : _cancelColorRangeEditing,
+                child: const Text('取消'),
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: (_colorRangeApplying ||
+                        _colorRangeLoading ||
+                        _colorRangePreviewInFlight)
+                    ? null
+                    : _applyColorRangeSelection,
+                child: _colorRangeApplying
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: ProgressRing(strokeWidth: 2),
+                      )
+                    : const Text('应用'),
+              ),
+            ],
+          ),
         ),
       ),
     );
