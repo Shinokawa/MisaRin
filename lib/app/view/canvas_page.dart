@@ -790,14 +790,15 @@ class CanvasPageState extends State<CanvasPage> {
     if (options == null) {
       return false;
     }
-    const String extension = 'png';
+    final bool exportVector = options.mode == CanvasExportMode.vector;
+    final String extension = exportVector ? 'svg' : 'png';
     String? normalizedPath;
     String? downloadName;
     if (kIsWeb) {
       final String? fileName = await _promptWebFileName(
-        title: '导出 PNG 文件',
+        title: '导出 ${extension.toUpperCase()} 文件',
         suggestedFileName: _suggestedFileName(extension),
-        description: '浏览器会将图像保存到默认的下载目录。',
+        description: '浏览器会将文件保存到默认的下载目录。',
         confirmLabel: '导出',
       );
       if (fileName == null) {
@@ -806,7 +807,7 @@ class CanvasPageState extends State<CanvasPage> {
       downloadName = _normalizeExportPath(fileName, extension);
     } else {
       final String? outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: '导出 PNG 文件',
+        dialogTitle: '导出 ${extension.toUpperCase()} 文件',
         fileName: _suggestedFileName(extension),
         type: FileType.custom,
         allowedExtensions: <String>[extension],
@@ -820,24 +821,31 @@ class CanvasPageState extends State<CanvasPage> {
     try {
       setState(() => _isSaving = true);
       final layers = board.snapshotLayers();
-      final Uint8List bytes = await _exporter.exportToPng(
-        settings: _document.settings,
-        layers: layers,
-        applyEdgeSoftening: options.edgeSofteningEnabled,
-        edgeSofteningLevel: options.edgeSofteningLevel,
-        outputSize: ui.Size(
-          options.width.toDouble(),
-          options.height.toDouble(),
-        ),
-      );
+      final Uint8List bytes = exportVector
+          ? await _exporter.exportToSvg(
+              settings: _document.settings,
+              layers: layers,
+              maxColors: options.vectorMaxColors ?? 8,
+              simplifyEpsilon: options.vectorSimplifyEpsilon ?? 1.2,
+            )
+          : await _exporter.exportToPng(
+              settings: _document.settings,
+              layers: layers,
+              applyEdgeSoftening: options.edgeSofteningEnabled,
+              edgeSofteningLevel: options.edgeSofteningLevel,
+              outputSize: ui.Size(
+                options.width.toDouble(),
+                options.height.toDouble(),
+              ),
+            );
       if (kIsWeb) {
         await WebFileSaver.saveBytes(
           fileName: downloadName!,
           bytes: bytes,
-          mimeType: 'image/png',
+          mimeType: exportVector ? 'image/svg+xml' : 'image/png',
         );
         _showInfoBar(
-          'PNG 已下载：$downloadName',
+          '${extension.toUpperCase()} 已下载：$downloadName',
           severity: InfoBarSeverity.success,
         );
       } else {

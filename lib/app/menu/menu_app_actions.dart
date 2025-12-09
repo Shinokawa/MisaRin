@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -8,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
+import '../preferences/app_preferences.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../utils/clipboard_image_reader.dart';
@@ -23,6 +25,7 @@ class AppMenuActions {
       return;
     }
     try {
+      _applyWorkspacePreset(config.workspacePreset);
       final ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
       if (!context.mounted) {
@@ -34,6 +37,73 @@ class AppMenuActions {
         return;
       }
       _showInfoBar(context, '创建项目失败：$error', severity: InfoBarSeverity.error);
+    }
+  }
+
+  static void _applyWorkspacePreset(WorkspacePreset preset) {
+    if (preset == WorkspacePreset.none) {
+      return;
+    }
+    final AppPreferences prefs = AppPreferences.instance;
+    bool changed = false;
+
+    void setPenAntialias(int value) {
+      if (prefs.penAntialiasLevel != value) {
+        prefs.penAntialiasLevel = value;
+        changed = true;
+      }
+    }
+
+    void setBucketAntialias(int value) {
+      if (prefs.bucketAntialiasLevel != value) {
+        prefs.bucketAntialiasLevel = value;
+        changed = true;
+      }
+    }
+
+    void setBucketSwallowColorLine(bool value) {
+      if (prefs.bucketSwallowColorLine != value) {
+        prefs.bucketSwallowColorLine = value;
+        changed = true;
+      }
+    }
+
+    void setPixelGridVisible(bool value) {
+      final bool current = prefs.pixelGridVisible;
+      prefs.updatePixelGridVisible(value);
+      if (current != value) {
+        changed = true;
+      }
+    }
+
+    void setVectorDrawingEnabled(bool value) {
+      if (prefs.vectorDrawingEnabled != value) {
+        prefs.vectorDrawingEnabled = value;
+        changed = true;
+      }
+    }
+
+    switch (preset) {
+      case WorkspacePreset.illustration:
+        setPenAntialias(1);
+        break;
+      case WorkspacePreset.celShading:
+        setPenAntialias(0);
+        setBucketAntialias(0);
+        setBucketSwallowColorLine(true);
+        break;
+      case WorkspacePreset.pixel:
+        setPenAntialias(0);
+        setBucketAntialias(0);
+        setPixelGridVisible(true);
+        setVectorDrawingEnabled(false);
+        break;
+      default:
+        break;
+    }
+
+    if (changed) {
+      unawaited(AppPreferences.save());
     }
   }
 
@@ -54,32 +124,33 @@ class AppMenuActions {
       return;
     }
     try {
-      final ProjectDocument document = await _runWithWebProgress<ProjectDocument>(
-        context,
-        title: '正在打开项目…',
-        message: '正在加载 ${file.name}',
-        action: () async {
-          final String extension = file.name.toLowerCase();
-          if (extension.endsWith('.psd')) {
-            if (path != null && !kIsWeb) {
-              return ProjectRepository.instance.importPsd(path);
-            } else if (bytes != null) {
-              return ProjectRepository.instance.importPsdFromBytes(
-                bytes,
-                fileName: file.name,
-              );
-            }
-            throw Exception('无法读取 PSD 文件内容。');
-          }
-          if (path != null && !kIsWeb) {
-            return ProjectRepository.instance.loadDocument(path);
-          }
-          if (bytes != null) {
-            return ProjectRepository.instance.loadDocumentFromBytes(bytes);
-          }
-          throw Exception('无法读取项目文件内容。');
-        },
-      );
+      final ProjectDocument document =
+          await _runWithWebProgress<ProjectDocument>(
+            context,
+            title: '正在打开项目…',
+            message: '正在加载 ${file.name}',
+            action: () async {
+              final String extension = file.name.toLowerCase();
+              if (extension.endsWith('.psd')) {
+                if (path != null && !kIsWeb) {
+                  return ProjectRepository.instance.importPsd(path);
+                } else if (bytes != null) {
+                  return ProjectRepository.instance.importPsdFromBytes(
+                    bytes,
+                    fileName: file.name,
+                  );
+                }
+                throw Exception('无法读取 PSD 文件内容。');
+              }
+              if (path != null && !kIsWeb) {
+                return ProjectRepository.instance.loadDocument(path);
+              }
+              if (bytes != null) {
+                return ProjectRepository.instance.loadDocumentFromBytes(bytes);
+              }
+              throw Exception('无法读取项目文件内容。');
+            },
+          );
       if (!context.mounted) {
         return;
       }
@@ -200,6 +271,7 @@ class AppMenuActions {
       loadingOverlay!.remove();
       loadingOverlay = null;
     }
+
     if (kIsWeb) {
       loadingOverlay = _showWebCanvasLoadingOverlay(context);
     }
@@ -296,9 +368,7 @@ class _WebProgressOverlay extends StatelessWidget {
     final Color overlayColor = theme.micaBackgroundColor.withOpacity(0.65);
     return Stack(
       children: [
-        Positioned.fill(
-          child: ColoredBox(color: overlayColor),
-        ),
+        Positioned.fill(child: ColoredBox(color: overlayColor)),
         Positioned.fill(
           child: Center(
             child: Container(

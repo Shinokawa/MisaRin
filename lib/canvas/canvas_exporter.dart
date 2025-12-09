@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -205,6 +206,84 @@ class CanvasExporter {
       rgba[offset + 3] = (argb >> 24) & 0xff;
     }
     return rgba;
+  }
+
+  Future<Uint8List> exportToSvg({
+    required CanvasSettings settings,
+    required List<CanvasLayerData> layers,
+    int maxColors = 8,
+    double simplifyEpsilon = 1.2,
+  }) async {
+    final int width = settings.width.round();
+    final int height = settings.height.round();
+    if (width <= 0 || height <= 0) {
+      throw ArgumentError('画布尺寸必须大于 0');
+    }
+    if (maxColors <= 0) {
+      throw ArgumentError('颜色数量必须大于 0');
+    }
+
+    final BitmapSurface composite = _compositeLayers(
+      width: width,
+      height: height,
+      layers: layers,
+    );
+    final Uint8List rgba = _surfaceToRgba(composite);
+    final List<_VectorColorPaths> shapes = _vectorizeRgba(
+      rgba: rgba,
+      width: width,
+      height: height,
+      maxColors: maxColors.clamp(1, 32) as int,
+      simplifyEpsilon: simplifyEpsilon.clamp(0.0, 8.0) as double,
+    );
+    if (shapes.isEmpty) {
+      throw StateError('当前画面为空，无法导出矢量图');
+    }
+
+    final StringBuffer buffer = StringBuffer()
+      ..writeln(
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        'width="$width" height="$height" viewBox="0 0 $width $height">',
+      );
+
+    for (final _VectorColorPaths shape in shapes) {
+      final ui.Color color = shape.color;
+      final String fill =
+          '#${color.red.toRadixString(16).padLeft(2, '0')}${color.green.toRadixString(16).padLeft(2, '0')}${color.blue.toRadixString(16).padLeft(2, '0')}';
+      final double opacity = shape.opacity.clamp(0.0, 1.0);
+      final StringBuffer pathData = StringBuffer();
+      for (final List<ui.Offset> polygon in shape.polygons) {
+        if (polygon.length < 3) {
+          continue;
+        }
+        pathData.write('M');
+        pathData.write(polygon.first.dx.toStringAsFixed(2));
+        pathData.write(' ');
+        pathData.write(polygon.first.dy.toStringAsFixed(2));
+        for (int i = 1; i < polygon.length; i++) {
+          final ui.Offset p = polygon[i];
+          pathData.write(' L');
+          pathData.write(p.dx.toStringAsFixed(2));
+          pathData.write(' ');
+          pathData.write(p.dy.toStringAsFixed(2));
+        }
+        pathData.write(' Z ');
+      }
+      if (pathData.isEmpty) {
+        continue;
+      }
+      buffer.write('<path fill="$fill" fill-rule="evenodd"');
+      if (opacity < 0.999) {
+        buffer.write(' fill-opacity="${opacity.toStringAsFixed(3)}"');
+      }
+      buffer
+        ..write(' d="')
+        ..write(pathData.toString().trim())
+        ..writeln('"/>');
+    }
+
+    buffer.write('</svg>');
+    return Uint8List.fromList(utf8.encode(buffer.toString()));
   }
 }
 
@@ -623,4 +702,353 @@ int _lerpArgb(int a, int b, double t) {
   final int outG = lerpChannel(aG, bG);
   final int outB = lerpChannel(aB, bB);
   return (outA << 24) | (outR << 16) | (outG << 8) | outB;
+}
+
+class _PaletteBucket {
+  int count = 0;
+  int sumR = 0;
+  int sumG = 0;
+  int sumB = 0;
+}
+
+class _VectorColorPaths {
+  _VectorColorPaths({
+    required this.color,
+    required this.opacity,
+    required this.polygons,
+  });
+
+  final ui.Color color;
+  final double opacity;
+  final List<List<ui.Offset>> polygons;
+}
+
+class _Edge {
+  _Edge(this.start, this.end);
+  final int start;
+  final int end;
+}
+
+List<_VectorColorPaths> _vectorizeRgba({
+  required Uint8List rgba,
+  required int width,
+  required int height,
+  required int maxColors,
+  required double simplifyEpsilon,
+}) {
+  if (rgba.isEmpty || width <= 0 || height <= 0) {
+    return <_VectorColorPaths>[];
+  }
+  final List<ui.Color> palette = _extractPalette(rgba, maxColors);
+  if (palette.isEmpty) {
+    return <_VectorColorPaths>[];
+  }
+
+  final int pixelCount = width * height;
+  final Uint8List labels = Uint8List(pixelCount);
+  const int invalidLabel = 0xff;
+  for (int i = 0; i < labels.length; i++) {
+    labels[i] = invalidLabel;
+  }
+
+  final List<int> counts = List<int>.filled(palette.length, 0);
+  final List<int> alphaSum = List<int>.filled(palette.length, 0);
+
+  for (int i = 0, p = 0; i < rgba.length; i += 4, p++) {
+    final int a = rgba[i + 3];
+    if (a == 0) {
+      continue;
+    }
+    int bestIndex = -1;
+    int bestScore = 1 << 30;
+    for (int c = 0; c < palette.length; c++) {
+      final ui.Color color = palette[c];
+      final int dr = rgba[i] - color.red;
+      final int dg = rgba[i + 1] - color.green;
+      final int db = rgba[i + 2] - color.blue;
+      final int score = dr * dr + dg * dg + db * db;
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = c;
+      }
+    }
+    if (bestIndex >= 0) {
+      labels[p] = bestIndex;
+      counts[bestIndex] += 1;
+      alphaSum[bestIndex] += a;
+    }
+  }
+
+  final List<_VectorColorPaths> shapes = <_VectorColorPaths>[];
+  for (int c = 0; c < palette.length; c++) {
+    if (counts[c] == 0) {
+      continue;
+    }
+    final Uint8List mask = Uint8List(pixelCount);
+    for (int i = 0; i < pixelCount; i++) {
+      if (labels[i] == c) {
+        mask[i] = 1;
+      }
+    }
+    final List<List<ui.Offset>> polygons = _maskToPolygons(
+      mask: mask,
+      width: width,
+      height: height,
+      simplifyEpsilon: simplifyEpsilon,
+    );
+    if (polygons.isEmpty) {
+      continue;
+    }
+    final double opacity =
+        (alphaSum[c] / (counts[c] * 255.0)).clamp(0.0, 1.0);
+    shapes.add(
+      _VectorColorPaths(
+        color: palette[c].withAlpha(255),
+        opacity: opacity,
+        polygons: polygons,
+      ),
+    );
+  }
+  return shapes;
+}
+
+List<ui.Color> _extractPalette(Uint8List rgba, int maxColors) {
+  if (rgba.isEmpty || maxColors <= 0) {
+    return <ui.Color>[];
+  }
+  const int step = 16; // 4-bit quantization per channel
+  final Map<int, _PaletteBucket> buckets = <int, _PaletteBucket>{};
+  for (int i = 0; i < rgba.length; i += 4) {
+    final int a = rgba[i + 3];
+    if (a == 0) {
+      continue;
+    }
+    final int r = rgba[i];
+    final int g = rgba[i + 1];
+    final int b = rgba[i + 2];
+    final int qr = (r ~/ step) * step;
+    final int qg = (g ~/ step) * step;
+    final int qb = (b ~/ step) * step;
+    final int key = (qr << 16) | (qg << 8) | qb;
+    final _PaletteBucket bucket = buckets.putIfAbsent(
+      key,
+      () => _PaletteBucket(),
+    );
+    bucket.count += 1;
+    bucket.sumR += r;
+    bucket.sumG += g;
+    bucket.sumB += b;
+  }
+
+  final List<MapEntry<int, _PaletteBucket>> sorted = buckets.entries.toList()
+    ..sort(
+      (a, b) => b.value.count.compareTo(a.value.count),
+    );
+  final int take = math.min(maxColors, sorted.length);
+  final List<ui.Color> palette = <ui.Color>[];
+  for (int i = 0; i < take; i++) {
+    final _PaletteBucket bucket = sorted[i].value;
+    final int count = math.max(bucket.count, 1);
+    final int r = (bucket.sumR / count).round().clamp(0, 255);
+    final int g = (bucket.sumG / count).round().clamp(0, 255);
+    final int b = (bucket.sumB / count).round().clamp(0, 255);
+    palette.add(ui.Color.fromARGB(255, r, g, b));
+  }
+  return palette;
+}
+
+List<List<ui.Offset>> _maskToPolygons({
+  required Uint8List mask,
+  required int width,
+  required int height,
+  required double simplifyEpsilon,
+}) {
+  final List<_Edge> edges = <_Edge>[];
+  for (int y = 0; y < height; y++) {
+    final int rowOffset = y * width;
+    for (int x = 0; x < width; x++) {
+      if (mask[rowOffset + x] == 0) {
+        continue;
+      }
+      final bool topEmpty = y == 0 || mask[rowOffset + x - width] == 0;
+      final bool bottomEmpty =
+          y == height - 1 || mask[rowOffset + x + width] == 0;
+      final bool leftEmpty = x == 0 || mask[rowOffset + x - 1] == 0;
+      final bool rightEmpty =
+          x == width - 1 || mask[rowOffset + x + 1] == 0;
+
+      if (topEmpty) {
+        edges.add(_Edge(_encodePoint(x, y), _encodePoint(x + 1, y)));
+      }
+      if (rightEmpty) {
+        edges.add(_Edge(_encodePoint(x + 1, y), _encodePoint(x + 1, y + 1)));
+      }
+      if (bottomEmpty) {
+        edges.add(_Edge(_encodePoint(x + 1, y + 1), _encodePoint(x, y + 1)));
+      }
+      if (leftEmpty) {
+        edges.add(_Edge(_encodePoint(x, y + 1), _encodePoint(x, y)));
+      }
+    }
+  }
+
+  if (edges.isEmpty) {
+    return <List<ui.Offset>>[];
+  }
+
+  final Map<int, List<int>> edgesFrom = <int, List<int>>{};
+  for (int i = 0; i < edges.length; i++) {
+    edgesFrom.putIfAbsent(edges[i].start, () => <int>[]).add(i);
+  }
+
+  final List<bool> used = List<bool>.filled(edges.length, false);
+  final List<List<ui.Offset>> polygons = <List<ui.Offset>>[];
+
+  for (int i = 0; i < edges.length; i++) {
+    if (used[i]) {
+      continue;
+    }
+    final List<ui.Offset> points = <ui.Offset>[];
+    int currentEdgeIndex = i;
+    final int startKey = edges[i].start;
+    bool closed = false;
+
+    while (true) {
+      final _Edge edge = edges[currentEdgeIndex];
+      used[currentEdgeIndex] = true;
+      if (points.isEmpty) {
+        points.add(_decodePoint(edge.start));
+      }
+      points.add(_decodePoint(edge.end));
+
+      if (edge.end == startKey) {
+        closed = true;
+        break;
+      }
+
+      final List<int>? candidates = edgesFrom[edge.end];
+      int? nextEdgeIndex;
+      if (candidates != null) {
+        while (candidates.isNotEmpty) {
+          final int candidate = candidates.removeLast();
+          if (!used[candidate]) {
+            nextEdgeIndex = candidate;
+            break;
+          }
+        }
+      }
+      if (nextEdgeIndex == null) {
+        break;
+      }
+      currentEdgeIndex = nextEdgeIndex;
+    }
+
+    if (points.length < 3 || !closed) {
+      continue;
+    }
+    if (points.first != points.last) {
+      points.add(points.first);
+    }
+
+    final List<ui.Offset> simplified = _simplifyPolygon(
+      points,
+      simplifyEpsilon,
+    );
+    if (simplified.length < 3) {
+      continue;
+    }
+    final double area = _polygonArea(simplified).abs();
+    if (area < 0.5) {
+      continue;
+    }
+    polygons.add(simplified);
+  }
+
+  return polygons;
+}
+
+int _encodePoint(int x, int y) => (x << 32) | (y & 0xFFFFFFFF);
+
+ui.Offset _decodePoint(int key) {
+  final int x = key >> 32;
+  final int y = key & 0xFFFFFFFF;
+  return ui.Offset(x.toDouble(), y.toDouble());
+}
+
+double _polygonArea(List<ui.Offset> points) {
+  if (points.length < 3) {
+    return 0;
+  }
+  final bool closed = points.first == points.last;
+  final int limit = closed ? points.length - 1 : points.length;
+  double area = 0;
+  for (int i = 0; i < limit; i++) {
+    final ui.Offset p1 = points[i];
+    final ui.Offset p2 = points[(i + 1) % limit];
+    area += p1.dx * p2.dy - p2.dx * p1.dy;
+  }
+  return area * 0.5;
+}
+
+List<ui.Offset> _simplifyPolygon(List<ui.Offset> points, double epsilon) {
+  if (points.length <= 3 || epsilon <= 0) {
+    return points;
+  }
+  final bool closed = points.first == points.last;
+  final List<ui.Offset> work = closed
+      ? List<ui.Offset>.from(points)
+      : <ui.Offset>[...points, points.first];
+
+  List<ui.Offset> rdp(List<ui.Offset> pts) {
+    if (pts.length <= 2) {
+      return pts;
+    }
+    double maxDist = 0;
+    int index = 0;
+    for (int i = 1; i < pts.length - 1; i++) {
+      final double d = _pointToSegmentDistance(pts[i], pts.first, pts.last);
+      if (d > maxDist) {
+        maxDist = d;
+        index = i;
+      }
+    }
+    if (maxDist > epsilon) {
+      final List<ui.Offset> left = rdp(pts.sublist(0, index + 1));
+      final List<ui.Offset> right = rdp(pts.sublist(index, pts.length));
+      return <ui.Offset>[
+        ...left.sublist(0, left.length - 1),
+        ...right,
+      ];
+    }
+    return <ui.Offset>[pts.first, pts.last];
+  }
+
+  final List<ui.Offset> simplified = rdp(work);
+  if (simplified.isEmpty) {
+    return simplified;
+  }
+  if (simplified.first != simplified.last) {
+    simplified.add(simplified.first);
+  }
+  return simplified;
+}
+
+double _pointToSegmentDistance(
+  ui.Offset p,
+  ui.Offset a,
+  ui.Offset b,
+) {
+  final double dx = b.dx - a.dx;
+  final double dy = b.dy - a.dy;
+  if (dx == 0 && dy == 0) {
+    return (p - a).distance;
+  }
+  final double t = (((p.dx - a.dx) * dx) + ((p.dy - a.dy) * dy)) /
+      (dx * dx + dy * dy);
+  final double clampedT = t.clamp(0.0, 1.0);
+  final double projX = a.dx + clampedT * dx;
+  final double projY = a.dy + clampedT * dy;
+  final double ox = p.dx - projX;
+  final double oy = p.dy - projY;
+  return math.sqrt(ox * ox + oy * oy);
 }
