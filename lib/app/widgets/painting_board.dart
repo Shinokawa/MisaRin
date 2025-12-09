@@ -48,7 +48,12 @@ import 'package:flutter/rendering.dart'
         RenderProxyBoxWithHitTestBehavior,
         TextPainter;
 import 'package:flutter/scheduler.dart'
-    show SchedulerBinding, Ticker, TickerProvider, TickerProviderStateMixin;
+    show
+        SchedulerBinding,
+        SchedulerPhase,
+        Ticker,
+        TickerProvider,
+        TickerProviderStateMixin;
 import 'package:flutter/widgets.dart'
     show
         CustomPaint,
@@ -352,6 +357,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _workspaceMeasurementScheduled = false;
   final ScrollController _layerScrollController = ScrollController();
   late final ValueNotifier<CanvasViewInfo> _viewInfoNotifier;
+  bool _viewInfoNotificationScheduled = false;
+  CanvasViewInfo? _pendingViewInfo;
   Color _primaryColor = AppPreferences.defaultPrimaryColor;
   late HSVColor _primaryHsv;
 
@@ -892,7 +899,31 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     if (_viewInfoNotifier.value == next) {
       return;
     }
-    _viewInfoNotifier.value = next;
+    final SchedulerPhase phase = SchedulerBinding.instance.schedulerPhase;
+    final bool safeToUpdateNow =
+        phase == SchedulerPhase.idle || phase == SchedulerPhase.postFrameCallbacks;
+    if (safeToUpdateNow) {
+      _viewInfoNotifier.value = next;
+      _pendingViewInfo = null;
+      return;
+    }
+    _pendingViewInfo = next;
+    if (_viewInfoNotificationScheduled) {
+      return;
+    }
+    _viewInfoNotificationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _viewInfoNotificationScheduled = false;
+      if (!mounted) {
+        _pendingViewInfo = null;
+        return;
+      }
+      final CanvasViewInfo? pending = _pendingViewInfo;
+      _pendingViewInfo = null;
+      if (pending != null && _viewInfoNotifier.value != pending) {
+        _viewInfoNotifier.value = pending;
+      }
+    });
   }
 
   ValueListenable<CanvasViewInfo> get viewInfoListenable => _viewInfoNotifier;

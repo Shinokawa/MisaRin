@@ -2703,6 +2703,9 @@ void _filterApplyMorphologyToBitmap(
   }
   final int clampedRadius =
       radius.clamp(1, _kMorphologyMaxRadius.toInt()).toInt();
+  final Uint8List? luminanceMask =
+      _filterBuildLuminanceMaskIfFullyOpaque(bitmap, width, height);
+  final bool preserveAlpha = luminanceMask != null;
   final Uint8List scratch = Uint8List(bitmap.length);
   Uint8List src = bitmap;
   Uint8List dest = scratch;
@@ -2711,8 +2714,11 @@ void _filterApplyMorphologyToBitmap(
     for (int y = 0; y < height; y++) {
       final int rowOffset = y * width;
       for (int x = 0; x < width; x++) {
-        int bestOffset = ((rowOffset + x) << 2);
-        int bestAlpha = src[bestOffset + 3];
+        final int pixelIndex = rowOffset + x;
+        int bestOffset = (pixelIndex << 2);
+        int bestAlpha = luminanceMask != null
+            ? luminanceMask[pixelIndex]
+            : src[bestOffset + 3];
 
         for (int dy = -1; dy <= 1; dy++) {
           final int ny = y + dy;
@@ -2725,8 +2731,11 @@ void _filterApplyMorphologyToBitmap(
             if (nx < 0 || nx >= width) {
               continue;
             }
-            final int neighborOffset = ((neighborRow + nx) << 2);
-            final int neighborAlpha = src[neighborOffset + 3];
+            final int neighborIndex = neighborRow + nx;
+            final int neighborOffset = (neighborIndex << 2);
+            final int neighborAlpha = luminanceMask != null
+                ? luminanceMask[neighborIndex]
+                : src[neighborOffset + 3];
             if (dilate) {
               if (neighborAlpha > bestAlpha) {
                 bestAlpha = neighborAlpha;
@@ -2743,15 +2752,15 @@ void _filterApplyMorphologyToBitmap(
 
         final int outOffset = ((rowOffset + x) << 2);
         if (bestAlpha == 0) {
-          dest[outOffset] = 0;
-          dest[outOffset + 1] = 0;
-          dest[outOffset + 2] = 0;
-          dest[outOffset + 3] = 0;
+          dest[outOffset] = preserveAlpha ? src[outOffset] : 0;
+          dest[outOffset + 1] = preserveAlpha ? src[outOffset + 1] : 0;
+          dest[outOffset + 2] = preserveAlpha ? src[outOffset + 2] : 0;
+          dest[outOffset + 3] = preserveAlpha ? src[outOffset + 3] : 0;
         } else {
           dest[outOffset] = src[bestOffset];
           dest[outOffset + 1] = src[bestOffset + 1];
           dest[outOffset + 2] = src[bestOffset + 2];
-          dest[outOffset + 3] = bestAlpha;
+          dest[outOffset + 3] = preserveAlpha ? src[outOffset + 3] : bestAlpha;
         }
       }
     }
@@ -2763,6 +2772,40 @@ void _filterApplyMorphologyToBitmap(
   if (!identical(src, bitmap)) {
     bitmap.setAll(0, src);
   }
+}
+
+/// 当图层完全不透明时，基于亮度构造“线稿掩码”，让线条收窄在无透明度的色稿上也能生效。
+/// 返回 null 表示存在透明像素或图像过于明亮（没有可视的线稿）。
+Uint8List? _filterBuildLuminanceMaskIfFullyOpaque(
+  Uint8List bitmap,
+  int width,
+  int height,
+) {
+  final int pixelCount = width * height;
+  final Uint8List mask = Uint8List(pixelCount);
+  bool fullyOpaque = true;
+  bool hasCoverage = false;
+  for (int i = 0, offset = 0; i < pixelCount; i++, offset += 4) {
+    final int alpha = bitmap[offset + 3];
+    if (alpha != 255) {
+      fullyOpaque = false;
+      break;
+    }
+    // ITU-R BT.601 加权亮度，再取反得到线稿“覆盖度”。
+    final int r = bitmap[offset];
+    final int g = bitmap[offset + 1];
+    final int b = bitmap[offset + 2];
+    final int luma = ((r * 299 + g * 587 + b * 114) / 1000).round();
+    final int coverage = (255 - luma).clamp(0, 255).toInt();
+    if (coverage > 0) {
+      hasCoverage = true;
+    }
+    mask[i] = coverage;
+  }
+  if (!fullyOpaque || !hasCoverage) {
+    return null;
+  }
+  return mask;
 }
 
 void _filterApplyLeakRemovalToBitmap(
