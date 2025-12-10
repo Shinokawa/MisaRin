@@ -759,32 +759,10 @@ mixin _PaintingBoardBuildMixin
                                                                   _controller
                                                                       .height,
                                                               color:
-                                                                  _pixelGridColor,
+                                                              _pixelGridColor,
                                                               scale: _viewport
                                                                   .scale,
                                                             ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (_perspectiveVisible &&
-                                                    _perspectiveMode !=
-                                                        PerspectiveGuideMode
-                                                            .off)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter:
-                                                            _PerspectiveGuidePainter(
-                                                          canvasSize:
-                                                              _canvasSize,
-                                                          vp1: _perspectiveVp1,
-                                                          vp2: _perspectiveVp2,
-                                                          vp3: _perspectiveVp3,
-                                                          mode: _perspectiveMode,
-                                                          activeHandle:
-                                                              _activePerspectiveHandle,
-                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -930,6 +908,52 @@ mixin _PaintingBoardBuildMixin
                               ),
                             ),
                           ),
+                          if (_perspectiveVisible &&
+                              _perspectiveMode != PerspectiveGuideMode.off)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: Transform.translate(
+                                  offset: _boardRect.topLeft,
+                                  child: Transform.scale(
+                                    scale: _viewport.scale,
+                                    alignment: Alignment.topLeft,
+                                    child: Builder(
+                                      builder: (context) {
+                                        Widget overlay = CustomPaint(
+                                          size: _canvasSize,
+                                          painter: _PerspectiveGuidePainter(
+                                            canvasSize: _canvasSize,
+                                            vp1: _perspectiveVp1,
+                                            vp2: _perspectiveVp2,
+                                            vp3: _perspectiveVp3,
+                                            mode: _perspectiveMode,
+                                            activeHandle:
+                                                _activePerspectiveHandle,
+                                          ),
+                                        );
+                                        if (_viewMirrorOverlay) {
+                                          overlay = Transform(
+                                            transform: _kViewMirrorTransform,
+                                            alignment: Alignment.center,
+                                            transformHitTests: false,
+                                            child: overlay,
+                                          );
+                                        }
+                                        if (_viewBlackWhiteOverlay) {
+                                          overlay = ColorFiltered(
+                                            colorFilter:
+                                                _kViewBlackWhiteColorFilter,
+                                            child: overlay,
+                                          );
+                                        }
+                                        return overlay;
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           if (textHoverOverlay != null) textHoverOverlay,
                           if (textOverlay != null) textOverlay,
                           ...toolbarLayoutResult.widgets,
