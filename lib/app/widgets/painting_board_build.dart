@@ -201,11 +201,17 @@ mixin _PaintingBoardBuildMixin
         final bool hideCursorBecauseReferenceResize = _isReferenceCardResizing;
         final bool hideCursorBecauseLayerTransform =
             _shouldHideCursorForLayerTransform;
+        final bool perspectiveCursorActive =
+            _perspectiveVisible &&
+            _perspectiveMode != PerspectiveGuideMode.off &&
+            (_isDraggingPerspectiveHandle ||
+                _hoveringPerspectiveHandle != null);
         final bool shouldHideCursor =
-            hideCursorBecauseToolOverlay ||
-            hideCursorBecausePen ||
-            hideCursorBecauseReferenceResize ||
-            hideCursorBecauseLayerTransform;
+            !perspectiveCursorActive &&
+            (hideCursorBecauseToolOverlay ||
+                hideCursorBecausePen ||
+                hideCursorBecauseReferenceResize ||
+                hideCursorBecauseLayerTransform);
         final bool isLayerAdjustDragging =
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
         final double overlayBrushDiameter =
@@ -282,16 +288,10 @@ mixin _PaintingBoardBuildMixin
         }
 
         MouseCursor _applyPerspectiveCursor(MouseCursor current) {
-          if (shouldHideCursor) {
-            return current;
-          }
-          if (_perspectiveVisible && _perspectiveMode != PerspectiveGuideMode.off) {
-            if (_isDraggingPerspectiveHandle) {
-              return SystemMouseCursors.grabbing;
-            }
-            if (_hoveringPerspectiveHandle != null) {
-              return SystemMouseCursors.grab;
-            }
+          if (perspectiveCursorActive) {
+            return _isDraggingPerspectiveHandle
+                ? SystemMouseCursors.grabbing
+                : SystemMouseCursors.grab;
           }
           return current;
         }
