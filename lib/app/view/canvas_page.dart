@@ -1842,7 +1842,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
-    final bool alignStatusLeft = !isResolvedPlatformMacOS();
+    final bool alignStatusLeft = kIsWeb || !isResolvedPlatformMacOS();
 
     final TextStyle textStyle =
         (theme.typography.body ??

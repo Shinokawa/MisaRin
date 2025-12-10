@@ -319,7 +319,8 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       final Offset norm = dir / length;
       final double dot = (delta.dx * norm.dx + delta.dy * norm.dy) /
           deltaLength; // delta already non-zero
-      final double clampedDot = dot.clamp(-1.0, 1.0);
+      // 使用绝对值让角度与方向无关，同一条直线两侧都判定为有效。
+      final double clampedDot = dot.clamp(-1.0, 1.0).abs();
       final double angle = (math.acos(clampedDot) * 180.0) / math.pi;
       if (angle < bestAngle) {
         bestAngle = angle;
@@ -407,7 +408,8 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       final Offset norm = dir / length;
       final double dot = (delta.dx * norm.dx + delta.dy * norm.dy) /
           deltaLength; // delta already non-zero
-      final double clampedDot = dot.clamp(-1.0, 1.0);
+      // 方向无关，取绝对值后再计算夹角，保证同一条线两端都能吸附。
+      final double clampedDot = dot.clamp(-1.0, 1.0).abs();
       final double angle = (math.acos(clampedDot) * 180.0) / math.pi;
       if (angle < bestAngle) {
         bestAngle = angle;
@@ -425,6 +427,9 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
 
   List<Offset> _collectPerspectiveDirections(Offset anchor) {
     final List<Offset> directions = <Offset>[];
+    // 水平与垂直方向与透视无关，也允许吸附。
+    directions.add(const Offset(1.0, 0.0));
+    directions.add(const Offset(0.0, 1.0));
     void add(Offset? vp) {
       if (vp == null) {
         return;

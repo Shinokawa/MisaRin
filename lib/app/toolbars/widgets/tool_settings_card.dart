@@ -242,6 +242,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     Widget content;
     switch (widget.activeTool) {
       case CanvasTool.pen:
+      case CanvasTool.perspectivePen:
       case CanvasTool.curvePen:
         content = _buildBrushControls(theme);
         break;
@@ -352,7 +353,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     FluentThemeData theme, {
     bool includeEraserToggle = true,
   }) {
-    final bool isPenTool = widget.activeTool == CanvasTool.pen;
+    final bool isPenTool = widget.activeTool == CanvasTool.pen ||
+        widget.activeTool == CanvasTool.perspectivePen;
     final bool isEraserTool = widget.activeTool == CanvasTool.eraser;
     final bool isCurvePenTool = widget.activeTool == CanvasTool.curvePen;
     final bool isShapeTool = widget.activeTool == CanvasTool.shape;

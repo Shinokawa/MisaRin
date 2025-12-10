@@ -130,7 +130,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
     final theme = FluentTheme.of(context);
     final bool canDrag = CustomMenuBar._supportsWindowDragArea();
     final bool showWindowControls = CustomMenuBar._shouldShowWindowControls();
-    final bool isMac = isResolvedPlatformMacOS();
+    final bool isMac = !kIsWeb && isResolvedPlatformMacOS();
     final bool hasMenuButtons = visibleMenus.isNotEmpty;
     if (!hasMenuButtons && !canDrag && !showWindowControls) {
       return const SizedBox.shrink();
@@ -146,7 +146,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
               ),
             ),
           )
-        : const Spacer();
+        : const SizedBox.shrink();
     final Widget rowContent = ValueListenableBuilder<bool>(
       valueListenable: _menuOpenNotifier,
       builder: (context, anyMenuOpen, _) {

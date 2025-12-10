@@ -18,7 +18,7 @@ class PerspectivePenToolButton extends StatelessWidget {
       isSelected: isSelected,
       onPressed: onPressed,
       builder: (context, iconColor, _) => Icon(
-        FluentIcons.edit,
+        FluentIcons.pencil_reply,
         color: iconColor,
         size: 20,
       ),
