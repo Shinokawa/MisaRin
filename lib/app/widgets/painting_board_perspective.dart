@@ -1,6 +1,6 @@
 part of 'painting_board.dart';
 
-enum _PerspectiveHandle { vp1, vp2, vp3, horizon }
+enum _PerspectiveHandle { vp1, vp2, vp3 }
 
 mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
   PerspectiveGuideMode _perspectiveMode = PerspectiveGuideMode.off;
@@ -12,12 +12,16 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
   Offset? _perspectiveVp3;
   double _perspectiveSnapAngleTolerance = 14.0;
   _PerspectiveHandle? _activePerspectiveHandle;
+  _PerspectiveHandle? _hoveringPerspectiveHandle;
+  Offset? _perspectiveLockedDirection;
 
   void _syncPerspectiveFlags() {
     if (_perspectiveMode == PerspectiveGuideMode.off) {
       _perspectiveEnabled = false;
       _perspectiveVisible = false;
       _activePerspectiveHandle = null;
+      _hoveringPerspectiveHandle = null;
+      _resetPerspectiveLock();
       return;
     }
     if (_perspectiveVisible && !_perspectiveEnabled) {
@@ -43,6 +47,8 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     _perspectiveVp2 = state.vp2;
     _perspectiveVp3 = state.vp3;
     _perspectiveSnapAngleTolerance = state.snapAngleToleranceDegrees;
+    _resetPerspectiveLock();
+    _hoveringPerspectiveHandle = null;
     _syncPerspectiveFlags();
     if (notify) {
       setState(() {});
@@ -116,12 +122,9 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     }
     setState(() {
       _activePerspectiveHandle = handle;
+      _hoveringPerspectiveHandle = handle;
       if (allowNearest) {
         switch (handle) {
-          case _PerspectiveHandle.horizon:
-            _perspectiveHorizonY =
-                boardLocal.dy.clamp(0.0, _canvasSize.height).toDouble();
-            break;
           case _PerspectiveHandle.vp1:
             _perspectiveVp1 = boardLocal;
             break;
@@ -148,11 +151,6 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       return;
     }
     switch (handle) {
-      case _PerspectiveHandle.horizon:
-        final double clamped =
-            boardLocal.dy.clamp(0.0, _canvasSize.height).toDouble();
-        setState(() => _perspectiveHorizonY = clamped);
-        break;
       case _PerspectiveHandle.vp1:
         setState(() => _perspectiveVp1 = boardLocal);
         break;
@@ -195,11 +193,6 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
         return _PerspectiveHandle.vp3;
       }
     }
-
-    final double dy = (boardLocal.dy - _perspectiveHorizonY).abs();
-    if (dy <= radius * 0.75) {
-      return _PerspectiveHandle.horizon;
-    }
     return null;
   }
 
@@ -230,16 +223,46 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     if (_perspectiveMode == PerspectiveGuideMode.threePoint) {
       consider(_PerspectiveHandle.vp3, _perspectiveVp3 ?? _perspectiveVp1);
     }
-    consider(
-      _PerspectiveHandle.horizon,
-      Offset(boardLocal.dx, _perspectiveHorizonY),
-      verticalOnly: true,
-    );
 
     if (nearestDistance > fallbackRadius) {
       return null;
     }
     return nearest;
+  }
+
+  void _resetPerspectiveLock() {
+    _perspectiveLockedDirection = null;
+  }
+
+  void _updatePerspectiveHover(Offset boardLocal) {
+    if (!_perspectiveVisible || _perspectiveMode == PerspectiveGuideMode.off) {
+      _clearPerspectiveHover();
+      return;
+    }
+    final _PerspectiveHandle? hit = _hitTestPerspectiveHandle(boardLocal);
+    if (hit != _hoveringPerspectiveHandle) {
+      setState(() => _hoveringPerspectiveHandle = hit);
+    }
+  }
+
+  void _clearPerspectiveHover() {
+    if (_hoveringPerspectiveHandle != null) {
+      setState(() => _hoveringPerspectiveHandle = null);
+    }
+  }
+
+  Offset _projectOntoDirection(
+    Offset anchor,
+    Offset delta,
+    Offset direction,
+  ) {
+    final double length = direction.distance;
+    if (length < 0.0001) {
+      return anchor;
+    }
+    final Offset norm = direction / length;
+    final double projectedLength = (delta.dx * norm.dx + delta.dy * norm.dy);
+    return anchor + norm * projectedLength;
   }
 
   Offset _maybeSnapToPerspective(
@@ -257,13 +280,16 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       return position;
     }
     final Offset delta = position - anchor;
+    final Offset? lockedDir = _perspectiveLockedDirection;
+    if (lockedDir != null) {
+      return _projectOntoDirection(anchor, delta, lockedDir);
+    }
     if (delta == Offset.zero) {
       return position;
     }
     final double deltaLength = delta.distance;
-    final Offset deltaDir = delta / deltaLength;
 
-    Offset? bestProjection;
+    Offset? bestDir;
     double bestAngle = double.infinity;
 
     for (final Offset dir in directions) {
@@ -272,19 +298,30 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
         continue;
       }
       final Offset norm = dir / length;
-      double dot = (deltaDir.dx * norm.dx + deltaDir.dy * norm.dy)
-          .clamp(-1.0, 1.0);
-      final double angle = (math.acos(dot) * 180.0) / math.pi;
+      final double dot = (delta.dx * norm.dx + delta.dy * norm.dy) /
+          deltaLength; // delta already non-zero
+      final double clampedDot = dot.clamp(-1.0, 1.0);
+      final double angle = (math.acos(clampedDot) * 180.0) / math.pi;
       if (angle < bestAngle) {
         bestAngle = angle;
-        final double projectedLength =
-            (delta.dx * norm.dx + delta.dy * norm.dy);
-        bestProjection = anchor + norm * projectedLength;
+        bestDir = norm;
       }
     }
 
-    // 强制吸附：即便当前笔划与透视方向夹角较大，也会选择最近的透视方向。
-    return bestProjection ?? position;
+    if (bestDir == null) {
+      return position;
+    }
+
+    final double tolerance =
+        _perspectiveSnapAngleTolerance.clamp(0.0, 180.0);
+    final bool allowSnap =
+        tolerance >= 179.9 || bestAngle <= tolerance;
+    if (!allowSnap) {
+      return position;
+    }
+
+    _perspectiveLockedDirection = bestDir;
+    return _projectOntoDirection(anchor, delta, bestDir);
   }
 
   List<Offset> _collectPerspectiveDirections(Offset anchor) {
@@ -319,7 +356,6 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
 class _PerspectiveGuidePainter extends CustomPainter {
   _PerspectiveGuidePainter({
     required this.canvasSize,
-    required this.horizonY,
     required this.vp1,
     required this.vp2,
     required this.vp3,
@@ -328,7 +364,6 @@ class _PerspectiveGuidePainter extends CustomPainter {
   });
 
   final Size canvasSize;
-  final double horizonY;
   final Offset vp1;
   final Offset? vp2;
   final Offset? vp3;
@@ -345,14 +380,9 @@ class _PerspectiveGuidePainter extends CustomPainter {
   static final Paint _handleActivePaint = Paint()
     ..color = const Color(0xFF7CC4FF)
     ..style = PaintingStyle.fill;
-  static final Paint _horizonPaint = Paint()
-    ..color = const Color(0x886BA6FF)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
-    _drawHorizon(canvas, size);
     _drawGuide(canvas, vp1, size);
     if (mode != PerspectiveGuideMode.onePoint && vp2 != null) {
       _drawGuide(canvas, vp2!, size);
@@ -360,14 +390,6 @@ class _PerspectiveGuidePainter extends CustomPainter {
     if (mode == PerspectiveGuideMode.threePoint && vp3 != null) {
       _drawGuide(canvas, vp3!, size);
     }
-  }
-
-  void _drawHorizon(Canvas canvas, Size size) {
-    if (mode == PerspectiveGuideMode.off) {
-      return;
-    }
-    final double y = horizonY.clamp(0.0, size.height);
-    canvas.drawLine(Offset(0, y), Offset(size.width, y), _horizonPaint);
   }
 
   void _drawGuide(Canvas canvas, Offset vp, Size size) {
@@ -378,8 +400,18 @@ class _PerspectiveGuidePainter extends CustomPainter {
       Offset(0, size.height),
       Offset(size.width * 0.5, size.height * 0.5),
     ];
+    final double extent =
+        (math.max(size.width, size.height) * 4.0).clamp(1024.0, 16000.0);
     for (final Offset target in targets) {
-      canvas.drawLine(vp, target, _linePaint);
+      final Offset dir = target - vp;
+      final double length = dir.distance;
+      if (length < 0.0001) {
+        continue;
+      }
+      final Offset norm = dir / length;
+      final Offset start = vp - norm * extent;
+      final Offset end = vp + norm * extent;
+      canvas.drawLine(start, end, _linePaint);
     }
     final bool isActive = _isHandleActive(vp);
     final Paint outline = Paint()
@@ -406,7 +438,6 @@ class _PerspectiveGuidePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _PerspectiveGuidePainter oldDelegate) {
     return oldDelegate.canvasSize != canvasSize ||
-        oldDelegate.horizonY != horizonY ||
         oldDelegate.vp1 != vp1 ||
         oldDelegate.vp2 != vp2 ||
         oldDelegate.vp3 != vp3 ||

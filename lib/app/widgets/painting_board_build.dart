@@ -226,7 +226,7 @@ mixin _PaintingBoardBuildMixin
         final Widget? textOverlay = buildTextEditingOverlay();
 
         final bool transformActive = _isLayerFreeTransformActive;
-        final MouseCursor boardCursor;
+        MouseCursor boardCursor;
         if (shouldHideCursor) {
           boardCursor = SystemMouseCursors.none;
         } else if (transformActive) {
@@ -241,7 +241,7 @@ mixin _PaintingBoardBuildMixin
           boardCursor = MouseCursor.defer;
         }
 
-        final MouseCursor workspaceCursor;
+        MouseCursor workspaceCursor;
         if (shouldHideCursor) {
           workspaceCursor = SystemMouseCursors.none;
         } else {
@@ -280,6 +280,24 @@ mixin _PaintingBoardBuildMixin
             }
           }
         }
+
+        MouseCursor _applyPerspectiveCursor(MouseCursor current) {
+          if (shouldHideCursor) {
+            return current;
+          }
+          if (_perspectiveVisible && _perspectiveMode != PerspectiveGuideMode.off) {
+            if (_isDraggingPerspectiveHandle) {
+              return SystemMouseCursors.grabbing;
+            }
+            if (_hoveringPerspectiveHandle != null) {
+              return SystemMouseCursors.grab;
+            }
+          }
+          return current;
+        }
+
+        boardCursor = _applyPerspectiveCursor(boardCursor);
+        workspaceCursor = _applyPerspectiveCursor(workspaceCursor);
 
         final PaintingToolbarLayoutStyle toolbarStyle =
             widget.toolbarLayoutStyle;
@@ -712,6 +730,7 @@ mixin _PaintingBoardBuildMixin
 
                                             Widget content = Stack(
                                               fit: StackFit.expand,
+                                              clipBehavior: Clip.none,
                                               children: [
                                                 const _CheckboardBackground(),
                                                 if (_filterSession != null &&
@@ -759,8 +778,6 @@ mixin _PaintingBoardBuildMixin
                                                             _PerspectiveGuidePainter(
                                                           canvasSize:
                                                               _canvasSize,
-                                                          horizonY:
-                                                              _perspectiveHorizonY,
                                                           vp1: _perspectiveVp1,
                                                           vp2: _perspectiveVp2,
                                                           vp3: _perspectiveVp3,

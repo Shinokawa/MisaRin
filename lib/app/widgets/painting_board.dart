@@ -434,8 +434,12 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? get _perspectiveVp3;
   double get _perspectiveSnapAngleTolerance;
   _PerspectiveHandle? get _activePerspectiveHandle;
+  _PerspectiveHandle? get _hoveringPerspectiveHandle;
   void togglePerspectiveGuide();
   void setPerspectiveMode(PerspectiveGuideMode mode);
+  void _resetPerspectiveLock();
+  void _updatePerspectiveHover(Offset boardLocal);
+  void _clearPerspectiveHover();
   Offset _maybeSnapToPerspective(Offset position, {Offset? anchor});
   bool _handlePerspectivePointerDown(
     Offset boardLocal, {

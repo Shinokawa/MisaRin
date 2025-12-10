@@ -57,6 +57,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (!isPointInsideSelection(boardLocal)) {
       return;
     }
+    _resetPerspectiveLock();
     if (!_vectorDrawingEnabled) {
       await _prepareShapeRasterPreview();
     }
@@ -119,6 +120,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   Future<void> _finishShapeDrawing() async {
     final List<Offset> strokePoints = _shapeStrokePoints;
     _shapeDragCurrent = null;
+    _resetPerspectiveLock();
     if (strokePoints.length < 2) {
       _disposeShapeRasterPreview(restoreLayer: true);
       _resetShapeDrawingState();
@@ -163,6 +165,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (_shapeDragStart == null) {
       return;
     }
+    _resetPerspectiveLock();
     _disposeShapeRasterPreview(restoreLayer: true);
     setState(_resetShapeDrawingState);
   }

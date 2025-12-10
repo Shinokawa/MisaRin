@@ -437,6 +437,7 @@ mixin _PaintingBoardInteractionMixin
     Duration timestamp,
     PointerEvent? rawEvent,
   ) async {
+    _resetPerspectiveLock();
     final Offset start = _sanitizeStrokePosition(
       position,
       isInitialSample: true,
@@ -579,6 +580,7 @@ mixin _PaintingBoardInteractionMixin
     setState(() {
       _isDrawing = false;
     });
+    _resetPerspectiveLock();
     _lastPenSampleTimestamp = null;
     _activeStrokeUsesStylus = false;
     _activeStylusPressureMin = null;
@@ -1138,6 +1140,7 @@ void _clearToolCursorOverlay() {
     _clearTextHoverHighlight();
     _clearToolCursorOverlay();
     _clearLayerTransformCursorIndicator();
+    _clearPerspectiveHover();
     if (_lastWorkspacePointer != null) {
       _lastWorkspacePointer = null;
       _notifyViewInfoChanged();
@@ -1239,6 +1242,7 @@ void _clearToolCursorOverlay() {
   }
 
   Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {
+    _resetPerspectiveLock();
     final Offset snapped = _maybeSnapToPerspective(
       boardLocal,
       anchor: _curveAnchor,
@@ -1311,6 +1315,7 @@ void _clearToolCursorOverlay() {
   }
 
   Future<void> _handleCurvePenPointerUp() async {
+    _resetPerspectiveLock();
     if (!_isCurvePlacingSegment) {
       return;
     }
@@ -1915,14 +1920,14 @@ void _clearToolCursorOverlay() {
   void _handlePointerHover(PointerHoverEvent event) {
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
+    final Offset boardLocal = _toBoardLocal(event.localPosition);
+    _updatePerspectiveHover(boardLocal);
     if (_layerTransformModeActive) {
-      final Offset boardLocal = _toBoardLocal(event.localPosition);
       _updateLayerTransformHover(boardLocal);
       return;
     }
     final CanvasTool tool = _effectiveActiveTool;
     if (tool == CanvasTool.selection) {
-      final Offset boardLocal = _toBoardLocal(event.localPosition);
       _handleSelectionHover(boardLocal);
       return;
     }
