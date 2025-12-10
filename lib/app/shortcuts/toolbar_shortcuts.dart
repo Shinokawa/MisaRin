@@ -6,6 +6,7 @@ enum ToolbarAction {
   layerAdjustTool,
   freeTransform,
   penTool,
+  perspectivePenTool,
   sprayTool,
   curvePenTool,
   shapeTool,
@@ -80,6 +81,10 @@ class ToolbarShortcuts {
     ToolbarAction.penTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyB)],
       primaryLabel: 'B',
+    ),
+    ToolbarAction.perspectivePenTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyY)],
+      primaryLabel: 'Y',
     ),
     ToolbarAction.sprayTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyJ)],

@@ -8,6 +8,7 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardPaletteMixin,
         _PaintingBoardColorMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
   @override
@@ -77,6 +78,10 @@ mixin _PaintingBoardBuildMixin
               ToolbarAction.penTool,
             ).shortcuts)
               key: const SelectToolIntent(CanvasTool.pen),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.perspectivePenTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.perspectivePen),
             for (final key in ToolbarShortcuts.of(
               ToolbarAction.sprayTool,
             ).shortcuts)
@@ -243,6 +248,8 @@ mixin _PaintingBoardBuildMixin
               : SystemMouseCursors.move;
         } else if (_effectiveActiveTool == CanvasTool.text) {
           boardCursor = SystemMouseCursors.text;
+        } else if (_effectiveActiveTool == CanvasTool.perspectivePen) {
+          boardCursor = SystemMouseCursors.precise;
         } else {
           boardCursor = MouseCursor.defer;
         }
@@ -279,6 +286,9 @@ mixin _PaintingBoardBuildMixin
                 break;
               case CanvasTool.text:
                 workspaceCursor = SystemMouseCursors.text;
+                break;
+              case CanvasTool.perspectivePen:
+                workspaceCursor = SystemMouseCursors.precise;
                 break;
               default:
                 workspaceCursor = SystemMouseCursors.basic;
@@ -908,6 +918,45 @@ mixin _PaintingBoardBuildMixin
                               ),
                             ),
                           ),
+                          if (_perspectivePenAnchor != null)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: Transform.translate(
+                                  offset: _boardRect.topLeft,
+                                  child: Transform.scale(
+                                    scale: _viewport.scale,
+                                    alignment: Alignment.topLeft,
+                                    child: Builder(
+                                      builder: (context) {
+                                        Widget overlay = CustomPaint(
+                                          size: _canvasSize,
+                                          painter: _PerspectivePenPreviewPainter(
+                                            anchor: _perspectivePenAnchor!,
+                                            target: _perspectivePenPreviewTarget ??
+                                                _perspectivePenAnchor!,
+                                            snapped: _perspectivePenSnappedTarget ??
+                                                _perspectivePenPreviewTarget ??
+                                                _perspectivePenAnchor!,
+                                            isValid: _perspectivePenPreviewValid,
+                                            viewportScale: _viewport.scale,
+                                          ),
+                                        );
+                                        if (_viewMirrorOverlay) {
+                                          overlay = Transform(
+                                            transform: _kViewMirrorTransform,
+                                            alignment: Alignment.center,
+                                            transformHitTests: false,
+                                            child: overlay,
+                                          );
+                                        }
+                                        return overlay;
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           if (_perspectiveVisible &&
                               _perspectiveMode != PerspectiveGuideMode.off)
                             Positioned.fill(

@@ -2,6 +2,16 @@ part of 'painting_board.dart';
 
 enum _PerspectiveHandle { vp1, vp2, vp3 }
 
+class _PerspectiveSnapPreviewResult {
+  const _PerspectiveSnapPreviewResult({
+    required this.snapped,
+    required this.withinTolerance,
+  });
+
+  final Offset snapped;
+  final bool withinTolerance;
+}
+
 mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
   PerspectiveGuideMode _perspectiveMode = PerspectiveGuideMode.off;
   bool _perspectiveEnabled = false;
@@ -14,6 +24,10 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
   _PerspectiveHandle? _activePerspectiveHandle;
   _PerspectiveHandle? _hoveringPerspectiveHandle;
   Offset? _perspectiveLockedDirection;
+  Offset? _perspectivePenAnchor;
+  Offset? _perspectivePenPreviewTarget;
+  Offset? _perspectivePenSnappedTarget;
+  bool _perspectivePenPreviewValid = false;
 
   void _syncPerspectiveFlags() {
     if (_perspectiveMode == PerspectiveGuideMode.off) {
@@ -22,6 +36,7 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       _activePerspectiveHandle = null;
       _hoveringPerspectiveHandle = null;
       _resetPerspectiveLock();
+      _clearPerspectivePenPreview();
       return;
     }
     if (_perspectiveVisible && !_perspectiveEnabled) {
@@ -49,6 +64,7 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     _perspectiveSnapAngleTolerance = state.snapAngleToleranceDegrees;
     _resetPerspectiveLock();
     _hoveringPerspectiveHandle = null;
+    _clearPerspectivePenPreview();
     _syncPerspectiveFlags();
     if (notify) {
       setState(() {});
@@ -232,6 +248,97 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
 
   void _resetPerspectiveLock() {
     _perspectiveLockedDirection = null;
+  }
+
+  void _clearPerspectivePenPreview() {
+    if (_perspectivePenAnchor == null &&
+        _perspectivePenPreviewTarget == null &&
+        _perspectivePenSnappedTarget == null &&
+        !_perspectivePenPreviewValid) {
+      return;
+    }
+    setState(() {
+      _perspectivePenAnchor = null;
+      _perspectivePenPreviewTarget = null;
+      _perspectivePenSnappedTarget = null;
+      _perspectivePenPreviewValid = false;
+    });
+  }
+
+  void _setPerspectivePenAnchor(Offset anchor) {
+    setState(() {
+      _perspectivePenAnchor = anchor;
+      _perspectivePenPreviewTarget = anchor;
+      _perspectivePenSnappedTarget = anchor;
+      _perspectivePenPreviewValid = true;
+    });
+  }
+
+  void _updatePerspectivePenPreview(Offset target) {
+    final Offset? anchor = _perspectivePenAnchor;
+    if (anchor == null) {
+      return;
+    }
+    final _PerspectiveSnapPreviewResult? preview =
+        _previewPerspectiveSnap(anchor, target);
+    setState(() {
+      _perspectivePenPreviewTarget = target;
+      if (preview == null) {
+        _perspectivePenSnappedTarget = target;
+        _perspectivePenPreviewValid = false;
+      } else {
+        _perspectivePenSnappedTarget = preview.snapped;
+        _perspectivePenPreviewValid = preview.withinTolerance;
+      }
+    });
+  }
+
+  _PerspectiveSnapPreviewResult? _previewPerspectiveSnap(
+    Offset anchor,
+    Offset target,
+  ) {
+    final List<Offset> directions = _collectPerspectiveDirections(anchor);
+    if (directions.isEmpty) {
+      return null;
+    }
+    final Offset delta = target - anchor;
+    if (delta == Offset.zero) {
+      return _PerspectiveSnapPreviewResult(
+        snapped: anchor,
+        withinTolerance: true,
+      );
+    }
+    Offset? bestDir;
+    double bestAngle = double.infinity;
+    final double deltaLength = delta.distance;
+    for (final Offset dir in directions) {
+      final double length = dir.distance;
+      if (length < 0.0001) {
+        continue;
+      }
+      final Offset norm = dir / length;
+      final double dot = (delta.dx * norm.dx + delta.dy * norm.dy) /
+          deltaLength; // delta already non-zero
+      final double clampedDot = dot.clamp(-1.0, 1.0);
+      final double angle = (math.acos(clampedDot) * 180.0) / math.pi;
+      if (angle < bestAngle) {
+        bestAngle = angle;
+        bestDir = norm;
+      }
+    }
+    if (bestDir == null) {
+      return null;
+    }
+    final double tolerance =
+        _perspectiveSnapAngleTolerance.clamp(0.0, 180.0);
+    final bool withinTolerance =
+        tolerance >= 179.9 ||
+        bestAngle <= tolerance;
+    final Offset snapped = _projectOntoDirection(anchor, delta, bestDir);
+    return _PerspectiveSnapPreviewResult(
+      snapped: snapped,
+      withinTolerance: withinTolerance,
+    );
   }
 
   void _updatePerspectiveHover(Offset boardLocal) {
@@ -435,5 +542,57 @@ class _PerspectiveGuidePainter extends CustomPainter {
         oldDelegate.vp3 != vp3 ||
         oldDelegate.mode != mode ||
         oldDelegate.activeHandle != activeHandle;
+  }
+}
+
+class _PerspectivePenPreviewPainter extends CustomPainter {
+  _PerspectivePenPreviewPainter({
+    required this.anchor,
+    required this.target,
+    required this.snapped,
+    required this.isValid,
+    required this.viewportScale,
+  });
+
+  final Offset anchor;
+  final Offset target;
+  final Offset snapped;
+  final bool isValid;
+  final double viewportScale;
+
+  static const Color _validColor = Color(0xFF2ECC71);
+  static const Color _invalidColor = Color(0xFFE74C3C);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint linePaint = Paint()
+      ..color = (isValid ? _validColor : _invalidColor).withOpacity(0.85)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (2.0 / viewportScale).clamp(1.0, 3.0);
+    final Paint anchorPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final Paint anchorOutline = Paint()
+      ..color = (isValid ? _validColor : _invalidColor)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (1.5 / viewportScale).clamp(1.0, 2.0);
+
+    final Offset end = isValid ? snapped : target;
+    canvas.drawLine(anchor, end, linePaint);
+
+    final double r = (4.0 / viewportScale).clamp(3.0, 6.0);
+    canvas.drawCircle(anchor, r, anchorPaint);
+    canvas.drawCircle(anchor, r + 1.0 / viewportScale, anchorOutline);
+    canvas.drawCircle(end, r, anchorPaint);
+    canvas.drawCircle(end, r + 1.0 / viewportScale, anchorOutline);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PerspectivePenPreviewPainter oldDelegate) {
+    return oldDelegate.anchor != anchor ||
+        oldDelegate.target != target ||
+        oldDelegate.snapped != snapped ||
+        oldDelegate.isValid != isValid ||
+        oldDelegate.viewportScale != viewportScale;
   }
 }

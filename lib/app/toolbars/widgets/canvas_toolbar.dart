@@ -9,6 +9,7 @@ import 'bucket_tool_button.dart';
 import 'magic_wand_tool_button.dart';
 import 'pen_tool_button.dart';
 import 'eraser_tool_button.dart';
+import 'perspective_pen_tool_button.dart';
 import 'selection_tool_button.dart';
 import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
@@ -46,7 +47,7 @@ class CanvasToolbar extends StatelessWidget {
   final CanvasToolbarLayout layout;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 12;
+  static const int buttonCount = 13;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;
   static const double spacing = 9;
@@ -116,6 +117,7 @@ class CanvasToolbar extends StatelessWidget {
   static const Map<ToolbarAction, String> _tooltipDetails = {
     ToolbarAction.layerAdjustTool: '调整图层顺序、透明度以及混合模式，快速整理画面结构',
     ToolbarAction.penTool: '使用当前画笔绘制连续笔触，兼容压力与速度控制',
+    ToolbarAction.perspectivePenTool: '沿透视线绘制直线，先预览再落笔，确保对齐消失点',
     ToolbarAction.sprayTool: '喷洒颗粒色点，适合铺色或叠加随机纹理',
     ToolbarAction.curvePenTool: '通过锚点绘制可编辑的曲线路径',
     ToolbarAction.eraserTool: '擦除当前图层内容，可调节笔刷大小和硬度',
@@ -199,6 +201,14 @@ class CanvasToolbar extends StatelessWidget {
         child: PenToolButton(
           isSelected: activeTool == CanvasTool.pen,
           onPressed: () => onToolSelected(CanvasTool.pen),
+        ),
+      ),
+      wrapWithTooltip(
+        action: ToolbarAction.perspectivePenTool,
+        label: '透视画笔',
+        child: PerspectivePenToolButton(
+          isSelected: activeTool == CanvasTool.perspectivePen,
+          onPressed: () => onToolSelected(CanvasTool.perspectivePen),
         ),
       ),
       wrapWithTooltip(

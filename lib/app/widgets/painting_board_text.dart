@@ -900,6 +900,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       case CanvasTool.pen:
       case CanvasTool.eraser:
       case CanvasTool.curvePen:
+      case CanvasTool.perspectivePen:
       case CanvasTool.shape:
       case CanvasTool.spray:
       case CanvasTool.bucket:
@@ -907,7 +908,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       case CanvasTool.selection:
         return true;
     }
-}
+  }
 
   
 

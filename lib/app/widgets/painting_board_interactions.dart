@@ -8,6 +8,7 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardLayerTransformMixin,
         _PaintingBoardShapeMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         TickerProvider {
   void clear() async {
@@ -133,6 +134,9 @@ mixin _PaintingBoardInteractionMixin
     }
     if (tool != CanvasTool.text) {
       _clearTextHoverHighlight();
+    }
+    if (tool != CanvasTool.perspectivePen) {
+      _clearPerspectivePenPreview();
     }
     setState(() {
       if (_activeTool == CanvasTool.magicWand) {
@@ -567,6 +571,22 @@ mixin _PaintingBoardInteractionMixin
       enableSharpPeak: _autoSharpPeakEnabled,
     );
     _lastStylusPressureValue = 0.0;
+  }
+
+  Future<void> _commitPerspectivePenStroke(
+    Offset boardLocal,
+    Duration timestamp, {
+    PointerEvent? rawEvent,
+  }) async {
+    final Offset? anchor = _perspectivePenAnchor;
+    final Offset? snapped = _perspectivePenSnappedTarget;
+    if (anchor == null || snapped == null) {
+      return;
+    }
+    await _startStroke(anchor, timestamp, rawEvent);
+    _appendPoint(snapped, timestamp, rawEvent);
+    _finishStroke(timestamp);
+    _clearPerspectivePenPreview();
   }
 
   void _finishStroke([Duration? timestamp]) {
@@ -1138,6 +1158,9 @@ void _clearToolCursorOverlay() {
       _clearSelectionHover();
     }
     _clearTextHoverHighlight();
+    if (_effectiveActiveTool != CanvasTool.perspectivePen) {
+      _clearPerspectivePenPreview();
+    }
     _clearToolCursorOverlay();
     _clearLayerTransformCursorIndicator();
     _clearPerspectiveHover();
@@ -1649,7 +1672,8 @@ void _clearToolCursorOverlay() {
         tool == CanvasTool.selection ||
         tool == CanvasTool.spray ||
         tool == CanvasTool.pen ||
-        tool == CanvasTool.eraser;
+        tool == CanvasTool.eraser ||
+        tool == CanvasTool.perspectivePen;
     if (!pointerInsideBoard && !toolCanStartOutsideCanvas) {
       return;
     }
@@ -1678,6 +1702,39 @@ void _clearToolCursorOverlay() {
         }
         _refreshStylusPreferencesIfNeeded();
         await _startStroke(boardLocal, event.timeStamp, event);
+        break;
+      case CanvasTool.perspectivePen:
+        _focusNode.requestFocus();
+        if (_perspectiveMode == PerspectiveGuideMode.off || !_perspectiveVisible) {
+          AppNotifications.show(
+            context,
+            message: '请先开启透视辅助线后再使用透视画笔。',
+            severity: InfoBarSeverity.warning,
+          );
+          _clearPerspectivePenPreview();
+          return;
+        }
+        if (!isPointInsideSelection(boardLocal)) {
+          return;
+        }
+        if (_perspectivePenAnchor == null) {
+          _setPerspectivePenAnchor(boardLocal);
+          return;
+        }
+        _updatePerspectivePenPreview(boardLocal);
+        if (!_perspectivePenPreviewValid) {
+          AppNotifications.show(
+            context,
+            message: '当前线条未对齐透视方向，请调整角度后再落笔。',
+            severity: InfoBarSeverity.warning,
+          );
+          return;
+        }
+        await _commitPerspectivePenStroke(
+          boardLocal,
+          event.timeStamp,
+          rawEvent: event,
+        );
         break;
       case CanvasTool.curvePen:
         if (_isCurveCancelModifierPressed() &&
@@ -1763,6 +1820,12 @@ void _clearToolCursorOverlay() {
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           _appendPoint(boardLocal, event.timeStamp, event);
+        }
+        break;
+      case CanvasTool.perspectivePen:
+        if (_perspectivePenAnchor != null) {
+          final Offset boardLocal = _toBoardLocal(event.localPosition);
+          _updatePerspectivePenPreview(boardLocal);
         }
         break;
       case CanvasTool.layerAdjust:
@@ -1865,6 +1928,8 @@ void _clearToolCursorOverlay() {
         break;
       case CanvasTool.text:
         break;
+      case CanvasTool.perspectivePen:
+        break;
     }
   }
 
@@ -1916,6 +1981,9 @@ void _clearToolCursorOverlay() {
         break;
       case CanvasTool.text:
         break;
+      case CanvasTool.perspectivePen:
+        _clearPerspectivePenPreview();
+        break;
     }
   }
 
@@ -1929,6 +1997,13 @@ void _clearToolCursorOverlay() {
       return;
     }
     final CanvasTool tool = _effectiveActiveTool;
+    if (tool == CanvasTool.perspectivePen) {
+      if (_perspectivePenAnchor != null) {
+        _updatePerspectivePenPreview(boardLocal);
+      }
+      _clearTextHoverHighlight();
+      return;
+    }
     if (tool == CanvasTool.selection) {
       _handleSelectionHover(boardLocal);
       return;
