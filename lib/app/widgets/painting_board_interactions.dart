@@ -1647,7 +1647,9 @@ void _clearToolCursorOverlay() {
     final bool toolCanStartOutsideCanvas =
         tool == CanvasTool.curvePen ||
         tool == CanvasTool.selection ||
-        tool == CanvasTool.spray;
+        tool == CanvasTool.spray ||
+        tool == CanvasTool.pen ||
+        tool == CanvasTool.eraser;
     if (!pointerInsideBoard && !toolCanStartOutsideCanvas) {
       return;
     }
