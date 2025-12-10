@@ -312,16 +312,6 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       return position;
     }
 
-    final double tolerance =
-        _perspectiveSnapAngleTolerance.clamp(0.0, 180.0);
-    final bool forceSnapThisStroke = _perspectiveLockedDirection == null;
-    final bool allowSnap = forceSnapThisStroke ||
-        tolerance >= 179.9 ||
-        bestAngle <= tolerance;
-    if (!allowSnap) {
-      return position;
-    }
-
     _perspectiveLockedDirection ??= bestDir;
     return _projectOntoDirection(anchor, delta, _perspectiveLockedDirection!);
   }
