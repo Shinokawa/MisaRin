@@ -264,7 +264,7 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     final Offset deltaDir = delta / deltaLength;
 
     Offset? bestProjection;
-    double bestAngle = _perspectiveSnapAngleTolerance + 1;
+    double bestAngle = double.infinity;
 
     for (final Offset dir in directions) {
       final double length = dir.distance;
@@ -275,9 +275,6 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       double dot = (deltaDir.dx * norm.dx + deltaDir.dy * norm.dy)
           .clamp(-1.0, 1.0);
       final double angle = (math.acos(dot) * 180.0) / math.pi;
-      if (angle > _perspectiveSnapAngleTolerance) {
-        continue;
-      }
       if (angle < bestAngle) {
         bestAngle = angle;
         final double projectedLength =
@@ -286,6 +283,7 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       }
     }
 
+    // 强制吸附：即便当前笔划与透视方向夹角较大，也会选择最近的透视方向。
     return bestProjection ?? position;
   }
 
