@@ -1622,6 +1622,22 @@ void _clearToolCursorOverlay() {
     }
     final CanvasTool tool = _effectiveActiveTool;
     final Rect boardRect = _boardRect;
+    final Offset boardLocal = _toBoardLocal(pointer);
+    final Set<LogicalKeyboardKey> pressedKeys =
+        HardwareKeyboard.instance.logicalKeysPressed;
+    final bool preferNearestPerspectiveHandle =
+        _perspectiveVisible &&
+        _perspectiveMode != PerspectiveGuideMode.off &&
+        tool == CanvasTool.hand &&
+        (pressedKeys.contains(LogicalKeyboardKey.shiftLeft) ||
+            pressedKeys.contains(LogicalKeyboardKey.shiftRight) ||
+            pressedKeys.contains(LogicalKeyboardKey.shift));
+    if (_handlePerspectivePointerDown(
+      boardLocal,
+      allowNearest: preferNearestPerspectiveHandle,
+    )) {
+      return;
+    }
     final bool pointerInsideBoard = boardRect.contains(pointer);
     final bool toolCanStartOutsideCanvas =
         tool == CanvasTool.curvePen ||
@@ -1632,10 +1648,6 @@ void _clearToolCursorOverlay() {
     }
     if (_shouldBlockToolOnTextLayer(tool)) {
       _showTextToolConflictWarning();
-      return;
-    }
-    final Offset boardLocal = _toBoardLocal(pointer);
-    if (_handlePerspectivePointerDown(boardLocal)) {
       return;
     }
     if (_isTextEditingActive) {

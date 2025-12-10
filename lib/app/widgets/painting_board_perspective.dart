@@ -13,6 +13,18 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
   double _perspectiveSnapAngleTolerance = 14.0;
   _PerspectiveHandle? _activePerspectiveHandle;
 
+  void _syncPerspectiveFlags() {
+    if (_perspectiveMode == PerspectiveGuideMode.off) {
+      _perspectiveEnabled = false;
+      _perspectiveVisible = false;
+      _activePerspectiveHandle = null;
+      return;
+    }
+    if (_perspectiveVisible && !_perspectiveEnabled) {
+      _perspectiveEnabled = true;
+    }
+  }
+
   void initializePerspectiveGuide(PerspectiveGuideState? initialState) {
     final PerspectiveGuideState resolved =
         initialState ?? PerspectiveGuideState.defaults(_canvasSize);
@@ -31,6 +43,7 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     _perspectiveVp2 = state.vp2;
     _perspectiveVp3 = state.vp3;
     _perspectiveSnapAngleTolerance = state.snapAngleToleranceDegrees;
+    _syncPerspectiveFlags();
     if (notify) {
       setState(() {});
       _notifyViewInfoChanged();
@@ -58,6 +71,7 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       if (next && _perspectiveMode == PerspectiveGuideMode.off) {
         _perspectiveMode = PerspectiveGuideMode.onePoint;
       }
+      _syncPerspectiveFlags();
     });
     _markDirty();
     _notifyViewInfoChanged();
@@ -71,10 +85,13 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
       _perspectiveMode = mode;
       if (mode == PerspectiveGuideMode.off) {
         _perspectiveEnabled = false;
+        _perspectiveVisible = false;
+        _activePerspectiveHandle = null;
       } else {
         _perspectiveEnabled = true;
         _perspectiveVisible = true;
       }
+      _syncPerspectiveFlags();
     });
     _markDirty();
     _notifyViewInfoChanged();
@@ -84,17 +101,42 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
   bool get perspectiveGuideEnabled => _perspectiveEnabled;
   PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
 
-  bool _handlePerspectivePointerDown(Offset boardLocal) {
+  bool _handlePerspectivePointerDown(
+    Offset boardLocal, {
+    bool allowNearest = false,
+  }) {
     if (!_perspectiveVisible || _perspectiveMode == PerspectiveGuideMode.off) {
       return false;
     }
-    final _PerspectiveHandle? handle = _hitTestPerspectiveHandle(boardLocal);
+    final _PerspectiveHandle? handle =
+        _hitTestPerspectiveHandle(boardLocal) ??
+        (allowNearest ? _nearestPerspectiveHandle(boardLocal) : null);
     if (handle == null) {
       return false;
     }
     setState(() {
       _activePerspectiveHandle = handle;
+      if (allowNearest) {
+        switch (handle) {
+          case _PerspectiveHandle.horizon:
+            _perspectiveHorizonY =
+                boardLocal.dy.clamp(0.0, _canvasSize.height).toDouble();
+            break;
+          case _PerspectiveHandle.vp1:
+            _perspectiveVp1 = boardLocal;
+            break;
+          case _PerspectiveHandle.vp2:
+            _perspectiveVp2 = boardLocal;
+            break;
+          case _PerspectiveHandle.vp3:
+            _perspectiveVp3 = boardLocal;
+            break;
+        }
+      }
     });
+    if (allowNearest) {
+      _markDirty();
+    }
     return true;
   }
 
@@ -161,13 +203,53 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     return null;
   }
 
+  _PerspectiveHandle? _nearestPerspectiveHandle(Offset boardLocal) {
+    final double radius = 18.0 / _viewport.scale;
+    final double fallbackRadius = radius * 3.5;
+    _PerspectiveHandle? nearest;
+    double nearestDistance = double.infinity;
+
+    void consider(_PerspectiveHandle handle, Offset? position,
+        {bool verticalOnly = false}) {
+      if (position == null) {
+        return;
+      }
+      final double distance = verticalOnly
+          ? (boardLocal.dy - position.dy).abs()
+          : (boardLocal - position).distance;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = handle;
+      }
+    }
+
+    consider(_PerspectiveHandle.vp1, _perspectiveVp1);
+    if (_perspectiveMode != PerspectiveGuideMode.onePoint) {
+      consider(_PerspectiveHandle.vp2, _perspectiveVp2 ?? _perspectiveVp1);
+    }
+    if (_perspectiveMode == PerspectiveGuideMode.threePoint) {
+      consider(_PerspectiveHandle.vp3, _perspectiveVp3 ?? _perspectiveVp1);
+    }
+    consider(
+      _PerspectiveHandle.horizon,
+      Offset(boardLocal.dx, _perspectiveHorizonY),
+      verticalOnly: true,
+    );
+
+    if (nearestDistance > fallbackRadius) {
+      return null;
+    }
+    return nearest;
+  }
+
   Offset _maybeSnapToPerspective(
     Offset position, {
     Offset? anchor,
   }) {
-    if (!_perspectiveEnabled ||
-        _perspectiveMode == PerspectiveGuideMode.off ||
-        anchor == null) {
+    final bool snapActive = _perspectiveEnabled &&
+        _perspectiveVisible &&
+        _perspectiveMode != PerspectiveGuideMode.off;
+    if (!snapActive || anchor == null) {
       return position;
     }
     final List<Offset> directions = _collectPerspectiveDirections(anchor);
