@@ -63,6 +63,10 @@ class PsdImporter {
       if (canvasLayer != null) {
         canvasLayers.add(canvasLayer);
       }
+      // 释放通道数据，避免占用过多内存。
+      for (final _PsdChannel channel in record.channels) {
+        channel.data = null;
+      }
     }
 
     if (canvasLayers.isEmpty) {
@@ -313,7 +317,7 @@ class PsdImporter {
     int offset = 0;
     for (int row = 0; row < height; row++) {
       final int length = rowLengths[row];
-      final Uint8List rowData = reader.readBytes(length);
+      final Uint8List rowData = reader.readBytes(length, copy: false);
       offset = _decodePackBits(rowData, output, offset, width);
     }
     return output;
@@ -366,6 +370,19 @@ class PsdImporter {
       return null;
     }
 
+    final int clippedLeft = record.left.clamp(0, canvasWidth).toInt();
+    final int clippedTop = record.top.clamp(0, canvasHeight).toInt();
+    final int clippedRight = record.right.clamp(0, canvasWidth).toInt();
+    final int clippedBottom = record.bottom.clamp(0, canvasHeight).toInt();
+    final int clippedWidth = clippedRight - clippedLeft;
+    final int clippedHeight = clippedBottom - clippedTop;
+    if (clippedWidth <= 0 || clippedHeight <= 0) {
+      return null;
+    }
+
+    final int srcOffsetX = clippedLeft - record.left;
+    final int srcOffsetY = clippedTop - record.top;
+
     final Uint8List red =
         record.channelData(0) ?? _filled(layerWidth * layerHeight, 0);
     final Uint8List green =
@@ -375,20 +392,15 @@ class PsdImporter {
     final Uint8List alpha =
         record.channelData(-1) ?? _filled(layerWidth * layerHeight, 255);
 
-    final Uint8List bitmap = Uint8List(canvasWidth * canvasHeight * 4);
+    final Uint8List bitmap = Uint8List(clippedWidth * clippedHeight * 4);
 
-    for (int y = 0; y < layerHeight; y++) {
-      final int destY = record.top + y;
-      if (destY < 0 || destY >= canvasHeight) {
-        continue;
-      }
-      for (int x = 0; x < layerWidth; x++) {
-        final int destX = record.left + x;
-        if (destX < 0 || destX >= canvasWidth) {
-          continue;
-        }
-        final int srcIndex = y * layerWidth + x;
-        final int destIndex = (destY * canvasWidth + destX) * 4;
+    for (int y = 0; y < clippedHeight; y++) {
+      final int srcY = srcOffsetY + y;
+      final int srcRowStart = srcY * layerWidth + srcOffsetX;
+      final int destRowStart = y * clippedWidth * 4;
+      for (int x = 0; x < clippedWidth; x++) {
+        final int srcIndex = srcRowStart + x;
+        final int destIndex = destRowStart + x * 4;
         bitmap[destIndex] = red[srcIndex];
         bitmap[destIndex + 1] = green[srcIndex];
         bitmap[destIndex + 2] = blue[srcIndex];
@@ -404,8 +416,10 @@ class PsdImporter {
       clippingMask: record.isClippingMask,
       blendMode: record.blendMode,
       bitmap: bitmap,
-      bitmapWidth: canvasWidth,
-      bitmapHeight: canvasHeight,
+      bitmapWidth: clippedWidth,
+      bitmapHeight: clippedHeight,
+      bitmapLeft: clippedLeft,
+      bitmapTop: clippedTop,
     );
   }
 
@@ -556,17 +570,13 @@ class _ByteReader {
     return value >= 0x80000000 ? value - 0x100000000 : value;
   }
 
-  Uint8List readBytes(int length) {
+  Uint8List readBytes(int length, {bool copy = true}) {
     if (length <= 0) {
       return Uint8List(0);
     }
-    final Uint8List slice = Uint8List.sublistView(
-      _bytes,
-      _offset,
-      _offset + length,
-    );
+    final Uint8List slice = Uint8List.sublistView(_bytes, _offset, _offset + length);
     _offset += length;
-    return Uint8List.fromList(slice);
+    return copy ? Uint8List.fromList(slice) : slice;
   }
 
   void skip(int length) {
