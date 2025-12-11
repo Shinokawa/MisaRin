@@ -12,6 +12,7 @@ enum CanvasTool {
   selection,
   text,
   hand,
+  viewRotate,
 }
 
 enum SprayMode { smudge, splatter }

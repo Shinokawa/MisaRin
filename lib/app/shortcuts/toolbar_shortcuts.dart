@@ -17,6 +17,7 @@ enum ToolbarAction {
   selectionTool,
   textTool,
   handTool,
+  viewRotateTool,
   undo,
   redo,
   resizeImage,
@@ -121,6 +122,10 @@ class ToolbarShortcuts {
     ToolbarAction.handTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyH)],
       primaryLabel: 'H',
+    ),
+    ToolbarAction.viewRotateTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[],
+      primaryLabel: '',
     ),
     ToolbarAction.undo: ShortcutInfo(
       shortcuts: <LogicalKeySet>[

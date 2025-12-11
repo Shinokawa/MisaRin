@@ -16,6 +16,7 @@ class CanvasViewInfo {
     required this.perspectiveMode,
     required this.perspectiveEnabled,
     required this.perspectiveVisible,
+    required this.rotation,
   });
 
   final Size canvasSize;
@@ -27,6 +28,7 @@ class CanvasViewInfo {
   final PerspectiveGuideMode perspectiveMode;
   final bool perspectiveEnabled;
   final bool perspectiveVisible;
+  final double rotation;
 
   @override
   bool operator ==(Object other) {
@@ -39,7 +41,8 @@ class CanvasViewInfo {
         other.viewMirrorEnabled == viewMirrorEnabled &&
         other.perspectiveMode == perspectiveMode &&
         other.perspectiveEnabled == perspectiveEnabled &&
-        other.perspectiveVisible == perspectiveVisible;
+        other.perspectiveVisible == perspectiveVisible &&
+        _doubleEquals(other.rotation, rotation);
   }
 
   @override
@@ -59,6 +62,7 @@ class CanvasViewInfo {
         perspectiveMode,
         perspectiveEnabled,
         perspectiveVisible,
+        _rounded(rotation),
       );
 }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -1862,6 +1863,9 @@ class _CanvasStatusOverlay extends StatelessWidget {
             .clamp(-100000.0, 100000.0)
             .toDouble();
         final String zoom = '${zoomPercent.toStringAsFixed(1)}%';
+        final double rotationDegrees = info.rotation * 180 / math.pi;
+        final String rotation =
+            '${rotationDegrees.toStringAsFixed(1)}°';
         final String position = info.cursorPosition != null
             ? '${info.cursorPosition!.dx.round()}, ${info.cursorPosition!.dy.round()}'
             : '--';
@@ -1887,6 +1891,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
         final List<String> parts = <String>[
           '分辨率: $resolution',
           '缩放: $zoom',
+          '旋转: $rotation',
           '坐标: $position',
           '网格: $grid',
           '黑白: $blackWhite',
