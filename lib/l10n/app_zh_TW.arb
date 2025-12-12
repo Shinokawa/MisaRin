@@ -93,6 +93,13 @@
   "tabletTest": "\u6578\u4f4d\u677f\u6e2c\u8a66",
   "restoreDefaults": "\u6062\u5fa9\u9810\u8a2d",
   "ok": "\u597d\u7684",
+  "languageLabel": "\u8a9e\u8a00",
+  "languageSystem": "\u8ddf\u96a8\u7cfb\u7d71",
+  "languageEnglish": "\u82f1\u6587",
+  "languageJapanese": "\u65e5\u6587",
+  "languageKorean": "\u97d3\u6587",
+  "languageChineseSimplified": "\u4e2d\u6587\uff08\u7c21\u9ad4\uff09",
+  "languageChineseTraditional": "\u4e2d\u6587\uff08\u7e41\u9ad4\uff09",
   "themeModeLabel": "\u4e3b\u984c\u6a21\u5f0f",
   "themeLight": "\u6dfa\u8272",
   "themeDark": "\u6df1\u8272",
@@ -234,4 +241,3 @@
   "menuBinarizeEllipsis": "\u4e8c\u503c\u5316\u2026",
   "menuInvertColors": "\u984f\u8272\u53cd\u8f49"
 }
-

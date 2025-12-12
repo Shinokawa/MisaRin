@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/locale_controller.dart';
 import '../l10n/l10n.dart';
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
@@ -40,6 +41,15 @@ Future<void> showSettingsDialog(BuildContext context) {
   );
 }
 
+enum _AppLocaleOption {
+  system,
+  english,
+  japanese,
+  korean,
+  chineseSimplified,
+  chineseTraditional,
+}
+
 class _SettingsDialogContent extends StatefulWidget {
   const _SettingsDialogContent({super.key});
 
@@ -49,6 +59,7 @@ class _SettingsDialogContent extends StatefulWidget {
 
 class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late int _historyLimit;
+  late _AppLocaleOption _localeOption;
   late bool _stylusPressureEnabled;
   late double _stylusCurve;
   late PenStrokeSliderRange _penSliderRange;
@@ -58,6 +69,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   void initState() {
     super.initState();
     _historyLimit = AppPreferences.instance.historyLimit;
+    _localeOption = _optionForLocale(AppPreferences.instance.localeOverride);
     _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
@@ -77,6 +89,36 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        InfoLabel(
+          label: l10n.languageLabel,
+          child: ComboBox<_AppLocaleOption>(
+            isExpanded: true,
+            value: _localeOption,
+            items: _AppLocaleOption.values
+                .map(
+                  (option) => ComboBoxItem<_AppLocaleOption>(
+                    value: option,
+                    child: Text(_localeOptionLabel(option)),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (option) {
+              if (option == null || option == _localeOption) {
+                return;
+              }
+              setState(() => _localeOption = option);
+              final Locale? locale = _localeForOption(option);
+              final LocaleController controller = LocaleController.of(context);
+              controller.onLocaleChanged(locale);
+              final AppPreferences prefs = AppPreferences.instance;
+              if (prefs.localeOverride != locale) {
+                prefs.localeOverride = locale;
+                unawaited(AppPreferences.save());
+              }
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
         InfoLabel(
           label: l10n.themeModeLabel,
           child: ComboBox<ThemeMode>(
@@ -277,14 +319,69 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     }
   }
 
+  String _localeOptionLabel(_AppLocaleOption option) {
+    final l10n = context.l10n;
+    switch (option) {
+      case _AppLocaleOption.system:
+        return l10n.languageSystem;
+      case _AppLocaleOption.english:
+        return l10n.languageEnglish;
+      case _AppLocaleOption.japanese:
+        return l10n.languageJapanese;
+      case _AppLocaleOption.korean:
+        return l10n.languageKorean;
+      case _AppLocaleOption.chineseSimplified:
+        return l10n.languageChineseSimplified;
+      case _AppLocaleOption.chineseTraditional:
+        return l10n.languageChineseTraditional;
+    }
+  }
+
+  static Locale? _localeForOption(_AppLocaleOption option) {
+    switch (option) {
+      case _AppLocaleOption.system:
+        return null;
+      case _AppLocaleOption.english:
+        return const Locale('en');
+      case _AppLocaleOption.japanese:
+        return const Locale('ja');
+      case _AppLocaleOption.korean:
+        return const Locale('ko');
+      case _AppLocaleOption.chineseSimplified:
+        return const Locale('zh', 'CN');
+      case _AppLocaleOption.chineseTraditional:
+        return const Locale('zh', 'TW');
+    }
+  }
+
+  static _AppLocaleOption _optionForLocale(Locale? locale) {
+    if (locale == null) {
+      return _AppLocaleOption.system;
+    }
+    final String languageCode = locale.languageCode.toLowerCase();
+    final String? countryCode = locale.countryCode?.toUpperCase();
+    if (languageCode == 'en') return _AppLocaleOption.english;
+    if (languageCode == 'ja') return _AppLocaleOption.japanese;
+    if (languageCode == 'ko') return _AppLocaleOption.korean;
+    if (languageCode == 'zh' && countryCode == 'TW') {
+      return _AppLocaleOption.chineseTraditional;
+    }
+    if (languageCode == 'zh') return _AppLocaleOption.chineseSimplified;
+    return _AppLocaleOption.system;
+  }
+
   void resetToDefaults() {
     final ThemeController controller = ThemeController.of(context);
+    final LocaleController localeController = LocaleController.of(context);
     final AppPreferences prefs = AppPreferences.instance;
     final int defaultHistory = AppPreferences.defaultHistoryLimit;
     final ThemeMode defaultTheme = AppPreferences.defaultThemeMode;
+    final Locale? defaultLocale = AppPreferences.defaultLocaleOverride;
     controller.onThemeModeChanged(defaultTheme);
+    localeController.onLocaleChanged(defaultLocale);
     setState(() {
       _historyLimit = defaultHistory;
+      _localeOption = _optionForLocale(defaultLocale);
       _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
       _stylusCurve = AppPreferences.defaultStylusCurve;
       _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
@@ -292,6 +389,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
+    prefs.localeOverride = defaultLocale;
     prefs.stylusPressureEnabled = _stylusPressureEnabled;
     prefs.stylusPressureCurve = _stylusCurve;
     prefs.penStrokeSliderRange = _penSliderRange;

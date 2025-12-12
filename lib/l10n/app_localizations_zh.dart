@@ -170,6 +170,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ok => '好的';
 
   @override
+  String get languageLabel => '语言';
+
+  @override
+  String get languageSystem => '跟随系统';
+
+  @override
+  String get languageEnglish => '英语';
+
+  @override
+  String get languageJapanese => '日语';
+
+  @override
+  String get languageKorean => '韩语';
+
+  @override
+  String get languageChineseSimplified => '中文（简体）';
+
+  @override
+  String get languageChineseTraditional => '中文（繁体）';
+
+  @override
   String get themeModeLabel => '主题模式';
 
   @override
@@ -650,6 +671,27 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get ok => '好的';
 
   @override
+  String get languageLabel => '语言';
+
+  @override
+  String get languageSystem => '跟随系统';
+
+  @override
+  String get languageEnglish => '英语';
+
+  @override
+  String get languageJapanese => '日语';
+
+  @override
+  String get languageKorean => '韩语';
+
+  @override
+  String get languageChineseSimplified => '中文（简体）';
+
+  @override
+  String get languageChineseTraditional => '中文（繁体）';
+
+  @override
   String get themeModeLabel => '主题模式';
 
   @override
@@ -1128,6 +1170,27 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get ok => '好的';
+
+  @override
+  String get languageLabel => '語言';
+
+  @override
+  String get languageSystem => '跟隨系統';
+
+  @override
+  String get languageEnglish => '英文';
+
+  @override
+  String get languageJapanese => '日文';
+
+  @override
+  String get languageKorean => '韓文';
+
+  @override
+  String get languageChineseSimplified => '中文（簡體）';
+
+  @override
+  String get languageChineseTraditional => '中文（繁體）';
 
   @override
   String get themeModeLabel => '主題模式';

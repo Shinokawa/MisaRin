@@ -177,6 +177,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ok => 'OK';
 
   @override
+  String get languageLabel => 'Language';
+
+  @override
+  String get languageSystem => 'System';
+
+  @override
+  String get languageEnglish => 'English';
+
+  @override
+  String get languageJapanese => 'Japanese';
+
+  @override
+  String get languageKorean => 'Korean';
+
+  @override
+  String get languageChineseSimplified => 'Chinese (Simplified)';
+
+  @override
+  String get languageChineseTraditional => 'Chinese (Traditional)';
+
+  @override
   String get themeModeLabel => 'Theme Mode';
 
   @override

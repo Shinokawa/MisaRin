@@ -170,6 +170,27 @@ class AppLocalizationsJa extends AppLocalizations {
   String get ok => 'OK';
 
   @override
+  String get languageLabel => '言語';
+
+  @override
+  String get languageSystem => 'システム';
+
+  @override
+  String get languageEnglish => '英語';
+
+  @override
+  String get languageJapanese => '日本語';
+
+  @override
+  String get languageKorean => '韓国語';
+
+  @override
+  String get languageChineseSimplified => '中国語（簡体字）';
+
+  @override
+  String get languageChineseTraditional => '中国語（繁体字）';
+
+  @override
   String get themeModeLabel => 'テーマ';
 
   @override

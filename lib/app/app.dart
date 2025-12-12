@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:misa_rin/l10n/app_localizations.dart';
 
 import 'dialogs/misarin_dialog.dart';
+import 'l10n/locale_controller.dart';
 import 'l10n/l10n.dart';
 import 'menu/custom_menu_shell.dart';
 import 'menu/macos_menu_shell.dart';
@@ -34,12 +35,14 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   late ThemeMode _themeMode;
+  late Locale? _locale;
   bool _windowListenerAttached = false;
 
   @override
   void initState() {
     super.initState();
     _themeMode = AppPreferences.instance.themeMode;
+    _locale = AppPreferences.instance.localeOverride;
     _initWindowCloseHandler();
   }
 
@@ -50,6 +53,16 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     setState(() => _themeMode = mode);
     final AppPreferences prefs = AppPreferences.instance;
     prefs.themeMode = mode;
+    unawaited(AppPreferences.save());
+  }
+
+  void _handleLocaleChanged(Locale? locale) {
+    if (_locale == locale) {
+      return;
+    }
+    setState(() => _locale = locale);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.localeOverride = locale;
     unawaited(AppPreferences.save());
   }
 
@@ -139,10 +152,14 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
 	    return ThemeController(
 	      themeMode: _themeMode,
 	      onThemeModeChanged: _handleThemeModeChanged,
-	      child: FluentApp(
+	      child: LocaleController(
+	        locale: _locale,
+	        onLocaleChanged: _handleLocaleChanged,
+	        child: FluentApp(
         navigatorKey: _navigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'Misa Rin',
+        locale: _locale,
         localizationsDelegates: <LocalizationsDelegate<dynamic>>[
           ...AppLocalizations.localizationsDelegates,
           FluentLocalizations.delegate,
@@ -189,6 +206,7 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
         ),
         themeMode: _themeMode,
         home: const MisarinHomePage(),
+      ),
       ),
     );
   }

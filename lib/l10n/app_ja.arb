@@ -93,6 +93,13 @@
   "tabletTest": "ペンタブテスト",
   "restoreDefaults": "既定に戻す",
   "ok": "OK",
+  "languageLabel": "言語",
+  "languageSystem": "システム",
+  "languageEnglish": "英語",
+  "languageJapanese": "日本語",
+  "languageKorean": "韓国語",
+  "languageChineseSimplified": "中国語（簡体字）",
+  "languageChineseTraditional": "中国語（繁体字）",
   "themeModeLabel": "テーマ",
   "themeLight": "ライト",
   "themeDark": "ダーク",
@@ -234,4 +241,3 @@
   "menuBinarizeEllipsis": "二値化\u2026",
   "menuInvertColors": "色を反転"
 }
-

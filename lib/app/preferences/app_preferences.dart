@@ -21,6 +21,7 @@ class AppPreferences {
     required this.bucketContiguous,
     required this.historyLimit,
     required this.themeMode,
+    this.localeOverride,
     required this.penStrokeWidth,
     required this.simulatePenPressure,
     required this.penPressureProfile,
@@ -58,11 +59,12 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 29;
+  static const int _version = 30;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
   static const ThemeMode _defaultThemeMode = ThemeMode.system;
+  static const Locale? _defaultLocaleOverride = null;
   static const double _defaultPenStrokeWidth = 3.0;
   static const double _defaultSprayStrokeWidth = kDefaultSprayStrokeWidth;
   static const SprayMode _defaultSprayMode = SprayMode.smudge;
@@ -143,6 +145,7 @@ class AppPreferences {
   bool bucketContiguous;
   int historyLimit;
   ThemeMode themeMode;
+  Locale? localeOverride;
   double penStrokeWidth;
   bool simulatePenPressure;
   StrokePressureProfile penPressureProfile;
@@ -266,11 +269,16 @@ class AppPreferences {
                   version >= 29 && bytes.length >= 44
                   ? bytes[43] != 0
                   : _defaultShowDisableVectorDrawingConfirmDialog;
+              final Locale? decodedLocaleOverride =
+                  version >= 30 && bytes.length >= 45
+                  ? _decodeLocaleOverride(bytes[44])
+                  : _defaultLocaleOverride;
               _instance = AppPreferences._(
                 bucketSampleAllLayers: bytes[1] != 0,
                 bucketContiguous: bytes[2] != 0,
                 historyLimit: _clampHistoryLimit(rawHistory),
                 themeMode: _decodeThemeMode(bytes[5]),
+                localeOverride: decodedLocaleOverride,
                 penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
                 simulatePenPressure: bytes[8] != 0,
                 penPressureProfile: _decodePressureProfile(bytes[9]),
@@ -1136,6 +1144,9 @@ class AppPreferences {
       prefs.sai2LayerPanelWidthSplit,
     );
     final int primaryColorValue = prefs.primaryColor.value;
+    final int localeOverrideEncoded = _encodeLocaleOverride(
+      prefs.localeOverride,
+    );
 
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
@@ -1182,6 +1193,7 @@ class AppPreferences {
       (primaryColorValue >> 16) & 0xff,
       (primaryColorValue >> 24) & 0xff,
       prefs.showDisableVectorDrawingConfirmDialog ? 1 : 0,
+      localeOverrideEncoded,
     ]);
     await _writePreferencesPayload(payload);
   }
@@ -1256,6 +1268,38 @@ class AppPreferences {
       default:
         return 0;
     }
+  }
+
+  static Locale? _decodeLocaleOverride(int value) {
+    switch (value) {
+      case 1:
+        return const Locale('en');
+      case 2:
+        return const Locale('ja');
+      case 3:
+        return const Locale('ko');
+      case 4:
+        return const Locale('zh', 'CN');
+      case 5:
+        return const Locale('zh', 'TW');
+      case 0:
+      default:
+        return null; // Follow system.
+    }
+  }
+
+  static int _encodeLocaleOverride(Locale? locale) {
+    if (locale == null) {
+      return 0;
+    }
+    final String languageCode = locale.languageCode.toLowerCase();
+    final String? countryCode = locale.countryCode?.toUpperCase();
+    if (languageCode == 'en') return 1;
+    if (languageCode == 'ja') return 2;
+    if (languageCode == 'ko') return 3;
+    if (languageCode == 'zh' && countryCode == 'TW') return 5;
+    if (languageCode == 'zh') return 4; // Default to Simplified for zh.
+    return 0;
   }
 
   static SprayMode _decodeSprayMode(int value) {
@@ -1508,6 +1552,7 @@ class AppPreferences {
 
   static ThemeMode get defaultThemeMode => _defaultThemeMode;
   static int get defaultHistoryLimit => _defaultHistoryLimit;
+  static Locale? get defaultLocaleOverride => _defaultLocaleOverride;
 
   static Future<Uint8List?> _readPreferencesPayload() async {
     if (kIsWeb) {

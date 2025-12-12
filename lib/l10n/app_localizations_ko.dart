@@ -171,6 +171,27 @@ class AppLocalizationsKo extends AppLocalizations {
   String get ok => '확인';
 
   @override
+  String get languageLabel => '언어';
+
+  @override
+  String get languageSystem => '시스템';
+
+  @override
+  String get languageEnglish => '영어';
+
+  @override
+  String get languageJapanese => '일본어';
+
+  @override
+  String get languageKorean => '한국어';
+
+  @override
+  String get languageChineseSimplified => '중국어(간체)';
+
+  @override
+  String get languageChineseTraditional => '중국어(번체)';
+
+  @override
   String get themeModeLabel => '테마 모드';
 
   @override
