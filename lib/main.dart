@@ -4,10 +4,11 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_performance_pulse/flutter_performance_pulse.dart';
+import 'package:misa_rin/l10n/app_localizations.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
-import 'app/menu/macos_menu_shell.dart';
+import 'app/l10n/l10n.dart';
 import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
 
@@ -33,11 +34,6 @@ Future<void> main() async {
     showCustomMenu: showCustomMenu,
     showCustomMenuItems: showCustomMenuItems,
   );
-
-  if (!kIsWeb && Platform.isMacOS) {
-    runApp(MacosMenuShell(child: app));
-    return;
-  }
 
   runApp(app);
 }
@@ -111,6 +107,11 @@ class _MisarinWebLoadingApp extends StatelessWidget {
     return FluentApp(
       debugShowCheckedModeBanner: false,
       title: 'Misa Rin',
+      localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+        ...AppLocalizations.localizationsDelegates,
+        FluentLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       home: const _MisarinWebLoadingScreen(),
       theme: FluentThemeData(
         brightness: Brightness.dark,
@@ -126,6 +127,7 @@ class _MisarinWebLoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return Container(
       color: theme.micaBackgroundColor,
       padding: const EdgeInsets.all(24),
@@ -138,7 +140,7 @@ class _MisarinWebLoadingScreen extends StatelessWidget {
               const ProgressBar(),
               const SizedBox(height: 16),
               Text(
-                '正在初始化画板…',
+                l10n.webLoadingInitializingCanvas,
                 style: theme.typography.subtitle,
                 textAlign: TextAlign.center,
               ),
@@ -146,7 +148,7 @@ class _MisarinWebLoadingScreen extends StatelessWidget {
               Opacity(
                 opacity: 0.75,
                 child: Text(
-                  'Web 端加载需要一些时间，请稍候。',
+                  l10n.webLoadingMayTakeTime,
                   style: theme.typography.body,
                   textAlign: TextAlign.center,
                 ),

@@ -1,26 +1,27 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../l10n/l10n.dart';
 import 'misarin_dialog.dart';
 
 Future<void> showAboutMisarinDialog(BuildContext context) async {
   final theme = FluentTheme.of(context);
+  final l10n = context.l10n;
   final packageInfo = await PackageInfo.fromPlatform();
   return showMisarinDialog<void>(
     context: context,
-    title: const Text('关于 Misa Rin'),
+    title: Text(l10n.aboutTitle),
     content: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Misa Rin 是一款专注于创意绘制与项目管理的应用，'
-          '旨在为创作者提供流畅的绘图体验与可靠的项目存档能力。',
+          l10n.aboutDescription,
           style: theme.typography.body,
         ),
         const SizedBox(height: 12),
         InfoLabel(
-          label: '应用标识',
+          label: l10n.aboutAppIdLabel,
           child: SelectableText(
             'com.aimessoft.misarin',
             style: theme.typography.bodyStrong,
@@ -28,7 +29,7 @@ Future<void> showAboutMisarinDialog(BuildContext context) async {
         ),
         const SizedBox(height: 12),
         InfoLabel(
-          label: '应用版本',
+          label: l10n.aboutAppVersionLabel,
           child: SelectableText(
             packageInfo.version,
             style: theme.typography.bodyStrong,
@@ -36,7 +37,7 @@ Future<void> showAboutMisarinDialog(BuildContext context) async {
         ),
         const SizedBox(height: 12),
         InfoLabel(
-          label: '开发者',
+          label: l10n.aboutDeveloperLabel,
           child: SelectableText(
             'Aimes Soft',
             style: theme.typography.bodyStrong,
@@ -49,7 +50,7 @@ Future<void> showAboutMisarinDialog(BuildContext context) async {
     actions: [
       Button(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('关闭'),
+        child: Text(l10n.close),
       ),
     ],
   );

@@ -1,0 +1,237 @@
+{
+  "@@locale": "ja",
+
+  "webLoadingInitializingCanvas": "キャンバスを初期化しています\u2026",
+  "webLoadingMayTakeTime": "Web 版の読み込みには少し時間がかかります。しばらくお待ちください。",
+
+  "closeAppTitle": "アプリを終了",
+  "unsavedProjectsWarning": "{count, plural, =1{未保存のプロジェクトが 1 件あります。今終了すると、最新の変更が失われます。} other{未保存のプロジェクトが {count} 件あります。今終了すると、最新の変更が失われます。}}",
+  "@unsavedProjectsWarning": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cancel": "キャンセル",
+  "discardAndExit": "破棄して終了",
+
+  "homeTagline": "ここから制作を始めましょう",
+  "homeNewProject": "新規プロジェクト",
+  "homeNewProjectDesc": "空のキャンバスから新しいアイデアを始める",
+  "homeOpenProject": "プロジェクトを開く",
+  "homeOpenProjectDesc": "ディスクから .rin / .psd ファイルを読み込む",
+  "homeRecentProjects": "最近開いた",
+  "homeRecentProjectsDesc": "自動保存したプロジェクトをすばやく復元",
+  "homeProjectManager": "プロジェクト管理",
+  "homeProjectManagerDesc": "自動保存プロジェクトをまとめて表示／整理",
+  "homeSettings": "設定",
+  "homeSettingsDesc": "近日公開のカスタマイズ項目をプレビュー",
+  "homeAbout": "このアプリについて",
+  "homeAboutDesc": "Misa Rin について",
+
+  "createProjectFailed": "プロジェクトの作成に失敗しました: {error}",
+  "@createProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "openProjectDialogTitle": "プロジェクトを開く",
+  "openingProjectTitle": "プロジェクトを開いています\u2026",
+  "openingProjectMessage": "{fileName} を読み込み中",
+  "@openingProjectMessage": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "cannotReadPsdContent": "PSD ファイルの内容を読み取れません。",
+  "cannotReadProjectFileContent": "プロジェクトファイルの内容を読み取れません。",
+  "openedProjectInfo": "プロジェクトを開きました: {name}",
+  "@openedProjectInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "openProjectFailed": "プロジェクトを開けませんでした: {error}",
+  "@openProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+
+  "importImageDialogTitle": "画像をインポート",
+  "importedImageInfo": "画像をインポートしました: {name}",
+  "@importedImageInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "importImageFailed": "画像のインポートに失敗しました: {error}",
+  "@importImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clipboardNoBitmapFound": "クリップボードにインポートできるビットマップが見つかりません。",
+  "clipboardImageDefaultName": "クリップボード画像",
+  "importedClipboardImageInfo": "クリップボード画像をインポートしました",
+  "importClipboardImageFailed": "クリップボード画像のインポートに失敗しました: {error}",
+  "@importClipboardImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "webPreparingCanvasTitle": "キャンバスを準備しています\u2026",
+  "webPreparingCanvasMessage": "Web 版の初期化には少し時間がかかります。しばらくお待ちください。",
+
+  "aboutTitle": "Misa Rin について",
+  "aboutDescription": "Misa Rin は、創作とプロジェクト管理に特化したアプリです。スムーズな描画体験と信頼できるプロジェクト保存機能を提供します。",
+  "aboutAppIdLabel": "アプリ ID",
+  "aboutAppVersionLabel": "バージョン",
+  "aboutDeveloperLabel": "開発者",
+  "close": "閉じる",
+
+  "settingsTitle": "設定",
+  "tabletTest": "ペンタブテスト",
+  "restoreDefaults": "既定に戻す",
+  "ok": "OK",
+  "themeModeLabel": "テーマ",
+  "themeLight": "ライト",
+  "themeDark": "ダーク",
+  "themeSystem": "システム",
+  "stylusPressureSettingsLabel": "筆圧設定",
+  "enableStylusPressure": "筆圧を有効にする",
+  "responseCurveLabel": "応答曲線",
+  "responseCurveDesc": "圧力とストローク幅の変化の速さを調整します。",
+  "brushSizeSliderRangeLabel": "ブラシサイズ スライダー範囲",
+  "brushSizeSliderRangeDesc": "ツールパネルのブラシサイズスライダーに影響します。精度をすばやく切り替えるのに役立ちます。",
+  "penSliderRangeCompact": "1 - 60 px（粗め）",
+  "penSliderRangeMedium": "0.1 - 500 px（中）",
+  "penSliderRangeFull": "0.01 - 1000 px（全範囲）",
+  "historyLimitLabel": "取り消し/やり直しの上限",
+  "historyLimitCurrent": "現在の上限: {count} ステップ",
+  "@historyLimitCurrent": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "historyLimitDesc": "取り消し/やり直し履歴の保存数を調整します（{min}-{max}）。",
+  "@historyLimitDesc": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "developerOptionsLabel": "開発者オプション",
+  "performanceOverlayLabel": "パフォーマンス表示",
+  "performanceOverlayDesc": "画面隅に Flutter Performance Pulse ダッシュボードを表示し、FPS、CPU、メモリ、ディスクなどをリアルタイムで確認できます。",
+  "tabletInputTestTitle": "ペンタブ入力テスト",
+
+  "recentProjectsTitle": "最近開いた",
+  "recentProjectsLoadFailed": "最近のプロジェクトの読み込みに失敗しました: {error}",
+  "@recentProjectsLoadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "recentProjectsEmpty": "最近のプロジェクトはありません",
+  "openFileLocation": "ファイルの場所を開く",
+  "lastOpened": "最終オープン: {date}",
+  "@lastOpened": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "canvasSize": "キャンバスサイズ: {width} x {height}",
+  "@canvasSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+
+  "menuFile": "ファイル",
+  "menuEdit": "編集",
+  "menuImage": "画像",
+  "menuLayer": "レイヤー",
+  "menuSelection": "選択",
+  "menuFilter": "フィルター",
+  "menuTool": "ツール",
+  "menuView": "表示",
+  "menuWorkspace": "ワークスペース",
+  "menuWindow": "ウィンドウ",
+
+  "menuAbout": "Misa Rin について",
+  "menuPreferences": "環境設定\u2026",
+  "menuNewEllipsis": "新規\u2026",
+  "menuOpenEllipsis": "開く\u2026",
+  "menuImportImageEllipsis": "画像をインポート\u2026",
+  "menuImportImageFromClipboard": "クリップボードから画像をインポート",
+  "menuSave": "保存",
+  "menuSaveAsEllipsis": "別名で保存\u2026",
+  "menuExportEllipsis": "書き出し\u2026",
+  "menuCloseAll": "すべて閉じる",
+
+  "menuUndo": "取り消し",
+  "menuRedo": "やり直し",
+  "menuCut": "切り取り",
+  "menuCopy": "コピー",
+  "menuPaste": "貼り付け",
+
+  "menuImageTransform": "変形",
+  "menuRotate90CW": "90\u00b0 右回転",
+  "menuRotate90CCW": "90\u00b0 左回転",
+  "menuRotate180CW": "180\u00b0 右回転",
+  "menuRotate180CCW": "180\u00b0 左回転",
+  "menuImageSizeEllipsis": "画像サイズ\u2026",
+  "menuCanvasSizeEllipsis": "キャンバスサイズ\u2026",
+
+  "menuNewSubmenu": "新規",
+  "menuNewLayerEllipsis": "レイヤー\u2026",
+  "menuMergeDown": "下のレイヤーに結合",
+  "menuRasterize": "ラスタライズ",
+  "menuTransform": "変形",
+
+  "menuSelectAll": "すべて選択",
+  "menuInvertSelection": "選択範囲を反転",
+
+  "menuPalette": "パレット",
+  "menuGeneratePaletteFromCanvasEllipsis": "現在のキャンバスからパレットを生成\u2026",
+  "menuGenerateGradientPalette": "現在の色からグラデーションパレットを生成",
+  "menuImportPaletteEllipsis": "パレットをインポート\u2026",
+
+  "menuReferenceImage": "参照画像",
+  "menuCreateReferenceImage": "参照画像を作成",
+  "menuImportReferenceImageEllipsis": "参照画像をインポート\u2026",
+
+  "menuZoomIn": "拡大",
+  "menuZoomOut": "縮小",
+  "menuShowGrid": "グリッドを表示",
+  "menuHideGrid": "グリッドを非表示",
+  "menuBlackWhite": "白黒",
+  "menuDisableBlackWhite": "白黒を解除",
+  "menuMirrorPreview": "ミラープレビュー",
+  "menuDisableMirror": "ミラーを解除",
+  "menuShowPerspectiveGuide": "透視線を表示",
+  "menuHidePerspectiveGuide": "透視線を非表示",
+  "menuPerspectiveMode": "透視モード",
+  "menuPerspective1Point": "1 点透視",
+  "menuPerspective2Point": "2 点透視",
+  "menuPerspective3Point": "3 点透視",
+
+  "menuWorkspaceDefault": "デフォルト",
+  "menuWorkspaceSai2": "SAI2",
+  "menuSwitchWorkspace": "ワークスペースを切り替え",
+  "menuResetWorkspace": "ワークスペースをリセット",
+
+  "menuEdgeSofteningEllipsis": "エッジの柔化\u2026",
+  "menuNarrowLinesEllipsis": "線を細く\u2026",
+  "menuExpandFillEllipsis": "塗りの拡張\u2026",
+  "menuGaussianBlurEllipsis": "ガウスぼかし\u2026",
+  "menuRemoveColorLeakEllipsis": "色漏れを除去\u2026",
+  "menuHueSaturationEllipsis": "色相/彩度\u2026",
+  "menuBrightnessContrastEllipsis": "明るさ/コントラスト\u2026",
+  "menuColorRangeEllipsis": "色域\u2026",
+  "menuBlackWhiteEllipsis": "白黒\u2026",
+  "menuBinarizeEllipsis": "二値化\u2026",
+  "menuInvertColors": "色を反転"
+}
+

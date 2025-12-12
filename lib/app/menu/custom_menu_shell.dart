@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'custom_menu_bar.dart';
+import '../l10n/l10n.dart';
 import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
 
@@ -27,6 +28,7 @@ class CustomMenuShell extends StatelessWidget {
         }
         final List<MenuDefinition> menus = MenuDefinitionBuilder.build(
           dispatcher.current,
+          context.l10n,
         );
         return _MenuOverlay(
           menus: menus,

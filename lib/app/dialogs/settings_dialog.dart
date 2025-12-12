@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
 import '../utils/tablet_input_bridge.dart';
@@ -15,24 +16,25 @@ import 'misarin_dialog.dart';
 Future<void> showSettingsDialog(BuildContext context) {
   final GlobalKey<_SettingsDialogContentState> contentKey =
       GlobalKey<_SettingsDialogContentState>();
+  final l10n = context.l10n;
   return showMisarinDialog<void>(
     context: context,
-    title: const Text('设置'),
+    title: Text(l10n.settingsTitle),
     content: _SettingsDialogContent(key: contentKey),
     contentWidth: 420,
     maxWidth: 520,
     actions: [
       Button(
         onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
-        child: const Text('数位板测试'),
+        child: Text(l10n.tabletTest),
       ),
       Button(
         onPressed: () => contentKey.currentState?.resetToDefaults(),
-        child: const Text('恢复默认'),
+        child: Text(l10n.restoreDefaults),
       ),
       Button(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('好的'),
+        child: Text(l10n.ok),
       ),
     ],
   );
@@ -65,6 +67,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     final ThemeController controller = ThemeController.of(context);
     final ThemeMode themeMode = controller.themeMode;
     final int minHistory = AppPreferences.minHistoryLimit;
@@ -75,14 +78,14 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InfoLabel(
-          label: '主题模式',
+          label: l10n.themeModeLabel,
           child: ComboBox<ThemeMode>(
             isExpanded: true,
             value: themeMode,
-            items: const [
-              ComboBoxItem(value: ThemeMode.light, child: Text('浅色')),
-              ComboBoxItem(value: ThemeMode.dark, child: Text('深色')),
-              ComboBoxItem(value: ThemeMode.system, child: Text('跟随系统')),
+            items: [
+              ComboBoxItem(value: ThemeMode.light, child: Text(l10n.themeLight)),
+              ComboBoxItem(value: ThemeMode.dark, child: Text(l10n.themeDark)),
+              ComboBoxItem(value: ThemeMode.system, child: Text(l10n.themeSystem)),
             ],
             onChanged: (mode) {
               if (mode == null) {
@@ -99,13 +102,13 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
         const SizedBox(height: 16),
         InfoLabel(
-          label: '数位笔压设置',
+          label: l10n.stylusPressureSettingsLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Text('启用数位笔笔压'),
+                  Text(l10n.enableStylusPressure),
                   const SizedBox(width: 12),
                   ToggleSwitch(
                     checked: _stylusPressureEnabled,
@@ -120,8 +123,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               ),
               const SizedBox(height: 12),
               _StylusSliderTile(
-                label: '响应曲线',
-                description: '调整压力与笔触粗细之间的过渡速度。',
+                label: l10n.responseCurveLabel,
+                description: l10n.responseCurveDesc,
                 value: _stylusCurve,
                 min: AppPreferences.stylusCurveLowerBound,
                 max: AppPreferences.stylusCurveUpperBound,
@@ -139,7 +142,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
         const SizedBox(height: 16),
         InfoLabel(
-          label: '笔刷大小滑块区间',
+          label: l10n.brushSizeSliderRangeLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -163,7 +166,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               ),
               const SizedBox(height: 8),
               Text(
-                '影响工具面板内的笔刷大小滑块，有助于在不同精度间快速切换。',
+                l10n.brushSizeSliderRangeDesc,
                 style: theme.typography.caption,
               ),
             ],
@@ -171,7 +174,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
         const SizedBox(height: 16),
         InfoLabel(
-          label: '撤销/恢复步数上限',
+          label: l10n.historyLimitLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -194,9 +197,12 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                   unawaited(AppPreferences.save());
                 },
               ),
-              Text('当前上限：$_historyLimit 步', style: theme.typography.caption),
               Text(
-                '调整撤销/恢复历史的保存数量，范围 $minHistory-$maxHistory。',
+                l10n.historyLimitCurrent(_historyLimit),
+                style: theme.typography.caption,
+              ),
+              Text(
+                l10n.historyLimitDesc(minHistory, maxHistory),
                 style: theme.typography.caption,
               ),
             ],
@@ -205,13 +211,13 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         if (!kIsWeb) ...[
           const SizedBox(height: 16),
           InfoLabel(
-            label: '开发者选项',
+            label: l10n.developerOptionsLabel,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Expanded(child: Text('性能监控面板')),
+                    Expanded(child: Text(l10n.performanceOverlayLabel)),
                     ToggleSwitch(
                       checked: _fpsOverlayEnabled,
                       onChanged: (value) {
@@ -225,7 +231,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。',
+                  l10n.performanceOverlayDesc,
                   style: theme.typography.caption,
                 ),
               ],
@@ -260,13 +266,14 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   }
 
   String _sliderRangeLabel(PenStrokeSliderRange range) {
+    final l10n = context.l10n;
     switch (range) {
       case PenStrokeSliderRange.compact:
-        return '1 - 60 px（粗调）';
+        return l10n.penSliderRangeCompact;
       case PenStrokeSliderRange.medium:
-        return '0.1 - 500 px（中档）';
+        return l10n.penSliderRangeMedium;
       case PenStrokeSliderRange.full:
-        return '0.01 - 1000 px（全范围）';
+        return l10n.penSliderRangeFull;
     }
   }
 
@@ -299,16 +306,17 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
 }
 
 Future<void> _showTabletInspectDialog(BuildContext context) async {
+  final l10n = context.l10n;
   return showMisarinDialog<void>(
     context: context,
-    title: const Text('数位板输入测试'),
+    title: Text(l10n.tabletInputTestTitle),
     contentWidth: 720,
     maxWidth: 820,
     content: const _TabletInspectPane(),
     actions: [
       Button(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('关闭'),
+        child: Text(l10n.close),
       ),
     ],
   );

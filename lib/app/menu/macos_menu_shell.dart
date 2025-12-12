@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
 import 'macos_menu_builder.dart';
 import 'menu_action_dispatcher.dart';
 
@@ -15,7 +16,7 @@ class MacosMenuShell extends StatelessWidget {
       animation: dispatcher,
       builder: (context, menuChild) {
         return PlatformMenuBar(
-          menus: MacosMenuBuilder.build(dispatcher.current),
+          menus: MacosMenuBuilder.build(dispatcher.current, context.l10n),
           child: menuChild!,
         );
       },

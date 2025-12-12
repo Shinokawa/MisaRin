@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../dialogs/project_manager_dialog.dart';
 import '../dialogs/recent_projects_dialog.dart';
+import '../l10n/l10n.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../menu/menu_action_dispatcher.dart';
@@ -54,7 +55,11 @@ class _MisarinHomePageState extends State<MisarinHomePage> {
       if (!context.mounted) {
         return;
       }
-      _showInfoBar(context, '打开项目失败：$error', severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context,
+        context.l10n.openProjectFailed(error),
+        severity: InfoBarSeverity.error,
+      );
     }
   }
 
@@ -141,6 +146,7 @@ class _MisarinHomePageState extends State<MisarinHomePage> {
 
   Widget _buildSidebar(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 36),
       child: Container(
@@ -168,48 +174,48 @@ class _MisarinHomePageState extends State<MisarinHomePage> {
               children: [
                 Text('Misa Rin', style: theme.typography.titleLarge),
                 const SizedBox(height: 4),
-                Text('创作从这里开始', style: theme.typography.body),
+                Text(l10n.homeTagline, style: theme.typography.body),
                 const SizedBox(height: 24),
                 _buildSidebarAction(
                   context,
                   icon: FluentIcons.add,
-                  label: '新建项目',
-                  description: '从空白画布开启新的创意',
+                  label: l10n.homeNewProject,
+                  description: l10n.homeNewProjectDesc,
                   onPressed: () => _handleCreateProject(context),
                 ),
                 _buildSidebarAction(
                   context,
                   icon: FluentIcons.open_file,
-                  label: '打开项目',
-                  description: '从磁盘加载 .rin / .psd 文件',
+                  label: l10n.homeOpenProject,
+                  description: l10n.homeOpenProjectDesc,
                   onPressed: () => _handleOpenProject(context),
                 ),
                 _buildSidebarAction(
                   context,
                   icon: FluentIcons.clock,
-                  label: '最近打开',
-                  description: '快速恢复自动保存的项目',
+                  label: l10n.homeRecentProjects,
+                  description: l10n.homeRecentProjectsDesc,
                   onPressed: () => _handleOpenRecent(context),
                 ),
                 _buildSidebarAction(
                   context,
                   icon: FluentIcons.folder,
-                  label: '项目管理',
-                  description: '批量查看或清理自动保存的项目文件',
+                  label: l10n.homeProjectManager,
+                  description: l10n.homeProjectManagerDesc,
                   onPressed: () => _handleManageProjects(context),
                 ),
                 _buildSidebarAction(
                   context,
                   icon: FluentIcons.settings,
-                  label: '设置',
-                  description: '预览即将上线的个性化选项',
+                  label: l10n.homeSettings,
+                  description: l10n.homeSettingsDesc,
                   onPressed: () => _handleOpenSettings(context),
                 ),
                 _buildSidebarAction(
                   context,
                   icon: FluentIcons.info,
-                  label: '关于',
-                  description: '了解项目 Misa Rin',
+                  label: l10n.homeAbout,
+                  description: l10n.homeAboutDesc,
                   onPressed: () => _handleOpenAbout(context),
                 ),
               ],

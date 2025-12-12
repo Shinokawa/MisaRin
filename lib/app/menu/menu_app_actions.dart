@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
+import '../l10n/l10n.dart';
 import '../preferences/app_preferences.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
@@ -36,7 +37,11 @@ class AppMenuActions {
       if (!context.mounted) {
         return;
       }
-      _showInfoBar(context, '创建项目失败：$error', severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context,
+        context.l10n.createProjectFailed(error),
+        severity: InfoBarSeverity.error,
+      );
     }
   }
 
@@ -108,8 +113,9 @@ class AppMenuActions {
   }
 
   static Future<void> openProjectFromDisk(BuildContext context) async {
+    final l10n = context.l10n;
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
-      dialogTitle: '打开项目',
+      dialogTitle: l10n.openProjectDialogTitle,
       type: FileType.custom,
       allowedExtensions: const ['rin', 'psd'],
       withData: kIsWeb,
@@ -127,8 +133,8 @@ class AppMenuActions {
       final ProjectDocument document =
           await _runWithWebProgress<ProjectDocument>(
             context,
-            title: '正在打开项目…',
-            message: '正在加载 ${file.name}',
+            title: l10n.openingProjectTitle,
+            message: l10n.openingProjectMessage(file.name),
             action: () async {
               final String extension = file.name.toLowerCase();
               if (extension.endsWith('.psd')) {
@@ -140,7 +146,7 @@ class AppMenuActions {
                     fileName: file.name,
                   );
                 }
-                throw Exception('无法读取 PSD 文件内容。');
+                throw Exception(l10n.cannotReadPsdContent);
               }
               if (path != null && !kIsWeb) {
                 return ProjectRepository.instance.loadDocument(path);
@@ -148,7 +154,7 @@ class AppMenuActions {
               if (bytes != null) {
                 return ProjectRepository.instance.loadDocumentFromBytes(bytes);
               }
-              throw Exception('无法读取项目文件内容。');
+              throw Exception(l10n.cannotReadProjectFileContent);
             },
           );
       if (!context.mounted) {
@@ -160,14 +166,18 @@ class AppMenuActions {
       }
       _showInfoBar(
         context,
-        '已打开项目：${document.name}',
+        l10n.openedProjectInfo(document.name),
         severity: InfoBarSeverity.success,
       );
     } catch (error) {
       if (!context.mounted) {
         return;
       }
-      _showInfoBar(context, '打开项目失败：$error', severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context,
+        l10n.openProjectFailed(error),
+        severity: InfoBarSeverity.error,
+      );
     }
   }
 
@@ -180,8 +190,9 @@ class AppMenuActions {
   }
 
   static Future<void> importImage(BuildContext context) async {
+    final l10n = context.l10n;
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
-      dialogTitle: '导入图片',
+      dialogTitle: l10n.importImageDialogTitle,
       type: FileType.custom,
       allowedExtensions: const ['png', 'jpg', 'jpeg', 'bmp', 'gif'],
     );
@@ -202,18 +213,23 @@ class AppMenuActions {
       }
       _showInfoBar(
         context,
-        '已导入图片：${file.name}',
+        l10n.importedImageInfo(file.name),
         severity: InfoBarSeverity.success,
       );
     } catch (error) {
       if (!context.mounted) {
         return;
       }
-      _showInfoBar(context, '导入图片失败：$error', severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context,
+        l10n.importImageFailed(error),
+        severity: InfoBarSeverity.error,
+      );
     }
   }
 
   static Future<void> importImageFromClipboard(BuildContext context) async {
+    final l10n = context.l10n;
     final ClipboardImageData? payload = await ClipboardImageReader.readImage();
     if (payload == null) {
       if (!context.mounted) {
@@ -221,7 +237,7 @@ class AppMenuActions {
       }
       _showInfoBar(
         context,
-        '剪贴板中没有找到可以导入的位图。',
+        l10n.clipboardNoBitmapFound,
         severity: InfoBarSeverity.warning,
       );
       return;
@@ -230,7 +246,7 @@ class AppMenuActions {
       final ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromImageBytes(
             payload.bytes,
-            name: payload.fileName ?? '剪贴板图像',
+            name: payload.fileName ?? l10n.clipboardImageDefaultName,
           );
       if (!context.mounted) {
         return;
@@ -239,14 +255,18 @@ class AppMenuActions {
       if (!context.mounted) {
         return;
       }
-      _showInfoBar(context, '已导入剪贴板图像', severity: InfoBarSeverity.success);
+      _showInfoBar(
+        context,
+        l10n.importedClipboardImageInfo,
+        severity: InfoBarSeverity.success,
+      );
     } catch (error) {
       if (!context.mounted) {
         return;
       }
       _showInfoBar(
         context,
-        '导入剪贴板图像失败：$error',
+        l10n.importClipboardImageFailed(error),
         severity: InfoBarSeverity.error,
       );
     }
@@ -345,10 +365,11 @@ class AppMenuActions {
     if (overlay == null) {
       return null;
     }
+    final l10n = context.l10n;
     final OverlayEntry entry = OverlayEntry(
-      builder: (context) => const _WebProgressOverlay(
-        title: '正在准备画布…',
-        message: 'Web 端需要一些时间才能完成初始化，请稍候。',
+      builder: (context) => _WebProgressOverlay(
+        title: l10n.webPreparingCanvasTitle,
+        message: l10n.webPreparingCanvasMessage,
       ),
     );
     overlay.insert(entry);

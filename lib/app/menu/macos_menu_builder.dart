@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:misa_rin/l10n/app_localizations.dart';
 
 import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
@@ -8,9 +9,13 @@ import 'menu_definitions.dart';
 class MacosMenuBuilder {
   const MacosMenuBuilder._();
 
-  static List<PlatformMenu> build(MenuActionHandler handler) {
+  static List<PlatformMenu> build(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuDefinition> definitions = MenuDefinitionBuilder.build(
       handler,
+      l10n,
     );
     return definitions
         .map(_buildPlatformMenu)

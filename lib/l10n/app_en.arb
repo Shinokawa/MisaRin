@@ -1,0 +1,236 @@
+{
+  "@@locale": "en",
+
+  "webLoadingInitializingCanvas": "Initializing canvas\u2026",
+  "webLoadingMayTakeTime": "Loading on web may take a moment. Please wait.",
+
+  "closeAppTitle": "Quit App",
+  "unsavedProjectsWarning": "{count, plural, =1{Detected 1 unsaved project. If you quit now, your recent changes will be lost.} other{Detected {count} unsaved projects. If you quit now, your recent changes will be lost.}}",
+  "@unsavedProjectsWarning": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cancel": "Cancel",
+  "discardAndExit": "Discard and Quit",
+
+  "homeTagline": "Start creating here",
+  "homeNewProject": "New Project",
+  "homeNewProjectDesc": "Start a new idea from a blank canvas",
+  "homeOpenProject": "Open Project",
+  "homeOpenProjectDesc": "Load a .rin / .psd file from disk",
+  "homeRecentProjects": "Recent",
+  "homeRecentProjectsDesc": "Quickly restore autosaved projects",
+  "homeProjectManager": "Project Manager",
+  "homeProjectManagerDesc": "View or clean up autosaved project files in bulk",
+  "homeSettings": "Settings",
+  "homeSettingsDesc": "Preview personalization options coming soon",
+  "homeAbout": "About",
+  "homeAboutDesc": "Learn more about Misa Rin",
+
+  "createProjectFailed": "Failed to create project: {error}",
+  "@createProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "openProjectDialogTitle": "Open Project",
+  "openingProjectTitle": "Opening project\u2026",
+  "openingProjectMessage": "Loading {fileName}",
+  "@openingProjectMessage": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "cannotReadPsdContent": "Unable to read PSD file contents.",
+  "cannotReadProjectFileContent": "Unable to read project file contents.",
+  "openedProjectInfo": "Opened project: {name}",
+  "@openedProjectInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "openProjectFailed": "Failed to open project: {error}",
+  "@openProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+
+  "importImageDialogTitle": "Import Image",
+  "importedImageInfo": "Imported image: {name}",
+  "@importedImageInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "importImageFailed": "Failed to import image: {error}",
+  "@importImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clipboardNoBitmapFound": "No bitmap found in clipboard to import.",
+  "clipboardImageDefaultName": "Clipboard Image",
+  "importedClipboardImageInfo": "Imported clipboard image",
+  "importClipboardImageFailed": "Failed to import clipboard image: {error}",
+  "@importClipboardImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "webPreparingCanvasTitle": "Preparing canvas\u2026",
+  "webPreparingCanvasMessage": "Initializing on web may take a moment. Please wait.",
+
+  "aboutTitle": "About Misa Rin",
+  "aboutDescription": "Misa Rin is an app focused on creative drawing and project management, designed to provide creators with a smooth painting experience and reliable project archiving.",
+  "aboutAppIdLabel": "App ID",
+  "aboutAppVersionLabel": "Version",
+  "aboutDeveloperLabel": "Developer",
+  "close": "Close",
+
+  "settingsTitle": "Settings",
+  "tabletTest": "Tablet Test",
+  "restoreDefaults": "Restore Defaults",
+  "ok": "OK",
+  "themeModeLabel": "Theme Mode",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "themeSystem": "System",
+  "stylusPressureSettingsLabel": "Stylus Pressure",
+  "enableStylusPressure": "Enable stylus pressure",
+  "responseCurveLabel": "Response curve",
+  "responseCurveDesc": "Adjust how pressure transitions into stroke width.",
+  "brushSizeSliderRangeLabel": "Brush size slider range",
+  "brushSizeSliderRangeDesc": "Affects the brush size slider in the tool panel, helping you switch precision quickly.",
+  "penSliderRangeCompact": "1 - 60 px (coarse)",
+  "penSliderRangeMedium": "0.1 - 500 px (medium)",
+  "penSliderRangeFull": "0.01 - 1000 px (full)",
+  "historyLimitLabel": "Undo/Redo limit",
+  "historyLimitCurrent": "Current limit: {count} steps",
+  "@historyLimitCurrent": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "historyLimitDesc": "Adjust how many undo/redo steps are kept. Range {min}-{max}.",
+  "@historyLimitDesc": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "developerOptionsLabel": "Developer Options",
+  "performanceOverlayLabel": "Performance overlay",
+  "performanceOverlayDesc": "Shows a Flutter Performance Pulse dashboard in the corner with FPS, CPU, memory, disk, etc.",
+  "tabletInputTestTitle": "Tablet Input Test",
+
+  "recentProjectsTitle": "Recent",
+  "recentProjectsLoadFailed": "Failed to load recent projects: {error}",
+  "@recentProjectsLoadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "recentProjectsEmpty": "No recent projects",
+  "openFileLocation": "Reveal in File Manager",
+  "lastOpened": "Last opened: {date}",
+  "@lastOpened": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "canvasSize": "Canvas size: {width} x {height}",
+  "@canvasSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+
+  "menuFile": "File",
+  "menuEdit": "Edit",
+  "menuImage": "Image",
+  "menuLayer": "Layer",
+  "menuSelection": "Select",
+  "menuFilter": "Filter",
+  "menuTool": "Tools",
+  "menuView": "View",
+  "menuWorkspace": "Workspace",
+  "menuWindow": "Window",
+
+  "menuAbout": "About Misa Rin",
+  "menuPreferences": "Preferences\u2026",
+  "menuNewEllipsis": "New\u2026",
+  "menuOpenEllipsis": "Open\u2026",
+  "menuImportImageEllipsis": "Import Image\u2026",
+  "menuImportImageFromClipboard": "Import Image from Clipboard",
+  "menuSave": "Save",
+  "menuSaveAsEllipsis": "Save As\u2026",
+  "menuExportEllipsis": "Export\u2026",
+  "menuCloseAll": "Close All",
+
+  "menuUndo": "Undo",
+  "menuRedo": "Redo",
+  "menuCut": "Cut",
+  "menuCopy": "Copy",
+  "menuPaste": "Paste",
+
+  "menuImageTransform": "Transform",
+  "menuRotate90CW": "Rotate 90\u00b0 CW",
+  "menuRotate90CCW": "Rotate 90\u00b0 CCW",
+  "menuRotate180CW": "Rotate 180\u00b0 CW",
+  "menuRotate180CCW": "Rotate 180\u00b0 CCW",
+  "menuImageSizeEllipsis": "Image Size\u2026",
+  "menuCanvasSizeEllipsis": "Canvas Size\u2026",
+
+  "menuNewSubmenu": "New",
+  "menuNewLayerEllipsis": "Layer\u2026",
+  "menuMergeDown": "Merge Down",
+  "menuRasterize": "Rasterize",
+  "menuTransform": "Transform",
+
+  "menuSelectAll": "Select All",
+  "menuInvertSelection": "Invert Selection",
+
+  "menuPalette": "Palette",
+  "menuGeneratePaletteFromCanvasEllipsis": "Generate palette from current canvas\u2026",
+  "menuGenerateGradientPalette": "Generate gradient palette from current colors",
+  "menuImportPaletteEllipsis": "Import palette\u2026",
+
+  "menuReferenceImage": "Reference Images",
+  "menuCreateReferenceImage": "Create Reference Image",
+  "menuImportReferenceImageEllipsis": "Import Reference Image\u2026",
+
+  "menuZoomIn": "Zoom In",
+  "menuZoomOut": "Zoom Out",
+  "menuShowGrid": "Show Grid",
+  "menuHideGrid": "Hide Grid",
+  "menuBlackWhite": "Black & White",
+  "menuDisableBlackWhite": "Disable Black & White",
+  "menuMirrorPreview": "Mirror Preview",
+  "menuDisableMirror": "Disable Mirror",
+  "menuShowPerspectiveGuide": "Show Perspective Guide",
+  "menuHidePerspectiveGuide": "Hide Perspective Guide",
+  "menuPerspectiveMode": "Perspective Mode",
+  "menuPerspective1Point": "1-Point",
+  "menuPerspective2Point": "2-Point",
+  "menuPerspective3Point": "3-Point",
+
+  "menuWorkspaceDefault": "Default",
+  "menuWorkspaceSai2": "SAI2",
+  "menuSwitchWorkspace": "Switch Workspace",
+  "menuResetWorkspace": "Reset Workspace",
+
+  "menuEdgeSofteningEllipsis": "Edge Softening\u2026",
+  "menuNarrowLinesEllipsis": "Narrow Lines\u2026",
+  "menuExpandFillEllipsis": "Expand Fill\u2026",
+  "menuGaussianBlurEllipsis": "Gaussian Blur\u2026",
+  "menuRemoveColorLeakEllipsis": "Remove Color Leak\u2026",
+  "menuHueSaturationEllipsis": "Hue/Saturation\u2026",
+  "menuBrightnessContrastEllipsis": "Brightness/Contrast\u2026",
+  "menuColorRangeEllipsis": "Color Range\u2026",
+  "menuBlackWhiteEllipsis": "Black & White\u2026",
+  "menuBinarizeEllipsis": "Binarize\u2026",
+  "menuInvertColors": "Invert Colors"
+}
