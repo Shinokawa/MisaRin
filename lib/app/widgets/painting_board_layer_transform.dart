@@ -849,8 +849,13 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         boardLocal != null &&
         handle != null &&
         handle != _LayerTransformHandle.translate;
-    final Offset? nextPosition =
-        shouldShow ? _toWorkspace(boardLocal!) : null;
+    final Offset? nextPosition = shouldShow
+        ? _boardRect.topLeft +
+              Offset(
+                boardLocal!.dx * _viewport.scale,
+                boardLocal.dy * _viewport.scale,
+              )
+        : null;
     final _LayerTransformHandle? nextHandle = shouldShow ? handle : null;
     if (_layerTransformCursorHandle == nextHandle &&
         _offsetEquals(_layerTransformCursorWorkspacePosition, nextPosition)) {

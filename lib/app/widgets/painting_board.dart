@@ -355,9 +355,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Future<BoardLayoutMetrics>? _pendingLayoutTask;
 
   final CanvasViewport _viewport = CanvasViewport();
-  Matrix4 _canvasToWorkspaceTransform = Matrix4.identity();
-  Matrix4 _workspaceToCanvasTransform = Matrix4.identity();
-  Rect _boardRectCache = Rect.zero;
   bool _viewportInitialized = false;
   Size _workspaceSize = Size.zero;
   Offset _layoutBaseOffset = Offset.zero;
@@ -456,93 +453,12 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   Size get _canvasSize => widget.settings.size;
 
-  Size _rotatedCanvasSize({
-    double? scale,
-    double? rotation,
-  }) {
-    final double effectiveScale = scale ?? _viewport.scale;
-    final double width = _canvasSize.width * effectiveScale;
-    final double height = _canvasSize.height * effectiveScale;
-    final double theta = (rotation ?? _viewport.rotation).abs();
-    if (theta == 0) {
-      return Size(width, height);
-    }
-    final double sinTheta = math.sin(theta);
-    final double cosTheta = math.cos(theta);
-    final double rotatedWidth = (width * cosTheta) + (height * sinTheta);
-    final double rotatedHeight = (width * sinTheta) + (height * cosTheta);
-    return Size(rotatedWidth, rotatedHeight);
-  }
-
-  Offset get _canvasCenter =>
-      Offset(_canvasSize.width / 2, _canvasSize.height / 2);
+  Size get _scaledBoardSize => Size(
+    _canvasSize.width * _viewport.scale,
+    _canvasSize.height * _viewport.scale,
+  );
 
   Color get _pixelGridColor => const ui.Color.fromARGB(255, 133, 133, 133);
-
-  Matrix4 _buildViewTransform({
-    double? scale,
-    double? rotation,
-    Offset? baseOffset,
-    Offset? panOffset,
-  }) {
-    final double effectiveScale = scale ?? _viewport.scale;
-    final double effectiveRotation = rotation ?? _viewport.rotation;
-    final Offset base = (baseOffset ?? _layoutBaseOffset) +
-        (panOffset ?? _viewport.offset);
-    final double scaledWidth = _canvasSize.width * effectiveScale;
-    final double scaledHeight = _canvasSize.height * effectiveScale;
-    final Offset scaledCenter = Offset(scaledWidth / 2, scaledHeight / 2);
-    return Matrix4.identity()
-      ..translate(base.dx + scaledCenter.dx, base.dy + scaledCenter.dy)
-      ..rotateZ(effectiveRotation)
-      ..translate(-scaledCenter.dx, -scaledCenter.dy)
-      ..scale(effectiveScale);
-  }
-
-  void _updateViewTransforms() {
-    final Matrix4 transform = _buildViewTransform();
-    _canvasToWorkspaceTransform = transform;
-    final Matrix4 inverse = Matrix4.copy(transform);
-    final double det = inverse.invert();
-    _workspaceToCanvasTransform =
-        det == 0 ? Matrix4.identity() : inverse;
-    _boardRectCache = MatrixUtils.transformRect(
-      _canvasToWorkspaceTransform,
-      Offset.zero & _canvasSize,
-    );
-  }
-
-  Matrix4 get _canvasTransformInBoardSpace {
-    final Matrix4 transform = Matrix4.copy(_canvasToWorkspaceTransform);
-    transform.translate(-_boardRectCache.left, -_boardRectCache.top);
-    return transform;
-  }
-
-  Widget _wrapWithCanvasTransform({
-    required Widget child,
-    bool ignorePointer = true,
-  }) {
-    final Rect boardRect = _boardRectCache;
-    final Matrix4 transform = _canvasTransformInBoardSpace;
-    Widget content = SizedBox(
-      width: _canvasSize.width,
-      height: _canvasSize.height,
-      child: child,
-    );
-    content = Transform(
-      alignment: Alignment.topLeft,
-      transform: transform,
-      child: content,
-    );
-    if (ignorePointer) {
-      content = IgnorePointer(ignoring: true, child: content);
-    }
-    return Positioned(
-      left: boardRect.left,
-      top: boardRect.top,
-      child: content,
-    );
-  }
 
   bool _isWithinCanvasBounds(Offset position) {
     final Size size = _canvasSize;
@@ -768,10 +684,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     }
   }
 
-  Offset _baseOffsetForScale(
-    double scale, {
-    double? rotation,
-  }) {
+  Offset _baseOffsetForScale(double scale) {
     final Size workspace = _workspaceSize;
     if (workspace.width <= 0 ||
         workspace.height <= 0 ||
@@ -780,12 +693,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       return Offset.zero;
     }
 
-    final Size rotatedSize = _rotatedCanvasSize(
-      scale: scale,
-      rotation: rotation ?? _viewport.rotation,
-    );
-    final double scaledWidth = rotatedSize.width;
-    final double scaledHeight = rotatedSize.height;
+    final double scaledWidth = _canvasSize.width * scale;
+    final double scaledHeight = _canvasSize.height * scale;
 
     final double rawLeft = (workspace.width - scaledWidth) / 2;
     final double rawTop = (workspace.height - scaledHeight) / 2;
@@ -983,27 +892,15 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     );
   }
 
-  Rect get _boardRect => _boardRectCache;
+  Rect get _boardRect {
+    final Offset position = _layoutBaseOffset + _viewport.offset;
+    final Size size = _scaledBoardSize;
+    return Rect.fromLTWH(position.dx, position.dy, size.width, size.height);
+  }
 
   Offset _toBoardLocal(Offset workspacePosition) {
-    return MatrixUtils.transformPoint(
-      _workspaceToCanvasTransform,
-      workspacePosition,
-    );
-  }
-
-  Offset _toWorkspace(Offset boardLocal) {
-    return MatrixUtils.transformPoint(
-      _canvasToWorkspaceTransform,
-      boardLocal,
-    );
-  }
-
-  Rect _toWorkspaceRect(Rect boardRect) {
-    return MatrixUtils.transformRect(
-      _canvasToWorkspaceTransform,
-      boardRect,
-    );
+    final Rect boardRect = _boardRect;
+    return (workspacePosition - boardRect.topLeft) / _viewport.scale;
   }
 
   Offset? _boardCursorPosition() {
@@ -1011,11 +908,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
     if (workspacePointer == null) {
       return null;
     }
-    final Offset boardLocal = _toBoardLocal(workspacePointer);
-    if (!_isWithinCanvasBounds(boardLocal)) {
+    final Rect boardRect = _boardRect;
+    if (!boardRect.contains(workspacePointer)) {
       return null;
     }
-    return boardLocal;
+    return _toBoardLocal(workspacePointer);
   }
 
   CanvasViewInfo _buildViewInfo() {
@@ -1029,7 +926,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       perspectiveMode: _perspectiveMode,
       perspectiveEnabled: _perspectiveEnabled,
       perspectiveVisible: _perspectiveVisible,
-      rotation: _viewport.rotation,
     );
   }
 
@@ -1898,11 +1794,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
     _viewport.setScale(targetScale);
     _viewport.setOffset(Offset.zero);
-    _layoutBaseOffset = _baseOffsetForScale(
-      targetScale,
-      rotation: _viewport.rotation,
-    );
-    _updateViewTransforms();
     _viewportInitialized = true;
     _notifyViewInfoChanged();
   }
@@ -1913,7 +1804,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool get isPerspectiveGuideEnabled => _perspectiveEnabled;
   bool get isPerspectiveGuideVisible => _perspectiveVisible;
   PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
-  double get _viewRotationDegrees => _viewport.rotation * 180 / math.pi;
 
   bool get isBoardReady => _controller.frame != null;
 
@@ -1958,39 +1848,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   void setPerspectiveGuideMode(PerspectiveGuideMode mode) {
     setPerspectiveMode(mode);
-  }
-
-  void _setViewRotationDegrees(double value) {
-    final double clampedDegrees = value.clamp(-180.0, 180.0);
-    final double radians = clampedDegrees * math.pi / 180.0;
-    if ((_viewport.rotation - radians).abs() < 0.0001) {
-      return;
-    }
-    final Offset canvasCenterWorkspace = _toWorkspace(_canvasCenter);
-    final Offset newBase = _baseOffsetForScale(
-      _viewport.scale,
-      rotation: radians,
-    );
-    final Matrix4 transform = _buildViewTransform(
-      scale: _viewport.scale,
-      rotation: radians,
-      baseOffset: newBase,
-      panOffset: Offset.zero,
-    );
-    final Offset projectedCenter =
-        MatrixUtils.transformPoint(transform, _canvasCenter);
-    final Offset newOffset = canvasCenterWorkspace - projectedCenter;
-    setState(() {
-      _viewport.setRotation(radians);
-      _layoutBaseOffset = newBase;
-      _viewport.setOffset(newOffset);
-      _updateViewTransforms();
-    });
-    _notifyViewInfoChanged();
-  }
-
-  void _resetViewRotation() {
-    _setViewRotationDegrees(0.0);
   }
 }
 

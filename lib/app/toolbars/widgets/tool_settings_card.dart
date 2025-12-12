@@ -88,9 +88,6 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onTextStrokeWidthChanged,
     required this.textStrokeColor,
     required this.onTextStrokeColorPressed,
-    required this.viewRotationDegrees,
-    required this.onViewRotationChanged,
-    required this.onResetViewRotation,
     this.compactLayout = false,
   });
 
@@ -167,9 +164,6 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<double> onTextStrokeWidthChanged;
   final Color textStrokeColor;
   final VoidCallback onTextStrokeColorPressed;
-  final double viewRotationDegrees;
-  final ValueChanged<double> onViewRotationChanged;
-  final VoidCallback onResetViewRotation;
 
   @override
   State<ToolSettingsCard> createState() => _ToolSettingsCardState();
@@ -324,9 +318,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         break;
       case CanvasTool.text:
         content = _buildTextControls(theme);
-        break;
-      case CanvasTool.viewRotate:
-        content = _buildViewRotationControls(theme);
         break;
       default:
         content = Text('该工具暂无可调节参数', style: theme.typography.body);
@@ -869,31 +860,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         '文字填充颜色使用左下角取色器，描边颜色使用当前辅助色。',
         style: theme.typography.caption,
       ),
-    );
-  }
-
-  Widget _buildViewRotationControls(FluentThemeData theme) {
-    return _buildControlsGroup(
-      [
-        _buildLabeledSlider(
-          theme: theme,
-          label: '视角旋转',
-          value: widget.viewRotationDegrees,
-          min: -180,
-          max: 180,
-          onChanged: widget.onViewRotationChanged,
-          formatter: (value) => '${value.toStringAsFixed(1)}°',
-        ),
-        Button(
-          onPressed: widget.viewRotationDegrees.abs() < 0.01
-              ? null
-              : widget.onResetViewRotation,
-          child: const Text('重置为 0°'),
-        ),
-      ],
-      spacing: 12,
-      runSpacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
     );
   }
 

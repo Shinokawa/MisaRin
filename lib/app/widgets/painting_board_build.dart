@@ -122,10 +122,6 @@ mixin _PaintingBoardBuildMixin
               ToolbarAction.handTool,
             ).shortcuts)
               key: const SelectToolIntent(CanvasTool.hand),
-            for (final key in ToolbarShortcuts.of(
-              ToolbarAction.viewRotateTool,
-            ).shortcuts)
-              key: const SelectToolIntent(CanvasTool.viewRotate),
             for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
               key: const ExitBoardIntent(),
             for (final key in ToolbarShortcuts.of(
@@ -176,11 +172,7 @@ mixin _PaintingBoardBuildMixin
         }
         _scheduleWorkspaceMeasurement(context);
         _initializeViewportIfNeeded();
-        _layoutBaseOffset = _baseOffsetForScale(
-          _viewport.scale,
-          rotation: _viewport.rotation,
-        );
-        _updateViewTransforms();
+        _layoutBaseOffset = _baseOffsetForScale(_viewport.scale);
         _notifyViewInfoChanged();
         final BoardLayoutMetrics? layoutMetrics = _layoutMetrics;
         final CanvasToolbarLayout toolbarLayout =
@@ -201,6 +193,7 @@ mixin _PaintingBoardBuildMixin
                   sidebarLeft - toolSettingsLeft - _toolSettingsSpacing;
               return computed.isFinite && computed > 0 ? computed : null;
             })();
+        final Rect boardRect = _boardRect;
         final ToolCursorStyle? cursorStyle = ToolCursorStyles.styleFor(
           _effectiveActiveTool,
         );
@@ -413,9 +406,6 @@ mixin _PaintingBoardBuildMixin
           onTextStrokeWidthChanged: _updateTextStrokeWidth,
           textStrokeColor: _colorLineColor,
           onTextStrokeColorPressed: _handleEditTextStrokeColor,
-          viewRotationDegrees: _viewRotationDegrees,
-          onViewRotationChanged: _setViewRotationDegrees,
-          onResetViewRotation: _resetViewRotation,
         );
         final ToolbarPanelData colorPanelData = ToolbarPanelData(
           title: '取色',
@@ -646,82 +636,92 @@ mixin _PaintingBoardBuildMixin
                       color: workspaceColor,
                       child: Stack(
                         children: [
-                          _wrapWithCanvasTransform(
-                            ignorePointer: false,
+                          Positioned(
+                            left: boardRect.left,
+                            top: boardRect.top,
                             child: MouseRegion(
                               cursor: boardCursor,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: isDark
-                                        ? Color.lerp(
-                                            Colors.white,
-                                            Colors.transparent,
-                                            0.88,
-                                          )!
-                                        : const Color(0x33000000),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: ClipRect(
-                                  child: RepaintBoundary(
-                                    child: AnimatedBuilder(
-                                      animation: _controller,
-                                      builder: (context, _) {
-                                        final BitmapCanvasFrame? frame =
-                                            _controller.frame;
-                                        if (frame == null) {
-                                          return ColoredBox(
-                                            color: _controller.backgroundColor,
-                                          );
-                                        }
-                                        final bool isTransforming =
-                                            _controller
-                                                .isActiveLayerTransforming;
-                                        final ui.Image?
+                              child: Transform.scale(
+                                scale: _viewport.scale,
+                                alignment: Alignment.topLeft,
+                                child: SizedBox(
+                                  width: _canvasSize.width,
+                                  height: _canvasSize.height,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: isDark
+                                            ? Color.lerp(
+                                                Colors.white,
+                                                Colors.transparent,
+                                                0.88,
+                                              )!
+                                            : const Color(0x33000000),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: ClipRect(
+                                      child: RepaintBoundary(
+                                        child: AnimatedBuilder(
+                                          animation: _controller,
+                                          builder: (context, _) {
+                                            final BitmapCanvasFrame? frame =
+                                                _controller.frame;
+                                            if (frame == null) {
+                                              return ColoredBox(
+                                                color:
+                                                    _controller.backgroundColor,
+                                              );
+                                            }
+                                            final bool isTransforming =
+                                                _controller
+                                                    .isActiveLayerTransforming;
+                                            final ui.Image?
                                             transformedActiveLayerImage =
-                                            _controller
-                                                .activeLayerTransformImage;
-                                        final Offset
+                                                _controller
+                                                    .activeLayerTransformImage;
+                                            final Offset
                                             transformedLayerOffset = _controller
                                                 .activeLayerTransformOffset;
-                                        final double
+                                            final double
                                             transformedLayerOpacity = _controller
                                                 .activeLayerTransformOpacity;
-                                        final ui.BlendMode?
+                                            final ui.BlendMode?
                                             transformedLayerBlendMode =
-                                            _flutterBlendMode(
-                                              _controller
-                                                  .activeLayerTransformBlendMode,
-                                            );
-                                        final bool hasSelectionOverlay =
-                                            selectionPath != null ||
+                                                _flutterBlendMode(
+                                                  _controller
+                                                      .activeLayerTransformBlendMode,
+                                                );
+                                            final bool hasSelectionOverlay =
+                                                selectionPath != null ||
                                                 selectionPreviewPath != null ||
                                                 magicWandPreviewPath != null;
-                                        final Widget? transformImageOverlay =
-                                            _isLayerFreeTransformActive
+                                            final Widget?
+                                            transformImageOverlay =
+                                                _isLayerFreeTransformActive
                                                 ? buildLayerTransformImageOverlay()
                                                 : null;
-                                        final Widget? transformHandlesOverlay =
-                                            _isLayerFreeTransformActive
+                                            final Widget?
+                                            transformHandlesOverlay =
+                                                _isLayerFreeTransformActive
                                                 ? buildLayerTransformHandlesOverlay(
                                                     theme,
                                                   )
                                                 : null;
 
-                                        // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
-                                        final bool canPreviewStroke =
-                                            _effectiveActiveTool ==
+                                            // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
+                                            final bool canPreviewStroke =
+                                                _effectiveActiveTool ==
                                                     CanvasTool.pen ||
                                                 _effectiveActiveTool ==
                                                     CanvasTool.eraser;
-                                        final bool hasActiveStroke =
-                                            canPreviewStroke &&
+                                            final bool hasActiveStroke =
+                                                canPreviewStroke &&
                                                 _controller
                                                     .activeStrokePoints
                                                     .isNotEmpty;
-                                        final bool showActiveStroke =
-                                            _vectorDrawingEnabled &&
+                                            final bool showActiveStroke =
+                                                _vectorDrawingEnabled &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&
@@ -729,176 +729,189 @@ mixin _PaintingBoardBuildMixin
                                                     _controller
                                                         .committingStrokes
                                                         .isNotEmpty);
-                                        final bool activeStrokeIsEraser =
-                                            _controller.activeStrokeEraseMode;
-                                        final Path? pendingFillOverlayPath =
-                                            shapeVectorFillOverlayPath;
-                                        final Color? pendingFillOverlayColor =
-                                            shapeVectorFillOverlayColor;
+                                            final bool activeStrokeIsEraser =
+                                                _controller
+                                                    .activeStrokeEraseMode;
+                                            final Path? pendingFillOverlayPath =
+                                                shapeVectorFillOverlayPath;
+                                            final Color?
+                                            pendingFillOverlayColor =
+                                                shapeVectorFillOverlayColor;
 
-                                        Widget content = Stack(
-                                          fit: StackFit.expand,
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            const _CheckboardBackground(),
-                                            if (_filterSession != null &&
-                                                _previewActiveLayerImage !=
-                                                    null)
-                                              _buildFilterPreviewStack()
-                                            else if (_layerOpacityPreviewActive &&
-                                                _layerOpacityPreviewActiveLayerImage !=
-                                                    null)
-                                              _buildLayerOpacityPreviewStack()
-                                            else
-                                              BitmapCanvasSurface(
-                                                frame: frame,
-                                              ),
-                                            if (_pixelGridVisible)
-                                              Positioned.fill(
-                                                child: IgnorePointer(
-                                                  ignoring: true,
-                                                  child: CustomPaint(
-                                                    painter:
-                                                        _PixelGridPainter(
-                                                      pixelWidth:
-                                                          _controller.width,
-                                                      pixelHeight:
-                                                          _controller.height,
-                                                      color: _pixelGridColor,
-                                                      scale: _viewport.scale,
+                                            Widget content = Stack(
+                                              fit: StackFit.expand,
+                                              clipBehavior: Clip.none,
+                                              children: [
+                                                const _CheckboardBackground(),
+                                                if (_filterSession != null &&
+                                                    _previewActiveLayerImage !=
+                                                        null)
+                                                  _buildFilterPreviewStack()
+                                                else if (_layerOpacityPreviewActive &&
+                                                    _layerOpacityPreviewActiveLayerImage !=
+                                                        null)
+                                                  _buildLayerOpacityPreviewStack()
+                                                else
+                                                  BitmapCanvasSurface(
+                                                    frame: frame,
+                                                  ),
+                                                if (_pixelGridVisible)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter:
+                                                            _PixelGridPainter(
+                                                              pixelWidth:
+                                                                  _controller
+                                                                      .width,
+                                                              pixelHeight:
+                                                                  _controller
+                                                                      .height,
+                                                              color:
+                                                              _pixelGridColor,
+                                                              scale: _viewport
+                                                                  .scale,
+                                                            ),
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              ),
-                                            if (showActiveStroke)
-                                              Positioned.fill(
-                                                child: CustomPaint(
-                                                  painter: _ActiveStrokeOverlayPainter(
-                                                    points: _controller
-                                                        .activeStrokePoints,
-                                                    radii: _controller
-                                                        .activeStrokeRadii,
-                                                    color: _controller
-                                                        .activeStrokeColor,
-                                                    shape: _controller
-                                                        .activeStrokeShape,
-                                                    committingStrokes:
-                                                        _controller
-                                                            .committingStrokes,
-                                                    activeStrokeIsEraser:
-                                                        activeStrokeIsEraser,
-                                                    eraserPreviewColor:
-                                                        _kVectorEraserPreviewColor,
+                                                if (showActiveStroke)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter: _ActiveStrokeOverlayPainter(
+                                                        points: _controller
+                                                            .activeStrokePoints,
+                                                        radii: _controller
+                                                            .activeStrokeRadii,
+                                                        color: _controller
+                                                            .activeStrokeColor,
+                                                        shape: _controller
+                                                            .activeStrokeShape,
+                                                        committingStrokes:
+                                                            _controller
+                                                                .committingStrokes,
+                                                        activeStrokeIsEraser:
+                                                            activeStrokeIsEraser,
+                                                        eraserPreviewColor:
+                                                            _kVectorEraserPreviewColor,
+                                                      ),
+                                                    ),
                                                   ),
-                                                ),
-                                              ),
-                                            if (transformImageOverlay != null)
-                                              transformImageOverlay
-                                            else if (!_isLayerFreeTransformActive &&
-                                                isTransforming &&
-                                                transformedActiveLayerImage !=
+                                                if (transformImageOverlay !=
                                                     null)
-                                              Positioned.fill(
-                                                child: IgnorePointer(
-                                                  ignoring: true,
-                                                  child: Transform.translate(
-                                                    offset:
-                                                        transformedLayerOffset,
-                                                    child: _buildTransformedLayerOverlay(
-                                                      image:
-                                                          transformedActiveLayerImage,
-                                                      opacity:
-                                                          transformedLayerOpacity,
-                                                      blendMode:
-                                                          transformedLayerBlendMode,
+                                                  transformImageOverlay
+                                                else if (!_isLayerFreeTransformActive &&
+                                                    isTransforming &&
+                                                    transformedActiveLayerImage !=
+                                                        null)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: Transform.translate(
+                                                        offset:
+                                                            transformedLayerOffset,
+                                                        child: _buildTransformedLayerOverlay(
+                                                          image:
+                                                              transformedActiveLayerImage,
+                                                          opacity:
+                                                              transformedLayerOpacity,
+                                                          blendMode:
+                                                              transformedLayerBlendMode,
+                                                        ),
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              ),
-                                            if (transformHandlesOverlay != null)
-                                              transformHandlesOverlay,
-                                            if (_vectorDrawingEnabled &&
-                                                _curvePreviewPath != null)
-                                              Positioned.fill(
-                                                child: CustomPaint(
-                                                  painter: _PreviewPathPainter(
-                                                    path: _curvePreviewPath!,
-                                                    color: _primaryColor,
-                                                    strokeWidth:
-                                                        _penStrokeWidth,
-                                                  ),
-                                                ),
-                                              ),
-                                            if (_vectorDrawingEnabled &&
-                                                shapePreviewPath != null)
-                                              Positioned.fill(
-                                                child: CustomPaint(
-                                                  painter: _PreviewPathPainter(
-                                                    path: shapePreviewPath!,
-                                                    color: _primaryColor,
-                                                    strokeWidth:
-                                                        _penStrokeWidth,
-                                                    fill: _shapeFillEnabled &&
-                                                        shapeToolVariant !=
-                                                            ShapeToolVariant
-                                                                .line,
-                                                  ),
-                                                ),
-                                              ),
-                                            if (_vectorDrawingEnabled &&
-                                                pendingFillOverlayPath != null &&
-                                                pendingFillOverlayColor != null)
-                                              Positioned.fill(
-                                                child: IgnorePointer(
-                                                  ignoring: true,
-                                                  child: CustomPaint(
-                                                    painter:
-                                                        _ShapeFillOverlayPainter(
-                                                      path:
-                                                          pendingFillOverlayPath,
-                                                      color:
-                                                          pendingFillOverlayColor,
+                                                if (transformHandlesOverlay !=
+                                                    null)
+                                                  transformHandlesOverlay,
+                                                if (_vectorDrawingEnabled &&
+                                                    _curvePreviewPath != null)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter: _PreviewPathPainter(
+                                                        path:
+                                                            _curvePreviewPath!,
+                                                        color: _primaryColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              ),
-                                            if (hasSelectionOverlay)
-                                              Positioned.fill(
-                                                child: CustomPaint(
-                                                  painter:
-                                                      _SelectionOverlayPainter(
-                                                    selectionPath:
-                                                        selectionPath,
-                                                    selectionPreviewPath:
-                                                        selectionPreviewPath,
-                                                    magicPreviewPath:
-                                                        magicWandPreviewPath,
-                                                    dashPhase:
-                                                        selectionDashPhase,
-                                                    viewportScale:
-                                                        _viewport.scale,
+                                                if (_vectorDrawingEnabled &&
+                                                    shapePreviewPath != null)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter: _PreviewPathPainter(
+                                                        path: shapePreviewPath!,
+                                                        color: _primaryColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                        fill:
+                                                            _shapeFillEnabled &&
+                                                            shapeToolVariant !=
+                                                                ShapeToolVariant
+                                                                    .line,
+                                                      ),
+                                                    ),
                                                   ),
-                                                ),
-                                              ),
-                                          ],
-                                        );
-                                        if (_viewMirrorOverlay) {
-                                          content = Transform(
-                                            transform: _kViewMirrorTransform,
-                                            alignment: Alignment.center,
-                                            transformHitTests: false,
-                                            child: content,
-                                          );
-                                        }
-                                        if (_viewBlackWhiteOverlay) {
-                                          content = ColorFiltered(
-                                            colorFilter:
-                                                _kViewBlackWhiteColorFilter,
-                                            child: content,
-                                          );
-                                        }
-                                        return content;
-                                      },
+                                                if (_vectorDrawingEnabled &&
+                                                    pendingFillOverlayPath !=
+                                                        null &&
+                                                    pendingFillOverlayColor !=
+                                                        null)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter: _ShapeFillOverlayPainter(
+                                                          path:
+                                                              pendingFillOverlayPath,
+                                                          color:
+                                                              pendingFillOverlayColor,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (hasSelectionOverlay)
+                                                  Positioned.fill(
+                                                    child: CustomPaint(
+                                                      painter: _SelectionOverlayPainter(
+                                                        selectionPath:
+                                                            selectionPath,
+                                                        selectionPreviewPath:
+                                                            selectionPreviewPath,
+                                                        magicPreviewPath:
+                                                            magicWandPreviewPath,
+                                                        dashPhase:
+                                                            selectionDashPhase,
+                                                        viewportScale:
+                                                            _viewport.scale,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            );
+                                            if (_viewMirrorOverlay) {
+                                              content = Transform(
+                                                transform:
+                                                    _kViewMirrorTransform,
+                                                alignment: Alignment.center,
+                                                transformHitTests: false,
+                                                child: content,
+                                              );
+                                            }
+                                            if (_viewBlackWhiteOverlay) {
+                                              content = ColorFiltered(
+                                                colorFilter:
+                                                    _kViewBlackWhiteColorFilter,
+                                                child: content,
+                                              );
+                                            }
+                                            return content;
+                                          },
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -906,66 +919,88 @@ mixin _PaintingBoardBuildMixin
                             ),
                           ),
                           if (_perspectivePenAnchor != null)
-                            _wrapWithCanvasTransform(
-                              child: Builder(
-                                builder: (context) {
-                                  Widget overlay = CustomPaint(
-                                    size: _canvasSize,
-                                    painter: _PerspectivePenPreviewPainter(
-                                      anchor: _perspectivePenAnchor!,
-                                      target: _perspectivePenPreviewTarget ??
-                                          _perspectivePenAnchor!,
-                                      snapped: _perspectivePenSnappedTarget ??
-                                          _perspectivePenPreviewTarget ??
-                                          _perspectivePenAnchor!,
-                                      isValid: _perspectivePenPreviewValid,
-                                      viewportScale: _viewport.scale,
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: Transform.translate(
+                                  offset: _boardRect.topLeft,
+                                  child: Transform.scale(
+                                    scale: _viewport.scale,
+                                    alignment: Alignment.topLeft,
+                                    child: Builder(
+                                      builder: (context) {
+                                        Widget overlay = CustomPaint(
+                                          size: _canvasSize,
+                                          painter: _PerspectivePenPreviewPainter(
+                                            anchor: _perspectivePenAnchor!,
+                                            target: _perspectivePenPreviewTarget ??
+                                                _perspectivePenAnchor!,
+                                            snapped: _perspectivePenSnappedTarget ??
+                                                _perspectivePenPreviewTarget ??
+                                                _perspectivePenAnchor!,
+                                            isValid: _perspectivePenPreviewValid,
+                                            viewportScale: _viewport.scale,
+                                          ),
+                                        );
+                                        if (_viewMirrorOverlay) {
+                                          overlay = Transform(
+                                            transform: _kViewMirrorTransform,
+                                            alignment: Alignment.center,
+                                            transformHitTests: false,
+                                            child: overlay,
+                                          );
+                                        }
+                                        return overlay;
+                                      },
                                     ),
-                                  );
-                                  if (_viewMirrorOverlay) {
-                                    overlay = Transform(
-                                      transform: _kViewMirrorTransform,
-                                      alignment: Alignment.center,
-                                      transformHitTests: false,
-                                      child: overlay,
-                                    );
-                                  }
-                                  return overlay;
-                                },
+                                  ),
+                                ),
                               ),
                             ),
                           if (_perspectiveVisible &&
                               _perspectiveMode != PerspectiveGuideMode.off)
-                            _wrapWithCanvasTransform(
-                              child: Builder(
-                                builder: (context) {
-                                  Widget overlay = CustomPaint(
-                                    size: _canvasSize,
-                                    painter: _PerspectiveGuidePainter(
-                                      canvasSize: _canvasSize,
-                                      vp1: _perspectiveVp1,
-                                      vp2: _perspectiveVp2,
-                                      vp3: _perspectiveVp3,
-                                      mode: _perspectiveMode,
-                                      activeHandle: _activePerspectiveHandle,
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: Transform.translate(
+                                  offset: _boardRect.topLeft,
+                                  child: Transform.scale(
+                                    scale: _viewport.scale,
+                                    alignment: Alignment.topLeft,
+                                    child: Builder(
+                                      builder: (context) {
+                                        Widget overlay = CustomPaint(
+                                          size: _canvasSize,
+                                          painter: _PerspectiveGuidePainter(
+                                            canvasSize: _canvasSize,
+                                            vp1: _perspectiveVp1,
+                                            vp2: _perspectiveVp2,
+                                            vp3: _perspectiveVp3,
+                                            mode: _perspectiveMode,
+                                            activeHandle:
+                                                _activePerspectiveHandle,
+                                          ),
+                                        );
+                                        if (_viewMirrorOverlay) {
+                                          overlay = Transform(
+                                            transform: _kViewMirrorTransform,
+                                            alignment: Alignment.center,
+                                            transformHitTests: false,
+                                            child: overlay,
+                                          );
+                                        }
+                                        if (_viewBlackWhiteOverlay) {
+                                          overlay = ColorFiltered(
+                                            colorFilter:
+                                                _kViewBlackWhiteColorFilter,
+                                            child: overlay,
+                                          );
+                                        }
+                                        return overlay;
+                                      },
                                     ),
-                                  );
-                                  if (_viewMirrorOverlay) {
-                                    overlay = Transform(
-                                      transform: _kViewMirrorTransform,
-                                      alignment: Alignment.center,
-                                      transformHitTests: false,
-                                      child: overlay,
-                                    );
-                                  }
-                                  if (_viewBlackWhiteOverlay) {
-                                    overlay = ColorFiltered(
-                                      colorFilter: _kViewBlackWhiteColorFilter,
-                                      child: overlay,
-                                    );
-                                  }
-                                  return overlay;
-                                },
+                                  ),
+                                ),
                               ),
                             ),
                           if (textHoverOverlay != null) textHoverOverlay,

@@ -108,10 +108,6 @@ mixin _PaintingBoardInteractionMixin
         boardLocal.dy < _canvasSize.height;
   }
 
-  bool _isWorkspacePointInsideCanvas(Offset workspacePosition) {
-    return _isWithinCanvas(_toBoardLocal(workspacePosition));
-  }
-
   void _setActiveTool(CanvasTool tool) {
     final bool shouldCommitText =
         tool != CanvasTool.text && _isTextEditingActive;
@@ -169,7 +165,7 @@ mixin _PaintingBoardInteractionMixin
       _activeTool = tool;
       if (_cursorRequiresOverlay) {
         final Offset? pointer = _lastWorkspacePointer;
-        if (pointer != null && _isWorkspacePointInsideCanvas(pointer)) {
+        if (pointer != null && _boardRect.contains(pointer)) {
           _toolCursorPosition = pointer;
         } else {
           _toolCursorPosition = null;
@@ -177,7 +173,7 @@ mixin _PaintingBoardInteractionMixin
       } else if (_penRequiresOverlay) {
         _toolCursorPosition = null;
         final Offset? pointer = _lastWorkspacePointer;
-        if (pointer != null && _isWorkspacePointInsideCanvas(pointer)) {
+        if (pointer != null && _boardRect.contains(pointer)) {
           _penCursorWorkspacePosition = pointer;
         } else {
           _penCursorWorkspacePosition = null;
@@ -998,7 +994,6 @@ mixin _PaintingBoardInteractionMixin
     }
     setState(() {
       _viewport.translate(delta);
-      _updateViewTransforms();
     });
     _notifyViewInfoChanged();
   }
@@ -1102,7 +1097,8 @@ mixin _PaintingBoardInteractionMixin
       }
       return;
     }
-    if (!_isWorkspacePointInsideCanvas(workspacePosition)) {
+    final Rect boardRect = _boardRect;
+    if (!boardRect.contains(workspacePosition)) {
       if (_toolCursorPosition != null || _penCursorWorkspacePosition != null) {
         setState(() {
           _toolCursorPosition = null;
@@ -1653,6 +1649,7 @@ void _clearToolCursorOverlay() {
       return;
     }
     final CanvasTool tool = _effectiveActiveTool;
+    final Rect boardRect = _boardRect;
     final Offset boardLocal = _toBoardLocal(pointer);
     final Set<LogicalKeyboardKey> pressedKeys =
         HardwareKeyboard.instance.logicalKeysPressed;
@@ -1669,7 +1666,7 @@ void _clearToolCursorOverlay() {
     )) {
       return;
     }
-    final bool pointerInsideBoard = _isWorkspacePointInsideCanvas(pointer);
+    final bool pointerInsideBoard = boardRect.contains(pointer);
     final bool toolCanStartOutsideCanvas =
         tool == CanvasTool.curvePen ||
         tool == CanvasTool.selection ||
@@ -1792,8 +1789,6 @@ void _clearToolCursorOverlay() {
       case CanvasTool.hand:
         _beginDragBoard();
         break;
-      case CanvasTool.viewRotate:
-        break;
     }
   }
 
@@ -1871,8 +1866,6 @@ void _clearToolCursorOverlay() {
         break;
       case CanvasTool.text:
         break;
-      case CanvasTool.viewRotate:
-        break;
     }
   }
 
@@ -1937,8 +1930,6 @@ void _clearToolCursorOverlay() {
         break;
       case CanvasTool.perspectivePen:
         break;
-      case CanvasTool.viewRotate:
-        break;
     }
   }
 
@@ -1993,8 +1984,6 @@ void _clearToolCursorOverlay() {
       case CanvasTool.perspectivePen:
         _clearPerspectivePenPreview();
         break;
-      case CanvasTool.viewRotate:
-        break;
     }
   }
 
@@ -2024,7 +2013,8 @@ void _clearToolCursorOverlay() {
         _clearTextHoverHighlight();
         return;
       }
-      if (!_isWorkspacePointInsideCanvas(event.localPosition)) {
+      final Rect boardRect = _boardRect;
+      if (!boardRect.contains(event.localPosition)) {
         _clearTextHoverHighlight();
         return;
       }
@@ -2063,7 +2053,7 @@ void _clearToolCursorOverlay() {
         final Offset? pointer = _lastWorkspacePointer;
         setState(() {
           _eyedropperOverrideActive = true;
-          if (pointer != null && _isWorkspacePointInsideCanvas(pointer)) {
+          if (pointer != null && _boardRect.contains(pointer)) {
             _toolCursorPosition = pointer;
           }
           _penCursorWorkspacePosition = null;
@@ -2081,7 +2071,7 @@ void _clearToolCursorOverlay() {
           _penCursorWorkspacePosition = null;
         });
         final Offset? pointer = _lastWorkspacePointer;
-        if (pointer != null && _isWorkspacePointInsideCanvas(pointer)) {
+        if (pointer != null && _boardRect.contains(pointer)) {
           _updateToolCursorOverlay(pointer);
         }
         return KeyEventResult.handled;
@@ -2111,7 +2101,7 @@ void _clearToolCursorOverlay() {
       }
       setState(() => _spacePanOverrideActive = false);
       final Offset? pointer = _lastWorkspacePointer;
-      if (pointer != null && _isWorkspacePointInsideCanvas(pointer)) {
+      if (pointer != null && _boardRect.contains(pointer)) {
         _updateToolCursorOverlay(pointer);
       }
       return KeyEventResult.handled;
@@ -2123,31 +2113,23 @@ void _clearToolCursorOverlay() {
     if (_workspaceSize.isEmpty) {
       return;
     }
+    final double currentScale = _viewport.scale;
     final double clamped = _viewport.clampScale(targetScale);
-    if ((clamped - _viewport.scale).abs() < 0.0005) {
+    if ((clamped - currentScale).abs() < 0.0005) {
       return;
     }
-    final Offset boardLocal = _toBoardLocal(workspaceFocalPoint);
-    final double rotation = _viewport.rotation;
-    final Offset newBase = _baseOffsetForScale(
-      clamped,
-      rotation: rotation,
-    );
-    final Matrix4 transform = _buildViewTransform(
-      scale: clamped,
-      rotation: rotation,
-      baseOffset: newBase,
-      panOffset: Offset.zero,
-    );
-    final Offset projected =
-        MatrixUtils.transformPoint(transform, boardLocal);
-    final Offset newOffset = workspaceFocalPoint - projected;
+    final Offset currentBase = _baseOffsetForScale(currentScale);
+    final Offset currentOrigin = currentBase + _viewport.offset;
+    final Offset boardLocal =
+        (workspaceFocalPoint - currentOrigin) / currentScale;
+
+    final Offset newBase = _baseOffsetForScale(clamped);
+    final Offset newOrigin = workspaceFocalPoint - boardLocal * clamped;
+    final Offset newOffset = newOrigin - newBase;
 
     setState(() {
       _viewport.setScale(clamped);
       _viewport.setOffset(newOffset);
-      _layoutBaseOffset = newBase;
-      _updateViewTransforms();
     });
     _notifyViewInfoChanged();
   }
@@ -2270,7 +2252,7 @@ void _clearToolCursorOverlay() {
       }
       _workspaceSize = box.size;
     }
-    final Offset focalPoint = _toWorkspace(_canvasCenter);
+    final Offset focalPoint = _boardRect.center;
     _applyZoom(_viewport.scale * factor, focalPoint);
     return true;
   }

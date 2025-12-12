@@ -123,6 +123,16 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       final Rect bounds = session.bounds!;
 
+      final double scale = _viewport.scale;
+
+      final Offset workspacePosition = Offset(
+
+        _boardRect.left + bounds.left * scale,
+
+        _boardRect.top + bounds.top * scale,
+
+      );
+
       final CanvasTextData data = session.data!;
 
       const bool showPreviewPainter = true; 
@@ -154,7 +164,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
           bounds: bounds,
 
-          scale: 1.0,
+          scale: scale,
 
           controller: _textEditingController,
 
@@ -240,23 +250,26 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
 
       );
 
-      return _wrapWithCanvasTransform(
-        ignorePointer: false,
-        child: Stack(
+      return Positioned(
+
+        left: workspacePosition.dx,
+
+        top: workspacePosition.dy,
+
+        child: Row(
+
+          crossAxisAlignment: CrossAxisAlignment.start,
+
           children: [
-            Positioned(
-              left: bounds.left,
-              top: bounds.top,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  editor,
-                  confirmButton,
-                ],
-              ),
-            ),
+
+            editor,
+
+            confirmButton,
+
           ],
+
         ),
+
       );
 
     }
@@ -265,30 +278,40 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     if (_isTextEditingActive) {
       return null;
     }
-    final Rect? hoverRect = _hoverTextBounds;
+    final Rect? hoverRect = _textHoverWorkspaceRect();
     if (hoverRect == null) {
       return null;
     }
     final Color overlayColor = _textOverlayContrastColor();
-    return _wrapWithCanvasTransform(
-      child: Stack(
-        children: [
-          Positioned(
-            left: hoverRect.left,
-            top: hoverRect.top,
-            child: IgnorePointer(
-              ignoring: true,
-              child: Container(
-                width: hoverRect.width,
-                height: hoverRect.height,
-                decoration: BoxDecoration(
-                  border: Border.all(color: overlayColor),
-                ),
-              ),
-            ),
+    return Positioned(
+      left: hoverRect.left,
+      top: hoverRect.top,
+      child: IgnorePointer(
+        ignoring: true,
+        child: Container(
+          width: hoverRect.width,
+          height: hoverRect.height,
+          decoration: BoxDecoration(
+            border: Border.all(color: overlayColor),
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Rect? _textHoverWorkspaceRect() {
+    final Rect? bounds = _hoverTextBounds;
+    if (bounds == null) {
+      return null;
+    }
+    final double scale = _viewport.scale;
+    final double width = math.max(bounds.width * scale, 1.0);
+    final double height = math.max(bounds.height * scale, 1.0);
+    return Rect.fromLTWH(
+      _boardRect.left + bounds.left * scale,
+      _boardRect.top + bounds.top * scale,
+      width,
+      height,
     );
   }
 
@@ -543,6 +566,35 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     }
 
   
+
+    Rect? _textOverlayWorkspaceRect() {
+
+      final _TextEditingSession? session = _textSession;
+
+      if (session == null || session.bounds == null) {
+
+        return null;
+
+      }
+
+      final Rect bounds = session.bounds!;
+
+      final double scale = _viewport.scale;
+
+      return Rect.fromLTWH(
+
+        _boardRect.left + bounds.left * scale,
+
+        _boardRect.top + bounds.top * scale,
+
+        bounds.width * scale,
+
+        bounds.height * scale,
+
+      );
+
+    }
+
   
 
     void _beginEditExistingTextLayer(BitmapLayerState layer) {
@@ -844,7 +896,6 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       case CanvasTool.hand:
       case CanvasTool.eyedropper:
       case CanvasTool.layerAdjust:
-      case CanvasTool.viewRotate:
         return false;
       case CanvasTool.pen:
       case CanvasTool.eraser:

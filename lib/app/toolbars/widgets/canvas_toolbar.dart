@@ -15,7 +15,6 @@ import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
 import 'layer_adjust_tool_button.dart';
 import 'curve_pen_tool_button.dart';
-import 'view_rotate_tool_button.dart';
 import 'eyedropper_tool_button.dart';
 import 'shape_tool_button.dart';
 import 'spray_tool_button.dart';
@@ -48,7 +47,7 @@ class CanvasToolbar extends StatelessWidget {
   final CanvasToolbarLayout layout;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 14;
+  static const int buttonCount = 13;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;
   static const double spacing = 9;
@@ -128,7 +127,6 @@ class CanvasToolbar extends StatelessWidget {
     ToolbarAction.selectionTool: '创建矩形或椭圆选区以移动、复制或裁剪内容',
     ToolbarAction.textTool: '在画布上插入文本并调整字体样式',
     ToolbarAction.handTool: '拖拽画布以平移视图，便于查看不同区域',
-    ToolbarAction.viewRotateTool: '调整视角旋转角度，便于从不同角度查看和落笔',
     ToolbarAction.undo: '撤销最近的操作，逐步回退修改',
     ToolbarAction.redo: '重做刚刚撤销的操作，恢复修改',
   };
@@ -293,14 +291,6 @@ class CanvasToolbar extends StatelessWidget {
         child: HandToolButton(
           isSelected: activeTool == CanvasTool.hand,
           onPressed: () => onToolSelected(CanvasTool.hand),
-        ),
-      ),
-      wrapWithTooltip(
-        action: ToolbarAction.viewRotateTool,
-        label: '旋转视角',
-        child: ViewRotateToolButton(
-          isSelected: activeTool == CanvasTool.viewRotate,
-          onPressed: () => onToolSelected(CanvasTool.viewRotate),
         ),
       ),
     ]);
