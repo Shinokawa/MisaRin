@@ -41,8 +41,9 @@ class AppPreferences {
     this.magicWandTolerance = _defaultMagicWandTolerance,
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
     this.vectorDrawingEnabled = _defaultVectorDrawingEnabled,
-    this.vectorStrokeSmoothingEnabled =
-        _defaultVectorStrokeSmoothingEnabled,
+    this.showDisableVectorDrawingConfirmDialog =
+        _defaultShowDisableVectorDrawingConfirmDialog,
+    this.vectorStrokeSmoothingEnabled = _defaultVectorStrokeSmoothingEnabled,
     this.showFpsOverlay = _defaultShowFpsOverlay,
     this.pixelGridVisible = _defaultPixelGridVisible,
     this.workspaceLayout = _defaultWorkspaceLayout,
@@ -57,7 +58,7 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 28;
+  static const int _version = 29;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -85,6 +86,7 @@ class AppPreferences {
   static const int _defaultMagicWandTolerance = 0;
   static const bool _defaultBrushToolsEraserMode = false;
   static const bool _defaultVectorDrawingEnabled = true;
+  static const bool _defaultShowDisableVectorDrawingConfirmDialog = true;
   static const bool _defaultVectorStrokeSmoothingEnabled = false;
   static const bool _defaultShapeToolFillEnabled = false;
   static const int _defaultBucketAntialiasLevel = 0;
@@ -162,6 +164,7 @@ class AppPreferences {
   int magicWandTolerance;
   bool brushToolsEraserMode;
   bool vectorDrawingEnabled;
+  bool showDisableVectorDrawingConfirmDialog;
   bool vectorStrokeSmoothingEnabled;
   int bucketAntialiasLevel;
   bool showFpsOverlay;
@@ -233,34 +236,36 @@ class AppPreferences {
                 ? bytes[32] != 0
                 : _defaultVectorDrawingEnabled;
             final bool decodedShapeToolFillEnabled =
-                version >= 23 && (
-                        (version >= 28 && bytes.length >= 35) ||
-                        (version < 28 && bytes.length >= 34)
-                      )
+                version >= 23 &&
+                    ((version >= 28 && bytes.length >= 35) ||
+                        (version < 28 && bytes.length >= 34))
                 ? bytes[version >= 28 ? 34 : 33] != 0
                 : _defaultShapeToolFillEnabled;
             final double decodedSprayStrokeWidth =
-                version >= 24 && (
-                        (version >= 28 && bytes.length >= 37) ||
-                        (version < 28 && bytes.length >= 36)
-                      )
+                version >= 24 &&
+                    ((version >= 28 && bytes.length >= 37) ||
+                        (version < 28 && bytes.length >= 36))
                 ? _decodeSprayStrokeWidth(
                     bytes[version >= 28 ? 35 : 34] |
                         (bytes[version >= 28 ? 36 : 35] << 8),
                   )
                 : _defaultSprayStrokeWidth;
             if (version >= 28 && bytes.length >= 43) {
-              final bool decodedVectorStrokeSmoothingEnabled =
-                  bytes[33] != 0;
+              final bool decodedVectorStrokeSmoothingEnabled = bytes[33] != 0;
               final SprayMode decodedSprayMode = _decodeSprayMode(bytes[37]);
               final bool decodedPixelGridVisible = bytes[38] != 0;
-              final int primaryColorValue = bytes[39] |
+              final int primaryColorValue =
+                  bytes[39] |
                   (bytes[40] << 8) |
                   (bytes[41] << 16) |
                   (bytes[42] << 24);
               final Color decodedPrimaryColor = Color(primaryColorValue);
               final int rawHistory = bytes[3] | (bytes[4] << 8);
               final int rawStroke = bytes[6] | (bytes[7] << 8);
+              final bool decodedShowDisableVectorDrawingConfirmDialog =
+                  version >= 29 && bytes.length >= 44
+                  ? bytes[43] != 0
+                  : _defaultShowDisableVectorDrawingConfirmDialog;
               _instance = AppPreferences._(
                 bucketSampleAllLayers: bytes[1] != 0,
                 bucketContiguous: bytes[2] != 0,
@@ -291,6 +296,8 @@ class AppPreferences {
                 brushToolsEraserMode: bytes[22] != 0,
                 bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
                 vectorDrawingEnabled: decodedVectorDrawingEnabled,
+                showDisableVectorDrawingConfirmDialog:
+                    decodedShowDisableVectorDrawingConfirmDialog,
                 vectorStrokeSmoothingEnabled:
                     decodedVectorStrokeSmoothingEnabled,
                 showFpsOverlay: bytes[24] != 0,
@@ -308,7 +315,8 @@ class AppPreferences {
             } else if (version >= 27 && bytes.length >= 42) {
               final SprayMode decodedSprayMode = _decodeSprayMode(bytes[36]);
               final bool decodedPixelGridVisible = bytes[37] != 0;
-              final int primaryColorValue = bytes[38] |
+              final int primaryColorValue =
+                  bytes[38] |
                   (bytes[39] << 8) |
                   (bytes[40] << 16) |
                   (bytes[41] << 24);
@@ -1173,6 +1181,7 @@ class AppPreferences {
       (primaryColorValue >> 8) & 0xff,
       (primaryColorValue >> 16) & 0xff,
       (primaryColorValue >> 24) & 0xff,
+      prefs.showDisableVectorDrawingConfirmDialog ? 1 : 0,
     ]);
     await _writePreferencesPayload(payload);
   }
