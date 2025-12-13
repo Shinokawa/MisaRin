@@ -239,5 +239,706 @@
   "menuColorRangeEllipsis": "色域\u2026",
   "menuBlackWhiteEllipsis": "白黒\u2026",
   "menuBinarizeEllipsis": "二値化\u2026",
-  "menuInvertColors": "色を反転"
+  "menuInvertColors": "色を反転",
+
+  "canvasSizeTitle": "キャンバスサイズ",
+  "canvasSizeAnchorLabel": "アンカー",
+  "canvasSizeAnchorDesc": "アンカーポイントを基準にキャンバスをリサイズします。",
+  "confirm": "確認",
+
+  "projectManagerTitle": "プロジェクト管理",
+  "selectAll": "すべて選択",
+  "openFolder": "フォルダを開く",
+  "deleteSelected": "選択項目を削除 ({count})",
+  "@deleteSelected": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+
+  "imageSizeTitle": "画像サイズ",
+  "lockAspectRatio": "縦横比を固定",
+
+  "realtimeParams": "リアルタイムパラメータ",
+  "clearScribble": "落書きを消去",
+
+  "newCanvasSettingsTitle": "新規キャンバス設定",
+  "custom": "カスタム",
+  "colorWhite": "白",
+  "colorLightGray": "ライトグレー",
+  "colorBlack": "黒",
+  "create": "作成",
+  "currentPreset": "現在のプリセット: {name}",
+  "@currentPreset": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+
+  "exportSettingsTitle": "書き出し設定",
+  "exportTypeLabel": "書き出し形式",
+  "exportTypePng": "ビットマップ PNG",
+  "exportTypeSvg": "ベクター SVG（実験的）",
+  "exportScaleLabel": "書き出し倍率",
+  "reset": "リセット",
+  "exportOutputSize": "出力サイズ: {width} x {height} px",
+  "@exportOutputSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "exportAntialiasingLabel": "アンチエイリアス",
+  "enableAntialiasing": "アンチエイリアスを有効化",
+  "vectorParamsLabel": "ベクターパラメータ",
+  "vectorMaxColors": "最大色数: {count}",
+  "@vectorMaxColors": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "vectorSimplify": "単純化強度: {value}",
+  "@vectorSimplify": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "export": "書き出し",
+
+  "invalidDimensions": "有効な寸法（px）を入力してください。",
+  "widthPx": "幅 (px)",
+  "heightPx": "高さ (px)",
+
+  "noAutosavedProjects": "自動保存されたプロジェクトはありません",
+  "revealProjectLocation": "選択したプロジェクトの場所を表示",
+  "deleteSelectedProjects": "選択したプロジェクトを削除",
+  "loadFailed": "読み込みに失敗しました: {error}",
+  "@loadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "deleteFailed": "削除に失敗しました: {error}",
+  "@deleteFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "projectFileInfo": "サイズ: {size} · 更新日時: {date}",
+  "@projectFileInfo": {
+    "placeholders": {
+      "size": {},
+      "date": {}
+    }
+  },
+  "projectCanvasInfo": "キャンバス {width} x {height}",
+  "@projectCanvasInfo": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+
+  "samplingMethod": "サンプリング方式",
+  "currentSize": "現在のサイズ: {width} x {height} px",
+  "@currentSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "samplingNearestLabel": "ニアレストネイバー法",
+  "samplingNearestDesc": "エッジを保持します。ドット絵に適しています。",
+  "samplingBilinearLabel": "バイリニア法",
+  "samplingBilinearDesc": "滑らかに補間します。一般的なリサイズに適しています。",
+
+  "tabletPressureLatest": "現在の筆圧",
+  "tabletPressureMin": "最小筆圧",
+  "tabletPressureMax": "最大筆圧",
+  "tabletRadiusPx": "推定半径 (px)",
+  "tabletTiltRad": "傾き (rad)",
+  "tabletSampleCount": "サンプル数",
+  "tabletSampleRateHz": "サンプリングレート (Hz)",
+  "tabletPointerType": "ポインタタイプ",
+  
+  "pointerKindMouse": "マウス",
+  "pointerKindTouch": "タッチ",
+  "pointerKindStylus": "スタイラス",
+  "pointerKindInvertedStylus": "スタイラス（消しゴム）",
+  "pointerKindTrackpad": "トラックパッド",
+  "pointerKindUnknown": "不明",
+
+  "presetMobilePortrait": "モバイル 縦向き (1080 x 1920)",
+  "presetSquare": "正方形 (1024 x 1024)",
+  "presetPixelArt": "ドット絵 ({width} x {height})",
+  "@presetPixelArt": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "untitledProject": "無題のプロジェクト",
+  "invalidResolution": "有効な解像度を入力してください",
+  "minResolutionError": "解像度は {value} px 以上にしてください",
+  "@minResolutionError": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "maxResolutionError": "解像度は {value} px 以下にしてください",
+  "@maxResolutionError": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "projectName": "プロジェクト名",
+  "workspacePreset": "ワークスペースプリセット",
+  "workspacePresetDesc": "キャンバス作成時に一般的なツール設定を自動適用します。",
+  "workspaceIllustration": "イラスト",
+  "workspaceIllustrationDesc": "ブラシのエッジ柔化をレベル 1 に設定",
+  "workspaceCelShading": "アニメ塗り",
+  "workspaceCelShadingDesc1": "ブラシのエッジ柔化をレベル 0 に設定",
+  "workspaceCelShadingDesc2": "塗りつぶしツールの領域拡張: オン",
+  "workspaceCelShadingDesc3": "塗りつぶしツールのアンチエイリアス: オフ",
+  "workspacePixel": "ドット絵",
+  "workspacePixelDesc1": "ブラシ/塗りつぶしツールのアンチエイリアスをレベル 0 に設定",
+  "workspacePixelDesc2": "グリッド表示: オン",
+  "workspacePixelDesc3": "ベクター描画: オフ",
+  "workspaceDefault": "デフォルト",
+  "workspaceDefaultDesc": "現在のツール設定を変更しません",
+  "resolutionPreset": "解像度プリセット",
+  "customResolution": "カスタム解像度",
+  "finalSizePreview": "最終サイズ: {width} x {height} px (比率 {ratio})",
+  "@finalSizePreview": {
+    "placeholders": {
+      "width": {},
+      "height": {},
+      "ratio": {}
+    }
+  },
+  "enterValidDimensions": "有効な寸法を入力してください",
+  "backgroundColor": "背景色",
+
+  "exportBitmapDesc": "ラスター形式が必要な通常の書き出しに適しており、拡大縮小やアンチエイリアスをサポートします。",
+  "exportVectorDesc": "現在のキャンバスをベクターパスに自動変換します。ベクターツールでの編集に適しています。",
+  "exampleScale": "例: 1.0",
+  "enterPositiveValue": "0 より大きい値を入力してください",
+  "antialiasingBeforeExport": "書き出し前にアンチエイリアスを適用",
+  "antialiasingDesc": "線の密度を保ちつつエッジを滑らかにします。Retas アニメーションソフトの質感を再現します。",
+  "levelLabel": "レベル {level}",
+  "@levelLabel": {
+    "placeholders": {
+      "level": {}
+    }
+  },
+  "vectorExportSize": "書き出しサイズ: {width} x {height} (キャンバスサイズを使用)",
+  "@vectorExportSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "colorCount": "{count} 色",
+  "@colorCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "vectorSimplifyDesc": "色数を減らし単純化強度を上げると SVG がシンプルになります。値が低すぎるとノード数が過多になります。",
+  "antialiasNone": "レベル 0 (オフ): ピクセルのハードエッジを保持し、アンチエイリアスを行いません。",
+  "antialiasLow": "レベル 1 (弱): エイリアシングをわずかに和らげ、線の密度を保ちつつエッジを滑らかにします。",
+  "antialiasMedium": "レベル 2 (標準): シャープさと柔らかさのバランスを取り、Retas のような綺麗な線にします。",
+  "antialiasHigh": "レベル 3 (強): 最も強い柔化効果。柔らかい遷移が必要な場合や大きく拡大する場合に適しています。",
+
+  "tolerance": "許容値",
+  "sampleAllLayers": "全レイヤーを参照",
+  "contiguous": "隣接ピクセルのみ",
+  "swallowColorLine": "色トレス線を飲み込む",
+  "cropOutsideCanvas": "キャンバス外を切り取る",
+  "noAdjustableSettings": "このツールには調整可能な設定がありません",
+  "solidFill": "塗りつぶし",
+  "autoSharpTaper": "入り抜き自動補正",
+  "stylusPressure": "筆圧感知",
+  "simulatedPressure": "擬似筆圧",
+  "switchToEraser": "消しゴムに切り替え",
+  "vectorDrawing": "ベクター描画",
+  "smoothCurve": "曲線を滑らかに",
+  "sprayEffect": "スプレー効果",
+  "brushShape": "ブラシ形状",
+  "selectionShape": "選択形状",
+  "fontSize": "フォントサイズ",
+  "lineHeight": "行間",
+  "letterSpacing": "文字間隔",
+  "textStroke": "テキストの境界線",
+  "strokeWidth": "境界線の太さ",
+  "strokeColor": "境界線の色",
+  "pickColor": "色を取得",
+  "alignment": "配置",
+  "alignCenter": "中央揃え",
+  "alignRight": "右揃え",
+  "alignLeft": "左揃え",
+  "orientation": "方向",
+  "horizontal": "水平",
+  "vertical": "垂直",
+  "textToolHint": "テキストの塗りつぶしには左下のカラーピッカーを、境界線にはサブカラーを使用してください。",
+  "shapeType": "図形タイプ",
+  "brushSize": "ブラシサイズ",
+  "spraySize": "スプレーサイズ",
+  "brushFineTune": "ブラシ微調整",
+  "increase": "増加",
+  "decrease": "減少",
+  "stabilizer": "手ブレ補正",
+  "off": "オフ",
+  "taperEnds": "両端を細く",
+  "taperCenter": "中央を細く",
+  "auto": "自動",
+  "softSpray": "ソフトスプレー",
+  "splatter": "飛沫",
+  "rectSelection": "長方形選択",
+  "ellipseSelection": "楕円選択",
+  "polygonLasso": "多角形選択",
+  "rectangle": "長方形",
+  "ellipse": "楕円",
+  "triangle": "三角形",
+  "line": "直線",
+  "circle": "円",
+  "square": "正方形",
+
+  "brushSizeDesc": "現在のブラシの直径（ピクセル）を設定します。値が大きいほど線が太くなり、小さいほど細部用になります。",
+  "spraySizeDesc": "スプレー範囲の半径を決定します。半径が大きいほど広範囲をカバーしますが、粒子は分散します。",
+  "toleranceDesc": "塗りつぶしや自動選択時の「色の類似性」の許容値を制御します。高いほど似た色を多く含みます。",
+  "antialiasingSliderDesc": "ブラシや塗りつぶしのエッジにマルチサンプリングによる平滑化を加えます。レベル 0 はピクセルスタイルを維持します。",
+  "stabilizerDesc": "手の震えを打ち消すためにポインタの軌跡をリアルタイムで滑らかにします。レベルが高いほど安定しますが、追従は遅れます。",
+  "fontSizeDesc": "テキスト全体のピクセル高さを調整します。",
+  "lineHeightDesc": "テキストの行間の垂直距離を制御します。",
+  "letterSpacingDesc": "文字間の水平間隔を変更します。",
+  "strokeWidthDesc": "テキストの境界線の太さを設定します。",
+  
+  "solidFillDesc": "図形ツールで塗りつぶされたブロックを描くか、中空の輪郭を描くかを決定します。オンにすると塗りつぶされます。",
+  "autoSharpTaperDesc": "ストロークの始点と終点を自動的に細くし、アニメ塗りのようなシャープな線にします。",
+  "stylusPressureDesc": "筆圧によるブラシサイズ/不透明度の変化を許可します。オフにするとハードウェアの筆圧を無視します。",
+  "simulatedPressureDesc": "筆圧デバイスがない場合に、マウスの速度に基づいて筆圧をシミュレートします。",
+  "switchToEraserDesc": "現在のブラシ/スプレーと同じテクスチャを持つ消しゴムに切り替えます。",
+  "vectorDrawingDesc": "ストロークをベクター曲線としてプレビューし、120Hz の滑らかなフィードバックとロスレス拡大を実現します。ピクセル出力の場合はオフにしてください。",
+  "smoothCurveDesc": "ベクター描画がオンのとき、曲線のノードをさらに滑らかにし、角を減らしますが、追従性が多少犠牲になります。",
+  "sampleAllLayersDesc": "塗りつぶし時に表示されている全レイヤーの色を参照します。オフにすると現在のレイヤーのみを検出します。",
+  "contiguousDesc": "隣接するピクセルにのみ広がります。オフにするとキャンバス全体の一致する色を塗りつぶします。",
+  "swallowColorLineDesc": "色トレス線に塗りつぶしを自動的に拡張し、白い隙間をなくします。Retas ワークフロー専用です。",
+  "cropOutsideCanvasDesc": "レイヤー調整時にキャンバス外のピクセルを切り取ります。オフにするとすべてのピクセルを保持します。",
+  "textAntialiasingDesc": "テキスト描画のアンチエイリアスを有効にし、密度を保ちながら文字を滑らかにします。",
+  "textStrokeDesc": "テキストの輪郭線チャンネルを有効にします。",
+  
+  "sprayEffectDesc": "スプレーモデルを切り替えます。「ソフトスプレー」は霧状のグラデーション、「飛沫」は粒子状です。",
+  
+  "rectSelectDesc": "長方形の領域を素早く選択します。",
+  "ellipseSelectDesc": "円形または楕円形の選択範囲を作成します。",
+  "polyLassoDesc": "点を打って任意の多角形選択範囲を描画します。",
+  "rectShapeDesc": "水平な長方形または正方形を描画します（輪郭/塗り）。",
+  "ellipseShapeDesc": "楕円または円の輪郭/塗りを描画します。",
+  "triangleShapeDesc": "幾何学的な三角形を描画するか、三角形のチップを使用して鋭い輪郭を描きます。",
+  "lineShapeDesc": "始点から終点まで直線を描画します。",
+  "circleTipDesc": "ブラシチップを円形に保ち、滑らかで柔らかいストロークにします。",
+  "squareTipDesc": "四角形のチップを使用し、ハードエッジなピクセルストロークにします。",
+
+  "apply": "適用",
+  "next": "次へ",
+  "disableVectorDrawing": "ベクター描画を無効化",
+  "disableVectorDrawingConfirm": "ベクター描画を無効にしてもよろしいですか？",
+  "disableVectorDrawingDesc": "無効にするとパフォーマンスが低下します。",
+  "dontShowAgain": "次回から表示しない",
+  "newLayer": "新規レイヤー",
+  "mergeDown": "下のレイヤーと結合",
+  "delete": "削除",
+  "duplicate": "複製",
+  "rasterizeTextLayer": "テキストレイヤーをラスタライズ",
+  "opacity": "不透明度",
+  "blendMode": "ブレンドモード",
+  "clearFill": "塗りを消去",
+  "colorLine": "色トレス線",
+  "currentColor": "現在の色",
+  "rgb": "RGB",
+  "hsv": "HSV",
+  "preparingLayer": "レイヤーを準備中...",
+  "generatePaletteTitle": "キャンバスからパレットを生成",
+  "generatePaletteDesc": "色数を選択するかカスタム値を入力してください。",
+  "customCount": "カスタム数",
+  "selectExportFormat": "書き出し形式を選択",
+  "selectPaletteFormatDesc": "パレットの書き出し形式を選択してください。",
+  "noColorsDetected": "色が検出されませんでした。",
+  "alphaThreshold": "アルファしきい値",
+  "blurRadius": "ぼかし半径",
+  "repairRange": "修正範囲",
+  "selectAntialiasLevel": "アンチエイリアスレベルを選択",
+  "colorCountLabel": "色数",
+
+  "completeTransformFirst": "現在の変形を先に完了してください。",
+  "enablePerspectiveGuideFirst": "透視ペンを使用する前に透視ガイドを有効にしてください。",
+  "lineNotAlignedWithPerspective": "現在の線は透視方向と一致していません。角度を調整してください。",
+
+  "layerBackground": "背景",
+  "layerDefaultName": "レイヤー {index}",
+  "@layerDefaultName": {
+    "placeholders": {
+      "index": {}
+    }
+  },
+  "duplicateLayer": "レイヤーを複製",
+  "layerCopyName": "{name} のコピー",
+  "@layerCopyName": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "unlockLayer": "レイヤーのロック解除",
+  "lockLayer": "レイヤーをロック",
+  "releaseClippingMask": "クリッピングマスクを解除",
+  "createClippingMask": "クリッピングマスクを作成",
+  "hide": "非表示",
+  "show": "表示",
+
+  "colorRangeTitle": "色域指定",
+  "colorPickerTitle": "カラーピッカー",
+  "layerManagerTitle": "レイヤー管理",
+  "edgeSoftening": "エッジ柔化",
+
+  "undo": "取り消し",
+  "redo": "やり直し",
+  "undoShortcut": "取り消し ({shortcut})",
+  "@undoShortcut": {
+    "placeholders": {
+      "shortcut": {}
+    }
+  },
+  "redoShortcut": "やり直し ({shortcut})",
+  "@redoShortcut": {
+    "placeholders": {
+      "shortcut": {}
+    }
+  },
+  "opacityPercent": "不透明度 {percent}%",
+  "@opacityPercent": {
+    "placeholders": {
+      "percent": {}
+    }
+  },
+  "clippingMask": "クリッピングマスク",
+  "deleteLayerTitle": "レイヤーを削除",
+  "deleteLayerDesc": "このレイヤーを削除します。取り消し可能です。",
+  "mergeDownDesc": "下のレイヤーと結合します。",
+  "duplicateLayerDesc": "レイヤーの内容をすべて複製します。",
+  "more": "その他",
+  "lockLayerDesc": "誤編集を防ぐためにロックします。",
+  "unlockLayerDesc": "編集できるようにロックを解除します。",
+  "clippingMaskDescOn": "通常のレイヤーに戻します。",
+  "clippingMaskDescOff": "下のレイヤーでクリッピングします。",
+
+  "red": "赤",
+  "green": "緑",
+  "blue": "青",
+  "hue": "色相",
+  "saturation": "彩度",
+  "value": "明度",
+  "hsvBoxSpectrum": "HSV ボックススペクトル",
+  "hueRingSpectrum": "色相リングスペクトル",
+  "rgbHsvSliders": "RGB / HSV スライダー",
+  "boardPanelPicker": "ボードパネルピッカー",
+  "adjustCurrentColor": "現在の色を調整",
+  "adjustStrokeColor": "境界線の色を調整",
+  "copiedHex": "{hex} をコピーしました",
+  "@copiedHex": {
+    "placeholders": {
+      "hex": {}
+    }
+  },
+  "rotationLabel": "回転: {degrees}°",
+  "@rotationLabel": {
+    "placeholders": {
+      "degrees": {}
+    }
+  },
+  "scaleLabel": "拡大率: {x}% x {y}%",
+  "@scaleLabel": {
+    "placeholders": {
+      "x": {},
+      "y": {}
+    }
+  },
+  "failedToExportTransform": "変形結果の書き出しに失敗しました",
+  "cannotLocateLayer": "アクティブなレイヤーが見つかりません。",
+  "layerLockedCannotTransform": "アクティブなレイヤーがロックされているため変形できません。",
+  "cannotEnterTransformMode": "自由変形モードに入れません。",
+  "applyTransformFailed": "変形の適用に失敗しました。もう一度試してください。",
+  "freeTransformTitle": "自由変形",
+  "colorIndicatorDetail": "クリックしてカラーエディタを開くか、値を入力または HEX をコピーします。",
+
+  "gplDesc": "GIMP, Krita, Clip Studio Paint などと互換性のあるテキスト形式。",
+  "aseDesc": "Aseprite, LibreSprite ドット絵ソフトに適しています。",
+  "asepriteDesc": "Aseprite で直接開ける .aseprite 拡張子を使用します。",
+  "gradientPaletteFailed": "現在の色からグラデーションパレットを生成できません。もう一度試してください。",
+  "gradientPaletteTitle": "グラデーションパレット（現在の色）",
+  "paletteCountRange": "範囲 {min} - {max}",
+  "@paletteCountRange": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "allowedRange": "許可される範囲: {min} - {max} 色",
+  "@allowedRange": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "enterValidColorCount": "有効な色数を入力してください。",
+  "paletteGenerationFailed": "パレットを生成できませんでした。もう一度試してください。",
+  "noValidColorsFound": "有効な色が見つかりません。キャンバスに内容があることを確認してください。",
+  "paletteEmpty": "このパレットには使用可能な色がありません。",
+  "paletteMinColors": "パレットには少なくとも {min} 色が必要です。",
+  "@paletteMinColors": {
+    "placeholders": {
+      "min": {}
+    }
+  },
+  "paletteDefaultName": "パレット",
+  "paletteEmptyExport": "このパレットには書き出し可能な色がありません。",
+  "exportPaletteTitle": "パレットを書き出し",
+  "webDownloadDesc": "ブラウザはデフォルトのダウンロードディレクトリにパレットを保存します。",
+  "download": "ダウンロード",
+  "paletteDownloaded": "パレットをダウンロードしました: {name}",
+  "@paletteDownloaded": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "paletteExported": "パレットを {path} に書き出しました",
+  "@paletteExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "paletteExportFailed": "パレットの書き出しに失敗しました: {error}",
+  "@paletteExportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "selectEditableLayerFirst": "まず編集可能なレイヤーを選択してください。",
+  "layerLockedNoFilter": "アクティブなレイヤーがロックされているためフィルターを適用できません。",
+  "textLayerNoFilter": "アクティブなレイヤーはテキストです。ラスタライズするかレイヤーを切り替えてください。",
+  "hueSaturation": "色相/彩度",
+  "brightnessContrast": "明るさ/コントラスト",
+  "blackAndWhite": "白黒",
+  "binarize": "二値化",
+  "gaussianBlur": "ガウスぼかし",
+  "leakRemoval": "漏れ除去",
+  "lineNarrow": "線幅収縮",
+  "narrowRadius": "収縮半径",
+  "fillExpand": "塗り拡張",
+  "expandRadius": "拡張半径",
+  "noTransparentPixelsFound": "処理可能な透明ピクセルが見つかりません。",
+  "filterApplyFailed": "フィルターの適用に失敗しました。もう一度試してください。",
+  "canvasNotReadyInvert": "キャンバスの準備ができていないため色を反転できません。",
+  "layerLockedInvert": "アクティブなレイヤーがロックされているため色を反転できません。",
+  "layerEmptyInvert": "アクティブなレイヤーが空のため色を反転できません。",
+  "noPixelsToInvert": "反転するピクセルがありません。",
+  "edgeSofteningFailed": "エッジ柔化を適用できません。レイヤーが空かロックされています。",
+  "layerLockedEdgeSoftening": "アクティブなレイヤーがロックされているためエッジ柔化を適用できません。",
+  "canvasNotReadyColorRange": "キャンバスの準備ができていないため色域をカウントできません。",
+  "layerLockedColorRange": "アクティブなレイヤーがロックされているため色域を設定できません。",
+  "layerEmptyColorRange": "アクティブなレイヤーが空のため色域を設定できません。",
+  "noColorsToProcess": "処理可能な色がありません。",
+  "targetColorsNotLess": "ターゲット色数が現在より少なくないため、レイヤーは変更されません。",
+  "colorRangeApplyFailed": "色域の適用に失敗しました。もう一度試してください。",
+  "colorRangePreviewFailed": "色域プレビューの生成に失敗しました。もう一度試してください。",
+  "lightness": "明度",
+  "brightness": "明るさ",
+  "contrast": "コントラスト",
+
+  "selectSaveFormat": "保存するファイル形式を選択してください。",
+  "saveAsPsd": "PSD として保存",
+  "saveAsRin": "RIN として保存",
+  "dontSave": "保存しない",
+  "save": "保存",
+  "renameProject": "プロジェクト名を変更",
+  "enterNewProjectName": "新しいプロジェクト名を入力してください",
+  "rename": "名前を変更",
+  "canvasNotReady": "キャンバス準備中",
+  "toolPanel": "ツールパネル",
+
+  "toolbarTitle": "ツールバー",
+  "toolOptionsTitle": "ツールオプション",
+  "defaultProjectDirectory": "デフォルトのプロジェクト保存先",
+  "minimize": "最小化",
+  "maximizeRestore": "最大化/元に戻す",
+
+  "fontFamily": "フォントファミリー",
+  "importPaletteTitle": "パレットをインポート",
+  "cannotReadFile": "ファイルを読み取れません",
+  "paletteImported": "パレットをインポートしました: {name}",
+  "@paletteImported": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "paletteImportFailed": "パレットのインポートに失敗しました: {error}",
+  "@paletteImportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "noChangesToSave": "{location} に保存する変更はありません",
+  "@noChangesToSave": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaved": "プロジェクトを {location} に保存しました",
+  "@projectSaved": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaveFailed": "プロジェクトの保存に失敗しました: {error}",
+  "@projectSaveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadySave": "キャンバスの準備ができていないため保存できません。",
+  "saveProjectAs": "プロジェクトを別名で保存",
+  "webSaveDesc": "プロジェクトファイルをデバイスにダウンロードします。",
+  "psdExported": "PSD を {path} に書き出しました",
+  "@psdExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "projectDownloaded": "プロジェクトをダウンロードしました: {fileName}",
+  "@projectDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "psdDownloaded": "PSD をダウンロードしました: {fileName}",
+  "@psdDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "exportAsPsdTooltip": "PSD として書き出し",
+  "canvasNotReadyExport": "キャンバスの準備ができていないため書き出しできません。",
+  "exportFileTitle": "{extension} ファイルを書き出し",
+  "@exportFileTitle": {
+    "placeholders": {
+      "extension": {}
+    }
+  },
+  "webExportDesc": "書き出した画像をデバイスにダウンロードします。",
+  "fileDownloaded": "{extension} ファイルをダウンロードしました: {name}",
+  "@fileDownloaded": {
+    "placeholders": {
+      "extension": {},
+      "name": {}
+    }
+  },
+  "fileExported": "ファイルを {path} に書き出しました",
+  "@fileExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportFailed": "書き出しに失敗しました: {error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadyTransform": "キャンバスの準備ができていないため変形できません。",
+  "canvasSizeErrorTransform": "変形中にキャンバスサイズエラーが発生しました。",
+  "canvasNotReadyResizeImage": "キャンバスの準備ができていないため画像サイズを変更できません。",
+  "resizeImageFailed": "画像サイズの変更に失敗しました。",
+  "canvasNotReadyResizeCanvas": "キャンバスの準備ができていないためキャンバスサイズを変更できません。",
+  "resizeCanvasFailed": "キャンバスサイズの変更に失敗しました。",
+  "returnToHome": "ホームに戻る",
+  "saveBeforeReturn": "ホームに戻る前に変更を保存しますか？",
+  "closeCanvas": "キャンバスを閉じる",
+  "saveBeforeClose": "閉じる前に変更を保存しますか？",
+  "nameCannotBeEmpty": "名前は空にできません。",
+  "noSupportedImageFormats": "サポートされている画像形式が見つかりません。",
+  "importFailed": "{item} のインポートに失敗しました: {error}",
+  "@importFailed": {
+    "placeholders": {
+      "item": {},
+      "error": {}
+    }
+  },
+  "createdCanvasFromDrop": "ドロップされた項目からキャンバスを作成しました。",
+  "createdCanvasesFromDrop": "ドロップされた項目から {count} 個のキャンバスを作成しました。",
+  "@createdCanvasesFromDrop": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageCreateFailed": "ドロップされた画像からキャンバスを作成できませんでした。",
+  "canvasNotReadyDrop": "キャンバスの準備ができていないためドロップ操作を行えません。",
+  "insertedDropImage": "ドロップされた画像を挿入しました。",
+  "insertedDropImages": "{count} 枚のドロップされた画像を挿入しました。",
+  "@insertedDropImages": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageInsertFailed": "ドロップされた画像の挿入に失敗しました。",
+  "image": "画像",
+  "on": "オン",
+  "perspective1Point": "1 点透視",
+  "perspective2Point": "2 点透視",
+  "perspective3Point": "3 点透視",
+  "resolutionLabel": "解像度: {resolution}",
+  "@resolutionLabel": {
+    "placeholders": {
+      "resolution": {}
+    }
+  },
+  "zoomLabel": "ズーム: {zoom}",
+  "@zoomLabel": {
+    "placeholders": {
+      "zoom": {}
+    }
+  },
+  "positionLabel": "位置: {position}",
+  "@positionLabel": {
+    "placeholders": {
+      "position": {}
+    }
+  },
+  "gridLabel": "グリッド: {grid}",
+  "@gridLabel": {
+    "placeholders": {
+      "grid": {}
+    }
+  },
+  "blackWhiteLabel": "白黒: {state}",
+  "@blackWhiteLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "mirrorLabel": "ミラー: {state}",
+  "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "perspectiveLabel": "透視: {perspective}",
+  "@perspectiveLabel": {
+    "placeholders": {
+      "perspective": {}
+    }
+  },
+  "fileNameCannotBeEmpty": "ファイル名は空にできません。",
+  "blackPoint": "黒点",
+  "whitePoint": "白点",
+  "midTone": "中間色"
 }

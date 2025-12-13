@@ -17,27 +17,31 @@ import 'misarin_dialog.dart';
 Future<void> showSettingsDialog(BuildContext context) {
   final GlobalKey<_SettingsDialogContentState> contentKey =
       GlobalKey<_SettingsDialogContentState>();
-  final l10n = context.l10n;
-  return showMisarinDialog<void>(
+  return showDialog<void>(
     context: context,
-    title: Text(l10n.settingsTitle),
-    content: _SettingsDialogContent(key: contentKey),
-    contentWidth: 420,
-    maxWidth: 520,
-    actions: [
-      Button(
-        onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
-        child: Text(l10n.tabletTest),
-      ),
-      Button(
-        onPressed: () => contentKey.currentState?.resetToDefaults(),
-        child: Text(l10n.restoreDefaults),
-      ),
-      Button(
-        onPressed: () => Navigator.of(context).pop(),
-        child: Text(l10n.ok),
-      ),
-    ],
+    builder: (dialogContext) {
+      final l10n = dialogContext.l10n;
+      return MisarinDialog(
+        title: Text(l10n.settingsTitle),
+        content: _SettingsDialogContent(key: contentKey),
+        contentWidth: 420,
+        maxWidth: 520,
+        actions: [
+          Button(
+            onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
+            child: Text(l10n.tabletTest),
+          ),
+          Button(
+            onPressed: () => contentKey.currentState?.resetToDefaults(),
+            child: Text(l10n.restoreDefaults),
+          ),
+          Button(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.ok),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -404,19 +408,23 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
 }
 
 Future<void> _showTabletInspectDialog(BuildContext context) async {
-  final l10n = context.l10n;
-  return showMisarinDialog<void>(
+  return showDialog<void>(
     context: context,
-    title: Text(l10n.tabletInputTestTitle),
-    contentWidth: 720,
-    maxWidth: 820,
-    content: const _TabletInspectPane(),
-    actions: [
-      Button(
-        onPressed: () => Navigator.of(context).pop(),
-        child: Text(l10n.close),
-      ),
-    ],
+    builder: (dialogContext) {
+      final l10n = dialogContext.l10n;
+      return MisarinDialog(
+        title: Text(l10n.tabletInputTestTitle),
+        contentWidth: 720,
+        maxWidth: 820,
+        content: const _TabletInspectPane(),
+        actions: [
+          Button(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.close),
+          ),
+        ],
+      );
+    },
   );
 }
 

@@ -507,689 +507,673 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuInvertColors => '색상 반전';
 
   @override
-  String get canvasSizeTitle => 'Canvas Size';
+  String get canvasSizeTitle => '캔버스 크기';
 
   @override
-  String get canvasSizeAnchorLabel => 'Anchor';
+  String get canvasSizeAnchorLabel => '얥커';
 
   @override
-  String get canvasSizeAnchorDesc => 'Resize canvas based on anchor point.';
+  String get canvasSizeAnchorDesc => '얥커 포인트를 기준으로 캔버스 크기를 조정합니다.';
 
   @override
-  String get confirm => 'Confirm';
+  String get confirm => '확인';
 
   @override
-  String get projectManagerTitle => 'Project Manager';
+  String get projectManagerTitle => '프로젝트 관리';
 
   @override
-  String get selectAll => 'Select All';
+  String get selectAll => '전체 선택';
 
   @override
-  String get openFolder => 'Open Folder';
+  String get openFolder => '폐더 열기';
 
   @override
   String deleteSelected(Object count) {
-    return 'Delete Selected ($count)';
+    return '선택 항목 삭제 ($count)';
   }
 
   @override
-  String get imageSizeTitle => 'Image Size';
+  String get imageSizeTitle => '이미지 크기';
 
   @override
-  String get lockAspectRatio => 'Lock Aspect Ratio';
+  String get lockAspectRatio => '가로세로 비율 고정';
 
   @override
-  String get realtimeParams => 'Realtime Parameters';
+  String get realtimeParams => '실시간 매개변수';
 
   @override
-  String get clearScribble => 'Clear Scribble';
+  String get clearScribble => '낙서 지우기';
 
   @override
-  String get newCanvasSettingsTitle => 'New Canvas Settings';
+  String get newCanvasSettingsTitle => '새 캔버스 설정';
 
   @override
-  String get custom => 'Custom';
+  String get custom => '사용자 정의';
 
   @override
-  String get colorWhite => 'White';
+  String get colorWhite => '흰색';
 
   @override
-  String get colorLightGray => 'Light Gray';
+  String get colorLightGray => '밝은 회색';
 
   @override
-  String get colorBlack => 'Black';
+  String get colorBlack => '검은색';
 
   @override
-  String get create => 'Create';
+  String get create => '생성';
 
   @override
   String currentPreset(Object name) {
-    return 'Current Preset: $name';
+    return '현재 사전 설정: $name';
   }
 
   @override
-  String get exportSettingsTitle => 'Export Settings';
+  String get exportSettingsTitle => '내보내기 설정';
 
   @override
-  String get exportTypeLabel => 'Export Type';
+  String get exportTypeLabel => '내보내기 유형';
 
   @override
-  String get exportTypePng => 'Bitmap PNG';
+  String get exportTypePng => '비트맵 PNG';
 
   @override
-  String get exportTypeSvg => 'Vector SVG (Experimental)';
+  String get exportTypeSvg => '벡터 SVG (실험적)';
 
   @override
-  String get exportScaleLabel => 'Export Scale';
+  String get exportScaleLabel => '내보내기 배율';
 
   @override
-  String get reset => 'Reset';
+  String get reset => '초기화';
 
   @override
   String exportOutputSize(Object width, Object height) {
-    return 'Output Size: $width x $height px';
+    return '출력 크기: $width x $height px';
   }
 
   @override
-  String get exportAntialiasingLabel => 'Antialiasing';
+  String get exportAntialiasingLabel => '안티앨리어싱';
 
   @override
-  String get enableAntialiasing => 'Enable Antialiasing';
+  String get enableAntialiasing => '안티앨리어싱 활성화';
 
   @override
-  String get vectorParamsLabel => 'Vector Parameters';
+  String get vectorParamsLabel => '벡터 매개변수';
 
   @override
   String vectorMaxColors(Object count) {
-    return 'Max Colors: $count';
+    return '최대 색상 수: $count';
   }
 
   @override
   String vectorSimplify(Object value) {
-    return 'Simplify Strength: $value';
+    return '단순화 강도: $value';
   }
 
   @override
-  String get export => 'Export';
+  String get export => '내보내기';
 
   @override
-  String get invalidDimensions => 'Please enter valid dimensions (px).';
+  String get invalidDimensions => '유현한 치수(px)를 입력하세요.';
 
   @override
-  String get widthPx => 'Width (px)';
+  String get widthPx => '너비 (px)';
 
   @override
-  String get heightPx => 'Height (px)';
+  String get heightPx => '높이 (px)';
 
   @override
-  String get noAutosavedProjects => 'No autosaved projects';
+  String get noAutosavedProjects => '자동 저장된 프로젝트가 없습니다';
 
   @override
-  String get revealProjectLocation => 'Reveal selected project location';
+  String get revealProjectLocation => '선택한 프로젝트 위치 열기';
 
   @override
-  String get deleteSelectedProjects => 'Delete selected projects';
+  String get deleteSelectedProjects => '선택한 프로젝트 삭제';
 
   @override
   String loadFailed(Object error) {
-    return 'Failed to load: $error';
+    return '불러오기 실패: $error';
   }
 
   @override
   String deleteFailed(Object error) {
-    return 'Failed to delete: $error';
+    return '삭제 실패: $error';
   }
 
   @override
   String projectFileInfo(Object size, Object date) {
-    return 'Size: $size · Modified: $date';
+    return '크기: $size · 수정됨: $date';
   }
 
   @override
   String projectCanvasInfo(Object width, Object height) {
-    return 'Canvas $width x $height';
+    return '캔버스 $width x $height';
   }
 
   @override
-  String get samplingMethod => 'Sampling Method';
+  String get samplingMethod => '샘플링 방법';
 
   @override
   String currentSize(Object width, Object height) {
-    return 'Current Size: $width x $height px';
+    return '현재 크기: $width x $height px';
   }
 
   @override
-  String get samplingNearestLabel => 'Nearest Neighbor';
+  String get samplingNearestLabel => '최근접 이웃';
 
   @override
-  String get samplingNearestDesc => 'Preserves hard edges, good for pixel art.';
+  String get samplingNearestDesc => '가장자리를 선명하게 유지합니다. 픽셀 아트에 적합합니다.';
 
   @override
-  String get samplingBilinearLabel => 'Bilinear';
+  String get samplingBilinearLabel => '쌍선형';
 
   @override
-  String get samplingBilinearDesc =>
-      'Smooth interpolation, good for general resizing.';
+  String get samplingBilinearDesc => '부드럽게 보간합니다. 일반적인 크기 조정에 적합합니다.';
 
   @override
-  String get tabletPressureLatest => 'Latest Pressure';
+  String get tabletPressureLatest => '최신 압력';
 
   @override
-  String get tabletPressureMin => 'Pressure Min';
+  String get tabletPressureMin => '최소 압력';
 
   @override
-  String get tabletPressureMax => 'Pressure Max';
+  String get tabletPressureMax => '최대 압력';
 
   @override
-  String get tabletRadiusPx => 'Estimated Radius (px)';
+  String get tabletRadiusPx => '추정 반경 (px)';
 
   @override
-  String get tabletTiltRad => 'Tilt (radians)';
+  String get tabletTiltRad => '기울기 (rad)';
 
   @override
-  String get tabletSampleCount => 'Sample Count';
+  String get tabletSampleCount => '샘플 수';
 
   @override
-  String get tabletSampleRateHz => 'Sample Rate (Hz)';
+  String get tabletSampleRateHz => '샘플링 속도 (Hz)';
 
   @override
-  String get tabletPointerType => 'Pointer Type';
+  String get tabletPointerType => '포인터 유형';
 
   @override
-  String get pointerKindMouse => 'Mouse';
+  String get pointerKindMouse => '마우스';
 
   @override
-  String get pointerKindTouch => 'Touch';
+  String get pointerKindTouch => '터치';
 
   @override
-  String get pointerKindStylus => 'Stylus';
+  String get pointerKindStylus => '스타일러스';
 
   @override
-  String get pointerKindInvertedStylus => 'Stylus (Eraser)';
+  String get pointerKindInvertedStylus => '스타일러스 (지우개)';
 
   @override
-  String get pointerKindTrackpad => 'Trackpad';
+  String get pointerKindTrackpad => '트랙패드';
 
   @override
-  String get pointerKindUnknown => 'Unknown';
+  String get pointerKindUnknown => '알 수 없음';
 
   @override
-  String get presetMobilePortrait => 'Mobile Portrait (1080 x 1920)';
+  String get presetMobilePortrait => '모바일 세로 (1080 x 1920)';
 
   @override
-  String get presetSquare => 'Square (1024 x 1024)';
+  String get presetSquare => '정사각형 (1024 x 1024)';
 
   @override
   String presetPixelArt(Object width, Object height) {
-    return 'Pixel Art ($width x $height)';
+    return '픽셀 아트 ($width x $height)';
   }
 
   @override
-  String get untitledProject => 'Untitled Project';
+  String get untitledProject => '제목 없는 프로젝트';
 
   @override
-  String get invalidResolution => 'Please enter valid resolution';
+  String get invalidResolution => '유현한 해상도를 입력하세요';
 
   @override
   String minResolutionError(Object value) {
-    return 'Resolution cannot be less than $value px';
+    return '해상도는 $value px 이상이어야 합니다';
   }
 
   @override
   String maxResolutionError(Object value) {
-    return 'Resolution cannot exceed $value px';
+    return '해상도는 $value px 이하여야 합니다';
   }
 
   @override
-  String get projectName => 'Project Name';
+  String get projectName => '프로젝트 이름';
 
   @override
-  String get workspacePreset => 'Workspace Preset';
+  String get workspacePreset => '작업 공간 사전 설정';
 
   @override
-  String get workspacePresetDesc =>
-      'Automatically apply common tool settings when creating a canvas.';
+  String get workspacePresetDesc => '캔버스 생성 시 일반적인 도구 설정을 자동으로 적용합니다.';
 
   @override
-  String get workspaceIllustration => 'Illustration';
+  String get workspaceIllustration => '일러스트레이션';
 
   @override
-  String get workspaceIllustrationDesc => 'Brush edge softening set to level 1';
+  String get workspaceIllustrationDesc => '브러시 가장자리 부드러움을 레벨 1로 설정';
 
   @override
-  String get workspaceCelShading => 'Cel Shading';
+  String get workspaceCelShading => '셀 셰이딩';
 
   @override
-  String get workspaceCelShadingDesc1 => 'Brush edge softening set to level 0';
+  String get workspaceCelShadingDesc1 => '브러시 가장자리 부드러움을 레벨 0으로 설정';
 
   @override
-  String get workspaceCelShadingDesc2 => 'Fill tool expand to line: On';
+  String get workspaceCelShadingDesc2 => '채우기 도구 영역 확장: 켜기';
 
   @override
-  String get workspaceCelShadingDesc3 => 'Fill tool antialiasing: Off';
+  String get workspaceCelShadingDesc3 => '채우기 도구 안티앨리어싱: 끄기';
 
   @override
-  String get workspacePixel => 'Pixel';
+  String get workspacePixel => '픽셀 아트';
 
   @override
-  String get workspacePixelDesc1 =>
-      'Brush/Fill tool antialiasing set to level 0';
+  String get workspacePixelDesc1 => '브러시/채우기 도구 안티앨리어싱을 레벨 0으로 설정';
 
   @override
-  String get workspacePixelDesc2 => 'Show Grid: On';
+  String get workspacePixelDesc2 => '그리드 표시: 켜기';
 
   @override
-  String get workspacePixelDesc3 => 'Vector Drawing: Off';
+  String get workspacePixelDesc3 => '벡터 드로잉: 끄기';
 
   @override
-  String get workspaceDefault => 'Default';
+  String get workspaceDefault => '기본값';
 
   @override
-  String get workspaceDefaultDesc => 'Do not change current tool settings';
+  String get workspaceDefaultDesc => '현재 도구 설정을 변경하지 않음';
 
   @override
-  String get resolutionPreset => 'Resolution Preset';
+  String get resolutionPreset => '해상도 사전 설정';
 
   @override
-  String get customResolution => 'Custom Resolution';
+  String get customResolution => '사용자 정의 해상도';
 
   @override
   String finalSizePreview(Object width, Object height, Object ratio) {
-    return 'Final Size: $width x $height px (Ratio $ratio)';
+    return '최종 크기: $width x $height px (비율 $ratio)';
   }
 
   @override
-  String get enterValidDimensions => 'Please enter valid dimensions';
+  String get enterValidDimensions => '유현한 치수를 입력하세요';
 
   @override
-  String get backgroundColor => 'Background Color';
+  String get backgroundColor => '배경색';
 
   @override
   String get exportBitmapDesc =>
-      'Suitable for regular exports requiring raster format, supports scaling and antialiasing.';
+      '래스터 형식이 필요한 일반적인 내보내기에 적합하며 크기 조정 및 안티앨리어싱을 지원합니다.';
 
   @override
   String get exportVectorDesc =>
-      'Automatically transcribes current canvas to vector paths, suitable for editing in vector tools.';
+      '현재 캔버스를 벡터 경로로 자동 변환합니다. 벡터 도구에서 편집하기에 적합합니다.';
 
   @override
-  String get exampleScale => 'e.g. 1.0';
+  String get exampleScale => '예: 1.0';
 
   @override
-  String get enterPositiveValue => 'Please enter a value > 0';
+  String get enterPositiveValue => '0보다 큰 값을 입력하세요';
 
   @override
-  String get antialiasingBeforeExport => 'Antialiasing before export';
+  String get antialiasingBeforeExport => '내보내기 전 안티앨리어싱 적용';
 
   @override
   String get antialiasingDesc =>
-      'Smoothens edges while preserving line density, a tribute to the texture of Retas animation software.';
+      '선의 밀도를 유지하면서 가장자리를 부드럽게 합니다. Retas 애니메이션 소프트웨어의 질감을 재현합니다.';
 
   @override
   String levelLabel(Object level) {
-    return 'Level $level';
+    return '레벨 $level';
   }
 
   @override
   String vectorExportSize(Object width, Object height) {
-    return 'Export Size: $width x $height (Use Canvas Size)';
+    return '내보내기 크기: $width x $height (캔버스 크기 사용)';
   }
 
   @override
   String colorCount(Object count) {
-    return '$count colors';
+    return '$count 색상';
   }
 
   @override
   String get vectorSimplifyDesc =>
-      'Fewer colors and higher simplification yield simpler SVG; too low values result in too many nodes.';
+      '색상 수를 줄이고 단순화 강도를 높이면 SVG가 단순화됩니다. 값이 너무 낮으면 노드가 너무 많아집니다.';
 
   @override
   String get antialiasNone =>
-      'Level 0 (Off): Preserves pixel hard edges, no antialiasing.';
+      '레벨 0 (끄기): 픽셀의 날카로운 가장자리를 유지하고 안티앨리어싱을 적용하지 않습니다.';
 
   @override
   String get antialiasLow =>
-      'Level 1 (Low): Slight softening of aliasing, smoothing edges while maintaining line density.';
+      '레벨 1 (낮음): 앨리어싱을 약간 완화하고 선의 밀도를 유지하면서 가장자리를 부드럽게 합니다.';
 
   @override
   String get antialiasMedium =>
-      'Level 2 (Standard): Balance sharpness and softening, presenting clean lines like Retas.';
+      '레벨 2 (표준): 선명함과 부드러움의 균형을 유지하여 Retas와 같은 깔끔한 선을 만듭니다.';
 
   @override
   String get antialiasHigh =>
-      'Level 3 (High): Strongest softening effect, for edges requiring soft transitions or large scaling.';
+      '레벨 3 (높음): 가장 강력한 부드러움 효과. 부드러운 전환이 필요하거나 크게 확대할 때 적합합니다.';
 
   @override
-  String get tolerance => 'Tolerance';
+  String get tolerance => '허용 오차';
 
   @override
-  String get sampleAllLayers => 'Sample All Layers';
+  String get sampleAllLayers => '모든 레이어 샘플링';
 
   @override
-  String get contiguous => 'Contiguous';
+  String get contiguous => '인접 픽셀만';
 
   @override
-  String get swallowColorLine => 'Swallow Color Line';
+  String get swallowColorLine => '색상 선 삼키기';
 
   @override
-  String get cropOutsideCanvas => 'Crop Outside Canvas';
+  String get cropOutsideCanvas => '캔버스 밖 자르기';
 
   @override
-  String get noAdjustableSettings => 'No adjustable settings for this tool';
+  String get noAdjustableSettings => '이 도구에는 조정 가능한 설정이 없습니다';
 
   @override
-  String get solidFill => 'Solid Fill';
+  String get solidFill => '단색 채우기';
 
   @override
-  String get autoSharpTaper => 'Auto Sharp Taper';
+  String get autoSharpTaper => '자동 날카로운 끝';
 
   @override
-  String get stylusPressure => 'Stylus Pressure';
+  String get stylusPressure => '필압 감지';
 
   @override
-  String get simulatedPressure => 'Simulated Pressure';
+  String get simulatedPressure => '모의 필압';
 
   @override
-  String get switchToEraser => 'Switch to Eraser';
+  String get switchToEraser => '지우개로 전환';
 
   @override
-  String get vectorDrawing => 'Vector Drawing';
+  String get vectorDrawing => '벡터 드로잉';
 
   @override
-  String get smoothCurve => 'Smooth Curve';
+  String get smoothCurve => '곡선 부드럽게';
 
   @override
-  String get sprayEffect => 'Spray Effect';
+  String get sprayEffect => '스프레이 효과';
 
   @override
-  String get brushShape => 'Brush Shape';
+  String get brushShape => '브러시 모양';
 
   @override
-  String get selectionShape => 'Selection Shape';
+  String get selectionShape => '선택 모양';
 
   @override
-  String get fontSize => 'Font Size';
+  String get fontSize => '글꼴 크기';
 
   @override
-  String get lineHeight => 'Line Height';
+  String get lineHeight => '줄 간격';
 
   @override
-  String get letterSpacing => 'Letter Spacing';
+  String get letterSpacing => '자간';
 
   @override
-  String get textStroke => 'Text Stroke';
+  String get textStroke => '텍스트 획';
 
   @override
-  String get strokeWidth => 'Stroke Width';
+  String get strokeWidth => '획 두께';
 
   @override
-  String get strokeColor => 'Stroke Color';
+  String get strokeColor => '획 색상';
 
   @override
-  String get pickColor => 'Pick Color';
+  String get pickColor => '색상 추출';
 
   @override
-  String get alignment => 'Alignment';
+  String get alignment => '정렬';
 
   @override
-  String get alignCenter => 'Center';
+  String get alignCenter => '가운데 정렬';
 
   @override
-  String get alignRight => 'Right';
+  String get alignRight => '오른쪽 정렬';
 
   @override
-  String get alignLeft => 'Left';
+  String get alignLeft => '왼쪽 정렬';
 
   @override
-  String get orientation => 'Orientation';
+  String get orientation => '방향';
 
   @override
-  String get horizontal => 'Horizontal';
+  String get horizontal => '수평';
 
   @override
-  String get vertical => 'Vertical';
+  String get vertical => '수직';
 
   @override
-  String get textToolHint =>
-      'Use the color picker in the bottom left for text fill, and the secondary color for stroke.';
+  String get textToolHint => '텍스트 채우기에는 왼쪽 하단의 색상 선택기를, 획에는 보조 색상을 사용하세요.';
 
   @override
-  String get shapeType => 'Shape Type';
+  String get shapeType => '도형 유형';
 
   @override
-  String get brushSize => 'Brush Size';
+  String get brushSize => '브러시 크기';
 
   @override
-  String get spraySize => 'Spray Size';
+  String get spraySize => '스프레이 크기';
 
   @override
-  String get brushFineTune => 'Brush Fine Tune';
+  String get brushFineTune => '브러시 미세 조정';
 
   @override
-  String get increase => 'Increase';
+  String get increase => '증가';
 
   @override
-  String get decrease => 'Decrease';
+  String get decrease => '감소';
 
   @override
-  String get stabilizer => 'Stabilizer';
+  String get stabilizer => '손떨림 보정';
 
   @override
-  String get off => 'Off';
+  String get off => '끄기';
 
   @override
-  String get taperEnds => 'Taper Ends';
+  String get taperEnds => '양쪽 끝 가늘게';
 
   @override
-  String get taperCenter => 'Taper Center';
+  String get taperCenter => '중앙 가늘게';
 
   @override
-  String get auto => 'Auto';
+  String get auto => '자동';
 
   @override
-  String get softSpray => 'Soft Spray';
+  String get softSpray => '소프트 스프레이';
 
   @override
-  String get splatter => 'Splatter';
+  String get splatter => '튀기기';
 
   @override
-  String get rectSelection => 'Rectangle Selection';
+  String get rectSelection => '사각형 선택';
 
   @override
-  String get ellipseSelection => 'Ellipse Selection';
+  String get ellipseSelection => '타원 선택';
 
   @override
-  String get polygonLasso => 'Polygon Lasso';
+  String get polygonLasso => '다각형 올가미';
 
   @override
-  String get rectangle => 'Rectangle';
+  String get rectangle => '사각형';
 
   @override
-  String get ellipse => 'Ellipse';
+  String get ellipse => '타원';
 
   @override
-  String get triangle => 'Triangle';
+  String get triangle => '삼각형';
 
   @override
-  String get line => 'Line';
+  String get line => '직선';
 
   @override
-  String get circle => 'Circle';
+  String get circle => '원';
 
   @override
-  String get square => 'Square';
+  String get square => '정사각형';
 
   @override
   String get brushSizeDesc =>
-      'Sets the pixel diameter of the current brush. Larger values make thicker lines, smaller for details.';
+      '현재 브러시의 직경(픽셀)을 설정합니다. 값이 클수록 선이 굵어지고, 작을수록 세부 묐사에 적합합니다.';
 
   @override
   String get spraySizeDesc =>
-      'Determines the radius of the spray area. Larger radius covers more area but particles are more dispersed.';
+      '스프레이 영역의 반경을 결정합니다. 반경이 클수록 넓은 영역을 덮지만 입자가 분산됩니다.';
 
   @override
   String get toleranceDesc =>
-      'Controls the threshold for \'color similarity\' for Bucket or Magic Wand. Higher tolerance grabs more similar colors.';
+      '채우기 또는 자동 선택 시 \'색상 유사성\'의 허용 오차를 제어합니다. 높을수록 비슷한 색상을 더 많이 포함합니다.';
 
   @override
   String get antialiasingSliderDesc =>
-      'Adds multi-sampling smoothing to brush or fill edges, preserving line density. Level 0 keeps pixel style.';
+      '브러시 또는 채우기 가장자리에 말티샘플링 스무딩을 추가합니다. 레벨 0은 픽셀 스타일을 유지합니다.';
 
   @override
   String get stabilizerDesc =>
-      'Smooths pointer trajectory in real-time to counteract hand tremors. Higher levels are steadier but respond slower.';
+      '손떨림을 상쇄하기 위해 포인터 궤적을 실시간으로 부드럽게 합니다. 레벨이 높을수록 안정적이지만 반응이 느려집니다.';
 
   @override
-  String get fontSizeDesc =>
-      'Adjusts the pixel height of the text for overall scaling.';
+  String get fontSizeDesc => '전체 크기 조정을 위해 텍스트의 픽셀 높이를 조정합니다.';
 
   @override
-  String get lineHeightDesc =>
-      'Controls vertical distance between lines of text.';
+  String get lineHeightDesc => '텍스트 줄 사이의 수직 거리를 제어합니다.';
 
   @override
-  String get letterSpacingDesc =>
-      'Changes horizontal spacing between characters.';
+  String get letterSpacingDesc => '문자 사이의 수평 간격을 변경합니다.';
 
   @override
-  String get strokeWidthDesc => 'Sets the thickness of the text stroke.';
+  String get strokeWidthDesc => '텍스트 획의 두께를 설정합니다.';
 
   @override
   String get solidFillDesc =>
-      'Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.';
+      '도형 도구가 채워진 블록을 그릴지 빈 윤곽선을 그릴지 결정합니다. 켜면 채워진 도형을 그립니다.';
 
   @override
   String get autoSharpTaperDesc =>
-      'Automatically tapers the start and end of strokes for a sharp, cel-shading look.';
+      '스트로크의 시작과 끝을 자동으로 가늘게 하여 셀 셰이딩과 같은 날카로운 선을 만듭니다.';
 
   @override
   String get stylusPressureDesc =>
-      'Allows stylus pressure to affect brush size/opacity. Turn off to ignore hardware pressure.';
+      '필압에 따른 브러시 크기/불투명도 변화를 허용합니다. 끄면 하드웨어 필압을 무시합니다.';
 
   @override
-  String get simulatedPressureDesc =>
-      'Simulates pressure based on mouse speed when no pressure device is present.';
+  String get simulatedPressureDesc => '필압 장치가 없는 경우 마우스 속도를 기반으로 필압을 시뮬레이션합니다.';
 
   @override
-  String get switchToEraserDesc =>
-      'Switches current brush/spray to an eraser with the same texture.';
+  String get switchToEraserDesc => '현재 브러시/스프레이와 동일한 텍스처를 가진 지우개로 전환합니다.';
 
   @override
   String get vectorDrawingDesc =>
-      'Previews strokes as vector curves for 120Hz smooth feedback and lossless scaling. Turn off for direct pixel output.';
+      '스트로크를 벡터 곡선으로 미리 보고, 120Hz의 부드러운 피드백과 무손실 확대를 제공합니다. 픽셀 출력 시에는 끄세요.';
 
   @override
   String get smoothCurveDesc =>
-      'Further smooths curve nodes when Vector Drawing is on, reducing corners but sacrificing some responsiveness.';
+      '벡터 드로잉이 켜져 있을 때 곡선 노드를 더 부드럽게 하여 모서리를 줄이지만 반응성이 다소 희생됩니다.';
 
   @override
   String get sampleAllLayersDesc =>
-      'Bucket samples colors from all visible layers. Turn off to detect only the current layer.';
+      '채우기 시 보이는 모든 레이어의 색상을 참조합니다. 끄면 현재 레이어만 감지합니다.';
 
   @override
-  String get contiguousDesc =>
-      'Spreads only to adjacent pixels. Turn off to match the entire canvas.';
+  String get contiguousDesc => '인접한 픽셀로만 퍼집니다. 끄면 캔버스 전체의 일치하는 색상을 채웁니다.';
 
   @override
   String get swallowColorLineDesc =>
-      'Automatically expands fill into color lines to remove white edges. Dedicated for Retas workflow.';
+      '색상 선으로 채우기를 자동으로 확장하여 흰색 틈을 없액니다. Retas 워크플로 전용입니다.';
 
   @override
   String get cropOutsideCanvasDesc =>
-      'Crops pixels outside the canvas when adjusting layers. Turn off to keep all pixels.';
+      '레이어 조정 시 캔버스 밖의 픽셀을 자릅니다. 끄면 모든 픽셀을 유지합니다.';
 
   @override
   String get textAntialiasingDesc =>
-      'Enables antialiasing for text rendering, smoothing glyphs while preserving density.';
+      '텍스트 렌더링에 안티앨리어싱을 활성화하여 밀도를 유지하면서 글자를 부드럽게 합니다.';
 
   @override
-  String get textStrokeDesc => 'Enables the stroke channel for text outlines.';
+  String get textStrokeDesc => '텍스트의 윤곽선 채널을 활성화합니다.';
 
   @override
   String get sprayEffectDesc =>
-      'Switches spray model: \'Soft Spray\' for misty gradients, \'Splatter\' for particles.';
+      '스프레이 모델을 전환합니다. \'소프트 스프레이\'는 안개 같은 그라데이션, \'튀기기\'는 입자 형태입니다.';
 
   @override
-  String get rectSelectDesc => 'Quickly select a rectangular area.';
+  String get rectSelectDesc => '사각형 영역을 빠르게 선택합니다.';
 
   @override
-  String get ellipseSelectDesc => 'Create circular or elliptical selections.';
+  String get ellipseSelectDesc => '원형 또는 타원형 선택 영역을 만듭니다.';
 
   @override
-  String get polyLassoDesc =>
-      'Draw arbitrary polygon selections point by point.';
+  String get polyLassoDesc => '점들을 찍어 임의의 다각형 선택 영역을 그립니다.';
 
   @override
-  String get rectShapeDesc =>
-      'Draw horizontal rectangles or squares (outline/fill).';
+  String get rectShapeDesc => '수평 사각형 또는 정사각형을 그립니다 (윤곽선/채우기).';
 
   @override
-  String get ellipseShapeDesc => 'Draw elliptical or circular outlines/fills.';
+  String get ellipseShapeDesc => '타원 또는 원의 윤곽선/채우기를 그립니다.';
 
   @override
-  String get triangleShapeDesc =>
-      'Draw geometric triangles or use a triangle tip for sharp outlines.';
+  String get triangleShapeDesc => '기하학적 삼각형을 그리거나 삼각형 팁을 사용하여 날카로운 윤곽선을 그립니다.';
 
   @override
-  String get lineShapeDesc => 'Draw straight lines from start to end.';
+  String get lineShapeDesc => '시작점에서 끝점까지 직선을 그립니다.';
 
   @override
-  String get circleTipDesc =>
-      'Keep brush tip circular for smooth, soft strokes.';
+  String get circleTipDesc => '브러시 팁을 원형으로 유지하여 부드럽고 둥근 스트로크를 만듭니다.';
 
   @override
-  String get squareTipDesc => 'Use a square tip for hard-edged pixel strokes.';
+  String get squareTipDesc => '사각형 팁을 사용하여 날카로운 픽셀 스트로크를 만듭니다.';
 
   @override
-  String get apply => 'Apply';
+  String get apply => '적용';
 
   @override
-  String get next => 'Next';
+  String get next => '다음';
 
   @override
-  String get disableVectorDrawing => 'Disable Vector Drawing';
+  String get disableVectorDrawing => '벡터 드로잉 비활성화';
 
   @override
-  String get disableVectorDrawingConfirm =>
-      'Are you sure you want to disable vector drawing?';
+  String get disableVectorDrawingConfirm => '벡터 드로잉을 비활성화하시겠습니까?';
 
   @override
-  String get disableVectorDrawingDesc =>
-      'Performance will decrease after disabling.';
+  String get disableVectorDrawingDesc => '비활성화하면 성능이 저하됩니다.';
 
   @override
-  String get dontShowAgain => 'Don\'t show again';
+  String get dontShowAgain => '다시 표시 안 함';
 
   @override
-  String get newLayer => 'New Layer';
+  String get newLayer => '새 레이어';
 
   @override
-  String get mergeDown => 'Merge Down';
+  String get mergeDown => '아래로 병합';
 
   @override
-  String get delete => 'Delete';
+  String get delete => '삭제';
 
   @override
-  String get duplicate => 'Duplicate';
+  String get duplicate => '복제';
 
   @override
-  String get rasterizeTextLayer => 'Rasterize Text Layer';
+  String get rasterizeTextLayer => '텍스트 레이어 래스터화';
 
   @override
-  String get opacity => 'Opacity';
+  String get opacity => '불투명도';
 
   @override
-  String get blendMode => 'Blend Mode';
+  String get blendMode => '혼합 모드';
 
   @override
-  String get clearFill => 'Clear Fill';
+  String get clearFill => '채우기 지우기';
 
   @override
-  String get colorLine => 'Color Line';
+  String get colorLine => '색상 선';
 
   @override
-  String get currentColor => 'Current Color';
+  String get currentColor => '현재 색상';
 
   @override
   String get rgb => 'RGB';
@@ -1198,669 +1182,644 @@ class AppLocalizationsKo extends AppLocalizations {
   String get hsv => 'HSV';
 
   @override
-  String get preparingLayer => 'Preparing layer...';
+  String get preparingLayer => '레이어 준비 중...';
 
   @override
-  String get generatePaletteTitle => 'Generate palette from canvas';
+  String get generatePaletteTitle => '캔버스에서 팔레트 생성';
 
   @override
-  String get generatePaletteDesc => 'Choose color count or enter custom value.';
+  String get generatePaletteDesc => '색상 수를 선택하거나 사용자 정의 값을 입력하세요.';
 
   @override
-  String get customCount => 'Custom Count';
+  String get customCount => '사용자 정의 수';
 
   @override
-  String get selectExportFormat => 'Select Export Format';
+  String get selectExportFormat => '내보내기 형식 선택';
 
   @override
-  String get selectPaletteFormatDesc => 'Select palette export format.';
+  String get selectPaletteFormatDesc => '팔레트 내보내기 형식을 선택하세요.';
 
   @override
-  String get noColorsDetected => 'No colors detected.';
+  String get noColorsDetected => '색상이 감지되지 않았습니다.';
 
   @override
-  String get alphaThreshold => 'Alpha Threshold';
+  String get alphaThreshold => '알파 임계값';
 
   @override
-  String get blurRadius => 'Blur Radius';
+  String get blurRadius => '흐림 반경';
 
   @override
-  String get repairRange => 'Repair Range';
+  String get repairRange => '수정 별위';
 
   @override
-  String get selectAntialiasLevel => 'Select Antialias Level';
+  String get selectAntialiasLevel => '안티앨리어싱 레벨 선택';
 
   @override
-  String get colorCountLabel => 'Color Count';
+  String get colorCountLabel => '색상 수';
 
   @override
-  String get completeTransformFirst =>
-      'Please complete the current transform first.';
+  String get completeTransformFirst => '현재 변화를 먼저 완료하세요.';
 
   @override
-  String get enablePerspectiveGuideFirst =>
-      'Please enable perspective guide before using perspective pen.';
+  String get enablePerspectiveGuideFirst => '투시 펜을 사용하기 전에 투시 가이드를 활성화하세요.';
 
   @override
   String get lineNotAlignedWithPerspective =>
-      'Current line does not align with perspective direction, please adjust angle.';
+      '현재 선이 투시 방향과 일치하지 않습니다. 각도를 조정하세요.';
 
   @override
-  String get layerBackground => 'Background';
+  String get layerBackground => '배경';
 
   @override
   String layerDefaultName(Object index) {
-    return 'Layer $index';
+    return '레이어 $index';
   }
 
   @override
-  String get duplicateLayer => 'Duplicate Layer';
+  String get duplicateLayer => '레이어 복제';
 
   @override
   String layerCopyName(Object name) {
-    return '$name Copy';
+    return '$name 복사본';
   }
 
   @override
-  String get unlockLayer => 'Unlock Layer';
+  String get unlockLayer => '레이어 잠금 해제';
 
   @override
-  String get lockLayer => 'Lock Layer';
+  String get lockLayer => '레이어 잠금';
 
   @override
-  String get releaseClippingMask => 'Release Clipping Mask';
+  String get releaseClippingMask => '클리핑 마스크 해제';
 
   @override
-  String get createClippingMask => 'Create Clipping Mask';
+  String get createClippingMask => '클리핑 마스크 생성';
 
   @override
-  String get hide => 'Hide';
+  String get hide => '숨기기';
 
   @override
-  String get show => 'Show';
+  String get show => '표시';
 
   @override
-  String get colorRangeTitle => 'Color Range';
+  String get colorRangeTitle => '색상 별위';
 
   @override
-  String get colorPickerTitle => 'Color Picker';
+  String get colorPickerTitle => '색상 선택기';
 
   @override
-  String get layerManagerTitle => 'Layer Manager';
+  String get layerManagerTitle => '레이어 관리';
 
   @override
-  String get edgeSoftening => 'Edge Softening';
+  String get edgeSoftening => '가장자리 부드럽게';
 
   @override
-  String get undo => 'Undo';
+  String get undo => '실행 취소';
 
   @override
-  String get redo => 'Redo';
+  String get redo => '다시 실행';
 
   @override
   String undoShortcut(Object shortcut) {
-    return 'Undo ($shortcut)';
+    return '실행 취소 ($shortcut)';
   }
 
   @override
   String redoShortcut(Object shortcut) {
-    return 'Redo ($shortcut)';
+    return '다시 실행 ($shortcut)';
   }
 
   @override
   String opacityPercent(Object percent) {
-    return 'Opacity $percent%';
+    return '불투명도 $percent%';
   }
 
   @override
-  String get clippingMask => 'Clipping Mask';
+  String get clippingMask => '클리핑 마스크';
 
   @override
-  String get deleteLayerTitle => 'Delete Layer';
+  String get deleteLayerTitle => '레이어 삭제';
 
   @override
-  String get deleteLayerDesc => 'Remove this layer. Undo available.';
+  String get deleteLayerDesc => '이 레이어를 삭제합니다. 실행 취소 가능합니다.';
 
   @override
-  String get mergeDownDesc => 'Merge with the layer below.';
+  String get mergeDownDesc => '아래 레이어와 병합합니다.';
 
   @override
-  String get duplicateLayerDesc => 'Duplicate entire layer content.';
+  String get duplicateLayerDesc => '레이어의 모든 내용을 복제합니다.';
 
   @override
-  String get more => 'More';
+  String get more => '더보기';
 
   @override
-  String get lockLayerDesc => 'Lock to prevent accidental edits.';
+  String get lockLayerDesc => '실수로 편집하는 것을 방지하기 위해 잠급니다.';
 
   @override
-  String get unlockLayerDesc => 'Unlock to enable editing.';
+  String get unlockLayerDesc => '편집할 수 있도록 잠금을 해제합니다.';
 
   @override
-  String get clippingMaskDescOn => 'Restore to normal layer.';
+  String get clippingMaskDescOn => '일반 레이어로 복원합니다.';
 
   @override
-  String get clippingMaskDescOff => 'Clip to layer below.';
+  String get clippingMaskDescOff => '아래 레이어에 클리핑합니다.';
 
   @override
-  String get red => 'Red';
+  String get red => '빨강';
 
   @override
-  String get green => 'Green';
+  String get green => '초록';
 
   @override
-  String get blue => 'Blue';
+  String get blue => '파랑';
 
   @override
-  String get hue => 'Hue';
+  String get hue => '색상';
 
   @override
-  String get saturation => 'Saturation';
+  String get saturation => '채도';
 
   @override
-  String get value => 'Value';
+  String get value => '명도';
 
   @override
-  String get hsvBoxSpectrum => 'HSV Box Spectrum';
+  String get hsvBoxSpectrum => 'HSV 상자 스펙트럼';
 
   @override
-  String get hueRingSpectrum => 'Hue Ring Spectrum';
+  String get hueRingSpectrum => '색상 링 스펙트럼';
 
   @override
-  String get rgbHsvSliders => 'RGB / HSV Sliders';
+  String get rgbHsvSliders => 'RGB / HSV 슬라이더';
 
   @override
-  String get boardPanelPicker => 'Board Panel Picker';
+  String get boardPanelPicker => '보드 패널 피커';
 
   @override
-  String get adjustCurrentColor => 'Adjust Current Color';
+  String get adjustCurrentColor => '현재 색상 조정';
 
   @override
-  String get adjustStrokeColor => 'Adjust Stroke Color';
+  String get adjustStrokeColor => '획 색상 조정';
 
   @override
   String copiedHex(Object hex) {
-    return 'Copied $hex';
+    return '$hex 복사됨';
   }
 
   @override
   String rotationLabel(Object degrees) {
-    return 'Rotation: $degrees°';
+    return '회전: $degrees°';
   }
 
   @override
   String scaleLabel(Object x, Object y) {
-    return 'Scale: $x% x $y%';
+    return '배율: $x% x $y%';
   }
 
   @override
-  String get failedToExportTransform => 'Failed to export transform result';
+  String get failedToExportTransform => '변확 결과 내보내기 실패';
 
   @override
-  String get cannotLocateLayer => 'Cannot locate active layer.';
+  String get cannotLocateLayer => '활성 레이어를 찾을 수 없습니다.';
 
   @override
-  String get layerLockedCannotTransform =>
-      'Active layer is locked, cannot transform.';
+  String get layerLockedCannotTransform => '활성 레이어가 잠겨 있어 변확할 수 없습니다.';
 
   @override
-  String get cannotEnterTransformMode => 'Cannot enter free transform mode.';
+  String get cannotEnterTransformMode => '자유 변확 모드로 들어갈 수 없습니다.';
 
   @override
-  String get applyTransformFailed =>
-      'Failed to apply transform, please try again.';
+  String get applyTransformFailed => '변확 적용 실패. 다시 시도하세요.';
 
   @override
-  String get freeTransformTitle => 'Free Transform';
+  String get freeTransformTitle => '자유 변확';
 
   @override
-  String get colorIndicatorDetail =>
-      'Click to open color editor, enter values or copy HEX.';
+  String get colorIndicatorDetail => '클릭하여 색상 편집기를 열거나, 값을 입력하거나, HEX를 복사하세요.';
 
   @override
-  String get gplDesc =>
-      'Text format compatible with GIMP, Krita, Clip Studio Paint, etc.';
+  String get gplDesc => 'GIMP, Krita, Clip Studio Paint 등과 호환되는 텍스트 형식.';
 
   @override
-  String get aseDesc =>
-      'Suitable for Aseprite, LibreSprite pixel art software.';
+  String get aseDesc => 'Aseprite, LibreSprite 픽셀 아트 소프트웨어에 적합합니다.';
 
   @override
-  String get asepriteDesc =>
-      'Uses .aseprite extension for direct opening in Aseprite.';
+  String get asepriteDesc => 'Aseprite에서 직접 열 수 있는 .aseprite 확장자를 사용합니다.';
 
   @override
   String get gradientPaletteFailed =>
-      'Current color cannot generate gradient palette, please try again.';
+      '현재 색상으로 그라데이션 팔레트를 생성할 수 없습니다. 다시 시도하세요.';
 
   @override
-  String get gradientPaletteTitle => 'Gradient Palette (Current Color)';
+  String get gradientPaletteTitle => '그라데이션 팔레트 (현재 색상)';
 
   @override
   String paletteCountRange(Object min, Object max) {
-    return 'Range $min - $max';
+    return '범위 $min - $max';
   }
 
   @override
   String allowedRange(Object min, Object max) {
-    return 'Allowed Range: $min - $max colors';
+    return '허용 범위: $min - $max 색상';
   }
 
   @override
-  String get enterValidColorCount => 'Please enter a valid color count.';
+  String get enterValidColorCount => '유현한 색상 수를 입력하세요.';
 
   @override
-  String get paletteGenerationFailed =>
-      'Unable to generate palette momentarily, please try again.';
+  String get paletteGenerationFailed => '팔레트를 생성할 수 없습니다. 다시 시도하세요.';
 
   @override
-  String get noValidColorsFound =>
-      'No valid colors found, please ensure canvas has content.';
+  String get noValidColorsFound => '유현한 색상을 찾을 수 없습니다. 캔버스에 내용이 있는지 확인하세요.';
 
   @override
-  String get paletteEmpty => 'This palette has no usable colors.';
+  String get paletteEmpty => '이 팔레트에는 사용할 수 있는 색상이 없습니다.';
 
   @override
   String paletteMinColors(Object min) {
-    return 'Palette requires at least $min colors.';
+    return '팔레트에는 최소 $min가지 색상이 필요합니다.';
   }
 
   @override
-  String get paletteDefaultName => 'Palette';
+  String get paletteDefaultName => '팔레트';
 
   @override
-  String get paletteEmptyExport => 'This palette has no exportable colors.';
+  String get paletteEmptyExport => '이 팔레트에는 내보낼 수 있는 색상이 없습니다.';
 
   @override
-  String get exportPaletteTitle => 'Export Palette';
+  String get exportPaletteTitle => '팔레트 내보내기';
 
   @override
-  String get webDownloadDesc =>
-      'Browser will save palette to default download directory.';
+  String get webDownloadDesc => '브라우저가 기본 다운로드 디렉토리에 팔레트를 저장합니다.';
 
   @override
-  String get download => 'Download';
+  String get download => '다운로드';
 
   @override
   String paletteDownloaded(Object name) {
-    return 'Palette downloaded: $name';
+    return '팔레트를 다운로드했습니다: $name';
   }
 
   @override
   String paletteExported(Object path) {
-    return 'Palette exported to $path';
+    return '팔레트를 $path에 내보냈습니다';
   }
 
   @override
   String paletteExportFailed(Object error) {
-    return 'Failed to export palette: $error';
+    return '팔레트 내보내기 실패: $error';
   }
 
   @override
-  String get selectEditableLayerFirst =>
-      'Please select an editable layer first.';
+  String get selectEditableLayerFirst => '먼저 편집 가능한 레이어를 선택하세요.';
 
   @override
-  String get layerLockedNoFilter =>
-      'Active layer is locked, cannot apply filter.';
+  String get layerLockedNoFilter => '활성 레이어가 잠겨 있어 필터를 적용할 수 없습니다.';
 
   @override
-  String get textLayerNoFilter =>
-      'Active layer is text, please rasterize or switch layer.';
+  String get textLayerNoFilter => '활성 레이어가 텍스트입니다. 래스터화하거나 레이어를 전환하세요.';
 
   @override
-  String get hueSaturation => 'Hue/Saturation';
+  String get hueSaturation => '색상/채도';
 
   @override
-  String get brightnessContrast => 'Brightness/Contrast';
+  String get brightnessContrast => '밝기/대비';
 
   @override
-  String get blackAndWhite => 'Black & White';
+  String get blackAndWhite => '흑백';
 
   @override
-  String get binarize => 'Binarize';
+  String get binarize => '이진화';
 
   @override
-  String get gaussianBlur => 'Gaussian Blur';
+  String get gaussianBlur => '가우시안 흐림';
 
   @override
-  String get leakRemoval => 'Leak Removal';
+  String get leakRemoval => '누출 제거';
 
   @override
-  String get lineNarrow => 'Line Narrow';
+  String get lineNarrow => '선 좁히기';
 
   @override
-  String get narrowRadius => 'Narrow Radius';
+  String get narrowRadius => '좁히기 반경';
 
   @override
-  String get fillExpand => 'Fill Expand';
+  String get fillExpand => '채우기 확장';
 
   @override
-  String get expandRadius => 'Expand Radius';
+  String get expandRadius => '확장 반경';
 
   @override
-  String get noTransparentPixelsFound =>
-      'No processable transparent pixels detected.';
+  String get noTransparentPixelsFound => '처리 가능한 투명 픽셀이 감지되지 않았습니다.';
 
   @override
-  String get filterApplyFailed => 'Failed to apply filter, please try again.';
+  String get filterApplyFailed => '필터 적용 실패. 다시 시도하세요.';
 
   @override
-  String get canvasNotReadyInvert => 'Canvas not ready, cannot invert colors.';
+  String get canvasNotReadyInvert => '캔버스가 준비되지 않아 색상을 반전할 수 없습니다.';
 
   @override
-  String get layerLockedInvert => 'Active layer locked, cannot invert colors.';
+  String get layerLockedInvert => '활성 레이어가 잠겨 있어 색상을 반전할 수 없습니다.';
 
   @override
-  String get layerEmptyInvert => 'Active layer empty, cannot invert colors.';
+  String get layerEmptyInvert => '활성 레이어가 비어 있어 색상을 반전할 수 없습니다.';
 
   @override
-  String get noPixelsToInvert => 'Active layer has no pixels to invert.';
+  String get noPixelsToInvert => '반전할 픽셀이 없습니다.';
 
   @override
   String get edgeSofteningFailed =>
-      'Cannot apply edge softening, layer might be empty or locked.';
+      '가장자리 부드럽게를 적용할 수 없습니다. 레이어가 비어 있거나 잠겨 있을 수 있습니다.';
 
   @override
-  String get layerLockedEdgeSoftening =>
-      'Active layer locked, cannot apply edge softening.';
+  String get layerLockedEdgeSoftening => '활성 레이어가 잠겨 있어 가장자리 부드럽게를 적용할 수 없습니다.';
 
   @override
-  String get canvasNotReadyColorRange =>
-      'Canvas not ready, cannot count color range.';
+  String get canvasNotReadyColorRange => '캔버스가 준비되지 않아 색상 변위를 계산할 수 없습니다.';
 
   @override
-  String get layerLockedColorRange =>
-      'Active layer locked, cannot set color range.';
+  String get layerLockedColorRange => '활성 레이어가 잠겨 있어 색상 변위를 설정할 수 없습니다.';
 
   @override
-  String get layerEmptyColorRange =>
-      'Active layer empty, cannot set color range.';
+  String get layerEmptyColorRange => '활성 레이어가 비어 있어 색상 변위를 설정할 수 없습니다.';
 
   @override
-  String get noColorsToProcess => 'Active layer has no processable colors.';
+  String get noColorsToProcess => '처리 가능한 색상이 없습니다.';
 
   @override
-  String get targetColorsNotLess =>
-      'Target color count not less than current, layer unchanged.';
+  String get targetColorsNotLess => '대상 색상 수가 현재보다 적지 않아 레이어가 변경되지 않았습니다.';
 
   @override
-  String get colorRangeApplyFailed =>
-      'Failed to apply color range, please try again.';
+  String get colorRangeApplyFailed => '색상 변위 적용 실패. 다시 시도하세요.';
 
   @override
-  String get colorRangePreviewFailed =>
-      'Failed to generate color range preview, please try again.';
+  String get colorRangePreviewFailed => '색상 변위 미리보기 생성 실패. 다시 시도하세요.';
 
   @override
-  String get lightness => 'Lightness';
+  String get lightness => '명도';
 
   @override
-  String get brightness => 'Brightness';
+  String get brightness => '밝기';
 
   @override
-  String get contrast => 'Contrast';
+  String get contrast => '대비';
 
   @override
-  String get selectSaveFormat => 'Please select a file format to save.';
+  String get selectSaveFormat => '저장할 파일 형식을 선택하세요.';
 
   @override
-  String get saveAsPsd => 'Save as PSD';
+  String get saveAsPsd => 'PSD로 저장';
 
   @override
-  String get saveAsRin => 'Save as RIN';
+  String get saveAsRin => 'RIN으로 저장';
 
   @override
-  String get dontSave => 'Don\'t Save';
+  String get dontSave => '저장 안 함';
 
   @override
-  String get save => 'Save';
+  String get save => '저장';
 
   @override
-  String get renameProject => 'Rename Project';
+  String get renameProject => '프로젝트 이름 변경';
 
   @override
-  String get enterNewProjectName => 'Please enter a new project name';
+  String get enterNewProjectName => '새 프로젝트 이름을 입력하세요';
 
   @override
-  String get rename => 'Rename';
+  String get rename => '이름 변경';
 
   @override
-  String get canvasNotReady => 'Canvas not ready';
+  String get canvasNotReady => '캔버스 준비 중';
 
   @override
-  String get toolPanel => 'Tool Panel';
+  String get toolPanel => '도구 패널';
 
   @override
-  String get toolbarTitle => 'Toolbar';
+  String get toolbarTitle => '도구 모음';
 
   @override
-  String get toolOptionsTitle => 'Tool Options';
+  String get toolOptionsTitle => '도구 옵션';
 
   @override
-  String get defaultProjectDirectory => 'Default Project Directory';
+  String get defaultProjectDirectory => '기본 프로젝트 디렉토리';
 
   @override
-  String get minimize => 'Minimize';
+  String get minimize => '최소화';
 
   @override
-  String get maximizeRestore => 'Maximize/Restore';
+  String get maximizeRestore => '최대화/복원';
 
   @override
-  String get fontFamily => 'Font Family';
+  String get fontFamily => '글꼴';
 
   @override
-  String get importPaletteTitle => 'Import Palette';
+  String get importPaletteTitle => '팔레트 가져오기';
 
   @override
-  String get cannotReadFile => 'Cannot read file';
+  String get cannotReadFile => '파일을 읽을 수 없습니다';
 
   @override
   String paletteImported(Object name) {
-    return 'Palette imported: $name';
+    return '팔레트를 가져왔습니다: $name';
   }
 
   @override
   String paletteImportFailed(Object error) {
-    return 'Failed to import palette: $error';
+    return '팔레트 가져오기 실패: $error';
   }
 
   @override
   String noChangesToSave(Object location) {
-    return 'No changes to save to $location';
+    return '$location에 저장할 변경 사항이 없습니다';
   }
 
   @override
   String projectSaved(Object location) {
-    return 'Project saved to $location';
+    return '프로젝트를 $location에 저장했습니다';
   }
 
   @override
   String projectSaveFailed(Object error) {
-    return 'Failed to save project: $error';
+    return '프로젝트 저장 실패: $error';
   }
 
   @override
-  String get canvasNotReadySave => 'Canvas is not ready to save.';
+  String get canvasNotReadySave => '캔버스가 준비되지 않아 저장할 수 없습니다.';
 
   @override
-  String get saveProjectAs => 'Save Project As';
+  String get saveProjectAs => '다른 이름으로 프로젝트 저장';
 
   @override
-  String get webSaveDesc => 'Download the project file to your device.';
+  String get webSaveDesc => '프로젝트 파일을 기기에 다운로드합니다.';
 
   @override
   String psdExported(Object path) {
-    return 'PSD exported to $path';
+    return 'PSD를 $path에 내보냈습니다';
   }
 
   @override
   String projectDownloaded(Object fileName) {
-    return 'Project downloaded: $fileName';
+    return '프로젝트를 다운로드했습니다: $fileName';
   }
 
   @override
   String psdDownloaded(Object fileName) {
-    return 'PSD downloaded: $fileName';
+    return 'PSD를 다운로드했습니다: $fileName';
   }
 
   @override
-  String get exportAsPsdTooltip => 'Export as PSD';
+  String get exportAsPsdTooltip => 'PSD로 내보내기';
 
   @override
-  String get canvasNotReadyExport => 'Canvas is not ready to export.';
+  String get canvasNotReadyExport => '캔버스가 준비되지 않아 내보낼 수 없습니다.';
 
   @override
   String exportFileTitle(Object extension) {
-    return 'Export $extension File';
+    return '$extension 파일 내보내기';
   }
 
   @override
-  String get webExportDesc => 'Download the exported image to your device.';
+  String get webExportDesc => '내보낸 이미지를 기기에 다운로드합니다.';
 
   @override
   String fileDownloaded(Object extension, Object name) {
-    return '$extension file downloaded: $name';
+    return '$extension 파일을 다운로드했습니다: $name';
   }
 
   @override
   String fileExported(Object path) {
-    return 'File exported to $path';
+    return '파일을 $path에 내보냈습니다';
   }
 
   @override
   String exportFailed(Object error) {
-    return 'Export failed: $error';
+    return '내보내기 실패: $error';
   }
 
   @override
-  String get canvasNotReadyTransform => 'Canvas not ready for transformation.';
+  String get canvasNotReadyTransform => '캔버스가 준비되지 않아 변형할 수 없습니다.';
 
   @override
-  String get canvasSizeErrorTransform =>
-      'Canvas size error during transformation.';
+  String get canvasSizeErrorTransform => '변형 중 캔버스 크기 오류가 발생했습니다.';
 
   @override
-  String get canvasNotReadyResizeImage => 'Canvas not ready to resize image.';
+  String get canvasNotReadyResizeImage => '캔버스가 준비되지 않아 이미지 크기를 조정할 수 없습니다.';
 
   @override
-  String get resizeImageFailed => 'Failed to resize image.';
+  String get resizeImageFailed => '이미지 크기 조정 실패.';
 
   @override
-  String get canvasNotReadyResizeCanvas => 'Canvas not ready to resize canvas.';
+  String get canvasNotReadyResizeCanvas => '캔버스가 준비되지 않아 캔버스 크기를 조정할 수 없습니다.';
 
   @override
-  String get resizeCanvasFailed => 'Failed to resize canvas.';
+  String get resizeCanvasFailed => '캔버스 크기 조정 실패.';
 
   @override
-  String get returnToHome => 'Return to Home';
+  String get returnToHome => '홈으로 돌아가기';
 
   @override
-  String get saveBeforeReturn =>
-      'Do you want to save changes before returning to home?';
+  String get saveBeforeReturn => '홈으로 돌아가기 전에 변경 사항을 저장하시겠습니까?';
 
   @override
-  String get closeCanvas => 'Close Canvas';
+  String get closeCanvas => '캔버스 닫기';
 
   @override
-  String get saveBeforeClose => 'Do you want to save changes before closing?';
+  String get saveBeforeClose => '닫기 전에 변경 사항을 저장하시겠습니까?';
 
   @override
-  String get nameCannotBeEmpty => 'Name cannot be empty.';
+  String get nameCannotBeEmpty => '이름은 비워둘 수 없습니다.';
 
   @override
-  String get noSupportedImageFormats => 'No supported image formats found.';
+  String get noSupportedImageFormats => '지원되는 이미지 형식을 찾을 수 없습니다.';
 
   @override
   String importFailed(Object item, Object error) {
-    return 'Failed to import $item: $error';
+    return '$item 가져오기 실패: $error';
   }
 
   @override
-  String get createdCanvasFromDrop => 'Created canvas from dropped item.';
+  String get createdCanvasFromDrop => '드롭된 항목에서 캔버스를 생성했습니다.';
 
   @override
   String createdCanvasesFromDrop(Object count) {
-    return 'Created $count canvases from dropped items.';
+    return '드롭된 항목에서 $count개의 캔버스를 생성했습니다.';
   }
 
   @override
-  String get dropImageCreateFailed =>
-      'Failed to create canvas from dropped image.';
+  String get dropImageCreateFailed => '드롭된 이미지에서 캔버스를 생성하지 못했습니다.';
 
   @override
-  String get canvasNotReadyDrop => 'Canvas not ready for drop operation.';
+  String get canvasNotReadyDrop => '캔버스가 준비되지 않아 드롭 작업을 수행할 수 없습니다.';
 
   @override
-  String get insertedDropImage => 'Inserted dropped image.';
+  String get insertedDropImage => '드롭된 이미지를 삽입했습니다.';
 
   @override
   String insertedDropImages(Object count) {
-    return 'Inserted $count dropped images.';
+    return '$count장의 드롭된 이미지를 삽입했습니다.';
   }
 
   @override
-  String get dropImageInsertFailed => 'Failed to insert dropped image.';
+  String get dropImageInsertFailed => '드롭된 이미지 삽입 실패.';
 
   @override
-  String get image => 'Image';
+  String get image => '이미지';
 
   @override
-  String get on => 'On';
+  String get on => '켜기';
 
   @override
-  String get perspective1Point => '1-Point Perspective';
+  String get perspective1Point => '1점 투시';
 
   @override
-  String get perspective2Point => '2-Point Perspective';
+  String get perspective2Point => '2점 투시';
 
   @override
-  String get perspective3Point => '3-Point Perspective';
+  String get perspective3Point => '3점 투시';
 
   @override
   String resolutionLabel(Object resolution) {
-    return 'Resolution: $resolution';
+    return '해상도: $resolution';
   }
 
   @override
   String zoomLabel(Object zoom) {
-    return 'Zoom: $zoom';
+    return '확대/축소: $zoom';
   }
 
   @override
   String positionLabel(Object position) {
-    return 'Pos: $position';
+    return '위치: $position';
   }
 
   @override
   String gridLabel(Object grid) {
-    return 'Grid: $grid';
+    return '그리드: $grid';
   }
 
   @override
   String blackWhiteLabel(Object state) {
-    return 'B&W: $state';
+    return '흑백: $state';
   }
 
   @override
   String mirrorLabel(Object state) {
-    return 'Mirror: $state';
+    return '미러: $state';
   }
 
   @override
   String perspectiveLabel(Object perspective) {
-    return 'Perspective: $perspective';
+    return '투시: $perspective';
   }
 
   @override
-  String get fileNameCannotBeEmpty => 'File name cannot be empty.';
+  String get fileNameCannotBeEmpty => '파일 이름은 비워둘 수 없습니다.';
 
   @override
-  String get blackPoint => 'Black Point';
+  String get blackPoint => '블랙 포인트';
 
   @override
-  String get whitePoint => 'White Point';
+  String get whitePoint => '화이트 포인트';
 
   @override
-  String get midTone => 'Mid Tone';
+  String get midTone => '미드톤';
 }

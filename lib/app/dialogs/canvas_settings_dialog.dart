@@ -31,6 +31,18 @@ class _ResolutionPreset {
   final int width;
   final int height;
   final String label;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _ResolutionPreset &&
+        other.width == width &&
+        other.height == height &&
+        other.label == label;
+  }
+
+  @override
+  int get hashCode => Object.hash(width, height, label);
 }
 
 class _WorkspacePresetOption {

@@ -2301,6 +2301,221 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get menuInvertColors => '颜色反转';
+
+  @override
+  String get fontFamily => '字体系列';
+
+  @override
+  String get importPaletteTitle => '导入调色板';
+
+  @override
+  String get cannotReadFile => '无法读取文件';
+
+  @override
+  String paletteImported(Object name) {
+    return '已导入调色板：$name';
+  }
+
+  @override
+  String paletteImportFailed(Object error) {
+    return '导入调色板失败：$error';
+  }
+
+  @override
+  String noChangesToSave(Object location) {
+    return '没有更改需要保存到 $location';
+  }
+
+  @override
+  String projectSaved(Object location) {
+    return '项目已保存到 $location';
+  }
+
+  @override
+  String projectSaveFailed(Object error) {
+    return '保存项目失败：$error';
+  }
+
+  @override
+  String get canvasNotReadySave => '画布未准备好，无法保存。';
+
+  @override
+  String get saveProjectAs => '项目另存为';
+
+  @override
+  String get webSaveDesc => '下载项目文件到您的设备。';
+
+  @override
+  String psdExported(Object path) {
+    return 'PSD 已导出到 $path';
+  }
+
+  @override
+  String projectDownloaded(Object fileName) {
+    return '项目已下载：$fileName';
+  }
+
+  @override
+  String psdDownloaded(Object fileName) {
+    return 'PSD 已下载：$fileName';
+  }
+
+  @override
+  String get exportAsPsdTooltip => '导出为 PSD';
+
+  @override
+  String get canvasNotReadyExport => '画布未准备好，无法导出。';
+
+  @override
+  String exportFileTitle(Object extension) {
+    return '导出 $extension 文件';
+  }
+
+  @override
+  String get webExportDesc => '下载导出的图像到您的设备。';
+
+  @override
+  String fileDownloaded(Object extension, Object name) {
+    return '$extension 文件已下载：$name';
+  }
+
+  @override
+  String fileExported(Object path) {
+    return '文件已导出到 $path';
+  }
+
+  @override
+  String exportFailed(Object error) {
+    return '导出失败：$error';
+  }
+
+  @override
+  String get canvasNotReadyTransform => '画布未准备好，无法变换。';
+
+  @override
+  String get canvasSizeErrorTransform => '变换过程中画布尺寸错误。';
+
+  @override
+  String get canvasNotReadyResizeImage => '画布未准备好，无法调整图像大小。';
+
+  @override
+  String get resizeImageFailed => '调整图像大小失败。';
+
+  @override
+  String get canvasNotReadyResizeCanvas => '画布未准备好，无法调整画布大小。';
+
+  @override
+  String get resizeCanvasFailed => '调整画布大小失败。';
+
+  @override
+  String get returnToHome => '返回首页';
+
+  @override
+  String get saveBeforeReturn => '返回首页前是否保存更改？';
+
+  @override
+  String get closeCanvas => '关闭画布';
+
+  @override
+  String get saveBeforeClose => '关闭前是否保存更改？';
+
+  @override
+  String get nameCannotBeEmpty => '名称不能为空。';
+
+  @override
+  String get noSupportedImageFormats => '未找到支持的图像格式。';
+
+  @override
+  String importFailed(Object item, Object error) {
+    return '导入 $item 失败：$error';
+  }
+
+  @override
+  String get createdCanvasFromDrop => '已从拖放项目创建画布。';
+
+  @override
+  String createdCanvasesFromDrop(Object count) {
+    return '已从拖放项目创建 $count 个画布。';
+  }
+
+  @override
+  String get dropImageCreateFailed => '无法从拖放图像创建画布。';
+
+  @override
+  String get canvasNotReadyDrop => '画布未准备好进行拖放操作。';
+
+  @override
+  String get insertedDropImage => '已插入拖放图像。';
+
+  @override
+  String insertedDropImages(Object count) {
+    return '已插入 $count 张拖放图像。';
+  }
+
+  @override
+  String get dropImageInsertFailed => '插入拖放图像失败。';
+
+  @override
+  String get image => '图像';
+
+  @override
+  String get on => '开';
+
+  @override
+  String get perspective1Point => '一点透视';
+
+  @override
+  String get perspective2Point => '两点透视';
+
+  @override
+  String get perspective3Point => '三点透视';
+
+  @override
+  String resolutionLabel(Object resolution) {
+    return '分辨率：$resolution';
+  }
+
+  @override
+  String zoomLabel(Object zoom) {
+    return '缩放：$zoom';
+  }
+
+  @override
+  String positionLabel(Object position) {
+    return '位置：$position';
+  }
+
+  @override
+  String gridLabel(Object grid) {
+    return '网格：$grid';
+  }
+
+  @override
+  String blackWhiteLabel(Object state) {
+    return '黑白：$state';
+  }
+
+  @override
+  String mirrorLabel(Object state) {
+    return '镜像：$state';
+  }
+
+  @override
+  String perspectiveLabel(Object perspective) {
+    return '透视：$perspective';
+  }
+
+  @override
+  String get fileNameCannotBeEmpty => '文件名不能为空。';
+
+  @override
+  String get blackPoint => '黑点';
+
+  @override
+  String get whitePoint => '白点';
+
+  @override
+  String get midTone => '中间调';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -2802,4 +3017,219 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuInvertColors => '顏色反轉';
+
+  @override
+  String get fontFamily => '字體系列';
+
+  @override
+  String get importPaletteTitle => '匯入調色盤';
+
+  @override
+  String get cannotReadFile => '無法讀取檔案';
+
+  @override
+  String paletteImported(Object name) {
+    return '已匯入調色盤：$name';
+  }
+
+  @override
+  String paletteImportFailed(Object error) {
+    return '匯入調色盤失敗：$error';
+  }
+
+  @override
+  String noChangesToSave(Object location) {
+    return '沒有變更需要儲存到 $location';
+  }
+
+  @override
+  String projectSaved(Object location) {
+    return '專案已儲存到 $location';
+  }
+
+  @override
+  String projectSaveFailed(Object error) {
+    return '儲存專案失敗：$error';
+  }
+
+  @override
+  String get canvasNotReadySave => '畫布未準備好，無法儲存。';
+
+  @override
+  String get saveProjectAs => '專案另存為';
+
+  @override
+  String get webSaveDesc => '下載專案檔案到您的裝置。';
+
+  @override
+  String psdExported(Object path) {
+    return 'PSD 已匯出到 $path';
+  }
+
+  @override
+  String projectDownloaded(Object fileName) {
+    return '專案已下載：$fileName';
+  }
+
+  @override
+  String psdDownloaded(Object fileName) {
+    return 'PSD 已下載：$fileName';
+  }
+
+  @override
+  String get exportAsPsdTooltip => '匯出為 PSD';
+
+  @override
+  String get canvasNotReadyExport => '畫布未準備好，無法匯出。';
+
+  @override
+  String exportFileTitle(Object extension) {
+    return '匯出 $extension 檔案';
+  }
+
+  @override
+  String get webExportDesc => '下載匯出的影像到您的裝置。';
+
+  @override
+  String fileDownloaded(Object extension, Object name) {
+    return '$extension 檔案已下載：$name';
+  }
+
+  @override
+  String fileExported(Object path) {
+    return '檔案已匯出到 $path';
+  }
+
+  @override
+  String exportFailed(Object error) {
+    return '匯出失敗：$error';
+  }
+
+  @override
+  String get canvasNotReadyTransform => '畫布未準備好，無法變換。';
+
+  @override
+  String get canvasSizeErrorTransform => '變換過程中畫布尺寸錯誤。';
+
+  @override
+  String get canvasNotReadyResizeImage => '畫布未準備好，無法調整影像大小。';
+
+  @override
+  String get resizeImageFailed => '調整影像大小失敗。';
+
+  @override
+  String get canvasNotReadyResizeCanvas => '畫布未準備好，無法調整畫布大小。';
+
+  @override
+  String get resizeCanvasFailed => '調整畫布大小失敗。';
+
+  @override
+  String get returnToHome => '返回首頁';
+
+  @override
+  String get saveBeforeReturn => '返回首頁前是否儲存變更？';
+
+  @override
+  String get closeCanvas => '關閉畫布';
+
+  @override
+  String get saveBeforeClose => '關閉前是否儲存變更？';
+
+  @override
+  String get nameCannotBeEmpty => '名稱不能為空。';
+
+  @override
+  String get noSupportedImageFormats => '未找到支援的影像格式。';
+
+  @override
+  String importFailed(Object item, Object error) {
+    return '匯入 $item 失敗：$error';
+  }
+
+  @override
+  String get createdCanvasFromDrop => '已從拖放項目建立畫布。';
+
+  @override
+  String createdCanvasesFromDrop(Object count) {
+    return '已從拖放項目建立 $count 個畫布。';
+  }
+
+  @override
+  String get dropImageCreateFailed => '無法從拖放影像建立畫布。';
+
+  @override
+  String get canvasNotReadyDrop => '畫布未準備好進行拖放操作。';
+
+  @override
+  String get insertedDropImage => '已插入拖放影像。';
+
+  @override
+  String insertedDropImages(Object count) {
+    return '已插入 $count 張拖放影像。';
+  }
+
+  @override
+  String get dropImageInsertFailed => '插入拖放影像失敗。';
+
+  @override
+  String get image => '影像';
+
+  @override
+  String get on => '開';
+
+  @override
+  String get perspective1Point => '一點透視';
+
+  @override
+  String get perspective2Point => '兩點透視';
+
+  @override
+  String get perspective3Point => '三點透視';
+
+  @override
+  String resolutionLabel(Object resolution) {
+    return '解析度：$resolution';
+  }
+
+  @override
+  String zoomLabel(Object zoom) {
+    return '縮放：$zoom';
+  }
+
+  @override
+  String positionLabel(Object position) {
+    return '位置：$position';
+  }
+
+  @override
+  String gridLabel(Object grid) {
+    return '網格：$grid';
+  }
+
+  @override
+  String blackWhiteLabel(Object state) {
+    return '黑白：$state';
+  }
+
+  @override
+  String mirrorLabel(Object state) {
+    return '鏡像：$state';
+  }
+
+  @override
+  String perspectiveLabel(Object perspective) {
+    return '透視：$perspective';
+  }
+
+  @override
+  String get fileNameCannotBeEmpty => '檔名不能為空。';
+
+  @override
+  String get blackPoint => '黑點';
+
+  @override
+  String get whitePoint => '白點';
+
+  @override
+  String get midTone => '中間調';
 }

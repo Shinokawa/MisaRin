@@ -239,5 +239,175 @@
   "menuColorRangeEllipsis": "色彩范围…",
   "menuBlackWhiteEllipsis": "黑白…",
   "menuBinarizeEllipsis": "二值化…",
-  "menuInvertColors": "颜色反转"
+  "menuInvertColors": "颜色反转",
+
+  "fontFamily": "字体系列",
+  "importPaletteTitle": "导入调色板",
+  "cannotReadFile": "无法读取文件",
+  "paletteImported": "已导入调色板：{name}",
+  "@paletteImported": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "paletteImportFailed": "导入调色板失败：{error}",
+  "@paletteImportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "noChangesToSave": "没有更改需要保存到 {location}",
+  "@noChangesToSave": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaved": "项目已保存到 {location}",
+  "@projectSaved": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaveFailed": "保存项目失败：{error}",
+  "@projectSaveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadySave": "画布未准备好，无法保存。",
+  "saveProjectAs": "项目另存为",
+  "webSaveDesc": "下载项目文件到您的设备。",
+  "psdExported": "PSD 已导出到 {path}",
+  "@psdExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "projectDownloaded": "项目已下载：{fileName}",
+  "@projectDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "psdDownloaded": "PSD 已下载：{fileName}",
+  "@psdDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "exportAsPsdTooltip": "导出为 PSD",
+  "canvasNotReadyExport": "画布未准备好，无法导出。",
+  "exportFileTitle": "导出 {extension} 文件",
+  "@exportFileTitle": {
+    "placeholders": {
+      "extension": {}
+    }
+  },
+  "webExportDesc": "下载导出的图像到您的设备。",
+  "fileDownloaded": "{extension} 文件已下载：{name}",
+  "@fileDownloaded": {
+    "placeholders": {
+      "extension": {},
+      "name": {}
+    }
+  },
+  "fileExported": "文件已导出到 {path}",
+  "@fileExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportFailed": "导出失败：{error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadyTransform": "画布未准备好，无法变换。",
+  "canvasSizeErrorTransform": "变换过程中画布尺寸错误。",
+  "canvasNotReadyResizeImage": "画布未准备好，无法调整图像大小。",
+  "resizeImageFailed": "调整图像大小失败。",
+  "canvasNotReadyResizeCanvas": "画布未准备好，无法调整画布大小。",
+  "resizeCanvasFailed": "调整画布大小失败。",
+  "returnToHome": "返回首页",
+  "saveBeforeReturn": "返回首页前是否保存更改？",
+  "closeCanvas": "关闭画布",
+  "saveBeforeClose": "关闭前是否保存更改？",
+  "nameCannotBeEmpty": "名称不能为空。",
+  "noSupportedImageFormats": "未找到支持的图像格式。",
+  "importFailed": "导入 {item} 失败：{error}",
+  "@importFailed": {
+    "placeholders": {
+      "item": {},
+      "error": {}
+    }
+  },
+  "createdCanvasFromDrop": "已从拖放项目创建画布。",
+  "createdCanvasesFromDrop": "已从拖放项目创建 {count} 个画布。",
+  "@createdCanvasesFromDrop": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageCreateFailed": "无法从拖放图像创建画布。",
+  "canvasNotReadyDrop": "画布未准备好进行拖放操作。",
+  "insertedDropImage": "已插入拖放图像。",
+  "insertedDropImages": "已插入 {count} 张拖放图像。",
+  "@insertedDropImages": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageInsertFailed": "插入拖放图像失败。",
+  "image": "图像",
+  "on": "开",
+  "perspective1Point": "一点透视",
+  "perspective2Point": "两点透视",
+  "perspective3Point": "三点透视",
+  "resolutionLabel": "分辨率：{resolution}",
+  "@resolutionLabel": {
+    "placeholders": {
+      "resolution": {}
+    }
+  },
+  "zoomLabel": "缩放：{zoom}",
+  "@zoomLabel": {
+    "placeholders": {
+      "zoom": {}
+    }
+  },
+  "positionLabel": "位置：{position}",
+  "@positionLabel": {
+    "placeholders": {
+      "position": {}
+    }
+  },
+  "gridLabel": "网格：{grid}",
+  "@gridLabel": {
+    "placeholders": {
+      "grid": {}
+    }
+  },
+  "blackWhiteLabel": "黑白：{state}",
+  "@blackWhiteLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "mirrorLabel": "镜像：{state}",
+  "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "perspectiveLabel": "透视：{perspective}",
+  "@perspectiveLabel": {
+    "placeholders": {
+      "perspective": {}
+    }
+  },
+  "fileNameCannotBeEmpty": "文件名不能为空。",
+  "blackPoint": "黑点",
+  "whitePoint": "白点",
+  "midTone": "中间调"
 }

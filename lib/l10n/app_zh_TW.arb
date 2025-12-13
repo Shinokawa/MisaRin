@@ -239,5 +239,175 @@
   "menuColorRangeEllipsis": "\u8272\u5f69\u7bc4\u570d\u2026",
   "menuBlackWhiteEllipsis": "\u9ed1\u767d\u2026",
   "menuBinarizeEllipsis": "\u4e8c\u503c\u5316\u2026",
-  "menuInvertColors": "\u984f\u8272\u53cd\u8f49"
+  "menuInvertColors": "顏色反轉",
+
+  "fontFamily": "字體系列",
+  "importPaletteTitle": "匯入調色盤",
+  "cannotReadFile": "無法讀取檔案",
+  "paletteImported": "已匯入調色盤：{name}",
+  "@paletteImported": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "paletteImportFailed": "匯入調色盤失敗：{error}",
+  "@paletteImportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "noChangesToSave": "沒有變更需要儲存到 {location}",
+  "@noChangesToSave": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaved": "專案已儲存到 {location}",
+  "@projectSaved": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaveFailed": "儲存專案失敗：{error}",
+  "@projectSaveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadySave": "畫布未準備好，無法儲存。",
+  "saveProjectAs": "專案另存為",
+  "webSaveDesc": "下載專案檔案到您的裝置。",
+  "psdExported": "PSD 已匯出到 {path}",
+  "@psdExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "projectDownloaded": "專案已下載：{fileName}",
+  "@projectDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "psdDownloaded": "PSD 已下載：{fileName}",
+  "@psdDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "exportAsPsdTooltip": "匯出為 PSD",
+  "canvasNotReadyExport": "畫布未準備好，無法匯出。",
+  "exportFileTitle": "匯出 {extension} 檔案",
+  "@exportFileTitle": {
+    "placeholders": {
+      "extension": {}
+    }
+  },
+  "webExportDesc": "下載匯出的影像到您的裝置。",
+  "fileDownloaded": "{extension} 檔案已下載：{name}",
+  "@fileDownloaded": {
+    "placeholders": {
+      "extension": {},
+      "name": {}
+    }
+  },
+  "fileExported": "檔案已匯出到 {path}",
+  "@fileExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportFailed": "匯出失敗：{error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadyTransform": "畫布未準備好，無法變換。",
+  "canvasSizeErrorTransform": "變換過程中畫布尺寸錯誤。",
+  "canvasNotReadyResizeImage": "畫布未準備好，無法調整影像大小。",
+  "resizeImageFailed": "調整影像大小失敗。",
+  "canvasNotReadyResizeCanvas": "畫布未準備好，無法調整畫布大小。",
+  "resizeCanvasFailed": "調整畫布大小失敗。",
+  "returnToHome": "返回首頁",
+  "saveBeforeReturn": "返回首頁前是否儲存變更？",
+  "closeCanvas": "關閉畫布",
+  "saveBeforeClose": "關閉前是否儲存變更？",
+  "nameCannotBeEmpty": "名稱不能為空。",
+  "noSupportedImageFormats": "未找到支援的影像格式。",
+  "importFailed": "匯入 {item} 失敗：{error}",
+  "@importFailed": {
+    "placeholders": {
+      "item": {},
+      "error": {}
+    }
+  },
+  "createdCanvasFromDrop": "已從拖放項目建立畫布。",
+  "createdCanvasesFromDrop": "已從拖放項目建立 {count} 個畫布。",
+  "@createdCanvasesFromDrop": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageCreateFailed": "無法從拖放影像建立畫布。",
+  "canvasNotReadyDrop": "畫布未準備好進行拖放操作。",
+  "insertedDropImage": "已插入拖放影像。",
+  "insertedDropImages": "已插入 {count} 張拖放影像。",
+  "@insertedDropImages": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageInsertFailed": "插入拖放影像失敗。",
+  "image": "影像",
+  "on": "開",
+  "perspective1Point": "一點透視",
+  "perspective2Point": "兩點透視",
+  "perspective3Point": "三點透視",
+  "resolutionLabel": "解析度：{resolution}",
+  "@resolutionLabel": {
+    "placeholders": {
+      "resolution": {}
+    }
+  },
+  "zoomLabel": "縮放：{zoom}",
+  "@zoomLabel": {
+    "placeholders": {
+      "zoom": {}
+    }
+  },
+  "positionLabel": "位置：{position}",
+  "@positionLabel": {
+    "placeholders": {
+      "position": {}
+    }
+  },
+  "gridLabel": "網格：{grid}",
+  "@gridLabel": {
+    "placeholders": {
+      "grid": {}
+    }
+  },
+  "blackWhiteLabel": "黑白：{state}",
+  "@blackWhiteLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "mirrorLabel": "鏡像：{state}",
+  "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "perspectiveLabel": "透視：{perspective}",
+  "@perspectiveLabel": {
+    "placeholders": {
+      "perspective": {}
+    }
+  },
+  "fileNameCannotBeEmpty": "檔名不能為空。",
+  "blackPoint": "黑點",
+  "whitePoint": "白點",
+  "midTone": "中間調"
 }
