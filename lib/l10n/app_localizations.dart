@@ -1682,6 +1682,24 @@ abstract class AppLocalizations {
   /// **'No adjustable settings for this tool'**
   String get noAdjustableSettings;
 
+  /// No description provided for @hollowStroke.
+  ///
+  /// In en, this message translates to:
+  /// **'Hollow Stroke'**
+  String get hollowStroke;
+
+  /// No description provided for @hollowStrokeRatio.
+  ///
+  /// In en, this message translates to:
+  /// **'Hollow Ratio'**
+  String get hollowStrokeRatio;
+
+  /// No description provided for @hollowStrokeFillColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Hollow Fill Color'**
+  String get hollowStrokeFillColor;
+
   /// No description provided for @solidFill.
   ///
   /// In en, this message translates to:
@@ -2017,6 +2035,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sets the thickness of the text stroke.'**
   String get strokeWidthDesc;
+
+  /// No description provided for @hollowStrokeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Cuts out the center of strokes for a hollow outline effect.'**
+  String get hollowStrokeDesc;
+
+  /// No description provided for @hollowStrokeRatioDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Controls the size of the hollow interior. Higher values make the outline thinner.'**
+  String get hollowStrokeRatioDesc;
+
+  /// No description provided for @hollowStrokeFillColorDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional fill color for the hollow interior. Clear to keep it transparent.'**
+  String get hollowStrokeFillColorDesc;
 
   /// No description provided for @solidFillDesc.
   ///
@@ -2599,6 +2635,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Adjust Stroke Color'**
   String get adjustStrokeColor;
+
+  /// No description provided for @adjustHollowStrokeFillColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust Hollow Fill Color'**
+  String get adjustHollowStrokeFillColor;
 
   /// No description provided for @copiedHex.
   ///

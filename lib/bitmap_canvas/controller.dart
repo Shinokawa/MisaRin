@@ -103,6 +103,9 @@ class BitmapCanvasController extends ChangeNotifier {
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
   bool _currentStrokeEraseMode = false;
+  bool _currentStrokeHollowEnabled = false;
+  double _currentStrokeHollowRatio = 0.0;
+  Color _currentStrokeHollowFillColor = const Color(0x00000000);
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
   bool _vectorDrawingEnabled = true;
@@ -221,6 +224,10 @@ class BitmapCanvasController extends ChangeNotifier {
   double get activeStrokeRadius => _currentStrokeRadius;
   BrushShape get activeStrokeShape => _currentBrushShape;
   bool get activeStrokeEraseMode => _currentStrokeEraseMode;
+  int get activeStrokeAntialiasLevel => _currentStrokeAntialiasLevel;
+  bool get activeStrokeHollowEnabled => _currentStrokeHollowEnabled;
+  double get activeStrokeHollowRatio => _currentStrokeHollowRatio;
+  Color get activeStrokeHollowFillColor => _currentStrokeHollowFillColor;
 
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
@@ -237,8 +244,11 @@ class BitmapCanvasController extends ChangeNotifier {
     BrushShape shape,
     Rect bounds,
     bool erase,
-    int antialiasLevel,
-  ) => _controllerRasterizeVectorStroke(
+    int antialiasLevel, {
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    Color hollowFillColor = const Color(0x00000000),
+  }) => _controllerRasterizeVectorStroke(
     this,
     points,
     radii,
@@ -247,6 +257,9 @@ class BitmapCanvasController extends ChangeNotifier {
     bounds,
     erase,
     antialiasLevel,
+    hollow: hollow,
+    hollowRatio: hollowRatio,
+    hollowFillColor: hollowFillColor,
   );
 
   void _flushRealtimeStrokeCommands() =>
@@ -501,6 +514,9 @@ class BitmapCanvasController extends ChangeNotifier {
     BrushShape brushShape = BrushShape.circle,
     bool enableNeedleTips = false,
     bool erase = false,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    Color hollowFillColor = const Color(0x00000000),
   }) => _strokeBegin(
     this,
     position,
@@ -518,6 +534,9 @@ class BitmapCanvasController extends ChangeNotifier {
     brushShape: brushShape,
     enableNeedleTips: enableNeedleTips,
     erase: erase,
+    hollow: hollow,
+    hollowRatio: hollowRatio,
+    hollowFillColor: hollowFillColor,
   );
 
   void extendStroke(

@@ -866,6 +866,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noAdjustableSettings => '该工具暂无可调节参数';
 
   @override
+  String get hollowStroke => '空心描边';
+
+  @override
+  String get hollowStrokeRatio => '空心比例';
+
+  @override
+  String get hollowStrokeFillColor => '空心填充颜色';
+
+  @override
   String get solidFill => '实心';
 
   @override
@@ -1033,6 +1042,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get strokeWidthDesc => '设置文字描边的粗细，用来强调字形或营造漫画嵌字效果。';
+
+  @override
+  String get hollowStrokeDesc => '将笔画中心挖空，形成空心描边效果。';
+
+  @override
+  String get hollowStrokeRatioDesc => '调整空心内圈大小，数值越高描边越细。';
+
+  @override
+  String get hollowStrokeFillColorDesc => '为空心内部设置填充颜色；清除可保持透明。';
 
   @override
   String get solidFillDesc => '决定形状工具是绘制填充色块还是空心轮廓，开启后直接生成实心图形。';
@@ -1336,6 +1354,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get adjustStrokeColor => '调整描边颜色';
+
+  @override
+  String get adjustHollowStrokeFillColor => '调整空心填充颜色';
 
   @override
   String copiedHex(Object hex) {
@@ -2303,6 +2324,27 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuInvertColors => '颜色反转';
 
   @override
+  String get hollowStroke => '空心描边';
+
+  @override
+  String get hollowStrokeRatio => '空心比例';
+
+  @override
+  String get hollowStrokeFillColor => '空心填充颜色';
+
+  @override
+  String get hollowStrokeDesc => '将笔画中心挖空，形成空心描边效果。';
+
+  @override
+  String get hollowStrokeRatioDesc => '调整空心内圈大小，数值越高描边越细。';
+
+  @override
+  String get hollowStrokeFillColorDesc => '为空心内部设置填充颜色；清除可保持透明。';
+
+  @override
+  String get adjustHollowStrokeFillColor => '调整空心填充颜色';
+
+  @override
   String get fontFamily => '字体系列';
 
   @override
@@ -3017,6 +3059,27 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuInvertColors => '顏色反轉';
+
+  @override
+  String get hollowStroke => '空心描邊';
+
+  @override
+  String get hollowStrokeRatio => '空心比例';
+
+  @override
+  String get hollowStrokeFillColor => '空心填充顏色';
+
+  @override
+  String get hollowStrokeDesc => '將筆畫中心挖空，形成空心描邊效果。';
+
+  @override
+  String get hollowStrokeRatioDesc => '調整空心內圈大小，數值越高描邊越細。';
+
+  @override
+  String get hollowStrokeFillColorDesc => '為空心內部設定填充顏色；清除可保持透明。';
+
+  @override
+  String get adjustHollowStrokeFillColor => '調整空心填充顏色';
 
   @override
   String get fontFamily => '字體系列';

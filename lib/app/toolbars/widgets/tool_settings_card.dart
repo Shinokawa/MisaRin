@@ -29,6 +29,12 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onSprayModeChanged,
     required this.brushShape,
     required this.onBrushShapeChanged,
+    required this.hollowStrokeEnabled,
+    required this.hollowStrokeRatio,
+    required this.hollowStrokeFillColor,
+    required this.onHollowStrokeEnabledChanged,
+    required this.onHollowStrokeRatioChanged,
+    required this.onHollowStrokeFillColorPressed,
     required this.strokeStabilizerStrength,
     required this.onStrokeStabilizerChanged,
     required this.stylusPressureEnabled,
@@ -107,6 +113,12 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<SprayMode> onSprayModeChanged;
   final BrushShape brushShape;
   final ValueChanged<BrushShape> onBrushShapeChanged;
+  final bool hollowStrokeEnabled;
+  final double hollowStrokeRatio;
+  final Color hollowStrokeFillColor;
+  final ValueChanged<bool> onHollowStrokeEnabledChanged;
+  final ValueChanged<double> onHollowStrokeRatioChanged;
+  final VoidCallback onHollowStrokeFillColorPressed;
   final double strokeStabilizerStrength;
   final ValueChanged<double> onStrokeStabilizerChanged;
   final bool stylusPressureEnabled;
@@ -441,6 +453,40 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
     if (showAdvancedBrushToggles) {
       wrapChildren.add(_buildBrushAntialiasRow(theme));
+      final bool supportsHollowStroke = isPenTool || isCurvePenTool;
+      if (supportsHollowStroke) {
+        wrapChildren.add(
+          _buildToggleSwitchRow(
+            theme,
+            label: l10n.hollowStroke,
+            detail: l10n.hollowStrokeDesc,
+            value: widget.hollowStrokeEnabled,
+            onChanged: widget.onHollowStrokeEnabledChanged,
+          ),
+        );
+        if (widget.hollowStrokeEnabled) {
+          wrapChildren.add(
+            _buildLabeledSlider(
+              theme: theme,
+              label: l10n.hollowStrokeRatio,
+              detail: l10n.hollowStrokeRatioDesc,
+              value:
+                  (widget.hollowStrokeRatio.clamp(0.0, 1.0) * 100.0).clamp(
+                    0.0,
+                    100.0,
+                  ),
+              min: 0.0,
+              max: 100.0,
+              divisions: 100,
+              formatter: (value) => '${value.toStringAsFixed(0)}%',
+              onChanged: (value) => widget.onHollowStrokeRatioChanged(
+                (value / 100.0).clamp(0.0, 1.0),
+              ),
+            ),
+          );
+          wrapChildren.add(_buildHollowFillColorRow(theme));
+        }
+      }
       if (isShapeTool) {
         wrapChildren.add(
           _buildToggleSwitchRow(
@@ -540,6 +586,48 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       spacing: 16,
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
+    );
+  }
+
+  Widget _buildHollowFillColorRow(FluentThemeData theme) {
+    final l10n = context.l10n;
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final bool isNone =
+        ((widget.hollowStrokeFillColor.a * 255.0).round() & 0xff) == 0;
+    final Widget colorSwatch = Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        color: isNone ? Colors.transparent : widget.hollowStrokeFillColor,
+        border: Border.all(color: borderColor),
+      ),
+      child: isNone ? const Icon(FluentIcons.clear, size: 12) : null,
+    );
+
+    final Widget colorButton = _wrapButtonTooltip(
+      label: l10n.hollowStrokeFillColor,
+      detail: l10n.hollowStrokeFillColorDesc,
+      child: Button(
+        onPressed: widget.onHollowStrokeFillColorPressed,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            colorSwatch,
+            const SizedBox(width: 8),
+            Text(l10n.pickColor),
+          ],
+        ),
+      ),
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(l10n.hollowStrokeFillColor, style: theme.typography.bodyStrong),
+        const SizedBox(width: 12),
+        colorButton,
+      ],
     );
   }
 
@@ -999,6 +1087,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required double max,
     required ValueChanged<double> onChanged,
     String Function(double)? formatter,
+    int? divisions,
   }) {
     final String display = formatter == null
         ? value.toStringAsFixed(1)
@@ -1007,6 +1096,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       min: min,
       max: max,
       value: value.clamp(min, max),
+      divisions: divisions,
       onChanged: onChanged,
     );
     if (!widget.compactLayout) {

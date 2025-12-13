@@ -36,6 +36,9 @@ class AppPreferences {
     required this.colorLineColor,
     required this.bucketSwallowColorLine,
     this.primaryColor = _defaultPrimaryColor,
+    this.hollowStrokeEnabled = _defaultHollowStrokeEnabled,
+    this.hollowStrokeRatio = _defaultHollowStrokeRatio,
+    this.hollowStrokeFillColor = _defaultHollowStrokeFillColor,
     this.shapeToolFillEnabled = _defaultShapeToolFillEnabled,
     this.bucketAntialiasLevel = _defaultBucketAntialiasLevel,
     this.bucketTolerance = _defaultBucketTolerance,
@@ -59,7 +62,7 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 30;
+  static const int _version = 31;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -79,6 +82,9 @@ class AppPreferences {
       PenStrokeSliderRange.compact;
   static const double _defaultStrokeStabilizerStrength = 0.0;
   static const BrushShape _defaultBrushShape = BrushShape.circle;
+  static const bool _defaultHollowStrokeEnabled = false;
+  static const double _defaultHollowStrokeRatio = 0.7;
+  static const Color _defaultHollowStrokeFillColor = Color(0x00000000);
   static const double _strokeStabilizerLowerBound = 0.0;
   static const double _strokeStabilizerUpperBound = 1.0;
   static const Color _defaultColorLineColor = kDefaultColorLineColor;
@@ -114,6 +120,9 @@ class AppPreferences {
   static const double defaultStrokeStabilizerStrength =
       _defaultStrokeStabilizerStrength;
   static const BrushShape defaultBrushShape = _defaultBrushShape;
+  static const bool defaultHollowStrokeEnabled = _defaultHollowStrokeEnabled;
+  static const double defaultHollowStrokeRatio = _defaultHollowStrokeRatio;
+  static const Color defaultHollowStrokeFillColor = _defaultHollowStrokeFillColor;
   static const double defaultSprayStrokeWidth = _defaultSprayStrokeWidth;
   static const SprayMode defaultSprayMode = _defaultSprayMode;
   static const bool defaultLayerAdjustCropOutside = false;
@@ -156,6 +165,9 @@ class AppPreferences {
   PenStrokeSliderRange penStrokeSliderRange;
   double strokeStabilizerStrength;
   BrushShape brushShape;
+  bool hollowStrokeEnabled;
+  double hollowStrokeRatio;
+  Color hollowStrokeFillColor;
   double sprayStrokeWidth;
   SprayMode sprayMode;
   bool layerAdjustCropOutside;
@@ -273,6 +285,24 @@ class AppPreferences {
                   version >= 30 && bytes.length >= 45
                   ? _decodeLocaleOverride(bytes[44])
                   : _defaultLocaleOverride;
+              final bool decodedHollowStrokeEnabled =
+                  version >= 31 && bytes.length >= 51
+                  ? bytes[45] != 0
+                  : _defaultHollowStrokeEnabled;
+              final double decodedHollowStrokeRatio =
+                  version >= 31 && bytes.length >= 51
+                  ? _decodeRatioByte(bytes[46])
+                  : _defaultHollowStrokeRatio;
+              final int hollowStrokeFillColorValue =
+                  version >= 31 && bytes.length >= 51
+                  ? bytes[47] |
+                        (bytes[48] << 8) |
+                        (bytes[49] << 16) |
+                        (bytes[50] << 24)
+                  : _defaultHollowStrokeFillColor.value;
+              final Color decodedHollowStrokeFillColor = Color(
+                hollowStrokeFillColorValue,
+              );
               _instance = AppPreferences._(
                 bucketSampleAllLayers: bytes[1] != 0,
                 bucketContiguous: bytes[2] != 0,
@@ -298,6 +328,9 @@ class AppPreferences {
                 layerAdjustCropOutside: bytes[17] != 0,
                 colorLineColor: decodedColorLineColor,
                 bucketSwallowColorLine: decodedBucketSwallowColorLine,
+                hollowStrokeEnabled: decodedHollowStrokeEnabled,
+                hollowStrokeRatio: decodedHollowStrokeRatio,
+                hollowStrokeFillColor: decodedHollowStrokeFillColor,
                 shapeToolFillEnabled: decodedShapeToolFillEnabled,
                 bucketTolerance: _clampToleranceValue(bytes[20]),
                 magicWandTolerance: _clampToleranceValue(bytes[21]),
@@ -1144,6 +1177,10 @@ class AppPreferences {
       prefs.sai2LayerPanelWidthSplit,
     );
     final int primaryColorValue = prefs.primaryColor.value;
+    final double hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
+    prefs.hollowStrokeRatio = hollowStrokeRatio;
+    final int hollowStrokeRatioEncoded = _encodeRatioByte(hollowStrokeRatio);
+    final int hollowStrokeFillColorValue = prefs.hollowStrokeFillColor.value;
     final int localeOverrideEncoded = _encodeLocaleOverride(
       prefs.localeOverride,
     );
@@ -1194,6 +1231,12 @@ class AppPreferences {
       (primaryColorValue >> 24) & 0xff,
       prefs.showDisableVectorDrawingConfirmDialog ? 1 : 0,
       localeOverrideEncoded,
+      prefs.hollowStrokeEnabled ? 1 : 0,
+      hollowStrokeRatioEncoded,
+      hollowStrokeFillColorValue & 0xff,
+      (hollowStrokeFillColorValue >> 8) & 0xff,
+      (hollowStrokeFillColorValue >> 16) & 0xff,
+      (hollowStrokeFillColorValue >> 24) & 0xff,
     ]);
     await _writePreferencesPayload(payload);
   }

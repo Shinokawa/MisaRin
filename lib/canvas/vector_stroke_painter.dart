@@ -12,26 +12,100 @@ class VectorStrokePainter {
     required Color color,
     required BrushShape shape,
     int antialiasLevel = 1,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    Color hollowFillColor = const Color(0x00000000),
   }) {
     if (points.isEmpty) return;
 
+    final int clampedAntialias = antialiasLevel.clamp(0, 3);
     final Paint paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill
-      ..isAntiAlias = antialiasLevel > 0;
+      ..isAntiAlias = clampedAntialias > 0;
 
-    if (antialiasLevel > 1) {
+    if (clampedAntialias > 1) {
       // Simulate the "softer" look of higher legacy AA levels
       // Level 2 -> sigma 0.6
       // Level 3 -> sigma 1.2
-      final double sigma = (antialiasLevel - 1) * 0.6;
+      final double sigma = (clampedAntialias - 1) * 0.6;
       paint.maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
     }
 
+    final double ratio = hollowRatio.clamp(0.0, 1.0);
+    final bool useHollow = hollow && ratio > 0.0001;
+    if (!useHollow) {
+      if (shape == BrushShape.circle) {
+        _paintCircleStroke(canvas, points, radii, paint);
+      } else {
+        _paintStampStroke(canvas, points, radii, paint, shape);
+      }
+      return;
+    }
+
+    // Outer stroke (outline color)
     if (shape == BrushShape.circle) {
       _paintCircleStroke(canvas, points, radii, paint);
     } else {
       _paintStampStroke(canvas, points, radii, paint, shape);
+    }
+
+    // Cut out the inner stroke (hollow area)
+    final Paint clearPaint = Paint()
+      ..blendMode = BlendMode.clear
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = clampedAntialias > 0;
+    if (clampedAntialias > 1) {
+      final double sigma = (clampedAntialias - 1) * 0.6;
+      clearPaint.maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
+    }
+    if (shape == BrushShape.circle) {
+      _paintCircleStroke(
+        canvas,
+        points,
+        radii,
+        clearPaint,
+        radiusScale: ratio,
+      );
+    } else {
+      _paintStampStroke(
+        canvas,
+        points,
+        radii,
+        clearPaint,
+        shape,
+        radiusScale: ratio,
+      );
+    }
+
+    // Optional fill for the hollow interior.
+    if (((hollowFillColor.a * 255.0).round() & 0xff) != 0) {
+      final Paint fillPaint = Paint()
+        ..color = hollowFillColor
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = clampedAntialias > 0;
+      if (clampedAntialias > 1) {
+        final double sigma = (clampedAntialias - 1) * 0.6;
+        fillPaint.maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
+      }
+      if (shape == BrushShape.circle) {
+        _paintCircleStroke(
+          canvas,
+          points,
+          radii,
+          fillPaint,
+          radiusScale: ratio,
+        );
+      } else {
+        _paintStampStroke(
+          canvas,
+          points,
+          radii,
+          fillPaint,
+          shape,
+          radiusScale: ratio,
+        );
+      }
     }
   }
 
@@ -40,18 +114,25 @@ class VectorStrokePainter {
     List<Offset> points,
     List<double> radii,
     Paint paint,
+    {double radiusScale = 1.0}
   ) {
     for (int i = 0; i < points.length; i++) {
       final Offset p = points[i];
-      final double r = (i < radii.length) ? radii[i] : (radii.isNotEmpty ? radii.last : 1.0);
-      canvas.drawCircle(p, r, paint);
+      final double r = (i < radii.length)
+          ? radii[i]
+          : (radii.isNotEmpty ? radii.last : 1.0);
+      canvas.drawCircle(p, r * radiusScale, paint);
     }
 
     for (int i = 0; i < points.length - 1; i++) {
       final Offset p1 = points[i];
       final Offset p2 = points[i+1];
-      final double r1 = (i < radii.length) ? radii[i] : (radii.isNotEmpty ? radii.last : 1.0);
-      final double r2 = (i + 1 < radii.length) ? radii[i+1] : r1;
+      final double rawR1 = (i < radii.length)
+          ? radii[i]
+          : (radii.isNotEmpty ? radii.last : 1.0);
+      final double rawR2 = (i + 1 < radii.length) ? radii[i + 1] : rawR1;
+      final double r1 = rawR1 * radiusScale;
+      final double r2 = rawR2 * radiusScale;
       
       final double dist = (p2 - p1).distance;
       if (dist < 0.5 || dist <= (r1 - r2).abs()) continue;
@@ -88,6 +169,7 @@ class VectorStrokePainter {
     List<double> radii,
     Paint paint,
     BrushShape shape,
+    {double radiusScale = 1.0}
   ) {
     // Use a denser stamping for shapes to avoid gaps, but not too dense to kill performance
     // For vector drawing, we can just draw at every point if they are dense enough.
@@ -96,13 +178,15 @@ class VectorStrokePainter {
     if (points.isEmpty) return;
 
     // Draw first point
-    _drawShapeAt(canvas, points.first, radii.first, paint, shape);
+    _drawShapeAt(canvas, points.first, radii.first * radiusScale, paint, shape);
 
     for (int i = 0; i < points.length - 1; i++) {
       final Offset p1 = points[i];
       final Offset p2 = points[i+1];
-      final double r1 = radii[i];
-      final double r2 = (i + 1 < radii.length) ? radii[i+1] : r1;
+      final double rawR1 = radii[i];
+      final double rawR2 = (i + 1 < radii.length) ? radii[i + 1] : rawR1;
+      final double r1 = rawR1 * radiusScale;
+      final double r2 = rawR2 * radiusScale;
       
       final double dist = (p2 - p1).distance;
       if (dist <= 0.1) continue;

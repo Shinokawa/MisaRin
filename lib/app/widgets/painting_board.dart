@@ -277,6 +277,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _vectorStrokeSmoothingEnabled =
       AppPreferences.defaultVectorStrokeSmoothingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
+  bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
+  double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
+  Color _hollowStrokeFillColor = AppPreferences.defaultHollowStrokeFillColor;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
   bool _bucketSampleAllLayers = false;
@@ -1923,6 +1926,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
     _vectorStrokeSmoothingEnabled = prefs.vectorStrokeSmoothingEnabled;
     _brushShape = prefs.brushShape;
+    _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
+    _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
+    _hollowStrokeFillColor = prefs.hollowStrokeFillColor;
     _colorLineColor = prefs.colorLineColor;
     _primaryColor = prefs.primaryColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
@@ -2425,6 +2431,9 @@ class PaintingBoardState extends _PaintingBoardBase
       sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
       brushShape: _brushShape,
+      hollowStrokeEnabled: _hollowStrokeEnabled,
+      hollowStrokeRatio: _hollowStrokeRatio,
+      hollowStrokeFillColor: _hollowStrokeFillColor.value,
       strokeStabilizerStrength: _strokeStabilizerStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
@@ -2477,6 +2486,9 @@ class PaintingBoardState extends _PaintingBoardBase
       setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
     }
     _updateBrushShape(snapshot.brushShape);
+    _updateHollowStrokeEnabled(snapshot.hollowStrokeEnabled);
+    _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
+    _updateHollowStrokeFillColor(Color(snapshot.hollowStrokeFillColor));
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);

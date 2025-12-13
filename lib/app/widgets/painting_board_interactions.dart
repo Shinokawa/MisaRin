@@ -249,6 +249,48 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateHollowStrokeEnabled(bool value) {
+    if (_hollowStrokeEnabled == value) {
+      return;
+    }
+    setState(() => _hollowStrokeEnabled = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.hollowStrokeEnabled = value;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateHollowStrokeRatio(double value) {
+    final double clamped = value.clamp(0.0, 1.0);
+    if ((_hollowStrokeRatio - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _hollowStrokeRatio = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.hollowStrokeRatio = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateHollowStrokeFillColor(Color value) {
+    if (_hollowStrokeFillColor.value == value.value) {
+      return;
+    }
+    setState(() => _hollowStrokeFillColor = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.hollowStrokeFillColor = value;
+    unawaited(AppPreferences.save());
+  }
+
+  Future<void> _handleEditHollowStrokeFillColor() async {
+    await _pickColor(
+      title: context.l10n.adjustHollowStrokeFillColor,
+      initialColor: _hollowStrokeFillColor,
+      onSelected: _updateHollowStrokeFillColor,
+      onCleared: () {
+        _updateHollowStrokeFillColor(const Color(0x00000000));
+      },
+    );
+  }
+
   void _updateStrokeStabilizerStrength(double value) {
     final double clamped = value.clamp(0.0, 1.0);
     if ((_strokeStabilizerStrength - clamped).abs() < 0.0005) {
@@ -559,6 +601,7 @@ mixin _PaintingBoardInteractionMixin
     }
     final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    final bool hollow = _hollowStrokeEnabled && !erase;
     _lastStrokeBoardPosition = start;
     _lastStylusDirection = null;
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
@@ -583,6 +626,9 @@ mixin _PaintingBoardInteractionMixin
         antialiasLevel: _penAntialiasLevel,
         brushShape: _brushShape,
         erase: erase,
+        hollow: hollow,
+        hollowRatio: _hollowStrokeRatio,
+        hollowFillColor: _hollowStrokeFillColor,
       );
     });
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -1434,6 +1480,9 @@ mixin _PaintingBoardInteractionMixin
           antialiasLevel: _penAntialiasLevel,
           brushShape: _brushShape,
           erase: erase,
+          hollow: _hollowStrokeEnabled && !erase,
+          hollowRatio: _hollowStrokeRatio,
+          hollowFillColor: _hollowStrokeFillColor,
         );
         _controller.endStroke();
         _markDirty();
@@ -1689,6 +1738,7 @@ mixin _PaintingBoardInteractionMixin
         _penPressureProfile == StrokePressureProfile.taperCenter;
     final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    final bool hollow = _hollowStrokeEnabled && !erase;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
       strokeStart,
@@ -1701,6 +1751,9 @@ mixin _PaintingBoardInteractionMixin
       brushShape: _brushShape,
       enableNeedleTips: enableNeedleTips,
       erase: erase,
+      hollow: hollow,
+      hollowRatio: _hollowStrokeRatio,
+      hollowFillColor: _hollowStrokeFillColor,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,

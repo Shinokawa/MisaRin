@@ -3,7 +3,9 @@ part of 'controller.dart';
 void _controllerFlushDeferredStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  if (!controller._vectorDrawingEnabled) {
+  final bool usesVectorRasterization =
+      controller._vectorDrawingEnabled || controller._currentStrokeHollowEnabled;
+  if (!usesVectorRasterization) {
     controller._commitDeferredStrokeCommandsAsRaster();
     return;
   }
@@ -20,6 +22,9 @@ void _controllerFlushDeferredStrokeCommands(
   final BrushShape shape = controller._currentBrushShape;
   final bool erase = controller._currentStrokeEraseMode;
   final int antialiasLevel = controller._currentStrokeAntialiasLevel;
+  final bool hollow = controller._currentStrokeHollowEnabled;
+  final double hollowRatio = controller._currentStrokeHollowRatio;
+  final int hollowFillColorValue = controller._currentStrokeHollowFillColor.value;
 
   if (controller._vectorStrokeSmoothingEnabled && points.length >= 3) {
     final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
@@ -35,7 +40,11 @@ void _controllerFlushDeferredStrokeCommands(
     radii: radii,
     colorValue: color.value,
     shapeIndex: shape.index,
+    antialiasLevel: antialiasLevel,
     erase: erase,
+    hollow: hollow,
+    hollowRatio: hollowRatio,
+    hollowFillColorValue: hollowFillColorValue,
   );
   controller._committingStrokes.add(vectorCommand);
 
@@ -73,6 +82,9 @@ void _controllerFlushDeferredStrokeCommands(
         dirtyRegion,
         erase,
         antialiasLevel,
+        hollow: hollow,
+        hollowRatio: hollowRatio,
+        hollowFillColor: Color(hollowFillColorValue),
       )
       .then((_) {
         controller._committingStrokes.remove(vectorCommand);
@@ -89,6 +101,11 @@ Future<void> _controllerRasterizeVectorStroke(
   Rect bounds,
   bool erase,
   int antialiasLevel,
+  {
+  bool hollow = false,
+  double hollowRatio = 0.0,
+  Color hollowFillColor = const Color(0x00000000),
+}
 ) async {
   final int width = bounds.width.ceil().clamp(1, controller._width);
   final int height = bounds.height.ceil().clamp(1, controller._height);
@@ -115,6 +132,9 @@ Future<void> _controllerRasterizeVectorStroke(
     color: color,
     shape: shape,
     antialiasLevel: antialiasLevel,
+    hollow: hollow,
+    hollowRatio: hollowRatio,
+    hollowFillColor: hollowFillColor,
   );
 
   final ui.Picture picture = recorder.endRecording();
@@ -171,7 +191,7 @@ Future<void> _controllerRasterizeVectorStroke(
 void _controllerFlushRealtimeStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  if (controller._vectorDrawingEnabled) {
+  if (controller._vectorDrawingEnabled || controller._currentStrokeHollowEnabled) {
     return;
   }
   controller._commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);

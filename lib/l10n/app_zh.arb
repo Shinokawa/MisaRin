@@ -456,6 +456,9 @@
   "swallowColorLine": "吞并色线",
   "cropOutsideCanvas": "裁剪出界画面",
   "noAdjustableSettings": "该工具暂无可调节参数",
+  "hollowStroke": "空心描边",
+  "hollowStrokeRatio": "空心比例",
+  "hollowStrokeFillColor": "空心填充颜色",
   "solidFill": "实心",
   "autoSharpTaper": "自动尖锐出入峰",
   "stylusPressure": "数位笔笔压",
@@ -513,6 +516,9 @@
   "lineHeightDesc": "控制多行文字之间的垂直距离，便于营造疏朗或紧凑的段落。",
   "letterSpacingDesc": "改变字符之间的水平间隔，可实现紧凑压缩或加宽排版。",
   "strokeWidthDesc": "设置文字描边的粗细，用来强调字形或营造漫画嵌字效果。",
+  "hollowStrokeDesc": "将笔画中心挖空，形成空心描边效果。",
+  "hollowStrokeRatioDesc": "调整空心内圈大小，数值越高描边越细。",
+  "hollowStrokeFillColorDesc": "为空心内部设置填充颜色；清除可保持透明。",
 
   "solidFillDesc": "决定形状工具是绘制填充色块还是空心轮廓，开启后直接生成实心图形。",
   "autoSharpTaperDesc": "为笔刷起笔与收笔自动收尖，营造赛璐璐式的利落线条。",
@@ -644,6 +650,7 @@
   "boardPanelPicker": "画板取色器",
   "adjustCurrentColor": "调整当前颜色",
   "adjustStrokeColor": "调整描边颜色",
+  "adjustHollowStrokeFillColor": "调整空心填充颜色",
   "copiedHex": "已复制 {hex}",
   "@copiedHex": {
     "placeholders": {

@@ -456,6 +456,9 @@
   "swallowColorLine": "Swallow Color Line",
   "cropOutsideCanvas": "Crop Outside Canvas",
   "noAdjustableSettings": "No adjustable settings for this tool",
+  "hollowStroke": "Hollow Stroke",
+  "hollowStrokeRatio": "Hollow Ratio",
+  "hollowStrokeFillColor": "Hollow Fill Color",
   "solidFill": "Solid Fill",
   "autoSharpTaper": "Auto Sharp Taper",
   "stylusPressure": "Stylus Pressure",
@@ -513,6 +516,9 @@
   "lineHeightDesc": "Controls vertical distance between lines of text.",
   "letterSpacingDesc": "Changes horizontal spacing between characters.",
   "strokeWidthDesc": "Sets the thickness of the text stroke.",
+  "hollowStrokeDesc": "Cuts out the center of strokes for a hollow outline effect.",
+  "hollowStrokeRatioDesc": "Controls the size of the hollow interior. Higher values make the outline thinner.",
+  "hollowStrokeFillColorDesc": "Optional fill color for the hollow interior. Clear to keep it transparent.",
   
   "solidFillDesc": "Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.",
   "autoSharpTaperDesc": "Automatically tapers the start and end of strokes for a sharp, cel-shading look.",
@@ -644,6 +650,7 @@
   "boardPanelPicker": "Board Panel Picker",
   "adjustCurrentColor": "Adjust Current Color",
   "adjustStrokeColor": "Adjust Stroke Color",
+  "adjustHollowStrokeFillColor": "Adjust Hollow Fill Color",
   "copiedHex": "Copied {hex}",
   "@copiedHex": {
     "placeholders": {

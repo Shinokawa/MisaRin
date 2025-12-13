@@ -350,6 +350,12 @@ mixin _PaintingBoardBuildMixin
           onSprayModeChanged: _updateSprayMode,
           brushShape: _brushShape,
           onBrushShapeChanged: _updateBrushShape,
+          hollowStrokeEnabled: _hollowStrokeEnabled,
+          hollowStrokeRatio: _hollowStrokeRatio,
+          hollowStrokeFillColor: _hollowStrokeFillColor,
+          onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
+          onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
+          onHollowStrokeFillColorPressed: _handleEditHollowStrokeFillColor,
           strokeStabilizerStrength: _strokeStabilizerStrength,
           onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
           stylusPressureEnabled: _stylusPressureEnabled,
@@ -734,7 +740,12 @@ mixin _PaintingBoardBuildMixin
                                                     .activeStrokePoints
                                                     .isNotEmpty;
                                             final bool showActiveStroke =
-                                                _vectorDrawingEnabled &&
+                                                (_vectorDrawingEnabled ||
+                                                    _controller
+                                                        .activeStrokeHollowEnabled ||
+                                                    _controller
+                                                        .committingStrokes
+                                                        .isNotEmpty) &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&
@@ -801,6 +812,17 @@ mixin _PaintingBoardBuildMixin
                                                             .activeStrokeColor,
                                                         shape: _controller
                                                             .activeStrokeShape,
+                                                        antialiasLevel: _controller
+                                                            .activeStrokeAntialiasLevel,
+                                                        hollowStrokeEnabled:
+                                                            _controller
+                                                                .activeStrokeHollowEnabled,
+                                                        hollowStrokeRatio:
+                                                            _controller
+                                                                .activeStrokeHollowRatio,
+                                                        hollowStrokeFillColor:
+                                                            _controller
+                                                                .activeStrokeHollowFillColor,
                                                         committingStrokes:
                                                             _controller
                                                                 .committingStrokes,

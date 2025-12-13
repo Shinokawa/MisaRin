@@ -872,6 +872,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noAdjustableSettings => 'このツールには調整可能な設定がありません';
 
   @override
+  String get hollowStroke => '中空ストローク';
+
+  @override
+  String get hollowStrokeRatio => '中空比率';
+
+  @override
+  String get hollowStrokeFillColor => '中空の塗り色';
+
+  @override
   String get solidFill => '塗りつぶし';
 
   @override
@@ -1041,6 +1050,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get strokeWidthDesc => 'テキストの境界線の太さを設定します。';
+
+  @override
+  String get hollowStrokeDesc => 'ストロークの中心をくり抜き、中空の輪郭線にします。';
+
+  @override
+  String get hollowStrokeRatioDesc => '中空部分の大きさを調整します。値が大きいほど輪郭が細くなります。';
+
+  @override
+  String get hollowStrokeFillColorDesc => '中空部分を塗る色を設定します。透明にすると塗りません。';
 
   @override
   String get solidFillDesc =>
@@ -1350,6 +1368,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get adjustStrokeColor => '境界線の色を調整';
+
+  @override
+  String get adjustHollowStrokeFillColor => '中空の塗り色を調整';
 
   @override
   String copiedHex(Object hex) {

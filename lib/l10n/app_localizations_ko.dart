@@ -876,6 +876,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noAdjustableSettings => '이 도구에는 조정 가능한 설정이 없습니다';
 
   @override
+  String get hollowStroke => '중공 획';
+
+  @override
+  String get hollowStrokeRatio => '중공 비율';
+
+  @override
+  String get hollowStrokeFillColor => '중공 채우기 색상';
+
+  @override
   String get solidFill => '단색 채우기';
 
   @override
@@ -1047,6 +1056,16 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get strokeWidthDesc => '텍스트 획의 두께를 설정합니다.';
+
+  @override
+  String get hollowStrokeDesc => '획의 중심을 비워 중공 윤곽 효과를 만듭니다.';
+
+  @override
+  String get hollowStrokeRatioDesc => '중공 영역의 크기를 조절합니다. 값이 클수록 윤곽이 더 얇아집니다.';
+
+  @override
+  String get hollowStrokeFillColorDesc =>
+      '중공 내부를 채울 색상을 설정합니다. 지우면 투명하게 유지됩니다.';
 
   @override
   String get solidFillDesc =>
@@ -1359,6 +1378,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get adjustStrokeColor => '획 색상 조정';
+
+  @override
+  String get adjustHollowStrokeFillColor => '중공 채우기 색상 조정';
 
   @override
   String copiedHex(Object hex) {

@@ -409,5 +409,12 @@
   "fileNameCannotBeEmpty": "文件名不能为空。",
   "blackPoint": "黑点",
   "whitePoint": "白点",
-  "midTone": "中间调"
+  "midTone": "中间调",
+  "hollowStroke": "空心描边",
+  "hollowStrokeDesc": "将笔画中心挖空，形成空心描边效果。",
+  "hollowStrokeRatio": "空心比例",
+  "hollowStrokeRatioDesc": "调整空心内圈大小，数值越高描边越细。",
+  "hollowStrokeFillColor": "空心填充颜色",
+  "hollowStrokeFillColorDesc": "为空心内部设置填充颜色；清除可保持透明。",
+  "adjustHollowStrokeFillColor": "调整空心填充颜色"
 }

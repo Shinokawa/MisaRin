@@ -888,6 +888,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noAdjustableSettings => 'No adjustable settings for this tool';
 
   @override
+  String get hollowStroke => 'Hollow Stroke';
+
+  @override
+  String get hollowStrokeRatio => 'Hollow Ratio';
+
+  @override
+  String get hollowStrokeFillColor => 'Hollow Fill Color';
+
+  @override
   String get solidFill => 'Solid Fill';
 
   @override
@@ -1063,6 +1072,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get strokeWidthDesc => 'Sets the thickness of the text stroke.';
+
+  @override
+  String get hollowStrokeDesc =>
+      'Cuts out the center of strokes for a hollow outline effect.';
+
+  @override
+  String get hollowStrokeRatioDesc =>
+      'Controls the size of the hollow interior. Higher values make the outline thinner.';
+
+  @override
+  String get hollowStrokeFillColorDesc =>
+      'Optional fill color for the hollow interior. Clear to keep it transparent.';
 
   @override
   String get solidFillDesc =>
@@ -1386,6 +1407,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get adjustStrokeColor => 'Adjust Stroke Color';
+
+  @override
+  String get adjustHollowStrokeFillColor => 'Adjust Hollow Fill Color';
 
   @override
   String copiedHex(Object hex) {

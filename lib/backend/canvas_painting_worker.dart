@@ -35,6 +35,9 @@ class PaintingDrawCommand {
     this.points,
     this.radii,
     this.softness,
+    this.hollow,
+    this.hollowRatio,
+    this.hollowFillColor,
   });
 
   factory PaintingDrawCommand.brushStamp({
@@ -132,16 +135,23 @@ class PaintingDrawCommand {
     required List<double> radii,
     required int colorValue,
     required int shapeIndex,
+    required int antialiasLevel,
     required bool erase,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    int hollowFillColorValue = 0x00000000,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.vectorStroke,
       color: colorValue,
-      antialiasLevel: 0,
+      antialiasLevel: antialiasLevel,
       erase: erase,
       points: points,
       radii: radii,
       shapeIndex: shapeIndex,
+      hollow: hollow,
+      hollowRatio: hollowRatio,
+      hollowFillColor: hollowFillColorValue,
     );
   }
 
@@ -175,6 +185,9 @@ class PaintingDrawCommand {
   final List<Offset>? points;
   final double? softness;
   final List<double>? radii;
+  final bool? hollow;
+  final double? hollowRatio;
+  final int? hollowFillColor;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -193,6 +206,9 @@ class PaintingDrawCommand {
       'includeStartCap': includeStartCap,
       'points': points?.map((p) => <double>[p.dx, p.dy]).toList(),
       'radii': radii,
+      'hollow': hollow,
+      'hollowRatio': hollowRatio,
+      'hollowFillColor': hollowFillColor,
     };
   }
 }

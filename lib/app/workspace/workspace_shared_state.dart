@@ -62,6 +62,9 @@ class ToolSettingsSnapshot {
     required this.sprayMode,
     required this.penStrokeSliderRange,
     required this.brushShape,
+    required this.hollowStrokeEnabled,
+    required this.hollowStrokeRatio,
+    required this.hollowStrokeFillColor,
     required this.strokeStabilizerStrength,
     required this.stylusPressureEnabled,
     required this.simulatePenPressure,
@@ -101,6 +104,9 @@ class ToolSettingsSnapshot {
   final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
   final BrushShape brushShape;
+  final bool hollowStrokeEnabled;
+  final double hollowStrokeRatio;
+  final int hollowStrokeFillColor;
   final double strokeStabilizerStrength;
   final bool stylusPressureEnabled;
   final bool simulatePenPressure;
