@@ -1108,6 +1108,46 @@ mixin _PaintingBoardInteractionMixin
     setState(() => _isDraggingBoard = false);
   }
 
+  void _beginRotateBoard() {
+    setState(() => _isRotatingBoard = true);
+  }
+
+  void _updateRotateBoard(Offset delta) {
+    if (!_isRotatingBoard) {
+      return;
+    }
+    _setViewportRotation(_viewport.rotation + delta.dx * 0.005);
+  }
+
+  void _finishRotateBoard() {
+    if (!_isRotatingBoard) {
+      return;
+    }
+    setState(() => _isRotatingBoard = false);
+  }
+
+  void _setViewportRotation(double value) {
+    if (value.isNaN || value.isInfinite) {
+      value = 0.0;
+    } else {
+      value %= math.pi * 2;
+      if (value > math.pi) {
+        value -= math.pi * 2;
+      }
+    }
+    if ((_viewport.rotation - value).abs() < 0.0005) {
+      return;
+    }
+    setState(() {
+      _viewport.setRotation(value);
+    });
+    _notifyViewInfoChanged();
+  }
+
+  void _resetViewportRotation() {
+    _setViewportRotation(0.0);
+  }
+
   void _beginEyedropperSample(Offset boardLocal) {
     if (!_isWithinCanvas(boardLocal)) {
       return;
@@ -1893,6 +1933,9 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.hand:
         _beginDragBoard();
         break;
+      case CanvasTool.rotate:
+        _beginRotateBoard();
+        break;
     }
   }
 
@@ -1962,6 +2005,11 @@ mixin _PaintingBoardInteractionMixin
           _updateDragBoard(event.delta);
         }
         break;
+      case CanvasTool.rotate:
+        if (_isRotatingBoard) {
+          _updateRotateBoard(event.delta);
+        }
+        break;
       case CanvasTool.spray:
         if (_isSpraying) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
@@ -2025,6 +2073,11 @@ mixin _PaintingBoardInteractionMixin
           _finishDragBoard();
         }
         break;
+      case CanvasTool.rotate:
+        if (_isRotatingBoard) {
+          _finishRotateBoard();
+        }
+        break;
       case CanvasTool.spray:
         if (_isSpraying) {
           _finishSprayStroke();
@@ -2073,6 +2126,11 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.hand:
         if (_isDraggingBoard) {
           _finishDragBoard();
+        }
+        break;
+      case CanvasTool.rotate:
+        if (_isRotatingBoard) {
+          _finishRotateBoard();
         }
         break;
       case CanvasTool.spray:

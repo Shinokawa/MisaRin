@@ -255,6 +255,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
   bool _isDraggingBoard = false;
+  bool _isRotatingBoard = false;
   bool _isDirty = false;
   bool _isScalingGesture = false;
   bool _pixelGridVisible = false;
@@ -902,7 +903,22 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   Offset _toBoardLocal(Offset workspacePosition) {
     final Rect boardRect = _boardRect;
-    return (workspacePosition - boardRect.topLeft) / _viewport.scale;
+    final double rotation = _viewport.rotation;
+    Offset relative = workspacePosition - boardRect.topLeft;
+
+    if (rotation != 0) {
+      final Offset center = boardRect.size.center(Offset.zero);
+      final double dx = relative.dx - center.dx;
+      final double dy = relative.dy - center.dy;
+      final double cosA = math.cos(-rotation);
+      final double sinA = math.sin(-rotation);
+
+      final double rotatedDx = dx * cosA - dy * sinA;
+      final double rotatedDy = dx * sinA + dy * cosA;
+
+      relative = Offset(rotatedDx + center.dx, rotatedDy + center.dy);
+    }
+    return relative / _viewport.scale;
   }
 
   Offset? _boardCursorPosition() {

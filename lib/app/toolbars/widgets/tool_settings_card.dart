@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -89,6 +91,9 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onTextStrokeWidthChanged,
     required this.textStrokeColor,
     required this.onTextStrokeColorPressed,
+    required this.canvasRotation,
+    required this.onCanvasRotationChanged,
+    required this.onCanvasRotationReset,
     this.compactLayout = false,
   });
 
@@ -165,6 +170,9 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<double> onTextStrokeWidthChanged;
   final Color textStrokeColor;
   final VoidCallback onTextStrokeColorPressed;
+  final double canvasRotation;
+  final ValueChanged<double> onCanvasRotationChanged;
+  final VoidCallback onCanvasRotationReset;
 
   @override
   State<ToolSettingsCard> createState() => _ToolSettingsCardState();
@@ -327,6 +335,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       case CanvasTool.text:
         content = _buildTextControls(theme);
         break;
+      case CanvasTool.rotate:
+        content = _buildCanvasRotationControls(theme);
+        break;
       default:
         content = Text(l10n.noAdjustableSettings, style: theme.typography.body);
         break;
@@ -355,6 +366,58 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       );
     }
     return MeasuredSize(onChanged: widget.onSizeChanged, child: padded);
+  }
+
+  Widget _buildCanvasRotationControls(FluentThemeData theme) {
+    final l10n = context.l10n;
+    final double degrees = widget.canvasRotation * 180.0 / math.pi;
+    final int roundedDegrees = degrees.round();
+    final Slider slider = Slider(
+      value: degrees.clamp(-180.0, 180.0),
+      min: -180.0,
+      max: 180.0,
+      divisions: 360,
+      onChanged: (value) {
+        widget.onCanvasRotationChanged(value * math.pi / 180.0);
+      },
+    );
+
+    final Widget resetButton = _wrapButtonTooltip(
+      label: l10n.reset,
+      detail: '将旋转角度复位为 0°',
+      child: IconButton(
+        icon: const Icon(FluentIcons.reset, size: 16),
+        onPressed: widget.onCanvasRotationReset,
+      ),
+    );
+
+    final Widget sliderControl = _wrapSliderTooltip(
+      label: l10n.rotationLabel(roundedDegrees),
+      detail: '拖动滑块调整画布视图旋转角度',
+      valueText: '$roundedDegrees°',
+      messageOverride: l10n.rotationLabel(roundedDegrees),
+      child: SizedBox(width: _defaultSliderWidth, child: slider),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.rotationLabel(roundedDegrees),
+              style: theme.typography.bodyStrong,
+            ),
+            const SizedBox(width: 8),
+            resetButton,
+          ],
+        ),
+        const SizedBox(height: 8),
+        sliderControl,
+      ],
+    );
   }
 
   Widget _buildBrushControls(
