@@ -882,7 +882,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get hollowStrokeRatio => '중공 비율';
 
   @override
-  String get hollowStrokeFillColor => '중공 채우기 색상';
+  String get eraseOccludedParts => '겹친 부분 지우기';
 
   @override
   String get solidFill => '단색 채우기';
@@ -1064,8 +1064,8 @@ class AppLocalizationsKo extends AppLocalizations {
   String get hollowStrokeRatioDesc => '중공 영역의 크기를 조절합니다. 값이 클수록 윤곽이 더 얇아집니다.';
 
   @override
-  String get hollowStrokeFillColorDesc =>
-      '중공 내부를 채울 색상을 설정합니다. 지우면 투명하게 유지됩니다.';
+  String get eraseOccludedPartsDesc =>
+      '같은 레이어에서 나중에 그린 중공 선이 다른 선과 겹치는 부분을 지웁니다.';
 
   @override
   String get solidFillDesc =>
@@ -1378,9 +1378,6 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get adjustStrokeColor => '획 색상 조정';
-
-  @override
-  String get adjustHollowStrokeFillColor => '중공 채우기 색상 조정';
 
   @override
   String copiedHex(Object hex) {

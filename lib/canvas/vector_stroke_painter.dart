@@ -14,7 +14,6 @@ class VectorStrokePainter {
     int antialiasLevel = 1,
     bool hollow = false,
     double hollowRatio = 0.0,
-    Color hollowFillColor = const Color(0x00000000),
   }) {
     if (points.isEmpty) return;
 
@@ -76,36 +75,6 @@ class VectorStrokePainter {
         shape,
         radiusScale: ratio,
       );
-    }
-
-    // Optional fill for the hollow interior.
-    if (((hollowFillColor.a * 255.0).round() & 0xff) != 0) {
-      final Paint fillPaint = Paint()
-        ..color = hollowFillColor
-        ..style = PaintingStyle.fill
-        ..isAntiAlias = clampedAntialias > 0;
-      if (clampedAntialias > 1) {
-        final double sigma = (clampedAntialias - 1) * 0.6;
-        fillPaint.maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
-      }
-      if (shape == BrushShape.circle) {
-        _paintCircleStroke(
-          canvas,
-          points,
-          radii,
-          fillPaint,
-          radiusScale: ratio,
-        );
-      } else {
-        _paintStampStroke(
-          canvas,
-          points,
-          radii,
-          fillPaint,
-          shape,
-          radiusScale: ratio,
-        );
-      }
     }
   }
 

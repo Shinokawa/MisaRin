@@ -37,7 +37,7 @@ class PaintingDrawCommand {
     this.softness,
     this.hollow,
     this.hollowRatio,
-    this.hollowFillColor,
+    this.eraseOccludedParts,
   });
 
   factory PaintingDrawCommand.brushStamp({
@@ -139,7 +139,7 @@ class PaintingDrawCommand {
     required bool erase,
     bool hollow = false,
     double hollowRatio = 0.0,
-    int hollowFillColorValue = 0x00000000,
+    bool eraseOccludedParts = false,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.vectorStroke,
@@ -151,7 +151,7 @@ class PaintingDrawCommand {
       shapeIndex: shapeIndex,
       hollow: hollow,
       hollowRatio: hollowRatio,
-      hollowFillColor: hollowFillColorValue,
+      eraseOccludedParts: eraseOccludedParts,
     );
   }
 
@@ -187,7 +187,7 @@ class PaintingDrawCommand {
   final List<double>? radii;
   final bool? hollow;
   final double? hollowRatio;
-  final int? hollowFillColor;
+  final bool? eraseOccludedParts;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -208,7 +208,7 @@ class PaintingDrawCommand {
       'radii': radii,
       'hollow': hollow,
       'hollowRatio': hollowRatio,
-      'hollowFillColor': hollowFillColor,
+      'eraseOccludedParts': eraseOccludedParts,
     };
   }
 }
@@ -257,6 +257,7 @@ class PaintingMergePatchRequest {
     required this.height,
     required this.pixels,
     required this.erase,
+    this.eraseOccludedParts = false,
   });
 
   final int left;
@@ -265,6 +266,7 @@ class PaintingMergePatchRequest {
   final int height;
   final TransferableTypedData pixels;
   final bool erase;
+  final bool eraseOccludedParts;
 }
 
 class PaintingFloodFillRequest {
@@ -425,6 +427,7 @@ class CanvasPaintingWorker {
       'height': request.height,
       'pixels': request.pixels,
       'erase': request.erase,
+      'eraseOccludedParts': request.eraseOccludedParts,
     });
     return _parsePatchResponse(
       response,
@@ -815,6 +818,8 @@ Object? _paintingWorkerHandleMergePatch(
   }
 
   final bool erase = payload['erase'] as bool? ?? false;
+  final bool eraseOccludedParts =
+      payload['eraseOccludedParts'] as bool? ?? false;
   final TransferableTypedData? pixelData =
       payload['pixels'] as TransferableTypedData?;
 
@@ -887,6 +892,15 @@ Object? _paintingWorkerHandleMergePatch(
         final int srcR = _unpremultiplyChannel(r, a);
         final int srcG = _unpremultiplyChannel(g, a);
         final int srcB = _unpremultiplyChannel(b, a);
+
+        if (eraseOccludedParts) {
+          surfacePixels[surfaceIndex] =
+              (a << 24) |
+              (srcR.clamp(0, 255) << 16) |
+              (srcG.clamp(0, 255) << 8) |
+              srcB.clamp(0, 255);
+          continue;
+        }
 
         // Normal blend (Src Over Dst)
         final double srcAlpha = a / 255.0;

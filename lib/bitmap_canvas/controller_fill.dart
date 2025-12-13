@@ -259,7 +259,10 @@ Uint8List? _fillFloodFillAcrossLayers(
     return null;
   }
   controller._updateComposite(requiresFullSurface: true, region: null);
-  final Uint32List? compositePixels = controller._compositePixels;
+  Uint32List? compositePixels = controller._compositePixels;
+  if (compositePixels == null || compositePixels.isEmpty) {
+    compositePixels = _fillBuildCompositePixelsFallback(controller);
+  }
   if (compositePixels == null || compositePixels.isEmpty) {
     return null;
   }
@@ -402,6 +405,92 @@ Uint8List? _fillFloodFillAcrossLayers(
     );
   }
   return collectMask ? finalMask : null;
+}
+
+Uint32List _fillBuildCompositePixelsFallback(BitmapCanvasController controller) {
+  final int width = controller._width;
+  final int height = controller._height;
+  final Uint32List composite = Uint32List(width * height);
+  final Uint8List clipMask = Uint8List(width * height);
+  clipMask.fillRange(0, clipMask.length, 0);
+  final String? translatingLayerId = controller._translatingLayerIdForComposite;
+
+  for (int y = 0; y < height; y++) {
+    final int rowOffset = y * width;
+    for (int x = 0; x < width; x++) {
+      final int index = rowOffset + x;
+      int color = 0;
+      bool initialized = false;
+
+      for (final BitmapLayerState layer in controller._layers) {
+        if (!layer.visible) {
+          continue;
+        }
+        if (translatingLayerId != null && layer.id == translatingLayerId) {
+          continue;
+        }
+        final double layerOpacity = BitmapCanvasController._clampUnit(
+          layer.opacity,
+        );
+        if (layerOpacity <= 0) {
+          if (!layer.clippingMask) {
+            clipMask[index] = 0;
+          }
+          continue;
+        }
+        final int src = layer.surface.pixels[index];
+        final int srcA = (src >> 24) & 0xff;
+        if (srcA == 0) {
+          if (!layer.clippingMask) {
+            clipMask[index] = 0;
+          }
+          continue;
+        }
+
+        double totalOpacity = layerOpacity;
+        if (layer.clippingMask) {
+          final int maskAlpha = clipMask[index];
+          if (maskAlpha == 0) {
+            continue;
+          }
+          totalOpacity *= maskAlpha / 255.0;
+          if (totalOpacity <= 0) {
+            continue;
+          }
+        }
+
+        int effectiveA = (srcA * totalOpacity).round();
+        if (effectiveA <= 0) {
+          if (!layer.clippingMask) {
+            clipMask[index] = 0;
+          }
+          continue;
+        }
+        effectiveA = effectiveA.clamp(0, 255);
+
+        if (!layer.clippingMask) {
+          clipMask[index] = effectiveA;
+        }
+
+        final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
+        if (!initialized) {
+          color = effectiveColor;
+          initialized = true;
+        } else {
+          color = blend_utils.blendWithMode(
+            color,
+            effectiveColor,
+            layer.blendMode,
+            index,
+          );
+        }
+      }
+
+      composite[index] = initialized ? color : 0;
+    }
+  }
+
+  return composite;
 }
 
 Uint8List? _fillFloodFillSingleLayerWithMask(

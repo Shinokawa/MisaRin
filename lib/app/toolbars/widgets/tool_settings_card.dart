@@ -31,10 +31,10 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onBrushShapeChanged,
     required this.hollowStrokeEnabled,
     required this.hollowStrokeRatio,
-    required this.hollowStrokeFillColor,
     required this.onHollowStrokeEnabledChanged,
     required this.onHollowStrokeRatioChanged,
-    required this.onHollowStrokeFillColorPressed,
+    required this.hollowStrokeEraseOccludedParts,
+    required this.onHollowStrokeEraseOccludedPartsChanged,
     required this.strokeStabilizerStrength,
     required this.onStrokeStabilizerChanged,
     required this.stylusPressureEnabled,
@@ -115,10 +115,10 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<BrushShape> onBrushShapeChanged;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
-  final Color hollowStrokeFillColor;
   final ValueChanged<bool> onHollowStrokeEnabledChanged;
   final ValueChanged<double> onHollowStrokeRatioChanged;
-  final VoidCallback onHollowStrokeFillColorPressed;
+  final bool hollowStrokeEraseOccludedParts;
+  final ValueChanged<bool> onHollowStrokeEraseOccludedPartsChanged;
   final double strokeStabilizerStrength;
   final ValueChanged<double> onStrokeStabilizerChanged;
   final bool stylusPressureEnabled;
@@ -484,7 +484,15 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
               ),
             ),
           );
-          wrapChildren.add(_buildHollowFillColorRow(theme));
+          wrapChildren.add(
+            _buildToggleSwitchRow(
+              theme,
+              label: l10n.eraseOccludedParts,
+              detail: l10n.eraseOccludedPartsDesc,
+              value: widget.hollowStrokeEraseOccludedParts,
+              onChanged: widget.onHollowStrokeEraseOccludedPartsChanged,
+            ),
+          );
         }
       }
       if (isShapeTool) {
@@ -586,48 +594,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       spacing: 16,
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
-    );
-  }
-
-  Widget _buildHollowFillColorRow(FluentThemeData theme) {
-    final l10n = context.l10n;
-    final Color borderColor = theme.resources.controlStrokeColorDefault;
-    final bool isNone =
-        ((widget.hollowStrokeFillColor.a * 255.0).round() & 0xff) == 0;
-    final Widget colorSwatch = Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
-        color: isNone ? Colors.transparent : widget.hollowStrokeFillColor,
-        border: Border.all(color: borderColor),
-      ),
-      child: isNone ? const Icon(FluentIcons.clear, size: 12) : null,
-    );
-
-    final Widget colorButton = _wrapButtonTooltip(
-      label: l10n.hollowStrokeFillColor,
-      detail: l10n.hollowStrokeFillColorDesc,
-      child: Button(
-        onPressed: widget.onHollowStrokeFillColorPressed,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            colorSwatch,
-            const SizedBox(width: 8),
-            Text(l10n.pickColor),
-          ],
-        ),
-      ),
-    );
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(l10n.hollowStrokeFillColor, style: theme.typography.bodyStrong),
-        const SizedBox(width: 12),
-        colorButton,
-      ],
     );
   }
 

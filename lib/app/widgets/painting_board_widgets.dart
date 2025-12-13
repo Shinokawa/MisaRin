@@ -293,7 +293,6 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     this.antialiasLevel = 1,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
-    this.hollowStrokeFillColor = const Color(0x00000000),
     required this.activeStrokeIsEraser,
     this.eraserPreviewColor = _kVectorEraserPreviewColor,
   });
@@ -306,7 +305,6 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   final int antialiasLevel;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
-  final Color hollowStrokeFillColor;
   final bool activeStrokeIsEraser;
   final Color eraserPreviewColor;
 
@@ -328,7 +326,6 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         antialiasLevel: command.antialiasLevel,
         hollow: commandHollow,
         hollowRatio: command.hollowRatio ?? 0.0,
-        hollowFillColor: Color(command.hollowFillColor ?? 0x00000000),
       );
     }
 
@@ -347,7 +344,6 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         antialiasLevel: antialiasLevel,
         hollow: activeHollow,
         hollowRatio: hollowStrokeRatio,
-        hollowFillColor: hollowStrokeFillColor,
       );
     }
   }
@@ -362,7 +358,6 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.antialiasLevel != antialiasLevel ||
         oldDelegate.hollowStrokeEnabled != hollowStrokeEnabled ||
         oldDelegate.hollowStrokeRatio != hollowStrokeRatio ||
-        oldDelegate.hollowStrokeFillColor != hollowStrokeFillColor ||
         oldDelegate.activeStrokeIsEraser != activeStrokeIsEraser ||
         oldDelegate.eraserPreviewColor != eraserPreviewColor;
   }

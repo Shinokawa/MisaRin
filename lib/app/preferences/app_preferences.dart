@@ -38,7 +38,7 @@ class AppPreferences {
     this.primaryColor = _defaultPrimaryColor,
     this.hollowStrokeEnabled = _defaultHollowStrokeEnabled,
     this.hollowStrokeRatio = _defaultHollowStrokeRatio,
-    this.hollowStrokeFillColor = _defaultHollowStrokeFillColor,
+    this.hollowStrokeEraseOccludedParts = _defaultHollowStrokeEraseOccludedParts,
     this.shapeToolFillEnabled = _defaultShapeToolFillEnabled,
     this.bucketAntialiasLevel = _defaultBucketAntialiasLevel,
     this.bucketTolerance = _defaultBucketTolerance,
@@ -62,7 +62,7 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 31;
+  static const int _version = 32;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -84,7 +84,7 @@ class AppPreferences {
   static const BrushShape _defaultBrushShape = BrushShape.circle;
   static const bool _defaultHollowStrokeEnabled = false;
   static const double _defaultHollowStrokeRatio = 0.7;
-  static const Color _defaultHollowStrokeFillColor = Color(0x00000000);
+  static const bool _defaultHollowStrokeEraseOccludedParts = false;
   static const double _strokeStabilizerLowerBound = 0.0;
   static const double _strokeStabilizerUpperBound = 1.0;
   static const Color _defaultColorLineColor = kDefaultColorLineColor;
@@ -122,7 +122,8 @@ class AppPreferences {
   static const BrushShape defaultBrushShape = _defaultBrushShape;
   static const bool defaultHollowStrokeEnabled = _defaultHollowStrokeEnabled;
   static const double defaultHollowStrokeRatio = _defaultHollowStrokeRatio;
-  static const Color defaultHollowStrokeFillColor = _defaultHollowStrokeFillColor;
+  static const bool defaultHollowStrokeEraseOccludedParts =
+      _defaultHollowStrokeEraseOccludedParts;
   static const double defaultSprayStrokeWidth = _defaultSprayStrokeWidth;
   static const SprayMode defaultSprayMode = _defaultSprayMode;
   static const bool defaultLayerAdjustCropOutside = false;
@@ -167,7 +168,7 @@ class AppPreferences {
   BrushShape brushShape;
   bool hollowStrokeEnabled;
   double hollowStrokeRatio;
-  Color hollowStrokeFillColor;
+  bool hollowStrokeEraseOccludedParts;
   double sprayStrokeWidth;
   SprayMode sprayMode;
   bool layerAdjustCropOutside;
@@ -285,24 +286,24 @@ class AppPreferences {
                   version >= 30 && bytes.length >= 45
                   ? _decodeLocaleOverride(bytes[44])
                   : _defaultLocaleOverride;
-              final bool decodedHollowStrokeEnabled =
-                  version >= 31 && bytes.length >= 51
-                  ? bytes[45] != 0
-                  : _defaultHollowStrokeEnabled;
-              final double decodedHollowStrokeRatio =
-                  version >= 31 && bytes.length >= 51
-                  ? _decodeRatioByte(bytes[46])
-                  : _defaultHollowStrokeRatio;
-              final int hollowStrokeFillColorValue =
-                  version >= 31 && bytes.length >= 51
-                  ? bytes[47] |
-                        (bytes[48] << 8) |
-                        (bytes[49] << 16) |
-                        (bytes[50] << 24)
-                  : _defaultHollowStrokeFillColor.value;
-              final Color decodedHollowStrokeFillColor = Color(
-                hollowStrokeFillColorValue,
-              );
+              final bool decodedHollowStrokeEnabled;
+              final double decodedHollowStrokeRatio;
+              final bool decodedHollowStrokeEraseOccludedParts;
+              if (version >= 32 && bytes.length >= 48) {
+                decodedHollowStrokeEnabled = bytes[45] != 0;
+                decodedHollowStrokeRatio = _decodeRatioByte(bytes[46]);
+                decodedHollowStrokeEraseOccludedParts = bytes[47] != 0;
+              } else if (version >= 31 && bytes.length >= 51) {
+                decodedHollowStrokeEnabled = bytes[45] != 0;
+                decodedHollowStrokeRatio = _decodeRatioByte(bytes[46]);
+                decodedHollowStrokeEraseOccludedParts =
+                    _defaultHollowStrokeEraseOccludedParts;
+              } else {
+                decodedHollowStrokeEnabled = _defaultHollowStrokeEnabled;
+                decodedHollowStrokeRatio = _defaultHollowStrokeRatio;
+                decodedHollowStrokeEraseOccludedParts =
+                    _defaultHollowStrokeEraseOccludedParts;
+              }
               _instance = AppPreferences._(
                 bucketSampleAllLayers: bytes[1] != 0,
                 bucketContiguous: bytes[2] != 0,
@@ -330,7 +331,8 @@ class AppPreferences {
                 bucketSwallowColorLine: decodedBucketSwallowColorLine,
                 hollowStrokeEnabled: decodedHollowStrokeEnabled,
                 hollowStrokeRatio: decodedHollowStrokeRatio,
-                hollowStrokeFillColor: decodedHollowStrokeFillColor,
+                hollowStrokeEraseOccludedParts:
+                    decodedHollowStrokeEraseOccludedParts,
                 shapeToolFillEnabled: decodedShapeToolFillEnabled,
                 bucketTolerance: _clampToleranceValue(bytes[20]),
                 magicWandTolerance: _clampToleranceValue(bytes[21]),
@@ -1180,10 +1182,10 @@ class AppPreferences {
     final double hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
     prefs.hollowStrokeRatio = hollowStrokeRatio;
     final int hollowStrokeRatioEncoded = _encodeRatioByte(hollowStrokeRatio);
-    final int hollowStrokeFillColorValue = prefs.hollowStrokeFillColor.value;
     final int localeOverrideEncoded = _encodeLocaleOverride(
       prefs.localeOverride,
     );
+    final bool hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
 
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
@@ -1233,10 +1235,7 @@ class AppPreferences {
       localeOverrideEncoded,
       prefs.hollowStrokeEnabled ? 1 : 0,
       hollowStrokeRatioEncoded,
-      hollowStrokeFillColorValue & 0xff,
-      (hollowStrokeFillColorValue >> 8) & 0xff,
-      (hollowStrokeFillColorValue >> 16) & 0xff,
-      (hollowStrokeFillColorValue >> 24) & 0xff,
+      hollowStrokeEraseOccludedParts ? 1 : 0,
     ]);
     await _writePreferencesPayload(payload);
   }

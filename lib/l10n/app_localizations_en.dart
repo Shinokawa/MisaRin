@@ -894,7 +894,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hollowStrokeRatio => 'Hollow Ratio';
 
   @override
-  String get hollowStrokeFillColor => 'Hollow Fill Color';
+  String get eraseOccludedParts => 'Erase Occluded Parts';
 
   @override
   String get solidFill => 'Solid Fill';
@@ -1082,8 +1082,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Controls the size of the hollow interior. Higher values make the outline thinner.';
 
   @override
-  String get hollowStrokeFillColorDesc =>
-      'Optional fill color for the hollow interior. Clear to keep it transparent.';
+  String get eraseOccludedPartsDesc =>
+      'When enabled, later hollow strokes erase overlapping pixels from existing strokes on the same layer.';
 
   @override
   String get solidFillDesc =>
@@ -1407,9 +1407,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get adjustStrokeColor => 'Adjust Stroke Color';
-
-  @override
-  String get adjustHollowStrokeFillColor => 'Adjust Hollow Fill Color';
 
   @override
   String copiedHex(Object hex) {

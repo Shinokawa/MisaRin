@@ -105,7 +105,7 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _currentStrokeEraseMode = false;
   bool _currentStrokeHollowEnabled = false;
   double _currentStrokeHollowRatio = 0.0;
-  Color _currentStrokeHollowFillColor = const Color(0x00000000);
+  bool _currentStrokeEraseOccludedParts = false;
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
   bool _vectorDrawingEnabled = true;
@@ -227,7 +227,7 @@ class BitmapCanvasController extends ChangeNotifier {
   int get activeStrokeAntialiasLevel => _currentStrokeAntialiasLevel;
   bool get activeStrokeHollowEnabled => _currentStrokeHollowEnabled;
   double get activeStrokeHollowRatio => _currentStrokeHollowRatio;
-  Color get activeStrokeHollowFillColor => _currentStrokeHollowFillColor;
+  bool get activeStrokeEraseOccludedParts => _currentStrokeEraseOccludedParts;
 
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
@@ -247,7 +247,7 @@ class BitmapCanvasController extends ChangeNotifier {
     int antialiasLevel, {
     bool hollow = false,
     double hollowRatio = 0.0,
-    Color hollowFillColor = const Color(0x00000000),
+    bool eraseOccludedParts = false,
   }) => _controllerRasterizeVectorStroke(
     this,
     points,
@@ -259,7 +259,7 @@ class BitmapCanvasController extends ChangeNotifier {
     antialiasLevel,
     hollow: hollow,
     hollowRatio: hollowRatio,
-    hollowFillColor: hollowFillColor,
+    eraseOccludedParts: eraseOccludedParts,
   );
 
   void _flushRealtimeStrokeCommands() =>
@@ -516,7 +516,7 @@ class BitmapCanvasController extends ChangeNotifier {
     bool erase = false,
     bool hollow = false,
     double hollowRatio = 0.0,
-    Color hollowFillColor = const Color(0x00000000),
+    bool eraseOccludedParts = false,
   }) => _strokeBegin(
     this,
     position,
@@ -536,7 +536,7 @@ class BitmapCanvasController extends ChangeNotifier {
     erase: erase,
     hollow: hollow,
     hollowRatio: hollowRatio,
-    hollowFillColor: hollowFillColor,
+    eraseOccludedParts: eraseOccludedParts,
   );
 
   void extendStroke(
@@ -902,6 +902,7 @@ class BitmapCanvasController extends ChangeNotifier {
     required int width,
     required int height,
     required bool erase,
+    required bool eraseOccludedParts,
   }) => _controllerMergeVectorPatchOnMainThread(
     this,
     rgbaPixels: rgbaPixels,
@@ -910,6 +911,7 @@ class BitmapCanvasController extends ChangeNotifier {
     width: width,
     height: height,
     erase: erase,
+    eraseOccludedParts: eraseOccludedParts,
   );
 
   void _scheduleTileImageDisposal() =>

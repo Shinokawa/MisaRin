@@ -64,7 +64,7 @@ class ToolSettingsSnapshot {
     required this.brushShape,
     required this.hollowStrokeEnabled,
     required this.hollowStrokeRatio,
-    required this.hollowStrokeFillColor,
+    required this.hollowStrokeEraseOccludedParts,
     required this.strokeStabilizerStrength,
     required this.stylusPressureEnabled,
     required this.simulatePenPressure,
@@ -106,7 +106,7 @@ class ToolSettingsSnapshot {
   final BrushShape brushShape;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
-  final int hollowStrokeFillColor;
+  final bool hollowStrokeEraseOccludedParts;
   final double strokeStabilizerStrength;
   final bool stylusPressureEnabled;
   final bool simulatePenPressure;

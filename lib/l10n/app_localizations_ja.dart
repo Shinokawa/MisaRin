@@ -878,7 +878,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get hollowStrokeRatio => '中空比率';
 
   @override
-  String get hollowStrokeFillColor => '中空の塗り色';
+  String get eraseOccludedParts => '重なり部分を消去';
 
   @override
   String get solidFill => '塗りつぶし';
@@ -1058,7 +1058,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get hollowStrokeRatioDesc => '中空部分の大きさを調整します。値が大きいほど輪郭が細くなります。';
 
   @override
-  String get hollowStrokeFillColorDesc => '中空部分を塗る色を設定します。透明にすると塗りません。';
+  String get eraseOccludedPartsDesc => '同じレイヤーで後から描いた中空線が、他の線との重なり部分を消去します。';
 
   @override
   String get solidFillDesc =>
@@ -1368,9 +1368,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get adjustStrokeColor => '境界線の色を調整';
-
-  @override
-  String get adjustHollowStrokeFillColor => '中空の塗り色を調整';
 
   @override
   String copiedHex(Object hex) {

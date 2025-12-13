@@ -279,7 +279,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
   double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
-  Color _hollowStrokeFillColor = AppPreferences.defaultHollowStrokeFillColor;
+  bool _hollowStrokeEraseOccludedParts =
+      AppPreferences.defaultHollowStrokeEraseOccludedParts;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
   bool _bucketSampleAllLayers = false;
@@ -1928,7 +1929,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _brushShape = prefs.brushShape;
     _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
     _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
-    _hollowStrokeFillColor = prefs.hollowStrokeFillColor;
+    _hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
     _colorLineColor = prefs.colorLineColor;
     _primaryColor = prefs.primaryColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
@@ -2433,7 +2434,7 @@ class PaintingBoardState extends _PaintingBoardBase
       brushShape: _brushShape,
       hollowStrokeEnabled: _hollowStrokeEnabled,
       hollowStrokeRatio: _hollowStrokeRatio,
-      hollowStrokeFillColor: _hollowStrokeFillColor.value,
+      hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       strokeStabilizerStrength: _strokeStabilizerStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
@@ -2488,7 +2489,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateBrushShape(snapshot.brushShape);
     _updateHollowStrokeEnabled(snapshot.hollowStrokeEnabled);
     _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
-    _updateHollowStrokeFillColor(Color(snapshot.hollowStrokeFillColor));
+    _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);

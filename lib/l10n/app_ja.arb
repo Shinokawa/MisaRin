@@ -458,7 +458,7 @@
   "noAdjustableSettings": "このツールには調整可能な設定がありません",
   "hollowStroke": "中空ストローク",
   "hollowStrokeRatio": "中空比率",
-  "hollowStrokeFillColor": "中空の塗り色",
+  "eraseOccludedParts": "重なり部分を消去",
   "solidFill": "塗りつぶし",
   "autoSharpTaper": "入り抜き自動補正",
   "stylusPressure": "筆圧感知",
@@ -518,7 +518,7 @@
   "strokeWidthDesc": "テキストの境界線の太さを設定します。",
   "hollowStrokeDesc": "ストロークの中心をくり抜き、中空の輪郭線にします。",
   "hollowStrokeRatioDesc": "中空部分の大きさを調整します。値が大きいほど輪郭が細くなります。",
-  "hollowStrokeFillColorDesc": "中空部分を塗る色を設定します。透明にすると塗りません。",
+  "eraseOccludedPartsDesc": "同じレイヤーで後から描いた中空線が、他の線との重なり部分を消去します。",
   
   "solidFillDesc": "図形ツールで塗りつぶされたブロックを描くか、中空の輪郭を描くかを決定します。オンにすると塗りつぶされます。",
   "autoSharpTaperDesc": "ストロークの始点と終点を自動的に細くし、アニメ塗りのようなシャープな線にします。",
@@ -650,7 +650,6 @@
   "boardPanelPicker": "ボードパネルピッカー",
   "adjustCurrentColor": "現在の色を調整",
   "adjustStrokeColor": "境界線の色を調整",
-  "adjustHollowStrokeFillColor": "中空の塗り色を調整",
   "copiedHex": "{hex} をコピーしました",
   "@copiedHex": {
     "placeholders": {

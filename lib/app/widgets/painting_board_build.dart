@@ -352,10 +352,11 @@ mixin _PaintingBoardBuildMixin
           onBrushShapeChanged: _updateBrushShape,
           hollowStrokeEnabled: _hollowStrokeEnabled,
           hollowStrokeRatio: _hollowStrokeRatio,
-          hollowStrokeFillColor: _hollowStrokeFillColor,
           onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
           onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
-          onHollowStrokeFillColorPressed: _handleEditHollowStrokeFillColor,
+          hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
+          onHollowStrokeEraseOccludedPartsChanged:
+              _updateHollowStrokeEraseOccludedParts,
           strokeStabilizerStrength: _strokeStabilizerStrength,
           onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
           stylusPressureEnabled: _stylusPressureEnabled,
@@ -820,9 +821,6 @@ mixin _PaintingBoardBuildMixin
                                                         hollowStrokeRatio:
                                                             _controller
                                                                 .activeStrokeHollowRatio,
-                                                        hollowStrokeFillColor:
-                                                            _controller
-                                                                .activeStrokeHollowFillColor,
                                                         committingStrokes:
                                                             _controller
                                                                 .committingStrokes,

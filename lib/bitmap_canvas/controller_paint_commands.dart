@@ -24,7 +24,7 @@ void _controllerFlushDeferredStrokeCommands(
   final int antialiasLevel = controller._currentStrokeAntialiasLevel;
   final bool hollow = controller._currentStrokeHollowEnabled;
   final double hollowRatio = controller._currentStrokeHollowRatio;
-  final int hollowFillColorValue = controller._currentStrokeHollowFillColor.value;
+  final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
 
   if (controller._vectorStrokeSmoothingEnabled && points.length >= 3) {
     final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
@@ -44,7 +44,7 @@ void _controllerFlushDeferredStrokeCommands(
     erase: erase,
     hollow: hollow,
     hollowRatio: hollowRatio,
-    hollowFillColorValue: hollowFillColorValue,
+    eraseOccludedParts: eraseOccludedParts,
   );
   controller._committingStrokes.add(vectorCommand);
 
@@ -84,7 +84,7 @@ void _controllerFlushDeferredStrokeCommands(
         antialiasLevel,
         hollow: hollow,
         hollowRatio: hollowRatio,
-        hollowFillColor: Color(hollowFillColorValue),
+        eraseOccludedParts: eraseOccludedParts,
       )
       .then((_) {
         controller._committingStrokes.remove(vectorCommand);
@@ -104,7 +104,7 @@ Future<void> _controllerRasterizeVectorStroke(
   {
   bool hollow = false,
   double hollowRatio = 0.0,
-  Color hollowFillColor = const Color(0x00000000),
+  bool eraseOccludedParts = false,
 }
 ) async {
   final int width = bounds.width.ceil().clamp(1, controller._width);
@@ -134,7 +134,6 @@ Future<void> _controllerRasterizeVectorStroke(
     antialiasLevel: antialiasLevel,
     hollow: hollow,
     hollowRatio: hollowRatio,
-    hollowFillColor: hollowFillColor,
   );
 
   final ui.Picture picture = recorder.endRecording();
@@ -160,15 +159,16 @@ Future<void> _controllerRasterizeVectorStroke(
     final PaintingWorkerPatch? patch = await controller
         ._ensurePaintingWorker()
         .mergePatch(
-          PaintingMergePatchRequest(
-            left: left,
-            top: top,
-            width: safeWidth,
-            height: safeHeight,
-            pixels: transferablePixels,
-            erase: erase,
-          ),
-        );
+            PaintingMergePatchRequest(
+              left: left,
+              top: top,
+              width: safeWidth,
+              height: safeHeight,
+              pixels: transferablePixels,
+              erase: erase,
+              eraseOccludedParts: eraseOccludedParts,
+            ),
+          );
     if (patch != null) {
       controller._applyWorkerPatch(patch);
       await controller._waitForNextFrame();
@@ -181,6 +181,7 @@ Future<void> _controllerRasterizeVectorStroke(
       width: safeWidth,
       height: safeHeight,
       erase: erase,
+      eraseOccludedParts: eraseOccludedParts,
     );
     if (applied) {
       await controller._waitForNextFrame();
@@ -372,6 +373,7 @@ bool _controllerMergeVectorPatchOnMainThread(
   required int width,
   required int height,
   required bool erase,
+  required bool eraseOccludedParts,
 }) {
   if (width <= 0 || height <= 0 || rgbaPixels.isEmpty) {
     return false;
@@ -437,6 +439,16 @@ bool _controllerMergeVectorPatchOnMainThread(
       final int srcR = _controllerUnpremultiplyChannel(r, a);
       final int srcG = _controllerUnpremultiplyChannel(g, a);
       final int srcB = _controllerUnpremultiplyChannel(b, a);
+
+      if (eraseOccludedParts) {
+        destination[destIndex] =
+            (a << 24) |
+            (srcR.clamp(0, 255) << 16) |
+            (srcG.clamp(0, 255) << 8) |
+            srcB.clamp(0, 255);
+        anyChange = true;
+        continue;
+      }
 
       final double srcAlpha = a / 255.0;
       final double dstAlpha = dstA / 255.0;

@@ -1694,11 +1694,11 @@ abstract class AppLocalizations {
   /// **'Hollow Ratio'**
   String get hollowStrokeRatio;
 
-  /// No description provided for @hollowStrokeFillColor.
+  /// No description provided for @eraseOccludedParts.
   ///
   /// In en, this message translates to:
-  /// **'Hollow Fill Color'**
-  String get hollowStrokeFillColor;
+  /// **'Erase Occluded Parts'**
+  String get eraseOccludedParts;
 
   /// No description provided for @solidFill.
   ///
@@ -2048,11 +2048,11 @@ abstract class AppLocalizations {
   /// **'Controls the size of the hollow interior. Higher values make the outline thinner.'**
   String get hollowStrokeRatioDesc;
 
-  /// No description provided for @hollowStrokeFillColorDesc.
+  /// No description provided for @eraseOccludedPartsDesc.
   ///
   /// In en, this message translates to:
-  /// **'Optional fill color for the hollow interior. Clear to keep it transparent.'**
-  String get hollowStrokeFillColorDesc;
+  /// **'When enabled, later hollow strokes erase overlapping pixels from existing strokes on the same layer.'**
+  String get eraseOccludedPartsDesc;
 
   /// No description provided for @solidFillDesc.
   ///
@@ -2635,12 +2635,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Adjust Stroke Color'**
   String get adjustStrokeColor;
-
-  /// No description provided for @adjustHollowStrokeFillColor.
-  ///
-  /// In en, this message translates to:
-  /// **'Adjust Hollow Fill Color'**
-  String get adjustHollowStrokeFillColor;
 
   /// No description provided for @copiedHex.
   ///

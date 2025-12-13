@@ -67,6 +67,7 @@ Future<void> _textLayerRender(
     width: raster.width,
     height: raster.height,
     erase: false,
+    eraseOccludedParts: false,
   );
   layer.surface.markDirty();
   layer.text = data;

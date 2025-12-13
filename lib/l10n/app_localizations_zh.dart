@@ -589,7 +589,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get exportAntialiasingLabel => '导出前的边缘柔化';
+  String get exportAntialiasingLabel => '边缘柔化';
 
   @override
   String get enableAntialiasing => '启用边缘柔化';
@@ -812,7 +812,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get enterPositiveValue => '请输入大于 0 的数值';
 
   @override
-  String get antialiasingBeforeExport => '导出前的边缘柔化';
+  String get antialiasingBeforeExport => '边缘柔化';
 
   @override
   String get antialiasingDesc => '在平滑边缘的同时保留线条密度，致敬日本动画软件 Retas 的质感。';
@@ -872,7 +872,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hollowStrokeRatio => '空心比例';
 
   @override
-  String get hollowStrokeFillColor => '空心填充颜色';
+  String get eraseOccludedParts => '擦除被遮挡部分';
 
   @override
   String get solidFill => '实心';
@@ -1050,7 +1050,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hollowStrokeRatioDesc => '调整空心内圈大小，数值越高描边越细。';
 
   @override
-  String get hollowStrokeFillColorDesc => '为空心内部设置填充颜色；清除可保持透明。';
+  String get eraseOccludedPartsDesc => '开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。';
 
   @override
   String get solidFillDesc => '决定形状工具是绘制填充色块还是空心轮廓，开启后直接生成实心图形。';
@@ -1354,9 +1354,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get adjustStrokeColor => '调整描边颜色';
-
-  @override
-  String get adjustHollowStrokeFillColor => '调整空心填充颜色';
 
   @override
   String copiedHex(Object hex) {
@@ -2330,7 +2327,7 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get hollowStrokeRatio => '空心比例';
 
   @override
-  String get hollowStrokeFillColor => '空心填充颜色';
+  String get eraseOccludedParts => '擦除被遮挡部分';
 
   @override
   String get hollowStrokeDesc => '将笔画中心挖空，形成空心描边效果。';
@@ -2339,10 +2336,7 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get hollowStrokeRatioDesc => '调整空心内圈大小，数值越高描边越细。';
 
   @override
-  String get hollowStrokeFillColorDesc => '为空心内部设置填充颜色；清除可保持透明。';
-
-  @override
-  String get adjustHollowStrokeFillColor => '调整空心填充颜色';
+  String get eraseOccludedPartsDesc => '开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。';
 
   @override
   String get fontFamily => '字体系列';
@@ -3067,7 +3061,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get hollowStrokeRatio => '空心比例';
 
   @override
-  String get hollowStrokeFillColor => '空心填充顏色';
+  String get eraseOccludedParts => '擦除被遮擋部分';
 
   @override
   String get hollowStrokeDesc => '將筆畫中心挖空，形成空心描邊效果。';
@@ -3076,10 +3070,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get hollowStrokeRatioDesc => '調整空心內圈大小，數值越高描邊越細。';
 
   @override
-  String get hollowStrokeFillColorDesc => '為空心內部設定填充顏色；清除可保持透明。';
-
-  @override
-  String get adjustHollowStrokeFillColor => '調整空心填充顏色';
+  String get eraseOccludedPartsDesc => '開啟後，同一圖層裡後畫的空心線條會吃掉與其他線條的重合部分。';
 
   @override
   String get fontFamily => '字體系列';

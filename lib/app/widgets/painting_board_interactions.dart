@@ -270,25 +270,14 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
-  void _updateHollowStrokeFillColor(Color value) {
-    if (_hollowStrokeFillColor.value == value.value) {
+  void _updateHollowStrokeEraseOccludedParts(bool value) {
+    if (_hollowStrokeEraseOccludedParts == value) {
       return;
     }
-    setState(() => _hollowStrokeFillColor = value);
+    setState(() => _hollowStrokeEraseOccludedParts = value);
     final AppPreferences prefs = AppPreferences.instance;
-    prefs.hollowStrokeFillColor = value;
+    prefs.hollowStrokeEraseOccludedParts = value;
     unawaited(AppPreferences.save());
-  }
-
-  Future<void> _handleEditHollowStrokeFillColor() async {
-    await _pickColor(
-      title: context.l10n.adjustHollowStrokeFillColor,
-      initialColor: _hollowStrokeFillColor,
-      onSelected: _updateHollowStrokeFillColor,
-      onCleared: () {
-        _updateHollowStrokeFillColor(const Color(0x00000000));
-      },
-    );
   }
 
   void _updateStrokeStabilizerStrength(double value) {
@@ -628,7 +617,7 @@ mixin _PaintingBoardInteractionMixin
         erase: erase,
         hollow: hollow,
         hollowRatio: _hollowStrokeRatio,
-        hollowFillColor: _hollowStrokeFillColor,
+        eraseOccludedParts: _hollowStrokeEraseOccludedParts,
       );
     });
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -1482,7 +1471,7 @@ mixin _PaintingBoardInteractionMixin
           erase: erase,
           hollow: _hollowStrokeEnabled && !erase,
           hollowRatio: _hollowStrokeRatio,
-          hollowFillColor: _hollowStrokeFillColor,
+          eraseOccludedParts: _hollowStrokeEraseOccludedParts,
         );
         _controller.endStroke();
         _markDirty();
@@ -1753,7 +1742,7 @@ mixin _PaintingBoardInteractionMixin
       erase: erase,
       hollow: hollow,
       hollowRatio: _hollowStrokeRatio,
-      hollowFillColor: _hollowStrokeFillColor,
+      eraseOccludedParts: _hollowStrokeEraseOccludedParts,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,

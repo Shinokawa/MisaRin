@@ -66,7 +66,7 @@ void _strokeBegin(
   bool erase = false,
   bool hollow = false,
   double hollowRatio = 0.0,
-  Color hollowFillColor = const Color(0x00000000),
+  bool eraseOccludedParts = false,
 }) {
   if (controller._activeLayer.locked) {
     return;
@@ -144,7 +144,8 @@ void _strokeBegin(
   controller._currentStrokeHollowEnabled = resolvedHollow;
   controller._currentStrokeHollowRatio =
       resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0;
-  controller._currentStrokeHollowFillColor = hollowFillColor;
+  controller._currentStrokeEraseOccludedParts =
+      resolvedHollow && eraseOccludedParts;
 }
 
 void _strokeExtend(
@@ -372,7 +373,7 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeEraseMode = false;
   controller._currentStrokeHollowEnabled = false;
   controller._currentStrokeHollowRatio = 0.0;
-  controller._currentStrokeHollowFillColor = const Color(0x00000000);
+  controller._currentStrokeEraseOccludedParts = false;
 }
 
 void _strokeSetPressureProfile(
