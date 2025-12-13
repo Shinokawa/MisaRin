@@ -394,7 +394,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (activeLayer == null) {
       AppNotifications.show(
         context,
-        message: '无法定位当前图层。',
+        message: context.l10n.cannotLocateLayer,
         severity: InfoBarSeverity.warning,
       );
       return;
@@ -402,7 +402,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (activeLayer.locked) {
       AppNotifications.show(
         context,
-        message: '当前图层已锁定，无法变换。',
+        message: context.l10n.layerLockedCannotTransform,
         severity: InfoBarSeverity.warning,
       );
       return;
@@ -413,7 +413,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_controller.isActiveLayerTransforming) {
       AppNotifications.show(
         context,
-        message: '无法进入自由变换模式。',
+        message: context.l10n.cannotEnterTransformMode,
         severity: InfoBarSeverity.warning,
       );
       return;
@@ -520,7 +520,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       setState(() => _layerTransformApplying = false);
       AppNotifications.show(
         context,
-        message: '应用自由变换失败，请重试。',
+        message: context.l10n.applyTransformFailed,
         severity: InfoBarSeverity.error,
       );
     }
@@ -654,7 +654,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     );
     rendered.dispose();
     if (byteData == null) {
-      throw StateError('无法导出自由变换结果');
+      throw StateError(context.l10n.failedToExportTransform);
     }
     final Uint8List rgba = byteData.buffer.asUint8List();
     return _LayerTransformRenderResult(
@@ -1147,6 +1147,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     final _LayerTransformStateModel? state = _layerTransformState;
     final bool ready = state != null;
     final FluentThemeData theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return Positioned(
       left: _layerTransformPanelOffset.dx,
       top: _layerTransformPanelOffset.dy,
@@ -1155,7 +1156,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         child: WorkspaceFloatingPanel(
           width: _kLayerTransformPanelWidth,
           minHeight: _kLayerTransformPanelMinHeight,
-          title: '自由变换',
+          title: l10n.freeTransformTitle,
           onDragUpdate: _updateLayerTransformPanelOffset,
           onClose: _cancelLayerFreeTransform,
           footerPadding: const EdgeInsets.symmetric(
@@ -1167,22 +1168,24 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '旋转：${(state!.rotation * 180 / math.pi).toStringAsFixed(1)}°',
+                      l10n.rotationLabel(
+                          (state!.rotation * 180 / math.pi).toStringAsFixed(1)),
                       style: theme.typography.body,
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '缩放：${(state.scaleX * 100).toStringAsFixed(1)}% × '
-                      '${(state.scaleY * 100).toStringAsFixed(1)}%',
+                      l10n.scaleLabel(
+                          (state.scaleX * 100).toStringAsFixed(1),
+                          (state.scaleY * 100).toStringAsFixed(1)),
                       style: theme.typography.body,
                     ),
                   ],
                 )
               : Row(
-                  children: const [
-                    ProgressRing(),
-                    SizedBox(width: 8),
-                    Text('正在准备图层…'),
+                  children: [
+                    const ProgressRing(),
+                    const SizedBox(width: 8),
+                    Text(l10n.preparingLayer),
                   ],
                 ),
           footer: Row(
@@ -1196,14 +1199,14 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
                         });
                       }
                     : null,
-                child: const Text('复位'),
+                child: Text(l10n.reset),
               ),
               const Spacer(),
               Button(
                 onPressed: _layerTransformApplying
                     ? null
                     : _cancelLayerFreeTransform,
-                child: const Text('取消'),
+                child: Text(l10n.cancel),
               ),
               const SizedBox(width: 8),
               FilledButton(
@@ -1212,7 +1215,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
                     : null,
                 child: _layerTransformApplying
                     ? const ProgressRing()
-                    : const Text('应用'),
+                    : Text(l10n.apply),
               ),
             ],
           ),

@@ -121,7 +121,7 @@ mixin _PaintingBoardInteractionMixin
   void _setActiveTool(CanvasTool tool) {
     final bool shouldCommitText =
         tool != CanvasTool.text && _isTextEditingActive;
-    if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
+    if (_guardTransformInProgress(message: context.l10n.completeTransformFirst)) {
       return;
     }
     if (shouldCommitText) {
@@ -335,25 +335,26 @@ mixin _PaintingBoardInteractionMixin
   Future<_DisableVectorDrawingConfirmResult?>
   _confirmDisableVectorDrawing() async {
     bool doNotShowAgain = false;
+    final l10n = context.l10n;
     return showDialog<_DisableVectorDrawingConfirmResult>(
       context: context,
       barrierDismissible: true,
       builder: (context) {
         return ContentDialog(
-          title: const Text('关闭矢量绘制'),
+          title: Text(l10n.disableVectorDrawing),
           content: StatefulBuilder(
             builder: (context, setState) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('确定要关闭矢量绘制吗？'),
+                  Text(l10n.disableVectorDrawingConfirm),
                   const SizedBox(height: 8),
-                  const Text('关闭后落笔性能会下降。'),
+                  Text(l10n.disableVectorDrawingDesc),
                   const SizedBox(height: 12),
                   Checkbox(
                     checked: doNotShowAgain,
-                    content: const Text('不再显示'),
+                    content: Text(l10n.dontShowAgain),
                     onChanged: (value) {
                       setState(() => doNotShowAgain = value ?? false);
                     },
@@ -372,7 +373,7 @@ mixin _PaintingBoardInteractionMixin
                   ),
                 );
               },
-              child: const Text('取消'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () {
@@ -383,7 +384,7 @@ mixin _PaintingBoardInteractionMixin
                   ),
                 );
               },
-              child: const Text('确定'),
+              child: Text(l10n.confirm),
             ),
           ],
         );
@@ -1811,7 +1812,7 @@ mixin _PaintingBoardInteractionMixin
             !_perspectiveVisible) {
           AppNotifications.show(
             context,
-            message: '请先开启透视辅助线后再使用透视画笔。',
+            message: context.l10n.enablePerspectiveGuideFirst,
             severity: InfoBarSeverity.warning,
           );
           _clearPerspectivePenPreview();
@@ -1828,7 +1829,7 @@ mixin _PaintingBoardInteractionMixin
         if (!_perspectivePenPreviewValid) {
           AppNotifications.show(
             context,
-            message: '当前线条未对齐透视方向，请调整角度后再落笔。',
+            message: context.l10n.lineNotAlignedWithPerspective,
             severity: InfoBarSeverity.warning,
           );
           return;

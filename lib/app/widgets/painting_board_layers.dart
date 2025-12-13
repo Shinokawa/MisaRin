@@ -65,7 +65,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerSelected(String id) {
-    if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
+    if (_guardTransformInProgress(message: context.l10n.completeTransformFirst)) {
       return;
     }
     _layerOpacityPreviewReset(this);
@@ -156,10 +156,10 @@ mixin _PaintingBoardLayerMixin
       onPressed: _handleAddLayer,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(FluentIcons.add, size: 14),
-          SizedBox(width: 6),
-          Text('新增图层'),
+        children: [
+          const Icon(FluentIcons.add, size: 14),
+          const SizedBox(width: 6),
+          Text(context.l10n.newLayer),
         ],
       ),
     );
@@ -490,7 +490,9 @@ mixin _PaintingBoardLayerMixin
       return;
     }
     final String newId = generateLayerId();
-    final String nextName = layer.name.isEmpty ? '复制图层' : '${layer.name} 副本';
+    final String nextName = layer.name.isEmpty
+        ? context.l10n.duplicateLayer
+        : context.l10n.layerCopyName(layer.name);
     final CanvasLayerData duplicate = snapshot.copyWith(
       id: newId,
       name: nextName,
@@ -529,39 +531,40 @@ mixin _PaintingBoardLayerMixin
     final bool isLocked = layer.locked;
     final bool isVisible = layer.visible;
     final bool isClipping = layer.clippingMask;
+    final l10n = context.l10n;
 
     final List<MenuFlyoutItemBase> items = <MenuFlyoutItemBase>[
       MenuFlyoutItem(
         leading: Icon(isLocked ? FluentIcons.lock : FluentIcons.unlock),
-        text: Text(isLocked ? '解锁图层' : '锁定图层'),
+        text: Text(isLocked ? l10n.unlockLayer : l10n.lockLayer),
         onPressed: () => _handleLayerLockToggle(layer),
       ),
       MenuFlyoutItem(
         leading: const Icon(FluentIcons.download),
-        text: const Text('向下合并'),
+        text: Text(l10n.mergeDown),
         onPressed: canMerge ? () => _handleMergeLayerDown(layer) : null,
       ),
       MenuFlyoutItem(
         leading: Icon(
           isClipping ? FluentIcons.subtract_shape : FluentIcons.subtract_shape,
         ),
-        text: Text(isClipping ? '取消剪贴蒙版' : '创建剪贴蒙版'),
+        text: Text(isClipping ? l10n.releaseClippingMask : l10n.createClippingMask),
         onPressed: isLocked ? null : () => _handleLayerClippingToggle(layer),
       ),
       MenuFlyoutItem(
         leading: Icon(isVisible ? FluentIcons.hide3 : FluentIcons.view),
-        text: Text(isVisible ? '隐藏' : '显示'),
+        text: Text(isVisible ? l10n.hide : l10n.show),
         onPressed: () =>
             _handleLayerVisibilityChanged(layer.id, !layer.visible),
       ),
       MenuFlyoutItem(
         leading: const Icon(FluentIcons.delete),
-        text: const Text('删除'),
+        text: Text(l10n.delete),
         onPressed: canDelete ? () => _handleRemoveLayer(layer.id) : null,
       ),
       MenuFlyoutItem(
         leading: const Icon(FluentIcons.copy),
-        text: const Text('复制'),
+        text: Text(l10n.duplicate),
         onPressed: () => _handleDuplicateLayer(layer),
       ),
     ];
@@ -570,7 +573,7 @@ mixin _PaintingBoardLayerMixin
         0,
         MenuFlyoutItem(
           leading: const Icon(FluentIcons.font),
-          text: const Text('栅格化文字图层'),
+          text: Text(l10n.rasterizeTextLayer),
           onPressed: layer.locked
               ? null
               : () async {

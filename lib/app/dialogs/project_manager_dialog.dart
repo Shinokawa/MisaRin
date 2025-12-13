@@ -2,22 +2,24 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../l10n/l10n.dart';
 import '../project/project_repository.dart';
 import '../utils/file_manager.dart';
 import '../widgets/project_preview_thumbnail.dart';
 import 'misarin_dialog.dart';
 
 Future<void> showProjectManagerDialog(BuildContext context) {
+  final l10n = context.l10n;
   return showMisarinDialog<void>(
     context: context,
-    title: const Text('项目管理'),
+    title: Text(l10n.projectManagerTitle),
     content: const _ProjectManagerContent(),
     contentWidth: 540,
     maxWidth: 640,
     actions: [
       Button(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('关闭'),
+        child: Text(l10n.close),
       ),
     ],
   );
@@ -91,7 +93,7 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
           return;
         }
         setState(() {
-          _errorMessage = '加载失败：$error';
+          _errorMessage = context.l10n.loadFailed(error);
           _loading = false;
         });
       },
@@ -142,7 +144,9 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
         await ProjectRepository.instance.deleteProject(path);
       }
     } catch (error) {
-      _errorMessage = '删除失败：$error';
+      if (mounted) {
+        _errorMessage = context.l10n.deleteFailed(error);
+      }
     }
     if (!mounted) {
       return;
@@ -184,6 +188,7 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     final bool hasSelection = _selected.isNotEmpty;
     final int totalSelected = _selected.length;
     final int totalCount = _projects.length;
@@ -199,7 +204,7 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
         height: 320,
         child: Center(
           child: Text(
-            _errorMessage ?? '暂无自动保存的项目',
+            _errorMessage ?? l10n.noAutosavedProjects,
             style: theme.typography.bodyLarge,
           ),
         ),
@@ -215,10 +220,10 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
               checked: _selectAll,
               onChanged: (value) => _toggleSelectAll(value ?? false),
             ),
-            Text('全选', style: theme.typography.bodyStrong),
+            Text(l10n.selectAll, style: theme.typography.bodyStrong),
             const Spacer(),
             Tooltip(
-              message: '打开所选项目所在文件夹',
+              message: l10n.revealProjectLocation,
               child: Button(
                 onPressed:
                     !_revealing && hasSelection ? () => _revealSelected() : null,
@@ -230,17 +235,17 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
                       )
                     : Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(FluentIcons.open_file),
-                          SizedBox(width: 6),
-                          Text('打开文件夹'),
+                        children: [
+                          const Icon(FluentIcons.open_file),
+                          const SizedBox(width: 6),
+                          Text(l10n.openFolder),
                         ],
                       ),
               ),
             ),
             const SizedBox(width: 8),
             Tooltip(
-              message: '删除所选项目',
+              message: l10n.deleteSelectedProjects,
               child: FilledButton(
                 onPressed: !_deleting && hasSelection ? _deleteSelected : null,
                 style: ButtonStyle(
@@ -259,7 +264,7 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
                         children: [
                           const Icon(FluentIcons.delete),
                           const SizedBox(width: 6),
-                          Text('删除所选 ($totalSelected)'),
+                          Text(l10n.deleteSelected(totalSelected)),
                         ],
                       ),
               ),
@@ -314,12 +319,16 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
                       children: [
                         Text(info.fileName, style: theme.typography.caption),
                         Text(
-                          '大小：${_formatFileSize(info.fileSize)} · 更新：${_formatDate(info.lastModified)}',
+                          l10n.projectFileInfo(
+                              _formatFileSize(info.fileSize),
+                              _formatDate(info.lastModified)),
                           style: theme.typography.caption,
                         ),
                         if (info.summary != null)
                           Text(
-                            '画布 ${info.summary!.settings.width.toInt()} x ${info.summary!.settings.height.toInt()}',
+                            l10n.projectCanvasInfo(
+                                info.summary!.settings.width.toInt(),
+                                info.summary!.settings.height.toInt()),
                             style: theme.typography.caption,
                           ),
                       ],

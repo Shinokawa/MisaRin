@@ -583,6 +583,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final double devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    final l10n = context.l10n;
     return SizedBox(
       width: 700,
       height: 420,
@@ -615,18 +616,20 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('实时参数', style: theme.typography.subtitle),
+                Text(l10n.realtimeParams, style: theme.typography.subtitle),
                 const SizedBox(height: 12),
-                _buildStat('最近压力', _latestPressure),
-                _buildStat('pressureMin', _latestMin),
-                _buildStat('pressureMax', _latestMax),
-                _buildStat('估算半径 (px)', _latestPhysicalRadius),
-                _buildStat('倾角(弧度)', _latestTilt),
-                _buildStat('采样计数', _sampleCount.toDouble(), fractionDigits: 0),
-                _buildStat('采样频率(Hz)', _estimatedRps),
-                _buildTextStat('指针类型', _pointerKindLabel(_latestPointerKind)),
+                _buildStat(l10n.tabletPressureLatest, _latestPressure),
+                _buildStat(l10n.tabletPressureMin, _latestMin),
+                _buildStat(l10n.tabletPressureMax, _latestMax),
+                _buildStat(l10n.tabletRadiusPx, _latestPhysicalRadius),
+                _buildStat(l10n.tabletTiltRad, _latestTilt),
+                _buildStat(l10n.tabletSampleCount, _sampleCount.toDouble(),
+                    fractionDigits: 0),
+                _buildStat(l10n.tabletSampleRateHz, _estimatedRps),
+                _buildTextStat(
+                    l10n.tabletPointerType, _pointerKindLabel(_latestPointerKind)),
                 const Spacer(),
-                Button(onPressed: _clear, child: const Text('清空涂鸦')),
+                Button(onPressed: _clear, child: Text(l10n.clearScribble)),
               ],
             ),
           ),
@@ -706,15 +709,23 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   }
 
   String _pointerKindLabel(PointerDeviceKind? kind) {
-    if (kind == null) {
-      return '—';
+    final l10n = context.l10n;
+    switch (kind) {
+      case PointerDeviceKind.mouse:
+        return l10n.pointerKindMouse;
+      case PointerDeviceKind.touch:
+        return l10n.pointerKindTouch;
+      case PointerDeviceKind.stylus:
+        return l10n.pointerKindStylus;
+      case PointerDeviceKind.invertedStylus:
+        return l10n.pointerKindInvertedStylus;
+      case PointerDeviceKind.trackpad:
+        return l10n.pointerKindTrackpad;
+      case PointerDeviceKind.unknown:
+        return l10n.pointerKindUnknown;
+      case null:
+        return '—';
     }
-    final String raw = kind.toString();
-    final int dotIndex = raw.lastIndexOf('.');
-    if (dotIndex == -1 || dotIndex == raw.length - 1) {
-      return raw;
-    }
-    return raw.substring(dotIndex + 1);
   }
 }
 

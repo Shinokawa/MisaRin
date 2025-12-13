@@ -5,6 +5,7 @@ import 'package:fluent_ui/fluent_ui.dart'
     show Colors, Divider, FluentTheme, Scrollbar;
 import 'package:flutter/widgets.dart';
 
+import '../../l10n/l10n.dart';
 import '../widgets/measured_size.dart';
 import '../widgets/workspace_split_handle.dart';
 import 'painting_toolbar_layout.dart';
@@ -162,7 +163,7 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 buildSplitSection(
-                  title: '工具栏',
+                  title: context.l10n.toolbarTitle,
                   child: buildScrollableContent(elements.toolbar),
                   flex: toolbarFlex,
                 ),
@@ -190,7 +191,7 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
                   ),
                 ),
                 buildSplitSection(
-                  title: '工具选项',
+                  title: context.l10n.toolOptionsTitle,
                   child: buildScrollableContent(elements.toolSettings),
                   flex: settingsFlex,
                 ),
@@ -224,7 +225,7 @@ class Sai2ToolbarLayoutDelegate extends PaintingToolbarLayoutDelegate {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('工具面板', style: theme.typography.subtitle),
+          Text(context.l10n.toolPanel, style: theme.typography.subtitle),
           const SizedBox(height: 14),
           Expanded(
             child: Column(

@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/l10n.dart';
 import '../models/image_resize_sampling.dart';
 
 class ImageResizeConfig {
@@ -156,7 +157,7 @@ class _ImageSizeDialogState extends State<_ImageSizeDialog> {
     final int? width = int.tryParse(_widthController.text);
     final int? height = int.tryParse(_heightController.text);
     if (width == null || height == null || width <= 0 || height <= 0) {
-      setState(() => _errorMessage = '请输入有效的宽高（像素）。');
+      setState(() => _errorMessage = context.l10n.invalidDimensions);
       return;
     }
     Navigator.of(context).pop(
@@ -172,15 +173,16 @@ class _ImageSizeDialogState extends State<_ImageSizeDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 380),
-      title: const Text('图像大小'),
+      title: Text(l10n.imageSizeTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InfoLabel(
-            label: '宽度（像素）',
+            label: l10n.widthPx,
             child: TextBox(
               controller: _widthController,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -190,7 +192,7 @@ class _ImageSizeDialogState extends State<_ImageSizeDialog> {
           ),
           const SizedBox(height: 12),
           InfoLabel(
-            label: '高度（像素）',
+            label: l10n.heightPx,
             child: TextBox(
               controller: _heightController,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -201,12 +203,12 @@ class _ImageSizeDialogState extends State<_ImageSizeDialog> {
           const SizedBox(height: 12),
           ToggleSwitch(
             checked: _lockAspectRatio,
-            content: const Text('锁定纵横比'),
+            content: Text(l10n.lockAspectRatio),
             onChanged: _toggleAspectLock,
           ),
           const SizedBox(height: 12),
           InfoLabel(
-            label: '采样方式',
+            label: l10n.samplingMethod,
             child: ComboBox<ImageResizeSampling>(
               value: _sampling,
               items: [
@@ -214,7 +216,7 @@ class _ImageSizeDialogState extends State<_ImageSizeDialog> {
                     in ImageResizeSampling.values)
                   ComboBoxItem<ImageResizeSampling>(
                     value: option,
-                    child: Text(option.label),
+                    child: Text(option.label(l10n)),
                   ),
               ],
               onChanged: (value) {
@@ -226,12 +228,12 @@ class _ImageSizeDialogState extends State<_ImageSizeDialog> {
           ),
           const SizedBox(height: 6),
           Text(
-            _sampling.description,
+            _sampling.description(l10n),
             style: theme.typography.caption,
           ),
           const SizedBox(height: 12),
           Text(
-            '当前尺寸：${_widthController.text} × ${_heightController.text} 像素',
+            l10n.currentSize(_widthController.text, _heightController.text),
             style: theme.typography.caption,
           ),
           if (_errorMessage != null) ...[
@@ -246,9 +248,9 @@ class _ImageSizeDialogState extends State<_ImageSizeDialog> {
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: _submit, child: const Text('确定')),
+        FilledButton(onPressed: _submit, child: Text(l10n.confirm)),
       ],
     );
   }

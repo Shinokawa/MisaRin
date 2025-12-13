@@ -408,13 +408,13 @@ mixin _PaintingBoardBuildMixin
           onTextStrokeColorPressed: _handleEditTextStrokeColor,
         );
         final ToolbarPanelData colorPanelData = ToolbarPanelData(
-          title: '取色',
+          title: context.l10n.colorPickerTitle,
           trailing: _buildColorPanelTrailing(theme),
           child: _buildColorPanelContent(theme),
         );
         final Widget addLayerButton = _buildAddLayerButton();
         final ToolbarPanelData layerPanelData = ToolbarPanelData(
-          title: '图层管理',
+          title: context.l10n.layerManagerTitle,
           trailing: isSai2Layout ? addLayerButton : null,
           child: _buildLayerPanelContent(theme),
           expand: true,
@@ -1307,7 +1307,7 @@ mixin _PaintingBoardBuildMixin
         child: WorkspaceFloatingPanel(
           width: _kColorRangePanelWidth,
           minHeight: _kColorRangePanelMinHeight,
-          title: '色彩范围',
+          title: context.l10n.colorRangeTitle,
           onClose: _cancelColorRangeEditing,
           onDragUpdate: _updateColorRangeCardOffset,
           bodyPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1338,13 +1338,13 @@ mixin _PaintingBoardBuildMixin
                 onPressed: (_colorRangeLoading || _colorRangeApplying)
                     ? null
                     : _resetColorRangeSelection,
-                child: const Text('重置'),
+                child: Text(context.l10n.reset),
               ),
               const SizedBox(width: 8),
               Button(
                 onPressed:
                     _colorRangeApplying ? null : _cancelColorRangeEditing,
-                child: const Text('取消'),
+                child: Text(context.l10n.cancel),
               ),
               const Spacer(),
               FilledButton(
@@ -1359,7 +1359,7 @@ mixin _PaintingBoardBuildMixin
                         height: 16,
                         child: ProgressRing(strokeWidth: 2),
                       )
-                    : const Text('应用'),
+                    : Text(context.l10n.apply),
               ),
             ],
           ),
@@ -1380,7 +1380,7 @@ mixin _PaintingBoardBuildMixin
         child: WorkspaceFloatingPanel(
           width: _kAntialiasPanelWidth,
           minHeight: _kAntialiasPanelMinHeight,
-          title: '边缘柔化',
+          title: context.l10n.edgeSoftening,
           onClose: hideLayerAntialiasPanel,
           onDragUpdate: _updateAntialiasCardOffset,
           bodyPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1402,12 +1402,12 @@ mixin _PaintingBoardBuildMixin
             children: [
               Button(
                 onPressed: hideLayerAntialiasPanel,
-                child: const Text('取消'),
+                child: Text(context.l10n.cancel),
               ),
               const Spacer(),
               FilledButton(
                 onPressed: _applyAntialiasFromCard,
-                child: const Text('应用'),
+                child: Text(context.l10n.apply),
               ),
             ],
           ),

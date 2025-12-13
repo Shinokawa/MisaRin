@@ -69,6 +69,8 @@ import 'package:flutter_localizations/flutter_localizations.dart'
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'package:file_picker/file_picker.dart';
 
+import '../l10n/l10n.dart';
+
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/raster_frame.dart';
 import '../../bitmap_canvas/controller.dart';

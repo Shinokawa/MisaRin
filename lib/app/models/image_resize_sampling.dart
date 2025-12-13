@@ -1,24 +1,26 @@
+import 'package:misa_rin/l10n/app_localizations.dart';
+
 enum ImageResizeSampling {
   nearest,
   bilinear,
 }
 
 extension ImageResizeSamplingTexts on ImageResizeSampling {
-  String get label {
+  String label(AppLocalizations l10n) {
     switch (this) {
       case ImageResizeSampling.nearest:
-        return '最邻近';
+        return l10n.samplingNearestLabel;
       case ImageResizeSampling.bilinear:
-        return '双线性';
+        return l10n.samplingBilinearLabel;
     }
   }
 
-  String get description {
+  String description(AppLocalizations l10n) {
     switch (this) {
       case ImageResizeSampling.nearest:
-        return '保持像素边缘硬度，适合像素风或图案缩放。';
+        return l10n.samplingNearestDesc;
       case ImageResizeSampling.bilinear:
-        return '对像素进行平滑插值，适合需要柔和过渡的缩放。';
+        return l10n.samplingBilinearDesc;
     }
   }
 }

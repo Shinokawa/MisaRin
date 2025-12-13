@@ -229,22 +229,23 @@ mixin _PaintingBoardFilterMixin
 
   void _openFilterPanel(_FilterPanelType type) async {
     final String? activeLayerId = _activeLayerId;
+    final l10n = context.l10n;
     if (activeLayerId == null) {
-      _showFilterMessage('请先选择一个可编辑的图层。');
+      _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
     }
     _layerOpacityPreviewReset(this);
     final BitmapLayerState? layer = _layerById(activeLayerId);
     if (layer == null) {
-      _showFilterMessage('无法定位当前图层。');
+      _showFilterMessage(l10n.cannotLocateLayer);
       return;
     }
     if (layer.locked) {
-      _showFilterMessage('当前图层已锁定，无法应用滤镜。');
+      _showFilterMessage(l10n.layerLockedNoFilter);
       return;
     }
     if (type == _FilterPanelType.binarize && layer.text != null) {
-      _showFilterMessage('当前图层是文字图层，请先栅格化或切换其他图层。');
+      _showFilterMessage(l10n.textLayerNoFilter);
       return;
     }
     final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
@@ -252,7 +253,7 @@ mixin _PaintingBoardFilterMixin
       (item) => item.id == activeLayerId,
     );
     if (layerIndex < 0) {
-      _showFilterMessage('无法定位当前图层。');
+      _showFilterMessage(l10n.cannotLocateLayer);
       return;
     }
     _removeFilterOverlay(restoreOriginal: false);
@@ -579,9 +580,10 @@ mixin _PaintingBoardFilterMixin
         _filterPanelOffset = Offset(clampedX, clampedY);
         final String panelTitle;
         final Widget panelBody;
+        final l10n = context.l10n;
         switch (session.type) {
           case _FilterPanelType.hueSaturation:
-            panelTitle = '色相/饱和度';
+            panelTitle = l10n.hueSaturation;
             panelBody = _HueSaturationControls(
               settings: session.hueSaturation,
               onHueChanged: (value) => _updateHueSaturation(hue: value),
@@ -592,7 +594,7 @@ mixin _PaintingBoardFilterMixin
             );
             break;
           case _FilterPanelType.brightnessContrast:
-            panelTitle = '亮度/对比度';
+            panelTitle = l10n.brightnessContrast;
             panelBody = _BrightnessContrastControls(
               settings: session.brightnessContrast,
               onBrightnessChanged: (value) =>
@@ -602,7 +604,7 @@ mixin _PaintingBoardFilterMixin
             );
             break;
           case _FilterPanelType.blackWhite:
-            panelTitle = '黑白';
+            panelTitle = l10n.blackAndWhite;
             panelBody = _BlackWhiteControls(
               settings: session.blackWhite,
               onBlackPointChanged: (value) =>
@@ -613,39 +615,39 @@ mixin _PaintingBoardFilterMixin
             );
             break;
           case _FilterPanelType.binarize:
-            panelTitle = '二值化';
+            panelTitle = l10n.binarize;
             panelBody = _BinarizeControls(
               threshold: session.binarize.alphaThreshold,
               onThresholdChanged: _updateBinarizeThreshold,
             );
             break;
           case _FilterPanelType.gaussianBlur:
-            panelTitle = '高斯模糊';
+            panelTitle = l10n.gaussianBlur;
             panelBody = _GaussianBlurControls(
               radius: session.gaussianBlur.radius,
               onRadiusChanged: _updateGaussianBlur,
             );
             break;
           case _FilterPanelType.leakRemoval:
-            panelTitle = '去除漏色';
+            panelTitle = l10n.leakRemoval;
             panelBody = _LeakRemovalControls(
               radius: session.leakRemoval.radius,
               onRadiusChanged: _updateLeakRemovalRadius,
             );
             break;
           case _FilterPanelType.lineNarrow:
-            panelTitle = '线条收窄';
+            panelTitle = l10n.lineNarrow;
             panelBody = _MorphologyControls(
-              label: '收窄半径',
+              label: l10n.narrowRadius,
               radius: session.lineNarrow.radius,
               maxRadius: _kMorphologyMaxRadius,
               onRadiusChanged: _updateLineNarrow,
             );
             break;
           case _FilterPanelType.fillExpand:
-            panelTitle = '填色拉伸';
+            panelTitle = l10n.fillExpand;
             panelBody = _MorphologyControls(
-              label: '拉伸半径',
+              label: l10n.expandRadius,
               radius: session.fillExpand.radius,
               maxRadius: _kMorphologyMaxRadius,
               onRadiusChanged: _updateFillExpand,
@@ -690,12 +692,12 @@ mixin _PaintingBoardFilterMixin
               children: [
                 Button(
                   onPressed: _resetFilterSettings,
-                  child: const Text('重置'),
+                  child: Text(l10n.reset),
                 ),
                 const Spacer(),
                 Button(
                   onPressed: () => _removeFilterOverlay(),
-                  child: const Text('取消'),
+                  child: Text(l10n.cancel),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
@@ -706,7 +708,7 @@ mixin _PaintingBoardFilterMixin
                           height: 16,
                           child: ProgressRing(strokeWidth: 2),
                         )
-                      : const Text('应用'),
+                      : Text(l10n.apply),
                 ),
               ],
             ),
@@ -950,7 +952,7 @@ mixin _PaintingBoardFilterMixin
     }
     if (_isFilterSessionIdentity(session)) {
       if (session.type == _FilterPanelType.binarize) {
-        _showFilterMessage('未检测到可处理的半透明像素。');
+        _showFilterMessage(context.l10n.noTransparentPixelsFound);
       }
       _removeFilterOverlay();
       return;
@@ -978,7 +980,7 @@ mixin _PaintingBoardFilterMixin
         });
         _filterOverlayEntry?.markNeedsBuild();
       }
-      _showFilterMessage('应用滤镜失败，请重试。');
+      _showFilterMessage(context.l10n.filterApplyFailed);
       return;
     }
     _filterApplyCompleter = null;
@@ -1279,22 +1281,23 @@ mixin _PaintingBoardFilterMixin
   }
 
   Future<void> invertActiveLayerColors() async {
+    final l10n = context.l10n;
     if (_controller.frame == null) {
-      _showFilterMessage('画布尚未准备好，无法颜色反转。');
+      _showFilterMessage(l10n.canvasNotReadyInvert);
       return;
     }
     final String? activeLayerId = _activeLayerId;
     if (activeLayerId == null) {
-      _showFilterMessage('请先选择一个可编辑的图层。');
+      _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
     }
     final BitmapLayerState? layer = _layerById(activeLayerId);
     if (layer == null) {
-      _showFilterMessage('无法定位当前图层。');
+      _showFilterMessage(l10n.cannotLocateLayer);
       return;
     }
     if (layer.locked) {
-      _showFilterMessage('当前图层已锁定，无法颜色反转。');
+      _showFilterMessage(l10n.layerLockedInvert);
       return;
     }
 
@@ -1302,12 +1305,12 @@ mixin _PaintingBoardFilterMixin
     final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
     final int index = snapshot.indexWhere((item) => item.id == activeLayerId);
     if (index < 0) {
-      _showFilterMessage('无法定位当前图层。');
+      _showFilterMessage(l10n.cannotLocateLayer);
       return;
     }
     final CanvasLayerData data = snapshot[index];
     if (data.bitmap == null && data.fillColor == null) {
-      _showFilterMessage('当前图层为空，无法颜色反转。');
+      _showFilterMessage(l10n.layerEmptyInvert);
       return;
     }
 
@@ -1350,7 +1353,7 @@ mixin _PaintingBoardFilterMixin
     }
 
     if (!bitmapModified && !fillChanged) {
-      _showFilterMessage('当前图层没有可反转的像素。');
+      _showFilterMessage(l10n.noPixelsToInvert);
       return;
     }
 
@@ -1929,25 +1932,26 @@ class _HueSaturationControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _FilterSlider(
-          label: '色相',
+          label: l10n.hue,
           value: settings.hue,
           min: -180,
           max: 180,
           onChanged: onHueChanged,
         ),
         _FilterSlider(
-          label: '饱和度',
+          label: l10n.saturation,
           value: settings.saturation,
           min: -100,
           max: 100,
           onChanged: onSaturationChanged,
         ),
         _FilterSlider(
-          label: '明度',
+          label: l10n.lightness,
           value: settings.lightness,
           min: -100,
           max: 100,
@@ -1971,18 +1975,19 @@ class _BrightnessContrastControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _FilterSlider(
-          label: '亮度',
+          label: l10n.brightness,
           value: settings.brightness,
           min: -100,
           max: 100,
           onChanged: onBrightnessChanged,
         ),
         _FilterSlider(
-          label: '对比度',
+          label: l10n.contrast,
           value: settings.contrast,
           min: -100,
           max: 100,
@@ -2008,35 +2013,30 @@ class _BlackWhiteControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final FluentThemeData theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _FilterSlider(
-          label: '黑场',
+          label: l10n.blackPoint,
           value: settings.blackPoint,
           min: 0,
           max: 100,
           onChanged: onBlackPointChanged,
         ),
         _FilterSlider(
-          label: '白场',
+          label: l10n.whitePoint,
           value: settings.whitePoint,
           min: 0,
           max: 100,
           onChanged: onWhitePointChanged,
         ),
         _FilterSlider(
-          label: '中间灰',
+          label: l10n.midTone,
           value: settings.midTone,
           min: -100,
           max: 100,
           onChanged: onMidToneChanged,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '将图像转换为灰度后微调黑场、白场与中间灰。白场会自动保持略高于黑场，避免出现色阶断层。',
-          style: theme.typography.caption,
         ),
       ],
     );

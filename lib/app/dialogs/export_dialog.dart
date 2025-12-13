@@ -2,7 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../canvas/canvas_settings.dart';
-import '../constants/antialias_levels.dart';
+import '../l10n/l10n.dart';
 import 'misarin_dialog.dart';
 
 enum CanvasExportMode {
@@ -49,21 +49,29 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
 
   await showMisarinDialog<CanvasExportOptions>(
     context: context,
-    title: const Text('导出设置'),
+    title: Text(context.l10n.exportSettingsTitle),
     contentWidth: 420,
     content: StatefulBuilder(
       builder: (BuildContext context, StateSetter setState) {
         dialogSetState = setState;
         final FluentThemeData theme = FluentTheme.of(context);
+        final l10n = context.l10n;
         final double outputWidth = settings.width * scale;
         final double outputHeight = settings.height * scale;
         final List<double> presets = <double>[0.25, 0.5, 1.0, 2.0, 4.0];
+
+        final List<String> antialiasDescriptions = [
+          l10n.antialiasNone,
+          l10n.antialiasLow,
+          l10n.antialiasMedium,
+          l10n.antialiasHigh,
+        ];
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('导出类型', style: theme.typography.bodyStrong),
+            Text(l10n.exportTypeLabel, style: theme.typography.bodyStrong),
             const SizedBox(height: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,12 +83,12 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                       exportMode = CanvasExportMode.bitmap;
                     });
                   },
-                  content: const Text('位图 PNG'),
+                  content: Text(l10n.exportTypePng),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 32),
                   child: Text(
-                    '适合需要栅格格式的常规导出，可设置倍率与边缘柔化。',
+                    l10n.exportBitmapDesc,
                     style: theme.typography.caption,
                   ),
                 ),
@@ -92,12 +100,12 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                       exportMode = CanvasExportMode.vector;
                     });
                   },
-                  content: const Text('矢量 SVG（实验）'),
+                  content: Text(l10n.exportTypeSvg),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 32),
                   child: Text(
-                    '自动将当前画面转录为矢量路径，便于继续在矢量工具中编辑。',
+                    l10n.exportVectorDesc,
                     style: theme.typography.caption,
                   ),
                 ),
@@ -105,14 +113,14 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
             ),
             const SizedBox(height: 16),
             if (exportMode == CanvasExportMode.bitmap) ...[
-              const Text('导出倍率'),
+              Text(l10n.exportScaleLabel),
               const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
                     child: TextFormBox(
                       controller: scaleController,
-                      placeholder: '如：1.0',
+                      placeholder: l10n.exampleScale,
                       inputFormatters: <TextInputFormatter>[
                         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                       ],
@@ -120,7 +128,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                         final double? parsed = double.tryParse(value);
                         setState(() {
                           if (parsed == null || parsed <= 0) {
-                            scaleError = '请输入大于 0 的数值';
+                            scaleError = l10n.enterPositiveValue;
                           } else {
                             scaleError = null;
                             scale = parsed;
@@ -138,7 +146,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                         scaleError = null;
                       });
                     },
-                    child: const Text('重置'),
+                    child: Text(l10n.reset),
                   ),
                 ],
               ),
@@ -161,7 +169,8 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 ],
               ),
               const SizedBox(height: 12),
-              Text('输出尺寸：${outputWidth.round()} × ${outputHeight.round()} 像素'),
+              Text(l10n.exportOutputSize(
+                  outputWidth.round(), outputHeight.round())),
               if (scaleError != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -172,7 +181,8 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
               const SizedBox(height: 20),
               const Divider(),
               const SizedBox(height: 12),
-              Text('导出前的边缘柔化', style: theme.typography.bodyStrong),
+              Text(l10n.antialiasingBeforeExport,
+                  style: theme.typography.bodyStrong),
               const SizedBox(height: 8),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,10 +200,10 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('启用边缘柔化'),
+                        Text(l10n.enableAntialiasing),
                         const SizedBox(height: 4),
                         Text(
-                          '在平滑边缘的同时保留线条密度，致敬日本动画软件 Retas 的质感。',
+                          l10n.antialiasingDesc,
                           style: theme.typography.caption,
                         ),
                       ],
@@ -208,7 +218,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                   max: 3,
                   divisions: 3,
                   value: antialiasLevel.toDouble(),
-                  label: '等级 $antialiasLevel',
+                  label: l10n.levelLabel(antialiasLevel),
                   onChanged: (value) {
                     dialogSetState?.call(() {
                       antialiasLevel = value.round();
@@ -217,22 +227,23 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  kAntialiasLevelDescriptions[antialiasLevel],
+                  antialiasDescriptions[antialiasLevel],
                   style: theme.typography.caption,
                 ),
               ],
             ] else ...[
-              Text('矢量化参数', style: theme.typography.bodyStrong),
+              Text(l10n.vectorParamsLabel, style: theme.typography.bodyStrong),
               const SizedBox(height: 8),
-              Text('导出尺寸：${settings.width.round()} × ${settings.height.round()}（使用画布尺寸）'),
+              Text(l10n.vectorExportSize(
+                  settings.width.round(), settings.height.round())),
               const SizedBox(height: 12),
-              Text('最大颜色数量：$vectorMaxColors'),
+              Text(l10n.vectorMaxColors(vectorMaxColors)),
               Slider(
                 min: 2,
                 max: 16,
                 divisions: 14,
                 value: vectorMaxColors.toDouble(),
-                label: '$vectorMaxColors 色',
+                label: l10n.colorCount(vectorMaxColors),
                 onChanged: (value) {
                   dialogSetState?.call(() {
                     vectorMaxColors = value.round();
@@ -240,7 +251,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 },
               ),
               const SizedBox(height: 8),
-              Text('路径简化强度：${vectorSimplifyEpsilon.toStringAsFixed(2)}'),
+              Text(l10n.vectorSimplify(vectorSimplifyEpsilon.toStringAsFixed(2))),
               Slider(
                 min: 0.5,
                 max: 4.0,
@@ -255,7 +266,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
               ),
               const SizedBox(height: 4),
               Text(
-                '颜色越少、简化值越高，导出的 SVG 越精简；过小会导致节点过多。',
+                l10n.vectorSimplifyDesc,
                 style: theme.typography.caption,
               ),
             ],
@@ -266,15 +277,16 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
     actions: [
       Button(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('取消'),
+        child: Text(context.l10n.cancel),
       ),
       FilledButton(
         onPressed: () {
+          final l10n = context.l10n;
           if (exportMode == CanvasExportMode.bitmap) {
             final double? parsed = double.tryParse(scaleController.text);
             if (parsed == null || parsed <= 0) {
               dialogSetState?.call(() {
-                scaleError = '请输入大于 0 的数值';
+                scaleError = l10n.enterPositiveValue;
               });
               return;
             }
@@ -304,7 +316,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
           );
           Navigator.of(context).pop(options);
         },
-        child: const Text('导出'),
+        child: Text(context.l10n.export),
       ),
     ],
   ).then((CanvasExportOptions? value) {

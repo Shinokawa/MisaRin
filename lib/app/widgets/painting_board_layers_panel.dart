@@ -205,6 +205,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     }
 
     Widget historyRow() {
+      final l10n = context.l10n;
       final TargetPlatform platform = resolvedTargetPlatform();
       final String undoShortcut = ToolbarShortcuts.labelForPlatform(
         ToolbarAction.undo,
@@ -215,11 +216,11 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
         platform,
       );
       final String undoLabel = undoShortcut.isEmpty
-          ? '撤销'
-          : '撤销 ($undoShortcut)';
+          ? l10n.undo
+          : l10n.undoShortcut(undoShortcut);
       final String redoLabel = redoShortcut.isEmpty
-          ? '恢复'
-          : '恢复 ($redoShortcut)';
+          ? l10n.redo
+          : l10n.redoShortcut(redoShortcut);
       return Row(
         children: [
           buildHistoryButton(
@@ -240,6 +241,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     }
 
     Widget opacityRow() {
+      final l10n = context.l10n;
       final bool locked = activeLayer.locked;
       final Slider slider = Slider(
         value: clampedOpacity,
@@ -254,7 +256,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('不透明度 $opacityPercent%', style: labelStyle),
+            Text(l10n.opacityPercent(opacityPercent), style: labelStyle),
             const SizedBox(height: 8),
             slider,
           ],
@@ -262,7 +264,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       }
       return Row(
         children: [
-          SizedBox(width: 52, child: Text('不透明度', style: labelStyle)),
+          SizedBox(width: 52, child: Text(l10n.opacity, style: labelStyle)),
           const SizedBox(width: 8),
           Expanded(child: slider),
           const SizedBox(width: 8),
@@ -279,6 +281,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     }
 
     Widget toggleRow() {
+      final l10n = context.l10n;
       Widget buildLabeledCheckbox({
         required String label,
         required bool value,
@@ -301,12 +304,12 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       }
 
       final Widget lockCheckbox = buildLabeledCheckbox(
-        label: '锁定图层',
+        label: l10n.lockLayer,
         value: activeLayer.locked,
         onChanged: _updateActiveLayerLocked,
       );
       final Widget clipCheckbox = buildLabeledCheckbox(
-        label: '剪贴蒙版',
+        label: l10n.clippingMask,
         value: activeLayer.clippingMask,
         onChanged: activeLayer.locked ? null : _updateActiveLayerClipping,
       );
@@ -334,7 +337,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('混合模式', style: labelStyle),
+            Text(context.l10n.blendMode, style: labelStyle),
             const SizedBox(height: 8),
             dropdown,
           ],
@@ -342,7 +345,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       }
       return Row(
         children: [
-          SizedBox(width: 52, child: Text('混合模式', style: labelStyle)),
+          SizedBox(width: 52, child: Text(context.l10n.blendMode, style: labelStyle)),
           const SizedBox(width: 8),
           Expanded(child: dropdown),
         ],
@@ -619,18 +622,19 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                     final bool canMergeDown = _canMergeLayerDown(layer);
                     final bool layerClipping = layer.clippingMask;
                     final bool showTileButtons = !isSai2Layout;
+                    final l10n = context.l10n;
                     _ensureLayerPreview(layer);
                     final ui.Image? layerPreview = _layerPreviewImage(layer.id);
-                    final String lockTooltip = layerLocked ? '解锁图层' : '锁定图层';
+                    final String lockTooltip = layerLocked ? l10n.unlockLayer : l10n.lockLayer;
                     final String lockDetail = layerLocked
-                        ? '解除保护后即可继续编辑此图层'
-                        : '锁定后不可绘制或移动，防止误操作';
+                        ? l10n.unlockLayerDesc
+                        : l10n.lockLayerDesc;
                     final String clippingTooltip = layerClipping
-                        ? '取消剪贴蒙版'
-                        : '创建剪贴蒙版';
+                        ? l10n.releaseClippingMask
+                        : l10n.createClippingMask;
                     final String clippingDetail = layerClipping
-                        ? '恢复为普通图层，显示全部像素'
-                        : '仅显示落在下方图层不透明区域内的内容';
+                        ? l10n.clippingMaskDescOn
+                        : l10n.clippingMaskDescOff;
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
@@ -694,8 +698,8 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
                     final bool canDelete = _layers.length > 1 && !layerLocked;
                     final Widget deleteButton = _buildLayerActionTooltip(
-                      message: '删除图层',
-                      detail: '移除该图层，若误删可立即撤销恢复',
+                      message: l10n.deleteLayerTitle,
+                      detail: l10n.deleteLayerDesc,
                       child: IconButton(
                         icon: const Icon(FluentIcons.delete),
                         onPressed: canDelete
@@ -753,8 +757,8 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                       }
 
                       final Widget mergeButton = wrapIconButton(
-                        tooltip: '向下合并',
-                        detail: '将该图层与下方图层合并为一个，并保留像素结果',
+                        tooltip: l10n.mergeDown,
+                        detail: l10n.mergeDownDesc,
                         child: IconButton(
                           icon: const Icon(FluentIcons.download),
                           onPressed: canMergeDown
@@ -763,15 +767,15 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                         ),
                       );
                       final Widget duplicateButton = wrapIconButton(
-                        tooltip: '复制图层',
-                        detail: '复制整层内容，新的副本会出现在原图层上方',
+                        tooltip: l10n.duplicateLayer,
+                        detail: l10n.duplicateLayerDesc,
                         child: IconButton(
                           icon: const Icon(FluentIcons.copy),
                           onPressed: () => _handleDuplicateLayer(layer),
                         ),
                       );
                       final Widget placeholderButton = wrapIconButton(
-                        tooltip: '更多',
+                        tooltip: l10n.more,
                         detail: null,
                         child: const IconButton(
                           icon: Icon(FluentIcons.more),
