@@ -107,6 +107,8 @@ Future<void> _controllerRasterizeVectorStroke(
   bool eraseOccludedParts = false,
 }
 ) async {
+  final bool applyHollowCutoutErase =
+      eraseOccludedParts && hollow && !erase && hollowRatio > 0.0001;
   final int width = bounds.width.ceil().clamp(1, controller._width);
   final int height = bounds.height.ceil().clamp(1, controller._height);
   final int left = bounds.left.floor().clamp(0, controller._width);
@@ -147,43 +149,158 @@ Future<void> _controllerRasterizeVectorStroke(
     return;
   }
 
-  final Uint8List pixels = byteData.buffer.asUint8List();
+  final Uint8List pixels = byteData.buffer.asUint8List(
+    byteData.offsetInBytes,
+    byteData.lengthInBytes,
+  );
   image.dispose();
   picture.dispose();
 
   if (controller._isMultithreaded) {
+    TransferableTypedData? cutoutMask;
+    if (applyHollowCutoutErase) {
+      final ui.PictureRecorder maskRecorder = ui.PictureRecorder();
+      final ui.Canvas maskCanvas = ui.Canvas(
+        maskRecorder,
+        Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
+      );
+      maskCanvas.translate(-left.toDouble(), -top.toDouble());
+
+      final List<double> scaledRadii = radii
+          .map((double radius) => radius * hollowRatio)
+          .toList(growable: false);
+      VectorStrokePainter.paint(
+        canvas: maskCanvas,
+        points: points,
+        radii: scaledRadii,
+        color: const Color(0xFFFFFFFF),
+        shape: shape,
+        antialiasLevel: antialiasLevel,
+      );
+
+      final ui.Picture maskPicture = maskRecorder.endRecording();
+      final ui.Image maskImage = await maskPicture.toImage(
+        safeWidth,
+        safeHeight,
+      );
+      final ByteData? maskData =
+          await maskImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (maskData != null) {
+        final Uint8List maskPixels = maskData.buffer.asUint8List(
+          maskData.offsetInBytes,
+          maskData.lengthInBytes,
+        );
+        cutoutMask = TransferableTypedData.fromList(<Uint8List>[maskPixels]);
+      }
+      maskImage.dispose();
+      maskPicture.dispose();
+    }
+
     final TransferableTypedData transferablePixels =
         TransferableTypedData.fromList(<Uint8List>[pixels]);
     await controller._ensureWorkerSurfaceSynced();
     await controller._ensureWorkerSelectionMaskSynced();
-    final PaintingWorkerPatch? patch = await controller
-        ._ensurePaintingWorker()
-        .mergePatch(
+    bool anyApplied = false;
+    if (cutoutMask != null) {
+      final PaintingWorkerPatch? cutoutPatch = await controller
+          ._ensurePaintingWorker()
+          .mergePatch(
             PaintingMergePatchRequest(
               left: left,
               top: top,
               width: safeWidth,
               height: safeHeight,
-              pixels: transferablePixels,
-              erase: erase,
-              eraseOccludedParts: eraseOccludedParts,
+              pixels: cutoutMask,
+              erase: true,
             ),
           );
+      if (cutoutPatch != null) {
+        controller._applyWorkerPatch(cutoutPatch);
+        anyApplied = true;
+      }
+    }
+
+    final PaintingWorkerPatch? patch = await controller
+        ._ensurePaintingWorker()
+        .mergePatch(
+          PaintingMergePatchRequest(
+            left: left,
+            top: top,
+            width: safeWidth,
+            height: safeHeight,
+            pixels: transferablePixels,
+            erase: erase,
+            eraseOccludedParts: eraseOccludedParts,
+          ),
+        );
     if (patch != null) {
       controller._applyWorkerPatch(patch);
+      anyApplied = true;
+    }
+    if (anyApplied) {
       await controller._waitForNextFrame();
     }
   } else {
-    final bool applied = controller._mergeVectorPatchOnMainThread(
-      rgbaPixels: pixels,
-      left: left,
-      top: top,
-      width: safeWidth,
-      height: safeHeight,
-      erase: erase,
-      eraseOccludedParts: eraseOccludedParts,
-    );
-    if (applied) {
+    bool anyApplied = false;
+    if (applyHollowCutoutErase) {
+      final ui.PictureRecorder maskRecorder = ui.PictureRecorder();
+      final ui.Canvas maskCanvas = ui.Canvas(
+        maskRecorder,
+        Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
+      );
+      maskCanvas.translate(-left.toDouble(), -top.toDouble());
+      final List<double> scaledRadii = radii
+          .map((double radius) => radius * hollowRatio)
+          .toList(growable: false);
+      VectorStrokePainter.paint(
+        canvas: maskCanvas,
+        points: points,
+        radii: scaledRadii,
+        color: const Color(0xFFFFFFFF),
+        shape: shape,
+        antialiasLevel: antialiasLevel,
+      );
+      final ui.Picture maskPicture = maskRecorder.endRecording();
+      final ui.Image maskImage = await maskPicture.toImage(
+        safeWidth,
+        safeHeight,
+      );
+      final ByteData? maskData =
+          await maskImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (maskData != null) {
+        final Uint8List maskPixels = maskData.buffer.asUint8List(
+          maskData.offsetInBytes,
+          maskData.lengthInBytes,
+        );
+        anyApplied =
+            controller._mergeVectorPatchOnMainThread(
+              rgbaPixels: maskPixels,
+              left: left,
+              top: top,
+              width: safeWidth,
+              height: safeHeight,
+              erase: true,
+              eraseOccludedParts: false,
+            ) ||
+            anyApplied;
+      }
+      maskImage.dispose();
+      maskPicture.dispose();
+    }
+
+    anyApplied =
+        controller._mergeVectorPatchOnMainThread(
+          rgbaPixels: pixels,
+          left: left,
+          top: top,
+          width: safeWidth,
+          height: safeHeight,
+          erase: erase,
+          eraseOccludedParts: eraseOccludedParts,
+        ) ||
+        anyApplied;
+
+    if (anyApplied) {
       await controller._waitForNextFrame();
     }
   }
@@ -417,6 +534,7 @@ bool _controllerMergeVectorPatchOnMainThread(
       if (a == 0) {
         continue;
       }
+
       final int r = rgbaPixels[rgbaIndex];
       final int g = rgbaPixels[rgbaIndex + 1];
       final int b = rgbaPixels[rgbaIndex + 2];
