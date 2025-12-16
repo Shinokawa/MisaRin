@@ -836,8 +836,6 @@ mixin _PaintingBoardBuildMixin
                                                   transformImageOverlay
                                                 else if (!_isLayerFreeTransformActive &&
                                                     isTransforming &&
-                                                    !_controller
-                                                        .isActiveLayerTransformPendingCleanup &&
                                                     transformedActiveLayerImage !=
                                                         null)
                                                   Positioned.fill(
