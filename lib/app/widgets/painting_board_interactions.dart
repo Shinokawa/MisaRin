@@ -1403,7 +1403,7 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     _focusNode.requestFocus();
-    await _pushUndoSnapshot();
+    _controller.translateActiveLayer(0, 0);
     _isLayerDragging = true;
     _layerDragStart = boardLocal;
     _layerDragAppliedDx = 0;
@@ -1431,15 +1431,40 @@ mixin _PaintingBoardInteractionMixin
     _markDirty();
   }
 
-  void _finishLayerAdjustDrag() {
+  Future<void> _finalizeLayerAdjustDrag() {
+    final Future<void>? existing = _layerAdjustFinalizeTask;
+    if (existing != null) {
+      return existing;
+    }
+    final Future<void> task = _finalizeLayerAdjustDragImpl();
+    _layerAdjustFinalizeTask = task;
+    task.whenComplete(() {
+      if (identical(_layerAdjustFinalizeTask, task)) {
+        _layerAdjustFinalizeTask = null;
+      }
+    });
+    return task;
+  }
+
+  Future<void> _finalizeLayerAdjustDragImpl() async {
     if (!_isLayerDragging) {
       return;
     }
-    _controller.commitActiveLayerTranslation();
+    final bool moved = _layerDragAppliedDx != 0 || _layerDragAppliedDy != 0;
     _isLayerDragging = false;
     _layerDragStart = null;
     _layerDragAppliedDx = 0;
     _layerDragAppliedDy = 0;
+    if (!moved) {
+      _controller.disposeActiveLayerTransformSession();
+      return;
+    }
+    await _pushUndoSnapshot();
+    _controller.commitActiveLayerTranslation();
+  }
+
+  void _finishLayerAdjustDrag() {
+    unawaited(_finalizeLayerAdjustDrag());
   }
 
   Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {

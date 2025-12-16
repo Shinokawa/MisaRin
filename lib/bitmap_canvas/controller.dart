@@ -11,6 +11,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
+import '../backend/rgba_utils.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
@@ -202,7 +203,8 @@ class BitmapCanvasController extends ChangeNotifier {
 
   String? get _translatingLayerIdForComposite {
     if (_activeLayerTranslationSnapshot != null &&
-        !_pendingActiveLayerTransformCleanup) {
+        !_pendingActiveLayerTransformCleanup &&
+        _activeLayerTransformImage != null) {
       return _activeLayerTranslationId;
     }
     return null;

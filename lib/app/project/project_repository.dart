@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../backend/rgba_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../psd/psd_importer.dart';
@@ -360,7 +361,13 @@ class ProjectRepository {
       image.dispose();
       throw Exception('无法读取图像像素数据');
     }
-    final Uint8List rgba = Uint8List.fromList(pixelData.buffer.asUint8List());
+    final Uint8List rgba = Uint8List.fromList(
+      pixelData.buffer.asUint8List(
+        pixelData.offsetInBytes,
+        pixelData.lengthInBytes,
+      ),
+    );
+    unpremultiplyRgbaInPlace(rgba);
     final _DecodedImage result = _DecodedImage(
       width: image.width,
       height: image.height,

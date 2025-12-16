@@ -114,6 +114,7 @@ import '../tooltips/hover_detail_tooltip.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
+import '../../backend/rgba_utils.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import '../workspace/workspace_shared_state.dart';
 
@@ -309,6 +310,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   int _layerPreviewRequestSerial = 0;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
+  Future<void>? _layerAdjustFinalizeTask;
   Offset? _layerDragStart;
   int _layerDragAppliedDx = 0;
   int _layerDragAppliedDy = 0;
@@ -2051,7 +2053,13 @@ class PaintingBoardState extends _PaintingBoardBase
       image.dispose();
       throw StateError('无法读取位图像素数据');
     }
-    final Uint8List rgba = Uint8List.fromList(pixelData.buffer.asUint8List());
+    final Uint8List rgba = Uint8List.fromList(
+      pixelData.buffer.asUint8List(
+        pixelData.offsetInBytes,
+        pixelData.lengthInBytes,
+      ),
+    );
+    unpremultiplyRgbaInPlace(rgba);
     final _ImportedImageData result = _ImportedImageData(
       width: image.width,
       height: image.height,

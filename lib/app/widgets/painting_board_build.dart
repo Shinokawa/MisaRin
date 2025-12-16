@@ -836,21 +836,35 @@ mixin _PaintingBoardBuildMixin
                                                   transformImageOverlay
                                                 else if (!_isLayerFreeTransformActive &&
                                                     isTransforming &&
+                                                    !_controller
+                                                        .isActiveLayerTransformPendingCleanup &&
                                                     transformedActiveLayerImage !=
                                                         null)
                                                   Positioned.fill(
                                                     child: IgnorePointer(
                                                       ignoring: true,
-                                                      child: Transform.translate(
-                                                        offset:
-                                                            transformedLayerOffset,
-                                                        child: _buildTransformedLayerOverlay(
-                                                          image:
-                                                              transformedActiveLayerImage,
-                                                          opacity:
-                                                              transformedLayerOpacity,
-                                                          blendMode:
-                                                              transformedLayerBlendMode,
+                                                      child: OverflowBox(
+                                                        alignment:
+                                                            Alignment.topLeft,
+                                                        minWidth: 0,
+                                                        minHeight: 0,
+                                                        maxWidth:
+                                                            double.infinity,
+                                                        maxHeight:
+                                                            double.infinity,
+                                                        child: Transform
+                                                            .translate(
+                                                          offset:
+                                                              transformedLayerOffset,
+                                                          child:
+                                                              _buildTransformedLayerOverlay(
+                                                            image:
+                                                                transformedActiveLayerImage,
+                                                            opacity:
+                                                                transformedLayerOpacity,
+                                                            blendMode:
+                                                                transformedLayerBlendMode,
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
@@ -1467,6 +1481,8 @@ Widget _buildTransformedLayerOverlay({
   Widget content = RawImage(
     image: image,
     filterQuality: FilterQuality.none,
+    fit: BoxFit.none,
+    alignment: Alignment.topLeft,
     colorBlendMode: blendMode,
     color: blendMode != null ? const Color(0xFFFFFFFF) : null,
   );
