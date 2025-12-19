@@ -239,7 +239,11 @@
   "menuColorRangeEllipsis": "\u8272\u5f69\u7bc4\u570d\u2026",
   "menuBlackWhiteEllipsis": "\u9ed1\u767d\u2026",
   "menuBinarizeEllipsis": "\u4e8c\u503c\u5316\u2026",
+  "menuScanPaperDrawing": "掃描紙繪",
   "menuInvertColors": "顏色反轉",
+
+  "layerEmptyScanPaperDrawing": "目前圖層為空，無法掃描紙繪。",
+  "scanPaperDrawingNoChanges": "未偵測到可轉換的像素。",
 
   "fontFamily": "字體系列",
   "importPaletteTitle": "匯入調色盤",
@@ -415,5 +419,14 @@
   "hollowStrokeRatio": "空心比例",
   "hollowStrokeRatioDesc": "調整空心內圈大小，數值越高描邊越細。",
   "eraseOccludedParts": "擦除被遮擋部分",
-  "eraseOccludedPartsDesc": "開啟後，同一圖層裡後畫的空心線條會吃掉與其他線條的重合部分。"
+  "eraseOccludedPartsDesc": "開啟後，同一圖層裡後畫的空心線條會吃掉與其他線條的重合部分。",
+
+  "swallowBlueColorLine": "吞併藍色線",
+  "swallowGreenColorLine": "吞併綠色線",
+  "swallowRedColorLine": "吞併紅色線",
+  "swallowAllColorLine": "吞併所有色線",
+  "swallowBlueColorLineDesc": "色塊填充時只吞併藍色線。",
+  "swallowGreenColorLineDesc": "色塊填充時只吞併綠色線。",
+  "swallowRedColorLineDesc": "色塊填充時只吞併紅色線。",
+  "swallowAllColorLineDesc": "色塊填充時吞併紅/綠/藍色線。"
 }

@@ -734,6 +734,7 @@ class BitmapSurface {
     Color? targetColor,
     bool contiguous = true,
     Uint8List? mask,
+    int fillGap = 0,
   }) {
     final int sx = start.dx.floor();
     final int sy = start.dy.floor();
@@ -755,6 +756,190 @@ class BitmapSurface {
       for (int i = 0; i < pixels.length; i++) {
         if (pixels[i] == baseColor && (mask == null || mask[i] != 0)) {
           pixels[i] = replacement;
+        }
+      }
+      return;
+    }
+
+    final int clampedFillGap = fillGap.clamp(0, 64);
+    if (clampedFillGap > 0) {
+      final Uint8List targetMask = Uint8List(width * height);
+      for (int i = 0; i < pixels.length; i++) {
+        if (mask != null && mask[i] == 0) {
+          continue;
+        }
+        if (pixels[i] == baseColor) {
+          targetMask[i] = 1;
+        }
+      }
+
+      final int startIndex = sy * width + sx;
+      if (targetMask[startIndex] == 0) {
+        return;
+      }
+
+      Uint8List buildFillGapMask() {
+        final Uint8List blocked = Uint8List(targetMask.length);
+        final List<int> queue = <int>[];
+        for (int y = 0; y < height; y++) {
+          final int rowOffset = y * width;
+          for (int x = 0; x < width; x++) {
+            final int index = rowOffset + x;
+            if (targetMask[index] == 0) {
+              continue;
+            }
+            bool isBoundary = false;
+            if (x > 0 && targetMask[index - 1] == 0) {
+              isBoundary = true;
+            } else if (x < width - 1 && targetMask[index + 1] == 0) {
+              isBoundary = true;
+            } else if (y > 0 && targetMask[index - width] == 0) {
+              isBoundary = true;
+            } else if (y < height - 1 && targetMask[index + width] == 0) {
+              isBoundary = true;
+            }
+            if (!isBoundary) {
+              continue;
+            }
+            blocked[index] = 1;
+            queue.add(index);
+          }
+        }
+
+        int head = 0;
+        for (int step = 1; step < clampedFillGap; step++) {
+          final int levelEnd = queue.length;
+          while (head < levelEnd) {
+            final int index = queue[head++];
+            final int x = index % width;
+            final int y = index ~/ width;
+            if (x > 0) {
+              final int neighbor = index - 1;
+              if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+                blocked[neighbor] = 1;
+                queue.add(neighbor);
+              }
+            }
+            if (x < width - 1) {
+              final int neighbor = index + 1;
+              if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+                blocked[neighbor] = 1;
+                queue.add(neighbor);
+              }
+            }
+            if (y > 0) {
+              final int neighbor = index - width;
+              if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+                blocked[neighbor] = 1;
+                queue.add(neighbor);
+              }
+            }
+            if (y < height - 1) {
+              final int neighbor = index + width;
+              if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+                blocked[neighbor] = 1;
+                queue.add(neighbor);
+              }
+            }
+          }
+        }
+        return blocked;
+      }
+
+      int? findUnblockedStart(Uint8List blockedMask) {
+        if (blockedMask[startIndex] == 0) {
+          return startIndex;
+        }
+        final Set<int> visited = <int>{startIndex};
+        final List<int> queue = <int>[startIndex];
+        int head = 0;
+        final int maxDepth = clampedFillGap + 1;
+        for (int depth = 0; depth <= maxDepth; depth++) {
+          final int levelEnd = queue.length;
+          while (head < levelEnd) {
+            final int index = queue[head++];
+            if (blockedMask[index] == 0) {
+              return index;
+            }
+            final int x = index % width;
+            final int y = index ~/ width;
+            if (x > 0) {
+              final int neighbor = index - 1;
+              if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+                queue.add(neighbor);
+              }
+            }
+            if (x < width - 1) {
+              final int neighbor = index + 1;
+              if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+                queue.add(neighbor);
+              }
+            }
+            if (y > 0) {
+              final int neighbor = index - width;
+              if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+                queue.add(neighbor);
+              }
+            }
+            if (y < height - 1) {
+              final int neighbor = index + width;
+              if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+                queue.add(neighbor);
+              }
+            }
+          }
+          if (head >= queue.length) {
+            break;
+          }
+        }
+        return null;
+      }
+
+      final Uint8List blockedMask = buildFillGapMask();
+      final int? snappedStart = findUnblockedStart(blockedMask);
+      if (snappedStart == null) {
+        return;
+      }
+
+      final List<int> stack = <int>[snappedStart];
+      while (stack.isNotEmpty) {
+        final int index = stack.removeLast();
+        if (index < 0 || index >= targetMask.length) {
+          continue;
+        }
+        if (targetMask[index] == 0 || blockedMask[index] == 1) {
+          continue;
+        }
+        targetMask[index] = 0;
+        pixels[index] = replacement;
+        if (replacement != 0) {
+          _isClean = false;
+        }
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (targetMask[neighbor] == 1 && blockedMask[neighbor] == 0) {
+            stack.add(neighbor);
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (targetMask[neighbor] == 1 && blockedMask[neighbor] == 0) {
+            stack.add(neighbor);
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (targetMask[neighbor] == 1 && blockedMask[neighbor] == 0) {
+            stack.add(neighbor);
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (targetMask[neighbor] == 1 && blockedMask[neighbor] == 0) {
+            stack.add(neighbor);
+          }
         }
       }
       return;

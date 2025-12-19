@@ -1,6 +1,22 @@
 part of 'painting_board.dart';
 
 mixin _PaintingBoardColorMixin on _PaintingBoardBase {
+  List<Color>? _resolveBucketSwallowColors() {
+    if (!_bucketSwallowColorLine) {
+      return null;
+    }
+    switch (_bucketSwallowColorLineMode) {
+      case BucketSwallowColorLineMode.all:
+        return kColorLinePresets;
+      case BucketSwallowColorLineMode.red:
+        return <Color>[kColorLinePresets[0]];
+      case BucketSwallowColorLineMode.green:
+        return <Color>[kColorLinePresets[2]];
+      case BucketSwallowColorLineMode.blue:
+        return <Color>[kColorLinePresets[1]];
+    }
+  }
+
   Future<void> _pickColor({
     required String title,
     required Color initialColor,
@@ -137,8 +153,9 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       color: _primaryColor,
       contiguous: _bucketContiguous,
       sampleAllLayers: _bucketSampleAllLayers,
-      swallowColors: _bucketSwallowColorLine ? kColorLinePresets : null,
+      swallowColors: _resolveBucketSwallowColors(),
       tolerance: _bucketTolerance,
+      fillGap: _bucketFillGap,
       antialiasLevel: _bucketAntialiasLevel,
     );
     setState(() {});

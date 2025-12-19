@@ -16,6 +16,7 @@ void _fillFloodFill(
   bool sampleAllLayers = false,
   List<Color>? swallowColors,
   int tolerance = 0,
+  int fillGap = 0,
   int antialiasLevel = 0,
 }) {
   if (controller._activeLayer.locked) {
@@ -37,6 +38,7 @@ void _fillFloodFill(
             .toList(growable: false)
       : null;
   final int clampedTolerance = tolerance.clamp(0, 255);
+  final int clampedFillGap = fillGap.clamp(0, 64);
   final int clampedAntialias = antialiasLevel.clamp(0, 3);
   final bool hasAntialias = clampedAntialias > 0;
   // Tolerance is now supported by worker, so we don't need to force mask fill for it alone.
@@ -52,6 +54,7 @@ void _fillFloodFill(
       color,
       contiguous,
       tolerance: clampedTolerance,
+      fillGap: clampedFillGap,
       collectMask: needsRegionMask,
     );
     if (needsRegionMask && regionMask == null) {
@@ -73,6 +76,7 @@ void _fillFloodFill(
             targetColor: baseColor,
             contiguous: contiguous,
             tolerance: clampedTolerance,
+            fillGap: clampedFillGap,
           ),
           onError: () {
             controller._activeSurface.floodFill(
@@ -81,6 +85,7 @@ void _fillFloodFill(
               targetColor: baseColor,
               contiguous: contiguous,
               mask: controller._selectionMask,
+              fillGap: clampedFillGap,
             );
             controller._resetWorkerSurfaceSync();
             controller._markDirty(
@@ -96,6 +101,7 @@ void _fillFloodFill(
           targetColor: baseColor,
           contiguous: contiguous,
           mask: controller._selectionMask,
+          fillGap: clampedFillGap,
         );
         controller._markDirty(
           layerId: controller._activeLayer.id,
@@ -115,6 +121,7 @@ void _fillFloodFill(
       baseColor,
       contiguous,
       tolerance: clampedTolerance,
+      fillGap: clampedFillGap,
     );
     if (regionMask == null) {
       return;
@@ -254,6 +261,7 @@ Uint8List? _fillFloodFillAcrossLayers(
   bool contiguous, {
   bool collectMask = false,
   int tolerance = 0,
+  int fillGap = 0,
 }) {
   if (!_fillSelectionAllowsInt(controller, startX, startY)) {
     return null;
@@ -345,6 +353,7 @@ Uint8List? _fillFloodFillAcrossLayers(
     width: controller._width,
     height: controller._height,
     tolerance: tolerance,
+    fillGap: fillGap,
   );
   if (!filled) {
     return null;
@@ -501,6 +510,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
   Color baseColor,
   bool contiguous, {
   int tolerance = 0,
+  int fillGap = 0,
 }) {
   final Uint32List pixels = controller._activeSurface.pixels;
   final Uint8List? selectionMask = controller._selectionMask;
@@ -567,6 +577,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
     width: width,
     height: height,
     tolerance: tolerance,
+    fillGap: fillGap,
   );
   if (!filled) {
     return null;
@@ -934,53 +945,295 @@ bool _fillFloodFillMask(
   required int width,
   required int height,
   int tolerance = 0,
+  int fillGap = 0,
 }) {
-  if (pixels.isEmpty || mask.isEmpty) {
+  if (pixels.isEmpty || mask.isEmpty || width <= 0 || height <= 0) {
     return false;
   }
-  final Queue<int> queue = Queue<int>();
-  final Set<int> visited = <int>{};
+  final int startIndex = startY * width + startX;
+  if (startX < 0 ||
+      startX >= width ||
+      startY < 0 ||
+      startY >= height ||
+      startIndex < 0 ||
+      startIndex >= pixels.length) {
+    return false;
+  }
+
+  final Uint8List? selectionMask = controller._selectionMask;
+  if (selectionMask != null && selectionMask[startIndex] == 0) {
+    return false;
+  }
+
+  final int clampedFillGap = fillGap.clamp(0, 64);
+  if (clampedFillGap > 0) {
+    final Uint8List targetMask = Uint8List(pixels.length);
+    for (int i = 0; i < pixels.length; i++) {
+      if (selectionMask != null && selectionMask[i] == 0) {
+        continue;
+      }
+      if (_fillColorsWithinTolerance(pixels[i], targetColor, tolerance)) {
+        targetMask[i] = 1;
+      }
+    }
+    if (targetMask[startIndex] == 0) {
+      return false;
+    }
+    final Uint8List blocked = _fillBuildFillGapMask(
+      targetMask,
+      width,
+      height,
+      clampedFillGap,
+    );
+    final int? effectiveStart = _fillFindFillGapStartIndex(
+      startIndex,
+      targetMask,
+      blocked,
+      width,
+      height,
+      clampedFillGap,
+    );
+    if (effectiveStart == null) {
+      return false;
+    }
+
+    final List<int> queue = <int>[effectiveStart];
+    int head = 0;
+    targetMask[effectiveStart] = 0;
+    mask[effectiveStart] = 1;
+    int processed = 1;
+
+    while (head < queue.length) {
+      final int index = queue[head++];
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          targetMask[neighbor] = 0;
+          mask[neighbor] = 1;
+          queue.add(neighbor);
+          processed += 1;
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          targetMask[neighbor] = 0;
+          mask[neighbor] = 1;
+          queue.add(neighbor);
+          processed += 1;
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          targetMask[neighbor] = 0;
+          mask[neighbor] = 1;
+          queue.add(neighbor);
+          processed += 1;
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          targetMask[neighbor] = 0;
+          mask[neighbor] = 1;
+          queue.add(neighbor);
+          processed += 1;
+        }
+      }
+    }
+    return processed > 0;
+  }
+
+  final Uint8List visited = Uint8List(pixels.length);
+  final List<int> queue = <int>[];
+  int head = 0;
   int processed = 0;
 
-  bool shouldInclude(int x, int y) {
-    if (x < 0 || x >= width || y < 0 || y >= height) {
-      return false;
-    }
-    final int index = y * width + x;
-    if (visited.contains(index)) {
-      return false;
-    }
-    visited.add(index);
-    if (controller._selectionMask != null &&
-        controller._selectionMask![index] == 0) {
-      return false;
-    }
-    return _fillColorsWithinTolerance(pixels[index], targetColor, tolerance);
-  }
-
-  void enqueue(int x, int y) {
-    if (!shouldInclude(x, y)) {
+  void enqueueIndex(int index) {
+    if (index < 0 || index >= pixels.length) {
       return;
     }
-    final int index = y * width + x;
+    if (visited[index] != 0) {
+      return;
+    }
+    visited[index] = 1;
+    if (selectionMask != null && selectionMask[index] == 0) {
+      return;
+    }
+    if (!_fillColorsWithinTolerance(pixels[index], targetColor, tolerance)) {
+      return;
+    }
     mask[index] = 1;
     queue.add(index);
+    processed += 1;
   }
 
-  enqueue(startX, startY);
+  enqueueIndex(startIndex);
 
-  while (queue.isNotEmpty) {
-    final int index = queue.removeFirst();
-    processed += 1;
+  while (head < queue.length) {
+    final int index = queue[head++];
     final int x = index % width;
     final int y = index ~/ width;
-    enqueue(x + 1, y);
-    enqueue(x - 1, y);
-    enqueue(x, y + 1);
-    enqueue(x, y - 1);
+    if (x > 0) {
+      enqueueIndex(index - 1);
+    }
+    if (x < width - 1) {
+      enqueueIndex(index + 1);
+    }
+    if (y > 0) {
+      enqueueIndex(index - width);
+    }
+    if (y < height - 1) {
+      enqueueIndex(index + width);
+    }
   }
 
   return processed > 0;
+}
+
+Uint8List _fillBuildFillGapMask(
+  Uint8List targetMask,
+  int width,
+  int height,
+  int fillGap,
+) {
+  if (fillGap <= 0 || targetMask.isEmpty) {
+    return Uint8List(targetMask.length);
+  }
+
+  final Uint8List blocked = Uint8List(targetMask.length);
+  final List<int> queue = <int>[];
+
+  for (int y = 0; y < height; y++) {
+    final int rowOffset = y * width;
+    for (int x = 0; x < width; x++) {
+      final int index = rowOffset + x;
+      if (index < 0 || index >= targetMask.length) {
+        break;
+      }
+      if (targetMask[index] == 0) {
+        continue;
+      }
+      bool isBoundary = false;
+      if (x > 0 && targetMask[index - 1] == 0) {
+        isBoundary = true;
+      } else if (x < width - 1 && targetMask[index + 1] == 0) {
+        isBoundary = true;
+      } else if (y > 0 && targetMask[index - width] == 0) {
+        isBoundary = true;
+      } else if (y < height - 1 && targetMask[index + width] == 0) {
+        isBoundary = true;
+      }
+      if (!isBoundary) {
+        continue;
+      }
+      blocked[index] = 1;
+      queue.add(index);
+    }
+  }
+
+  int head = 0;
+  for (int step = 1; step < fillGap; step++) {
+    final int levelEnd = queue.length;
+    while (head < levelEnd) {
+      final int index = queue[head++];
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          blocked[neighbor] = 1;
+          queue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          blocked[neighbor] = 1;
+          queue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          blocked[neighbor] = 1;
+          queue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          blocked[neighbor] = 1;
+          queue.add(neighbor);
+        }
+      }
+    }
+  }
+
+  return blocked;
+}
+
+int? _fillFindFillGapStartIndex(
+  int startIndex,
+  Uint8List targetMask,
+  Uint8List blocked,
+  int width,
+  int height,
+  int fillGap,
+) {
+  if (startIndex < 0 ||
+      startIndex >= targetMask.length ||
+      targetMask[startIndex] == 0) {
+    return null;
+  }
+  if (blocked[startIndex] == 0) {
+    return startIndex;
+  }
+
+  final int maxDepth = fillGap + 1;
+  final Queue<int> queue = Queue<int>()..add(startIndex);
+  final Set<int> visited = <int>{startIndex};
+  int depth = 0;
+  while (queue.isNotEmpty && depth <= maxDepth) {
+    final int levelSize = queue.length;
+    for (int i = 0; i < levelSize; i++) {
+      final int index = queue.removeFirst();
+      if (blocked[index] == 0) {
+        return index;
+      }
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+          queue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+          queue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+          queue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+          queue.add(neighbor);
+        }
+      }
+    }
+    depth += 1;
+  }
+  return null;
 }
 
 bool _fillColorsWithinTolerance(int candidate, int target, int tolerance) {

@@ -1022,6 +1022,12 @@ abstract class AppLocalizations {
   /// **'Binarize…'**
   String get menuBinarizeEllipsis;
 
+  /// No description provided for @menuScanPaperDrawing.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Paper Drawing'**
+  String get menuScanPaperDrawing;
+
   /// No description provided for @menuInvertColors.
   ///
   /// In en, this message translates to:
@@ -1652,6 +1658,12 @@ abstract class AppLocalizations {
   /// **'Tolerance'**
   String get tolerance;
 
+  /// No description provided for @fillGap.
+  ///
+  /// In en, this message translates to:
+  /// **'Fill Gap'**
+  String get fillGap;
+
   /// No description provided for @sampleAllLayers.
   ///
   /// In en, this message translates to:
@@ -1669,6 +1681,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Swallow Color Line'**
   String get swallowColorLine;
+
+  /// No description provided for @swallowBlueColorLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Swallow Blue Line'**
+  String get swallowBlueColorLine;
+
+  /// No description provided for @swallowGreenColorLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Swallow Green Line'**
+  String get swallowGreenColorLine;
+
+  /// No description provided for @swallowRedColorLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Swallow Red Line'**
+  String get swallowRedColorLine;
+
+  /// No description provided for @swallowAllColorLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Swallow All Lines'**
+  String get swallowAllColorLine;
 
   /// No description provided for @cropOutsideCanvas.
   ///
@@ -2000,6 +2036,12 @@ abstract class AppLocalizations {
   /// **'Controls the threshold for \'color similarity\' for Bucket or Magic Wand. Higher tolerance grabs more similar colors.'**
   String get toleranceDesc;
 
+  /// No description provided for @fillGapDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds a buffer near edges during bucket fill to prevent leaks through small gaps. Higher values close larger gaps but may leave unfilled margins.'**
+  String get fillGapDesc;
+
   /// No description provided for @antialiasingSliderDesc.
   ///
   /// In en, this message translates to:
@@ -2113,6 +2155,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Automatically expands fill into color lines to remove white edges. Dedicated for Retas workflow.'**
   String get swallowColorLineDesc;
+
+  /// No description provided for @swallowBlueColorLineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Swallows only blue lines when filling.'**
+  String get swallowBlueColorLineDesc;
+
+  /// No description provided for @swallowGreenColorLineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Swallows only green lines when filling.'**
+  String get swallowGreenColorLineDesc;
+
+  /// No description provided for @swallowRedColorLineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Swallows only red lines when filling.'**
+  String get swallowRedColorLineDesc;
+
+  /// No description provided for @swallowAllColorLineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Swallows red/green/blue lines when filling.'**
+  String get swallowAllColorLineDesc;
 
   /// No description provided for @cropOutsideCanvasDesc.
   ///
@@ -2929,6 +2995,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Active layer has no pixels to invert.'**
   String get noPixelsToInvert;
+
+  /// No description provided for @layerEmptyScanPaperDrawing.
+  ///
+  /// In en, this message translates to:
+  /// **'Active layer empty, cannot scan paper drawing.'**
+  String get layerEmptyScanPaperDrawing;
+
+  /// No description provided for @scanPaperDrawingNoChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'No convertible pixels detected.'**
+  String get scanPaperDrawingNoChanges;
 
   /// No description provided for @edgeSofteningFailed.
   ///

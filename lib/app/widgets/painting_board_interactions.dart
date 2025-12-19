@@ -504,6 +504,16 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateBucketSwallowColorLineMode(BucketSwallowColorLineMode mode) {
+    if (_bucketSwallowColorLineMode == mode) {
+      return;
+    }
+    setState(() => _bucketSwallowColorLineMode = mode);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketSwallowColorLineMode = mode;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateBucketTolerance(int value) {
     final int clamped = value.clamp(0, 255).toInt();
     if (_bucketTolerance == clamped) {
@@ -512,6 +522,17 @@ mixin _PaintingBoardInteractionMixin
     setState(() => _bucketTolerance = clamped);
     final AppPreferences prefs = AppPreferences.instance;
     prefs.bucketTolerance = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateBucketFillGap(int value) {
+    final int clamped = value.clamp(0, 64).toInt();
+    if (_bucketFillGap == clamped) {
+      return;
+    }
+    setState(() => _bucketFillGap = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketFillGap = clamped;
     unawaited(AppPreferences.save());
   }
 

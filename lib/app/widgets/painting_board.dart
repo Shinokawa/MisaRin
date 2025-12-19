@@ -287,7 +287,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _bucketSwallowColorLine = AppPreferences.defaultBucketSwallowColorLine;
+  BucketSwallowColorLineMode _bucketSwallowColorLineMode =
+      AppPreferences.defaultBucketSwallowColorLineMode;
   int _bucketTolerance = AppPreferences.defaultBucketTolerance;
+  int _bucketFillGap = AppPreferences.defaultBucketFillGap;
   int _magicWandTolerance = AppPreferences.defaultMagicWandTolerance;
   bool _brushToolsEraserMode = AppPreferences.defaultBrushToolsEraserMode;
   bool _shapeFillEnabled = AppPreferences.defaultShapeToolFillEnabled;
@@ -1906,7 +1909,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
     _bucketSwallowColorLine = prefs.bucketSwallowColorLine;
+    _bucketSwallowColorLineMode = prefs.bucketSwallowColorLineMode;
     _bucketTolerance = prefs.bucketTolerance;
+    _bucketFillGap = prefs.bucketFillGap;
     _magicWandTolerance = prefs.magicWandTolerance;
     _brushToolsEraserMode = prefs.brushToolsEraserMode;
     _shapeFillEnabled = prefs.shapeToolFillEnabled;
@@ -2455,7 +2460,9 @@ class PaintingBoardState extends _PaintingBoardBase
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
+      bucketSwallowColorLineMode: _bucketSwallowColorLineMode,
       bucketTolerance: _bucketTolerance,
+      bucketFillGap: _bucketFillGap,
       magicWandTolerance: _magicWandTolerance,
       brushToolsEraserMode: _brushToolsEraserMode,
       layerAdjustCropOutside: _layerAdjustCropOutside,
@@ -2510,7 +2517,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);
+    _updateBucketSwallowColorLineMode(snapshot.bucketSwallowColorLineMode);
     _updateBucketTolerance(snapshot.bucketTolerance);
+    _updateBucketFillGap(snapshot.bucketFillGap);
     _updateMagicWandTolerance(snapshot.magicWandTolerance);
     _updateBrushToolsEraserMode(snapshot.brushToolsEraserMode);
     _updateLayerAdjustCropOutside(snapshot.layerAdjustCropOutside);

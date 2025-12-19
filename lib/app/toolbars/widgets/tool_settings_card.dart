@@ -9,7 +9,8 @@ import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../../canvas/canvas_tools.dart';
 import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../../l10n/l10n.dart';
-import '../../preferences/app_preferences.dart' show PenStrokeSliderRange;
+import '../../preferences/app_preferences.dart'
+    show BucketSwallowColorLineMode, PenStrokeSliderRange;
 import '../../constants/pen_constants.dart'
     show kSprayStrokeMin, kSprayStrokeMax;
 import '../../tooltips/hover_detail_tooltip.dart';
@@ -50,13 +51,17 @@ class ToolSettingsCard extends StatefulWidget {
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.bucketSwallowColorLine,
+    required this.bucketSwallowColorLineMode,
     required this.bucketAntialiasLevel,
     required this.onBucketSampleAllLayersChanged,
     required this.onBucketContiguousChanged,
     required this.onBucketSwallowColorLineChanged,
+    required this.onBucketSwallowColorLineModeChanged,
     required this.onBucketAntialiasChanged,
     required this.bucketTolerance,
     required this.onBucketToleranceChanged,
+    required this.bucketFillGap,
+    required this.onBucketFillGapChanged,
     required this.layerAdjustCropOutside,
     required this.onLayerAdjustCropOutsideChanged,
     required this.selectionShape,
@@ -134,13 +139,18 @@ class ToolSettingsCard extends StatefulWidget {
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final bool bucketSwallowColorLine;
+  final BucketSwallowColorLineMode bucketSwallowColorLineMode;
   final int bucketAntialiasLevel;
   final ValueChanged<bool> onBucketSampleAllLayersChanged;
   final ValueChanged<bool> onBucketContiguousChanged;
   final ValueChanged<bool> onBucketSwallowColorLineChanged;
+  final ValueChanged<BucketSwallowColorLineMode>
+      onBucketSwallowColorLineModeChanged;
   final ValueChanged<int> onBucketAntialiasChanged;
   final int bucketTolerance;
   final ValueChanged<int> onBucketToleranceChanged;
+  final int bucketFillGap;
+  final ValueChanged<int> onBucketFillGapChanged;
   final bool layerAdjustCropOutside;
   final ValueChanged<bool> onLayerAdjustCropOutsideChanged;
   final SelectionShape selectionShape;
@@ -295,6 +305,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
               value: widget.bucketTolerance,
               onChanged: widget.onBucketToleranceChanged,
             ),
+            _buildToleranceSlider(
+              theme,
+              label: l10n.fillGap,
+              detail: l10n.fillGapDesc,
+              value: widget.bucketFillGap,
+              onChanged: widget.onBucketFillGapChanged,
+              max: 64,
+            ),
             _buildBucketAntialiasRow(theme),
             _BucketOptionTile(
               title: l10n.sampleAllLayers,
@@ -317,6 +335,68 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
               onChanged: widget.onBucketSwallowColorLineChanged,
               compact: widget.compactLayout,
             ),
+            if (widget.bucketSwallowColorLine) ...[
+              _BucketOptionTile(
+                title: l10n.swallowBlueColorLine,
+                detail: l10n.swallowBlueColorLineDesc,
+                value: widget.bucketSwallowColorLineMode ==
+                    BucketSwallowColorLineMode.blue,
+                onChanged: (value) {
+                  if (!value) {
+                    return;
+                  }
+                  widget.onBucketSwallowColorLineModeChanged(
+                    BucketSwallowColorLineMode.blue,
+                  );
+                },
+                compact: widget.compactLayout,
+              ),
+              _BucketOptionTile(
+                title: l10n.swallowGreenColorLine,
+                detail: l10n.swallowGreenColorLineDesc,
+                value: widget.bucketSwallowColorLineMode ==
+                    BucketSwallowColorLineMode.green,
+                onChanged: (value) {
+                  if (!value) {
+                    return;
+                  }
+                  widget.onBucketSwallowColorLineModeChanged(
+                    BucketSwallowColorLineMode.green,
+                  );
+                },
+                compact: widget.compactLayout,
+              ),
+              _BucketOptionTile(
+                title: l10n.swallowRedColorLine,
+                detail: l10n.swallowRedColorLineDesc,
+                value: widget.bucketSwallowColorLineMode ==
+                    BucketSwallowColorLineMode.red,
+                onChanged: (value) {
+                  if (!value) {
+                    return;
+                  }
+                  widget.onBucketSwallowColorLineModeChanged(
+                    BucketSwallowColorLineMode.red,
+                  );
+                },
+                compact: widget.compactLayout,
+              ),
+              _BucketOptionTile(
+                title: l10n.swallowAllColorLine,
+                detail: l10n.swallowAllColorLineDesc,
+                value: widget.bucketSwallowColorLineMode ==
+                    BucketSwallowColorLineMode.all,
+                onChanged: (value) {
+                  if (!value) {
+                    return;
+                  }
+                  widget.onBucketSwallowColorLineModeChanged(
+                    BucketSwallowColorLineMode.all,
+                  );
+                },
+                compact: widget.compactLayout,
+              ),
+            ],
           ],
           spacing: 16,
           runSpacing: 12,

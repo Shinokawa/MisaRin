@@ -281,6 +281,7 @@ class PaintingFloodFillRequest {
     this.contiguous = true,
     this.mask,
     this.tolerance = 0,
+    this.fillGap = 0,
   });
 
   final int width;
@@ -293,6 +294,7 @@ class PaintingFloodFillRequest {
   final bool contiguous;
   final TransferableTypedData? mask;
   final int tolerance;
+  final int fillGap;
 }
 
 class PaintingSelectionMaskRequest {
@@ -454,6 +456,7 @@ class CanvasPaintingWorker {
       'contiguous': request.contiguous,
       'mask': request.mask,
       'tolerance': request.tolerance,
+      'fillGap': request.fillGap,
     });
     return _parsePatchResponse(
       response,
@@ -1220,6 +1223,7 @@ Object? _paintingWorkerHandleFloodFill(
     contiguous: payload['contiguous'] as bool? ?? true,
     mask: state.selectionMask,
     tolerance: payload['tolerance'] as int? ?? 0,
+    fillGap: payload['fillGap'] as int? ?? 0,
   );
   if (!result.changed) {
     return _paintingWorkerEmptyPatch(0, 0, 0, 0);
@@ -1258,12 +1262,14 @@ Map<String, Object?> _paintingWorkerHandleLegacyFloodFill(
   final int colorValue = payload['color'] as int? ?? 0;
   final int? targetColorValue = payload['targetColor'] as int?;
   final bool contiguous = payload['contiguous'] as bool? ?? true;
+  final int fillGap = payload['fillGap'] as int? ?? 0;
   surface.floodFill(
     start: Offset(startX.toDouble(), startY.toDouble()),
     color: Color(colorValue),
     targetColor: targetColorValue != null ? Color(targetColorValue) : null,
     contiguous: contiguous,
     mask: mask,
+    fillGap: fillGap,
   );
   return _paintingWorkerExportPatch(
     surface: surface,
@@ -1414,6 +1420,7 @@ _FloodFillResult _paintingWorkerFloodFillSurface({
   required bool contiguous,
   Uint8List? mask,
   int tolerance = 0,
+  int fillGap = 0,
 }) {
   final int width = surface.width;
   final int height = surface.height;
@@ -1448,6 +1455,7 @@ _FloodFillResult _paintingWorkerFloodFillSurface({
     startY: startY,
     mask: mask,
     tolerance: tolerance,
+    fillGap: fillGap,
   );
 }
 
@@ -1510,6 +1518,7 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
   required int startY,
   Uint8List? mask,
   int tolerance = 0,
+  int fillGap = 0,
 }) {
   final int startIndex = startY * width + startX;
   if (mask != null && mask[startIndex] == 0) {
@@ -1517,7 +1526,44 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
   }
 
   final Uint8List fillMask = Uint8List(width * height);
-  final List<int> stack = <int>[startIndex];
+  final int clampedFillGap = fillGap.clamp(0, 64);
+  Uint8List? targetMask;
+  Uint8List? blockedMask;
+  int effectiveStartIndex = startIndex;
+  if (clampedFillGap > 0) {
+    targetMask = Uint8List(width * height);
+    for (int i = 0; i < pixels.length; i++) {
+      if (mask != null && mask[i] == 0) {
+        continue;
+      }
+      if (_colorsWithinTolerance(pixels[i], baseColor, tolerance)) {
+        targetMask[i] = 1;
+      }
+    }
+    if (targetMask[startIndex] == 0) {
+      return _FloodFillResult.none();
+    }
+    blockedMask = _paintingWorkerBuildFillGapMask(
+      targetMask,
+      width,
+      height,
+      clampedFillGap,
+    );
+    final int? snappedStart = _paintingWorkerFindFillGapStartIndex(
+      startIndex,
+      targetMask,
+      blockedMask,
+      width,
+      height,
+      clampedFillGap,
+    );
+    if (snappedStart == null) {
+      return _FloodFillResult.none();
+    }
+    effectiveStartIndex = snappedStart;
+  }
+
+  final List<int> stack = <int>[effectiveStartIndex];
 
   int minX = width;
   int minY = height;
@@ -1534,11 +1580,17 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
     if (fillMask[index] == 1) {
       continue;
     }
-    if (!_colorsWithinTolerance(pixels[index], baseColor, tolerance)) {
-      continue;
-    }
-    if (mask != null && mask[index] == 0) {
-      continue;
+    if (clampedFillGap > 0) {
+      if (targetMask![index] == 0 || blockedMask![index] == 1) {
+        continue;
+      }
+    } else {
+      if (!_colorsWithinTolerance(pixels[index], baseColor, tolerance)) {
+        continue;
+      }
+      if (mask != null && mask[index] == 0) {
+        continue;
+      }
     }
 
     fillMask[index] = 1;
@@ -1577,6 +1629,9 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
         }
         if (mask != null && mask[index] == 0) {
           continue; // Respect selection mask
+        }
+        if (blockedMask != null && blockedMask[index] == 1) {
+          continue; // Respect fill gap mask
         }
 
         // Check neighbors for a filled pixel
@@ -1631,6 +1686,151 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
     width: maxX - minX + 1,
     height: maxY - minY + 1,
   );
+}
+
+Uint8List _paintingWorkerBuildFillGapMask(
+  Uint8List targetMask,
+  int width,
+  int height,
+  int fillGap,
+) {
+  if (fillGap <= 0 || targetMask.isEmpty) {
+    return Uint8List(targetMask.length);
+  }
+
+  final Uint8List blocked = Uint8List(targetMask.length);
+  final List<int> queue = <int>[];
+
+  for (int y = 0; y < height; y++) {
+    final int rowOffset = y * width;
+    for (int x = 0; x < width; x++) {
+      final int index = rowOffset + x;
+      if (index < 0 || index >= targetMask.length) {
+        break;
+      }
+      if (targetMask[index] == 0) {
+        continue;
+      }
+      bool isBoundary = false;
+      if (x > 0 && targetMask[index - 1] == 0) {
+        isBoundary = true;
+      } else if (x < width - 1 && targetMask[index + 1] == 0) {
+        isBoundary = true;
+      } else if (y > 0 && targetMask[index - width] == 0) {
+        isBoundary = true;
+      } else if (y < height - 1 && targetMask[index + width] == 0) {
+        isBoundary = true;
+      }
+      if (!isBoundary) {
+        continue;
+      }
+      blocked[index] = 1;
+      queue.add(index);
+    }
+  }
+
+  int head = 0;
+  for (int step = 1; step < fillGap; step++) {
+    final int levelEnd = queue.length;
+    while (head < levelEnd) {
+      final int index = queue[head++];
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          blocked[neighbor] = 1;
+          queue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          blocked[neighbor] = 1;
+          queue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          blocked[neighbor] = 1;
+          queue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
+          blocked[neighbor] = 1;
+          queue.add(neighbor);
+        }
+      }
+    }
+  }
+
+  return blocked;
+}
+
+int? _paintingWorkerFindFillGapStartIndex(
+  int startIndex,
+  Uint8List targetMask,
+  Uint8List blocked,
+  int width,
+  int height,
+  int fillGap,
+) {
+  if (startIndex < 0 ||
+      startIndex >= targetMask.length ||
+      targetMask[startIndex] == 0) {
+    return null;
+  }
+  if (blocked[startIndex] == 0) {
+    return startIndex;
+  }
+
+  final int maxDepth = fillGap + 1;
+  final Set<int> visited = <int>{startIndex};
+  final List<int> queue = <int>[startIndex];
+  int head = 0;
+
+  for (int depth = 0; depth <= maxDepth; depth++) {
+    final int levelEnd = queue.length;
+    while (head < levelEnd) {
+      final int index = queue[head++];
+      if (blocked[index] == 0) {
+        return index;
+      }
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+          queue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+          queue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+          queue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
+          queue.add(neighbor);
+        }
+      }
+    }
+    if (head >= queue.length) {
+      break;
+    }
+  }
+  return null;
 }
 
 bool _colorsWithinTolerance(int a, int b, int tolerance) {

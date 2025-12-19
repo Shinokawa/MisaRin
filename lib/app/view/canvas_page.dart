@@ -252,7 +252,8 @@ class CanvasPageState extends State<CanvasPage> {
   String _suggestedFileName(String extension) {
     final l10n = context.l10n;
     final String trimmedName = _document.name.trim();
-    final bool isUntitled = trimmedName.isEmpty ||
+    final bool isUntitled =
+        trimmedName.isEmpty ||
         trimmedName == '未命名项目' ||
         trimmedName == l10n.untitledProject;
     final String baseName = isUntitled
@@ -553,15 +554,19 @@ class CanvasPageState extends State<CanvasPage> {
       board.markSaved();
       if (showMessage) {
         final String location = saved.path ?? l10n.defaultProjectDirectory;
-        _showInfoBar(l10n.projectSaved(location),
-            severity: InfoBarSeverity.success);
+        _showInfoBar(
+          l10n.projectSaved(location),
+          severity: InfoBarSeverity.success,
+        );
       }
       return true;
     } catch (error) {
       if (mounted) {
         setState(() => _isAutoSaving = false);
-        _showInfoBar(l10n.projectSaveFailed(error),
-            severity: InfoBarSeverity.error);
+        _showInfoBar(
+          l10n.projectSaveFailed(error),
+          severity: InfoBarSeverity.error,
+        );
       }
       return false;
     }
@@ -692,8 +697,10 @@ class CanvasPageState extends State<CanvasPage> {
     } catch (error) {
       if (mounted) {
         setState(() => _isSaving = false);
-        _showInfoBar(l10n.projectSaveFailed(error),
-            severity: InfoBarSeverity.error);
+        _showInfoBar(
+          l10n.projectSaveFailed(error),
+          severity: InfoBarSeverity.error,
+        );
       }
       return false;
     }
@@ -753,8 +760,10 @@ class CanvasPageState extends State<CanvasPage> {
     } catch (error) {
       if (mounted) {
         setState(() => _isSaving = false);
-        _showInfoBar(l10n.projectSaveFailed(error),
-            severity: InfoBarSeverity.error);
+        _showInfoBar(
+          l10n.projectSaveFailed(error),
+          severity: InfoBarSeverity.error,
+        );
       }
       return false;
     }
@@ -877,8 +886,10 @@ class CanvasPageState extends State<CanvasPage> {
       } else {
         final file = File(normalizedPath!);
         await file.writeAsBytes(bytes, flush: true);
-        _showInfoBar(l10n.fileExported(normalizedPath!),
-            severity: InfoBarSeverity.success);
+        _showInfoBar(
+          l10n.fileExported(normalizedPath!),
+          severity: InfoBarSeverity.success,
+        );
       }
       return true;
     } catch (error) {
@@ -894,14 +905,18 @@ class CanvasPageState extends State<CanvasPage> {
   void _applyCanvasRotation(CanvasRotation rotation) {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
-      _showInfoBar(context.l10n.canvasNotReadyTransform,
-          severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.canvasNotReadyTransform,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     final CanvasRotationResult? result = board.rotateCanvas(rotation);
     if (result == null) {
-      _showInfoBar(context.l10n.canvasSizeErrorTransform,
-          severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context.l10n.canvasSizeErrorTransform,
+        severity: InfoBarSeverity.error,
+      );
       return;
     }
 
@@ -924,8 +939,10 @@ class CanvasPageState extends State<CanvasPage> {
   Future<void> _handleResizeImage() async {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
-      _showInfoBar(context.l10n.canvasNotReadyResizeImage,
-          severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.canvasNotReadyResizeImage,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     final ImageResizeConfig? config = await showImageSizeDialog(
@@ -942,8 +959,10 @@ class CanvasPageState extends State<CanvasPage> {
       config.sampling,
     );
     if (result == null) {
-      _showInfoBar(context.l10n.resizeImageFailed,
-          severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context.l10n.resizeImageFailed,
+        severity: InfoBarSeverity.error,
+      );
       return;
     }
     _applyCanvasResizeResult(result);
@@ -968,8 +987,10 @@ class CanvasPageState extends State<CanvasPage> {
   Future<void> _handleResizeCanvas() async {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
-      _showInfoBar(context.l10n.canvasNotReadyResizeCanvas,
-          severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.canvasNotReadyResizeCanvas,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     final CanvasSizeConfig? config = await showCanvasSizeDialog(
@@ -988,8 +1009,10 @@ class CanvasPageState extends State<CanvasPage> {
       config.anchor,
     );
     if (result == null) {
-      _showInfoBar(context.l10n.resizeCanvasFailed,
-          severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context.l10n.resizeCanvasFailed,
+        severity: InfoBarSeverity.error,
+      );
       return;
     }
     _applyCanvasResizeResult(result);
@@ -1007,10 +1030,7 @@ class CanvasPageState extends State<CanvasPage> {
     await _closePage();
   }
 
-  Future<_ExitAction?> _showExitDialog({
-    String? title,
-    String? content,
-  }) {
+  Future<_ExitAction?> _showExitDialog({String? title, String? content}) {
     final l10n = context.l10n;
     return showDialog<_ExitAction>(
       context: context,
@@ -1289,8 +1309,10 @@ class CanvasPageState extends State<CanvasPage> {
     }
     final List<DropItem> candidates = _filterSupportedDropItems(items);
     if (candidates.isEmpty) {
-      _showInfoBar(context.l10n.noSupportedImageFormats,
-          severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.noSupportedImageFormats,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     int createdCount = 0;
@@ -1325,8 +1347,10 @@ class CanvasPageState extends State<CanvasPage> {
         severity: InfoBarSeverity.success,
       );
     } else {
-      _showInfoBar(context.l10n.dropImageCreateFailed,
-          severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.dropImageCreateFailed,
+        severity: InfoBarSeverity.warning,
+      );
     }
   }
 
@@ -1336,14 +1360,18 @@ class CanvasPageState extends State<CanvasPage> {
     }
     final PaintingBoardState? board = _activeBoard;
     if (board == null || !board.isBoardReady) {
-      _showInfoBar(context.l10n.canvasNotReadyDrop,
-          severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.canvasNotReadyDrop,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     final List<DropItem> candidates = _filterSupportedDropItems(items);
     if (candidates.isEmpty) {
-      _showInfoBar(context.l10n.noSupportedImageFormats,
-          severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.noSupportedImageFormats,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     int insertedCount = 0;
@@ -1720,6 +1748,14 @@ class CanvasPageState extends State<CanvasPage> {
         }
         board.showBinarizeAdjustments();
       },
+      scanPaperDrawing: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法扫描纸绘。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        unawaited(board.scanPaperDrawing());
+      },
       layerFreeTransform: () {
         final board = _activeBoard;
         board?.toggleLayerFreeTransform();
@@ -1900,7 +1936,9 @@ class _CanvasStatusOverlay extends StatelessWidget {
             ? '${info.cursorPosition!.dx.round()}, ${info.cursorPosition!.dy.round()}'
             : '--';
         final String grid = info.pixelGridVisible ? l10n.on : l10n.off;
-        final String blackWhite = info.viewBlackWhiteEnabled ? l10n.on : l10n.off;
+        final String blackWhite = info.viewBlackWhiteEnabled
+            ? l10n.on
+            : l10n.off;
         final String mirror = info.viewMirrorEnabled ? l10n.on : l10n.off;
         final String perspective = (() {
           final PerspectiveGuideMode mode = info.perspectiveMode;

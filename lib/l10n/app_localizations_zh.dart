@@ -502,6 +502,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuBinarizeEllipsis => '二值化…';
 
   @override
+  String get menuScanPaperDrawing => '扫描纸绘';
+
+  @override
   String get menuInvertColors => '颜色反转';
 
   @override
@@ -851,6 +854,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tolerance => '容差';
 
   @override
+  String get fillGap => '填充间隔';
+
+  @override
   String get sampleAllLayers => '跨图层';
 
   @override
@@ -858,6 +864,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get swallowColorLine => '吞并色线';
+
+  @override
+  String get swallowBlueColorLine => '吞并蓝色线';
+
+  @override
+  String get swallowGreenColorLine => '吞并绿色线';
+
+  @override
+  String get swallowRedColorLine => '吞并红色线';
+
+  @override
+  String get swallowAllColorLine => '吞并所有色线';
 
   @override
   String get cropOutsideCanvas => '裁剪出界画面';
@@ -1025,6 +1043,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toleranceDesc => '控制油漆桶或魔棒判断\"颜色足够相似\"的阈值，容差高会一次抓取更多相近颜色。';
 
   @override
+  String get fillGapDesc =>
+      '在油漆桶填充时为边缘预留间隔，防止通过小缺口漏色；数值越大越能封住更大的缺口，但可能留下未填充的边缘。';
+
+  @override
   String get antialiasingSliderDesc =>
       '为笔刷或填色的边缘增加多重采样平滑，在平滑边缘的同时保留线条密度，0 级保持像素风格。';
 
@@ -1082,6 +1104,18 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get swallowColorLineDesc =>
       '色块填充时自动吞并指定色线，消除描线与色块之间的白边，是 Retas 色线流程专用。';
+
+  @override
+  String get swallowBlueColorLineDesc => '色块填充时只吞并蓝色线。';
+
+  @override
+  String get swallowGreenColorLineDesc => '色块填充时只吞并绿色线。';
+
+  @override
+  String get swallowRedColorLineDesc => '色块填充时只吞并红色线。';
+
+  @override
+  String get swallowAllColorLineDesc => '色块填充时吞并红/绿/蓝色线。';
 
   @override
   String get cropOutsideCanvasDesc => '调整图层时把超过画布的像素裁掉，保持文档边缘干净；关闭可保留全部像素。';
@@ -1519,6 +1553,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get noPixelsToInvert => '当前图层没有可反转的像素。';
+
+  @override
+  String get layerEmptyScanPaperDrawing => '当前图层为空，无法扫描纸绘。';
+
+  @override
+  String get scanPaperDrawingNoChanges => '未检测到可转换的像素。';
 
   @override
   String get edgeSofteningFailed => '无法对当前图层应用边缘柔化，图层可能为空或已锁定。';
@@ -3052,7 +3092,22 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuBinarizeEllipsis => '二值化…';
 
   @override
+  String get menuScanPaperDrawing => '掃描紙繪';
+
+  @override
   String get menuInvertColors => '顏色反轉';
+
+  @override
+  String get swallowBlueColorLine => '吞併藍色線';
+
+  @override
+  String get swallowGreenColorLine => '吞併綠色線';
+
+  @override
+  String get swallowRedColorLine => '吞併紅色線';
+
+  @override
+  String get swallowAllColorLine => '吞併所有色線';
 
   @override
   String get hollowStroke => '空心描邊';
@@ -3071,6 +3126,24 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get eraseOccludedPartsDesc => '開啟後，同一圖層裡後畫的空心線條會吃掉與其他線條的重合部分。';
+
+  @override
+  String get swallowBlueColorLineDesc => '色塊填充時只吞併藍色線。';
+
+  @override
+  String get swallowGreenColorLineDesc => '色塊填充時只吞併綠色線。';
+
+  @override
+  String get swallowRedColorLineDesc => '色塊填充時只吞併紅色線。';
+
+  @override
+  String get swallowAllColorLineDesc => '色塊填充時吞併紅/綠/藍色線。';
+
+  @override
+  String get layerEmptyScanPaperDrawing => '目前圖層為空，無法掃描紙繪。';
+
+  @override
+  String get scanPaperDrawingNoChanges => '未偵測到可轉換的像素。';
 
   @override
   String get fontFamily => '字體系列';

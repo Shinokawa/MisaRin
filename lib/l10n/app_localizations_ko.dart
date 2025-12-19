@@ -504,6 +504,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuBinarizeEllipsis => '이진화…';
 
   @override
+  String get menuScanPaperDrawing => '스캔 종이그림';
+
+  @override
   String get menuInvertColors => '색상 반전';
 
   @override
@@ -861,6 +864,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get tolerance => '허용 오차';
 
   @override
+  String get fillGap => '틈새 닫기';
+
+  @override
   String get sampleAllLayers => '모든 레이어 샘플링';
 
   @override
@@ -868,6 +874,18 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get swallowColorLine => '색상 선 삼키기';
+
+  @override
+  String get swallowBlueColorLine => '파란색 선 삼키기';
+
+  @override
+  String get swallowGreenColorLine => '초록색 선 삼키기';
+
+  @override
+  String get swallowRedColorLine => '빨간색 선 삼키기';
+
+  @override
+  String get swallowAllColorLine => '모든 색상 선 삼키기';
 
   @override
   String get cropOutsideCanvas => '캔버스 밖 자르기';
@@ -1038,6 +1056,10 @@ class AppLocalizationsKo extends AppLocalizations {
       '채우기 또는 자동 선택 시 \'색상 유사성\'의 허용 오차를 제어합니다. 높을수록 비슷한 색상을 더 많이 포함합니다.';
 
   @override
+  String get fillGapDesc =>
+      '채우기 시 가장자리 주변에 여유를 두어 작은 틈으로 색이 새는 것을 방지합니다. 값이 클수록 더 큰 틈를 막지만, 채우지 않은 여백이 남을 수 있습니다.';
+
+  @override
   String get antialiasingSliderDesc =>
       '브러시 또는 채우기 가장자리에 말티샘플링 스무딩을 추가합니다. 레벨 0은 픽셀 스타일을 유지합니다.';
 
@@ -1103,6 +1125,18 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get swallowColorLineDesc =>
       '색상 선으로 채우기를 자동으로 확장하여 흰색 틈을 없액니다. Retas 워크플로 전용입니다.';
+
+  @override
+  String get swallowBlueColorLineDesc => '채우기 시 파란색 선만 삼킵니다.';
+
+  @override
+  String get swallowGreenColorLineDesc => '채우기 시 초록색 선만 삼킵니다.';
+
+  @override
+  String get swallowRedColorLineDesc => '채우기 시 빨간색 선만 삼킵니다.';
+
+  @override
+  String get swallowAllColorLineDesc => '채우기 시 빨강/초록/파랑 선을 삼킵니다.';
 
   @override
   String get cropOutsideCanvasDesc =>
@@ -1544,6 +1578,12 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get noPixelsToInvert => '반전할 픽셀이 없습니다.';
+
+  @override
+  String get layerEmptyScanPaperDrawing => '활성 레이어가 비어 있어 스캔 종이그림을 적용할 수 없습니다.';
+
+  @override
+  String get scanPaperDrawingNoChanges => '변환 가능한 픽셀이 감지되지 않았습니다.';
 
   @override
   String get edgeSofteningFailed =>

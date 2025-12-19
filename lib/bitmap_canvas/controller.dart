@@ -636,6 +636,7 @@ class BitmapCanvasController extends ChangeNotifier {
     bool sampleAllLayers = false,
     List<Color>? swallowColors,
     int tolerance = 0,
+    int fillGap = 0,
     int antialiasLevel = 0,
   }) => _fillFloodFill(
     this,
@@ -645,6 +646,7 @@ class BitmapCanvasController extends ChangeNotifier {
     sampleAllLayers: sampleAllLayers,
     swallowColors: swallowColors,
     tolerance: tolerance,
+    fillGap: fillGap,
     antialiasLevel: antialiasLevel,
   );
 
@@ -1007,6 +1009,7 @@ class BitmapCanvasController extends ChangeNotifier {
     Color? targetColor,
     bool contiguous = true,
     int tolerance = 0,
+    int fillGap = 0,
   }) => _controllerExecuteFloodFill(
     this,
     start: start,
@@ -1014,6 +1017,7 @@ class BitmapCanvasController extends ChangeNotifier {
     targetColor: targetColor,
     contiguous: contiguous,
     tolerance: tolerance,
+    fillGap: fillGap,
   );
 
   Future<Uint8List?> _executeSelectionMask({

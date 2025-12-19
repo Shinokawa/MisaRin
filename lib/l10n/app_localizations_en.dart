@@ -513,6 +513,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuBinarizeEllipsis => 'Binarize…';
 
   @override
+  String get menuScanPaperDrawing => 'Scan Paper Drawing';
+
+  @override
   String get menuInvertColors => 'Invert Colors';
 
   @override
@@ -873,6 +876,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tolerance => 'Tolerance';
 
   @override
+  String get fillGap => 'Fill Gap';
+
+  @override
   String get sampleAllLayers => 'Sample All Layers';
 
   @override
@@ -880,6 +886,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get swallowColorLine => 'Swallow Color Line';
+
+  @override
+  String get swallowBlueColorLine => 'Swallow Blue Line';
+
+  @override
+  String get swallowGreenColorLine => 'Swallow Green Line';
+
+  @override
+  String get swallowRedColorLine => 'Swallow Red Line';
+
+  @override
+  String get swallowAllColorLine => 'Swallow All Lines';
 
   @override
   String get cropOutsideCanvas => 'Crop Outside Canvas';
@@ -1051,6 +1069,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Controls the threshold for \'color similarity\' for Bucket or Magic Wand. Higher tolerance grabs more similar colors.';
 
   @override
+  String get fillGapDesc =>
+      'Adds a buffer near edges during bucket fill to prevent leaks through small gaps. Higher values close larger gaps but may leave unfilled margins.';
+
+  @override
   String get antialiasingSliderDesc =>
       'Adds multi-sampling smoothing to brush or fill edges, preserving line density. Level 0 keeps pixel style.';
 
@@ -1124,6 +1146,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get swallowColorLineDesc =>
       'Automatically expands fill into color lines to remove white edges. Dedicated for Retas workflow.';
+
+  @override
+  String get swallowBlueColorLineDesc =>
+      'Swallows only blue lines when filling.';
+
+  @override
+  String get swallowGreenColorLineDesc =>
+      'Swallows only green lines when filling.';
+
+  @override
+  String get swallowRedColorLineDesc => 'Swallows only red lines when filling.';
+
+  @override
+  String get swallowAllColorLineDesc =>
+      'Swallows red/green/blue lines when filling.';
 
   @override
   String get cropOutsideCanvasDesc =>
@@ -1586,6 +1623,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noPixelsToInvert => 'Active layer has no pixels to invert.';
+
+  @override
+  String get layerEmptyScanPaperDrawing =>
+      'Active layer empty, cannot scan paper drawing.';
+
+  @override
+  String get scanPaperDrawingNoChanges => 'No convertible pixels detected.';
 
   @override
   String get edgeSofteningFailed =>

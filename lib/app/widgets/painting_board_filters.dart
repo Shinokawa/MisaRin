@@ -19,6 +19,10 @@ const double _kLeakRemovalMaxRadius = 20.0;
 const double _kMorphologyMaxRadius = 20.0;
 const double _kBlackWhiteMinRange = 1.0;
 const double _kDefaultBinarizeAlphaThreshold = 128.0;
+const int _kScanPaperWhiteMaxThreshold = 190;
+const int _kScanPaperWhiteDeltaThreshold = 90;
+const int _kScanPaperColorDistanceThresholdSq = 180 * 180;
+const int _kScanPaperBlackDistanceThresholdSq = 320 * 320;
 const ColorFilter _kViewBlackWhiteColorFilter = ColorFilter.matrix(<double>[
   0.299,
   0.587,
@@ -1075,7 +1079,8 @@ mixin _PaintingBoardFilterMixin
             hasPartialAlpha = true;
           }
         }
-        final bool hasContent = (bitmap != null &&
+        final bool hasContent =
+            (bitmap != null &&
                 (layer.bitmapWidth ?? 0) > 0 &&
                 (layer.bitmapHeight ?? 0) > 0) ||
             layer.fillColor != null;
@@ -1278,6 +1283,86 @@ mixin _PaintingBoardFilterMixin
       text: original.text,
       cloneBitmap: false,
     );
+  }
+
+  Future<void> scanPaperDrawing() async {
+    final l10n = context.l10n;
+    if (_controller.frame == null) {
+      _showFilterMessage(l10n.canvasNotReady);
+      return;
+    }
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      _showFilterMessage(l10n.selectEditableLayerFirst);
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      _showFilterMessage(l10n.cannotLocateLayer);
+      return;
+    }
+    if (layer.locked) {
+      _showFilterMessage(l10n.layerLockedNoFilter);
+      return;
+    }
+
+    await _controller.waitForPendingWorkerTasks();
+    final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
+    final int index = snapshot.indexWhere((item) => item.id == activeLayerId);
+    if (index < 0) {
+      _showFilterMessage(l10n.cannotLocateLayer);
+      return;
+    }
+    final CanvasLayerData data = snapshot[index];
+    final Uint8List? bitmap = data.bitmap;
+    final bool hasBitmap =
+        bitmap != null &&
+        bitmap.isNotEmpty &&
+        (data.bitmapWidth ?? 0) > 0 &&
+        (data.bitmapHeight ?? 0) > 0;
+    final bool hasFill = data.fillColor != null && data.fillColor!.alpha != 0;
+    if (!hasBitmap && !hasFill) {
+      _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
+      return;
+    }
+
+    final _ScanPaperDrawingComputeResult result;
+    try {
+      result = await _generateScanPaperDrawingResult(bitmap, data.fillColor);
+    } catch (error, stackTrace) {
+      debugPrint('Scan paper drawing apply failed: $error');
+      debugPrint('$stackTrace');
+      _showFilterMessage(l10n.filterApplyFailed);
+      return;
+    }
+
+    if (!result.changed) {
+      _showFilterMessage(l10n.scanPaperDrawingNoChanges);
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    final CanvasLayerData updated = CanvasLayerData(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      opacity: data.opacity,
+      locked: data.locked,
+      clippingMask: data.clippingMask,
+      blendMode: data.blendMode,
+      fillColor: result.fillColor != null ? Color(result.fillColor!) : null,
+      bitmap: result.bitmap,
+      bitmapWidth: result.bitmap != null ? data.bitmapWidth : null,
+      bitmapHeight: result.bitmap != null ? data.bitmapHeight : null,
+      bitmapLeft: result.bitmap != null ? data.bitmapLeft : null,
+      bitmapTop: result.bitmap != null ? data.bitmapTop : null,
+      text: data.text,
+      cloneBitmap: false,
+    );
+    _controller.replaceLayer(activeLayerId, updated);
+    _controller.setActiveLayer(activeLayerId);
+    setState(() {});
+    _markDirty();
   }
 
   Future<void> invertActiveLayerColors() async {
@@ -1542,7 +1627,8 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     final CanvasLayerData activeLayer = snapshot[layerIndex];
-    final bool hasBitmap = activeLayer.bitmap != null &&
+    final bool hasBitmap =
+        activeLayer.bitmap != null &&
         activeLayer.bitmap!.isNotEmpty &&
         (activeLayer.bitmapWidth ?? 0) > 0 &&
         (activeLayer.bitmapHeight ?? 0) > 0;
@@ -1591,13 +1677,16 @@ mixin _PaintingBoardFilterMixin
       _teardownColorRangeSession(restoreOriginal: false);
       return;
     }
-    final int maxSelectable =
-        math.min(_kColorRangeMaxSelectableColors, math.max(1, count));
+    final int maxSelectable = math.min(
+      _kColorRangeMaxSelectableColors,
+      math.max(1, count),
+    );
     setState(() {
       _colorRangeTotalColors = count;
       final int previous = _colorRangeSelectedColors;
-      _colorRangeSelectedColors =
-          previous > 0 ? previous.clamp(1, maxSelectable) : maxSelectable;
+      _colorRangeSelectedColors = previous > 0
+          ? previous.clamp(1, maxSelectable)
+          : maxSelectable;
       _colorRangeLoading = false;
     });
     _scheduleColorRangePreview(immediate: true);
@@ -1730,8 +1819,10 @@ mixin _PaintingBoardFilterMixin
           _colorRangeSession?.layerId != session.layerId) {
         return;
       }
-      final CanvasLayerData adjusted =
-          _buildColorRangeAdjustedLayer(baseLayer, result);
+      final CanvasLayerData adjusted = _buildColorRangeAdjustedLayer(
+        baseLayer,
+        result,
+      );
       session.previewLayer = adjusted;
       _controller.replaceLayer(session.layerId, adjusted);
       _controller.setActiveLayer(session.layerId);
@@ -1800,8 +1891,10 @@ mixin _PaintingBoardFilterMixin
         return;
       }
       await _pushUndoSnapshot();
-      final CanvasLayerData adjusted =
-          _buildColorRangeAdjustedLayer(baseLayer, result);
+      final CanvasLayerData adjusted = _buildColorRangeAdjustedLayer(
+        baseLayer,
+        result,
+      );
       _controller.replaceLayer(session.layerId, adjusted);
       _controller.setActiveLayer(session.layerId);
       _markDirty();
@@ -1906,15 +1999,14 @@ mixin _PaintingBoardFilterMixin
       return 0;
     }
     try {
-      return await compute(
-        _countUniqueColorsForLayer,
-        <Object?>[bitmap, fillColor],
-      );
+      return await compute(_countUniqueColorsForLayer, <Object?>[
+        bitmap,
+        fillColor,
+      ]);
     } catch (_) {
       return _countUniqueColorsForLayer(<Object?>[bitmap, fillColor]);
     }
   }
-
 }
 
 class _HueSaturationControls extends StatelessWidget {
@@ -2289,8 +2381,10 @@ class _MorphologyControls extends StatelessWidget {
           children: [
             Text(label, style: theme.typography.bodyStrong),
             const Spacer(),
-            Text('${clamped.toStringAsFixed(0)} px',
-                style: theme.typography.caption),
+            Text(
+              '${clamped.toStringAsFixed(0)} px',
+              style: theme.typography.caption,
+            ),
           ],
         ),
         Slider(
@@ -2431,10 +2525,7 @@ class _ColorRangeCardBody extends StatelessWidget {
           style: theme.typography.caption,
         ),
         const SizedBox(height: 6),
-        Text(
-          '降低颜色数量会产生类似木刻/分色的效果，滑动后立即预览。',
-          style: theme.typography.caption,
-        ),
+        Text('降低颜色数量会产生类似木刻/分色的效果，滑动后立即预览。', style: theme.typography.caption),
       ],
     );
   }
@@ -3102,8 +3193,7 @@ int _countUniqueColorsInRgba(Uint8List rgba) {
     if (alpha == 0) {
       continue;
     }
-    final int color =
-        (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
+    final int color = (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
     colors.add(color);
   }
   return colors.length;
@@ -3120,11 +3210,7 @@ Future<_ColorRangeComputeResult> _generateColorRangeResult(
   Color? fillColor,
   int targetColors,
 ) async {
-  final List<Object?> args = <Object?>[
-    bitmap,
-    fillColor?.value,
-    targetColors,
-  ];
+  final List<Object?> args = <Object?>[bitmap, fillColor?.value, targetColors];
   if (kIsWeb) {
     return _computeColorRangeReduction(args);
   }
@@ -3180,8 +3266,9 @@ _ColorRangeComputeResult _applyColorRangeReduction(
     }
     buckets.addAll(splits);
   }
-  final List<int> palette =
-      buckets.map((bucket) => bucket.averageColor).toList(growable: false);
+  final List<int> palette = buckets
+      .map((bucket) => bucket.averageColor)
+      .toList(growable: false);
   final Map<int, int> quantizedColorMap = <int, int>{};
   final Map<int, int> quantizedWeights = <int, int>{};
   histogram.forEach((int color, int count) {
@@ -3205,7 +3292,8 @@ _ColorRangeComputeResult _applyColorRangeReduction(
         reducedBitmap[i + 1],
         reducedBitmap[i + 2],
       );
-      final int mapped = quantizedColorMap[quantKey] ??
+      final int mapped =
+          quantizedColorMap[quantKey] ??
           _findNearestPaletteColor(quantKey, palette);
       reducedBitmap[i] = (mapped >> 16) & 0xFF;
       reducedBitmap[i + 1] = (mapped >> 8) & 0xFF;
@@ -3217,24 +3305,22 @@ _ColorRangeComputeResult _applyColorRangeReduction(
     final int alpha = (fillColor >> 24) & 0xFF;
     if (alpha != 0) {
       final int quantKey = _quantizeColorInt(fillColor & 0xFFFFFF);
-      final int mapped = quantizedColorMap[quantKey] ??
+      final int mapped =
+          quantizedColorMap[quantKey] ??
           _findNearestPaletteColor(quantKey, palette);
       mappedFill = (fillColor & 0xFF000000) | mapped;
     }
   }
-  return _ColorRangeComputeResult(
-    bitmap: reducedBitmap,
-    fillColor: mappedFill,
-  );
+  return _ColorRangeComputeResult(bitmap: reducedBitmap, fillColor: mappedFill);
 }
 
 int _quantizeColor(int r, int g, int b) {
-  final int qr = (r ~/ _kColorRangeQuantizationStep) *
-      _kColorRangeQuantizationStep;
-  final int qg = (g ~/ _kColorRangeQuantizationStep) *
-      _kColorRangeQuantizationStep;
-  final int qb = (b ~/ _kColorRangeQuantizationStep) *
-      _kColorRangeQuantizationStep;
+  final int qr =
+      (r ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
+  final int qg =
+      (g ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
+  final int qb =
+      (b ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
   return (qr << 16) | (qg << 8) | qb;
 }
 
@@ -3260,12 +3346,12 @@ Map<int, int> _buildColorHistogram(Uint8List? bitmap, int? fillColor) {
       <int, _ColorRangeHistogramBucket>{};
 
   void addColor(int r, int g, int b) {
-    final int qr = (r ~/ _kColorRangeQuantizationStep) *
-        _kColorRangeQuantizationStep;
-    final int qg = (g ~/ _kColorRangeQuantizationStep) *
-        _kColorRangeQuantizationStep;
-    final int qb = (b ~/ _kColorRangeQuantizationStep) *
-        _kColorRangeQuantizationStep;
+    final int qr =
+        (r ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
+    final int qg =
+        (g ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
+    final int qb =
+        (b ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
     final int key = (qr << 16) | (qg << 8) | qb;
     final _ColorRangeHistogramBucket bucket = buckets.putIfAbsent(
       key,
@@ -3357,6 +3443,18 @@ class _ColorRangeComputeResult {
   final int? fillColor;
 }
 
+class _ScanPaperDrawingComputeResult {
+  _ScanPaperDrawingComputeResult({
+    this.bitmap,
+    this.fillColor,
+    required this.changed,
+  });
+
+  final Uint8List? bitmap;
+  final int? fillColor;
+  final bool changed;
+}
+
 class _ColorCountEntry {
   _ColorCountEntry({required this.color, required this.count});
 
@@ -3386,10 +3484,9 @@ class _ColorRangeBucket {
 
   _ColorRangeBucket.fromHistogram(Map<int, int> histogram)
     : entries = histogram.entries
-          .map((entry) => _ColorCountEntry(
-                color: entry.key,
-                count: entry.value,
-              ))
+          .map(
+            (entry) => _ColorCountEntry(color: entry.key, count: entry.value),
+          )
           .toList() {
     _recomputeBounds();
   }
@@ -3405,10 +3502,8 @@ class _ColorRangeBucket {
 
   bool get isEmpty => entries.isEmpty;
 
-  int get maxRange => math.max(
-    _maxR - _minR,
-    math.max(_maxG - _minG, _maxB - _minB),
-  );
+  int get maxRange =>
+      math.max(_maxR - _minR, math.max(_maxG - _minG, _maxB - _minB));
 
   int get averageColor {
     if (entries.isEmpty || totalCount <= 0) {
@@ -3446,8 +3541,10 @@ class _ColorRangeBucket {
       }
     }
     final List<_ColorCountEntry> first = sorted.sublist(0, splitIndex + 1);
-    final List<_ColorCountEntry> second =
-        sorted.sublist(splitIndex + 1, sorted.length);
+    final List<_ColorCountEntry> second = sorted.sublist(
+      splitIndex + 1,
+      sorted.length,
+    );
     if (first.isEmpty || second.isEmpty) {
       final int mid = sorted.length ~/ 2;
       return <_ColorRangeBucket>[
@@ -3804,6 +3901,138 @@ bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
   return false;
 }
 
+Future<_ScanPaperDrawingComputeResult> _generateScanPaperDrawingResult(
+  Uint8List? bitmap,
+  Color? fillColor,
+) async {
+  final List<Object?> args = <Object?>[bitmap, fillColor?.value];
+  if (kIsWeb) {
+    return _computeScanPaperDrawing(args);
+  }
+  try {
+    return await compute(_computeScanPaperDrawing, args);
+  } on UnsupportedError catch (_) {
+    return _computeScanPaperDrawing(args);
+  }
+}
+
+int _scanPaperDrawingMapRgbToArgb(int r, int g, int b) {
+  final int maxChannel = math.max(r, math.max(g, b));
+  final int minChannel = math.min(r, math.min(g, b));
+  final int delta = maxChannel - minChannel;
+  if (maxChannel >= _kScanPaperWhiteMaxThreshold &&
+      delta <= _kScanPaperWhiteDeltaThreshold) {
+    return 0;
+  }
+
+  final int r2 = r * r;
+  final int g2 = g * g;
+  final int b2 = b * b;
+  final int dr = 255 - r;
+  final int dg = 255 - g;
+  final int db = 255 - b;
+
+  final int distRed = dr * dr + g2 + b2;
+  final int distGreen = r2 + dg * dg + b2;
+  final int distBlue = r2 + g2 + db * db;
+  int minDist = distRed;
+  int mapped = 0xFFFF0000;
+  if (distGreen < minDist) {
+    minDist = distGreen;
+    mapped = 0xFF00FF00;
+  }
+  if (distBlue < minDist) {
+    minDist = distBlue;
+    mapped = 0xFF0000FF;
+  }
+  if (minDist <= _kScanPaperColorDistanceThresholdSq) {
+    return mapped;
+  }
+
+  final int distBlack = r2 + g2 + b2;
+  if (distBlack <= _kScanPaperBlackDistanceThresholdSq) {
+    return 0xFF000000;
+  }
+  return 0;
+}
+
+_ScanPaperDrawingComputeResult _computeScanPaperDrawing(List<Object?> args) {
+  final Uint8List? bitmap = args[0] as Uint8List?;
+  final int? fillColor = args[1] as int?;
+
+  Uint8List? processed = bitmap != null ? Uint8List.fromList(bitmap) : null;
+  bool changed = false;
+  bool hadVisiblePixels = false;
+
+  if (processed != null) {
+    for (int i = 0; i + 3 < processed.length; i += 4) {
+      final int alpha = processed[i + 3];
+      if (alpha == 0) {
+        continue;
+      }
+      hadVisiblePixels = true;
+      final int r = processed[i];
+      final int g = processed[i + 1];
+      final int b = processed[i + 2];
+      final int mapped = _scanPaperDrawingMapRgbToArgb(r, g, b);
+      if (mapped == 0) {
+        if (alpha != 0) {
+          changed = true;
+        }
+        processed[i] = 0;
+        processed[i + 1] = 0;
+        processed[i + 2] = 0;
+        processed[i + 3] = 0;
+        continue;
+      }
+      final int targetR = (mapped >> 16) & 0xFF;
+      final int targetG = (mapped >> 8) & 0xFF;
+      final int targetB = mapped & 0xFF;
+      if (alpha != 255 || r != targetR || g != targetG || b != targetB) {
+        changed = true;
+      }
+      processed[i] = targetR;
+      processed[i + 1] = targetG;
+      processed[i + 2] = targetB;
+      processed[i + 3] = 255;
+    }
+    if (!_filterBitmapHasVisiblePixels(processed)) {
+      processed = null;
+      if (hadVisiblePixels) {
+        changed = true;
+      }
+    }
+  }
+
+  int? processedFill;
+  if (fillColor != null) {
+    final int alpha = (fillColor >> 24) & 0xFF;
+    if (alpha != 0) {
+      final int r = (fillColor >> 16) & 0xFF;
+      final int g = (fillColor >> 8) & 0xFF;
+      final int b = fillColor & 0xFF;
+      final int mapped = _scanPaperDrawingMapRgbToArgb(r, g, b);
+      if (mapped == 0) {
+        processedFill = null;
+        changed = true;
+      } else {
+        processedFill = mapped;
+        if (mapped != fillColor) {
+          changed = true;
+        }
+      }
+    } else {
+      processedFill = fillColor;
+    }
+  }
+
+  return _ScanPaperDrawingComputeResult(
+    bitmap: processed,
+    fillColor: processedFill,
+    changed: changed,
+  );
+}
+
 double _gaussianBlurSigmaForRadius(double radius) {
   final double clampedRadius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
   if (clampedRadius <= 0) {
@@ -3866,10 +4095,14 @@ void _filterApplyMorphologyToBitmap(
   if (bitmap.isEmpty || width <= 0 || height <= 0) {
     return;
   }
-  final int clampedRadius =
-      radius.clamp(1, _kMorphologyMaxRadius.toInt()).toInt();
-  final Uint8List? luminanceMask =
-      _filterBuildLuminanceMaskIfFullyOpaque(bitmap, width, height);
+  final int clampedRadius = radius
+      .clamp(1, _kMorphologyMaxRadius.toInt())
+      .toInt();
+  final Uint8List? luminanceMask = _filterBuildLuminanceMaskIfFullyOpaque(
+    bitmap,
+    width,
+    height,
+  );
   final bool preserveAlpha = luminanceMask != null;
   final Uint8List scratch = Uint8List(bitmap.length);
   Uint8List src = bitmap;
@@ -3987,8 +4220,11 @@ void _filterApplyLeakRemovalToBitmap(
     return;
   }
   // 全不透明图层使用亮度掩码推导覆盖度，避免因缺少透明度信息而无法检测针眼。
-  final Uint8List? luminanceMask =
-      _filterBuildLuminanceMaskIfFullyOpaque(bitmap, width, height);
+  final Uint8List? luminanceMask = _filterBuildLuminanceMaskIfFullyOpaque(
+    bitmap,
+    width,
+    height,
+  );
   final bool useLuminanceMask = luminanceMask != null;
   final int pixelCount = width * height;
   final Uint8List holeMask = Uint8List(pixelCount);

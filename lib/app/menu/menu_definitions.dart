@@ -292,7 +292,10 @@ class MenuDefinitionBuilder {
     ];
     if (transformEntries.isNotEmpty) {
       entries.add(
-        MenuSubmenuEntry(label: l10n.menuImageTransform, entries: transformEntries),
+        MenuSubmenuEntry(
+          label: l10n.menuImageTransform,
+          entries: transformEntries,
+        ),
       );
     }
 
@@ -344,12 +347,17 @@ class MenuDefinitionBuilder {
         ),
     ];
     if (newEntries.isNotEmpty) {
-      entries.add(MenuSubmenuEntry(label: l10n.menuNewSubmenu, entries: newEntries));
+      entries.add(
+        MenuSubmenuEntry(label: l10n.menuNewSubmenu, entries: newEntries),
+      );
     }
 
     if (handler.mergeLayerDown != null) {
       entries.add(
-        MenuActionEntry(label: l10n.menuMergeDown, action: handler.mergeLayerDown),
+        MenuActionEntry(
+          label: l10n.menuMergeDown,
+          action: handler.mergeLayerDown,
+        ),
       );
     }
 
@@ -444,7 +452,9 @@ class MenuDefinitionBuilder {
 
     final List<MenuEntry> entries = <MenuEntry>[];
     if (paletteEntries.isNotEmpty) {
-      entries.add(MenuSubmenuEntry(label: l10n.menuPalette, entries: paletteEntries));
+      entries.add(
+        MenuSubmenuEntry(label: l10n.menuPalette, entries: paletteEntries),
+      );
     }
     final List<MenuEntry> referenceEntries = <MenuEntry>[
       if (handler.createReferenceImage != null)
@@ -470,7 +480,10 @@ class MenuDefinitionBuilder {
     ];
     if (referenceEntries.isNotEmpty) {
       entries.add(
-        MenuSubmenuEntry(label: l10n.menuReferenceImage, entries: referenceEntries),
+        MenuSubmenuEntry(
+          label: l10n.menuReferenceImage,
+          entries: referenceEntries,
+        ),
       );
     }
     if (entries.isEmpty) {
@@ -562,14 +575,12 @@ class MenuDefinitionBuilder {
             MenuActionEntry(
               label: l10n.menuPerspective1Point,
               action: handler.setPerspectiveOnePoint,
-              checked:
-                  handler.perspectiveMode == PerspectiveGuideMode.onePoint,
+              checked: handler.perspectiveMode == PerspectiveGuideMode.onePoint,
             ),
             MenuActionEntry(
               label: l10n.menuPerspective2Point,
               action: handler.setPerspectiveTwoPoint,
-              checked:
-                  handler.perspectiveMode == PerspectiveGuideMode.twoPoint,
+              checked: handler.perspectiveMode == PerspectiveGuideMode.twoPoint,
             ),
             MenuActionEntry(
               label: l10n.menuPerspective3Point,
@@ -707,8 +718,16 @@ class MenuDefinitionBuilder {
           label: l10n.menuBinarizeEllipsis,
           action: handler.binarizeLayer,
         ),
+      if (handler.scanPaperDrawing != null)
+        MenuActionEntry(
+          label: l10n.menuScanPaperDrawing,
+          action: handler.scanPaperDrawing,
+        ),
       if (handler.invertColors != null)
-        MenuActionEntry(label: l10n.menuInvertColors, action: handler.invertColors),
+        MenuActionEntry(
+          label: l10n.menuInvertColors,
+          action: handler.invertColors,
+        ),
     ];
     if (entries.isEmpty) {
       return null;

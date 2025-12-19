@@ -503,6 +503,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuBinarizeEllipsis => '二値化…';
 
   @override
+  String get menuScanPaperDrawing => 'スキャン紙絵';
+
+  @override
   String get menuInvertColors => '色を反転';
 
   @override
@@ -857,6 +860,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get tolerance => '許容値';
 
   @override
+  String get fillGap => '隙間閉じ';
+
+  @override
   String get sampleAllLayers => '全レイヤーを参照';
 
   @override
@@ -864,6 +870,18 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get swallowColorLine => '色トレス線を飲み込む';
+
+  @override
+  String get swallowBlueColorLine => '青色線を飲み込む';
+
+  @override
+  String get swallowGreenColorLine => '緑色線を飲み込む';
+
+  @override
+  String get swallowRedColorLine => '赤色線を飲み込む';
+
+  @override
+  String get swallowAllColorLine => '全ての色線を飲み込む';
 
   @override
   String get cropOutsideCanvas => 'キャンバス外を切り取る';
@@ -1032,6 +1050,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get toleranceDesc => '塗りつぶしや自動選択時の「色の類似性」の許容値を制御します。高いほど似た色を多く含みます。';
 
   @override
+  String get fillGapDesc =>
+      '塗りつぶし時にエッジ付近へバッファを設け、小さな隙間からの漏れを防ぎます。値を上げるほど大きな隙間を塞げますが、塗り残しの余白が出ることがあります。';
+
+  @override
   String get antialiasingSliderDesc =>
       'ブラシや塗りつぶしのエッジにマルチサンプリングによる平滑化を加えます。レベル 0 はピクセルスタイルを維持します。';
 
@@ -1095,6 +1117,18 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get swallowColorLineDesc =>
       '色トレス線に塗りつぶしを自動的に拡張し、白い隙間をなくします。Retas ワークフロー専用です。';
+
+  @override
+  String get swallowBlueColorLineDesc => '塗りつぶし時に青色線だけを飲み込みます。';
+
+  @override
+  String get swallowGreenColorLineDesc => '塗りつぶし時に緑色線だけを飲み込みます。';
+
+  @override
+  String get swallowRedColorLineDesc => '塗りつぶし時に赤色線だけを飲み込みます。';
+
+  @override
+  String get swallowAllColorLineDesc => '塗りつぶし時に赤/緑/青の色線を飲み込みます。';
 
   @override
   String get cropOutsideCanvasDesc =>
@@ -1533,6 +1567,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get noPixelsToInvert => '反転するピクセルがありません。';
+
+  @override
+  String get layerEmptyScanPaperDrawing => 'アクティブなレイヤーが空のためスキャン紙絵を適用できません。';
+
+  @override
+  String get scanPaperDrawingNoChanges => '変換できるピクセルが見つかりません。';
 
   @override
   String get edgeSofteningFailed => 'エッジ柔化を適用できません。レイヤーが空かロックされています。';

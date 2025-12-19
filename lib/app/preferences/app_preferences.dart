@@ -35,6 +35,7 @@ class AppPreferences {
     required this.layerAdjustCropOutside,
     required this.colorLineColor,
     required this.bucketSwallowColorLine,
+    this.bucketSwallowColorLineMode = _defaultBucketSwallowColorLineMode,
     this.primaryColor = _defaultPrimaryColor,
     this.hollowStrokeEnabled = _defaultHollowStrokeEnabled,
     this.hollowStrokeRatio = _defaultHollowStrokeRatio,
@@ -42,6 +43,7 @@ class AppPreferences {
     this.shapeToolFillEnabled = _defaultShapeToolFillEnabled,
     this.bucketAntialiasLevel = _defaultBucketAntialiasLevel,
     this.bucketTolerance = _defaultBucketTolerance,
+    this.bucketFillGap = _defaultBucketFillGap,
     this.magicWandTolerance = _defaultMagicWandTolerance,
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
     this.vectorDrawingEnabled = _defaultVectorDrawingEnabled,
@@ -62,7 +64,7 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 32;
+  static const int _version = 34;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -90,7 +92,10 @@ class AppPreferences {
   static const Color _defaultColorLineColor = kDefaultColorLineColor;
   static const Color _defaultPrimaryColor = Color(0xFF000000);
   static const bool _defaultBucketSwallowColorLine = false;
+  static const BucketSwallowColorLineMode _defaultBucketSwallowColorLineMode =
+      BucketSwallowColorLineMode.all;
   static const int _defaultBucketTolerance = 0;
+  static const int _defaultBucketFillGap = 0;
   static const int _defaultMagicWandTolerance = 0;
   static const bool _defaultBrushToolsEraserMode = false;
   static const bool _defaultVectorDrawingEnabled = true;
@@ -131,7 +136,10 @@ class AppPreferences {
   static const Color defaultPrimaryColor = _defaultPrimaryColor;
   static const bool defaultBucketSwallowColorLine =
       _defaultBucketSwallowColorLine;
+  static const BucketSwallowColorLineMode defaultBucketSwallowColorLineMode =
+      _defaultBucketSwallowColorLineMode;
   static const int defaultBucketTolerance = _defaultBucketTolerance;
+  static const int defaultBucketFillGap = _defaultBucketFillGap;
   static const int defaultMagicWandTolerance = _defaultMagicWandTolerance;
   static const bool defaultBrushToolsEraserMode = _defaultBrushToolsEraserMode;
   static const bool defaultVectorDrawingEnabled = _defaultVectorDrawingEnabled;
@@ -174,9 +182,11 @@ class AppPreferences {
   bool layerAdjustCropOutside;
   Color colorLineColor;
   bool bucketSwallowColorLine;
+  BucketSwallowColorLineMode bucketSwallowColorLineMode;
   Color primaryColor;
   bool shapeToolFillEnabled;
   int bucketTolerance;
+  int bucketFillGap;
   int magicWandTolerance;
   bool brushToolsEraserMode;
   bool vectorDrawingEnabled;
@@ -232,6 +242,14 @@ class AppPreferences {
           final bool decodedBucketSwallowColorLine = hasColorLinePayload
               ? bytes[19] != 0
               : _defaultBucketSwallowColorLine;
+          final BucketSwallowColorLineMode decodedBucketSwallowColorLineMode =
+              version >= 33 && bytes.length >= 49
+                  ? _decodeBucketSwallowColorLineMode(bytes[48])
+                  : _defaultBucketSwallowColorLineMode;
+          final int decodedBucketFillGap =
+              version >= 34 && bytes.length >= 50
+                  ? _clampFillGapValue(bytes[49])
+                  : _defaultBucketFillGap;
           if (version >= 20 && bytes.length >= 26) {
             final bool hasWorkspaceSplitPayload =
                 version >= 21 && bytes.length >= 32;
@@ -329,12 +347,14 @@ class AppPreferences {
                 layerAdjustCropOutside: bytes[17] != 0,
                 colorLineColor: decodedColorLineColor,
                 bucketSwallowColorLine: decodedBucketSwallowColorLine,
+                bucketSwallowColorLineMode: decodedBucketSwallowColorLineMode,
                 hollowStrokeEnabled: decodedHollowStrokeEnabled,
                 hollowStrokeRatio: decodedHollowStrokeRatio,
                 hollowStrokeEraseOccludedParts:
                     decodedHollowStrokeEraseOccludedParts,
                 shapeToolFillEnabled: decodedShapeToolFillEnabled,
                 bucketTolerance: _clampToleranceValue(bytes[20]),
+                bucketFillGap: decodedBucketFillGap,
                 magicWandTolerance: _clampToleranceValue(bytes[21]),
                 brushToolsEraserMode: bytes[22] != 0,
                 bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
@@ -1186,6 +1206,9 @@ class AppPreferences {
       prefs.localeOverride,
     );
     final bool hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
+    final int bucketSwallowColorLineModeEncoded =
+        _encodeBucketSwallowColorLineMode(prefs.bucketSwallowColorLineMode);
+    final int bucketFillGapEncoded = _clampFillGapValue(prefs.bucketFillGap);
 
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
@@ -1236,6 +1259,8 @@ class AppPreferences {
       prefs.hollowStrokeEnabled ? 1 : 0,
       hollowStrokeRatioEncoded,
       hollowStrokeEraseOccludedParts ? 1 : 0,
+      bucketSwallowColorLineModeEncoded,
+      bucketFillGapEncoded,
     ]);
     await _writePreferencesPayload(payload);
   }
@@ -1252,6 +1277,10 @@ class AppPreferences {
 
   static int _clampToleranceValue(int value) {
     return value.clamp(0, 255).toInt();
+  }
+
+  static int _clampFillGapValue(int value) {
+    return value.clamp(0, 64).toInt();
   }
 
   static ThemeMode _decodeThemeMode(int value) {
@@ -1342,6 +1371,25 @@ class AppPreferences {
     if (languageCode == 'zh' && countryCode == 'TW') return 5;
     if (languageCode == 'zh') return 4; // Default to Simplified for zh.
     return 0;
+  }
+
+  static BucketSwallowColorLineMode _decodeBucketSwallowColorLineMode(
+    int value,
+  ) {
+    if (value < 0 || value >= BucketSwallowColorLineMode.values.length) {
+      return _defaultBucketSwallowColorLineMode;
+    }
+    return BucketSwallowColorLineMode.values[value];
+  }
+
+  static int _encodeBucketSwallowColorLineMode(
+    BucketSwallowColorLineMode mode,
+  ) {
+    final int index = mode.index;
+    if (index < 0 || index > 0xff) {
+      return _defaultBucketSwallowColorLineMode.index;
+    }
+    return index;
   }
 
   static SprayMode _decodeSprayMode(int value) {
@@ -1657,3 +1705,5 @@ enum PenStrokeSliderRange {
     return clamped.toDouble();
   }
 }
+
+enum BucketSwallowColorLineMode { all, red, green, blue }
