@@ -8,27 +8,30 @@ const double _paletteCardPadding = 12;
 const double _paletteSwatchSize = 32;
 const double _paletteMinimumColorDistance = 0.12;
 const double _paletteDuplicateEpsilon = 0.01;
-const List<_PaletteExportFormatOption> _paletteExportFormatOptions =
-    <_PaletteExportFormatOption>[
-      _PaletteExportFormatOption(
-        name: 'GIMP GPL',
-        description: '文本格式，兼容 GIMP、Krita、Clip Studio Paint 等软件。',
-        extension: 'gpl',
-        format: PaletteExportFormat.gimp,
-      ),
-      _PaletteExportFormatOption(
-        name: 'Aseprite ASE',
-        description: '适用于 Aseprite、LibreSprite 等像素绘图软件。',
-        extension: 'ase',
-        format: PaletteExportFormat.aseprite,
-      ),
-      _PaletteExportFormatOption(
-        name: 'Aseprite ASEPRITE',
-        description: '使用 .aseprite 后缀，方便直接在 Aseprite 中打开。',
-        extension: 'aseprite',
-        format: PaletteExportFormat.aseprite,
-      ),
-    ];
+
+List<_PaletteExportFormatOption> _getPaletteExportFormatOptions(
+    AppLocalizations l10n) {
+  return <_PaletteExportFormatOption>[
+    _PaletteExportFormatOption(
+      name: 'GIMP GPL',
+      description: l10n.gplDesc,
+      extension: 'gpl',
+      format: PaletteExportFormat.gimp,
+    ),
+    _PaletteExportFormatOption(
+      name: 'Aseprite ASE',
+      description: l10n.aseDesc,
+      extension: 'ase',
+      format: PaletteExportFormat.aseprite,
+    ),
+    _PaletteExportFormatOption(
+      name: 'Aseprite ASEPRITE',
+      description: l10n.asepriteDesc,
+      extension: 'aseprite',
+      format: PaletteExportFormat.aseprite,
+    ),
+  ];
+}
 
 class _PaletteCardEntry {
   _PaletteCardEntry({
@@ -84,17 +87,18 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
 
   void showGradientPaletteFromPrimaryColor() {
     final List<Color> palette = _buildPrimaryColorGradientPalette();
+    final l10n = context.l10n;
     if (palette.length < _minPaletteColorCount) {
       AppNotifications.show(
         context,
-        message: '当前颜色无法生成渐变调色盘，请重试',
+        message: l10n.gradientPaletteFailed,
         severity: InfoBarSeverity.warning,
       );
       return;
     }
     _addPaletteCard(
       palette,
-      title: '渐变调色盘（当前颜色）',
+      title: l10n.gradientPaletteTitle,
     );
   }
 
@@ -117,8 +121,9 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         context: context,
         builder: (context) {
           final theme = FluentTheme.of(context);
+          final l10n = context.l10n;
           return ContentDialog(
-            title: const Text('取色当前画布生成调色盘'),
+            title: Text(l10n.generatePaletteTitle),
             content: StatefulBuilder(
               builder: (context, setState) {
                 void handlePresetTap(int value) {
@@ -148,7 +153,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('请选择需要生成的颜色数量，可以直接输入自定义数值。'),
+                    Text(l10n.generatePaletteDesc),
                     const SizedBox(height: 16),
                     Wrap(
                       spacing: 8,
@@ -170,7 +175,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
                           .toList(growable: false),
                     ),
                     const SizedBox(height: 20),
-                    Text('自定义数量', style: theme.typography.caption),
+                    Text(l10n.customCount, style: theme.typography.caption),
                     const SizedBox(height: 6),
                     TextBox(
                       controller: controller,
@@ -179,18 +184,18 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
                       keyboardType: TextInputType.number,
                       onChanged: handleTextChanged,
                       placeholder:
-                          '范围 ${_minPaletteColorCount.toString()} - ${_maxPaletteColorCount.toString()}',
+                          l10n.paletteCountRange(_minPaletteColorCount, _maxPaletteColorCount),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '允许范围：$_minPaletteColorCount - $_maxPaletteColorCount 色',
+                      l10n.allowedRange(_minPaletteColorCount, _maxPaletteColorCount),
                       style: theme.typography.caption,
                     ),
                     if (!isValid)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          '请输入有效的颜色数量。',
+                          l10n.enterValidColorCount,
                           style: theme.typography.caption?.copyWith(
                             color: Colors.red,
                           ),
@@ -203,7 +208,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
             actions: [
               Button(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('取消'),
+                child: Text(l10n.cancel),
               ),
               FilledButton(
                 onPressed: () {
@@ -213,7 +218,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
                   }
                   Navigator.of(context).pop(selectedCount);
                 },
-                child: const Text('创建'),
+                child: Text(l10n.create),
               ),
             ],
           );
@@ -228,12 +233,13 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
 
   Future<void> _generatePaletteCard(int colorCount) async {
     ui.Image image;
+    final l10n = context.l10n;
     try {
       image = await _controller.snapshotImage();
     } catch (_) {
       AppNotifications.show(
         context,
-        message: '暂时无法生成调色盘，请重试',
+        message: l10n.paletteGenerationFailed,
         severity: InfoBarSeverity.error,
       );
       return;
@@ -245,7 +251,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (bytes == null) {
       AppNotifications.show(
         context,
-        message: '暂时无法生成调色盘，请重试',
+        message: l10n.paletteGenerationFailed,
         severity: InfoBarSeverity.error,
       );
       return;
@@ -260,7 +266,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (palette.isEmpty) {
       AppNotifications.show(
         context,
-        message: '未找到有效颜色，请确认画布中已有内容',
+        message: l10n.noValidColorsFound,
         severity: InfoBarSeverity.warning,
       );
       return;
@@ -275,7 +281,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (colors.isEmpty) {
       AppNotifications.show(
         context,
-        message: '该调色盘没有可用的颜色。',
+        message: context.l10n.paletteEmpty,
         severity: InfoBarSeverity.warning,
       );
       return;
@@ -284,11 +290,12 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
   }
 
   void _addPaletteCard(List<Color> colors, {String? title}) {
+    final l10n = context.l10n;
     final List<Color> sanitized = _sanitizePaletteColors(colors);
     if (sanitized.length < _minPaletteColorCount) {
       AppNotifications.show(
         context,
-        message: '调色盘至少需要 $_minPaletteColorCount 种颜色。',
+        message: l10n.paletteMinColors(_minPaletteColorCount),
         severity: InfoBarSeverity.warning,
       );
       return;
@@ -298,7 +305,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       _paletteCards.add(
         _PaletteCardEntry(
           id: _paletteCardSerial++,
-          title: title?.trim().isNotEmpty == true ? title!.trim() : '调色盘',
+          title: title?.trim().isNotEmpty == true ? title!.trim() : l10n.paletteDefaultName,
           colors: sanitized,
           offset: _clampPaletteOffset(offset),
         ),
@@ -311,10 +318,11 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (entry == null) {
       return;
     }
+    final l10n = context.l10n;
     if (entry.colors.isEmpty) {
       AppNotifications.show(
         context,
-        message: '该调色盘没有可导出的颜色。',
+        message: l10n.paletteEmptyExport,
         severity: InfoBarSeverity.warning,
       );
       return;
@@ -329,13 +337,13 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     if (kIsWeb) {
       final String? fileName = await showWebFileNameDialog(
         context: context,
-        title: '导出调色盘',
+        title: l10n.exportPaletteTitle,
         suggestedFileName: _suggestPaletteFileName(
           entry.title,
           option.extension,
         ),
-        description: '浏览器会将调色盘保存到默认的下载目录。',
-        confirmLabel: '下载',
+        description: l10n.webDownloadDesc,
+        confirmLabel: l10n.download,
       );
       if (fileName == null) {
         return;
@@ -346,7 +354,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       );
     } else {
       final String? outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: '导出调色盘',
+        dialogTitle: l10n.exportPaletteTitle,
         fileName: _suggestPaletteFileName(entry.title, option.extension),
         type: FileType.custom,
         allowedExtensions: <String>[option.extension],
@@ -381,8 +389,8 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       AppNotifications.show(
         context,
         message: kIsWeb
-            ? '调色盘已下载：$downloadName'
-            : '调色盘已导出到 $normalizedPath',
+            ? l10n.paletteDownloaded(downloadName!)
+            : l10n.paletteExported(normalizedPath!),
         severity: InfoBarSeverity.success,
       );
     } catch (error) {
@@ -391,33 +399,35 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       }
       AppNotifications.show(
         context,
-        message: '导出调色盘失败：$error',
+        message: l10n.paletteExportFailed(error),
         severity: InfoBarSeverity.error,
       );
     }
   }
 
   Future<_PaletteExportFormatOption?> _showPaletteExportFormatDialog() async {
-    if (_paletteExportFormatOptions.isEmpty) {
+    final l10n = context.l10n;
+    final List<_PaletteExportFormatOption> options = _getPaletteExportFormatOptions(l10n);
+    if (options.isEmpty) {
       return null;
     }
-    _PaletteExportFormatOption selected = _paletteExportFormatOptions.first;
+    _PaletteExportFormatOption selected = options.first;
     return showDialog<_PaletteExportFormatOption>(
       context: context,
       barrierDismissible: true,
       builder: (context) {
         final FluentThemeData theme = FluentTheme.of(context);
         return ContentDialog(
-          title: const Text('选择导出格式'),
+          title: Text(l10n.selectExportFormat),
           content: StatefulBuilder(
             builder: (context, setState) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('请选择要导出的调色盘格式。'),
+                  Text(l10n.selectPaletteFormatDesc),
                   const SizedBox(height: 12),
-                  ..._paletteExportFormatOptions.map((option) {
+                  ...options.map((option) {
                     final bool isActive = option == selected;
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -452,11 +462,11 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
           actions: [
             Button(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(selected),
-              child: const Text('下一步'),
+              child: Text(l10n.next),
             ),
           ],
         );
@@ -842,7 +852,7 @@ class _WorkspacePaletteCard extends StatelessWidget {
                 ? null
                 : <Widget>[
                     Tooltip(
-                      message: '导出调色盘',
+                      message: context.l10n.exportPaletteTitle,
                       child: IconButton(
                         icon: const Icon(FluentIcons.save, size: 14),
                         iconButtonMode: IconButtonMode.small,
@@ -890,7 +900,7 @@ class _PaletteSwatches extends StatelessWidget {
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     if (colors.isEmpty) {
-      return Text('没有检测到颜色。', style: theme.typography.caption);
+      return Text(context.l10n.noColorsDetected, style: theme.typography.caption);
     }
     return Wrap(
       spacing: 8,

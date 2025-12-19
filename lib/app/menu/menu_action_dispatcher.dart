@@ -59,6 +59,7 @@ class MenuActionHandler {
     this.adjustBrightnessContrast,
     this.adjustBlackWhite,
     this.invertColors,
+    this.scanPaperDrawing,
     this.colorRange,
     this.narrowLines,
     this.expandFill,
@@ -124,6 +125,7 @@ class MenuActionHandler {
       adjustBrightnessContrast = null,
       adjustBlackWhite = null,
       invertColors = null,
+      scanPaperDrawing = null,
       colorRange = null,
       narrowLines = null,
       expandFill = null,
@@ -189,6 +191,7 @@ class MenuActionHandler {
   final MenuAsyncAction? adjustBrightnessContrast;
   final MenuAsyncAction? adjustBlackWhite;
   final MenuAsyncAction? invertColors;
+  final MenuAsyncAction? scanPaperDrawing;
   final MenuAsyncAction? colorRange;
   final MenuAsyncAction? narrowLines;
   final MenuAsyncAction? expandFill;

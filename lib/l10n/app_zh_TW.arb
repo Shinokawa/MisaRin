@@ -1,0 +1,432 @@
+{
+  "@@locale": "zh_TW",
+
+  "webLoadingInitializingCanvas": "正在初始化畫板\u2026",
+  "webLoadingMayTakeTime": "Web \u7aef\u8f09\u5165\u9700\u8981\u4e00\u4e9b\u6642\u9593\uff0c\u8acb\u7a0d\u5019\u3002",
+
+  "closeAppTitle": "\u95dc\u9589\u61c9\u7528",
+  "unsavedProjectsWarning": "{count, plural, =1{\u5075\u6e2c\u5230 1 \u500b\u672a\u5132\u5b58\u7684\u5c08\u6848\u3002\u5982\u679c\u73fe\u5728\u9000\u51fa\uff0c\u6700\u8fd1\u7684\u4fee\u6539\u5c07\u6703\u907a\u5931\u3002} other{\u5075\u6e2c\u5230 {count} \u500b\u672a\u5132\u5b58\u7684\u5c08\u6848\u3002\u5982\u679c\u73fe\u5728\u9000\u51fa\uff0c\u6700\u8fd1\u7684\u4fee\u6539\u5c07\u6703\u907a\u5931\u3002}}",
+  "@unsavedProjectsWarning": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cancel": "\u53d6\u6d88",
+  "discardAndExit": "\u6368\u68c4\u4e26\u9000\u51fa",
+
+  "homeTagline": "\u5275\u4f5c\u5f9e\u9019\u88e1\u958b\u59cb",
+  "homeNewProject": "\u65b0\u5efa\u5c08\u6848",
+  "homeNewProjectDesc": "\u5f9e\u7a7a\u767d\u756b\u5e03\u958b\u555f\u65b0\u7684\u5275\u610f",
+  "homeOpenProject": "\u958b\u555f\u5c08\u6848",
+  "homeOpenProjectDesc": "\u5f9e\u78c1\u789f\u8f09\u5165 .rin / .psd \u6a94\u6848",
+  "homeRecentProjects": "\u6700\u8fd1\u958b\u555f",
+  "homeRecentProjectsDesc": "\u5feb\u901f\u6062\u5fa9\u81ea\u52d5\u5132\u5b58\u7684\u5c08\u6848",
+  "homeProjectManager": "\u5c08\u6848\u7ba1\u7406",
+  "homeProjectManagerDesc": "\u6279\u6b21\u6aa2\u8996\u6216\u6e05\u7406\u81ea\u52d5\u5132\u5b58\u7684\u5c08\u6848\u6a94\u6848",
+  "homeSettings": "\u8a2d\u5b9a",
+  "homeSettingsDesc": "\u9810\u89bd\u5373\u5c07\u4e0a\u7dda\u7684\u500b\u4eba\u5316\u9078\u9805",
+  "homeAbout": "\u95dc\u65bc",
+  "homeAboutDesc": "\u4e86\u89e3\u5c08\u6848 Misa Rin",
+
+  "createProjectFailed": "\u5efa\u7acb\u5c08\u6848\u5931\u6557\uff1a{error}",
+  "@createProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "openProjectDialogTitle": "\u958b\u555f\u5c08\u6848",
+  "openingProjectTitle": "\u6b63\u5728\u958b\u555f\u5c08\u6848\u2026",
+  "openingProjectMessage": "\u6b63\u5728\u8f09\u5165 {fileName}",
+  "@openingProjectMessage": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "cannotReadPsdContent": "\u7121\u6cd5\u8b80\u53d6 PSD \u6a94\u6848\u5167\u5bb9\u3002",
+  "cannotReadProjectFileContent": "\u7121\u6cd5\u8b80\u53d6\u5c08\u6848\u6a94\u6848\u5167\u5bb9\u3002",
+  "openedProjectInfo": "\u5df2\u958b\u555f\u5c08\u6848\uff1a{name}",
+  "@openedProjectInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "openProjectFailed": "\u958b\u555f\u5c08\u6848\u5931\u6557\uff1a{error}",
+  "@openProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+
+  "importImageDialogTitle": "\u532f\u5165\u5716\u7247",
+  "importedImageInfo": "\u5df2\u532f\u5165\u5716\u7247\uff1a{name}",
+  "@importedImageInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "importImageFailed": "\u532f\u5165\u5716\u7247\u5931\u6557\uff1a{error}",
+  "@importImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clipboardNoBitmapFound": "\u526a\u8cbc\u7c3f\u4e2d\u6c92\u6709\u627e\u5230\u53ef\u4ee5\u532f\u5165\u7684\u4f4d\u5716\u3002",
+  "clipboardImageDefaultName": "\u526a\u8cbc\u7c3f\u5f71\u50cf",
+  "importedClipboardImageInfo": "\u5df2\u532f\u5165\u526a\u8cbc\u7c3f\u5f71\u50cf",
+  "importClipboardImageFailed": "\u532f\u5165\u526a\u8cbc\u7c3f\u5f71\u50cf\u5931\u6557\uff1a{error}",
+  "@importClipboardImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "webPreparingCanvasTitle": "\u6b63\u5728\u6e96\u5099\u756b\u5e03\u2026",
+  "webPreparingCanvasMessage": "Web \u7aef\u9700\u8981\u4e00\u4e9b\u6642\u9593\u624d\u80fd\u5b8c\u6210\u521d\u59cb\u5316\uff0c\u8acb\u7a0d\u5019\u3002",
+
+  "aboutTitle": "\u95dc\u65bc Misa Rin",
+  "aboutDescription": "Misa Rin \u662f\u4e00\u6b3e\u5c08\u6ce8\u65bc\u5275\u610f\u7e6a\u88fd\u8207\u5c08\u6848\u7ba1\u7406\u7684\u61c9\u7528\uff0c\u65e8\u5728\u70ba\u5275\u4f5c\u8005\u63d0\u4f9b\u6d41\u66a2\u7684\u7e6a\u5716\u9ad4\u9a57\u8207\u53ef\u9760\u7684\u5c08\u6848\u5b58\u6a94\u80fd\u529b\u3002",
+  "aboutAppIdLabel": "\u61c9\u7528\u8b58\u5225",
+  "aboutAppVersionLabel": "\u61c9\u7528\u7248\u672c",
+  "aboutDeveloperLabel": "\u958b\u767c\u8005",
+  "close": "\u95dc\u9589",
+
+  "settingsTitle": "\u8a2d\u5b9a",
+  "tabletTest": "\u6578\u4f4d\u677f\u6e2c\u8a66",
+  "restoreDefaults": "\u6062\u5fa9\u9810\u8a2d",
+  "ok": "\u597d\u7684",
+  "languageLabel": "\u8a9e\u8a00",
+  "languageSystem": "\u8ddf\u96a8\u7cfb\u7d71",
+  "languageEnglish": "\u82f1\u6587",
+  "languageJapanese": "\u65e5\u6587",
+  "languageKorean": "\u97d3\u6587",
+  "languageChineseSimplified": "\u4e2d\u6587\uff08\u7c21\u9ad4\uff09",
+  "languageChineseTraditional": "\u4e2d\u6587\uff08\u7e41\u9ad4\uff09",
+  "themeModeLabel": "\u4e3b\u984c\u6a21\u5f0f",
+  "themeLight": "\u6dfa\u8272",
+  "themeDark": "\u6df1\u8272",
+  "themeSystem": "\u8ddf\u96a8\u7cfb\u7d71",
+  "stylusPressureSettingsLabel": "\u6578\u4f4d\u7b46\u58d3\u8a2d\u5b9a",
+  "enableStylusPressure": "\u555f\u7528\u6578\u4f4d\u7b46\u7b46\u58d3",
+  "responseCurveLabel": "\u56de\u61c9\u66f2\u7dda",
+  "responseCurveDesc": "\u8abf\u6574\u58d3\u529b\u8207\u7b46\u89f8\u7c97\u7d30\u4e4b\u9593\u7684\u904e\u6e21\u901f\u5ea6\u3002",
+  "brushSizeSliderRangeLabel": "\u7b46\u5237\u5927\u5c0f\u6ed1\u687f\u5340\u9593",
+  "brushSizeSliderRangeDesc": "\u5f71\u97ff\u5de5\u5177\u9762\u677f\u5167\u7684\u7b46\u5237\u5927\u5c0f\u6ed1\u687f\uff0c\u6709\u52a9\u65bc\u5728\u4e0d\u540c\u7cbe\u5ea6\u9593\u5feb\u901f\u5207\u63db\u3002",
+  "penSliderRangeCompact": "1 - 60 px\uff08\u7c97\u8abf\uff09",
+  "penSliderRangeMedium": "0.1 - 500 px\uff08\u4e2d\u6a94\uff09",
+  "penSliderRangeFull": "0.01 - 1000 px\uff08\u5168\u7bc4\u570d\uff09",
+  "historyLimitLabel": "\u5fa9\u539f/\u91cd\u505a\u6b65\u6578\u4e0a\u9650",
+  "historyLimitCurrent": "\u76ee\u524d\u4e0a\u9650\uff1a{count} \u6b65",
+  "@historyLimitCurrent": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "historyLimitDesc": "\u8abf\u6574\u5fa9\u539f/\u91cd\u505a\u6b77\u53f2\u7684\u5132\u5b58\u6578\u91cf\uff0c\u7bc4\u570d {min}-{max}\u3002",
+  "@historyLimitDesc": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "developerOptionsLabel": "\u958b\u767c\u8005\u9078\u9805",
+  "performanceOverlayLabel": "\u6548\u80fd\u76e3\u63a7\u9762\u677f",
+  "performanceOverlayDesc": "\u958b\u555f\u5f8c\u6703\u5728\u87a2\u5e55\u89d2\u843d\u986f\u793a Flutter Performance Pulse \u5100\u8868\u677f\uff0c\u5373\u6642\u5c55\u793a FPS\u3001CPU\u3001\u8a18\u61b6\u9ad4\u8207\u78c1\u789f\u7b49\u8cc7\u6599\u3002",
+  "tabletInputTestTitle": "\u6578\u4f4d\u677f\u8f38\u5165\u6e2c\u8a66",
+
+  "recentProjectsTitle": "\u6700\u8fd1\u958b\u555f",
+  "recentProjectsLoadFailed": "\u8f09\u5165\u6700\u8fd1\u5c08\u6848\u5931\u6557\uff1a{error}",
+  "@recentProjectsLoadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "recentProjectsEmpty": "\u66ab\u7121\u6700\u8fd1\u958b\u555f\u7684\u5c08\u6848",
+  "openFileLocation": "\u958b\u555f\u6a94\u6848\u6240\u5728\u8def\u5f91",
+  "lastOpened": "\u6700\u5f8c\u958b\u555f\uff1a{date}",
+  "@lastOpened": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "canvasSize": "\u756b\u5e03\u5c3a\u5bf8\uff1a{width} x {height}",
+  "@canvasSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+
+  "menuFile": "\u6a94\u6848",
+  "menuEdit": "\u7de8\u8f2f",
+  "menuImage": "\u5f71\u50cf",
+  "menuLayer": "\u5716\u5c64",
+  "menuSelection": "\u9078\u53d6",
+  "menuFilter": "\u6ffe\u93e1",
+  "menuTool": "\u5de5\u5177",
+  "menuView": "\u6aa2\u8996",
+  "menuWorkspace": "\u5de5\u4f5c\u5340",
+  "menuWindow": "\u8996\u7a97",
+
+  "menuAbout": "\u95dc\u65bc Misa Rin",
+  "menuPreferences": "\u504f\u597d\u8a2d\u5b9a\u2026",
+  "menuNewEllipsis": "\u65b0\u5efa\u2026",
+  "menuOpenEllipsis": "\u958b\u555f\u2026",
+  "menuImportImageEllipsis": "\u532f\u5165\u5f71\u50cf\u2026",
+  "menuImportImageFromClipboard": "\u5f9e\u526a\u8cbc\u7c3f\u532f\u5165\u5f71\u50cf",
+  "menuSave": "\u5132\u5b58",
+  "menuSaveAsEllipsis": "\u53e6\u5b58\u70ba\u2026",
+  "menuExportEllipsis": "\u532f\u51fa\u2026",
+  "menuCloseAll": "\u95dc\u9589\u5168\u90e8",
+
+  "menuUndo": "\u5fa9\u539f",
+  "menuRedo": "\u91cd\u505a",
+  "menuCut": "\u526a\u4e0b",
+  "menuCopy": "\u8907\u88fd",
+  "menuPaste": "\u8cbc\u4e0a",
+
+  "menuImageTransform": "\u5f71\u50cf\u8b8a\u63db",
+  "menuRotate90CW": "\u9806\u6642\u91dd 90 \u5ea6",
+  "menuRotate90CCW": "\u9006\u6642\u91dd 90 \u5ea6",
+  "menuRotate180CW": "\u9806\u6642\u91dd 180 \u5ea6",
+  "menuRotate180CCW": "\u9006\u6642\u91dd 180 \u5ea6",
+  "menuImageSizeEllipsis": "\u5f71\u50cf\u5927\u5c0f\u2026",
+  "menuCanvasSizeEllipsis": "\u756b\u5e03\u5927\u5c0f\u2026",
+
+  "menuNewSubmenu": "\u65b0\u5efa",
+  "menuNewLayerEllipsis": "\u5716\u5c64\u2026",
+  "menuMergeDown": "\u5411\u4e0b\u5408\u4f75",
+  "menuRasterize": "\u67f5\u683c\u5316",
+  "menuTransform": "\u8b8a\u63db",
+
+  "menuSelectAll": "\u5168\u9078",
+  "menuInvertSelection": "\u53cd\u9078",
+
+  "menuPalette": "\u8abf\u8272\u76e4",
+  "menuGeneratePaletteFromCanvasEllipsis": "\u53d6\u8272\u76ee\u524d\u756b\u5e03\u751f\u6210\u8abf\u8272\u76e4\u2026",
+  "menuGenerateGradientPalette": "\u4f7f\u7528\u76ee\u524d\u984f\u8272\u751f\u6210\u6f38\u5c64\u8abf\u8272\u76e4",
+  "menuImportPaletteEllipsis": "\u532f\u5165\u8abf\u8272\u76e4\u2026",
+
+  "menuReferenceImage": "\u53c3\u8003\u5f71\u50cf",
+  "menuCreateReferenceImage": "\u5efa\u7acb\u53c3\u8003\u5f71\u50cf",
+  "menuImportReferenceImageEllipsis": "\u532f\u5165\u53c3\u8003\u5f71\u50cf\u2026",
+
+  "menuZoomIn": "\u653e\u5927",
+  "menuZoomOut": "\u7e2e\u5c0f",
+  "menuShowGrid": "\u986f\u793a\u7db2\u683c",
+  "menuHideGrid": "\u96b1\u85cf\u7db2\u683c",
+  "menuBlackWhite": "\u9ed1\u767d",
+  "menuDisableBlackWhite": "\u53d6\u6d88\u9ed1\u767d",
+  "menuMirrorPreview": "\u93e1\u50cf\u9810\u89bd",
+  "menuDisableMirror": "\u53d6\u6d88\u93e1\u50cf",
+  "menuShowPerspectiveGuide": "\u986f\u793a\u900f\u8996\u7dda",
+  "menuHidePerspectiveGuide": "\u96b1\u85cf\u900f\u8996\u7dda",
+  "menuPerspectiveMode": "\u900f\u8996\u6a21\u5f0f",
+  "menuPerspective1Point": "1 \u9ede\u900f\u8996",
+  "menuPerspective2Point": "2 \u9ede\u900f\u8996",
+  "menuPerspective3Point": "3 \u9ede\u900f\u8996",
+
+  "menuWorkspaceDefault": "\u9810\u8a2d",
+  "menuWorkspaceSai2": "SAI2",
+  "menuSwitchWorkspace": "\u5207\u63db\u5de5\u4f5c\u5340",
+  "menuResetWorkspace": "\u91cd\u7f6e\u5de5\u4f5c\u5340",
+
+  "menuEdgeSofteningEllipsis": "\u908a\u7de3\u67d4\u5316\u2026",
+  "menuNarrowLinesEllipsis": "\u7dda\u689d\u6536\u7aa3\u2026",
+  "menuExpandFillEllipsis": "\u586b\u8272\u62c9\u4f38\u2026",
+  "menuGaussianBlurEllipsis": "\u9ad8\u65af\u6a21\u7cca\u2026",
+  "menuRemoveColorLeakEllipsis": "\u53bb\u9664\u6f0f\u8272\u2026",
+  "menuHueSaturationEllipsis": "\u8272\u76f8/\u98fd\u548c\u5ea6\u2026",
+  "menuBrightnessContrastEllipsis": "\u4eae\u5ea6/\u5c0d\u6bd4\u5ea6\u2026",
+  "menuColorRangeEllipsis": "\u8272\u5f69\u7bc4\u570d\u2026",
+  "menuBlackWhiteEllipsis": "\u9ed1\u767d\u2026",
+  "menuBinarizeEllipsis": "\u4e8c\u503c\u5316\u2026",
+  "menuScanPaperDrawing": "掃描紙繪",
+  "menuInvertColors": "顏色反轉",
+
+  "layerEmptyScanPaperDrawing": "目前圖層為空，無法掃描紙繪。",
+  "scanPaperDrawingNoChanges": "未偵測到可轉換的像素。",
+
+  "fontFamily": "字體系列",
+  "importPaletteTitle": "匯入調色盤",
+  "cannotReadFile": "無法讀取檔案",
+  "paletteImported": "已匯入調色盤：{name}",
+  "@paletteImported": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "paletteImportFailed": "匯入調色盤失敗：{error}",
+  "@paletteImportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "noChangesToSave": "沒有變更需要儲存到 {location}",
+  "@noChangesToSave": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaved": "專案已儲存到 {location}",
+  "@projectSaved": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaveFailed": "儲存專案失敗：{error}",
+  "@projectSaveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadySave": "畫布未準備好，無法儲存。",
+  "saveProjectAs": "專案另存為",
+  "webSaveDesc": "下載專案檔案到您的裝置。",
+  "psdExported": "PSD 已匯出到 {path}",
+  "@psdExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "projectDownloaded": "專案已下載：{fileName}",
+  "@projectDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "psdDownloaded": "PSD 已下載：{fileName}",
+  "@psdDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "exportAsPsdTooltip": "匯出為 PSD",
+  "canvasNotReadyExport": "畫布未準備好，無法匯出。",
+  "exportFileTitle": "匯出 {extension} 檔案",
+  "@exportFileTitle": {
+    "placeholders": {
+      "extension": {}
+    }
+  },
+  "webExportDesc": "下載匯出的影像到您的裝置。",
+  "fileDownloaded": "{extension} 檔案已下載：{name}",
+  "@fileDownloaded": {
+    "placeholders": {
+      "extension": {},
+      "name": {}
+    }
+  },
+  "fileExported": "檔案已匯出到 {path}",
+  "@fileExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportFailed": "匯出失敗：{error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadyTransform": "畫布未準備好，無法變換。",
+  "canvasSizeErrorTransform": "變換過程中畫布尺寸錯誤。",
+  "canvasNotReadyResizeImage": "畫布未準備好，無法調整影像大小。",
+  "resizeImageFailed": "調整影像大小失敗。",
+  "canvasNotReadyResizeCanvas": "畫布未準備好，無法調整畫布大小。",
+  "resizeCanvasFailed": "調整畫布大小失敗。",
+  "returnToHome": "返回首頁",
+  "saveBeforeReturn": "返回首頁前是否儲存變更？",
+  "closeCanvas": "關閉畫布",
+  "saveBeforeClose": "關閉前是否儲存變更？",
+  "nameCannotBeEmpty": "名稱不能為空。",
+  "noSupportedImageFormats": "未找到支援的影像格式。",
+  "importFailed": "匯入 {item} 失敗：{error}",
+  "@importFailed": {
+    "placeholders": {
+      "item": {},
+      "error": {}
+    }
+  },
+  "createdCanvasFromDrop": "已從拖放項目建立畫布。",
+  "createdCanvasesFromDrop": "已從拖放項目建立 {count} 個畫布。",
+  "@createdCanvasesFromDrop": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageCreateFailed": "無法從拖放影像建立畫布。",
+  "canvasNotReadyDrop": "畫布未準備好進行拖放操作。",
+  "insertedDropImage": "已插入拖放影像。",
+  "insertedDropImages": "已插入 {count} 張拖放影像。",
+  "@insertedDropImages": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageInsertFailed": "插入拖放影像失敗。",
+  "image": "影像",
+  "on": "開",
+  "perspective1Point": "一點透視",
+  "perspective2Point": "兩點透視",
+  "perspective3Point": "三點透視",
+  "resolutionLabel": "解析度：{resolution}",
+  "@resolutionLabel": {
+    "placeholders": {
+      "resolution": {}
+    }
+  },
+  "zoomLabel": "縮放：{zoom}",
+  "@zoomLabel": {
+    "placeholders": {
+      "zoom": {}
+    }
+  },
+  "positionLabel": "位置：{position}",
+  "@positionLabel": {
+    "placeholders": {
+      "position": {}
+    }
+  },
+  "gridLabel": "網格：{grid}",
+  "@gridLabel": {
+    "placeholders": {
+      "grid": {}
+    }
+  },
+  "blackWhiteLabel": "黑白：{state}",
+  "@blackWhiteLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "mirrorLabel": "鏡像：{state}",
+  "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "perspectiveLabel": "透視：{perspective}",
+  "@perspectiveLabel": {
+    "placeholders": {
+      "perspective": {}
+    }
+  },
+  "fileNameCannotBeEmpty": "檔名不能為空。",
+  "blackPoint": "黑點",
+  "whitePoint": "白點",
+  "midTone": "中間調",
+  "hollowStroke": "空心描邊",
+  "hollowStrokeDesc": "將筆畫中心挖空，形成空心描邊效果。",
+  "hollowStrokeRatio": "空心比例",
+  "hollowStrokeRatioDesc": "調整空心內圈大小，數值越高描邊越細。",
+  "eraseOccludedParts": "擦除被遮擋部分",
+  "eraseOccludedPartsDesc": "開啟後，同一圖層裡後畫的空心線條會吃掉與其他線條的重合部分。",
+
+  "swallowBlueColorLine": "吞併藍色線",
+  "swallowGreenColorLine": "吞併綠色線",
+  "swallowRedColorLine": "吞併紅色線",
+  "swallowAllColorLine": "吞併所有色線",
+  "swallowBlueColorLineDesc": "色塊填充時只吞併藍色線。",
+  "swallowGreenColorLineDesc": "色塊填充時只吞併綠色線。",
+  "swallowRedColorLineDesc": "色塊填充時只吞併紅色線。",
+  "swallowAllColorLineDesc": "色塊填充時吞併紅/綠/藍色線。"
+}

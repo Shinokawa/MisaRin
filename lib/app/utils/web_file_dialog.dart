@@ -2,17 +2,20 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/l10n.dart';
+
 /// 在 Web 平台上请求用户输入导出的文件名。
 Future<String?> showWebFileNameDialog({
   required BuildContext context,
   required String title,
   required String suggestedFileName,
   String? description,
-  String confirmLabel = '下载',
+  String? confirmLabel,
 }) async {
   if (!kIsWeb) {
     return null;
   }
+  final l10n = context.l10n;
   final TextEditingController controller =
       TextEditingController(text: suggestedFileName);
   String? error;
@@ -38,7 +41,9 @@ Future<String?> showWebFileNameDialog({
                   autofocus: true,
                   onChanged: (value) {
                     setState(() {
-                      error = value.trim().isEmpty ? '文件名不能为空' : null;
+                      error = value.trim().isEmpty
+                          ? l10n.fileNameCannotBeEmpty
+                          : null;
                     });
                   },
                   onSubmitted: (_) {
@@ -65,7 +70,7 @@ Future<String?> showWebFileNameDialog({
         actions: [
           Button(
             onPressed: () => Navigator.of(context).pop(null),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -75,7 +80,7 @@ Future<String?> showWebFileNameDialog({
               }
               Navigator.of(context).pop(trimmed);
             },
-            child: Text(confirmLabel),
+            child: Text(confirmLabel ?? l10n.download),
           ),
         ],
       );

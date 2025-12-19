@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/l10n.dart';
 import '../models/canvas_resize_anchor.dart';
 
 class CanvasSizeConfig {
@@ -83,7 +84,7 @@ class _CanvasSizeDialogState extends State<_CanvasSizeDialog> {
     final int? width = int.tryParse(_widthController.text);
     final int? height = int.tryParse(_heightController.text);
     if (width == null || height == null || width <= 0 || height <= 0) {
-      setState(() => _errorMessage = '请输入有效的宽高（像素）。');
+      setState(() => _errorMessage = context.l10n.invalidDimensions);
       return;
     }
     Navigator.of(context).pop(
@@ -94,15 +95,16 @@ class _CanvasSizeDialogState extends State<_CanvasSizeDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 420),
-      title: const Text('画布大小'),
+      title: Text(l10n.canvasSizeTitle),
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           InfoLabel(
-            label: '宽度（像素）',
+            label: l10n.widthPx,
             child: TextBox(
               controller: _widthController,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -111,7 +113,7 @@ class _CanvasSizeDialogState extends State<_CanvasSizeDialog> {
           ),
           const SizedBox(height: 12),
           InfoLabel(
-            label: '高度（像素）',
+            label: l10n.heightPx,
             child: TextBox(
               controller: _heightController,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -119,11 +121,11 @@ class _CanvasSizeDialogState extends State<_CanvasSizeDialog> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('定位方式', style: theme.typography.caption),
+          Text(l10n.canvasSizeAnchorLabel, style: theme.typography.caption),
           const SizedBox(height: 8),
           _AnchorGrid(selected: _selectedAnchor, onSelected: _selectAnchor),
           const SizedBox(height: 8),
-          Text('根据定位点裁剪或扩展画布尺寸。', style: theme.typography.caption),
+          Text(l10n.canvasSizeAnchorDesc, style: theme.typography.caption),
           if (_errorMessage != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -136,9 +138,9 @@ class _CanvasSizeDialogState extends State<_CanvasSizeDialog> {
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: _submit, child: const Text('确定')),
+        FilledButton(onPressed: _submit, child: Text(l10n.confirm)),
       ],
     );
   }

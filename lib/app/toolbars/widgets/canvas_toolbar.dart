@@ -20,6 +20,7 @@ import 'shape_tool_button.dart';
 import 'spray_tool_button.dart';
 import 'text_tool_button.dart';
 import 'hand_tool_button.dart';
+import 'rotate_tool_button.dart';
 
 class CanvasToolbar extends StatelessWidget {
   const CanvasToolbar({
@@ -47,7 +48,7 @@ class CanvasToolbar extends StatelessWidget {
   final CanvasToolbarLayout layout;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 13;
+  static const int buttonCount = 14;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;
   static const double spacing = 9;
@@ -291,6 +292,14 @@ class CanvasToolbar extends StatelessWidget {
         child: HandToolButton(
           isSelected: activeTool == CanvasTool.hand,
           onPressed: () => onToolSelected(CanvasTool.hand),
+        ),
+      ),
+      wrapWithTooltip(
+        action: ToolbarAction.rotateTool,
+        label: '旋转画布',
+        child: RotateToolButton(
+          isSelected: activeTool == CanvasTool.rotate,
+          onPressed: () => onToolSelected(CanvasTool.rotate),
         ),
       ),
     ]);

@@ -16,6 +16,7 @@ void _fillFloodFill(
   bool sampleAllLayers = false,
   List<Color>? swallowColors,
   int tolerance = 0,
+  int fillGap = 0,
   int antialiasLevel = 0,
 }) {
   if (controller._activeLayer.locked) {
@@ -37,6 +38,7 @@ void _fillFloodFill(
             .toList(growable: false)
       : null;
   final int clampedTolerance = tolerance.clamp(0, 255);
+  final int clampedFillGap = fillGap.clamp(0, 64);
   final int clampedAntialias = antialiasLevel.clamp(0, 3);
   final bool hasAntialias = clampedAntialias > 0;
   // Tolerance is now supported by worker, so we don't need to force mask fill for it alone.
@@ -52,6 +54,7 @@ void _fillFloodFill(
       color,
       contiguous,
       tolerance: clampedTolerance,
+      fillGap: clampedFillGap,
       collectMask: needsRegionMask,
     );
     if (needsRegionMask && regionMask == null) {
@@ -73,6 +76,7 @@ void _fillFloodFill(
             targetColor: baseColor,
             contiguous: contiguous,
             tolerance: clampedTolerance,
+            fillGap: clampedFillGap,
           ),
           onError: () {
             controller._activeSurface.floodFill(
@@ -81,6 +85,7 @@ void _fillFloodFill(
               targetColor: baseColor,
               contiguous: contiguous,
               mask: controller._selectionMask,
+              fillGap: clampedFillGap,
             );
             controller._resetWorkerSurfaceSync();
             controller._markDirty(
@@ -96,6 +101,7 @@ void _fillFloodFill(
           targetColor: baseColor,
           contiguous: contiguous,
           mask: controller._selectionMask,
+          fillGap: clampedFillGap,
         );
         controller._markDirty(
           layerId: controller._activeLayer.id,
@@ -115,6 +121,7 @@ void _fillFloodFill(
       baseColor,
       contiguous,
       tolerance: clampedTolerance,
+      fillGap: clampedFillGap,
     );
     if (regionMask == null) {
       return;
@@ -254,12 +261,16 @@ Uint8List? _fillFloodFillAcrossLayers(
   bool contiguous, {
   bool collectMask = false,
   int tolerance = 0,
+  int fillGap = 0,
 }) {
   if (!_fillSelectionAllowsInt(controller, startX, startY)) {
     return null;
   }
   controller._updateComposite(requiresFullSurface: true, region: null);
-  final Uint32List? compositePixels = controller._compositePixels;
+  Uint32List? compositePixels = controller._compositePixels;
+  if (compositePixels == null || compositePixels.isEmpty) {
+    compositePixels = _fillBuildCompositePixelsFallback(controller);
+  }
   if (compositePixels == null || compositePixels.isEmpty) {
     return null;
   }
@@ -342,14 +353,17 @@ Uint8List? _fillFloodFillAcrossLayers(
     width: controller._width,
     height: controller._height,
     tolerance: tolerance,
+    fillGap: fillGap,
   );
   if (!filled) {
     return null;
   }
 
-  // Expand mask by 1 pixel to cover anti-aliased edges (only if tolerance > 0)
+  // Expand mask by 1 pixel to cover anti-aliased edges.
+  // When fillGap is enabled we avoid this extra expansion to prevent bleeding
+  // into line art now that the fill no longer keeps an inner safety margin.
   Uint8List finalMask = contiguousMask;
-  if (tolerance > 0) {
+  if (tolerance > 0 && fillGap <= 0) {
     finalMask = _fillExpandMask(
       contiguousMask,
       controller._width,
@@ -404,6 +418,92 @@ Uint8List? _fillFloodFillAcrossLayers(
   return collectMask ? finalMask : null;
 }
 
+Uint32List _fillBuildCompositePixelsFallback(BitmapCanvasController controller) {
+  final int width = controller._width;
+  final int height = controller._height;
+  final Uint32List composite = Uint32List(width * height);
+  final Uint8List clipMask = Uint8List(width * height);
+  clipMask.fillRange(0, clipMask.length, 0);
+  final String? translatingLayerId = controller._translatingLayerIdForComposite;
+
+  for (int y = 0; y < height; y++) {
+    final int rowOffset = y * width;
+    for (int x = 0; x < width; x++) {
+      final int index = rowOffset + x;
+      int color = 0;
+      bool initialized = false;
+
+      for (final BitmapLayerState layer in controller._layers) {
+        if (!layer.visible) {
+          continue;
+        }
+        if (translatingLayerId != null && layer.id == translatingLayerId) {
+          continue;
+        }
+        final double layerOpacity = BitmapCanvasController._clampUnit(
+          layer.opacity,
+        );
+        if (layerOpacity <= 0) {
+          if (!layer.clippingMask) {
+            clipMask[index] = 0;
+          }
+          continue;
+        }
+        final int src = layer.surface.pixels[index];
+        final int srcA = (src >> 24) & 0xff;
+        if (srcA == 0) {
+          if (!layer.clippingMask) {
+            clipMask[index] = 0;
+          }
+          continue;
+        }
+
+        double totalOpacity = layerOpacity;
+        if (layer.clippingMask) {
+          final int maskAlpha = clipMask[index];
+          if (maskAlpha == 0) {
+            continue;
+          }
+          totalOpacity *= maskAlpha / 255.0;
+          if (totalOpacity <= 0) {
+            continue;
+          }
+        }
+
+        int effectiveA = (srcA * totalOpacity).round();
+        if (effectiveA <= 0) {
+          if (!layer.clippingMask) {
+            clipMask[index] = 0;
+          }
+          continue;
+        }
+        effectiveA = effectiveA.clamp(0, 255);
+
+        if (!layer.clippingMask) {
+          clipMask[index] = effectiveA;
+        }
+
+        final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
+        if (!initialized) {
+          color = effectiveColor;
+          initialized = true;
+        } else {
+          color = blend_utils.blendWithMode(
+            color,
+            effectiveColor,
+            layer.blendMode,
+            index,
+          );
+        }
+      }
+
+      composite[index] = initialized ? color : 0;
+    }
+  }
+
+  return composite;
+}
+
 Uint8List? _fillFloodFillSingleLayerWithMask(
   BitmapCanvasController controller,
   int startX,
@@ -412,6 +512,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
   Color baseColor,
   bool contiguous, {
   int tolerance = 0,
+  int fillGap = 0,
 }) {
   final Uint32List pixels = controller._activeSurface.pixels;
   final Uint8List? selectionMask = controller._selectionMask;
@@ -478,14 +579,17 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
     width: width,
     height: height,
     tolerance: tolerance,
+    fillGap: fillGap,
   );
   if (!filled) {
     return null;
   }
 
-  // Expand mask by 1 pixel to cover anti-aliased edges (only if tolerance > 0)
+  // Expand mask by 1 pixel to cover anti-aliased edges.
+  // When fillGap is enabled we avoid this extra expansion to prevent bleeding
+  // into line art now that the fill no longer keeps an inner safety margin.
   Uint8List finalMask = mask;
-  if (tolerance > 0) {
+  if (tolerance > 0 && fillGap <= 0) {
     finalMask = _fillExpandMask(
       mask,
       width,
@@ -845,53 +949,587 @@ bool _fillFloodFillMask(
   required int width,
   required int height,
   int tolerance = 0,
+  int fillGap = 0,
 }) {
-  if (pixels.isEmpty || mask.isEmpty) {
+  if (pixels.isEmpty || mask.isEmpty || width <= 0 || height <= 0) {
     return false;
   }
-  final Queue<int> queue = Queue<int>();
-  final Set<int> visited = <int>{};
+  final int startIndex = startY * width + startX;
+  if (startX < 0 ||
+      startX >= width ||
+      startY < 0 ||
+      startY >= height ||
+      startIndex < 0 ||
+      startIndex >= pixels.length) {
+    return false;
+  }
+
+  final Uint8List? selectionMask = controller._selectionMask;
+  if (selectionMask != null && selectionMask[startIndex] == 0) {
+    return false;
+  }
+
+  final int clampedFillGap = fillGap.clamp(0, 64);
+  if (clampedFillGap > 0) {
+    final Uint8List targetMask = Uint8List(pixels.length);
+    for (int i = 0; i < pixels.length; i++) {
+      if (selectionMask != null && selectionMask[i] == 0) {
+        continue;
+      }
+      if (_fillColorsWithinTolerance(pixels[i], targetColor, tolerance)) {
+        targetMask[i] = 1;
+      }
+    }
+    if (targetMask[startIndex] == 0) {
+      return false;
+    }
+
+    // "Fill gap" should only prevent leaking through small openings.
+    // Using the opened mask directly can delete thin enclosed regions (e.g. narrow curved bands),
+    // so we:
+    // 1) Compute an opened mask to sever narrow leak paths,
+    // 2) Find the "outside" region on the opened mask (border-connected),
+    // 3) Reconstruct the fill inside the original target mask while forbidding entry into "outside".
+
+    final Uint8List openedTarget = _fillOpenMask8(
+      Uint8List.fromList(targetMask),
+      width,
+      height,
+      radius: clampedFillGap,
+    );
+
+    final List<int> outsideSeeds = <int>[];
+    for (int x = 0; x < width; x++) {
+      final int topIndex = x;
+      if (topIndex < openedTarget.length && openedTarget[topIndex] == 1) {
+        outsideSeeds.add(topIndex);
+      }
+      final int bottomIndex = (height - 1) * width + x;
+      if (bottomIndex >= 0 &&
+          bottomIndex < openedTarget.length &&
+          openedTarget[bottomIndex] == 1) {
+        outsideSeeds.add(bottomIndex);
+      }
+    }
+    for (int y = 1; y < height - 1; y++) {
+      final int leftIndex = y * width;
+      if (leftIndex < openedTarget.length && openedTarget[leftIndex] == 1) {
+        outsideSeeds.add(leftIndex);
+      }
+      final int rightIndex = y * width + (width - 1);
+      if (rightIndex >= 0 &&
+          rightIndex < openedTarget.length &&
+          openedTarget[rightIndex] == 1) {
+        outsideSeeds.add(rightIndex);
+      }
+    }
+
+    // No border-connected target region → there is no "outside" to leak into.
+    if (outsideSeeds.isEmpty) {
+      final List<int> queue = <int>[startIndex];
+      int head = 0;
+      mask[startIndex] = 1;
+      final Uint8List visited = Uint8List(pixels.length);
+      visited[startIndex] = 1;
+      int processed = 1;
+      while (head < queue.length) {
+        final int index = queue[head++];
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            mask[neighbor] = 1;
+            queue.add(neighbor);
+            processed += 1;
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            mask[neighbor] = 1;
+            queue.add(neighbor);
+            processed += 1;
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            mask[neighbor] = 1;
+            queue.add(neighbor);
+            processed += 1;
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            mask[neighbor] = 1;
+            queue.add(neighbor);
+            processed += 1;
+          }
+        }
+      }
+      return processed > 0;
+    }
+
+    final Uint8List outsideOpen = Uint8List(pixels.length);
+    final List<int> outsideQueue = List<int>.from(outsideSeeds);
+    int outsideHead = 0;
+    for (final int seed in outsideSeeds) {
+      outsideOpen[seed] = 1;
+    }
+    while (outsideHead < outsideQueue.length) {
+      final int index = outsideQueue[outsideHead++];
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          outsideOpen[neighbor] = 1;
+          outsideQueue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          outsideOpen[neighbor] = 1;
+          outsideQueue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          outsideOpen[neighbor] = 1;
+          outsideQueue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          outsideOpen[neighbor] = 1;
+          outsideQueue.add(neighbor);
+        }
+      }
+    }
+
+    int effectiveStart = startIndex;
+    if (openedTarget[effectiveStart] == 0) {
+      final int? snapped = _fillFindNearestFillableStartIndex(
+        startIndex: startIndex,
+        fillable: openedTarget,
+        pixels: pixels,
+        targetColor: targetColor,
+        width: width,
+        height: height,
+        tolerance: tolerance,
+        selectionMask: selectionMask,
+        maxDepth: clampedFillGap + 1,
+      );
+      if (snapped == null) {
+        // Opening removed the whole local region; no gap closing can be applied safely.
+        final List<int> queue = <int>[startIndex];
+        int head = 0;
+        mask[startIndex] = 1;
+        final Uint8List visited = Uint8List(pixels.length);
+        visited[startIndex] = 1;
+        int processed = 1;
+        while (head < queue.length) {
+          final int index = queue[head++];
+          final int x = index % width;
+          final int y = index ~/ width;
+          if (x > 0) {
+            final int neighbor = index - 1;
+            if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+              visited[neighbor] = 1;
+              mask[neighbor] = 1;
+              queue.add(neighbor);
+              processed += 1;
+            }
+          }
+          if (x < width - 1) {
+            final int neighbor = index + 1;
+            if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+              visited[neighbor] = 1;
+              mask[neighbor] = 1;
+              queue.add(neighbor);
+              processed += 1;
+            }
+          }
+          if (y > 0) {
+            final int neighbor = index - width;
+            if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+              visited[neighbor] = 1;
+              mask[neighbor] = 1;
+              queue.add(neighbor);
+              processed += 1;
+            }
+          }
+          if (y < height - 1) {
+            final int neighbor = index + width;
+            if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+              visited[neighbor] = 1;
+              mask[neighbor] = 1;
+              queue.add(neighbor);
+              processed += 1;
+            }
+          }
+        }
+        return processed > 0;
+      }
+      effectiveStart = snapped;
+    }
+
+    final Uint8List seedVisited = Uint8List(pixels.length);
+    final List<int> seedQueue = <int>[effectiveStart];
+    seedVisited[effectiveStart] = 1;
+    int seedHead = 0;
+    bool touchesOutside = outsideOpen[effectiveStart] == 1;
+    while (seedHead < seedQueue.length) {
+      final int index = seedQueue[seedHead++];
+      if (outsideOpen[index] == 1) {
+        touchesOutside = true;
+        break;
+      }
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          seedVisited[neighbor] = 1;
+          seedQueue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          seedVisited[neighbor] = 1;
+          seedQueue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          seedVisited[neighbor] = 1;
+          seedQueue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          seedVisited[neighbor] = 1;
+          seedQueue.add(neighbor);
+        }
+      }
+    }
+
+    if (touchesOutside) {
+      // Gap is larger than the chosen radius; fall back to standard flood fill.
+      final List<int> queue = <int>[startIndex];
+      int head = 0;
+      mask[startIndex] = 1;
+      final Uint8List visited = Uint8List(pixels.length);
+      visited[startIndex] = 1;
+      int processed = 1;
+      while (head < queue.length) {
+        final int index = queue[head++];
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            mask[neighbor] = 1;
+            queue.add(neighbor);
+            processed += 1;
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            mask[neighbor] = 1;
+            queue.add(neighbor);
+            processed += 1;
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            mask[neighbor] = 1;
+            queue.add(neighbor);
+            processed += 1;
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            mask[neighbor] = 1;
+            queue.add(neighbor);
+            processed += 1;
+          }
+        }
+      }
+      return processed > 0;
+    }
+
+    final List<int> queue = List<int>.from(seedQueue);
+    int head = 0;
+    int processed = 0;
+    for (final int index in queue) {
+      if (targetMask[index] == 1 && outsideOpen[index] == 0 && mask[index] == 0) {
+        mask[index] = 1;
+        processed += 1;
+      }
+    }
+    while (head < queue.length) {
+      final int index = queue[head++];
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (mask[neighbor] == 0 &&
+            targetMask[neighbor] == 1 &&
+            outsideOpen[neighbor] == 0) {
+          mask[neighbor] = 1;
+          queue.add(neighbor);
+          processed += 1;
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (mask[neighbor] == 0 &&
+            targetMask[neighbor] == 1 &&
+            outsideOpen[neighbor] == 0) {
+          mask[neighbor] = 1;
+          queue.add(neighbor);
+          processed += 1;
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (mask[neighbor] == 0 &&
+            targetMask[neighbor] == 1 &&
+            outsideOpen[neighbor] == 0) {
+          mask[neighbor] = 1;
+          queue.add(neighbor);
+          processed += 1;
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (mask[neighbor] == 0 &&
+            targetMask[neighbor] == 1 &&
+            outsideOpen[neighbor] == 0) {
+          mask[neighbor] = 1;
+          queue.add(neighbor);
+          processed += 1;
+        }
+      }
+    }
+    return processed > 0;
+  }
+
+  final Uint8List visited = Uint8List(pixels.length);
+  final List<int> queue = <int>[];
+  int head = 0;
   int processed = 0;
 
-  bool shouldInclude(int x, int y) {
-    if (x < 0 || x >= width || y < 0 || y >= height) {
-      return false;
-    }
-    final int index = y * width + x;
-    if (visited.contains(index)) {
-      return false;
-    }
-    visited.add(index);
-    if (controller._selectionMask != null &&
-        controller._selectionMask![index] == 0) {
-      return false;
-    }
-    return _fillColorsWithinTolerance(pixels[index], targetColor, tolerance);
-  }
-
-  void enqueue(int x, int y) {
-    if (!shouldInclude(x, y)) {
+  void enqueueIndex(int index) {
+    if (index < 0 || index >= pixels.length) {
       return;
     }
-    final int index = y * width + x;
+    if (visited[index] != 0) {
+      return;
+    }
+    visited[index] = 1;
+    if (selectionMask != null && selectionMask[index] == 0) {
+      return;
+    }
+    if (!_fillColorsWithinTolerance(pixels[index], targetColor, tolerance)) {
+      return;
+    }
     mask[index] = 1;
     queue.add(index);
+    processed += 1;
   }
 
-  enqueue(startX, startY);
+  enqueueIndex(startIndex);
 
-  while (queue.isNotEmpty) {
-    final int index = queue.removeFirst();
-    processed += 1;
+  while (head < queue.length) {
+    final int index = queue[head++];
     final int x = index % width;
     final int y = index ~/ width;
-    enqueue(x + 1, y);
-    enqueue(x - 1, y);
-    enqueue(x, y + 1);
-    enqueue(x, y - 1);
+    if (x > 0) {
+      enqueueIndex(index - 1);
+    }
+    if (x < width - 1) {
+      enqueueIndex(index + 1);
+    }
+    if (y > 0) {
+      enqueueIndex(index - width);
+    }
+    if (y < height - 1) {
+      enqueueIndex(index + width);
+    }
   }
 
   return processed > 0;
+}
+
+Uint8List _fillOpenMask8(
+  Uint8List mask,
+  int width,
+  int height, {
+  required int radius,
+}) {
+  if (mask.isEmpty || width <= 0 || height <= 0 || radius <= 0) {
+    return mask;
+  }
+  final int length = mask.length;
+  final Uint8List buffer = Uint8List(length);
+  final List<int> queue = <int>[];
+
+  void dilateFromMaskValue(Uint8List source, Uint8List out, int seedValue) {
+    queue.clear();
+    out.fillRange(0, out.length, 0);
+    for (int i = 0; i < source.length; i++) {
+      if (source[i] != seedValue) {
+        continue;
+      }
+      out[i] = 1;
+      queue.add(i);
+    }
+    if (queue.isEmpty) {
+      return;
+    }
+    int head = 0;
+    final int lastRowStart = (height - 1) * width;
+    for (int step = 0; step < radius; step++) {
+      final int levelEnd = queue.length;
+      while (head < levelEnd) {
+        final int index = queue[head++];
+        final int x = index % width;
+        final bool hasLeft = x > 0;
+        final bool hasRight = x < width - 1;
+        final bool hasUp = index >= width;
+        final bool hasDown = index < lastRowStart;
+
+        void tryAdd(int neighbor) {
+          if (neighbor < 0 || neighbor >= out.length) {
+            return;
+          }
+          if (out[neighbor] != 0) {
+            return;
+          }
+          out[neighbor] = 1;
+          queue.add(neighbor);
+        }
+
+        if (hasLeft) {
+          tryAdd(index - 1);
+        }
+        if (hasRight) {
+          tryAdd(index + 1);
+        }
+        if (hasUp) {
+          tryAdd(index - width);
+          if (hasLeft) {
+            tryAdd(index - width - 1);
+          }
+          if (hasRight) {
+            tryAdd(index - width + 1);
+          }
+        }
+        if (hasDown) {
+          tryAdd(index + width);
+          if (hasLeft) {
+            tryAdd(index + width - 1);
+          }
+          if (hasRight) {
+            tryAdd(index + width + 1);
+          }
+        }
+      }
+    }
+  }
+
+  // Phase 1 (Erosion): erode by dilating the inverse and then inverting.
+  dilateFromMaskValue(mask, buffer, 0);
+  for (int i = 0; i < length; i++) {
+    mask[i] = buffer[i] == 0 ? 1 : 0;
+  }
+
+  // Phase 2 (Dilation): dilate eroded mask.
+  dilateFromMaskValue(mask, buffer, 1);
+  return buffer;
+}
+
+int? _fillFindNearestFillableStartIndex({
+  required int startIndex,
+  required Uint8List fillable,
+  required Uint32List pixels,
+  required int targetColor,
+  required int width,
+  required int height,
+  required int tolerance,
+  required Uint8List? selectionMask,
+  required int maxDepth,
+}) {
+  if (startIndex < 0 || startIndex >= fillable.length) {
+    return null;
+  }
+  if (fillable[startIndex] == 1) {
+    return startIndex;
+  }
+
+  final Set<int> visited = <int>{startIndex};
+  final List<int> queue = <int>[startIndex];
+  int head = 0;
+
+  for (int depth = 0; depth <= maxDepth; depth++) {
+    final int levelEnd = queue.length;
+    while (head < levelEnd) {
+      final int index = queue[head++];
+      if (fillable[index] == 1) {
+        return index;
+      }
+
+      final int x = index % width;
+      final int y = index ~/ width;
+
+      void tryNeighbor(int nx, int ny) {
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+          return;
+        }
+        final int neighbor = ny * width + nx;
+        if (!visited.add(neighbor)) {
+          return;
+        }
+        if (selectionMask != null && selectionMask[neighbor] == 0) {
+          return;
+        }
+        if (!_fillColorsWithinTolerance(pixels[neighbor], targetColor, tolerance)) {
+          return;
+        }
+        queue.add(neighbor);
+      }
+
+      tryNeighbor(x - 1, y);
+      tryNeighbor(x + 1, y);
+      tryNeighbor(x, y - 1);
+      tryNeighbor(x, y + 1);
+    }
+    if (head >= queue.length) {
+      break;
+    }
+  }
+  return null;
 }
 
 bool _fillColorsWithinTolerance(int candidate, int target, int tolerance) {

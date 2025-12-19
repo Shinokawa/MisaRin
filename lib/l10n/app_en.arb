@@ -1,0 +1,963 @@
+{
+  "@@locale": "en",
+
+  "webLoadingInitializingCanvas": "Initializing canvas\u2026",
+  "webLoadingMayTakeTime": "Loading on web may take a moment. Please wait.",
+
+  "closeAppTitle": "Quit App",
+  "unsavedProjectsWarning": "{count, plural, =1{Detected 1 unsaved project. If you quit now, your recent changes will be lost.} other{Detected {count} unsaved projects. If you quit now, your recent changes will be lost.}}",
+  "@unsavedProjectsWarning": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cancel": "Cancel",
+  "discardAndExit": "Discard and Quit",
+
+  "homeTagline": "Start creating here",
+  "homeNewProject": "New Project",
+  "homeNewProjectDesc": "Start a new idea from a blank canvas",
+  "homeOpenProject": "Open Project",
+  "homeOpenProjectDesc": "Load a .rin / .psd file from disk",
+  "homeRecentProjects": "Recent",
+  "homeRecentProjectsDesc": "Quickly restore autosaved projects",
+  "homeProjectManager": "Project Manager",
+  "homeProjectManagerDesc": "View or clean up autosaved project files in bulk",
+  "homeSettings": "Settings",
+  "homeSettingsDesc": "Preview personalization options coming soon",
+  "homeAbout": "About",
+  "homeAboutDesc": "Learn more about Misa Rin",
+
+  "createProjectFailed": "Failed to create project: {error}",
+  "@createProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "openProjectDialogTitle": "Open Project",
+  "openingProjectTitle": "Opening project\u2026",
+  "openingProjectMessage": "Loading {fileName}",
+  "@openingProjectMessage": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "cannotReadPsdContent": "Unable to read PSD file contents.",
+  "cannotReadProjectFileContent": "Unable to read project file contents.",
+  "openedProjectInfo": "Opened project: {name}",
+  "@openedProjectInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "openProjectFailed": "Failed to open project: {error}",
+  "@openProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+
+  "importImageDialogTitle": "Import Image",
+  "importedImageInfo": "Imported image: {name}",
+  "@importedImageInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "importImageFailed": "Failed to import image: {error}",
+  "@importImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clipboardNoBitmapFound": "No bitmap found in clipboard to import.",
+  "clipboardImageDefaultName": "Clipboard Image",
+  "importedClipboardImageInfo": "Imported clipboard image",
+  "importClipboardImageFailed": "Failed to import clipboard image: {error}",
+  "@importClipboardImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "webPreparingCanvasTitle": "Preparing canvas\u2026",
+  "webPreparingCanvasMessage": "Initializing on web may take a moment. Please wait.",
+
+  "aboutTitle": "About Misa Rin",
+  "aboutDescription": "Misa Rin is an app focused on creative drawing and project management, designed to provide creators with a smooth painting experience and reliable project archiving.",
+  "aboutAppIdLabel": "App ID",
+  "aboutAppVersionLabel": "Version",
+  "aboutDeveloperLabel": "Developer",
+  "close": "Close",
+
+  "settingsTitle": "Settings",
+  "tabletTest": "Tablet Test",
+  "restoreDefaults": "Restore Defaults",
+  "ok": "OK",
+  "languageLabel": "Language",
+  "languageSystem": "System",
+  "languageEnglish": "English",
+  "languageJapanese": "Japanese",
+  "languageKorean": "Korean",
+  "languageChineseSimplified": "Chinese (Simplified)",
+  "languageChineseTraditional": "Chinese (Traditional)",
+  "themeModeLabel": "Theme Mode",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "themeSystem": "System",
+  "stylusPressureSettingsLabel": "Stylus Pressure",
+  "enableStylusPressure": "Enable stylus pressure",
+  "responseCurveLabel": "Response curve",
+  "responseCurveDesc": "Adjust how pressure transitions into stroke width.",
+  "brushSizeSliderRangeLabel": "Brush size slider range",
+  "brushSizeSliderRangeDesc": "Affects the brush size slider in the tool panel, helping you switch precision quickly.",
+  "penSliderRangeCompact": "1 - 60 px (coarse)",
+  "penSliderRangeMedium": "0.1 - 500 px (medium)",
+  "penSliderRangeFull": "0.01 - 1000 px (full)",
+  "historyLimitLabel": "Undo/Redo limit",
+  "historyLimitCurrent": "Current limit: {count} steps",
+  "@historyLimitCurrent": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "historyLimitDesc": "Adjust how many undo/redo steps are kept. Range {min}-{max}.",
+  "@historyLimitDesc": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "developerOptionsLabel": "Developer Options",
+  "performanceOverlayLabel": "Performance overlay",
+  "performanceOverlayDesc": "Shows a Flutter Performance Pulse dashboard in the corner with FPS, CPU, memory, disk, etc.",
+  "tabletInputTestTitle": "Tablet Input Test",
+
+  "recentProjectsTitle": "Recent",
+  "recentProjectsLoadFailed": "Failed to load recent projects: {error}",
+  "@recentProjectsLoadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "recentProjectsEmpty": "No recent projects",
+  "openFileLocation": "Reveal in File Manager",
+  "lastOpened": "Last opened: {date}",
+  "@lastOpened": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "canvasSize": "Canvas size: {width} x {height}",
+  "@canvasSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+
+  "menuFile": "File",
+  "menuEdit": "Edit",
+  "menuImage": "Image",
+  "menuLayer": "Layer",
+  "menuSelection": "Select",
+  "menuFilter": "Filter",
+  "menuTool": "Tools",
+  "menuView": "View",
+  "menuWorkspace": "Workspace",
+  "menuWindow": "Window",
+
+  "menuAbout": "About Misa Rin",
+  "menuPreferences": "Preferences\u2026",
+  "menuNewEllipsis": "New\u2026",
+  "menuOpenEllipsis": "Open\u2026",
+  "menuImportImageEllipsis": "Import Image\u2026",
+  "menuImportImageFromClipboard": "Import Image from Clipboard",
+  "menuSave": "Save",
+  "menuSaveAsEllipsis": "Save As\u2026",
+  "menuExportEllipsis": "Export\u2026",
+  "menuCloseAll": "Close All",
+
+  "menuUndo": "Undo",
+  "menuRedo": "Redo",
+  "menuCut": "Cut",
+  "menuCopy": "Copy",
+  "menuPaste": "Paste",
+
+  "menuImageTransform": "Transform",
+  "menuRotate90CW": "Rotate 90\u00b0 CW",
+  "menuRotate90CCW": "Rotate 90\u00b0 CCW",
+  "menuRotate180CW": "Rotate 180\u00b0 CW",
+  "menuRotate180CCW": "Rotate 180\u00b0 CCW",
+  "menuImageSizeEllipsis": "Image Size\u2026",
+  "menuCanvasSizeEllipsis": "Canvas Size\u2026",
+
+  "menuNewSubmenu": "New",
+  "menuNewLayerEllipsis": "Layer\u2026",
+  "menuMergeDown": "Merge Down",
+  "menuRasterize": "Rasterize",
+  "menuTransform": "Transform",
+
+  "menuSelectAll": "Select All",
+  "menuInvertSelection": "Invert Selection",
+
+  "menuPalette": "Palette",
+  "menuGeneratePaletteFromCanvasEllipsis": "Generate palette from current canvas\u2026",
+  "menuGenerateGradientPalette": "Generate gradient palette from current colors",
+  "menuImportPaletteEllipsis": "Import palette\u2026",
+
+  "menuReferenceImage": "Reference Images",
+  "menuCreateReferenceImage": "Create Reference Image",
+  "menuImportReferenceImageEllipsis": "Import Reference Image\u2026",
+
+  "menuZoomIn": "Zoom In",
+  "menuZoomOut": "Zoom Out",
+  "menuShowGrid": "Show Grid",
+  "menuHideGrid": "Hide Grid",
+  "menuBlackWhite": "Black & White",
+  "menuDisableBlackWhite": "Disable Black & White",
+  "menuMirrorPreview": "Mirror Preview",
+  "menuDisableMirror": "Disable Mirror",
+  "menuShowPerspectiveGuide": "Show Perspective Guide",
+  "menuHidePerspectiveGuide": "Hide Perspective Guide",
+  "menuPerspectiveMode": "Perspective Mode",
+  "menuPerspective1Point": "1-Point",
+  "menuPerspective2Point": "2-Point",
+  "menuPerspective3Point": "3-Point",
+
+  "menuWorkspaceDefault": "Default",
+  "menuWorkspaceSai2": "SAI2",
+  "menuSwitchWorkspace": "Switch Workspace",
+  "menuResetWorkspace": "Reset Workspace",
+
+  "menuEdgeSofteningEllipsis": "Edge Softening\u2026",
+  "menuNarrowLinesEllipsis": "Narrow Lines\u2026",
+  "menuExpandFillEllipsis": "Expand Fill\u2026",
+  "menuGaussianBlurEllipsis": "Gaussian Blur\u2026",
+  "menuRemoveColorLeakEllipsis": "Remove Color Leak\u2026",
+  "menuHueSaturationEllipsis": "Hue/Saturation\u2026",
+  "menuBrightnessContrastEllipsis": "Brightness/Contrast\u2026",
+  "menuColorRangeEllipsis": "Color Range\u2026",
+  "menuBlackWhiteEllipsis": "Black & White\u2026",
+  "menuBinarizeEllipsis": "Binarize\u2026",
+  "menuScanPaperDrawing": "Scan Paper Drawing",
+  "menuInvertColors": "Invert Colors",
+
+  "canvasSizeTitle": "Canvas Size",
+  "canvasSizeAnchorLabel": "Anchor",
+  "canvasSizeAnchorDesc": "Resize canvas based on anchor point.",
+  "confirm": "Confirm",
+
+  "projectManagerTitle": "Project Manager",
+  "selectAll": "Select All",
+  "openFolder": "Open Folder",
+  "deleteSelected": "Delete Selected ({count})",
+  "@deleteSelected": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+
+  "imageSizeTitle": "Image Size",
+  "lockAspectRatio": "Lock Aspect Ratio",
+
+  "realtimeParams": "Realtime Parameters",
+  "clearScribble": "Clear Scribble",
+
+  "newCanvasSettingsTitle": "New Canvas Settings",
+  "custom": "Custom",
+  "colorWhite": "White",
+  "colorLightGray": "Light Gray",
+  "colorBlack": "Black",
+  "create": "Create",
+  "currentPreset": "Current Preset: {name}",
+  "@currentPreset": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+
+  "exportSettingsTitle": "Export Settings",
+  "exportTypeLabel": "Export Type",
+  "exportTypePng": "Bitmap PNG",
+  "exportTypeSvg": "Vector SVG (Experimental)",
+  "exportScaleLabel": "Export Scale",
+  "reset": "Reset",
+  "exportOutputSize": "Output Size: {width} x {height} px",
+  "@exportOutputSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "exportAntialiasingLabel": "Antialiasing",
+  "enableAntialiasing": "Enable Antialiasing",
+  "vectorParamsLabel": "Vector Parameters",
+  "vectorMaxColors": "Max Colors: {count}",
+  "@vectorMaxColors": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "vectorSimplify": "Simplify Strength: {value}",
+  "@vectorSimplify": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "export": "Export",
+
+  "invalidDimensions": "Please enter valid dimensions (px).",
+  "widthPx": "Width (px)",
+  "heightPx": "Height (px)",
+
+  "noAutosavedProjects": "No autosaved projects",
+  "revealProjectLocation": "Reveal selected project location",
+  "deleteSelectedProjects": "Delete selected projects",
+  "loadFailed": "Failed to load: {error}",
+  "@loadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "deleteFailed": "Failed to delete: {error}",
+  "@deleteFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "projectFileInfo": "Size: {size} · Modified: {date}",
+  "@projectFileInfo": {
+    "placeholders": {
+      "size": {},
+      "date": {}
+    }
+  },
+  "projectCanvasInfo": "Canvas {width} x {height}",
+  "@projectCanvasInfo": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+
+  "samplingMethod": "Sampling Method",
+  "currentSize": "Current Size: {width} x {height} px",
+  "@currentSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "samplingNearestLabel": "Nearest Neighbor",
+  "samplingNearestDesc": "Preserves hard edges, good for pixel art.",
+  "samplingBilinearLabel": "Bilinear",
+  "samplingBilinearDesc": "Smooth interpolation, good for general resizing.",
+
+  "tabletPressureLatest": "Latest Pressure",
+  "tabletPressureMin": "Pressure Min",
+  "tabletPressureMax": "Pressure Max",
+  "tabletRadiusPx": "Estimated Radius (px)",
+  "tabletTiltRad": "Tilt (radians)",
+  "tabletSampleCount": "Sample Count",
+  "tabletSampleRateHz": "Sample Rate (Hz)",
+  "tabletPointerType": "Pointer Type",
+  
+  "pointerKindMouse": "Mouse",
+  "pointerKindTouch": "Touch",
+  "pointerKindStylus": "Stylus",
+  "pointerKindInvertedStylus": "Stylus (Eraser)",
+  "pointerKindTrackpad": "Trackpad",
+  "pointerKindUnknown": "Unknown",
+
+  "presetMobilePortrait": "Mobile Portrait (1080 x 1920)",
+  "presetSquare": "Square (1024 x 1024)",
+  "presetPixelArt": "Pixel Art ({width} x {height})",
+  "@presetPixelArt": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "untitledProject": "Untitled Project",
+  "invalidResolution": "Please enter valid resolution",
+  "minResolutionError": "Resolution cannot be less than {value} px",
+  "@minResolutionError": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "maxResolutionError": "Resolution cannot exceed {value} px",
+  "@maxResolutionError": {
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "projectName": "Project Name",
+  "workspacePreset": "Workspace Preset",
+  "workspacePresetDesc": "Automatically apply common tool settings when creating a canvas.",
+  "workspaceIllustration": "Illustration",
+  "workspaceIllustrationDesc": "Brush edge softening set to level 1",
+  "workspaceCelShading": "Cel Shading",
+  "workspaceCelShadingDesc1": "Brush edge softening set to level 0",
+  "workspaceCelShadingDesc2": "Fill tool expand to line: On",
+  "workspaceCelShadingDesc3": "Fill tool antialiasing: Off",
+  "workspacePixel": "Pixel",
+  "workspacePixelDesc1": "Brush/Fill tool antialiasing set to level 0",
+  "workspacePixelDesc2": "Show Grid: On",
+  "workspacePixelDesc3": "Vector Drawing: Off",
+  "workspaceDefault": "Default",
+  "workspaceDefaultDesc": "Do not change current tool settings",
+  "resolutionPreset": "Resolution Preset",
+  "customResolution": "Custom Resolution",
+  "finalSizePreview": "Final Size: {width} x {height} px (Ratio {ratio})",
+  "@finalSizePreview": {
+    "placeholders": {
+      "width": {},
+      "height": {},
+      "ratio": {}
+    }
+  },
+  "enterValidDimensions": "Please enter valid dimensions",
+  "backgroundColor": "Background Color",
+
+  "exportBitmapDesc": "Suitable for regular exports requiring raster format, supports scaling and antialiasing.",
+  "exportVectorDesc": "Automatically transcribes current canvas to vector paths, suitable for editing in vector tools.",
+  "exampleScale": "e.g. 1.0",
+  "enterPositiveValue": "Please enter a value > 0",
+  "antialiasingBeforeExport": "Antialiasing before export",
+  "antialiasingDesc": "Smoothens edges while preserving line density, a tribute to the texture of Retas animation software.",
+  "levelLabel": "Level {level}",
+  "@levelLabel": {
+    "placeholders": {
+      "level": {}
+    }
+  },
+  "vectorExportSize": "Export Size: {width} x {height} (Use Canvas Size)",
+  "@vectorExportSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+  "colorCount": "{count} colors",
+  "@colorCount": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "vectorSimplifyDesc": "Fewer colors and higher simplification yield simpler SVG; too low values result in too many nodes.",
+  "antialiasNone": "Level 0 (Off): Preserves pixel hard edges, no antialiasing.",
+  "antialiasLow": "Level 1 (Low): Slight softening of aliasing, smoothing edges while maintaining line density.",
+  "antialiasMedium": "Level 2 (Standard): Balance sharpness and softening, presenting clean lines like Retas.",
+  "antialiasHigh": "Level 3 (High): Strongest softening effect, for edges requiring soft transitions or large scaling.",
+
+  "tolerance": "Tolerance",
+  "fillGap": "Fill Gap",
+  "sampleAllLayers": "Sample All Layers",
+  "contiguous": "Contiguous",
+  "swallowColorLine": "Swallow Color Line",
+  "swallowBlueColorLine": "Swallow Blue Line",
+  "swallowGreenColorLine": "Swallow Green Line",
+  "swallowRedColorLine": "Swallow Red Line",
+  "swallowAllColorLine": "Swallow All Lines",
+  "cropOutsideCanvas": "Crop Outside Canvas",
+  "noAdjustableSettings": "No adjustable settings for this tool",
+  "hollowStroke": "Hollow Stroke",
+  "hollowStrokeRatio": "Hollow Ratio",
+  "eraseOccludedParts": "Erase Occluded Parts",
+  "solidFill": "Solid Fill",
+  "autoSharpTaper": "Auto Sharp Taper",
+  "stylusPressure": "Stylus Pressure",
+  "simulatedPressure": "Simulated Pressure",
+  "switchToEraser": "Switch to Eraser",
+  "vectorDrawing": "Vector Drawing",
+  "smoothCurve": "Smooth Curve",
+  "sprayEffect": "Spray Effect",
+  "brushShape": "Brush Shape",
+  "selectionShape": "Selection Shape",
+  "fontSize": "Font Size",
+  "lineHeight": "Line Height",
+  "letterSpacing": "Letter Spacing",
+  "textStroke": "Text Stroke",
+  "strokeWidth": "Stroke Width",
+  "strokeColor": "Stroke Color",
+  "pickColor": "Pick Color",
+  "alignment": "Alignment",
+  "alignCenter": "Center",
+  "alignRight": "Right",
+  "alignLeft": "Left",
+  "orientation": "Orientation",
+  "horizontal": "Horizontal",
+  "vertical": "Vertical",
+  "textToolHint": "Use the color picker in the bottom left for text fill, and the secondary color for stroke.",
+  "shapeType": "Shape Type",
+  "brushSize": "Brush Size",
+  "spraySize": "Spray Size",
+  "brushFineTune": "Brush Fine Tune",
+  "increase": "Increase",
+  "decrease": "Decrease",
+  "stabilizer": "Stabilizer",
+  "off": "Off",
+  "taperEnds": "Taper Ends",
+  "taperCenter": "Taper Center",
+  "auto": "Auto",
+  "softSpray": "Soft Spray",
+  "splatter": "Splatter",
+  "rectSelection": "Rectangle Selection",
+  "ellipseSelection": "Ellipse Selection",
+  "polygonLasso": "Polygon Lasso",
+  "rectangle": "Rectangle",
+  "ellipse": "Ellipse",
+  "triangle": "Triangle",
+  "line": "Line",
+  "circle": "Circle",
+  "square": "Square",
+
+  "brushSizeDesc": "Sets the pixel diameter of the current brush. Larger values make thicker lines, smaller for details.",
+  "spraySizeDesc": "Determines the radius of the spray area. Larger radius covers more area but particles are more dispersed.",
+  "toleranceDesc": "Controls the threshold for 'color similarity' for Bucket or Magic Wand. Higher tolerance grabs more similar colors.",
+  "fillGapDesc": "Attempts to close small gaps in line art during bucket fill to prevent leaks. Higher values close larger gaps but may miss very thin areas.",
+  "antialiasingSliderDesc": "Adds multi-sampling smoothing to brush or fill edges, preserving line density. Level 0 keeps pixel style.",
+  "stabilizerDesc": "Smooths pointer trajectory in real-time to counteract hand tremors. Higher levels are steadier but respond slower.",
+  "fontSizeDesc": "Adjusts the pixel height of the text for overall scaling.",
+  "lineHeightDesc": "Controls vertical distance between lines of text.",
+  "letterSpacingDesc": "Changes horizontal spacing between characters.",
+  "strokeWidthDesc": "Sets the thickness of the text stroke.",
+  "hollowStrokeDesc": "Cuts out the center of strokes for a hollow outline effect.",
+  "hollowStrokeRatioDesc": "Controls the size of the hollow interior. Higher values make the outline thinner.",
+  "eraseOccludedPartsDesc": "When enabled, later hollow strokes erase overlapping pixels from existing strokes on the same layer.",
+  
+  "solidFillDesc": "Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.",
+  "autoSharpTaperDesc": "Automatically tapers the start and end of strokes for a sharp, cel-shading look.",
+  "stylusPressureDesc": "Allows stylus pressure to affect brush size/opacity. Turn off to ignore hardware pressure.",
+  "simulatedPressureDesc": "Simulates pressure based on mouse speed when no pressure device is present.",
+  "switchToEraserDesc": "Switches current brush/spray to an eraser with the same texture.",
+  "vectorDrawingDesc": "Previews strokes as vector curves for 120Hz smooth feedback and lossless scaling. Turn off for direct pixel output.",
+  "smoothCurveDesc": "Further smooths curve nodes when Vector Drawing is on, reducing corners but sacrificing some responsiveness.",
+  "sampleAllLayersDesc": "Bucket samples colors from all visible layers. Turn off to detect only the current layer.",
+  "contiguousDesc": "Spreads only to adjacent pixels. Turn off to match the entire canvas.",
+  "swallowColorLineDesc": "Automatically expands fill into color lines to remove white edges. Dedicated for Retas workflow.",
+  "swallowBlueColorLineDesc": "Swallows only blue lines when filling.",
+  "swallowGreenColorLineDesc": "Swallows only green lines when filling.",
+  "swallowRedColorLineDesc": "Swallows only red lines when filling.",
+  "swallowAllColorLineDesc": "Swallows red/green/blue lines when filling.",
+  "cropOutsideCanvasDesc": "Crops pixels outside the canvas when adjusting layers. Turn off to keep all pixels.",
+  "textAntialiasingDesc": "Enables antialiasing for text rendering, smoothing glyphs while preserving density.",
+  "textStrokeDesc": "Enables the stroke channel for text outlines.",
+  
+  "sprayEffectDesc": "Switches spray model: 'Soft Spray' for misty gradients, 'Splatter' for particles.",
+  
+  "rectSelectDesc": "Quickly select a rectangular area.",
+  "ellipseSelectDesc": "Create circular or elliptical selections.",
+  "polyLassoDesc": "Draw arbitrary polygon selections point by point.",
+  "rectShapeDesc": "Draw horizontal rectangles or squares (outline/fill).",
+  "ellipseShapeDesc": "Draw elliptical or circular outlines/fills.",
+  "triangleShapeDesc": "Draw geometric triangles or use a triangle tip for sharp outlines.",
+  "lineShapeDesc": "Draw straight lines from start to end.",
+  "circleTipDesc": "Keep brush tip circular for smooth, soft strokes.",
+  "squareTipDesc": "Use a square tip for hard-edged pixel strokes.",
+
+  "apply": "Apply",
+  "next": "Next",
+  "disableVectorDrawing": "Disable Vector Drawing",
+  "disableVectorDrawingConfirm": "Are you sure you want to disable vector drawing?",
+  "disableVectorDrawingDesc": "Performance will decrease after disabling.",
+  "dontShowAgain": "Don't show again",
+  "newLayer": "New Layer",
+  "mergeDown": "Merge Down",
+  "delete": "Delete",
+  "duplicate": "Duplicate",
+  "rasterizeTextLayer": "Rasterize Text Layer",
+  "opacity": "Opacity",
+  "blendMode": "Blend Mode",
+  "clearFill": "Clear Fill",
+  "colorLine": "Color Line",
+  "currentColor": "Current Color",
+  "rgb": "RGB",
+  "hsv": "HSV",
+  "preparingLayer": "Preparing layer...",
+  "generatePaletteTitle": "Generate palette from canvas",
+  "generatePaletteDesc": "Choose color count or enter custom value.",
+  "customCount": "Custom Count",
+  "selectExportFormat": "Select Export Format",
+  "selectPaletteFormatDesc": "Select palette export format.",
+  "noColorsDetected": "No colors detected.",
+  "alphaThreshold": "Alpha Threshold",
+  "blurRadius": "Blur Radius",
+  "repairRange": "Repair Range",
+  "selectAntialiasLevel": "Select Antialias Level",
+  "colorCountLabel": "Color Count",
+
+  "completeTransformFirst": "Please complete the current transform first.",
+  "enablePerspectiveGuideFirst": "Please enable perspective guide before using perspective pen.",
+  "lineNotAlignedWithPerspective": "Current line does not align with perspective direction, please adjust angle.",
+
+  "layerBackground": "Background",
+  "layerDefaultName": "Layer {index}",
+  "@layerDefaultName": {
+    "placeholders": {
+      "index": {}
+    }
+  },
+  "duplicateLayer": "Duplicate Layer",
+  "layerCopyName": "{name} Copy",
+  "@layerCopyName": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "unlockLayer": "Unlock Layer",
+  "lockLayer": "Lock Layer",
+  "releaseClippingMask": "Release Clipping Mask",
+  "createClippingMask": "Create Clipping Mask",
+  "hide": "Hide",
+  "show": "Show",
+
+  "colorRangeTitle": "Color Range",
+  "colorPickerTitle": "Color Picker",
+  "layerManagerTitle": "Layer Manager",
+  "edgeSoftening": "Edge Softening",
+
+  "undo": "Undo",
+  "redo": "Redo",
+  "undoShortcut": "Undo ({shortcut})",
+  "@undoShortcut": {
+    "placeholders": {
+      "shortcut": {}
+    }
+  },
+  "redoShortcut": "Redo ({shortcut})",
+  "@redoShortcut": {
+    "placeholders": {
+      "shortcut": {}
+    }
+  },
+  "opacityPercent": "Opacity {percent}%",
+  "@opacityPercent": {
+    "placeholders": {
+      "percent": {}
+    }
+  },
+  "clippingMask": "Clipping Mask",
+  "deleteLayerTitle": "Delete Layer",
+  "deleteLayerDesc": "Remove this layer. Undo available.",
+  "mergeDownDesc": "Merge with the layer below.",
+  "duplicateLayerDesc": "Duplicate entire layer content.",
+  "more": "More",
+  "lockLayerDesc": "Lock to prevent accidental edits.",
+  "unlockLayerDesc": "Unlock to enable editing.",
+  "clippingMaskDescOn": "Restore to normal layer.",
+  "clippingMaskDescOff": "Clip to layer below.",
+
+  "red": "Red",
+  "green": "Green",
+  "blue": "Blue",
+  "hue": "Hue",
+  "saturation": "Saturation",
+  "value": "Value",
+  "hsvBoxSpectrum": "HSV Box Spectrum",
+  "hueRingSpectrum": "Hue Ring Spectrum",
+  "rgbHsvSliders": "RGB / HSV Sliders",
+  "boardPanelPicker": "Board Panel Picker",
+  "adjustCurrentColor": "Adjust Current Color",
+  "adjustStrokeColor": "Adjust Stroke Color",
+  "copiedHex": "Copied {hex}",
+  "@copiedHex": {
+    "placeholders": {
+      "hex": {}
+    }
+  },
+  "rotationLabel": "Rotation: {degrees}°",
+  "@rotationLabel": {
+    "placeholders": {
+      "degrees": {}
+    }
+  },
+  "scaleLabel": "Scale: {x}% x {y}%",
+  "@scaleLabel": {
+    "placeholders": {
+      "x": {},
+      "y": {}
+    }
+  },
+  "failedToExportTransform": "Failed to export transform result",
+  "cannotLocateLayer": "Cannot locate active layer.",
+  "layerLockedCannotTransform": "Active layer is locked, cannot transform.",
+  "cannotEnterTransformMode": "Cannot enter free transform mode.",
+  "applyTransformFailed": "Failed to apply transform, please try again.",
+  "freeTransformTitle": "Free Transform",
+  "colorIndicatorDetail": "Click to open color editor, enter values or copy HEX.",
+
+  "gplDesc": "Text format compatible with GIMP, Krita, Clip Studio Paint, etc.",
+  "aseDesc": "Suitable for Aseprite, LibreSprite pixel art software.",
+  "asepriteDesc": "Uses .aseprite extension for direct opening in Aseprite.",
+  "gradientPaletteFailed": "Current color cannot generate gradient palette, please try again.",
+  "gradientPaletteTitle": "Gradient Palette (Current Color)",
+  "paletteCountRange": "Range {min} - {max}",
+  "@paletteCountRange": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "allowedRange": "Allowed Range: {min} - {max} colors",
+  "@allowedRange": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "enterValidColorCount": "Please enter a valid color count.",
+  "paletteGenerationFailed": "Unable to generate palette momentarily, please try again.",
+  "noValidColorsFound": "No valid colors found, please ensure canvas has content.",
+  "paletteEmpty": "This palette has no usable colors.",
+  "paletteMinColors": "Palette requires at least {min} colors.",
+  "@paletteMinColors": {
+    "placeholders": {
+      "min": {}
+    }
+  },
+  "paletteDefaultName": "Palette",
+  "paletteEmptyExport": "This palette has no exportable colors.",
+  "exportPaletteTitle": "Export Palette",
+  "webDownloadDesc": "Browser will save palette to default download directory.",
+  "download": "Download",
+  "paletteDownloaded": "Palette downloaded: {name}",
+  "@paletteDownloaded": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "paletteExported": "Palette exported to {path}",
+  "@paletteExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "paletteExportFailed": "Failed to export palette: {error}",
+  "@paletteExportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "selectEditableLayerFirst": "Please select an editable layer first.",
+  "layerLockedNoFilter": "Active layer is locked, cannot apply filter.",
+  "textLayerNoFilter": "Active layer is text, please rasterize or switch layer.",
+  "hueSaturation": "Hue/Saturation",
+  "brightnessContrast": "Brightness/Contrast",
+  "blackAndWhite": "Black & White",
+  "binarize": "Binarize",
+  "gaussianBlur": "Gaussian Blur",
+  "leakRemoval": "Leak Removal",
+  "lineNarrow": "Line Narrow",
+  "narrowRadius": "Narrow Radius",
+  "fillExpand": "Fill Expand",
+  "expandRadius": "Expand Radius",
+  "noTransparentPixelsFound": "No processable transparent pixels detected.",
+  "filterApplyFailed": "Failed to apply filter, please try again.",
+  "canvasNotReadyInvert": "Canvas not ready, cannot invert colors.",
+  "layerLockedInvert": "Active layer locked, cannot invert colors.",
+  "layerEmptyInvert": "Active layer empty, cannot invert colors.",
+  "noPixelsToInvert": "Active layer has no pixels to invert.",
+  "layerEmptyScanPaperDrawing": "Active layer empty, cannot scan paper drawing.",
+  "scanPaperDrawingNoChanges": "No convertible pixels detected.",
+  "edgeSofteningFailed": "Cannot apply edge softening, layer might be empty or locked.",
+  "layerLockedEdgeSoftening": "Active layer locked, cannot apply edge softening.",
+  "canvasNotReadyColorRange": "Canvas not ready, cannot count color range.",
+  "layerLockedColorRange": "Active layer locked, cannot set color range.",
+  "layerEmptyColorRange": "Active layer empty, cannot set color range.",
+  "noColorsToProcess": "Active layer has no processable colors.",
+  "targetColorsNotLess": "Target color count not less than current, layer unchanged.",
+  "colorRangeApplyFailed": "Failed to apply color range, please try again.",
+  "colorRangePreviewFailed": "Failed to generate color range preview, please try again.",
+  "lightness": "Lightness",
+  "brightness": "Brightness",
+  "contrast": "Contrast",
+
+  "selectSaveFormat": "Please select a file format to save.",
+  "saveAsPsd": "Save as PSD",
+  "saveAsRin": "Save as RIN",
+  "dontSave": "Don't Save",
+  "save": "Save",
+  "renameProject": "Rename Project",
+  "enterNewProjectName": "Please enter a new project name",
+  "rename": "Rename",
+  "canvasNotReady": "Canvas not ready",
+  "toolPanel": "Tool Panel",
+
+  "toolbarTitle": "Toolbar",
+  "toolOptionsTitle": "Tool Options",
+  "defaultProjectDirectory": "Default Project Directory",
+  "minimize": "Minimize",
+  "maximizeRestore": "Maximize/Restore",
+  "fontFamily": "Font Family",
+
+  "importPaletteTitle": "Import Palette",
+  "cannotReadFile": "Cannot read file",
+  "paletteImported": "Palette imported: {name}",
+  "@paletteImported": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "paletteImportFailed": "Failed to import palette: {error}",
+  "@paletteImportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "noChangesToSave": "No changes to save to {location}",
+  "@noChangesToSave": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaved": "Project saved to {location}",
+  "@projectSaved": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaveFailed": "Failed to save project: {error}",
+  "@projectSaveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadySave": "Canvas is not ready to save.",
+  "saveProjectAs": "Save Project As",
+  "webSaveDesc": "Download the project file to your device.",
+  "psdExported": "PSD exported to {path}",
+  "@psdExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "projectDownloaded": "Project downloaded: {fileName}",
+  "@projectDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "psdDownloaded": "PSD downloaded: {fileName}",
+  "@psdDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "exportAsPsdTooltip": "Export as PSD",
+  "canvasNotReadyExport": "Canvas is not ready to export.",
+  "exportFileTitle": "Export {extension} File",
+  "@exportFileTitle": {
+    "placeholders": {
+      "extension": {}
+    }
+  },
+  "webExportDesc": "Download the exported image to your device.",
+  "fileDownloaded": "{extension} file downloaded: {name}",
+  "@fileDownloaded": {
+    "placeholders": {
+      "extension": {},
+      "name": {}
+    }
+  },
+  "fileExported": "File exported to {path}",
+  "@fileExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportFailed": "Export failed: {error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadyTransform": "Canvas not ready for transformation.",
+  "canvasSizeErrorTransform": "Canvas size error during transformation.",
+  "canvasNotReadyResizeImage": "Canvas not ready to resize image.",
+  "resizeImageFailed": "Failed to resize image.",
+  "canvasNotReadyResizeCanvas": "Canvas not ready to resize canvas.",
+  "resizeCanvasFailed": "Failed to resize canvas.",
+  "returnToHome": "Return to Home",
+  "saveBeforeReturn": "Do you want to save changes before returning to home?",
+  "closeCanvas": "Close Canvas",
+  "saveBeforeClose": "Do you want to save changes before closing?",
+  "nameCannotBeEmpty": "Name cannot be empty.",
+  "noSupportedImageFormats": "No supported image formats found.",
+  "importFailed": "Failed to import {item}: {error}",
+  "@importFailed": {
+    "placeholders": {
+      "item": {},
+      "error": {}
+    }
+  },
+  "createdCanvasFromDrop": "Created canvas from dropped item.",
+  "createdCanvasesFromDrop": "Created {count} canvases from dropped items.",
+  "@createdCanvasesFromDrop": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageCreateFailed": "Failed to create canvas from dropped image.",
+  "canvasNotReadyDrop": "Canvas not ready for drop operation.",
+  "insertedDropImage": "Inserted dropped image.",
+  "insertedDropImages": "Inserted {count} dropped images.",
+  "@insertedDropImages": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageInsertFailed": "Failed to insert dropped image.",
+  "image": "Image",
+  "on": "On",
+  "perspective1Point": "1-Point Perspective",
+  "perspective2Point": "2-Point Perspective",
+  "perspective3Point": "3-Point Perspective",
+  "resolutionLabel": "Resolution: {resolution}",
+  "@resolutionLabel": {
+    "placeholders": {
+      "resolution": {}
+    }
+  },
+  "zoomLabel": "Zoom: {zoom}",
+  "@zoomLabel": {
+    "placeholders": {
+      "zoom": {}
+    }
+  },
+  "positionLabel": "Pos: {position}",
+  "@positionLabel": {
+    "placeholders": {
+      "position": {}
+    }
+  },
+  "gridLabel": "Grid: {grid}",
+  "@gridLabel": {
+    "placeholders": {
+      "grid": {}
+    }
+  },
+  "blackWhiteLabel": "B&W: {state}",
+  "@blackWhiteLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "mirrorLabel": "Mirror: {state}",
+  "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "perspectiveLabel": "Perspective: {perspective}",
+  "@perspectiveLabel": {
+    "placeholders": {
+      "perspective": {}
+    }
+  },
+  "fileNameCannotBeEmpty": "File name cannot be empty.",
+  "blackPoint": "Black Point",
+  "whitePoint": "White Point",
+  "midTone": "Mid Tone"
+}

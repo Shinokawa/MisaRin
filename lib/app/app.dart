@@ -4,9 +4,13 @@ import 'dart:io' show Platform;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:window_manager/window_manager.dart';
+import 'package:misa_rin/l10n/app_localizations.dart';
 
 import 'dialogs/misarin_dialog.dart';
+import 'l10n/locale_controller.dart';
+import 'l10n/l10n.dart';
 import 'menu/custom_menu_shell.dart';
+import 'menu/macos_menu_shell.dart';
 import 'preferences/app_preferences.dart';
 import 'theme/theme_controller.dart';
 import 'view/home_page.dart';
@@ -31,12 +35,14 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   late ThemeMode _themeMode;
+  late Locale? _locale;
   bool _windowListenerAttached = false;
 
   @override
   void initState() {
     super.initState();
     _themeMode = AppPreferences.instance.themeMode;
+    _locale = AppPreferences.instance.localeOverride;
     _initWindowCloseHandler();
   }
 
@@ -47,6 +53,16 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     setState(() => _themeMode = mode);
     final AppPreferences prefs = AppPreferences.instance;
     prefs.themeMode = mode;
+    unawaited(AppPreferences.save());
+  }
+
+  void _handleLocaleChanged(Locale? locale) {
+    if (_locale == locale) {
+      return;
+    }
+    setState(() => _locale = locale);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.localeOverride = locale;
     unawaited(AppPreferences.save());
   }
 
@@ -109,23 +125,22 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
       return true;
     }
     final int unsavedCount = dirtyEntries.length;
+    final l10n = context.l10n;
     final bool? discard = await showMisarinDialog<bool>(
       context: context,
       barrierDismissible: false,
-      title: const Text('关闭应用'),
+      title: Text(l10n.closeAppTitle),
       content: Text(
-        unsavedCount == 1
-            ? '检测到 1 个未保存的项目。如果现在退出，最近的修改将会丢失。'
-            : '检测到 $unsavedCount 个未保存的项目。如果现在退出，最近的修改将会丢失。',
+        l10n.unsavedProjectsWarning(unsavedCount),
       ),
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('丢弃并退出'),
+          child: Text(l10n.discardAndExit),
         ),
       ],
     );
@@ -133,48 +148,65 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ThemeController(
-      themeMode: _themeMode,
-      onThemeModeChanged: _handleThemeModeChanged,
-      child: FluentApp(
+	  Widget build(BuildContext context) {
+	    return ThemeController(
+	      themeMode: _themeMode,
+	      onThemeModeChanged: _handleThemeModeChanged,
+	      child: LocaleController(
+	        locale: _locale,
+	        onLocaleChanged: _handleLocaleChanged,
+	        child: FluentApp(
         navigatorKey: _navigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'Misa Rin',
-        builder: (context, child) {
-          Widget content = child ?? const SizedBox.shrink();
-          if (widget.showCustomMenu && child != null) {
-            content = CustomMenuShell(
-              navigatorKey: _navigatorKey,
-              showMenus: widget.showCustomMenuItems,
-              child: child,
-            );
-          }
-          return ValueListenableBuilder<bool>(
-            valueListenable: AppPreferences.fpsOverlayEnabledNotifier,
-            builder: (context, enabled, appChild) {
-              final Widget resolvedChild = appChild ?? const SizedBox.shrink();
-              if (!enabled) {
-                return resolvedChild;
-              }
-              return Stack(
-                fit: StackFit.passthrough,
-                children: [resolvedChild, const PerformancePulseOverlay()],
-              );
-            },
-            child: content,
-          );
-        },
-        theme: FluentThemeData(
-          brightness: Brightness.light,
-          accentColor: Colors.black.toAccentColor(),
-        ),
+        locale: _locale,
+        localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+          ...AppLocalizations.localizationsDelegates,
+          FluentLocalizations.delegate,
+        ],
+	        supportedLocales: AppLocalizations.supportedLocales,
+	        builder: (context, child) {
+	          Widget content = child ?? const SizedBox.shrink();
+	          if (widget.showCustomMenu && child != null) {
+	            content = CustomMenuShell(
+	              navigatorKey: _navigatorKey,
+	              showMenus: widget.showCustomMenuItems,
+	              child: child,
+	            );
+	          }
+	          Widget appBody = ValueListenableBuilder<bool>(
+	            valueListenable: AppPreferences.fpsOverlayEnabledNotifier,
+	            builder: (context, enabled, appChild) {
+	              final Widget resolvedChild = appChild ?? const SizedBox.shrink();
+	              if (!enabled) {
+	                return resolvedChild;
+	              }
+	              return Stack(
+	                fit: StackFit.passthrough,
+	                children: [resolvedChild, const PerformancePulseOverlay()],
+	              );
+	            },
+	            child: content,
+	          );
+
+	          // PlatformMenuBar needs AppLocalizations, so build it inside FluentApp.
+	          if (!kIsWeb && Platform.isMacOS) {
+	            appBody = MacosMenuShell(child: appBody);
+	          }
+
+	          return appBody;
+	        },
+	        theme: FluentThemeData(
+	          brightness: Brightness.light,
+	          accentColor: Colors.black.toAccentColor(),
+	        ),
         darkTheme: FluentThemeData(
           brightness: Brightness.dark,
           accentColor: Colors.white.toAccentColor(),
         ),
         themeMode: _themeMode,
         home: const MisarinHomePage(),
+      ),
       ),
     );
   }

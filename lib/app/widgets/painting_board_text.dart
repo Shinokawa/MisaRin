@@ -894,6 +894,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     switch (tool) {
       case CanvasTool.text:
       case CanvasTool.hand:
+      case CanvasTool.rotate:
       case CanvasTool.eyedropper:
       case CanvasTool.layerAdjust:
         return false;

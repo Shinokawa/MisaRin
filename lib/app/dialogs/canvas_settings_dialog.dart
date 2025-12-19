@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../../canvas/canvas_settings.dart';
+import '../l10n/l10n.dart';
 import 'misarin_dialog.dart';
 
 enum WorkspacePreset { none, illustration, celShading, pixel }
@@ -30,6 +31,18 @@ class _ResolutionPreset {
   final int width;
   final int height;
   final String label;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _ResolutionPreset &&
+        other.width == width &&
+        other.height == height &&
+        other.label == label;
+  }
+
+  @override
+  int get hashCode => Object.hash(width, height, label);
 }
 
 class _WorkspacePresetOption {
@@ -67,45 +80,8 @@ class _CanvasSettingsDialog extends StatefulWidget {
 }
 
 class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
-  static const List<_ResolutionPreset> _presets = <_ResolutionPreset>[
-    _ResolutionPreset(width: 7680, height: 4320, label: '8K UHD (7680 × 4320)'),
-    _ResolutionPreset(width: 3840, height: 2160, label: '4K UHD (3840 × 2160)'),
-    _ResolutionPreset(width: 2560, height: 1440, label: 'QHD (2560 × 1440)'),
-    _ResolutionPreset(width: 1920, height: 1080, label: 'FHD (1920 × 1080)'),
-    _ResolutionPreset(width: 1600, height: 1200, label: 'UXGA (1600 × 1200)'),
-    _ResolutionPreset(width: 1280, height: 720, label: 'HD (1280 × 720)'),
-    _ResolutionPreset(width: 1080, height: 1920, label: '移动端纵向 (1080 × 1920)'),
-    _ResolutionPreset(width: 1024, height: 1024, label: '方形 (1024 × 1024)'),
-    _ResolutionPreset(width: 64, height: 64, label: '像素画 (64 × 64)'),
-    _ResolutionPreset(width: 32, height: 32, label: '像素画 (32 × 32)'),
-    _ResolutionPreset(width: 16, height: 16, label: '像素画 (16 × 16)'),
-  ];
-
   static const int _minDimension = 1;
   static const int _maxDimension = 16000;
-  static const List<_WorkspacePresetOption> _workspacePresets =
-      <_WorkspacePresetOption>[
-        _WorkspacePresetOption(
-          preset: WorkspacePreset.illustration,
-          title: '插画',
-          changes: <String>['画笔边缘柔化设为 1 级'],
-        ),
-        _WorkspacePresetOption(
-          preset: WorkspacePreset.celShading,
-          title: '赛璐璐',
-          changes: <String>['画笔边缘柔化设为 0 级', '油漆桶吞并色线：开启', '油漆桶边缘柔化：关闭'],
-        ),
-        _WorkspacePresetOption(
-          preset: WorkspacePreset.pixel,
-          title: '像素',
-          changes: <String>['笔刷/油漆桶边缘柔化设为 0 级', '显示网格：开启', '矢量作画：关闭'],
-        ),
-        _WorkspacePresetOption(
-          preset: WorkspacePreset.none,
-          title: '默认',
-          changes: <String>['不更改当前工具参数'],
-        ),
-      ];
 
   late final TextEditingController _widthController;
   late final TextEditingController _heightController;
@@ -126,12 +102,79 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     );
     _widthController.addListener(_handleDimensionChanged);
     _heightController.addListener(_handleDimensionChanged);
-    _nameController = TextEditingController(text: '未命名项目');
+    _nameController = TextEditingController();
     _selectedColor = widget.initialSettings.backgroundColor;
-    _selectedPreset = _matchPreset(
-      widget.initialSettings.width.round(),
-      widget.initialSettings.height.round(),
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_nameController.text.isEmpty) {
+      _nameController.text = context.l10n.untitledProject;
+    }
+    // Refresh preset match when l10n changes or init
+    final matched = _matchPreset(
+      int.tryParse(_widthController.text) ?? 0,
+      int.tryParse(_heightController.text) ?? 0,
     );
+    if (matched != null && _selectedPreset == null) {
+      _selectedPreset = matched;
+    }
+  }
+
+  List<_ResolutionPreset> get _presets {
+    final l10n = context.l10n;
+    return <_ResolutionPreset>[
+      _ResolutionPreset(width: 7680, height: 4320, label: '8K UHD (7680 × 4320)'),
+      _ResolutionPreset(width: 3840, height: 2160, label: '4K UHD (3840 × 2160)'),
+      _ResolutionPreset(width: 2560, height: 1440, label: 'QHD (2560 × 1440)'),
+      _ResolutionPreset(width: 1920, height: 1080, label: 'FHD (1920 × 1080)'),
+      _ResolutionPreset(width: 1600, height: 1200, label: 'UXGA (1600 × 1200)'),
+      _ResolutionPreset(width: 1280, height: 720, label: 'HD (1280 × 720)'),
+      _ResolutionPreset(
+          width: 1080, height: 1920, label: l10n.presetMobilePortrait),
+      _ResolutionPreset(width: 1024, height: 1024, label: l10n.presetSquare),
+      _ResolutionPreset(
+          width: 64, height: 64, label: l10n.presetPixelArt(64, 64)),
+      _ResolutionPreset(
+          width: 32, height: 32, label: l10n.presetPixelArt(32, 32)),
+      _ResolutionPreset(
+          width: 16, height: 16, label: l10n.presetPixelArt(16, 16)),
+    ];
+  }
+
+  List<_WorkspacePresetOption> get _workspacePresets {
+    final l10n = context.l10n;
+    return <_WorkspacePresetOption>[
+      _WorkspacePresetOption(
+        preset: WorkspacePreset.illustration,
+        title: l10n.workspaceIllustration,
+        changes: <String>[l10n.workspaceIllustrationDesc],
+      ),
+      _WorkspacePresetOption(
+        preset: WorkspacePreset.celShading,
+        title: l10n.workspaceCelShading,
+        changes: <String>[
+          l10n.workspaceCelShadingDesc1,
+          l10n.workspaceCelShadingDesc2,
+          l10n.workspaceCelShadingDesc3
+        ],
+      ),
+      _WorkspacePresetOption(
+        preset: WorkspacePreset.pixel,
+        title: l10n.workspacePixel,
+        changes: <String>[
+          l10n.workspacePixelDesc1,
+          l10n.workspacePixelDesc2,
+          l10n.workspacePixelDesc3
+        ],
+      ),
+      _WorkspacePresetOption(
+        preset: WorkspacePreset.none,
+        title: l10n.workspaceDefault,
+        changes: <String>[l10n.workspaceDefaultDesc],
+      ),
+    ];
   }
 
   @override
@@ -145,23 +188,27 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
   }
 
   void _handleSubmit() {
+    final l10n = context.l10n;
     final int? width = int.tryParse(_widthController.text);
     final int? height = int.tryParse(_heightController.text);
     if (width == null || height == null) {
-      setState(() => _errorMessage = '请输入有效的分辨率');
+      setState(() => _errorMessage = l10n.invalidResolution);
       return;
     }
     if (width < _minDimension || height < _minDimension) {
-      setState(() => _errorMessage = '分辨率不能小于 $_minDimension 像素');
+      setState(
+          () => _errorMessage = l10n.minResolutionError(_minDimension));
       return;
     }
     if (width > _maxDimension || height > _maxDimension) {
-      setState(() => _errorMessage = '分辨率不能超过 $_maxDimension 像素');
+      setState(
+          () => _errorMessage = l10n.maxResolutionError(_maxDimension));
       return;
     }
 
     final String rawName = _nameController.text.trim();
-    final String resolvedName = rawName.isEmpty ? '未命名项目' : rawName;
+    final String resolvedName =
+        rawName.isEmpty ? l10n.untitledProject : rawName;
     setState(() => _errorMessage = null);
     Navigator.of(context).pop(
       NewProjectConfig(
@@ -179,8 +226,9 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return MisarinDialog(
-      title: const Text('新建画布设置'),
+      title: Text(l10n.newCanvasSettingsTitle),
       contentWidth: 420,
       maxWidth: 520,
       content: ConstrainedBox(
@@ -191,20 +239,20 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               InfoLabel(
-                label: '项目名称',
+                label: l10n.projectName,
                 child: TextBox(
                   controller: _nameController,
-                  placeholder: '未命名项目',
+                  placeholder: l10n.untitledProject,
                 ),
               ),
               const SizedBox(height: 12),
               InfoLabel(
-                label: '工作预设',
+                label: l10n.workspacePreset,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '创建画布时自动应用常用工具参数。',
+                      l10n.workspacePresetDesc,
                       style:
                           theme.typography.caption ??
                           const TextStyle(fontSize: 12),
@@ -224,14 +272,14 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
               ),
               const SizedBox(height: 12),
               InfoLabel(
-                label: '分辨率预设',
+                label: l10n.resolutionPreset,
                 child: ComboBox<_ResolutionPreset?>(
                   isExpanded: true,
                   value: _selectedPreset,
                   items: [
-                    const ComboBoxItem<_ResolutionPreset?>(
+                    ComboBoxItem<_ResolutionPreset?>(
                       value: null,
-                      child: Text('自定义'),
+                      child: Text(l10n.custom),
                     ),
                     ..._presets.map(
                       (preset) => ComboBoxItem<_ResolutionPreset?>(
@@ -245,13 +293,13 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
               ),
               const SizedBox(height: 12),
               InfoLabel(
-                label: '自定义分辨率',
+                label: l10n.customResolution,
                 child: Row(
                   children: [
                     Expanded(
                       child: TextFormBox(
                         controller: _widthController,
-                        placeholder: '宽度（像素）',
+                        placeholder: l10n.widthPx,
                         inputFormatters: <TextInputFormatter>[
                           FilteringTextInputFormatter.digitsOnly,
                         ],
@@ -264,7 +312,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
                     Expanded(
                       child: TextFormBox(
                         controller: _heightController,
-                        placeholder: '高度（像素）',
+                        placeholder: l10n.heightPx,
                         inputFormatters: <TextInputFormatter>[
                           FilteringTextInputFormatter.digitsOnly,
                         ],
@@ -281,15 +329,21 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
               ),
               const SizedBox(height: 12),
               InfoLabel(
-                label: '背景颜色',
+                label: l10n.backgroundColor,
                 child: ComboBox<Color>(
                   isExpanded: true,
                   icon: const Icon(FluentIcons.color),
                   value: _selectedColor,
-                  items: const [
-                    ComboBoxItem(value: Color(0xFFFFFFFF), child: Text('白色')),
-                    ComboBoxItem(value: Color(0xFFF5F5F5), child: Text('浅灰')),
-                    ComboBoxItem(value: Color(0xFF000000), child: Text('黑色')),
+                  items: [
+                    ComboBoxItem(
+                        value: const Color(0xFFFFFFFF),
+                        child: Text(l10n.colorWhite)),
+                    ComboBoxItem(
+                        value: const Color(0xFFF5F5F5),
+                        child: Text(l10n.colorLightGray)),
+                    ComboBoxItem(
+                        value: const Color(0xFF000000),
+                        child: Text(l10n.colorBlack)),
                   ],
                   onChanged: (color) {
                     if (color == null) {
@@ -313,9 +367,9 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: _handleSubmit, child: const Text('创建')),
+        FilledButton(onPressed: _handleSubmit, child: Text(l10n.create)),
       ],
     );
   }
@@ -336,18 +390,26 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         ? null
         : _matchPreset(width, height);
     if (matched != _selectedPreset) {
+      // Only update if matched logic returns something different,
+      // but we need to match based on values of the _presets list which is now a getter.
+      // So checking equality of content might be needed or just ref matching.
+      // Since _presets returns new list every time, we should probably check content or ID.
+      // Actually _presets content (ResolutionPreset objects) will be new instances.
+      // I should cache presets or rely on value equality if I implement ==
+      // For now, _matchPreset implementation iterates _presets.
       setState(() => _selectedPreset = matched);
     }
   }
 
   String _sizePreviewText() {
+    final l10n = context.l10n;
     final int? width = int.tryParse(_widthController.text);
     final int? height = int.tryParse(_heightController.text);
     if (width == null || height == null || width <= 0 || height <= 0) {
-      return '请输入有效的宽高数值';
+      return l10n.enterValidDimensions;
     }
     final String ratio = _formatAspectRatio(width, height);
-    return '最终尺寸：$width × $height 像素（比例 $ratio）';
+    return l10n.finalSizePreview(width, height, ratio);
   }
 
   _ResolutionPreset? _matchPreset(int width, int height) {
@@ -429,6 +491,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
   }
 
   Widget _buildPresetDescription(FluentThemeData theme) {
+    final l10n = context.l10n;
     final _WorkspacePresetOption option = _workspacePresets.firstWhere(
       (item) => item.preset == _selectedWorkspacePreset,
       orElse: () => _workspacePresets.last,
@@ -445,7 +508,8 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('当前预设：${option.title}', style: theme.typography.bodyStrong),
+            Text(l10n.currentPreset(option.title),
+                style: theme.typography.bodyStrong),
             const SizedBox(height: 6),
             ...option.changes.map(
               (text) => Padding(

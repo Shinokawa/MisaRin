@@ -19,6 +19,10 @@ const double _kLeakRemovalMaxRadius = 20.0;
 const double _kMorphologyMaxRadius = 20.0;
 const double _kBlackWhiteMinRange = 1.0;
 const double _kDefaultBinarizeAlphaThreshold = 128.0;
+const int _kScanPaperWhiteMaxThreshold = 190;
+const int _kScanPaperWhiteDeltaThreshold = 90;
+const int _kScanPaperColorDistanceThresholdSq = 180 * 180;
+const int _kScanPaperBlackDistanceThresholdSq = 320 * 320;
 const ColorFilter _kViewBlackWhiteColorFilter = ColorFilter.matrix(<double>[
   0.299,
   0.587,
@@ -48,6 +52,7 @@ enum _FilterPanelType {
   brightnessContrast,
   blackWhite,
   binarize,
+  scanPaperDrawing,
   gaussianBlur,
   leakRemoval,
   lineNarrow,
@@ -211,6 +216,10 @@ mixin _PaintingBoardFilterMixin
     _openFilterPanel(_FilterPanelType.binarize);
   }
 
+  void showScanPaperDrawingAdjustments() {
+    _openFilterPanel(_FilterPanelType.scanPaperDrawing);
+  }
+
   void showGaussianBlurAdjustments() {
     _openFilterPanel(_FilterPanelType.gaussianBlur);
   }
@@ -229,31 +238,54 @@ mixin _PaintingBoardFilterMixin
 
   void _openFilterPanel(_FilterPanelType type) async {
     final String? activeLayerId = _activeLayerId;
+    final l10n = context.l10n;
+    if (type == _FilterPanelType.scanPaperDrawing && _controller.frame == null) {
+      _showFilterMessage(l10n.canvasNotReady);
+      return;
+    }
     if (activeLayerId == null) {
-      _showFilterMessage('请先选择一个可编辑的图层。');
+      _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
     }
     _layerOpacityPreviewReset(this);
     final BitmapLayerState? layer = _layerById(activeLayerId);
     if (layer == null) {
-      _showFilterMessage('无法定位当前图层。');
+      _showFilterMessage(l10n.cannotLocateLayer);
       return;
     }
     if (layer.locked) {
-      _showFilterMessage('当前图层已锁定，无法应用滤镜。');
+      _showFilterMessage(l10n.layerLockedNoFilter);
       return;
     }
     if (type == _FilterPanelType.binarize && layer.text != null) {
-      _showFilterMessage('当前图层是文字图层，请先栅格化或切换其他图层。');
+      _showFilterMessage(l10n.textLayerNoFilter);
       return;
+    }
+    if (type == _FilterPanelType.scanPaperDrawing) {
+      await _controller.waitForPendingWorkerTasks();
     }
     final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
     final int layerIndex = snapshot.indexWhere(
       (item) => item.id == activeLayerId,
     );
     if (layerIndex < 0) {
-      _showFilterMessage('无法定位当前图层。');
+      _showFilterMessage(l10n.cannotLocateLayer);
       return;
+    }
+    if (type == _FilterPanelType.scanPaperDrawing) {
+      final CanvasLayerData data = snapshot[layerIndex];
+      final Uint8List? bitmap = data.bitmap;
+      final bool hasBitmap =
+          bitmap != null &&
+          bitmap.isNotEmpty &&
+          (data.bitmapWidth ?? 0) > 0 &&
+          (data.bitmapHeight ?? 0) > 0;
+      final bool hasFill =
+          data.fillColor != null && data.fillColor!.alpha != 0;
+      if (!hasBitmap && !hasFill) {
+        _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
+        return;
+      }
     }
     _removeFilterOverlay(restoreOriginal: false);
 
@@ -288,7 +320,9 @@ mixin _PaintingBoardFilterMixin
     }
 
     // Initialize worker but don't use it for preview during drag
-    _initializeFilterWorker();
+    if (type != _FilterPanelType.scanPaperDrawing) {
+      _initializeFilterWorker();
+    }
 
     // Generate GPU preview images
     setState(() => _filterLoading = true);
@@ -336,7 +370,8 @@ mixin _PaintingBoardFilterMixin
     _previewBlackWhiteUpdateInFlight = false;
     if (session.type == _FilterPanelType.hueSaturation) {
       _scheduleHueSaturationPreviewImageUpdate();
-    } else if (session.type == _FilterPanelType.blackWhite) {
+    } else if (session.type == _FilterPanelType.blackWhite ||
+        session.type == _FilterPanelType.scanPaperDrawing) {
       _scheduleBlackWhitePreviewImageUpdate();
     }
   }
@@ -451,7 +486,9 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _scheduleBlackWhitePreviewImageUpdate() {
-    if (_filterSession?.type != _FilterPanelType.blackWhite) {
+    final _FilterPanelType? type = _filterSession?.type;
+    if (type != _FilterPanelType.blackWhite &&
+        type != _FilterPanelType.scanPaperDrawing) {
       return;
     }
     if (_previewActiveLayerPixels == null || _previewActiveLayerImage == null) {
@@ -474,7 +511,8 @@ mixin _PaintingBoardFilterMixin
       final ui.Image? baseImage = _previewActiveLayerImage;
       final Uint8List? source = _previewActiveLayerPixels;
       if (session == null ||
-          session.type != _FilterPanelType.blackWhite ||
+          (session.type != _FilterPanelType.blackWhite &&
+              session.type != _FilterPanelType.scanPaperDrawing) ||
           baseImage == null ||
           source == null) {
         break;
@@ -489,9 +527,15 @@ mixin _PaintingBoardFilterMixin
       ];
       Uint8List processed;
       try {
-        processed = await _generateBlackWhitePreviewBytes(args);
+        processed = session.type == _FilterPanelType.scanPaperDrawing
+            ? await _generateScanPaperDrawingPreviewBytes(args)
+            : await _generateBlackWhitePreviewBytes(args);
       } catch (error) {
-        debugPrint('Failed to compute black & white preview: $error');
+        debugPrint(
+          session.type == _FilterPanelType.scanPaperDrawing
+              ? 'Failed to compute scan paper drawing preview: $error'
+              : 'Failed to compute black & white preview: $error',
+        );
         break;
       }
       if (!mounted || token != _previewBlackWhiteUpdateToken) {
@@ -509,7 +553,7 @@ mixin _PaintingBoardFilterMixin
       setState(() {
         _previewFilteredActiveLayerImage?.dispose();
         _previewFilteredActiveLayerImage = image;
-        _previewFilteredImageType = _FilterPanelType.blackWhite;
+        _previewFilteredImageType = session.type;
       });
     }
     _previewBlackWhiteUpdateInFlight = false;
@@ -579,9 +623,10 @@ mixin _PaintingBoardFilterMixin
         _filterPanelOffset = Offset(clampedX, clampedY);
         final String panelTitle;
         final Widget panelBody;
+        final l10n = context.l10n;
         switch (session.type) {
           case _FilterPanelType.hueSaturation:
-            panelTitle = '色相/饱和度';
+            panelTitle = l10n.hueSaturation;
             panelBody = _HueSaturationControls(
               settings: session.hueSaturation,
               onHueChanged: (value) => _updateHueSaturation(hue: value),
@@ -592,7 +637,7 @@ mixin _PaintingBoardFilterMixin
             );
             break;
           case _FilterPanelType.brightnessContrast:
-            panelTitle = '亮度/对比度';
+            panelTitle = l10n.brightnessContrast;
             panelBody = _BrightnessContrastControls(
               settings: session.brightnessContrast,
               onBrightnessChanged: (value) =>
@@ -602,7 +647,7 @@ mixin _PaintingBoardFilterMixin
             );
             break;
           case _FilterPanelType.blackWhite:
-            panelTitle = '黑白';
+            panelTitle = l10n.blackAndWhite;
             panelBody = _BlackWhiteControls(
               settings: session.blackWhite,
               onBlackPointChanged: (value) =>
@@ -613,39 +658,50 @@ mixin _PaintingBoardFilterMixin
             );
             break;
           case _FilterPanelType.binarize:
-            panelTitle = '二值化';
+            panelTitle = l10n.binarize;
             panelBody = _BinarizeControls(
               threshold: session.binarize.alphaThreshold,
               onThresholdChanged: _updateBinarizeThreshold,
             );
             break;
+          case _FilterPanelType.scanPaperDrawing:
+            panelTitle = l10n.menuScanPaperDrawing;
+            panelBody = _BlackWhiteControls(
+              settings: session.blackWhite,
+              onBlackPointChanged: (value) =>
+                  _updateBlackWhite(blackPoint: value),
+              onWhitePointChanged: (value) =>
+                  _updateBlackWhite(whitePoint: value),
+              onMidToneChanged: (value) => _updateBlackWhite(midTone: value),
+            );
+            break;
           case _FilterPanelType.gaussianBlur:
-            panelTitle = '高斯模糊';
+            panelTitle = l10n.gaussianBlur;
             panelBody = _GaussianBlurControls(
               radius: session.gaussianBlur.radius,
               onRadiusChanged: _updateGaussianBlur,
             );
             break;
           case _FilterPanelType.leakRemoval:
-            panelTitle = '去除漏色';
+            panelTitle = l10n.leakRemoval;
             panelBody = _LeakRemovalControls(
               radius: session.leakRemoval.radius,
               onRadiusChanged: _updateLeakRemovalRadius,
             );
             break;
           case _FilterPanelType.lineNarrow:
-            panelTitle = '线条收窄';
+            panelTitle = l10n.lineNarrow;
             panelBody = _MorphologyControls(
-              label: '收窄半径',
+              label: l10n.narrowRadius,
               radius: session.lineNarrow.radius,
               maxRadius: _kMorphologyMaxRadius,
               onRadiusChanged: _updateLineNarrow,
             );
             break;
           case _FilterPanelType.fillExpand:
-            panelTitle = '填色拉伸';
+            panelTitle = l10n.fillExpand;
             panelBody = _MorphologyControls(
-              label: '拉伸半径',
+              label: l10n.expandRadius,
               radius: session.fillExpand.radius,
               maxRadius: _kMorphologyMaxRadius,
               onRadiusChanged: _updateFillExpand,
@@ -690,23 +746,31 @@ mixin _PaintingBoardFilterMixin
               children: [
                 Button(
                   onPressed: _resetFilterSettings,
-                  child: const Text('重置'),
+                  child: Text(l10n.reset),
                 ),
                 const Spacer(),
                 Button(
                   onPressed: () => _removeFilterOverlay(),
-                  child: const Text('取消'),
+                  child: Text(l10n.cancel),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: _filterApplying ? null : _confirmFilterChanges,
+                  onPressed: _filterApplying
+                      ? null
+                      : (session.type == _FilterPanelType.scanPaperDrawing
+                            ? _confirmScanPaperDrawingChanges
+                            : _confirmFilterChanges),
                   child: _filterApplying
                       ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: ProgressRing(strokeWidth: 2),
                         )
-                      : const Text('应用'),
+                      : Text(
+                          session.type == _FilterPanelType.scanPaperDrawing
+                              ? l10n.menuScanPaperDrawing
+                              : l10n.apply,
+                        ),
                 ),
               ],
             ),
@@ -950,7 +1014,7 @@ mixin _PaintingBoardFilterMixin
     }
     if (_isFilterSessionIdentity(session)) {
       if (session.type == _FilterPanelType.binarize) {
-        _showFilterMessage('未检测到可处理的半透明像素。');
+        _showFilterMessage(context.l10n.noTransparentPixelsFound);
       }
       _removeFilterOverlay();
       return;
@@ -978,11 +1042,103 @@ mixin _PaintingBoardFilterMixin
         });
         _filterOverlayEntry?.markNeedsBuild();
       }
-      _showFilterMessage('应用滤镜失败，请重试。');
+      _showFilterMessage(context.l10n.filterApplyFailed);
       return;
     }
     _filterApplyCompleter = null;
     await _finalizeFilterApply(session, result);
+  }
+
+  Future<void> _confirmScanPaperDrawingChanges() async {
+    final _FilterSession? session = _filterSession;
+    if (session == null || session.type != _FilterPanelType.scanPaperDrawing) {
+      return;
+    }
+
+    final l10n = context.l10n;
+    final CanvasLayerData data =
+        session.originalLayers[session.activeLayerIndex];
+    final Uint8List? bitmap = data.bitmap;
+    final bool hasBitmap =
+        bitmap != null &&
+        bitmap.isNotEmpty &&
+        (data.bitmapWidth ?? 0) > 0 &&
+        (data.bitmapHeight ?? 0) > 0;
+    final bool hasFill = data.fillColor != null && data.fillColor!.alpha != 0;
+    if (!hasBitmap && !hasFill) {
+      _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
+      _removeFilterOverlay();
+      return;
+    }
+
+    setState(() {
+      _filterApplying = true;
+    });
+    _filterOverlayEntry?.markNeedsBuild();
+
+    final _ScanPaperDrawingComputeResult result;
+    try {
+      result = await _generateScanPaperDrawingResult(
+        bitmap,
+        data.fillColor,
+        blackPoint: session.blackWhite.blackPoint,
+        whitePoint: session.blackWhite.whitePoint,
+        midTone: session.blackWhite.midTone,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Scan paper drawing apply failed: $error');
+      debugPrint('$stackTrace');
+      if (!mounted || _filterSession != session) {
+        return;
+      }
+      setState(() {
+        _filterApplying = false;
+      });
+      _filterOverlayEntry?.markNeedsBuild();
+      _showFilterMessage(l10n.filterApplyFailed);
+      return;
+    }
+
+    if (!result.changed) {
+      if (!mounted || _filterSession != session) {
+        return;
+      }
+      setState(() {
+        _filterApplying = false;
+      });
+      _filterOverlayEntry?.markNeedsBuild();
+      _showFilterMessage(l10n.scanPaperDrawingNoChanges);
+      return;
+    }
+
+    if (!mounted || _filterSession != session) {
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    final int? awaitedGeneration = _controller.frame?.generation;
+    final CanvasLayerData updated = CanvasLayerData(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      opacity: data.opacity,
+      locked: data.locked,
+      clippingMask: data.clippingMask,
+      blendMode: data.blendMode,
+      fillColor: result.fillColor != null ? Color(result.fillColor!) : null,
+      bitmap: result.bitmap,
+      bitmapWidth: result.bitmap != null ? data.bitmapWidth : null,
+      bitmapHeight: result.bitmap != null ? data.bitmapHeight : null,
+      bitmapLeft: result.bitmap != null ? data.bitmapLeft : null,
+      bitmapTop: result.bitmap != null ? data.bitmapTop : null,
+      text: data.text,
+      cloneBitmap: false,
+    );
+    _controller.replaceLayer(session.activeLayerId, updated);
+    _controller.setActiveLayer(session.activeLayerId);
+    _markDirty();
+    setState(() {});
+    _scheduleFilterOverlayRemovalAfterApply(awaitedGeneration);
   }
 
   Future<void> _finalizeFilterApply(
@@ -1053,6 +1209,15 @@ mixin _PaintingBoardFilterMixin
             (layer.bitmapHeight ?? 0) > 0;
         final bool hasFill = layer.fillColor != null;
         return !hasBitmap && !hasFill;
+      case _FilterPanelType.scanPaperDrawing:
+        final CanvasLayerData layer =
+            session.originalLayers[session.activeLayerIndex];
+        final bool hasBitmap =
+            layer.bitmap != null &&
+            (layer.bitmapWidth ?? 0) > 0 &&
+            (layer.bitmapHeight ?? 0) > 0;
+        final bool hasFill = layer.fillColor != null;
+        return !hasBitmap && !hasFill;
       case _FilterPanelType.binarize:
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
@@ -1073,7 +1238,8 @@ mixin _PaintingBoardFilterMixin
             hasPartialAlpha = true;
           }
         }
-        final bool hasContent = (bitmap != null &&
+        final bool hasContent =
+            (bitmap != null &&
                 (layer.bitmapWidth ?? 0) > 0 &&
                 (layer.bitmapHeight ?? 0) > 0) ||
             layer.fillColor != null;
@@ -1278,23 +1444,24 @@ mixin _PaintingBoardFilterMixin
     );
   }
 
-  Future<void> invertActiveLayerColors() async {
+  Future<void> scanPaperDrawing() async {
+    final l10n = context.l10n;
     if (_controller.frame == null) {
-      _showFilterMessage('画布尚未准备好，无法颜色反转。');
+      _showFilterMessage(l10n.canvasNotReady);
       return;
     }
     final String? activeLayerId = _activeLayerId;
     if (activeLayerId == null) {
-      _showFilterMessage('请先选择一个可编辑的图层。');
+      _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
     }
     final BitmapLayerState? layer = _layerById(activeLayerId);
     if (layer == null) {
-      _showFilterMessage('无法定位当前图层。');
+      _showFilterMessage(l10n.cannotLocateLayer);
       return;
     }
     if (layer.locked) {
-      _showFilterMessage('当前图层已锁定，无法颜色反转。');
+      _showFilterMessage(l10n.layerLockedNoFilter);
       return;
     }
 
@@ -1302,12 +1469,92 @@ mixin _PaintingBoardFilterMixin
     final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
     final int index = snapshot.indexWhere((item) => item.id == activeLayerId);
     if (index < 0) {
-      _showFilterMessage('无法定位当前图层。');
+      _showFilterMessage(l10n.cannotLocateLayer);
+      return;
+    }
+    final CanvasLayerData data = snapshot[index];
+    final Uint8List? bitmap = data.bitmap;
+    final bool hasBitmap =
+        bitmap != null &&
+        bitmap.isNotEmpty &&
+        (data.bitmapWidth ?? 0) > 0 &&
+        (data.bitmapHeight ?? 0) > 0;
+    final bool hasFill = data.fillColor != null && data.fillColor!.alpha != 0;
+    if (!hasBitmap && !hasFill) {
+      _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
+      return;
+    }
+
+    final _ScanPaperDrawingComputeResult result;
+    try {
+      result = await _generateScanPaperDrawingResult(bitmap, data.fillColor);
+    } catch (error, stackTrace) {
+      debugPrint('Scan paper drawing apply failed: $error');
+      debugPrint('$stackTrace');
+      _showFilterMessage(l10n.filterApplyFailed);
+      return;
+    }
+
+    if (!result.changed) {
+      _showFilterMessage(l10n.scanPaperDrawingNoChanges);
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    final CanvasLayerData updated = CanvasLayerData(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      opacity: data.opacity,
+      locked: data.locked,
+      clippingMask: data.clippingMask,
+      blendMode: data.blendMode,
+      fillColor: result.fillColor != null ? Color(result.fillColor!) : null,
+      bitmap: result.bitmap,
+      bitmapWidth: result.bitmap != null ? data.bitmapWidth : null,
+      bitmapHeight: result.bitmap != null ? data.bitmapHeight : null,
+      bitmapLeft: result.bitmap != null ? data.bitmapLeft : null,
+      bitmapTop: result.bitmap != null ? data.bitmapTop : null,
+      text: data.text,
+      cloneBitmap: false,
+    );
+    _controller.replaceLayer(activeLayerId, updated);
+    _controller.setActiveLayer(activeLayerId);
+    setState(() {});
+    _markDirty();
+  }
+
+  Future<void> invertActiveLayerColors() async {
+    final l10n = context.l10n;
+    if (_controller.frame == null) {
+      _showFilterMessage(l10n.canvasNotReadyInvert);
+      return;
+    }
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      _showFilterMessage(l10n.selectEditableLayerFirst);
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      _showFilterMessage(l10n.cannotLocateLayer);
+      return;
+    }
+    if (layer.locked) {
+      _showFilterMessage(l10n.layerLockedInvert);
+      return;
+    }
+
+    await _controller.waitForPendingWorkerTasks();
+    final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
+    final int index = snapshot.indexWhere((item) => item.id == activeLayerId);
+    if (index < 0) {
+      _showFilterMessage(l10n.cannotLocateLayer);
       return;
     }
     final CanvasLayerData data = snapshot[index];
     if (data.bitmap == null && data.fillColor == null) {
-      _showFilterMessage('当前图层为空，无法颜色反转。');
+      _showFilterMessage(l10n.layerEmptyInvert);
       return;
     }
 
@@ -1350,7 +1597,7 @@ mixin _PaintingBoardFilterMixin
     }
 
     if (!bitmapModified && !fillChanged) {
-      _showFilterMessage('当前图层没有可反转的像素。');
+      _showFilterMessage(l10n.noPixelsToInvert);
       return;
     }
 
@@ -1539,7 +1786,8 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     final CanvasLayerData activeLayer = snapshot[layerIndex];
-    final bool hasBitmap = activeLayer.bitmap != null &&
+    final bool hasBitmap =
+        activeLayer.bitmap != null &&
         activeLayer.bitmap!.isNotEmpty &&
         (activeLayer.bitmapWidth ?? 0) > 0 &&
         (activeLayer.bitmapHeight ?? 0) > 0;
@@ -1588,13 +1836,16 @@ mixin _PaintingBoardFilterMixin
       _teardownColorRangeSession(restoreOriginal: false);
       return;
     }
-    final int maxSelectable =
-        math.min(_kColorRangeMaxSelectableColors, math.max(1, count));
+    final int maxSelectable = math.min(
+      _kColorRangeMaxSelectableColors,
+      math.max(1, count),
+    );
     setState(() {
       _colorRangeTotalColors = count;
       final int previous = _colorRangeSelectedColors;
-      _colorRangeSelectedColors =
-          previous > 0 ? previous.clamp(1, maxSelectable) : maxSelectable;
+      _colorRangeSelectedColors = previous > 0
+          ? previous.clamp(1, maxSelectable)
+          : maxSelectable;
       _colorRangeLoading = false;
     });
     _scheduleColorRangePreview(immediate: true);
@@ -1727,8 +1978,10 @@ mixin _PaintingBoardFilterMixin
           _colorRangeSession?.layerId != session.layerId) {
         return;
       }
-      final CanvasLayerData adjusted =
-          _buildColorRangeAdjustedLayer(baseLayer, result);
+      final CanvasLayerData adjusted = _buildColorRangeAdjustedLayer(
+        baseLayer,
+        result,
+      );
       session.previewLayer = adjusted;
       _controller.replaceLayer(session.layerId, adjusted);
       _controller.setActiveLayer(session.layerId);
@@ -1797,8 +2050,10 @@ mixin _PaintingBoardFilterMixin
         return;
       }
       await _pushUndoSnapshot();
-      final CanvasLayerData adjusted =
-          _buildColorRangeAdjustedLayer(baseLayer, result);
+      final CanvasLayerData adjusted = _buildColorRangeAdjustedLayer(
+        baseLayer,
+        result,
+      );
       _controller.replaceLayer(session.layerId, adjusted);
       _controller.setActiveLayer(session.layerId);
       _markDirty();
@@ -1903,15 +2158,14 @@ mixin _PaintingBoardFilterMixin
       return 0;
     }
     try {
-      return await compute(
-        _countUniqueColorsForLayer,
-        <Object?>[bitmap, fillColor],
-      );
+      return await compute(_countUniqueColorsForLayer, <Object?>[
+        bitmap,
+        fillColor,
+      ]);
     } catch (_) {
       return _countUniqueColorsForLayer(<Object?>[bitmap, fillColor]);
     }
   }
-
 }
 
 class _HueSaturationControls extends StatelessWidget {
@@ -1929,25 +2183,26 @@ class _HueSaturationControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _FilterSlider(
-          label: '色相',
+          label: l10n.hue,
           value: settings.hue,
           min: -180,
           max: 180,
           onChanged: onHueChanged,
         ),
         _FilterSlider(
-          label: '饱和度',
+          label: l10n.saturation,
           value: settings.saturation,
           min: -100,
           max: 100,
           onChanged: onSaturationChanged,
         ),
         _FilterSlider(
-          label: '明度',
+          label: l10n.lightness,
           value: settings.lightness,
           min: -100,
           max: 100,
@@ -1971,18 +2226,19 @@ class _BrightnessContrastControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _FilterSlider(
-          label: '亮度',
+          label: l10n.brightness,
           value: settings.brightness,
           min: -100,
           max: 100,
           onChanged: onBrightnessChanged,
         ),
         _FilterSlider(
-          label: '对比度',
+          label: l10n.contrast,
           value: settings.contrast,
           min: -100,
           max: 100,
@@ -2008,35 +2264,30 @@ class _BlackWhiteControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final FluentThemeData theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _FilterSlider(
-          label: '黑场',
+          label: l10n.blackPoint,
           value: settings.blackPoint,
           min: 0,
           max: 100,
           onChanged: onBlackPointChanged,
         ),
         _FilterSlider(
-          label: '白场',
+          label: l10n.whitePoint,
           value: settings.whitePoint,
           min: 0,
           max: 100,
           onChanged: onWhitePointChanged,
         ),
         _FilterSlider(
-          label: '中间灰',
+          label: l10n.midTone,
           value: settings.midTone,
           min: -100,
           max: 100,
           onChanged: onMidToneChanged,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '将图像转换为灰度后微调黑场、白场与中间灰。白场会自动保持略高于黑场，避免出现色阶断层。',
-          style: theme.typography.caption,
         ),
       ],
     );
@@ -2289,8 +2540,10 @@ class _MorphologyControls extends StatelessWidget {
           children: [
             Text(label, style: theme.typography.bodyStrong),
             const Spacer(),
-            Text('${clamped.toStringAsFixed(0)} px',
-                style: theme.typography.caption),
+            Text(
+              '${clamped.toStringAsFixed(0)} px',
+              style: theme.typography.caption,
+            ),
           ],
         ),
         Slider(
@@ -2431,10 +2684,7 @@ class _ColorRangeCardBody extends StatelessWidget {
           style: theme.typography.caption,
         ),
         const SizedBox(height: 6),
-        Text(
-          '降低颜色数量会产生类似木刻/分色的效果，滑动后立即预览。',
-          style: theme.typography.caption,
-        ),
+        Text('降低颜色数量会产生类似木刻/分色的效果，滑动后立即预览。', style: theme.typography.caption),
       ],
     );
   }
@@ -2545,6 +2795,9 @@ class _FilterPreviewWorker {
         filterType = _kFilterTypeBrightnessContrast;
         break;
       case _FilterPanelType.blackWhite:
+        filterType = _kFilterTypeBlackWhite;
+        break;
+      case _FilterPanelType.scanPaperDrawing:
         filterType = _kFilterTypeBlackWhite;
         break;
       case _FilterPanelType.binarize:
@@ -3102,8 +3355,7 @@ int _countUniqueColorsInRgba(Uint8List rgba) {
     if (alpha == 0) {
       continue;
     }
-    final int color =
-        (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
+    final int color = (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
     colors.add(color);
   }
   return colors.length;
@@ -3120,11 +3372,7 @@ Future<_ColorRangeComputeResult> _generateColorRangeResult(
   Color? fillColor,
   int targetColors,
 ) async {
-  final List<Object?> args = <Object?>[
-    bitmap,
-    fillColor?.value,
-    targetColors,
-  ];
+  final List<Object?> args = <Object?>[bitmap, fillColor?.value, targetColors];
   if (kIsWeb) {
     return _computeColorRangeReduction(args);
   }
@@ -3180,8 +3428,9 @@ _ColorRangeComputeResult _applyColorRangeReduction(
     }
     buckets.addAll(splits);
   }
-  final List<int> palette =
-      buckets.map((bucket) => bucket.averageColor).toList(growable: false);
+  final List<int> palette = buckets
+      .map((bucket) => bucket.averageColor)
+      .toList(growable: false);
   final Map<int, int> quantizedColorMap = <int, int>{};
   final Map<int, int> quantizedWeights = <int, int>{};
   histogram.forEach((int color, int count) {
@@ -3205,7 +3454,8 @@ _ColorRangeComputeResult _applyColorRangeReduction(
         reducedBitmap[i + 1],
         reducedBitmap[i + 2],
       );
-      final int mapped = quantizedColorMap[quantKey] ??
+      final int mapped =
+          quantizedColorMap[quantKey] ??
           _findNearestPaletteColor(quantKey, palette);
       reducedBitmap[i] = (mapped >> 16) & 0xFF;
       reducedBitmap[i + 1] = (mapped >> 8) & 0xFF;
@@ -3217,24 +3467,22 @@ _ColorRangeComputeResult _applyColorRangeReduction(
     final int alpha = (fillColor >> 24) & 0xFF;
     if (alpha != 0) {
       final int quantKey = _quantizeColorInt(fillColor & 0xFFFFFF);
-      final int mapped = quantizedColorMap[quantKey] ??
+      final int mapped =
+          quantizedColorMap[quantKey] ??
           _findNearestPaletteColor(quantKey, palette);
       mappedFill = (fillColor & 0xFF000000) | mapped;
     }
   }
-  return _ColorRangeComputeResult(
-    bitmap: reducedBitmap,
-    fillColor: mappedFill,
-  );
+  return _ColorRangeComputeResult(bitmap: reducedBitmap, fillColor: mappedFill);
 }
 
 int _quantizeColor(int r, int g, int b) {
-  final int qr = (r ~/ _kColorRangeQuantizationStep) *
-      _kColorRangeQuantizationStep;
-  final int qg = (g ~/ _kColorRangeQuantizationStep) *
-      _kColorRangeQuantizationStep;
-  final int qb = (b ~/ _kColorRangeQuantizationStep) *
-      _kColorRangeQuantizationStep;
+  final int qr =
+      (r ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
+  final int qg =
+      (g ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
+  final int qb =
+      (b ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
   return (qr << 16) | (qg << 8) | qb;
 }
 
@@ -3260,12 +3508,12 @@ Map<int, int> _buildColorHistogram(Uint8List? bitmap, int? fillColor) {
       <int, _ColorRangeHistogramBucket>{};
 
   void addColor(int r, int g, int b) {
-    final int qr = (r ~/ _kColorRangeQuantizationStep) *
-        _kColorRangeQuantizationStep;
-    final int qg = (g ~/ _kColorRangeQuantizationStep) *
-        _kColorRangeQuantizationStep;
-    final int qb = (b ~/ _kColorRangeQuantizationStep) *
-        _kColorRangeQuantizationStep;
+    final int qr =
+        (r ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
+    final int qg =
+        (g ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
+    final int qb =
+        (b ~/ _kColorRangeQuantizationStep) * _kColorRangeQuantizationStep;
     final int key = (qr << 16) | (qg << 8) | qb;
     final _ColorRangeHistogramBucket bucket = buckets.putIfAbsent(
       key,
@@ -3357,6 +3605,18 @@ class _ColorRangeComputeResult {
   final int? fillColor;
 }
 
+class _ScanPaperDrawingComputeResult {
+  _ScanPaperDrawingComputeResult({
+    this.bitmap,
+    this.fillColor,
+    required this.changed,
+  });
+
+  final Uint8List? bitmap;
+  final int? fillColor;
+  final bool changed;
+}
+
 class _ColorCountEntry {
   _ColorCountEntry({required this.color, required this.count});
 
@@ -3386,10 +3646,9 @@ class _ColorRangeBucket {
 
   _ColorRangeBucket.fromHistogram(Map<int, int> histogram)
     : entries = histogram.entries
-          .map((entry) => _ColorCountEntry(
-                color: entry.key,
-                count: entry.value,
-              ))
+          .map(
+            (entry) => _ColorCountEntry(color: entry.key, count: entry.value),
+          )
           .toList() {
     _recomputeBounds();
   }
@@ -3405,10 +3664,8 @@ class _ColorRangeBucket {
 
   bool get isEmpty => entries.isEmpty;
 
-  int get maxRange => math.max(
-    _maxR - _minR,
-    math.max(_maxG - _minG, _maxB - _minB),
-  );
+  int get maxRange =>
+      math.max(_maxR - _minR, math.max(_maxG - _minG, _maxB - _minB));
 
   int get averageColor {
     if (entries.isEmpty || totalCount <= 0) {
@@ -3446,8 +3703,10 @@ class _ColorRangeBucket {
       }
     }
     final List<_ColorCountEntry> first = sorted.sublist(0, splitIndex + 1);
-    final List<_ColorCountEntry> second =
-        sorted.sublist(splitIndex + 1, sorted.length);
+    final List<_ColorCountEntry> second = sorted.sublist(
+      splitIndex + 1,
+      sorted.length,
+    );
     if (first.isEmpty || second.isEmpty) {
       final int mid = sorted.length ~/ 2;
       return <_ColorRangeBucket>[
@@ -3585,6 +3844,76 @@ Uint8List _computeBlackWhitePreviewPixels(List<Object?> args) {
   final double midTone = (args[3] as num).toDouble();
   final Uint8List pixels = Uint8List.fromList(source);
   _filterApplyBlackWhiteToBitmap(pixels, black, white, midTone);
+  return pixels;
+}
+
+Future<Uint8List> _generateScanPaperDrawingPreviewBytes(
+  List<Object?> args,
+) async {
+  if (kIsWeb) {
+    return _computeScanPaperDrawingPreviewPixels(args);
+  }
+  try {
+    return await compute<List<Object?>, Uint8List>(
+      _computeScanPaperDrawingPreviewPixels,
+      args,
+    );
+  } on UnsupportedError catch (_) {
+    return _computeScanPaperDrawingPreviewPixels(args);
+  }
+}
+
+Uint8List _computeScanPaperDrawingPreviewPixels(List<Object?> args) {
+  final Uint8List source = args[0] as Uint8List;
+  final double blackPoint = (args[1] as num).toDouble();
+  final double whitePoint = (args[2] as num).toDouble();
+  final double midTone = (args[3] as num).toDouble();
+  final bool toneMappingEnabled =
+      blackPoint.abs() > 1e-6 ||
+      (whitePoint - 100.0).abs() > 1e-6 ||
+      midTone.abs() > 1e-6;
+
+  final double blackNorm = blackPoint.clamp(0.0, 100.0) / 100.0;
+  final double whiteNorm = whitePoint.clamp(0.0, 100.0) / 100.0;
+  final double safeWhite = math.max(
+    blackNorm + (_kBlackWhiteMinRange / 100.0),
+    whiteNorm,
+  );
+  final double invRange = 1.0 / math.max(0.0001, safeWhite - blackNorm);
+  final double gamma = math.pow(2.0, midTone.clamp(-100.0, 100.0) / 100.0)
+      .toDouble();
+
+  final Uint8List pixels = Uint8List.fromList(source);
+  for (int i = 0; i + 3 < pixels.length; i += 4) {
+    final int alpha = pixels[i + 3];
+    if (alpha == 0) {
+      continue;
+    }
+    final int r = pixels[i];
+    final int g = pixels[i + 1];
+    final int b = pixels[i + 2];
+    final int mapped = toneMappingEnabled
+        ? _scanPaperDrawingMapRgbToArgbWithToneMapping(
+            r,
+            g,
+            b,
+            black: blackNorm,
+            invRange: invRange,
+            gamma: gamma,
+          )
+        : _scanPaperDrawingMapRgbToArgb(r, g, b);
+    if (mapped == 0) {
+      pixels[i] = 0;
+      pixels[i + 1] = 0;
+      pixels[i + 2] = 0;
+      pixels[i + 3] = 0;
+      continue;
+    }
+    pixels[i] = (mapped >> 16) & 0xFF;
+    pixels[i + 1] = (mapped >> 8) & 0xFF;
+    pixels[i + 2] = mapped & 0xFF;
+    pixels[i + 3] = 255;
+  }
   return pixels;
 }
 
@@ -3804,6 +4133,240 @@ bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
   return false;
 }
 
+Future<_ScanPaperDrawingComputeResult> _generateScanPaperDrawingResult(
+  Uint8List? bitmap,
+  Color? fillColor, {
+  double blackPoint = 0,
+  double whitePoint = 100,
+  double midTone = 0,
+}) async {
+  final List<Object?> args = <Object?>[
+    bitmap,
+    fillColor?.value,
+    blackPoint,
+    whitePoint,
+    midTone,
+  ];
+  if (kIsWeb) {
+    return _computeScanPaperDrawing(args);
+  }
+  try {
+    return await compute(_computeScanPaperDrawing, args);
+  } on UnsupportedError catch (_) {
+    return _computeScanPaperDrawing(args);
+  }
+}
+
+int _scanPaperDrawingMapRgbToArgb(int r, int g, int b) {
+  final int maxChannel = math.max(r, math.max(g, b));
+  final int minChannel = math.min(r, math.min(g, b));
+  final int delta = maxChannel - minChannel;
+  if (maxChannel >= _kScanPaperWhiteMaxThreshold &&
+      delta <= _kScanPaperWhiteDeltaThreshold) {
+    return 0;
+  }
+
+  final int r2 = r * r;
+  final int g2 = g * g;
+  final int b2 = b * b;
+  final int dr = 255 - r;
+  final int dg = 255 - g;
+  final int db = 255 - b;
+
+  final int distRed = dr * dr + g2 + b2;
+  final int distGreen = r2 + dg * dg + b2;
+  final int distBlue = r2 + g2 + db * db;
+  int minDist = distRed;
+  int mapped = 0xFFFF0000;
+  if (distGreen < minDist) {
+    minDist = distGreen;
+    mapped = 0xFF00FF00;
+  }
+  if (distBlue < minDist) {
+    minDist = distBlue;
+    mapped = 0xFF0000FF;
+  }
+  if (minDist <= _kScanPaperColorDistanceThresholdSq) {
+    return mapped;
+  }
+
+  final int distBlack = r2 + g2 + b2;
+  if (distBlack <= _kScanPaperBlackDistanceThresholdSq) {
+    return 0xFF000000;
+  }
+  return 0;
+}
+
+int _scanPaperDrawingMapRgbToArgbWithToneMapping(
+  int r,
+  int g,
+  int b, {
+  required double black,
+  required double invRange,
+  required double gamma,
+}) {
+  final int maxChannel = math.max(r, math.max(g, b));
+  final int minChannel = math.min(r, math.min(g, b));
+  final int delta = maxChannel - minChannel;
+
+  final double luminance = (r * 0.299 + g * 0.587 + b * 0.114) / 255.0;
+  double normalized = ((luminance - black) * invRange).clamp(0.0, 1.0);
+  normalized = math.pow(normalized, gamma).clamp(0.0, 1.0).toDouble();
+  final int gray = (normalized * 255.0).round().clamp(0, 255).toInt();
+  if (gray >= _kScanPaperWhiteMaxThreshold &&
+      delta <= _kScanPaperWhiteDeltaThreshold) {
+    return 0;
+  }
+
+  final int r2 = r * r;
+  final int g2 = g * g;
+  final int b2 = b * b;
+  final int dr = 255 - r;
+  final int dg = 255 - g;
+  final int db = 255 - b;
+
+  final int distRed = dr * dr + g2 + b2;
+  final int distGreen = r2 + dg * dg + b2;
+  final int distBlue = r2 + g2 + db * db;
+  int minDist = distRed;
+  int mapped = 0xFFFF0000;
+  if (distGreen < minDist) {
+    minDist = distGreen;
+    mapped = 0xFF00FF00;
+  }
+  if (distBlue < minDist) {
+    minDist = distBlue;
+    mapped = 0xFF0000FF;
+  }
+  if (minDist <= _kScanPaperColorDistanceThresholdSq) {
+    return mapped;
+  }
+
+  final int distBlack = r2 + g2 + b2;
+  if (distBlack <= _kScanPaperBlackDistanceThresholdSq) {
+    return 0xFF000000;
+  }
+  return 0;
+}
+
+_ScanPaperDrawingComputeResult _computeScanPaperDrawing(List<Object?> args) {
+  final Uint8List? bitmap = args[0] as Uint8List?;
+  final int? fillColor = args[1] as int?;
+  final double blackPoint = (args.length > 2 && args[2] is num)
+      ? (args[2] as num).toDouble()
+      : 0.0;
+  final double whitePoint = (args.length > 3 && args[3] is num)
+      ? (args[3] as num).toDouble()
+      : 100.0;
+  final double midTone = (args.length > 4 && args[4] is num)
+      ? (args[4] as num).toDouble()
+      : 0.0;
+  final bool toneMappingEnabled =
+      blackPoint.abs() > 1e-6 ||
+      (whitePoint - 100.0).abs() > 1e-6 ||
+      midTone.abs() > 1e-6;
+
+  final double blackNorm = blackPoint.clamp(0.0, 100.0) / 100.0;
+  final double whiteNorm = whitePoint.clamp(0.0, 100.0) / 100.0;
+  final double safeWhite = math.max(
+    blackNorm + (_kBlackWhiteMinRange / 100.0),
+    whiteNorm,
+  );
+  final double invRange = 1.0 / math.max(0.0001, safeWhite - blackNorm);
+  final double gamma = math.pow(2.0, midTone.clamp(-100.0, 100.0) / 100.0)
+      .toDouble();
+
+  Uint8List? processed = bitmap != null ? Uint8List.fromList(bitmap) : null;
+  bool changed = false;
+  bool hadVisiblePixels = false;
+
+  if (processed != null) {
+    for (int i = 0; i + 3 < processed.length; i += 4) {
+      final int alpha = processed[i + 3];
+      if (alpha == 0) {
+        continue;
+      }
+      hadVisiblePixels = true;
+      final int r = processed[i];
+      final int g = processed[i + 1];
+      final int b = processed[i + 2];
+      final int mapped = toneMappingEnabled
+          ? _scanPaperDrawingMapRgbToArgbWithToneMapping(
+              r,
+              g,
+              b,
+              black: blackNorm,
+              invRange: invRange,
+              gamma: gamma,
+            )
+          : _scanPaperDrawingMapRgbToArgb(r, g, b);
+      if (mapped == 0) {
+        if (alpha != 0) {
+          changed = true;
+        }
+        processed[i] = 0;
+        processed[i + 1] = 0;
+        processed[i + 2] = 0;
+        processed[i + 3] = 0;
+        continue;
+      }
+      final int targetR = (mapped >> 16) & 0xFF;
+      final int targetG = (mapped >> 8) & 0xFF;
+      final int targetB = mapped & 0xFF;
+      if (alpha != 255 || r != targetR || g != targetG || b != targetB) {
+        changed = true;
+      }
+      processed[i] = targetR;
+      processed[i + 1] = targetG;
+      processed[i + 2] = targetB;
+      processed[i + 3] = 255;
+    }
+    if (!_filterBitmapHasVisiblePixels(processed)) {
+      processed = null;
+      if (hadVisiblePixels) {
+        changed = true;
+      }
+    }
+  }
+
+  int? processedFill;
+  if (fillColor != null) {
+    final int alpha = (fillColor >> 24) & 0xFF;
+    if (alpha != 0) {
+      final int r = (fillColor >> 16) & 0xFF;
+      final int g = (fillColor >> 8) & 0xFF;
+      final int b = fillColor & 0xFF;
+      final int mapped = toneMappingEnabled
+          ? _scanPaperDrawingMapRgbToArgbWithToneMapping(
+              r,
+              g,
+              b,
+              black: blackNorm,
+              invRange: invRange,
+              gamma: gamma,
+            )
+          : _scanPaperDrawingMapRgbToArgb(r, g, b);
+      if (mapped == 0) {
+        processedFill = null;
+        changed = true;
+      } else {
+        processedFill = mapped;
+        if (mapped != fillColor) {
+          changed = true;
+        }
+      }
+    } else {
+      processedFill = fillColor;
+    }
+  }
+
+  return _ScanPaperDrawingComputeResult(
+    bitmap: processed,
+    fillColor: processedFill,
+    changed: changed,
+  );
+}
+
 double _gaussianBlurSigmaForRadius(double radius) {
   final double clampedRadius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
   if (clampedRadius <= 0) {
@@ -3866,10 +4429,14 @@ void _filterApplyMorphologyToBitmap(
   if (bitmap.isEmpty || width <= 0 || height <= 0) {
     return;
   }
-  final int clampedRadius =
-      radius.clamp(1, _kMorphologyMaxRadius.toInt()).toInt();
-  final Uint8List? luminanceMask =
-      _filterBuildLuminanceMaskIfFullyOpaque(bitmap, width, height);
+  final int clampedRadius = radius
+      .clamp(1, _kMorphologyMaxRadius.toInt())
+      .toInt();
+  final Uint8List? luminanceMask = _filterBuildLuminanceMaskIfFullyOpaque(
+    bitmap,
+    width,
+    height,
+  );
   final bool preserveAlpha = luminanceMask != null;
   final Uint8List scratch = Uint8List(bitmap.length);
   Uint8List src = bitmap;
@@ -3987,8 +4554,11 @@ void _filterApplyLeakRemovalToBitmap(
     return;
   }
   // 全不透明图层使用亮度掩码推导覆盖度，避免因缺少透明度信息而无法检测针眼。
-  final Uint8List? luminanceMask =
-      _filterBuildLuminanceMaskIfFullyOpaque(bitmap, width, height);
+  final Uint8List? luminanceMask = _filterBuildLuminanceMaskIfFullyOpaque(
+    bitmap,
+    width,
+    height,
+  );
   final bool useLuminanceMask = luminanceMask != null;
   final int pixelCount = width * height;
   final Uint8List holeMask = Uint8List(pixelCount);

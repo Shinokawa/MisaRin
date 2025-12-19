@@ -5,7 +5,8 @@ import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../canvas/canvas_tools.dart'
     show BrushShape, CanvasTool, SelectionShape, ShapeToolVariant, SprayMode;
 import '../../canvas/text_renderer.dart' show CanvasTextOrientation;
-import '../preferences/app_preferences.dart' show PenStrokeSliderRange;
+import '../preferences/app_preferences.dart'
+    show BucketSwallowColorLineMode, PenStrokeSliderRange;
 
 class PaletteCardSnapshot {
   const PaletteCardSnapshot({
@@ -62,6 +63,9 @@ class ToolSettingsSnapshot {
     required this.sprayMode,
     required this.penStrokeSliderRange,
     required this.brushShape,
+    required this.hollowStrokeEnabled,
+    required this.hollowStrokeRatio,
+    required this.hollowStrokeEraseOccludedParts,
     required this.strokeStabilizerStrength,
     required this.stylusPressureEnabled,
     required this.simulatePenPressure,
@@ -74,7 +78,9 @@ class ToolSettingsSnapshot {
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.bucketSwallowColorLine,
+    required this.bucketSwallowColorLineMode,
     required this.bucketTolerance,
+    required this.bucketFillGap,
     required this.magicWandTolerance,
     required this.brushToolsEraserMode,
     required this.layerAdjustCropOutside,
@@ -101,6 +107,9 @@ class ToolSettingsSnapshot {
   final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
   final BrushShape brushShape;
+  final bool hollowStrokeEnabled;
+  final double hollowStrokeRatio;
+  final bool hollowStrokeEraseOccludedParts;
   final double strokeStabilizerStrength;
   final bool stylusPressureEnabled;
   final bool simulatePenPressure;
@@ -113,7 +122,9 @@ class ToolSettingsSnapshot {
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final bool bucketSwallowColorLine;
+  final BucketSwallowColorLineMode bucketSwallowColorLineMode;
   final int bucketTolerance;
+  final int bucketFillGap;
   final int magicWandTolerance;
   final bool brushToolsEraserMode;
   final bool layerAdjustCropOutside;

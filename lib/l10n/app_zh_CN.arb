@@ -1,0 +1,419 @@
+{
+  "@@locale": "zh_CN",
+
+  "webLoadingInitializingCanvas": "正在初始化画板…",
+  "webLoadingMayTakeTime": "Web 端加载需要一些时间，请稍候。",
+
+  "closeAppTitle": "关闭应用",
+  "unsavedProjectsWarning": "{count, plural, =1{检测到 1 个未保存的项目。如果现在退出，最近的修改将会丢失。} other{检测到 {count} 个未保存的项目。如果现在退出，最近的修改将会丢失。}}",
+  "@unsavedProjectsWarning": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "cancel": "取消",
+  "discardAndExit": "丢弃并退出",
+
+  "homeTagline": "创作从这里开始",
+  "homeNewProject": "新建项目",
+  "homeNewProjectDesc": "从空白画布开启新的创意",
+  "homeOpenProject": "打开项目",
+  "homeOpenProjectDesc": "从磁盘加载 .rin / .psd 文件",
+  "homeRecentProjects": "最近打开",
+  "homeRecentProjectsDesc": "快速恢复自动保存的项目",
+  "homeProjectManager": "项目管理",
+  "homeProjectManagerDesc": "批量查看或清理自动保存的项目文件",
+  "homeSettings": "设置",
+  "homeSettingsDesc": "预览即将上线的个性化选项",
+  "homeAbout": "关于",
+  "homeAboutDesc": "了解项目 Misa Rin",
+
+  "createProjectFailed": "创建项目失败：{error}",
+  "@createProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "openProjectDialogTitle": "打开项目",
+  "openingProjectTitle": "正在打开项目…",
+  "openingProjectMessage": "正在加载 {fileName}",
+  "@openingProjectMessage": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "cannotReadPsdContent": "无法读取 PSD 文件内容。",
+  "cannotReadProjectFileContent": "无法读取项目文件内容。",
+  "openedProjectInfo": "已打开项目：{name}",
+  "@openedProjectInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "openProjectFailed": "打开项目失败：{error}",
+  "@openProjectFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+
+  "importImageDialogTitle": "导入图片",
+  "importedImageInfo": "已导入图片：{name}",
+  "@importedImageInfo": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "importImageFailed": "导入图片失败：{error}",
+  "@importImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "clipboardNoBitmapFound": "剪贴板中没有找到可以导入的位图。",
+  "clipboardImageDefaultName": "剪贴板图像",
+  "importedClipboardImageInfo": "已导入剪贴板图像",
+  "importClipboardImageFailed": "导入剪贴板图像失败：{error}",
+  "@importClipboardImageFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "webPreparingCanvasTitle": "正在准备画布…",
+  "webPreparingCanvasMessage": "Web 端需要一些时间才能完成初始化，请稍候。",
+
+  "aboutTitle": "关于 Misa Rin",
+  "aboutDescription": "Misa Rin 是一款专注于创意绘制与项目管理的应用，旨在为创作者提供流畅的绘图体验与可靠的项目存档能力。",
+  "aboutAppIdLabel": "应用标识",
+  "aboutAppVersionLabel": "应用版本",
+  "aboutDeveloperLabel": "开发者",
+  "close": "关闭",
+
+  "settingsTitle": "设置",
+  "tabletTest": "数位板测试",
+  "restoreDefaults": "恢复默认",
+  "ok": "好的",
+  "languageLabel": "语言",
+  "languageSystem": "跟随系统",
+  "languageEnglish": "英语",
+  "languageJapanese": "日语",
+  "languageKorean": "韩语",
+  "languageChineseSimplified": "中文（简体）",
+  "languageChineseTraditional": "中文（繁体）",
+  "themeModeLabel": "主题模式",
+  "themeLight": "浅色",
+  "themeDark": "深色",
+  "themeSystem": "跟随系统",
+  "stylusPressureSettingsLabel": "数位笔压设置",
+  "enableStylusPressure": "启用数位笔笔压",
+  "responseCurveLabel": "响应曲线",
+  "responseCurveDesc": "调整压力与笔触粗细之间的过渡速度。",
+  "brushSizeSliderRangeLabel": "笔刷大小滑块区间",
+  "brushSizeSliderRangeDesc": "影响工具面板内的笔刷大小滑块，有助于在不同精度间快速切换。",
+  "penSliderRangeCompact": "1 - 60 px（粗调）",
+  "penSliderRangeMedium": "0.1 - 500 px（中档）",
+  "penSliderRangeFull": "0.01 - 1000 px（全范围）",
+  "historyLimitLabel": "撤销/恢复步数上限",
+  "historyLimitCurrent": "当前上限：{count} 步",
+  "@historyLimitCurrent": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "historyLimitDesc": "调整撤销/恢复历史的保存数量，范围 {min}-{max}。",
+  "@historyLimitDesc": {
+    "placeholders": {
+      "min": {},
+      "max": {}
+    }
+  },
+  "developerOptionsLabel": "开发者选项",
+  "performanceOverlayLabel": "性能监控面板",
+  "performanceOverlayDesc": "打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。",
+  "tabletInputTestTitle": "数位板输入测试",
+
+  "recentProjectsTitle": "最近打开",
+  "recentProjectsLoadFailed": "加载最近项目失败：{error}",
+  "@recentProjectsLoadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "recentProjectsEmpty": "暂无最近打开的项目",
+  "openFileLocation": "打开文件所在路径",
+  "lastOpened": "最后打开：{date}",
+  "@lastOpened": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "canvasSize": "画布尺寸：{width} x {height}",
+  "@canvasSize": {
+    "placeholders": {
+      "width": {},
+      "height": {}
+    }
+  },
+
+  "menuFile": "文件",
+  "menuEdit": "编辑",
+  "menuImage": "图像",
+  "menuLayer": "图层",
+  "menuSelection": "选择",
+  "menuFilter": "滤镜",
+  "menuTool": "工具",
+  "menuView": "视图",
+  "menuWorkspace": "工作区",
+  "menuWindow": "窗口",
+
+  "menuAbout": "关于 Misa Rin",
+  "menuPreferences": "偏好设置…",
+  "menuNewEllipsis": "新建…",
+  "menuOpenEllipsis": "打开…",
+  "menuImportImageEllipsis": "导入图像…",
+  "menuImportImageFromClipboard": "从剪贴板导入图像",
+  "menuSave": "保存",
+  "menuSaveAsEllipsis": "另存为…",
+  "menuExportEllipsis": "导出…",
+  "menuCloseAll": "关闭全部",
+
+  "menuUndo": "撤销",
+  "menuRedo": "恢复",
+  "menuCut": "剪切",
+  "menuCopy": "复制",
+  "menuPaste": "粘贴",
+
+  "menuImageTransform": "图像变换",
+  "menuRotate90CW": "顺时针 90 度",
+  "menuRotate90CCW": "逆时针 90 度",
+  "menuRotate180CW": "顺时针 180 度",
+  "menuRotate180CCW": "逆时针 180 度",
+  "menuImageSizeEllipsis": "图像大小…",
+  "menuCanvasSizeEllipsis": "画布大小…",
+
+  "menuNewSubmenu": "新建",
+  "menuNewLayerEllipsis": "图层…",
+  "menuMergeDown": "向下合并",
+  "menuRasterize": "栅格化",
+  "menuTransform": "变换",
+
+  "menuSelectAll": "全选",
+  "menuInvertSelection": "反选",
+
+  "menuPalette": "调色盘",
+  "menuGeneratePaletteFromCanvasEllipsis": "取色当前画布生成调色盘…",
+  "menuGenerateGradientPalette": "使用当前颜色生成渐变调色盘",
+  "menuImportPaletteEllipsis": "导入调色盘…",
+
+  "menuReferenceImage": "参考图像",
+  "menuCreateReferenceImage": "创建参考图像",
+  "menuImportReferenceImageEllipsis": "导入参考图像…",
+
+  "menuZoomIn": "放大",
+  "menuZoomOut": "缩小",
+  "menuShowGrid": "显示网格",
+  "menuHideGrid": "隐藏网格",
+  "menuBlackWhite": "黑白",
+  "menuDisableBlackWhite": "取消黑白",
+  "menuMirrorPreview": "镜像预览",
+  "menuDisableMirror": "取消镜像",
+  "menuShowPerspectiveGuide": "显示透视线",
+  "menuHidePerspectiveGuide": "隐藏透视线",
+  "menuPerspectiveMode": "透视模式",
+  "menuPerspective1Point": "1 点透视",
+  "menuPerspective2Point": "2 点透视",
+  "menuPerspective3Point": "3 点透视",
+
+  "menuWorkspaceDefault": "默认",
+  "menuWorkspaceSai2": "SAI2",
+  "menuSwitchWorkspace": "切换工作区",
+  "menuResetWorkspace": "复位工作区",
+
+  "menuEdgeSofteningEllipsis": "边缘柔化…",
+  "menuNarrowLinesEllipsis": "线条收窄…",
+  "menuExpandFillEllipsis": "填色拉伸…",
+  "menuGaussianBlurEllipsis": "高斯模糊…",
+  "menuRemoveColorLeakEllipsis": "去除漏色…",
+  "menuHueSaturationEllipsis": "色相/饱和度…",
+  "menuBrightnessContrastEllipsis": "亮度/对比度…",
+  "menuColorRangeEllipsis": "色彩范围…",
+  "menuBlackWhiteEllipsis": "黑白…",
+  "menuBinarizeEllipsis": "二值化…",
+  "menuInvertColors": "颜色反转",
+
+  "fontFamily": "字体系列",
+  "importPaletteTitle": "导入调色板",
+  "cannotReadFile": "无法读取文件",
+  "paletteImported": "已导入调色板：{name}",
+  "@paletteImported": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "paletteImportFailed": "导入调色板失败：{error}",
+  "@paletteImportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "noChangesToSave": "没有更改需要保存到 {location}",
+  "@noChangesToSave": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaved": "项目已保存到 {location}",
+  "@projectSaved": {
+    "placeholders": {
+      "location": {}
+    }
+  },
+  "projectSaveFailed": "保存项目失败：{error}",
+  "@projectSaveFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadySave": "画布未准备好，无法保存。",
+  "saveProjectAs": "项目另存为",
+  "webSaveDesc": "下载项目文件到您的设备。",
+  "psdExported": "PSD 已导出到 {path}",
+  "@psdExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "projectDownloaded": "项目已下载：{fileName}",
+  "@projectDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "psdDownloaded": "PSD 已下载：{fileName}",
+  "@psdDownloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
+  "exportAsPsdTooltip": "导出为 PSD",
+  "canvasNotReadyExport": "画布未准备好，无法导出。",
+  "exportFileTitle": "导出 {extension} 文件",
+  "@exportFileTitle": {
+    "placeholders": {
+      "extension": {}
+    }
+  },
+  "webExportDesc": "下载导出的图像到您的设备。",
+  "fileDownloaded": "{extension} 文件已下载：{name}",
+  "@fileDownloaded": {
+    "placeholders": {
+      "extension": {},
+      "name": {}
+    }
+  },
+  "fileExported": "文件已导出到 {path}",
+  "@fileExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportFailed": "导出失败：{error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "canvasNotReadyTransform": "画布未准备好，无法变换。",
+  "canvasSizeErrorTransform": "变换过程中画布尺寸错误。",
+  "canvasNotReadyResizeImage": "画布未准备好，无法调整图像大小。",
+  "resizeImageFailed": "调整图像大小失败。",
+  "canvasNotReadyResizeCanvas": "画布未准备好，无法调整画布大小。",
+  "resizeCanvasFailed": "调整画布大小失败。",
+  "returnToHome": "返回首页",
+  "saveBeforeReturn": "返回首页前是否保存更改？",
+  "closeCanvas": "关闭画布",
+  "saveBeforeClose": "关闭前是否保存更改？",
+  "nameCannotBeEmpty": "名称不能为空。",
+  "noSupportedImageFormats": "未找到支持的图像格式。",
+  "importFailed": "导入 {item} 失败：{error}",
+  "@importFailed": {
+    "placeholders": {
+      "item": {},
+      "error": {}
+    }
+  },
+  "createdCanvasFromDrop": "已从拖放项目创建画布。",
+  "createdCanvasesFromDrop": "已从拖放项目创建 {count} 个画布。",
+  "@createdCanvasesFromDrop": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageCreateFailed": "无法从拖放图像创建画布。",
+  "canvasNotReadyDrop": "画布未准备好进行拖放操作。",
+  "insertedDropImage": "已插入拖放图像。",
+  "insertedDropImages": "已插入 {count} 张拖放图像。",
+  "@insertedDropImages": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "dropImageInsertFailed": "插入拖放图像失败。",
+  "image": "图像",
+  "on": "开",
+  "perspective1Point": "一点透视",
+  "perspective2Point": "两点透视",
+  "perspective3Point": "三点透视",
+  "resolutionLabel": "分辨率：{resolution}",
+  "@resolutionLabel": {
+    "placeholders": {
+      "resolution": {}
+    }
+  },
+  "zoomLabel": "缩放：{zoom}",
+  "@zoomLabel": {
+    "placeholders": {
+      "zoom": {}
+    }
+  },
+  "positionLabel": "位置：{position}",
+  "@positionLabel": {
+    "placeholders": {
+      "position": {}
+    }
+  },
+  "gridLabel": "网格：{grid}",
+  "@gridLabel": {
+    "placeholders": {
+      "grid": {}
+    }
+  },
+  "blackWhiteLabel": "黑白：{state}",
+  "@blackWhiteLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "mirrorLabel": "镜像：{state}",
+  "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "perspectiveLabel": "透视：{perspective}",
+  "@perspectiveLabel": {
+    "placeholders": {
+      "perspective": {}
+    }
+  },
+  "fileNameCannotBeEmpty": "文件名不能为空。",
+  "blackPoint": "黑点",
+  "whitePoint": "白点",
+  "midTone": "中间调",
+  "hollowStroke": "空心描边",
+  "hollowStrokeDesc": "将笔画中心挖空，形成空心描边效果。",
+  "hollowStrokeRatio": "空心比例",
+  "hollowStrokeRatioDesc": "调整空心内圈大小，数值越高描边越细。",
+  "eraseOccludedParts": "擦除被遮挡部分",
+  "eraseOccludedPartsDesc": "开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。"
+}

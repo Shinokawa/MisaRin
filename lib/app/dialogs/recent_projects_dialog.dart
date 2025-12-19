@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 
+import '../l10n/l10n.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../widgets/project_preview_thumbnail.dart';
@@ -66,7 +67,7 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
           return;
         }
         setState(() {
-          _errorMessage = '加载最近项目失败：$error';
+          _errorMessage = context.l10n.recentProjectsLoadFailed(error);
           _loading = false;
         });
       },
@@ -85,15 +86,16 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     return MisarinDialog(
-      title: const Text('最近打开'),
+      title: Text(l10n.recentProjectsTitle),
       content: SizedBox(height: 320, child: _buildContent(context, theme)),
       contentWidth: 480,
       maxWidth: 560,
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
+          child: Text(l10n.close),
         ),
       ],
     );
@@ -107,7 +109,7 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
       if (_loading) {
         return const Center(child: ProgressRing());
       }
-      return const Center(child: Text('暂无最近打开的项目'));
+      return Center(child: Text(context.l10n.recentProjectsEmpty));
     }
     return Stack(
       children: [
@@ -171,7 +173,7 @@ class _RecentProjectTileState extends State<_RecentProjectTile> {
           items: [
             MenuFlyoutItem(
               leading: const Icon(FluentIcons.folder_open),
-              text: const Text('打开文件所在路径'),
+              text: Text(context.l10n.openFileLocation),
               onPressed: () {
                 unawaited(revealInFileManager(path));
               },
@@ -226,11 +228,16 @@ class _RecentProjectTileState extends State<_RecentProjectTile> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '最后打开：${_formatDate(widget.summary.lastOpened)}',
+                          context.l10n.lastOpened(
+                            _formatDate(widget.summary.lastOpened),
+                          ),
                           style: theme.typography.caption,
                         ),
                         Text(
-                          '画布尺寸：${widget.summary.settings.width.toInt()} x ${widget.summary.settings.height.toInt()}',
+                          context.l10n.canvasSize(
+                            widget.summary.settings.width.toInt(),
+                            widget.summary.settings.height.toInt(),
+                          ),
                           style: theme.typography.caption,
                         ),
                       ],

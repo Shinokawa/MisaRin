@@ -734,6 +734,7 @@ class BitmapSurface {
     Color? targetColor,
     bool contiguous = true,
     Uint8List? mask,
+    int fillGap = 0,
   }) {
     final int sx = start.dx.floor();
     final int sy = start.dy.floor();
@@ -755,6 +756,478 @@ class BitmapSurface {
       for (int i = 0; i < pixels.length; i++) {
         if (pixels[i] == baseColor && (mask == null || mask[i] != 0)) {
           pixels[i] = replacement;
+        }
+      }
+      return;
+    }
+
+    final int clampedFillGap = fillGap.clamp(0, 64);
+    if (clampedFillGap > 0) {
+      final Uint8List targetMask = Uint8List(width * height);
+      for (int i = 0; i < pixels.length; i++) {
+        if (mask != null && mask[i] == 0) {
+          continue;
+        }
+        if (pixels[i] == baseColor) {
+          targetMask[i] = 1;
+        }
+      }
+
+      final int startIndex = sy * width + sx;
+      if (targetMask[startIndex] == 0) {
+        return;
+      }
+
+      final List<int> borderSeedsOriginal = <int>[];
+      for (int x = 0; x < width; x++) {
+        final int topIndex = x;
+        if (topIndex < targetMask.length && targetMask[topIndex] == 1) {
+          borderSeedsOriginal.add(topIndex);
+        }
+        final int bottomIndex = (height - 1) * width + x;
+        if (bottomIndex >= 0 &&
+            bottomIndex < targetMask.length &&
+            targetMask[bottomIndex] == 1) {
+          borderSeedsOriginal.add(bottomIndex);
+        }
+      }
+      for (int y = 1; y < height - 1; y++) {
+        final int leftIndex = y * width;
+        if (leftIndex < targetMask.length && targetMask[leftIndex] == 1) {
+          borderSeedsOriginal.add(leftIndex);
+        }
+        final int rightIndex = y * width + (width - 1);
+        if (rightIndex >= 0 &&
+            rightIndex < targetMask.length &&
+            targetMask[rightIndex] == 1) {
+          borderSeedsOriginal.add(rightIndex);
+        }
+      }
+
+      Uint8List openMask8(Uint8List mask, int radius) {
+        if (radius <= 0) {
+          return mask;
+        }
+        final Uint8List buffer = Uint8List(mask.length);
+        final List<int> queue = <int>[];
+
+        void dilateFromMaskValue(Uint8List source, Uint8List out, int seedValue) {
+          queue.clear();
+          out.fillRange(0, out.length, 0);
+          for (int i = 0; i < source.length; i++) {
+            if (source[i] != seedValue) {
+              continue;
+            }
+            out[i] = 1;
+            queue.add(i);
+          }
+          if (queue.isEmpty) {
+            return;
+          }
+
+          int head = 0;
+          final int lastRowStart = (height - 1) * width;
+          for (int step = 0; step < radius; step++) {
+            final int levelEnd = queue.length;
+            while (head < levelEnd) {
+              final int index = queue[head++];
+              final int x = index % width;
+              final bool hasLeft = x > 0;
+              final bool hasRight = x < width - 1;
+              final bool hasUp = index >= width;
+              final bool hasDown = index < lastRowStart;
+
+              void tryAdd(int neighbor) {
+                if (neighbor < 0 || neighbor >= out.length) {
+                  return;
+                }
+                if (out[neighbor] != 0) {
+                  return;
+                }
+                out[neighbor] = 1;
+                queue.add(neighbor);
+              }
+
+              if (hasLeft) {
+                tryAdd(index - 1);
+              }
+              if (hasRight) {
+                tryAdd(index + 1);
+              }
+              if (hasUp) {
+                tryAdd(index - width);
+                if (hasLeft) {
+                  tryAdd(index - width - 1);
+                }
+                if (hasRight) {
+                  tryAdd(index - width + 1);
+                }
+              }
+              if (hasDown) {
+                tryAdd(index + width);
+                if (hasLeft) {
+                  tryAdd(index + width - 1);
+                }
+                if (hasRight) {
+                  tryAdd(index + width + 1);
+                }
+              }
+            }
+          }
+        }
+
+        // Phase 1 (Erosion): erode by dilating the inverse and then inverting.
+        dilateFromMaskValue(mask, buffer, 0);
+        for (int i = 0; i < mask.length; i++) {
+          mask[i] = buffer[i] == 0 ? 1 : 0;
+        }
+
+        // Phase 2 (Dilation): dilate eroded mask.
+        dilateFromMaskValue(mask, buffer, 1);
+        return buffer;
+      }
+
+      int? findNearestFillableStartIndex(Uint8List fillableMask) {
+        if (fillableMask[startIndex] == 1) {
+          return startIndex;
+        }
+        final Set<int> visited = <int>{startIndex};
+        final List<int> queue = <int>[startIndex];
+        int head = 0;
+        final int maxDepth = clampedFillGap + 1;
+        for (int depth = 0; depth <= maxDepth; depth++) {
+          final int levelEnd = queue.length;
+          while (head < levelEnd) {
+            final int index = queue[head++];
+            if (fillableMask[index] == 1) {
+              return index;
+            }
+            final int x = index % width;
+            final int y = index ~/ width;
+
+            void tryNeighbor(int nx, int ny) {
+              if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+                return;
+              }
+              final int neighbor = ny * width + nx;
+              if (!visited.add(neighbor)) {
+                return;
+              }
+              if (mask != null && mask[neighbor] == 0) {
+                return;
+              }
+              if (pixels[neighbor] != baseColor) {
+                return;
+              }
+              queue.add(neighbor);
+            }
+
+            tryNeighbor(x - 1, y);
+            tryNeighbor(x + 1, y);
+            tryNeighbor(x, y - 1);
+            tryNeighbor(x, y + 1);
+          }
+          if (head >= queue.length) {
+            break;
+          }
+        }
+        return null;
+      }
+
+      // "Fill gap" should only prevent leaking through small openings.
+      // Using the opened mask directly can delete thin enclosed regions (e.g. narrow curved bands),
+      // so we:
+      // 1) Compute an opened mask to sever narrow leak paths,
+      // 2) Find the "outside" region on the opened mask (border-connected),
+      // 3) Reconstruct the fill inside the original target mask while forbidding entry into "outside".
+      final Uint8List openedTarget = openMask8(
+        Uint8List.fromList(targetMask),
+        clampedFillGap,
+      );
+
+      final List<int> outsideSeeds = <int>[];
+      for (int x = 0; x < width; x++) {
+        final int topIndex = x;
+        if (topIndex < openedTarget.length && openedTarget[topIndex] == 1) {
+          outsideSeeds.add(topIndex);
+        }
+        final int bottomIndex = (height - 1) * width + x;
+        if (bottomIndex >= 0 &&
+            bottomIndex < openedTarget.length &&
+            openedTarget[bottomIndex] == 1) {
+          outsideSeeds.add(bottomIndex);
+        }
+      }
+      for (int y = 1; y < height - 1; y++) {
+        final int leftIndex = y * width;
+        if (leftIndex < openedTarget.length && openedTarget[leftIndex] == 1) {
+          outsideSeeds.add(leftIndex);
+        }
+        final int rightIndex = y * width + (width - 1);
+        if (rightIndex >= 0 &&
+            rightIndex < openedTarget.length &&
+            openedTarget[rightIndex] == 1) {
+          outsideSeeds.add(rightIndex);
+        }
+      }
+
+      void fillFromTargetMask(int seedIndex) {
+        final List<int> stack = <int>[seedIndex];
+        while (stack.isNotEmpty) {
+          final int index = stack.removeLast();
+          if (index < 0 || index >= targetMask.length) {
+            continue;
+          }
+          if (targetMask[index] == 0) {
+            continue;
+          }
+          targetMask[index] = 0;
+          pixels[index] = replacement;
+          if (replacement != 0) {
+            _isClean = false;
+          }
+          final int x = index % width;
+          final int y = index ~/ width;
+          if (x > 0) {
+            final int neighbor = index - 1;
+            if (targetMask[neighbor] == 1) {
+              stack.add(neighbor);
+            }
+          }
+          if (x < width - 1) {
+            final int neighbor = index + 1;
+            if (targetMask[neighbor] == 1) {
+              stack.add(neighbor);
+            }
+          }
+          if (y > 0) {
+            final int neighbor = index - width;
+            if (targetMask[neighbor] == 1) {
+              stack.add(neighbor);
+            }
+          }
+          if (y < height - 1) {
+            final int neighbor = index + width;
+            if (targetMask[neighbor] == 1) {
+              stack.add(neighbor);
+            }
+          }
+        }
+      }
+
+      if (outsideSeeds.isEmpty) {
+        if (borderSeedsOriginal.isEmpty) {
+          fillFromTargetMask(startIndex);
+          return;
+        }
+
+        final int? snappedStart = findNearestFillableStartIndex(openedTarget);
+        if (snappedStart == null) {
+          fillFromTargetMask(startIndex);
+          return;
+        }
+
+        final List<int> stack = <int>[snappedStart];
+        while (stack.isNotEmpty) {
+          final int index = stack.removeLast();
+          if (index < 0 || index >= openedTarget.length) {
+            continue;
+          }
+          if (openedTarget[index] == 0) {
+            continue;
+          }
+          openedTarget[index] = 0;
+          if (targetMask[index] == 0) {
+            continue;
+          }
+          targetMask[index] = 0;
+          pixels[index] = replacement;
+          if (replacement != 0) {
+            _isClean = false;
+          }
+          final int x = index % width;
+          final int y = index ~/ width;
+          if (x > 0) {
+            final int neighbor = index - 1;
+            if (openedTarget[neighbor] == 1) {
+              stack.add(neighbor);
+            }
+          }
+          if (x < width - 1) {
+            final int neighbor = index + 1;
+            if (openedTarget[neighbor] == 1) {
+              stack.add(neighbor);
+            }
+          }
+          if (y > 0) {
+            final int neighbor = index - width;
+            if (openedTarget[neighbor] == 1) {
+              stack.add(neighbor);
+            }
+          }
+          if (y < height - 1) {
+            final int neighbor = index + width;
+            if (openedTarget[neighbor] == 1) {
+              stack.add(neighbor);
+            }
+          }
+        }
+        return;
+      }
+
+      final Uint8List outsideOpen = Uint8List(openedTarget.length);
+      final List<int> outsideQueue = List<int>.from(outsideSeeds);
+      int outsideHead = 0;
+      for (final int seed in outsideSeeds) {
+        outsideOpen[seed] = 1;
+      }
+      while (outsideHead < outsideQueue.length) {
+        final int index = outsideQueue[outsideHead++];
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            outsideOpen[neighbor] = 1;
+            outsideQueue.add(neighbor);
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            outsideOpen[neighbor] = 1;
+            outsideQueue.add(neighbor);
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            outsideOpen[neighbor] = 1;
+            outsideQueue.add(neighbor);
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            outsideOpen[neighbor] = 1;
+            outsideQueue.add(neighbor);
+          }
+        }
+      }
+
+      final int? snappedStart = findNearestFillableStartIndex(openedTarget);
+      if (snappedStart == null) {
+        fillFromTargetMask(startIndex);
+        return;
+      }
+
+      final Uint8List seedVisited = Uint8List(openedTarget.length);
+      final List<int> seedQueue = <int>[snappedStart];
+      seedVisited[snappedStart] = 1;
+      int seedHead = 0;
+      bool touchesOutside = outsideOpen[snappedStart] == 1;
+
+      while (seedHead < seedQueue.length) {
+        final int index = seedQueue[seedHead++];
+        if (outsideOpen[index] == 1) {
+          touchesOutside = true;
+          break;
+        }
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            seedVisited[neighbor] = 1;
+            seedQueue.add(neighbor);
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            seedVisited[neighbor] = 1;
+            seedQueue.add(neighbor);
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            seedVisited[neighbor] = 1;
+            seedQueue.add(neighbor);
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            seedVisited[neighbor] = 1;
+            seedQueue.add(neighbor);
+          }
+        }
+      }
+
+      if (touchesOutside) {
+        fillFromTargetMask(startIndex);
+        return;
+      }
+
+      final List<int> queue = List<int>.from(seedQueue);
+      int head = 0;
+      for (final int index in queue) {
+        if (targetMask[index] == 1 && outsideOpen[index] == 0) {
+          targetMask[index] = 0;
+          pixels[index] = replacement;
+          if (replacement != 0) {
+            _isClean = false;
+          }
+        }
+      }
+      while (head < queue.length) {
+        final int index = queue[head++];
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
+            targetMask[neighbor] = 0;
+            pixels[neighbor] = replacement;
+            if (replacement != 0) {
+              _isClean = false;
+            }
+            queue.add(neighbor);
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
+            targetMask[neighbor] = 0;
+            pixels[neighbor] = replacement;
+            if (replacement != 0) {
+              _isClean = false;
+            }
+            queue.add(neighbor);
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
+            targetMask[neighbor] = 0;
+            pixels[neighbor] = replacement;
+            if (replacement != 0) {
+              _isClean = false;
+            }
+            queue.add(neighbor);
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
+            targetMask[neighbor] = 0;
+            pixels[neighbor] = replacement;
+            if (replacement != 0) {
+              _isClean = false;
+            }
+            queue.add(neighbor);
+          }
         }
       }
       return;

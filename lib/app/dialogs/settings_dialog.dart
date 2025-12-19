@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
+import '../l10n/locale_controller.dart';
+import '../l10n/l10n.dart';
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
 import '../utils/tablet_input_bridge.dart';
@@ -15,27 +17,41 @@ import 'misarin_dialog.dart';
 Future<void> showSettingsDialog(BuildContext context) {
   final GlobalKey<_SettingsDialogContentState> contentKey =
       GlobalKey<_SettingsDialogContentState>();
-  return showMisarinDialog<void>(
+  return showDialog<void>(
     context: context,
-    title: const Text('设置'),
-    content: _SettingsDialogContent(key: contentKey),
-    contentWidth: 420,
-    maxWidth: 520,
-    actions: [
-      Button(
-        onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
-        child: const Text('数位板测试'),
-      ),
-      Button(
-        onPressed: () => contentKey.currentState?.resetToDefaults(),
-        child: const Text('恢复默认'),
-      ),
-      Button(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('好的'),
-      ),
-    ],
+    builder: (dialogContext) {
+      final l10n = dialogContext.l10n;
+      return MisarinDialog(
+        title: Text(l10n.settingsTitle),
+        content: _SettingsDialogContent(key: contentKey),
+        contentWidth: 420,
+        maxWidth: 520,
+        actions: [
+          Button(
+            onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
+            child: Text(l10n.tabletTest),
+          ),
+          Button(
+            onPressed: () => contentKey.currentState?.resetToDefaults(),
+            child: Text(l10n.restoreDefaults),
+          ),
+          Button(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.ok),
+          ),
+        ],
+      );
+    },
   );
+}
+
+enum _AppLocaleOption {
+  system,
+  english,
+  japanese,
+  korean,
+  chineseSimplified,
+  chineseTraditional,
 }
 
 class _SettingsDialogContent extends StatefulWidget {
@@ -47,6 +63,7 @@ class _SettingsDialogContent extends StatefulWidget {
 
 class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late int _historyLimit;
+  late _AppLocaleOption _localeOption;
   late bool _stylusPressureEnabled;
   late double _stylusCurve;
   late PenStrokeSliderRange _penSliderRange;
@@ -56,6 +73,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   void initState() {
     super.initState();
     _historyLimit = AppPreferences.instance.historyLimit;
+    _localeOption = _optionForLocale(AppPreferences.instance.localeOverride);
     _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
@@ -65,6 +83,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     final ThemeController controller = ThemeController.of(context);
     final ThemeMode themeMode = controller.themeMode;
     final int minHistory = AppPreferences.minHistoryLimit;
@@ -75,14 +94,44 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InfoLabel(
-          label: '主题模式',
+          label: l10n.languageLabel,
+          child: ComboBox<_AppLocaleOption>(
+            isExpanded: true,
+            value: _localeOption,
+            items: _AppLocaleOption.values
+                .map(
+                  (option) => ComboBoxItem<_AppLocaleOption>(
+                    value: option,
+                    child: Text(_localeOptionLabel(option)),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (option) {
+              if (option == null || option == _localeOption) {
+                return;
+              }
+              setState(() => _localeOption = option);
+              final Locale? locale = _localeForOption(option);
+              final LocaleController controller = LocaleController.of(context);
+              controller.onLocaleChanged(locale);
+              final AppPreferences prefs = AppPreferences.instance;
+              if (prefs.localeOverride != locale) {
+                prefs.localeOverride = locale;
+                unawaited(AppPreferences.save());
+              }
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        InfoLabel(
+          label: l10n.themeModeLabel,
           child: ComboBox<ThemeMode>(
             isExpanded: true,
             value: themeMode,
-            items: const [
-              ComboBoxItem(value: ThemeMode.light, child: Text('浅色')),
-              ComboBoxItem(value: ThemeMode.dark, child: Text('深色')),
-              ComboBoxItem(value: ThemeMode.system, child: Text('跟随系统')),
+            items: [
+              ComboBoxItem(value: ThemeMode.light, child: Text(l10n.themeLight)),
+              ComboBoxItem(value: ThemeMode.dark, child: Text(l10n.themeDark)),
+              ComboBoxItem(value: ThemeMode.system, child: Text(l10n.themeSystem)),
             ],
             onChanged: (mode) {
               if (mode == null) {
@@ -99,13 +148,13 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
         const SizedBox(height: 16),
         InfoLabel(
-          label: '数位笔压设置',
+          label: l10n.stylusPressureSettingsLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Text('启用数位笔笔压'),
+                  Text(l10n.enableStylusPressure),
                   const SizedBox(width: 12),
                   ToggleSwitch(
                     checked: _stylusPressureEnabled,
@@ -120,8 +169,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               ),
               const SizedBox(height: 12),
               _StylusSliderTile(
-                label: '响应曲线',
-                description: '调整压力与笔触粗细之间的过渡速度。',
+                label: l10n.responseCurveLabel,
+                description: l10n.responseCurveDesc,
                 value: _stylusCurve,
                 min: AppPreferences.stylusCurveLowerBound,
                 max: AppPreferences.stylusCurveUpperBound,
@@ -139,7 +188,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
         const SizedBox(height: 16),
         InfoLabel(
-          label: '笔刷大小滑块区间',
+          label: l10n.brushSizeSliderRangeLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -163,7 +212,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               ),
               const SizedBox(height: 8),
               Text(
-                '影响工具面板内的笔刷大小滑块，有助于在不同精度间快速切换。',
+                l10n.brushSizeSliderRangeDesc,
                 style: theme.typography.caption,
               ),
             ],
@@ -171,7 +220,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         ),
         const SizedBox(height: 16),
         InfoLabel(
-          label: '撤销/恢复步数上限',
+          label: l10n.historyLimitLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -194,9 +243,12 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                   unawaited(AppPreferences.save());
                 },
               ),
-              Text('当前上限：$_historyLimit 步', style: theme.typography.caption),
               Text(
-                '调整撤销/恢复历史的保存数量，范围 $minHistory-$maxHistory。',
+                l10n.historyLimitCurrent(_historyLimit),
+                style: theme.typography.caption,
+              ),
+              Text(
+                l10n.historyLimitDesc(minHistory, maxHistory),
                 style: theme.typography.caption,
               ),
             ],
@@ -205,13 +257,13 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         if (!kIsWeb) ...[
           const SizedBox(height: 16),
           InfoLabel(
-            label: '开发者选项',
+            label: l10n.developerOptionsLabel,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Expanded(child: Text('性能监控面板')),
+                    Expanded(child: Text(l10n.performanceOverlayLabel)),
                     ToggleSwitch(
                       checked: _fpsOverlayEnabled,
                       onChanged: (value) {
@@ -225,7 +277,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。',
+                  l10n.performanceOverlayDesc,
                   style: theme.typography.caption,
                 ),
               ],
@@ -260,24 +312,80 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   }
 
   String _sliderRangeLabel(PenStrokeSliderRange range) {
+    final l10n = context.l10n;
     switch (range) {
       case PenStrokeSliderRange.compact:
-        return '1 - 60 px（粗调）';
+        return l10n.penSliderRangeCompact;
       case PenStrokeSliderRange.medium:
-        return '0.1 - 500 px（中档）';
+        return l10n.penSliderRangeMedium;
       case PenStrokeSliderRange.full:
-        return '0.01 - 1000 px（全范围）';
+        return l10n.penSliderRangeFull;
     }
+  }
+
+  String _localeOptionLabel(_AppLocaleOption option) {
+    final l10n = context.l10n;
+    switch (option) {
+      case _AppLocaleOption.system:
+        return l10n.languageSystem;
+      case _AppLocaleOption.english:
+        return l10n.languageEnglish;
+      case _AppLocaleOption.japanese:
+        return l10n.languageJapanese;
+      case _AppLocaleOption.korean:
+        return l10n.languageKorean;
+      case _AppLocaleOption.chineseSimplified:
+        return l10n.languageChineseSimplified;
+      case _AppLocaleOption.chineseTraditional:
+        return l10n.languageChineseTraditional;
+    }
+  }
+
+  static Locale? _localeForOption(_AppLocaleOption option) {
+    switch (option) {
+      case _AppLocaleOption.system:
+        return null;
+      case _AppLocaleOption.english:
+        return const Locale('en');
+      case _AppLocaleOption.japanese:
+        return const Locale('ja');
+      case _AppLocaleOption.korean:
+        return const Locale('ko');
+      case _AppLocaleOption.chineseSimplified:
+        return const Locale('zh', 'CN');
+      case _AppLocaleOption.chineseTraditional:
+        return const Locale('zh', 'TW');
+    }
+  }
+
+  static _AppLocaleOption _optionForLocale(Locale? locale) {
+    if (locale == null) {
+      return _AppLocaleOption.system;
+    }
+    final String languageCode = locale.languageCode.toLowerCase();
+    final String? countryCode = locale.countryCode?.toUpperCase();
+    if (languageCode == 'en') return _AppLocaleOption.english;
+    if (languageCode == 'ja') return _AppLocaleOption.japanese;
+    if (languageCode == 'ko') return _AppLocaleOption.korean;
+    if (languageCode == 'zh' && countryCode == 'TW') {
+      return _AppLocaleOption.chineseTraditional;
+    }
+    if (languageCode == 'zh') return _AppLocaleOption.chineseSimplified;
+    return _AppLocaleOption.system;
   }
 
   void resetToDefaults() {
     final ThemeController controller = ThemeController.of(context);
+    final LocaleController localeController = LocaleController.of(context);
     final AppPreferences prefs = AppPreferences.instance;
     final int defaultHistory = AppPreferences.defaultHistoryLimit;
     final ThemeMode defaultTheme = AppPreferences.defaultThemeMode;
+    final Locale? defaultLocale = AppPreferences.defaultLocaleOverride;
     controller.onThemeModeChanged(defaultTheme);
+    localeController.onLocaleChanged(defaultLocale);
     setState(() {
       _historyLimit = defaultHistory;
+      _localeOption = _optionForLocale(defaultLocale);
       _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
       _stylusCurve = AppPreferences.defaultStylusCurve;
       _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
@@ -285,6 +393,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
+    prefs.localeOverride = defaultLocale;
     prefs.stylusPressureEnabled = _stylusPressureEnabled;
     prefs.stylusPressureCurve = _stylusCurve;
     prefs.penStrokeSliderRange = _penSliderRange;
@@ -299,18 +408,23 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
 }
 
 Future<void> _showTabletInspectDialog(BuildContext context) async {
-  return showMisarinDialog<void>(
+  return showDialog<void>(
     context: context,
-    title: const Text('数位板输入测试'),
-    contentWidth: 720,
-    maxWidth: 820,
-    content: const _TabletInspectPane(),
-    actions: [
-      Button(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('关闭'),
-      ),
-    ],
+    builder: (dialogContext) {
+      final l10n = dialogContext.l10n;
+      return MisarinDialog(
+        title: Text(l10n.tabletInputTestTitle),
+        contentWidth: 720,
+        maxWidth: 820,
+        content: const _TabletInspectPane(),
+        actions: [
+          Button(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.close),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -477,6 +591,7 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final double devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    final l10n = context.l10n;
     return SizedBox(
       width: 700,
       height: 420,
@@ -509,18 +624,20 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('实时参数', style: theme.typography.subtitle),
+                Text(l10n.realtimeParams, style: theme.typography.subtitle),
                 const SizedBox(height: 12),
-                _buildStat('最近压力', _latestPressure),
-                _buildStat('pressureMin', _latestMin),
-                _buildStat('pressureMax', _latestMax),
-                _buildStat('估算半径 (px)', _latestPhysicalRadius),
-                _buildStat('倾角(弧度)', _latestTilt),
-                _buildStat('采样计数', _sampleCount.toDouble(), fractionDigits: 0),
-                _buildStat('采样频率(Hz)', _estimatedRps),
-                _buildTextStat('指针类型', _pointerKindLabel(_latestPointerKind)),
+                _buildStat(l10n.tabletPressureLatest, _latestPressure),
+                _buildStat(l10n.tabletPressureMin, _latestMin),
+                _buildStat(l10n.tabletPressureMax, _latestMax),
+                _buildStat(l10n.tabletRadiusPx, _latestPhysicalRadius),
+                _buildStat(l10n.tabletTiltRad, _latestTilt),
+                _buildStat(l10n.tabletSampleCount, _sampleCount.toDouble(),
+                    fractionDigits: 0),
+                _buildStat(l10n.tabletSampleRateHz, _estimatedRps),
+                _buildTextStat(
+                    l10n.tabletPointerType, _pointerKindLabel(_latestPointerKind)),
                 const Spacer(),
-                Button(onPressed: _clear, child: const Text('清空涂鸦')),
+                Button(onPressed: _clear, child: Text(l10n.clearScribble)),
               ],
             ),
           ),
@@ -600,15 +717,23 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
   }
 
   String _pointerKindLabel(PointerDeviceKind? kind) {
-    if (kind == null) {
-      return '—';
+    final l10n = context.l10n;
+    switch (kind) {
+      case PointerDeviceKind.mouse:
+        return l10n.pointerKindMouse;
+      case PointerDeviceKind.touch:
+        return l10n.pointerKindTouch;
+      case PointerDeviceKind.stylus:
+        return l10n.pointerKindStylus;
+      case PointerDeviceKind.invertedStylus:
+        return l10n.pointerKindInvertedStylus;
+      case PointerDeviceKind.trackpad:
+        return l10n.pointerKindTrackpad;
+      case PointerDeviceKind.unknown:
+        return l10n.pointerKindUnknown;
+      case null:
+        return '—';
     }
-    final String raw = kind.toString();
-    final int dotIndex = raw.lastIndexOf('.');
-    if (dotIndex == -1 || dotIndex == raw.length - 1) {
-      return raw;
-    }
-    return raw.substring(dotIndex + 1);
   }
 }
 

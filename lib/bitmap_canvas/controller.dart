@@ -11,6 +11,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
+import '../backend/rgba_utils.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
@@ -103,6 +104,9 @@ class BitmapCanvasController extends ChangeNotifier {
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
   bool _currentStrokeEraseMode = false;
+  bool _currentStrokeHollowEnabled = false;
+  double _currentStrokeHollowRatio = 0.0;
+  bool _currentStrokeEraseOccludedParts = false;
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
   bool _vectorDrawingEnabled = true;
@@ -199,7 +203,8 @@ class BitmapCanvasController extends ChangeNotifier {
 
   String? get _translatingLayerIdForComposite {
     if (_activeLayerTranslationSnapshot != null &&
-        !_pendingActiveLayerTransformCleanup) {
+        !_pendingActiveLayerTransformCleanup &&
+        _activeLayerTransformImage != null) {
       return _activeLayerTranslationId;
     }
     return null;
@@ -221,6 +226,10 @@ class BitmapCanvasController extends ChangeNotifier {
   double get activeStrokeRadius => _currentStrokeRadius;
   BrushShape get activeStrokeShape => _currentBrushShape;
   bool get activeStrokeEraseMode => _currentStrokeEraseMode;
+  int get activeStrokeAntialiasLevel => _currentStrokeAntialiasLevel;
+  bool get activeStrokeHollowEnabled => _currentStrokeHollowEnabled;
+  double get activeStrokeHollowRatio => _currentStrokeHollowRatio;
+  bool get activeStrokeEraseOccludedParts => _currentStrokeEraseOccludedParts;
 
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
@@ -237,8 +246,11 @@ class BitmapCanvasController extends ChangeNotifier {
     BrushShape shape,
     Rect bounds,
     bool erase,
-    int antialiasLevel,
-  ) => _controllerRasterizeVectorStroke(
+    int antialiasLevel, {
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    bool eraseOccludedParts = false,
+  }) => _controllerRasterizeVectorStroke(
     this,
     points,
     radii,
@@ -247,6 +259,9 @@ class BitmapCanvasController extends ChangeNotifier {
     bounds,
     erase,
     antialiasLevel,
+    hollow: hollow,
+    hollowRatio: hollowRatio,
+    eraseOccludedParts: eraseOccludedParts,
   );
 
   void _flushRealtimeStrokeCommands() =>
@@ -501,6 +516,9 @@ class BitmapCanvasController extends ChangeNotifier {
     BrushShape brushShape = BrushShape.circle,
     bool enableNeedleTips = false,
     bool erase = false,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    bool eraseOccludedParts = false,
   }) => _strokeBegin(
     this,
     position,
@@ -518,6 +536,9 @@ class BitmapCanvasController extends ChangeNotifier {
     brushShape: brushShape,
     enableNeedleTips: enableNeedleTips,
     erase: erase,
+    hollow: hollow,
+    hollowRatio: hollowRatio,
+    eraseOccludedParts: eraseOccludedParts,
   );
 
   void extendStroke(
@@ -615,6 +636,7 @@ class BitmapCanvasController extends ChangeNotifier {
     bool sampleAllLayers = false,
     List<Color>? swallowColors,
     int tolerance = 0,
+    int fillGap = 0,
     int antialiasLevel = 0,
   }) => _fillFloodFill(
     this,
@@ -624,6 +646,7 @@ class BitmapCanvasController extends ChangeNotifier {
     sampleAllLayers: sampleAllLayers,
     swallowColors: swallowColors,
     tolerance: tolerance,
+    fillGap: fillGap,
     antialiasLevel: antialiasLevel,
   );
 
@@ -883,6 +906,7 @@ class BitmapCanvasController extends ChangeNotifier {
     required int width,
     required int height,
     required bool erase,
+    required bool eraseOccludedParts,
   }) => _controllerMergeVectorPatchOnMainThread(
     this,
     rgbaPixels: rgbaPixels,
@@ -891,6 +915,7 @@ class BitmapCanvasController extends ChangeNotifier {
     width: width,
     height: height,
     erase: erase,
+    eraseOccludedParts: eraseOccludedParts,
   );
 
   void _scheduleTileImageDisposal() =>
@@ -984,6 +1009,7 @@ class BitmapCanvasController extends ChangeNotifier {
     Color? targetColor,
     bool contiguous = true,
     int tolerance = 0,
+    int fillGap = 0,
   }) => _controllerExecuteFloodFill(
     this,
     start: start,
@@ -991,6 +1017,7 @@ class BitmapCanvasController extends ChangeNotifier {
     targetColor: targetColor,
     contiguous: contiguous,
     tolerance: tolerance,
+    fillGap: fillGap,
   );
 
   Future<Uint8List?> _executeSelectionMask({

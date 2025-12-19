@@ -64,6 +64,9 @@ void _strokeBegin(
   BrushShape brushShape = BrushShape.circle,
   bool enableNeedleTips = false,
   bool erase = false,
+  bool hollow = false,
+  double hollowRatio = 0.0,
+  bool eraseOccludedParts = false,
 }) {
   if (controller._activeLayer.locked) {
     return;
@@ -137,6 +140,12 @@ void _strokeBegin(
   
   controller._currentStrokeColor = color;
   controller._currentStrokeEraseMode = erase;
+  final bool resolvedHollow = hollow && !erase;
+  controller._currentStrokeHollowEnabled = resolvedHollow;
+  controller._currentStrokeHollowRatio =
+      resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0;
+  controller._currentStrokeEraseOccludedParts =
+      resolvedHollow && eraseOccludedParts;
 }
 
 void _strokeExtend(
@@ -362,6 +371,9 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeHasMoved = false;
   controller._strokePressureSimulator.resetTracking();
   controller._currentStrokeEraseMode = false;
+  controller._currentStrokeHollowEnabled = false;
+  controller._currentStrokeHollowRatio = 0.0;
+  controller._currentStrokeEraseOccludedParts = false;
 }
 
 void _strokeSetPressureProfile(

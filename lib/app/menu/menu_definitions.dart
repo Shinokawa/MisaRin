@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart'
     show MenuSerializableShortcut, SingleActivator;
+import 'package:misa_rin/l10n/app_localizations.dart';
 
 import '../models/workspace_layout.dart';
 import 'menu_action_dispatcher.dart';
@@ -74,34 +75,40 @@ class MenuDefinition {
 class MenuDefinitionBuilder {
   const MenuDefinitionBuilder._();
 
-  static List<MenuDefinition> build(MenuActionHandler handler) {
+  static List<MenuDefinition> build(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     return <MenuDefinition?>[
-      _applicationMenu(handler),
-      _fileMenu(handler),
-      _editMenu(handler),
-      _imageMenu(handler),
-      _layerMenu(handler),
-      _selectionMenu(handler),
-      _filterMenu(handler),
-      _toolMenu(handler),
-      _viewMenu(handler),
-      _workspaceMenu(handler),
-      _windowMenu(),
+      _applicationMenu(handler, l10n),
+      _fileMenu(handler, l10n),
+      _editMenu(handler, l10n),
+      _imageMenu(handler, l10n),
+      _layerMenu(handler, l10n),
+      _selectionMenu(handler, l10n),
+      _filterMenu(handler, l10n),
+      _toolMenu(handler, l10n),
+      _viewMenu(handler, l10n),
+      _workspaceMenu(handler, l10n),
+      _windowMenu(l10n),
     ].whereType<MenuDefinition>().toList(growable: false);
   }
 
-  static MenuDefinition? _applicationMenu(MenuActionHandler handler) {
+  static MenuDefinition? _applicationMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> entries = <MenuEntry>[];
 
     _addSection(entries, <MenuEntry>[
       if (handler.about != null)
-        MenuActionEntry(label: '关于 Misa Rin', action: handler.about),
+        MenuActionEntry(label: l10n.menuAbout, action: handler.about),
     ]);
 
     _addSection(entries, <MenuEntry>[
       if (handler.preferences != null)
         MenuActionEntry(
-          label: '偏好设置…',
+          label: l10n.menuPreferences,
           action: handler.preferences,
           shortcut: const SingleActivator(LogicalKeyboardKey.comma, meta: true),
         ),
@@ -127,31 +134,34 @@ class MenuDefinitionBuilder {
     return MenuDefinition(label: 'Misa Rin', entries: entries);
   }
 
-  static MenuDefinition? _fileMenu(MenuActionHandler handler) {
+  static MenuDefinition? _fileMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> entries = <MenuEntry>[];
 
     _addSection(entries, <MenuEntry>[
       if (handler.newProject != null)
         MenuActionEntry(
-          label: '新建…',
+          label: l10n.menuNewEllipsis,
           action: handler.newProject,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyN, meta: true),
         ),
       if (handler.open != null)
         MenuActionEntry(
-          label: '打开…',
+          label: l10n.menuOpenEllipsis,
           action: handler.open,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyO, meta: true),
         ),
       if (handler.importImage != null)
         MenuActionEntry(
-          label: '导入图像…',
+          label: l10n.menuImportImageEllipsis,
           action: handler.importImage,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyI, meta: true),
         ),
       if (handler.importImageFromClipboard != null)
         MenuActionEntry(
-          label: '从剪贴板导入图像',
+          label: l10n.menuImportImageFromClipboard,
           action: handler.importImageFromClipboard,
         ),
     ]);
@@ -159,13 +169,13 @@ class MenuDefinitionBuilder {
     _addSection(entries, <MenuEntry>[
       if (handler.save != null)
         MenuActionEntry(
-          label: '保存',
+          label: l10n.menuSave,
           action: handler.save,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyS, meta: true),
         ),
       if (handler.saveAs != null)
         MenuActionEntry(
-          label: '另存为…',
+          label: l10n.menuSaveAsEllipsis,
           action: handler.saveAs,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyS,
@@ -175,7 +185,7 @@ class MenuDefinitionBuilder {
         ),
       if (handler.export != null)
         MenuActionEntry(
-          label: '导出…',
+          label: l10n.menuExportEllipsis,
           action: handler.export,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyE,
@@ -188,7 +198,7 @@ class MenuDefinitionBuilder {
     _addSection(entries, <MenuEntry>[
       if (handler.closeAll != null)
         MenuActionEntry(
-          label: '关闭全部',
+          label: l10n.menuCloseAll,
           action: handler.closeAll,
           shortcut: const SingleActivator(LogicalKeyboardKey.escape),
         ),
@@ -197,22 +207,25 @@ class MenuDefinitionBuilder {
     if (entries.isEmpty) {
       return null;
     }
-    return MenuDefinition(label: '文件', entries: entries);
+    return MenuDefinition(label: l10n.menuFile, entries: entries);
   }
 
-  static MenuDefinition? _editMenu(MenuActionHandler handler) {
+  static MenuDefinition? _editMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> entries = <MenuEntry>[];
 
     _addSection(entries, <MenuEntry>[
       if (handler.undo != null)
         MenuActionEntry(
-          label: '撤销',
+          label: l10n.menuUndo,
           action: handler.undo,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, meta: true),
         ),
       if (handler.redo != null)
         MenuActionEntry(
-          label: '恢复',
+          label: l10n.menuRedo,
           action: handler.redo,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyZ,
@@ -225,19 +238,19 @@ class MenuDefinitionBuilder {
     _addSection(entries, <MenuEntry>[
       if (handler.cut != null)
         MenuActionEntry(
-          label: '剪切',
+          label: l10n.menuCut,
           action: handler.cut,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyX, meta: true),
         ),
       if (handler.copy != null)
         MenuActionEntry(
-          label: '复制',
+          label: l10n.menuCopy,
           action: handler.copy,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyC, meta: true),
         ),
       if (handler.paste != null)
         MenuActionEntry(
-          label: '粘贴',
+          label: l10n.menuPaste,
           action: handler.paste,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyV, meta: true),
         ),
@@ -246,42 +259,50 @@ class MenuDefinitionBuilder {
     if (entries.isEmpty) {
       return null;
     }
-    return MenuDefinition(label: '编辑', entries: entries);
+    return MenuDefinition(label: l10n.menuEdit, entries: entries);
   }
 
-  static MenuDefinition? _imageMenu(MenuActionHandler handler) {
+  static MenuDefinition? _imageMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> entries = <MenuEntry>[];
 
     final List<MenuEntry> transformEntries = <MenuEntry>[
       if (handler.rotateCanvas90Clockwise != null)
         MenuActionEntry(
-          label: '顺时针 90 度',
+          label: l10n.menuRotate90CW,
           action: handler.rotateCanvas90Clockwise,
         ),
       if (handler.rotateCanvas90CounterClockwise != null)
         MenuActionEntry(
-          label: '逆时针 90 度',
+          label: l10n.menuRotate90CCW,
           action: handler.rotateCanvas90CounterClockwise,
         ),
       if (handler.rotateCanvas180Clockwise != null)
         MenuActionEntry(
-          label: '顺时针 180 度',
+          label: l10n.menuRotate180CW,
           action: handler.rotateCanvas180Clockwise,
         ),
       if (handler.rotateCanvas180CounterClockwise != null)
         MenuActionEntry(
-          label: '逆时针 180 度',
+          label: l10n.menuRotate180CCW,
           action: handler.rotateCanvas180CounterClockwise,
         ),
     ];
     if (transformEntries.isNotEmpty) {
-      entries.add(MenuSubmenuEntry(label: '图像变换', entries: transformEntries));
+      entries.add(
+        MenuSubmenuEntry(
+          label: l10n.menuImageTransform,
+          entries: transformEntries,
+        ),
+      );
     }
 
     _addSection(entries, <MenuEntry>[
       if (handler.resizeImage != null)
         MenuActionEntry(
-          label: '图像大小…',
+          label: l10n.menuImageSizeEllipsis,
           action: handler.resizeImage,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyI,
@@ -291,7 +312,7 @@ class MenuDefinitionBuilder {
         ),
       if (handler.resizeCanvas != null)
         MenuActionEntry(
-          label: '画布大小…',
+          label: l10n.menuCanvasSizeEllipsis,
           action: handler.resizeCanvas,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyC,
@@ -304,16 +325,19 @@ class MenuDefinitionBuilder {
     if (entries.isEmpty) {
       return null;
     }
-    return MenuDefinition(label: '图像', entries: entries);
+    return MenuDefinition(label: l10n.menuImage, entries: entries);
   }
 
-  static MenuDefinition? _layerMenu(MenuActionHandler handler) {
+  static MenuDefinition? _layerMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> entries = <MenuEntry>[];
 
     final List<MenuEntry> newEntries = <MenuEntry>[
       if (handler.newLayer != null)
         MenuActionEntry(
-          label: '图层…',
+          label: l10n.menuNewLayerEllipsis,
           action: handler.newLayer,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyN,
@@ -323,19 +347,24 @@ class MenuDefinitionBuilder {
         ),
     ];
     if (newEntries.isNotEmpty) {
-      entries.add(MenuSubmenuEntry(label: '新建', entries: newEntries));
+      entries.add(
+        MenuSubmenuEntry(label: l10n.menuNewSubmenu, entries: newEntries),
+      );
     }
 
     if (handler.mergeLayerDown != null) {
       entries.add(
-        MenuActionEntry(label: '向下合并', action: handler.mergeLayerDown),
+        MenuActionEntry(
+          label: l10n.menuMergeDown,
+          action: handler.mergeLayerDown,
+        ),
       );
     }
 
     if (handler.rasterizeLayer != null) {
       entries.add(
         MenuActionEntry(
-          label: '栅格化',
+          label: l10n.menuRasterize,
           action: handler.rasterizeLayer,
           enabledResolver: handler.rasterizeLayerEnabled,
         ),
@@ -345,7 +374,7 @@ class MenuDefinitionBuilder {
     if (handler.layerFreeTransform != null) {
       entries.add(
         MenuActionEntry(
-          label: '变换',
+          label: l10n.menuTransform,
           action: handler.layerFreeTransform,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyT, meta: true),
         ),
@@ -355,20 +384,23 @@ class MenuDefinitionBuilder {
     if (entries.isEmpty) {
       return null;
     }
-    return MenuDefinition(label: '图层', entries: entries);
+    return MenuDefinition(label: l10n.menuLayer, entries: entries);
   }
 
-  static MenuDefinition? _selectionMenu(MenuActionHandler handler) {
+  static MenuDefinition? _selectionMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> entries = <MenuEntry>[
       if (handler.selectAll != null)
         MenuActionEntry(
-          label: '全选',
+          label: l10n.menuSelectAll,
           action: handler.selectAll,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyA, meta: true),
         ),
       if (handler.invertSelection != null)
         MenuActionEntry(
-          label: '反选',
+          label: l10n.menuInvertSelection,
           action: handler.invertSelection,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyI,
@@ -380,20 +412,29 @@ class MenuDefinitionBuilder {
     if (entries.isEmpty) {
       return null;
     }
-    return MenuDefinition(label: '选择', entries: entries);
+    return MenuDefinition(label: l10n.menuSelection, entries: entries);
   }
 
-  static MenuDefinition? _toolMenu(MenuActionHandler handler) {
+  static MenuDefinition? _toolMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> paletteEntries = <MenuEntry>[
       if (handler.generatePalette != null)
-        MenuActionEntry(label: '取色当前画布生成调色盘…', action: handler.generatePalette),
+        MenuActionEntry(
+          label: l10n.menuGeneratePaletteFromCanvasEllipsis,
+          action: handler.generatePalette,
+        ),
       if (handler.generateGradientPalette != null)
         MenuActionEntry(
-          label: '使用当前颜色生成渐变调色盘',
+          label: l10n.menuGenerateGradientPalette,
           action: handler.generateGradientPalette,
         ),
       if (handler.importPalette != null)
-        MenuActionEntry(label: '导入调色盘…', action: handler.importPalette),
+        MenuActionEntry(
+          label: l10n.menuImportPaletteEllipsis,
+          action: handler.importPalette,
+        ),
     ];
 
     if (handler.paletteMenuEntries.isNotEmpty &&
@@ -411,12 +452,14 @@ class MenuDefinitionBuilder {
 
     final List<MenuEntry> entries = <MenuEntry>[];
     if (paletteEntries.isNotEmpty) {
-      entries.add(MenuSubmenuEntry(label: '调色盘', entries: paletteEntries));
+      entries.add(
+        MenuSubmenuEntry(label: l10n.menuPalette, entries: paletteEntries),
+      );
     }
     final List<MenuEntry> referenceEntries = <MenuEntry>[
       if (handler.createReferenceImage != null)
         MenuActionEntry(
-          label: '创建参考图像',
+          label: l10n.menuCreateReferenceImage,
           action: handler.createReferenceImage,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyR,
@@ -426,7 +469,7 @@ class MenuDefinitionBuilder {
         ),
       if (handler.importReferenceImage != null)
         MenuActionEntry(
-          label: '导入参考图像…',
+          label: l10n.menuImportReferenceImageEllipsis,
           action: handler.importReferenceImage,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyR,
@@ -436,25 +479,33 @@ class MenuDefinitionBuilder {
         ),
     ];
     if (referenceEntries.isNotEmpty) {
-      entries.add(MenuSubmenuEntry(label: '参考图像', entries: referenceEntries));
+      entries.add(
+        MenuSubmenuEntry(
+          label: l10n.menuReferenceImage,
+          entries: referenceEntries,
+        ),
+      );
     }
     if (entries.isEmpty) {
       return null;
     }
-    return MenuDefinition(label: '工具', entries: entries);
+    return MenuDefinition(label: l10n.menuTool, entries: entries);
   }
 
-  static MenuDefinition? _viewMenu(MenuActionHandler handler) {
+  static MenuDefinition? _viewMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> entries = <MenuEntry>[
       if (handler.zoomIn != null)
         MenuActionEntry(
-          label: '放大',
+          label: l10n.menuZoomIn,
           action: handler.zoomIn,
           shortcut: const SingleActivator(LogicalKeyboardKey.equal, meta: true),
         ),
       if (handler.zoomOut != null)
         MenuActionEntry(
-          label: '缩小',
+          label: l10n.menuZoomOut,
           action: handler.zoomOut,
           shortcut: const SingleActivator(LogicalKeyboardKey.minus, meta: true),
         ),
@@ -465,7 +516,9 @@ class MenuDefinitionBuilder {
       }
       entries.add(
         MenuActionEntry(
-          label: handler.pixelGridVisible ? '隐藏网格' : '显示网格',
+          label: handler.pixelGridVisible
+              ? l10n.menuHideGrid
+              : l10n.menuShowGrid,
           action: handler.togglePixelGrid,
           checked: handler.pixelGridVisible,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyQ),
@@ -478,7 +531,9 @@ class MenuDefinitionBuilder {
       }
       entries.add(
         MenuActionEntry(
-          label: handler.viewBlackWhiteEnabled ? '取消黑白' : '黑白',
+          label: handler.viewBlackWhiteEnabled
+              ? l10n.menuDisableBlackWhite
+              : l10n.menuBlackWhite,
           action: handler.toggleViewBlackWhite,
           checked: handler.viewBlackWhiteEnabled,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyK),
@@ -491,7 +546,9 @@ class MenuDefinitionBuilder {
       }
       entries.add(
         MenuActionEntry(
-          label: handler.viewMirrorEnabled ? '取消镜像' : '镜像预览',
+          label: handler.viewMirrorEnabled
+              ? l10n.menuDisableMirror
+              : l10n.menuMirrorPreview,
           action: handler.toggleViewMirror,
           checked: handler.viewMirrorEnabled,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyF),
@@ -504,29 +561,29 @@ class MenuDefinitionBuilder {
       }
       entries.add(
         MenuActionEntry(
-          label: handler.perspectiveVisible ? '隐藏透视线' : '显示透视线',
+          label: handler.perspectiveVisible
+              ? l10n.menuHidePerspectiveGuide
+              : l10n.menuShowPerspectiveGuide,
           action: handler.togglePerspectiveGuide,
           checked: handler.perspectiveVisible,
         ),
       );
       entries.add(
         MenuSubmenuEntry(
-          label: '透视模式',
+          label: l10n.menuPerspectiveMode,
           entries: <MenuEntry>[
             MenuActionEntry(
-              label: '1 点透视',
+              label: l10n.menuPerspective1Point,
               action: handler.setPerspectiveOnePoint,
-              checked:
-                  handler.perspectiveMode == PerspectiveGuideMode.onePoint,
+              checked: handler.perspectiveMode == PerspectiveGuideMode.onePoint,
             ),
             MenuActionEntry(
-              label: '2 点透视',
+              label: l10n.menuPerspective2Point,
               action: handler.setPerspectiveTwoPoint,
-              checked:
-                  handler.perspectiveMode == PerspectiveGuideMode.twoPoint,
+              checked: handler.perspectiveMode == PerspectiveGuideMode.twoPoint,
             ),
             MenuActionEntry(
-              label: '3 点透视',
+              label: l10n.menuPerspective3Point,
               action: handler.setPerspectiveThreePoint,
               checked:
                   handler.perspectiveMode == PerspectiveGuideMode.threePoint,
@@ -538,10 +595,13 @@ class MenuDefinitionBuilder {
     if (entries.isEmpty) {
       return null;
     }
-    return MenuDefinition(label: '视图', entries: entries);
+    return MenuDefinition(label: l10n.menuView, entries: entries);
   }
 
-  static MenuDefinition? _workspaceMenu(MenuActionHandler handler) {
+  static MenuDefinition? _workspaceMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final MenuWorkspaceLayoutAction? switchLayout =
         handler.switchWorkspaceLayout;
     if (switchLayout == null) {
@@ -551,33 +611,39 @@ class MenuDefinitionBuilder {
         handler.workspaceLayoutPreference;
     final List<MenuEntry> entries = <MenuEntry>[
       MenuActionEntry(
-        label: '默认',
+        label: l10n.menuWorkspaceDefault,
         action: () => switchLayout(WorkspaceLayoutPreference.floating),
         checked: current == WorkspaceLayoutPreference.floating,
       ),
       MenuActionEntry(
-        label: 'SAI2',
+        label: l10n.menuWorkspaceSai2,
         action: () => switchLayout(WorkspaceLayoutPreference.sai2),
         checked: current == WorkspaceLayoutPreference.sai2,
       ),
     ];
     return MenuDefinition(
-      label: '工作区',
+      label: l10n.menuWorkspace,
       entries: <MenuEntry>[
-        MenuSubmenuEntry(label: '切换工作区', entries: entries),
+        MenuSubmenuEntry(label: l10n.menuSwitchWorkspace, entries: entries),
         if (handler.resetWorkspaceLayout != null) ...[
           const MenuSeparatorEntry(),
-          MenuActionEntry(label: '复位工作区', action: handler.resetWorkspaceLayout),
+          MenuActionEntry(
+            label: l10n.menuResetWorkspace,
+            action: handler.resetWorkspaceLayout,
+          ),
         ],
       ],
     );
   }
 
-  static MenuDefinition? _filterMenu(MenuActionHandler handler) {
+  static MenuDefinition? _filterMenu(
+    MenuActionHandler handler,
+    AppLocalizations l10n,
+  ) {
     final List<MenuEntry> entries = <MenuEntry>[
       if (handler.showLayerAntialiasPanel != null)
         MenuActionEntry(
-          label: '边缘柔化…',
+          label: l10n.menuEdgeSofteningEllipsis,
           action: handler.showLayerAntialiasPanel,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyA,
@@ -587,7 +653,7 @@ class MenuDefinitionBuilder {
         ),
       if (handler.narrowLines != null)
         MenuActionEntry(
-          label: '线条收窄…',
+          label: l10n.menuNarrowLinesEllipsis,
           action: handler.narrowLines,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyN,
@@ -597,7 +663,7 @@ class MenuDefinitionBuilder {
         ),
       if (handler.expandFill != null)
         MenuActionEntry(
-          label: '填色拉伸…',
+          label: l10n.menuExpandFillEllipsis,
           action: handler.expandFill,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyE,
@@ -607,7 +673,7 @@ class MenuDefinitionBuilder {
         ),
       if (handler.gaussianBlur != null)
         MenuActionEntry(
-          label: '高斯模糊…',
+          label: l10n.menuGaussianBlurEllipsis,
           action: handler.gaussianBlur,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyG,
@@ -617,7 +683,7 @@ class MenuDefinitionBuilder {
         ),
       if (handler.removeColorLeak != null)
         MenuActionEntry(
-          label: '去除漏色…',
+          label: l10n.menuRemoveColorLeakEllipsis,
           action: handler.removeColorLeak,
           shortcut: const SingleActivator(
             LogicalKeyboardKey.keyL,
@@ -627,35 +693,52 @@ class MenuDefinitionBuilder {
         ),
       if (handler.adjustHueSaturation != null)
         MenuActionEntry(
-          label: '色相/饱和度…',
+          label: l10n.menuHueSaturationEllipsis,
           action: handler.adjustHueSaturation,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyU, meta: true),
         ),
       if (handler.adjustBrightnessContrast != null)
         MenuActionEntry(
-          label: '亮度/对比度…',
+          label: l10n.menuBrightnessContrastEllipsis,
           action: handler.adjustBrightnessContrast,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyM, meta: true),
         ),
       if (handler.colorRange != null)
-        MenuActionEntry(label: '色彩范围…', action: handler.colorRange),
+        MenuActionEntry(
+          label: l10n.menuColorRangeEllipsis,
+          action: handler.colorRange,
+        ),
       if (handler.adjustBlackWhite != null)
-        MenuActionEntry(label: '黑白…', action: handler.adjustBlackWhite),
+        MenuActionEntry(
+          label: l10n.menuBlackWhiteEllipsis,
+          action: handler.adjustBlackWhite,
+        ),
       if (handler.binarizeLayer != null)
-        MenuActionEntry(label: '二值化…', action: handler.binarizeLayer),
+        MenuActionEntry(
+          label: l10n.menuBinarizeEllipsis,
+          action: handler.binarizeLayer,
+        ),
+      if (handler.scanPaperDrawing != null)
+        MenuActionEntry(
+          label: l10n.menuScanPaperDrawing,
+          action: handler.scanPaperDrawing,
+        ),
       if (handler.invertColors != null)
-        MenuActionEntry(label: '颜色反转', action: handler.invertColors),
+        MenuActionEntry(
+          label: l10n.menuInvertColors,
+          action: handler.invertColors,
+        ),
     ];
     if (entries.isEmpty) {
       return null;
     }
-    return MenuDefinition(label: '滤镜', entries: entries);
+    return MenuDefinition(label: l10n.menuFilter, entries: entries);
   }
 
-  static MenuDefinition _windowMenu() {
-    return const MenuDefinition(
-      label: '窗口',
-      entries: <MenuEntry>[
+  static MenuDefinition _windowMenu(AppLocalizations l10n) {
+    return MenuDefinition(
+      label: l10n.menuWindow,
+      entries: const <MenuEntry>[
         MenuProvidedEntry(MenuProvidedType.minimizeWindow),
         MenuProvidedEntry(MenuProvidedType.zoomWindow),
         MenuProvidedEntry(MenuProvidedType.arrangeWindowsInFront),

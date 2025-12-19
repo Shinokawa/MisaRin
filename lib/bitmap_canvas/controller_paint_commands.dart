@@ -3,7 +3,9 @@ part of 'controller.dart';
 void _controllerFlushDeferredStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  if (!controller._vectorDrawingEnabled) {
+  final bool usesVectorRasterization =
+      controller._vectorDrawingEnabled || controller._currentStrokeHollowEnabled;
+  if (!usesVectorRasterization) {
     controller._commitDeferredStrokeCommandsAsRaster();
     return;
   }
@@ -20,6 +22,9 @@ void _controllerFlushDeferredStrokeCommands(
   final BrushShape shape = controller._currentBrushShape;
   final bool erase = controller._currentStrokeEraseMode;
   final int antialiasLevel = controller._currentStrokeAntialiasLevel;
+  final bool hollow = controller._currentStrokeHollowEnabled;
+  final double hollowRatio = controller._currentStrokeHollowRatio;
+  final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
 
   if (controller._vectorStrokeSmoothingEnabled && points.length >= 3) {
     final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
@@ -35,7 +40,11 @@ void _controllerFlushDeferredStrokeCommands(
     radii: radii,
     colorValue: color.value,
     shapeIndex: shape.index,
+    antialiasLevel: antialiasLevel,
     erase: erase,
+    hollow: hollow,
+    hollowRatio: hollowRatio,
+    eraseOccludedParts: eraseOccludedParts,
   );
   controller._committingStrokes.add(vectorCommand);
 
@@ -73,6 +82,9 @@ void _controllerFlushDeferredStrokeCommands(
         dirtyRegion,
         erase,
         antialiasLevel,
+        hollow: hollow,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: eraseOccludedParts,
       )
       .then((_) {
         controller._committingStrokes.remove(vectorCommand);
@@ -89,7 +101,14 @@ Future<void> _controllerRasterizeVectorStroke(
   Rect bounds,
   bool erase,
   int antialiasLevel,
+  {
+  bool hollow = false,
+  double hollowRatio = 0.0,
+  bool eraseOccludedParts = false,
+}
 ) async {
+  final bool applyHollowCutoutErase =
+      eraseOccludedParts && hollow && !erase && hollowRatio > 0.0001;
   final int width = bounds.width.ceil().clamp(1, controller._width);
   final int height = bounds.height.ceil().clamp(1, controller._height);
   final int left = bounds.left.floor().clamp(0, controller._width);
@@ -115,6 +134,8 @@ Future<void> _controllerRasterizeVectorStroke(
     color: color,
     shape: shape,
     antialiasLevel: antialiasLevel,
+    hollow: hollow,
+    hollowRatio: hollowRatio,
   );
 
   final ui.Picture picture = recorder.endRecording();
@@ -128,15 +149,77 @@ Future<void> _controllerRasterizeVectorStroke(
     return;
   }
 
-  final Uint8List pixels = byteData.buffer.asUint8List();
+  final Uint8List pixels = byteData.buffer.asUint8List(
+    byteData.offsetInBytes,
+    byteData.lengthInBytes,
+  );
   image.dispose();
   picture.dispose();
 
   if (controller._isMultithreaded) {
+    TransferableTypedData? cutoutMask;
+    if (applyHollowCutoutErase) {
+      final ui.PictureRecorder maskRecorder = ui.PictureRecorder();
+      final ui.Canvas maskCanvas = ui.Canvas(
+        maskRecorder,
+        Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
+      );
+      maskCanvas.translate(-left.toDouble(), -top.toDouble());
+
+      final List<double> scaledRadii = radii
+          .map((double radius) => radius * hollowRatio)
+          .toList(growable: false);
+      VectorStrokePainter.paint(
+        canvas: maskCanvas,
+        points: points,
+        radii: scaledRadii,
+        color: const Color(0xFFFFFFFF),
+        shape: shape,
+        antialiasLevel: antialiasLevel,
+      );
+
+      final ui.Picture maskPicture = maskRecorder.endRecording();
+      final ui.Image maskImage = await maskPicture.toImage(
+        safeWidth,
+        safeHeight,
+      );
+      final ByteData? maskData =
+          await maskImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (maskData != null) {
+        final Uint8List maskPixels = maskData.buffer.asUint8List(
+          maskData.offsetInBytes,
+          maskData.lengthInBytes,
+        );
+        cutoutMask = TransferableTypedData.fromList(<Uint8List>[maskPixels]);
+      }
+      maskImage.dispose();
+      maskPicture.dispose();
+    }
+
     final TransferableTypedData transferablePixels =
         TransferableTypedData.fromList(<Uint8List>[pixels]);
     await controller._ensureWorkerSurfaceSynced();
     await controller._ensureWorkerSelectionMaskSynced();
+    bool anyApplied = false;
+    if (cutoutMask != null) {
+      final PaintingWorkerPatch? cutoutPatch = await controller
+          ._ensurePaintingWorker()
+          .mergePatch(
+            PaintingMergePatchRequest(
+              left: left,
+              top: top,
+              width: safeWidth,
+              height: safeHeight,
+              pixels: cutoutMask,
+              erase: true,
+            ),
+          );
+      if (cutoutPatch != null) {
+        controller._applyWorkerPatch(cutoutPatch);
+        anyApplied = true;
+      }
+    }
+
     final PaintingWorkerPatch? patch = await controller
         ._ensurePaintingWorker()
         .mergePatch(
@@ -147,22 +230,77 @@ Future<void> _controllerRasterizeVectorStroke(
             height: safeHeight,
             pixels: transferablePixels,
             erase: erase,
+            eraseOccludedParts: eraseOccludedParts,
           ),
         );
     if (patch != null) {
       controller._applyWorkerPatch(patch);
+      anyApplied = true;
+    }
+    if (anyApplied) {
       await controller._waitForNextFrame();
     }
   } else {
-    final bool applied = controller._mergeVectorPatchOnMainThread(
-      rgbaPixels: pixels,
-      left: left,
-      top: top,
-      width: safeWidth,
-      height: safeHeight,
-      erase: erase,
-    );
-    if (applied) {
+    bool anyApplied = false;
+    if (applyHollowCutoutErase) {
+      final ui.PictureRecorder maskRecorder = ui.PictureRecorder();
+      final ui.Canvas maskCanvas = ui.Canvas(
+        maskRecorder,
+        Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
+      );
+      maskCanvas.translate(-left.toDouble(), -top.toDouble());
+      final List<double> scaledRadii = radii
+          .map((double radius) => radius * hollowRatio)
+          .toList(growable: false);
+      VectorStrokePainter.paint(
+        canvas: maskCanvas,
+        points: points,
+        radii: scaledRadii,
+        color: const Color(0xFFFFFFFF),
+        shape: shape,
+        antialiasLevel: antialiasLevel,
+      );
+      final ui.Picture maskPicture = maskRecorder.endRecording();
+      final ui.Image maskImage = await maskPicture.toImage(
+        safeWidth,
+        safeHeight,
+      );
+      final ByteData? maskData =
+          await maskImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (maskData != null) {
+        final Uint8List maskPixels = maskData.buffer.asUint8List(
+          maskData.offsetInBytes,
+          maskData.lengthInBytes,
+        );
+        anyApplied =
+            controller._mergeVectorPatchOnMainThread(
+              rgbaPixels: maskPixels,
+              left: left,
+              top: top,
+              width: safeWidth,
+              height: safeHeight,
+              erase: true,
+              eraseOccludedParts: false,
+            ) ||
+            anyApplied;
+      }
+      maskImage.dispose();
+      maskPicture.dispose();
+    }
+
+    anyApplied =
+        controller._mergeVectorPatchOnMainThread(
+          rgbaPixels: pixels,
+          left: left,
+          top: top,
+          width: safeWidth,
+          height: safeHeight,
+          erase: erase,
+          eraseOccludedParts: eraseOccludedParts,
+        ) ||
+        anyApplied;
+
+    if (anyApplied) {
       await controller._waitForNextFrame();
     }
   }
@@ -171,7 +309,7 @@ Future<void> _controllerRasterizeVectorStroke(
 void _controllerFlushRealtimeStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  if (controller._vectorDrawingEnabled) {
+  if (controller._vectorDrawingEnabled || controller._currentStrokeHollowEnabled) {
     return;
   }
   controller._commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
@@ -352,6 +490,7 @@ bool _controllerMergeVectorPatchOnMainThread(
   required int width,
   required int height,
   required bool erase,
+  required bool eraseOccludedParts,
 }) {
   if (width <= 0 || height <= 0 || rgbaPixels.isEmpty) {
     return false;
@@ -395,6 +534,7 @@ bool _controllerMergeVectorPatchOnMainThread(
       if (a == 0) {
         continue;
       }
+
       final int r = rgbaPixels[rgbaIndex];
       final int g = rgbaPixels[rgbaIndex + 1];
       final int b = rgbaPixels[rgbaIndex + 2];
@@ -417,6 +557,16 @@ bool _controllerMergeVectorPatchOnMainThread(
       final int srcR = _controllerUnpremultiplyChannel(r, a);
       final int srcG = _controllerUnpremultiplyChannel(g, a);
       final int srcB = _controllerUnpremultiplyChannel(b, a);
+
+      if (eraseOccludedParts) {
+        destination[destIndex] =
+            (a << 24) |
+            (srcR.clamp(0, 255) << 16) |
+            (srcG.clamp(0, 255) << 8) |
+            srcB.clamp(0, 255);
+        anyChange = true;
+        continue;
+      }
 
       final double srcAlpha = a / 255.0;
       final double dstAlpha = dstA / 255.0;

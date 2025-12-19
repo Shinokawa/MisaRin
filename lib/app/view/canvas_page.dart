@@ -23,6 +23,7 @@ import '../dialogs/canvas_size_dialog.dart';
 import '../dialogs/export_dialog.dart';
 import '../dialogs/image_size_dialog.dart';
 import '../dialogs/misarin_dialog.dart';
+import '../l10n/l10n.dart';
 import '../menu/custom_menu_bar.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../menu/menu_app_actions.dart';
@@ -240,19 +241,23 @@ class CanvasPageState extends State<CanvasPage> {
 
   String _sanitizeFileName(String input) {
     final sanitized = input.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
-    return sanitized.isEmpty ? '未命名项目' : sanitized;
+    return sanitized.isEmpty ? context.l10n.untitledProject : sanitized;
   }
 
   String _normalizeProjectName(String input) {
     final String trimmed = input.trim();
-    return trimmed.isEmpty ? '未命名项目' : trimmed;
+    return trimmed.isEmpty ? context.l10n.untitledProject : trimmed;
   }
 
   String _suggestedFileName(String extension) {
+    final l10n = context.l10n;
     final String trimmedName = _document.name.trim();
-    final bool isUntitled = trimmedName.isEmpty || trimmedName == '未命名项目';
+    final bool isUntitled =
+        trimmedName.isEmpty ||
+        trimmedName == '未命名项目' ||
+        trimmedName == l10n.untitledProject;
     final String baseName = isUntitled
-        ? '未命名项目_${_timestamp()}'
+        ? '${l10n.untitledProject}_${_timestamp()}'
         : _sanitizeFileName(trimmedName);
     return '$baseName.$extension';
   }
@@ -330,10 +335,10 @@ class CanvasPageState extends State<CanvasPage> {
     return name.substring(dot + 1).toLowerCase();
   }
 
-  String _displayPaletteName(String raw) {
+  String _displayPaletteName(String raw, AppLocalizations l10n) {
     final String trimmed = raw.trim();
     if (trimmed.isEmpty) {
-      return '调色盘';
+      return l10n.paletteDefaultName;
     }
     final int dot = trimmed.lastIndexOf('.');
     if (dot > 0 && dot < trimmed.length - 1) {
@@ -358,8 +363,9 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   Future<void> _importPaletteFromDisk() async {
+    final l10n = context.l10n;
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
-      dialogTitle: '导入调色盘',
+      dialogTitle: l10n.importPaletteTitle,
       type: FileType.custom,
       allowedExtensions: PaletteFileImporter.supportedExtensions,
       withData: true,
@@ -379,7 +385,7 @@ class CanvasPageState extends State<CanvasPage> {
       }
       AppNotifications.show(
         context,
-        message: '无法读取文件内容。',
+        message: l10n.cannotReadFile,
         severity: InfoBarSeverity.error,
       );
       return;
@@ -391,7 +397,7 @@ class CanvasPageState extends State<CanvasPage> {
         extension: ext,
         fileName: file.name,
       );
-      final String displayName = _displayPaletteName(palette.name);
+      final String displayName = _displayPaletteName(palette.name, l10n);
       final _ImportedPaletteEntry entry = _ImportedPaletteEntry(
         id: 'palette_${_paletteLibrarySerial++}',
         name: displayName,
@@ -407,7 +413,7 @@ class CanvasPageState extends State<CanvasPage> {
       }
       AppNotifications.show(
         context,
-        message: '已导入调色盘：${entry.name}',
+        message: l10n.paletteImported(entry.name),
         severity: InfoBarSeverity.success,
       );
     } on PaletteImportException catch (error) {
@@ -416,7 +422,7 @@ class CanvasPageState extends State<CanvasPage> {
       }
       AppNotifications.show(
         context,
-        message: '导入调色盘失败：${error.message}',
+        message: l10n.paletteImportFailed(error.message),
         severity: InfoBarSeverity.error,
       );
     } catch (error) {
@@ -425,7 +431,7 @@ class CanvasPageState extends State<CanvasPage> {
       }
       AppNotifications.show(
         context,
-        message: '导入调色盘失败：$error',
+        message: l10n.paletteImportFailed(error),
         severity: InfoBarSeverity.error,
       );
     }
@@ -512,12 +518,13 @@ class CanvasPageState extends State<CanvasPage> {
     if (board == null) {
       return false;
     }
+    final l10n = context.l10n;
     final bool shouldPersist =
         force || _document.path == null || _hasUnsavedChanges;
     if (!shouldPersist) {
       if (showMessage) {
-        final String location = _document.path ?? '默认项目目录';
-        _showInfoBar('没有需要保存的更改（当前路径：$location）');
+        final String location = _document.path ?? l10n.defaultProjectDirectory;
+        _showInfoBar(l10n.noChangesToSave(location));
       }
       return false;
     }
@@ -546,14 +553,20 @@ class CanvasPageState extends State<CanvasPage> {
       _workspace.markDirty(saved.id, false);
       board.markSaved();
       if (showMessage) {
-        final String location = saved.path ?? '默认项目目录';
-        _showInfoBar('项目已保存到 $location', severity: InfoBarSeverity.success);
+        final String location = saved.path ?? l10n.defaultProjectDirectory;
+        _showInfoBar(
+          l10n.projectSaved(location),
+          severity: InfoBarSeverity.success,
+        );
       }
       return true;
     } catch (error) {
       if (mounted) {
         setState(() => _isAutoSaving = false);
-        _showInfoBar('保存项目失败：$error', severity: InfoBarSeverity.error);
+        _showInfoBar(
+          l10n.projectSaveFailed(error),
+          severity: InfoBarSeverity.error,
+        );
       }
       return false;
     }
@@ -588,8 +601,9 @@ class CanvasPageState extends State<CanvasPage> {
       return false;
     }
     final PaintingBoardState? board = _activeBoard;
+    final l10n = context.l10n;
     if (board == null) {
-      _showInfoBar('画布尚未准备好，无法保存。', severity: InfoBarSeverity.error);
+      _showInfoBar(l10n.canvasNotReadySave, severity: InfoBarSeverity.error);
       return false;
     }
 
@@ -599,10 +613,10 @@ class CanvasPageState extends State<CanvasPage> {
     }
     if (kIsWeb) {
       final String? fileName = await _promptWebFileName(
-        title: '另存为项目文件',
+        title: l10n.saveProjectAs,
         suggestedFileName: _suggestedFileName(choice.extension),
-        description: '浏览器会将文件下载到默认的下载目录，你也可以在弹出的提示中修改名称。',
-        confirmLabel: '下载',
+        description: l10n.webSaveDesc,
+        confirmLabel: l10n.download,
       );
       if (fileName == null) {
         return false;
@@ -618,7 +632,7 @@ class CanvasPageState extends State<CanvasPage> {
       );
     }
     final String? selectedPath = await FilePicker.platform.saveFile(
-      dialogTitle: '另存为项目文件',
+      dialogTitle: l10n.saveProjectAs,
       fileName: _suggestedFileName(choice.extension),
       type: FileType.custom,
       allowedExtensions: <String>[choice.extension],
@@ -650,7 +664,7 @@ class CanvasPageState extends State<CanvasPage> {
           perspectiveGuide: perspective,
         );
         saved = await _repository.saveDocumentAs(updated, normalizedPath);
-        successMessage = '项目已保存到 $normalizedPath';
+        successMessage = l10n.projectSaved(normalizedPath);
       } else {
         await _repository.exportDocumentAsPsd(
           document: _document.copyWith(
@@ -666,7 +680,7 @@ class CanvasPageState extends State<CanvasPage> {
           path: _document.path,
           perspectiveGuide: perspective,
         );
-        successMessage = 'PSD 已导出到 $normalizedPath';
+        successMessage = l10n.psdExported(normalizedPath);
       }
       if (!mounted) {
         return true;
@@ -683,7 +697,10 @@ class CanvasPageState extends State<CanvasPage> {
     } catch (error) {
       if (mounted) {
         setState(() => _isSaving = false);
-        _showInfoBar('保存项目失败：$error', severity: InfoBarSeverity.error);
+        _showInfoBar(
+          l10n.projectSaveFailed(error),
+          severity: InfoBarSeverity.error,
+        );
       }
       return false;
     }
@@ -695,6 +712,7 @@ class CanvasPageState extends State<CanvasPage> {
     required String fileName,
   }) async {
     setState(() => _isSaving = true);
+    final l10n = context.l10n;
     try {
       final layers = board.snapshotLayers();
       final perspective = board.snapshotPerspectiveGuide();
@@ -715,11 +733,11 @@ class CanvasPageState extends State<CanvasPage> {
       if (choice.type == _ExportType.rin) {
         resolved = await _repository.saveDocument(resolved);
         bytes = ProjectBinaryCodec.encode(resolved);
-        successMessage = '项目已下载：$fileName';
+        successMessage = l10n.projectDownloaded(fileName);
         mimeType = 'application/octet-stream';
       } else {
         bytes = await const PsdExporter().exportToBytes(resolved);
-        successMessage = 'PSD 已下载：$fileName';
+        successMessage = l10n.psdDownloaded(fileName);
         mimeType = 'image/vnd.adobe.photoshop';
       }
       await WebFileSaver.saveBytes(
@@ -742,39 +760,43 @@ class CanvasPageState extends State<CanvasPage> {
     } catch (error) {
       if (mounted) {
         setState(() => _isSaving = false);
-        _showInfoBar('保存项目失败：$error', severity: InfoBarSeverity.error);
+        _showInfoBar(
+          l10n.projectSaveFailed(error),
+          severity: InfoBarSeverity.error,
+        );
       }
       return false;
     }
   }
 
   Future<_ExportChoice?> _showExportFormatDialog() async {
+    final l10n = context.l10n;
     return showDialog<_ExportChoice?>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
         return ContentDialog(
-          title: const Text('选择导出格式'),
-          content: const Text('请选择要保存的文件格式。'),
+          title: Text(l10n.selectExportFormat),
+          content: Text(l10n.selectSaveFormat),
           actions: [
             Button(
               onPressed: () => Navigator.of(context).pop(null),
-              child: const Text('取消'),
+              child: Text(l10n.cancel),
             ),
             Tooltip(
-              message: '导出为 PSD 文件',
+              message: l10n.exportAsPsdTooltip,
               child: Button(
                 onPressed: () => Navigator.of(
                   context,
                 ).pop(const _ExportChoice(_ExportType.psd, 'psd')),
-                child: const Text('保存为 PSD'),
+                child: Text(l10n.saveAsPsd),
               ),
             ),
             FilledButton(
               onPressed: () => Navigator.of(
                 context,
               ).pop(const _ExportChoice(_ExportType.rin, 'rin')),
-              child: const Text('保存为 RIN'),
+              child: Text(l10n.saveAsRin),
             ),
           ],
         );
@@ -790,8 +812,9 @@ class CanvasPageState extends State<CanvasPage> {
 
   Future<bool> _exportProject() async {
     final PaintingBoardState? board = _activeBoard;
+    final l10n = context.l10n;
     if (board == null) {
-      _showInfoBar('画布尚未准备好，无法导出。', severity: InfoBarSeverity.error);
+      _showInfoBar(l10n.canvasNotReadyExport, severity: InfoBarSeverity.error);
       return false;
     }
 
@@ -808,10 +831,10 @@ class CanvasPageState extends State<CanvasPage> {
     String? downloadName;
     if (kIsWeb) {
       final String? fileName = await _promptWebFileName(
-        title: '导出 ${extension.toUpperCase()} 文件',
+        title: l10n.exportFileTitle(extension.toUpperCase()),
         suggestedFileName: _suggestedFileName(extension),
-        description: '浏览器会将文件保存到默认的下载目录。',
-        confirmLabel: '导出',
+        description: l10n.webExportDesc,
+        confirmLabel: l10n.export,
       );
       if (fileName == null) {
         return false;
@@ -819,7 +842,7 @@ class CanvasPageState extends State<CanvasPage> {
       downloadName = _normalizeExportPath(fileName, extension);
     } else {
       final String? outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: '导出 ${extension.toUpperCase()} 文件',
+        dialogTitle: l10n.exportFileTitle(extension.toUpperCase()),
         fileName: _suggestedFileName(extension),
         type: FileType.custom,
         allowedExtensions: <String>[extension],
@@ -857,17 +880,20 @@ class CanvasPageState extends State<CanvasPage> {
           mimeType: exportVector ? 'image/svg+xml' : 'image/png',
         );
         _showInfoBar(
-          '${extension.toUpperCase()} 已下载：$downloadName',
+          l10n.fileDownloaded(extension.toUpperCase(), downloadName!),
           severity: InfoBarSeverity.success,
         );
       } else {
         final file = File(normalizedPath!);
         await file.writeAsBytes(bytes, flush: true);
-        _showInfoBar('已导出到 $normalizedPath', severity: InfoBarSeverity.success);
+        _showInfoBar(
+          l10n.fileExported(normalizedPath!),
+          severity: InfoBarSeverity.success,
+        );
       }
       return true;
     } catch (error) {
-      _showInfoBar('导出失败：$error', severity: InfoBarSeverity.error);
+      _showInfoBar(l10n.exportFailed(error), severity: InfoBarSeverity.error);
       return false;
     } finally {
       if (mounted) {
@@ -879,12 +905,18 @@ class CanvasPageState extends State<CanvasPage> {
   void _applyCanvasRotation(CanvasRotation rotation) {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
-      _showInfoBar('画布尚未准备好，无法执行图像变换。', severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.canvasNotReadyTransform,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     final CanvasRotationResult? result = board.rotateCanvas(rotation);
     if (result == null) {
-      _showInfoBar('画布尺寸异常，无法执行图像变换。', severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context.l10n.canvasSizeErrorTransform,
+        severity: InfoBarSeverity.error,
+      );
       return;
     }
 
@@ -907,7 +939,10 @@ class CanvasPageState extends State<CanvasPage> {
   Future<void> _handleResizeImage() async {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
-      _showInfoBar('画布尚未准备好，无法调整图像大小。', severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.canvasNotReadyResizeImage,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     final ImageResizeConfig? config = await showImageSizeDialog(
@@ -924,7 +959,10 @@ class CanvasPageState extends State<CanvasPage> {
       config.sampling,
     );
     if (result == null) {
-      _showInfoBar('调整图像大小失败。', severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context.l10n.resizeImageFailed,
+        severity: InfoBarSeverity.error,
+      );
       return;
     }
     _applyCanvasResizeResult(result);
@@ -949,7 +987,10 @@ class CanvasPageState extends State<CanvasPage> {
   Future<void> _handleResizeCanvas() async {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
-      _showInfoBar('画布尚未准备好，无法调整画布大小。', severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.canvasNotReadyResizeCanvas,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     final CanvasSizeConfig? config = await showCanvasSizeDialog(
@@ -968,16 +1009,20 @@ class CanvasPageState extends State<CanvasPage> {
       config.anchor,
     );
     if (result == null) {
-      _showInfoBar('调整画布大小失败。', severity: InfoBarSeverity.error);
+      _showInfoBar(
+        context.l10n.resizeCanvasFailed,
+        severity: InfoBarSeverity.error,
+      );
       return;
     }
     _applyCanvasResizeResult(result);
   }
 
   Future<void> _handleExitRequest() async {
+    final l10n = context.l10n;
     final bool canLeave = await _ensureCanLeave(
-      dialogTitle: '返回主页面',
-      dialogContent: '是否在返回前保存当前项目？',
+      dialogTitle: l10n.returnToHome,
+      dialogContent: l10n.saveBeforeReturn,
     );
     if (!canLeave) {
       return;
@@ -985,30 +1030,28 @@ class CanvasPageState extends State<CanvasPage> {
     await _closePage();
   }
 
-  Future<_ExitAction?> _showExitDialog({
-    String title = '返回主页面',
-    String content = '是否在返回前保存当前项目？',
-  }) {
+  Future<_ExitAction?> _showExitDialog({String? title, String? content}) {
+    final l10n = context.l10n;
     return showDialog<_ExitAction>(
       context: context,
       barrierDismissible: true,
       builder: (context) => MisarinDialog(
-        title: Text(title),
-        content: Text(content),
+        title: Text(title ?? l10n.returnToHome),
+        content: Text(content ?? l10n.saveBeforeReturn),
         contentWidth: 360,
         maxWidth: 480,
         actions: [
           Button(
             onPressed: () => Navigator.of(context).pop(_ExitAction.cancel),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           Button(
             onPressed: () => Navigator.of(context).pop(_ExitAction.discard),
-            child: const Text('不保存'),
+            child: Text(l10n.dontSave),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(_ExitAction.save),
-            child: const Text('保存'),
+            child: Text(l10n.save),
           ),
         ],
       ),
@@ -1103,9 +1146,10 @@ class CanvasPageState extends State<CanvasPage> {
     final PaintingBoardState? previousBoard = _activeBoard;
     final CanvasWorkspaceEntry? neighbor = _workspace.neighborFor(id);
     if (_hasUnsavedChanges) {
+      final l10n = context.l10n;
       final bool canLeave = await _ensureCanLeave(
-        dialogTitle: '关闭画布',
-        dialogContent: '是否在关闭前保存当前项目？',
+        dialogTitle: l10n.closeCanvas,
+        dialogContent: l10n.saveBeforeClose,
       );
       if (!canLeave) {
         _workspace.setActive(_document.id);
@@ -1160,12 +1204,13 @@ class CanvasPageState extends State<CanvasPage> {
     );
     String? errorText;
     StateSetter? dialogSetState;
+    final l10n = context.l10n;
 
     void submit() {
       final String trimmed = controller.text.trim();
       if (trimmed.isEmpty) {
         dialogSetState?.call(() {
-          errorText = '名称不能为空';
+          errorText = l10n.nameCannotBeEmpty;
         });
         return;
       }
@@ -1174,7 +1219,7 @@ class CanvasPageState extends State<CanvasPage> {
 
     final String? result = await showMisarinDialog<String>(
       context: context,
-      title: const Text('重命名项目'),
+      title: Text(l10n.renameProject),
       contentWidth: 360,
       content: StatefulBuilder(
         builder: (context, setState) {
@@ -1183,12 +1228,12 @@ class CanvasPageState extends State<CanvasPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('请输入新的项目名称'),
+              Text(l10n.enterNewProjectName),
               const SizedBox(height: 8),
               TextBox(
                 controller: controller,
                 autofocus: true,
-                placeholder: '未命名项目',
+                placeholder: l10n.untitledProject,
                 onChanged: (_) {
                   if (errorText != null) {
                     setState(() => errorText = null);
@@ -1210,9 +1255,9 @@ class CanvasPageState extends State<CanvasPage> {
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: submit, child: const Text('重命名')),
+        FilledButton(onPressed: submit, child: Text(l10n.rename)),
       ],
     );
     controller.dispose();
@@ -1264,7 +1309,10 @@ class CanvasPageState extends State<CanvasPage> {
     }
     final List<DropItem> candidates = _filterSupportedDropItems(items);
     if (candidates.isEmpty) {
-      _showInfoBar('拖放的文件中未找到支持的图像格式。', severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.noSupportedImageFormats,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     int createdCount = 0;
@@ -1283,7 +1331,7 @@ class CanvasPageState extends State<CanvasPage> {
         createdCount += 1;
       } catch (error) {
         _showInfoBar(
-          '导入 ${_describeDropItem(item)} 失败：$error',
+          context.l10n.importFailed(_describeDropItem(item), error),
           severity: InfoBarSeverity.error,
         );
       }
@@ -1293,11 +1341,16 @@ class CanvasPageState extends State<CanvasPage> {
     }
     if (createdCount > 0) {
       _showInfoBar(
-        createdCount == 1 ? '已从拖放图像创建新画布。' : '已创建 $createdCount 个拖放图像画布。',
+        createdCount == 1
+            ? context.l10n.createdCanvasFromDrop
+            : context.l10n.createdCanvasesFromDrop(createdCount),
         severity: InfoBarSeverity.success,
       );
     } else {
-      _showInfoBar('拖放的图像无法创建画布，请确认文件是否有效。', severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.dropImageCreateFailed,
+        severity: InfoBarSeverity.warning,
+      );
     }
   }
 
@@ -1307,12 +1360,18 @@ class CanvasPageState extends State<CanvasPage> {
     }
     final PaintingBoardState? board = _activeBoard;
     if (board == null || !board.isBoardReady) {
-      _showInfoBar('画布尚未准备好，暂无法插入拖放图像。', severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.canvasNotReadyDrop,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     final List<DropItem> candidates = _filterSupportedDropItems(items);
     if (candidates.isEmpty) {
-      _showInfoBar('拖放的文件中未包含支持的图像格式。', severity: InfoBarSeverity.warning);
+      _showInfoBar(
+        context.l10n.noSupportedImageFormats,
+        severity: InfoBarSeverity.warning,
+      );
       return;
     }
     int insertedCount = 0;
@@ -1334,12 +1393,14 @@ class CanvasPageState extends State<CanvasPage> {
     }
     if (insertedCount > 0) {
       _showInfoBar(
-        insertedCount == 1 ? '已将拖放图像插入为新图层。' : '已插入 $insertedCount 个拖放图像图层。',
+        insertedCount == 1
+            ? context.l10n.insertedDropImage
+            : context.l10n.insertedDropImages(insertedCount),
         severity: InfoBarSeverity.success,
       );
     } else {
       _showInfoBar(
-        '拖放图像无法插入当前画布，请确认文件内容是否有效。',
+        context.l10n.dropImageInsertFailed,
         severity: InfoBarSeverity.error,
       );
     }
@@ -1450,7 +1511,7 @@ class CanvasPageState extends State<CanvasPage> {
     if (path.isNotEmpty) {
       return path;
     }
-    return '图像';
+    return context.l10n.image;
   }
 
   Future<T> _runWithSecurityScopedAccess<T>(
@@ -1687,6 +1748,14 @@ class CanvasPageState extends State<CanvasPage> {
         }
         board.showBinarizeAdjustments();
       },
+      scanPaperDrawing: () {
+        final board = _activeBoard;
+        if (board == null) {
+          _showInfoBar('画布尚未准备好，无法扫描纸绘。', severity: InfoBarSeverity.warning);
+          return;
+        }
+        board.showScanPaperDrawingAdjustments();
+      },
       layerFreeTransform: () {
         final board = _activeBoard;
         board?.toggleLayerFreeTransform();
@@ -1842,6 +1911,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
+    final l10n = context.l10n;
     final bool alignStatusLeft = kIsWeb || !isResolvedPlatformMacOS();
 
     final TextStyle textStyle =
@@ -1850,7 +1920,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
             .copyWith(color: theme.resources.textFillColorSecondary);
 
     if (board == null) {
-      return Text('画布尚未准备好', style: textStyle, maxLines: 1);
+      return Text(l10n.canvasNotReady, style: textStyle, maxLines: 1);
     }
 
     return ValueListenableBuilder<CanvasViewInfo>(
@@ -1865,33 +1935,35 @@ class _CanvasStatusOverlay extends StatelessWidget {
         final String position = info.cursorPosition != null
             ? '${info.cursorPosition!.dx.round()}, ${info.cursorPosition!.dy.round()}'
             : '--';
-        final String grid = info.pixelGridVisible ? '开' : '关';
-        final String blackWhite = info.viewBlackWhiteEnabled ? '开' : '关';
-        final String mirror = info.viewMirrorEnabled ? '开' : '关';
+        final String grid = info.pixelGridVisible ? l10n.on : l10n.off;
+        final String blackWhite = info.viewBlackWhiteEnabled
+            ? l10n.on
+            : l10n.off;
+        final String mirror = info.viewMirrorEnabled ? l10n.on : l10n.off;
         final String perspective = (() {
           final PerspectiveGuideMode mode = info.perspectiveMode;
           if (!info.perspectiveEnabled || mode == PerspectiveGuideMode.off) {
-            return '关';
+            return l10n.off;
           }
           switch (mode) {
             case PerspectiveGuideMode.onePoint:
-              return '1点';
+              return l10n.perspective1Point;
             case PerspectiveGuideMode.twoPoint:
-              return '2点';
+              return l10n.perspective2Point;
             case PerspectiveGuideMode.threePoint:
-              return '3点';
+              return l10n.perspective3Point;
             case PerspectiveGuideMode.off:
-              return '关';
+              return l10n.off;
           }
         })();
         final List<String> parts = <String>[
-          '分辨率: $resolution',
-          '缩放: $zoom',
-          '坐标: $position',
-          '网格: $grid',
-          '黑白: $blackWhite',
-          '镜像: $mirror',
-          '透视: $perspective',
+          l10n.resolutionLabel(resolution),
+          l10n.zoomLabel(zoom),
+          l10n.positionLabel(position),
+          l10n.gridLabel(grid),
+          l10n.blackWhiteLabel(blackWhite),
+          l10n.mirrorLabel(mirror),
+          l10n.perspectiveLabel(perspective),
         ];
         final TextAlign textAlign = alignStatusLeft
             ? TextAlign.start

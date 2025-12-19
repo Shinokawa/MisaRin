@@ -69,6 +69,8 @@ import 'package:flutter_localizations/flutter_localizations.dart'
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'package:file_picker/file_picker.dart';
 
+import '../l10n/l10n.dart';
+
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/raster_frame.dart';
 import '../../bitmap_canvas/controller.dart';
@@ -112,6 +114,7 @@ import '../tooltips/hover_detail_tooltip.dart';
 import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
+import '../../backend/rgba_utils.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import '../workspace/workspace_shared_state.dart';
 
@@ -253,6 +256,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
   bool _isDraggingBoard = false;
+  bool _isRotatingBoard = false;
   bool _isDirty = false;
   bool _isScalingGesture = false;
   bool _pixelGridVisible = false;
@@ -274,12 +278,19 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _vectorStrokeSmoothingEnabled =
       AppPreferences.defaultVectorStrokeSmoothingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
+  bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
+  double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
+  bool _hollowStrokeEraseOccludedParts =
+      AppPreferences.defaultHollowStrokeEraseOccludedParts;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _bucketSwallowColorLine = AppPreferences.defaultBucketSwallowColorLine;
+  BucketSwallowColorLineMode _bucketSwallowColorLineMode =
+      AppPreferences.defaultBucketSwallowColorLineMode;
   int _bucketTolerance = AppPreferences.defaultBucketTolerance;
+  int _bucketFillGap = AppPreferences.defaultBucketFillGap;
   int _magicWandTolerance = AppPreferences.defaultMagicWandTolerance;
   bool _brushToolsEraserMode = AppPreferences.defaultBrushToolsEraserMode;
   bool _shapeFillEnabled = AppPreferences.defaultShapeToolFillEnabled;
@@ -302,6 +313,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   int _layerPreviewRequestSerial = 0;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
+  Future<void>? _layerAdjustFinalizeTask;
   Offset? _layerDragStart;
   int _layerDragAppliedDx = 0;
   int _layerDragAppliedDy = 0;
@@ -900,7 +912,22 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   Offset _toBoardLocal(Offset workspacePosition) {
     final Rect boardRect = _boardRect;
-    return (workspacePosition - boardRect.topLeft) / _viewport.scale;
+    final double rotation = _viewport.rotation;
+    Offset relative = workspacePosition - boardRect.topLeft;
+
+    if (rotation != 0) {
+      final Offset center = boardRect.size.center(Offset.zero);
+      final double dx = relative.dx - center.dx;
+      final double dy = relative.dy - center.dy;
+      final double cosA = math.cos(-rotation);
+      final double sinA = math.sin(-rotation);
+
+      final double rotatedDx = dx * cosA - dy * sinA;
+      final double rotatedDy = dx * sinA + dy * cosA;
+
+      relative = Offset(rotatedDx + center.dx, rotatedDy + center.dy);
+    }
+    return relative / _viewport.scale;
   }
 
   Offset? _boardCursorPosition() {
@@ -1882,7 +1909,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
     _bucketContiguous = prefs.bucketContiguous;
     _bucketSwallowColorLine = prefs.bucketSwallowColorLine;
+    _bucketSwallowColorLineMode = prefs.bucketSwallowColorLineMode;
     _bucketTolerance = prefs.bucketTolerance;
+    _bucketFillGap = prefs.bucketFillGap;
     _magicWandTolerance = prefs.magicWandTolerance;
     _brushToolsEraserMode = prefs.brushToolsEraserMode;
     _shapeFillEnabled = prefs.shapeToolFillEnabled;
@@ -1905,6 +1934,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
     _vectorStrokeSmoothingEnabled = prefs.vectorStrokeSmoothingEnabled;
     _brushShape = prefs.brushShape;
+    _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
+    _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
+    _hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
     _colorLineColor = prefs.colorLineColor;
     _primaryColor = prefs.primaryColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
@@ -2026,7 +2058,13 @@ class PaintingBoardState extends _PaintingBoardBase
       image.dispose();
       throw StateError('无法读取位图像素数据');
     }
-    final Uint8List rgba = Uint8List.fromList(pixelData.buffer.asUint8List());
+    final Uint8List rgba = Uint8List.fromList(
+      pixelData.buffer.asUint8List(
+        pixelData.offsetInBytes,
+        pixelData.lengthInBytes,
+      ),
+    );
+    unpremultiplyRgbaInPlace(rgba);
     final _ImportedImageData result = _ImportedImageData(
       width: image.width,
       height: image.height,
@@ -2407,6 +2445,9 @@ class PaintingBoardState extends _PaintingBoardBase
       sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
       brushShape: _brushShape,
+      hollowStrokeEnabled: _hollowStrokeEnabled,
+      hollowStrokeRatio: _hollowStrokeRatio,
+      hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       strokeStabilizerStrength: _strokeStabilizerStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
@@ -2419,7 +2460,9 @@ class PaintingBoardState extends _PaintingBoardBase
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
+      bucketSwallowColorLineMode: _bucketSwallowColorLineMode,
       bucketTolerance: _bucketTolerance,
+      bucketFillGap: _bucketFillGap,
       magicWandTolerance: _magicWandTolerance,
       brushToolsEraserMode: _brushToolsEraserMode,
       layerAdjustCropOutside: _layerAdjustCropOutside,
@@ -2459,6 +2502,9 @@ class PaintingBoardState extends _PaintingBoardBase
       setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
     }
     _updateBrushShape(snapshot.brushShape);
+    _updateHollowStrokeEnabled(snapshot.hollowStrokeEnabled);
+    _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
+    _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);
@@ -2471,7 +2517,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);
+    _updateBucketSwallowColorLineMode(snapshot.bucketSwallowColorLineMode);
     _updateBucketTolerance(snapshot.bucketTolerance);
+    _updateBucketFillGap(snapshot.bucketFillGap);
     _updateMagicWandTolerance(snapshot.magicWandTolerance);
     _updateBrushToolsEraserMode(snapshot.brushToolsEraserMode);
     _updateLayerAdjustCropOutside(snapshot.layerAdjustCropOutside);

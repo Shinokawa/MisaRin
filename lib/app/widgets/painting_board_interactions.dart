@@ -2,6 +2,16 @@ part of 'painting_board.dart';
 
 const double _kStylusSimulationBlend = 0.68;
 
+class _DisableVectorDrawingConfirmResult {
+  const _DisableVectorDrawingConfirmResult({
+    required this.confirmed,
+    required this.doNotShowAgain,
+  });
+
+  final bool confirmed;
+  final bool doNotShowAgain;
+}
+
 mixin _PaintingBoardInteractionMixin
     on
         _PaintingBoardBase,
@@ -111,7 +121,7 @@ mixin _PaintingBoardInteractionMixin
   void _setActiveTool(CanvasTool tool) {
     final bool shouldCommitText =
         tool != CanvasTool.text && _isTextEditingActive;
-    if (_guardTransformInProgress(message: '请先完成当前自由变换。')) {
+    if (_guardTransformInProgress(message: context.l10n.completeTransformFirst)) {
       return;
     }
     if (shouldCommitText) {
@@ -239,6 +249,37 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateHollowStrokeEnabled(bool value) {
+    if (_hollowStrokeEnabled == value) {
+      return;
+    }
+    setState(() => _hollowStrokeEnabled = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.hollowStrokeEnabled = value;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateHollowStrokeRatio(double value) {
+    final double clamped = value.clamp(0.0, 1.0);
+    if ((_hollowStrokeRatio - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _hollowStrokeRatio = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.hollowStrokeRatio = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateHollowStrokeEraseOccludedParts(bool value) {
+    if (_hollowStrokeEraseOccludedParts == value) {
+      return;
+    }
+    setState(() => _hollowStrokeEraseOccludedParts = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.hollowStrokeEraseOccludedParts = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateStrokeStabilizerStrength(double value) {
     final double clamped = value.clamp(0.0, 1.0);
     if ((_strokeStabilizerStrength - clamped).abs() < 0.0005) {
@@ -322,17 +363,102 @@ mixin _PaintingBoardInteractionMixin
     _applyStylusSettingsToController();
   }
 
-  void _updateVectorDrawingEnabled(bool value) {
+  Future<_DisableVectorDrawingConfirmResult?>
+  _confirmDisableVectorDrawing() async {
+    bool doNotShowAgain = false;
+    final l10n = context.l10n;
+    return showDialog<_DisableVectorDrawingConfirmResult>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return ContentDialog(
+          title: Text(l10n.disableVectorDrawing),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.disableVectorDrawingConfirm),
+                  const SizedBox(height: 8),
+                  Text(l10n.disableVectorDrawingDesc),
+                  const SizedBox(height: 12),
+                  Checkbox(
+                    checked: doNotShowAgain,
+                    content: Text(l10n.dontShowAgain),
+                    onChanged: (value) {
+                      setState(() => doNotShowAgain = value ?? false);
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            Button(
+              onPressed: () {
+                Navigator.of(context).pop(
+                  _DisableVectorDrawingConfirmResult(
+                    confirmed: false,
+                    doNotShowAgain: doNotShowAgain,
+                  ),
+                );
+              },
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(
+                  _DisableVectorDrawingConfirmResult(
+                    confirmed: true,
+                    doNotShowAgain: doNotShowAgain,
+                  ),
+                );
+              },
+              child: Text(l10n.confirm),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _updateVectorDrawingEnabled(bool value) async {
     if (_vectorDrawingEnabled == value) {
       return;
     }
+
+    final AppPreferences prefs = AppPreferences.instance;
+    if (!value && prefs.showDisableVectorDrawingConfirmDialog) {
+      final _DisableVectorDrawingConfirmResult? result =
+          await _confirmDisableVectorDrawing();
+      if (!mounted) {
+        return;
+      }
+      if (result == null) {
+        // Treat barrier dismiss as cancellation.
+        setState(() {});
+        return;
+      }
+      if (result.doNotShowAgain) {
+        prefs.showDisableVectorDrawingConfirmDialog = false;
+      }
+      if (!result.confirmed) {
+        // Force a rebuild so the toggle reflects the current state.
+        setState(() {});
+        if (result.doNotShowAgain) {
+          unawaited(AppPreferences.save());
+        }
+        return;
+      }
+    }
+
     if (value) {
       _disposeCurveRasterPreview(restoreLayer: true);
       _disposeShapeRasterPreview(restoreLayer: true);
     }
     setState(() => _vectorDrawingEnabled = value);
     _controller.setVectorDrawingEnabled(value);
-    final AppPreferences prefs = AppPreferences.instance;
     prefs.vectorDrawingEnabled = value;
     unawaited(AppPreferences.save());
   }
@@ -378,6 +504,16 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateBucketSwallowColorLineMode(BucketSwallowColorLineMode mode) {
+    if (_bucketSwallowColorLineMode == mode) {
+      return;
+    }
+    setState(() => _bucketSwallowColorLineMode = mode);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketSwallowColorLineMode = mode;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateBucketTolerance(int value) {
     final int clamped = value.clamp(0, 255).toInt();
     if (_bucketTolerance == clamped) {
@@ -386,6 +522,17 @@ mixin _PaintingBoardInteractionMixin
     setState(() => _bucketTolerance = clamped);
     final AppPreferences prefs = AppPreferences.instance;
     prefs.bucketTolerance = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateBucketFillGap(int value) {
+    final int clamped = value.clamp(0, 64).toInt();
+    if (_bucketFillGap == clamped) {
+      return;
+    }
+    setState(() => _bucketFillGap = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.bucketFillGap = clamped;
     unawaited(AppPreferences.save());
   }
 
@@ -464,6 +611,7 @@ mixin _PaintingBoardInteractionMixin
     }
     final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    final bool hollow = _hollowStrokeEnabled && !erase;
     _lastStrokeBoardPosition = start;
     _lastStylusDirection = null;
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
@@ -488,6 +636,9 @@ mixin _PaintingBoardInteractionMixin
         antialiasLevel: _penAntialiasLevel,
         brushShape: _brushShape,
         erase: erase,
+        hollow: hollow,
+        hollowRatio: _hollowStrokeRatio,
+        eraseOccludedParts: _hollowStrokeEraseOccludedParts,
       );
     });
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -624,8 +775,10 @@ mixin _PaintingBoardInteractionMixin
   /// (`plugins/paintops/spray`) but tweaks a few constants so the Flutter
   /// rasterizer produces similar densities.
   KritaSprayEngineSettings _buildKritaSpraySettings() {
-    final double clampedDiameter =
-        _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    final double clampedDiameter = _sprayStrokeWidth.clamp(
+      kSprayStrokeMin,
+      kSprayStrokeMax,
+    );
     return KritaSprayEngineSettings(
       diameter: clampedDiameter,
       scale: 1.0,
@@ -777,8 +930,8 @@ mixin _PaintingBoardInteractionMixin
     }
     final KritaSprayEngine engine = _ensureKritaSprayEngine();
     final bool erase = _isBrushEraserEnabled;
-    final Color color = _activeSprayColor ??
-        (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    final Color color =
+        _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
     engine.paintParticles(
       center: center,
       particleBudget: count,
@@ -829,17 +982,21 @@ mixin _PaintingBoardInteractionMixin
   }
 
   double _resolveSoftSprayRadius() {
-    final double normalized =
-        _sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    final double normalized = _sprayStrokeWidth.clamp(
+      kSprayStrokeMin,
+      kSprayStrokeMax,
+    );
     return math.max(normalized * 0.5, 0.5);
   }
 
   void _stampSoftSpray(Offset position, double radius, double pressure) {
     final bool erase = _isBrushEraserEnabled;
-    final Color baseColor = _activeSprayColor ??
-        (erase ? const Color(0xFFFFFFFF) : _primaryColor);
-    final double opacityScale =
-        (0.35 + pressure.clamp(0.0, 1.0) * 0.65).clamp(0.0, 1.0);
+    final Color baseColor =
+        _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    final double opacityScale = (0.35 + pressure.clamp(0.0, 1.0) * 0.65).clamp(
+      0.0,
+      1.0,
+    );
     if (opacityScale <= 0.0) {
       return;
     }
@@ -966,8 +1123,10 @@ mixin _PaintingBoardInteractionMixin
       _strokeStabilizer.start(clamped);
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
-    final Offset filtered =
-        _strokeStabilizer.filter(clamped, _strokeStabilizerStrength);
+    final Offset filtered = _strokeStabilizer.filter(
+      clamped,
+      _strokeStabilizerStrength,
+    );
     return _maybeSnapToPerspective(filtered, anchor: anchor);
   }
 
@@ -1003,6 +1162,46 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _isDraggingBoard = false);
+  }
+
+  void _beginRotateBoard() {
+    setState(() => _isRotatingBoard = true);
+  }
+
+  void _updateRotateBoard(Offset delta) {
+    if (!_isRotatingBoard) {
+      return;
+    }
+    _setViewportRotation(_viewport.rotation + delta.dx * 0.005);
+  }
+
+  void _finishRotateBoard() {
+    if (!_isRotatingBoard) {
+      return;
+    }
+    setState(() => _isRotatingBoard = false);
+  }
+
+  void _setViewportRotation(double value) {
+    if (value.isNaN || value.isInfinite) {
+      value = 0.0;
+    } else {
+      value %= math.pi * 2;
+      if (value > math.pi) {
+        value -= math.pi * 2;
+      }
+    }
+    if ((_viewport.rotation - value).abs() < 0.0005) {
+      return;
+    }
+    setState(() {
+      _viewport.setRotation(value);
+    });
+    _notifyViewInfoChanged();
+  }
+
+  void _resetViewportRotation() {
+    _setViewportRotation(0.0);
   }
 
   void _beginEyedropperSample(Offset boardLocal) {
@@ -1130,7 +1329,7 @@ mixin _PaintingBoardInteractionMixin
     }
   }
 
-void _clearToolCursorOverlay() {
+  void _clearToolCursorOverlay() {
     if (_toolCursorPosition == null && _penCursorWorkspacePosition == null) {
       return;
     }
@@ -1225,7 +1424,7 @@ void _clearToolCursorOverlay() {
       return;
     }
     _focusNode.requestFocus();
-    await _pushUndoSnapshot();
+    _controller.translateActiveLayer(0, 0);
     _isLayerDragging = true;
     _layerDragStart = boardLocal;
     _layerDragAppliedDx = 0;
@@ -1253,15 +1452,40 @@ void _clearToolCursorOverlay() {
     _markDirty();
   }
 
-  void _finishLayerAdjustDrag() {
+  Future<void> _finalizeLayerAdjustDrag() {
+    final Future<void>? existing = _layerAdjustFinalizeTask;
+    if (existing != null) {
+      return existing;
+    }
+    final Future<void> task = _finalizeLayerAdjustDragImpl();
+    _layerAdjustFinalizeTask = task;
+    task.whenComplete(() {
+      if (identical(_layerAdjustFinalizeTask, task)) {
+        _layerAdjustFinalizeTask = null;
+      }
+    });
+    return task;
+  }
+
+  Future<void> _finalizeLayerAdjustDragImpl() async {
     if (!_isLayerDragging) {
       return;
     }
-    _controller.commitActiveLayerTranslation();
+    final bool moved = _layerDragAppliedDx != 0 || _layerDragAppliedDy != 0;
     _isLayerDragging = false;
     _layerDragStart = null;
     _layerDragAppliedDx = 0;
     _layerDragAppliedDy = 0;
+    if (!moved) {
+      _controller.disposeActiveLayerTransformSession();
+      return;
+    }
+    await _pushUndoSnapshot();
+    _controller.commitActiveLayerTranslation();
+  }
+
+  void _finishLayerAdjustDrag() {
+    unawaited(_finalizeLayerAdjustDrag());
   }
 
   Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {
@@ -1291,6 +1515,9 @@ void _clearToolCursorOverlay() {
           antialiasLevel: _penAntialiasLevel,
           brushShape: _brushShape,
           erase: erase,
+          hollow: _hollowStrokeEnabled && !erase,
+          hollowRatio: _hollowStrokeRatio,
+          eraseOccludedParts: _hollowStrokeEraseOccludedParts,
         );
         _controller.endStroke();
         _markDirty();
@@ -1546,6 +1773,7 @@ void _clearToolCursorOverlay() {
         _penPressureProfile == StrokePressureProfile.taperCenter;
     final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    final bool hollow = _hollowStrokeEnabled && !erase;
     final Offset strokeStart = _clampToCanvas(start);
     _controller.beginStroke(
       strokeStart,
@@ -1558,6 +1786,9 @@ void _clearToolCursorOverlay() {
       brushShape: _brushShape,
       enableNeedleTips: enableNeedleTips,
       erase: erase,
+      hollow: hollow,
+      hollowRatio: _hollowStrokeRatio,
+      eraseOccludedParts: _hollowStrokeEraseOccludedParts,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,
@@ -1705,10 +1936,11 @@ void _clearToolCursorOverlay() {
         break;
       case CanvasTool.perspectivePen:
         _focusNode.requestFocus();
-        if (_perspectiveMode == PerspectiveGuideMode.off || !_perspectiveVisible) {
+        if (_perspectiveMode == PerspectiveGuideMode.off ||
+            !_perspectiveVisible) {
           AppNotifications.show(
             context,
-            message: '请先开启透视辅助线后再使用透视画笔。',
+            message: context.l10n.enablePerspectiveGuideFirst,
             severity: InfoBarSeverity.warning,
           );
           _clearPerspectivePenPreview();
@@ -1725,7 +1957,7 @@ void _clearToolCursorOverlay() {
         if (!_perspectivePenPreviewValid) {
           AppNotifications.show(
             context,
-            message: '当前线条未对齐透视方向，请调整角度后再落笔。',
+            message: context.l10n.lineNotAlignedWithPerspective,
             severity: InfoBarSeverity.warning,
           );
           return;
@@ -1788,6 +2020,9 @@ void _clearToolCursorOverlay() {
         break;
       case CanvasTool.hand:
         _beginDragBoard();
+        break;
+      case CanvasTool.rotate:
+        _beginRotateBoard();
         break;
     }
   }
@@ -1858,6 +2093,11 @@ void _clearToolCursorOverlay() {
           _updateDragBoard(event.delta);
         }
         break;
+      case CanvasTool.rotate:
+        if (_isRotatingBoard) {
+          _updateRotateBoard(event.delta);
+        }
+        break;
       case CanvasTool.spray:
         if (_isSpraying) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
@@ -1921,6 +2161,11 @@ void _clearToolCursorOverlay() {
           _finishDragBoard();
         }
         break;
+      case CanvasTool.rotate:
+        if (_isRotatingBoard) {
+          _finishRotateBoard();
+        }
+        break;
       case CanvasTool.spray:
         if (_isSpraying) {
           _finishSprayStroke();
@@ -1969,6 +2214,11 @@ void _clearToolCursorOverlay() {
       case CanvasTool.hand:
         if (_isDraggingBoard) {
           _finishDragBoard();
+        }
+        break;
+      case CanvasTool.rotate:
+        if (_isRotatingBoard) {
+          _finishRotateBoard();
         }
         break;
       case CanvasTool.spray:
@@ -2287,24 +2537,16 @@ class _StrokeStabilizer {
     }
 
     final Offset averaged = _weightedAverage(clampedStrength);
-    final double smoothingBias = ui.lerpDouble(
-          0.0,
-          0.95,
-          math.pow(clampedStrength, 0.9).toDouble(),
-        ) ??
+    final double smoothingBias =
+        ui.lerpDouble(0.0, 0.95, math.pow(clampedStrength, 0.9).toDouble()) ??
         0.0;
-    final Offset target = Offset.lerp(position, averaged, smoothingBias) ??
-        averaged;
-    final double followMix = ui.lerpDouble(
-          1.0,
-          0.18,
-          math.pow(clampedStrength, 0.85).toDouble(),
-        ) ??
+    final Offset target =
+        Offset.lerp(position, averaged, smoothingBias) ?? averaged;
+    final double followMix =
+        ui.lerpDouble(1.0, 0.18, math.pow(clampedStrength, 0.85).toDouble()) ??
         1.0;
-    final Offset filtered = previous + (target - previous) * followMix.clamp(
-      0.0,
-      1.0,
-    );
+    final Offset filtered =
+        previous + (target - previous) * followMix.clamp(0.0, 1.0);
     _filtered = filtered;
     return filtered;
   }
@@ -2320,8 +2562,12 @@ class _StrokeStabilizer {
     }
     final double eased = math.pow(strength, 0.72).toDouble();
     final double lerped =
-        ui.lerpDouble(_minSampleWindow.toDouble(), _maxSampleWindow.toDouble(), eased) ??
-            _minSampleWindow.toDouble();
+        ui.lerpDouble(
+          _minSampleWindow.toDouble(),
+          _maxSampleWindow.toDouble(),
+          eased,
+        ) ??
+        _minSampleWindow.toDouble();
     final int rounded = lerped.round();
     if (rounded <= _minSampleWindow) {
       return _minSampleWindow;
@@ -2346,7 +2592,9 @@ class _StrokeStabilizer {
     double totalWeight = 0.0;
     for (int i = 0; i < length; i++) {
       final double progress = (i + 1) / length;
-      final double weight = math.pow(progress.clamp(0.0, 1.0), exponent).toDouble();
+      final double weight = math
+          .pow(progress.clamp(0.0, 1.0), exponent)
+          .toDouble();
       accumulator += _recentSamples[i] * weight;
       totalWeight += weight;
     }

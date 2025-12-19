@@ -63,23 +63,6 @@ void _cancelActiveLayerTranslation(BitmapCanvasController controller) {
   }
 }
 
-Uint32List _ensureTranslationSnapshot(
-  BitmapCanvasController controller,
-  String layerId,
-  Uint32List pixels,
-) {
-  final Uint32List? existing = controller._activeLayerTranslationSnapshot;
-  if (existing != null && controller._activeLayerTranslationId == layerId) {
-    return existing;
-  }
-  final Uint32List snapshot = Uint32List.fromList(pixels);
-  controller._activeLayerTranslationSnapshot = snapshot;
-  controller._activeLayerTranslationId = layerId;
-  controller._activeLayerTranslationDx = 0;
-  controller._activeLayerTranslationDy = 0;
-  return snapshot;
-}
-
 void _startActiveLayerTransformSession(
   BitmapCanvasController controller,
   BitmapLayerState layer,
@@ -98,37 +81,49 @@ void _startClippedLayerTransformSession(
   BitmapCanvasController controller,
   BitmapLayerState layer,
 ) {
-  final Uint32List snapshot = _ensureTranslationSnapshot(
-    controller,
-    layer.id,
-    layer.surface.pixels,
+  final Uint32List sourcePixels = layer.surface.pixels;
+  final int canvasWidth = layer.surface.width;
+  final int canvasHeight = layer.surface.height;
+  final Rect? pixelBounds = _computePixelBounds(
+    sourcePixels,
+    canvasWidth,
+    canvasHeight,
   );
-  final int width = layer.surface.width;
-  final int height = layer.surface.height;
-  final Rect? bounds = _computePixelBounds(snapshot, width, height);
-  final Rect fallbackBounds = Rect.fromLTWH(
-    0,
-    0,
-    width.toDouble(),
-    height.toDouble(),
-  );
-  controller._activeLayerTransformBounds = bounds ?? fallbackBounds;
-  controller._activeLayerTransformDirtyRegion = bounds;
-  controller._activeLayerTransformSnapshotWidth = width;
-  controller._activeLayerTransformSnapshotHeight = height;
-  controller._activeLayerTransformOriginX = 0;
-  controller._activeLayerTransformOriginY = 0;
-  layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
-  if (bounds != null) {
-    controller._markDirty(
-      region: bounds,
-      layerId: layer.id,
-      pixelsDirty: true,
-    );
-  } else {
-    controller._markDirty(layerId: layer.id, pixelsDirty: true);
+  int originX = 0;
+  int originY = 0;
+  int snapshotWidth = 1;
+  int snapshotHeight = 1;
+  Uint32List snapshotPixels = Uint32List(1);
+  if (pixelBounds != null && !pixelBounds.isEmpty) {
+    originX = pixelBounds.left.toInt();
+    originY = pixelBounds.top.toInt();
+    snapshotWidth = pixelBounds.width.toInt();
+    snapshotHeight = pixelBounds.height.toInt();
+    snapshotPixels = Uint32List(snapshotWidth * snapshotHeight);
+    for (int sy = 0; sy < snapshotHeight; sy++) {
+      final int srcOffset = (originY + sy) * canvasWidth + originX;
+      final int destOffset = sy * snapshotWidth;
+      snapshotPixels.setRange(
+        destOffset,
+        destOffset + snapshotWidth,
+        sourcePixels,
+        srcOffset,
+      );
+    }
   }
-  _prepareActiveLayerTransformPreview(controller, layer, snapshot);
+  controller._activeLayerTranslationSnapshot = snapshotPixels;
+  controller._activeLayerTranslationId = layer.id;
+  controller._activeLayerTranslationDx = 0;
+  controller._activeLayerTranslationDy = 0;
+  controller._activeLayerTransformSnapshotWidth = snapshotWidth;
+  controller._activeLayerTransformSnapshotHeight = snapshotHeight;
+  controller._activeLayerTransformOriginX = originX;
+  controller._activeLayerTransformOriginY = originY;
+  controller._activeLayerTransformBounds =
+      pixelBounds ??
+      Rect.fromLTWH(0, 0, canvasWidth.toDouble(), canvasHeight.toDouble());
+  controller._activeLayerTransformDirtyRegion = pixelBounds;
+  _prepareActiveLayerTransformPreview(controller, layer, snapshotPixels);
 }
 
 void _startOverflowLayerTransformSession(
@@ -137,10 +132,51 @@ void _startOverflowLayerTransformSession(
 ) {
   final _LayerOverflowStore overflowStore =
       controller._layerOverflowStores[layer.id] ?? _LayerOverflowStore();
+  final Rect? canvasBounds = _computePixelBounds(
+    layer.surface.pixels,
+    controller._width,
+    controller._height,
+  );
+  int minX = 0;
+  int minY = 0;
+  int maxX = 0;
+  int maxY = 0;
+  bool hasBounds = false;
+  if (canvasBounds != null && !canvasBounds.isEmpty) {
+    minX = canvasBounds.left.toInt();
+    minY = canvasBounds.top.toInt();
+    maxX = canvasBounds.right.toInt();
+    maxY = canvasBounds.bottom.toInt();
+    hasBounds = true;
+  }
+  if (!overflowStore.isEmpty) {
+    if (!hasBounds) {
+      minX = overflowStore.minX;
+      minY = overflowStore.minY;
+      maxX = overflowStore.maxX;
+      maxY = overflowStore.maxY;
+      hasBounds = true;
+    } else {
+      minX = math.min(minX, overflowStore.minX);
+      minY = math.min(minY, overflowStore.minY);
+      maxX = math.max(maxX, overflowStore.maxX);
+      maxY = math.max(maxY, overflowStore.maxY);
+    }
+  }
+  if (!hasBounds) {
+    minX = 0;
+    minY = 0;
+    maxX = 1;
+    maxY = 1;
+  }
   final _LayerTransformSnapshot snapshot = _buildOverflowTransformSnapshot(
     controller,
     layer,
     overflowStore,
+    minX: minX,
+    minY: minY,
+    maxX: maxX,
+    maxY: maxY,
   );
   controller._activeLayerTranslationSnapshot = snapshot.pixels;
   controller._activeLayerTranslationId = layer.id;
@@ -150,33 +186,14 @@ void _startOverflowLayerTransformSession(
   controller._activeLayerTransformSnapshotHeight = snapshot.height;
   controller._activeLayerTransformOriginX = snapshot.originX;
   controller._activeLayerTransformOriginY = snapshot.originY;
-  Rect? transformBounds = _computePixelBounds(
-    layer.surface.pixels,
-    controller._width,
-    controller._height,
-  );
-  if (transformBounds == null) {
-    final Rect? snapshotBounds = _computePixelBounds(
-      snapshot.pixels,
-      snapshot.width,
-      snapshot.height,
-    );
-    if (snapshotBounds != null) {
-      transformBounds = snapshotBounds.shift(
-        Offset(snapshot.originX.toDouble(), snapshot.originY.toDouble()),
-      );
-    }
-  }
-  transformBounds ??= Rect.fromLTWH(
-    snapshot.originX.toDouble(),
-    snapshot.originY.toDouble(),
-    snapshot.width.toDouble(),
-    snapshot.height.toDouble(),
+  final Rect transformBounds = Rect.fromLTRB(
+    minX.toDouble(),
+    minY.toDouble(),
+    maxX.toDouble(),
+    maxY.toDouble(),
   );
   controller._activeLayerTransformBounds = transformBounds;
   controller._activeLayerTransformDirtyRegion = transformBounds;
-  layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
-  controller._markDirty(layerId: layer.id, pixelsDirty: true);
   _prepareActiveLayerTransformPreview(controller, layer, snapshot.pixels);
 }
 
@@ -231,13 +248,27 @@ void _prepareActiveLayerTransformPreview(
     return;
   }
   controller._activeLayerTransformPreparing = true;
-  final Uint8List rgba = BitmapCanvasController._pixelsToRgba(snapshot);
+  Uint8List bytes;
+  ui.PixelFormat format = ui.PixelFormat.rgba8888;
+  if (!kIsWeb && Endian.host == Endian.little) {
+    final Uint8List view = Uint8List.view(
+      snapshot.buffer,
+      snapshot.offsetInBytes,
+      snapshot.lengthInBytes,
+    );
+    bytes = Uint8List.fromList(view);
+    premultiplyBgraInPlace(bytes);
+    format = ui.PixelFormat.bgra8888;
+  } else {
+    bytes = BitmapCanvasController._pixelsToRgba(snapshot);
+    premultiplyRgbaInPlace(bytes);
+  }
   controller._activeLayerTransformImage?.dispose();
   ui.decodeImageFromPixels(
-    rgba,
+    bytes,
     snapshotWidth,
     snapshotHeight,
-    ui.PixelFormat.rgba8888,
+    format,
     (ui.Image image) {
       if (controller._activeLayerTranslationSnapshot == null ||
           controller._activeLayerTranslationId != layer.id) {
@@ -248,7 +279,13 @@ void _prepareActiveLayerTransformPreview(
       controller._activeLayerTransformImage?.dispose();
       controller._activeLayerTransformImage = image;
       controller._activeLayerTransformPreparing = false;
-      controller.notifyListeners();
+      final Rect? dirtyRegion = controller._activeLayerTransformDirtyRegion ??
+          controller._activeLayerTransformBounds;
+      if (dirtyRegion != null) {
+        controller._markDirty(region: dirtyRegion, pixelsDirty: false);
+      } else {
+        controller._markDirty(pixelsDirty: false);
+      }
     },
   );
 }
@@ -276,24 +313,32 @@ void _applyClippedLayerTranslation(
     orElse: () => controller._activeLayer,
   );
   final Uint32List pixels = target.surface.pixels;
-  final int width = target.surface.width;
-  final int height = target.surface.height;
+  final int canvasWidth = controller._width;
+  final int canvasHeight = controller._height;
+  final int snapshotWidth = controller._activeLayerTransformSnapshotWidth;
+  final int snapshotHeight = controller._activeLayerTransformSnapshotHeight;
+  final int originX = controller._activeLayerTransformOriginX;
+  final int originY = controller._activeLayerTransformOriginY;
   final int dx = controller._activeLayerTranslationDx;
   final int dy = controller._activeLayerTranslationDy;
   pixels.fillRange(0, pixels.length, 0);
-  for (int y = 0; y < height; y++) {
-    final int srcY = y - dy;
-    if (srcY < 0 || srcY >= height) {
+  for (int sy = 0; sy < snapshotHeight; sy++) {
+    final int canvasY = originY + sy + dy;
+    if (canvasY < 0 || canvasY >= canvasHeight) {
       continue;
     }
-    for (int x = 0; x < width; x++) {
-      final int srcX = x - dx;
-      if (srcX < 0 || srcX >= width) {
+    final int rowOffset = sy * snapshotWidth;
+    final int destRowOffset = canvasY * canvasWidth;
+    for (int sx = 0; sx < snapshotWidth; sx++) {
+      final int color = snapshot[rowOffset + sx];
+      if ((color >> 24) == 0) {
         continue;
       }
-      final int srcIndex = srcY * width + srcX;
-      final int destIndex = y * width + x;
-      pixels[destIndex] = snapshot[srcIndex];
+      final int canvasX = originX + sx + dx;
+      if (canvasX < 0 || canvasX >= canvasWidth) {
+        continue;
+      }
+      pixels[destRowOffset + canvasX] = color;
     }
   }
   controller._layerOverflowStores[layerId]?.clear();
@@ -394,33 +439,91 @@ void _restoreOverflowLayerSnapshot(
   _resetActiveLayerTranslationState(controller);
 }
 
+void _restoreClippedLayerSnapshot(
+  BitmapCanvasController controller,
+  Uint32List snapshot,
+  String layerId,
+) {
+  final BitmapLayerState target = controller._layers.firstWhere(
+    (layer) => layer.id == layerId,
+    orElse: () => controller._activeLayer,
+  );
+  final int snapshotWidth = controller._activeLayerTransformSnapshotWidth;
+  final int snapshotHeight = controller._activeLayerTransformSnapshotHeight;
+  if (snapshotWidth <= 0 || snapshotHeight <= 0) {
+    _resetActiveLayerTranslationState(controller);
+    return;
+  }
+  final int originX = controller._activeLayerTransformOriginX;
+  final int originY = controller._activeLayerTransformOriginY;
+  final int canvasWidth = controller._width;
+  final int canvasHeight = controller._height;
+  final Uint32List pixels = target.surface.pixels;
+  pixels.fillRange(0, pixels.length, 0);
+  for (int sy = 0; sy < snapshotHeight; sy++) {
+    final int canvasY = originY + sy;
+    if (canvasY < 0 || canvasY >= canvasHeight) {
+      continue;
+    }
+    final int rowOffset = sy * snapshotWidth;
+    final int destRowOffset = canvasY * canvasWidth;
+    for (int sx = 0; sx < snapshotWidth; sx++) {
+      final int canvasX = originX + sx;
+      if (canvasX < 0 || canvasX >= canvasWidth) {
+        continue;
+      }
+      final int color = snapshot[rowOffset + sx];
+      if ((color >> 24) == 0) {
+        continue;
+      }
+      pixels[destRowOffset + canvasX] = color;
+    }
+  }
+  _resetActiveLayerTranslationState(controller);
+}
+
 _LayerTransformSnapshot _buildOverflowTransformSnapshot(
   BitmapCanvasController controller,
   BitmapLayerState layer,
-  _LayerOverflowStore store,
-) {
-  int minX = 0;
-  int minY = 0;
-  int maxX = controller._width;
-  int maxY = controller._height;
-  if (!store.isEmpty) {
-    minX = math.min(minX, store.minX);
-    minY = math.min(minY, store.minY);
-    maxX = math.max(maxX, store.maxX);
-    maxY = math.max(maxY, store.maxY);
+  _LayerOverflowStore store, {
+  int? minX,
+  int? minY,
+  int? maxX,
+  int? maxY,
+}) {
+  int resolvedMinX;
+  int resolvedMinY;
+  int resolvedMaxX;
+  int resolvedMaxY;
+  if (minX == null && minY == null && maxX == null && maxY == null) {
+    resolvedMinX = 0;
+    resolvedMinY = 0;
+    resolvedMaxX = controller._width;
+    resolvedMaxY = controller._height;
+    if (!store.isEmpty) {
+      resolvedMinX = math.min(resolvedMinX, store.minX);
+      resolvedMinY = math.min(resolvedMinY, store.minY);
+      resolvedMaxX = math.max(resolvedMaxX, store.maxX);
+      resolvedMaxY = math.max(resolvedMaxY, store.maxY);
+    }
+  } else {
+    resolvedMinX = minX ?? 0;
+    resolvedMinY = minY ?? 0;
+    resolvedMaxX = maxX ?? controller._width;
+    resolvedMaxY = maxY ?? controller._height;
   }
-  final int snapshotWidth = math.max(1, maxX - minX);
-  final int snapshotHeight = math.max(1, maxY - minY);
+  final int snapshotWidth = math.max(1, resolvedMaxX - resolvedMinX);
+  final int snapshotHeight = math.max(1, resolvedMaxY - resolvedMinY);
   final Uint32List pixels = Uint32List(snapshotWidth * snapshotHeight);
-  final int overlapLeft = math.max(0, minX);
-  final int overlapRight = math.min(controller._width, maxX);
-  final int overlapTop = math.max(0, minY);
-  final int overlapBottom = math.min(controller._height, maxY);
+  final int overlapLeft = math.max(0, resolvedMinX);
+  final int overlapRight = math.min(controller._width, resolvedMaxX);
+  final int overlapTop = math.max(0, resolvedMinY);
+  final int overlapBottom = math.min(controller._height, resolvedMaxY);
   final Uint32List srcPixels = layer.surface.pixels;
   for (int y = overlapTop; y < overlapBottom; y++) {
-    final int sy = y - minY;
+    final int sy = y - resolvedMinY;
     final int destinationOffset = sy * snapshotWidth;
-    final int startX = overlapLeft - minX;
+    final int startX = overlapLeft - resolvedMinX;
     final int srcOffset = y * controller._width + overlapLeft;
     final int length = overlapRight - overlapLeft;
     pixels.setRange(
@@ -431,12 +534,12 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
     );
   }
   store.forEachSegment((int rowY, _LayerOverflowSegment segment) {
-    final int sy = rowY - minY;
+    final int sy = rowY - resolvedMinY;
     if (sy < 0 || sy >= snapshotHeight) {
       return;
     }
     final int rowOffset = sy * snapshotWidth;
-    final int segmentStart = segment.startX - minX;
+    final int segmentStart = segment.startX - resolvedMinX;
     final int segmentEnd = segmentStart + segment.length;
     if (segmentEnd <= 0 || segmentStart >= snapshotWidth) {
       return;
@@ -459,8 +562,8 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
     pixels: pixels,
     width: snapshotWidth,
     height: snapshotHeight,
-    originX: minX,
-    originY: minY,
+    originX: resolvedMinX,
+    originY: resolvedMinY,
   );
 }
 
@@ -627,12 +730,7 @@ void _restoreActiveLayerSnapshot(BitmapCanvasController controller) {
     return;
   }
   if (controller._clipLayerOverflow) {
-    final BitmapLayerState target = controller._layers.firstWhere(
-      (layer) => layer.id == id,
-      orElse: () => controller._activeLayer,
-    );
-    target.surface.pixels.setAll(0, snapshot);
-    _resetActiveLayerTranslationState(controller);
+    _restoreClippedLayerSnapshot(controller, snapshot, id);
     return;
   }
   _restoreOverflowLayerSnapshot(controller, snapshot, id);

@@ -118,14 +118,18 @@ mixin _PaintingBoardBuildMixin
               ToolbarAction.textTool,
             ).shortcuts)
               key: const SelectToolIntent(CanvasTool.text),
-            for (final key in ToolbarShortcuts.of(
-              ToolbarAction.handTool,
-            ).shortcuts)
-              key: const SelectToolIntent(CanvasTool.hand),
-            for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
-              key: const ExitBoardIntent(),
-            for (final key in ToolbarShortcuts.of(
-              ToolbarAction.deselect,
+	            for (final key in ToolbarShortcuts.of(
+	              ToolbarAction.handTool,
+	            ).shortcuts)
+	              key: const SelectToolIntent(CanvasTool.hand),
+	            for (final key in ToolbarShortcuts.of(
+	              ToolbarAction.rotateTool,
+	            ).shortcuts)
+	              key: const SelectToolIntent(CanvasTool.rotate),
+	            for (final key in ToolbarShortcuts.of(ToolbarAction.exit).shortcuts)
+	              key: const ExitBoardIntent(),
+	            for (final key in ToolbarShortcuts.of(
+	              ToolbarAction.deselect,
             ).shortcuts)
               key: const DeselectIntent(),
             for (final key in ToolbarShortcuts.of(
@@ -267,6 +271,9 @@ mixin _PaintingBoardBuildMixin
                     ? SystemMouseCursors.grabbing
                     : SystemMouseCursors.grab;
                 break;
+              case CanvasTool.rotate:
+                workspaceCursor = SystemMouseCursors.resizeLeftRight;
+                break;
               case CanvasTool.layerAdjust:
                 workspaceCursor = _isLayerDragging
                     ? SystemMouseCursors.grabbing
@@ -343,6 +350,13 @@ mixin _PaintingBoardBuildMixin
           onSprayModeChanged: _updateSprayMode,
           brushShape: _brushShape,
           onBrushShapeChanged: _updateBrushShape,
+          hollowStrokeEnabled: _hollowStrokeEnabled,
+          hollowStrokeRatio: _hollowStrokeRatio,
+          onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
+          onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
+          hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
+          onHollowStrokeEraseOccludedPartsChanged:
+              _updateHollowStrokeEraseOccludedParts,
           strokeStabilizerStrength: _strokeStabilizerStrength,
           onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
           stylusPressureEnabled: _stylusPressureEnabled,
@@ -358,13 +372,17 @@ mixin _PaintingBoardBuildMixin
           bucketSampleAllLayers: _bucketSampleAllLayers,
           bucketContiguous: _bucketContiguous,
           bucketSwallowColorLine: _bucketSwallowColorLine,
+          bucketSwallowColorLineMode: _bucketSwallowColorLineMode,
           bucketAntialiasLevel: _bucketAntialiasLevel,
           onBucketSampleAllLayersChanged: _updateBucketSampleAllLayers,
           onBucketContiguousChanged: _updateBucketContiguous,
           onBucketSwallowColorLineChanged: _updateBucketSwallowColorLine,
+          onBucketSwallowColorLineModeChanged: _updateBucketSwallowColorLineMode,
           onBucketAntialiasChanged: _updateBucketAntialiasLevel,
           bucketTolerance: _bucketTolerance,
           onBucketToleranceChanged: _updateBucketTolerance,
+          bucketFillGap: _bucketFillGap,
+          onBucketFillGapChanged: _updateBucketFillGap,
           layerAdjustCropOutside: _layerAdjustCropOutside,
           onLayerAdjustCropOutsideChanged: _updateLayerAdjustCropOutside,
           selectionShape: selectionShape,
@@ -402,19 +420,22 @@ mixin _PaintingBoardBuildMixin
           onTextAntialiasChanged: _updateTextAntialias,
           textStrokeEnabled: _textStrokeEnabled,
           onTextStrokeEnabledChanged: _updateTextStrokeEnabled,
-          textStrokeWidth: _textStrokeWidth,
-          onTextStrokeWidthChanged: _updateTextStrokeWidth,
-          textStrokeColor: _colorLineColor,
-          onTextStrokeColorPressed: _handleEditTextStrokeColor,
-        );
+	          textStrokeWidth: _textStrokeWidth,
+	          onTextStrokeWidthChanged: _updateTextStrokeWidth,
+	          textStrokeColor: _colorLineColor,
+	          onTextStrokeColorPressed: _handleEditTextStrokeColor,
+	          canvasRotation: _viewport.rotation,
+	          onCanvasRotationChanged: _setViewportRotation,
+	          onCanvasRotationReset: _resetViewportRotation,
+	        );
         final ToolbarPanelData colorPanelData = ToolbarPanelData(
-          title: '取色',
+          title: context.l10n.colorPickerTitle,
           trailing: _buildColorPanelTrailing(theme),
           child: _buildColorPanelContent(theme),
         );
         final Widget addLayerButton = _buildAddLayerButton();
         final ToolbarPanelData layerPanelData = ToolbarPanelData(
-          title: '图层管理',
+          title: context.l10n.layerManagerTitle,
           trailing: isSai2Layout ? addLayerButton : null,
           child: _buildLayerPanelContent(theme),
           expand: true,
@@ -639,32 +660,35 @@ mixin _PaintingBoardBuildMixin
                           Positioned(
                             left: boardRect.left,
                             top: boardRect.top,
-                            child: MouseRegion(
-                              cursor: boardCursor,
-                              child: Transform.scale(
-                                scale: _viewport.scale,
-                                alignment: Alignment.topLeft,
-                                child: SizedBox(
-                                  width: _canvasSize.width,
-                                  height: _canvasSize.height,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: isDark
-                                            ? Color.lerp(
+	                            child: MouseRegion(
+	                              cursor: boardCursor,
+	                              child: Transform.scale(
+	                                scale: _viewport.scale,
+	                                alignment: Alignment.topLeft,
+	                                child: Transform.rotate(
+	                                  angle: _viewport.rotation,
+	                                  alignment: Alignment.center,
+	                                  child: SizedBox(
+	                                    width: _canvasSize.width,
+	                                    height: _canvasSize.height,
+	                                    child: DecoratedBox(
+	                                    decoration: BoxDecoration(
+	                                      border: Border.all(
+	                                        color: isDark
+	                                            ? Color.lerp(
                                                 Colors.white,
                                                 Colors.transparent,
                                                 0.88,
                                               )!
-                                            : const Color(0x33000000),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: ClipRect(
-                                      child: RepaintBoundary(
-                                        child: AnimatedBuilder(
-                                          animation: _controller,
-                                          builder: (context, _) {
+	                                            : const Color(0x33000000),
+	                                        width: 1,
+	                                      ),
+	                                    ),
+	                                    child: ClipRect(
+	                                      child: RepaintBoundary(
+	                                        child: AnimatedBuilder(
+	                                          animation: _controller,
+	                                          builder: (context, _) {
                                             final BitmapCanvasFrame? frame =
                                                 _controller.frame;
                                             if (frame == null) {
@@ -721,7 +745,12 @@ mixin _PaintingBoardBuildMixin
                                                     .activeStrokePoints
                                                     .isNotEmpty;
                                             final bool showActiveStroke =
-                                                _vectorDrawingEnabled &&
+                                                (_vectorDrawingEnabled ||
+                                                    _controller
+                                                        .activeStrokeHollowEnabled ||
+                                                    _controller
+                                                        .committingStrokes
+                                                        .isNotEmpty) &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&
@@ -788,6 +817,14 @@ mixin _PaintingBoardBuildMixin
                                                             .activeStrokeColor,
                                                         shape: _controller
                                                             .activeStrokeShape,
+                                                        antialiasLevel: _controller
+                                                            .activeStrokeAntialiasLevel,
+                                                        hollowStrokeEnabled:
+                                                            _controller
+                                                                .activeStrokeHollowEnabled,
+                                                        hollowStrokeRatio:
+                                                            _controller
+                                                                .activeStrokeHollowRatio,
                                                         committingStrokes:
                                                             _controller
                                                                 .committingStrokes,
@@ -808,16 +845,28 @@ mixin _PaintingBoardBuildMixin
                                                   Positioned.fill(
                                                     child: IgnorePointer(
                                                       ignoring: true,
-                                                      child: Transform.translate(
-                                                        offset:
-                                                            transformedLayerOffset,
-                                                        child: _buildTransformedLayerOverlay(
-                                                          image:
-                                                              transformedActiveLayerImage,
-                                                          opacity:
-                                                              transformedLayerOpacity,
-                                                          blendMode:
-                                                              transformedLayerBlendMode,
+                                                      child: OverflowBox(
+                                                        alignment:
+                                                            Alignment.topLeft,
+                                                        minWidth: 0,
+                                                        minHeight: 0,
+                                                        maxWidth:
+                                                            double.infinity,
+                                                        maxHeight:
+                                                            double.infinity,
+                                                        child: Transform
+                                                            .translate(
+                                                          offset:
+                                                              transformedLayerOffset,
+                                                          child:
+                                                              _buildTransformedLayerOverlay(
+                                                            image:
+                                                                transformedActiveLayerImage,
+                                                            opacity:
+                                                                transformedLayerOpacity,
+                                                            blendMode:
+                                                                transformedLayerBlendMode,
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
@@ -908,31 +957,35 @@ mixin _PaintingBoardBuildMixin
                                                 child: content,
                                               );
                                             }
-                                            return content;
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (_perspectivePenAnchor != null)
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                ignoring: true,
-                                child: Transform.translate(
-                                  offset: _boardRect.topLeft,
-                                  child: Transform.scale(
-                                    scale: _viewport.scale,
-                                    alignment: Alignment.topLeft,
-                                    child: Builder(
-                                      builder: (context) {
-                                        Widget overlay = CustomPaint(
-                                          size: _canvasSize,
-                                          painter: _PerspectivePenPreviewPainter(
-                                            anchor: _perspectivePenAnchor!,
+	                                            return content;
+	                                          },
+	                                        ),
+	                                      ),
+	                                    ),
+	                                  ),
+	                                ),
+	                              ),
+	                            ),
+	                          ),
+	                          ),
+	                          if (_perspectivePenAnchor != null)
+	                            Positioned.fill(
+	                              child: IgnorePointer(
+		                                ignoring: true,
+		                                child: Transform.translate(
+		                                  offset: _boardRect.topLeft,
+		                                  child: Transform.scale(
+		                                    scale: _viewport.scale,
+		                                    alignment: Alignment.topLeft,
+		                                    child: Transform.rotate(
+		                                      angle: _viewport.rotation,
+		                                      alignment: Alignment.center,
+		                                      child: Builder(
+		                                        builder: (context) {
+		                                        Widget overlay = CustomPaint(
+		                                          size: _canvasSize,
+		                                          painter: _PerspectivePenPreviewPainter(
+		                                            anchor: _perspectivePenAnchor!,
                                             target: _perspectivePenPreviewTarget ??
                                                 _perspectivePenAnchor!,
                                             snapped: _perspectivePenSnappedTarget ??
@@ -949,30 +1002,34 @@ mixin _PaintingBoardBuildMixin
                                             transformHitTests: false,
                                             child: overlay,
                                           );
-                                        }
-                                        return overlay;
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          if (_perspectiveVisible &&
-                              _perspectiveMode != PerspectiveGuideMode.off)
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                ignoring: true,
-                                child: Transform.translate(
-                                  offset: _boardRect.topLeft,
-                                  child: Transform.scale(
-                                    scale: _viewport.scale,
-                                    alignment: Alignment.topLeft,
-                                    child: Builder(
-                                      builder: (context) {
-                                        Widget overlay = CustomPaint(
-                                          size: _canvasSize,
-                                          painter: _PerspectiveGuidePainter(
-                                            canvasSize: _canvasSize,
+	                                        }
+		                                        return overlay;
+		                                      },
+		                                      ),
+		                                    ),
+		                                  ),
+		                                ),
+		                              ),
+		                            ),
+	                          if (_perspectiveVisible &&
+	                              _perspectiveMode != PerspectiveGuideMode.off)
+	                            Positioned.fill(
+	                              child: IgnorePointer(
+		                                ignoring: true,
+		                                child: Transform.translate(
+		                                  offset: _boardRect.topLeft,
+		                                  child: Transform.scale(
+		                                    scale: _viewport.scale,
+		                                    alignment: Alignment.topLeft,
+		                                    child: Transform.rotate(
+		                                      angle: _viewport.rotation,
+		                                      alignment: Alignment.center,
+		                                      child: Builder(
+		                                        builder: (context) {
+		                                        Widget overlay = CustomPaint(
+		                                          size: _canvasSize,
+		                                          painter: _PerspectiveGuidePainter(
+		                                            canvasSize: _canvasSize,
                                             vp1: _perspectiveVp1,
                                             vp2: _perspectiveVp2,
                                             vp3: _perspectiveVp3,
@@ -995,14 +1052,15 @@ mixin _PaintingBoardBuildMixin
                                                 _kViewBlackWhiteColorFilter,
                                             child: overlay,
                                           );
-                                        }
-                                        return overlay;
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+	                                        }
+		                                        return overlay;
+		                                      },
+		                                      ),
+		                                    ),
+		                                  ),
+		                                ),
+		                              ),
+		                            ),
                           if (textHoverOverlay != null) textHoverOverlay,
                           if (textOverlay != null) textOverlay,
                           ...toolbarLayoutResult.widgets,
@@ -1307,7 +1365,7 @@ mixin _PaintingBoardBuildMixin
         child: WorkspaceFloatingPanel(
           width: _kColorRangePanelWidth,
           minHeight: _kColorRangePanelMinHeight,
-          title: '色彩范围',
+          title: context.l10n.colorRangeTitle,
           onClose: _cancelColorRangeEditing,
           onDragUpdate: _updateColorRangeCardOffset,
           bodyPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1338,13 +1396,13 @@ mixin _PaintingBoardBuildMixin
                 onPressed: (_colorRangeLoading || _colorRangeApplying)
                     ? null
                     : _resetColorRangeSelection,
-                child: const Text('重置'),
+                child: Text(context.l10n.reset),
               ),
               const SizedBox(width: 8),
               Button(
                 onPressed:
                     _colorRangeApplying ? null : _cancelColorRangeEditing,
-                child: const Text('取消'),
+                child: Text(context.l10n.cancel),
               ),
               const Spacer(),
               FilledButton(
@@ -1359,7 +1417,7 @@ mixin _PaintingBoardBuildMixin
                         height: 16,
                         child: ProgressRing(strokeWidth: 2),
                       )
-                    : const Text('应用'),
+                    : Text(context.l10n.apply),
               ),
             ],
           ),
@@ -1380,7 +1438,7 @@ mixin _PaintingBoardBuildMixin
         child: WorkspaceFloatingPanel(
           width: _kAntialiasPanelWidth,
           minHeight: _kAntialiasPanelMinHeight,
-          title: '边缘柔化',
+          title: context.l10n.edgeSoftening,
           onClose: hideLayerAntialiasPanel,
           onDragUpdate: _updateAntialiasCardOffset,
           bodyPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1402,12 +1460,12 @@ mixin _PaintingBoardBuildMixin
             children: [
               Button(
                 onPressed: hideLayerAntialiasPanel,
-                child: const Text('取消'),
+                child: Text(context.l10n.cancel),
               ),
               const Spacer(),
               FilledButton(
                 onPressed: _applyAntialiasFromCard,
-                child: const Text('应用'),
+                child: Text(context.l10n.apply),
               ),
             ],
           ),
@@ -1425,6 +1483,8 @@ Widget _buildTransformedLayerOverlay({
   Widget content = RawImage(
     image: image,
     filterQuality: FilterQuality.none,
+    fit: BoxFit.none,
+    alignment: Alignment.topLeft,
     colorBlendMode: blendMode,
     color: blendMode != null ? const Color(0xFFFFFFFF) : null,
   );

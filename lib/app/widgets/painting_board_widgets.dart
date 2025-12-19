@@ -291,6 +291,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     this.shape = BrushShape.circle,
     required this.committingStrokes,
     this.antialiasLevel = 1,
+    this.hollowStrokeEnabled = false,
+    this.hollowStrokeRatio = 0.0,
     required this.activeStrokeIsEraser,
     this.eraserPreviewColor = _kVectorEraserPreviewColor,
   });
@@ -301,6 +303,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   final BrushShape shape;
   final List<PaintingDrawCommand> committingStrokes;
   final int antialiasLevel;
+  final bool hollowStrokeEnabled;
+  final double hollowStrokeRatio;
   final bool activeStrokeIsEraser;
   final Color eraserPreviewColor;
 
@@ -312,6 +316,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
       final Color commandColor = command.erase
           ? eraserPreviewColor
           : Color(command.color);
+      final bool commandHollow = (command.hollow ?? false) && !command.erase;
       VectorStrokePainter.paint(
         canvas: canvas,
         points: command.points!,
@@ -319,6 +324,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         color: commandColor,
         shape: BrushShape.values[command.shapeIndex ?? 0],
         antialiasLevel: command.antialiasLevel,
+        hollow: commandHollow,
+        hollowRatio: command.hollowRatio ?? 0.0,
       );
     }
 
@@ -327,6 +334,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
       final Color activeColor = activeStrokeIsEraser
           ? eraserPreviewColor
           : color;
+      final bool activeHollow = hollowStrokeEnabled && !activeStrokeIsEraser;
       VectorStrokePainter.paint(
         canvas: canvas,
         points: points,
@@ -334,6 +342,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         color: activeColor,
         shape: shape,
         antialiasLevel: antialiasLevel,
+        hollow: activeHollow,
+        hollowRatio: hollowStrokeRatio,
       );
     }
   }
@@ -346,6 +356,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.shape != shape ||
         oldDelegate.committingStrokes != committingStrokes ||
         oldDelegate.antialiasLevel != antialiasLevel ||
+        oldDelegate.hollowStrokeEnabled != hollowStrokeEnabled ||
+        oldDelegate.hollowStrokeRatio != hollowStrokeRatio ||
         oldDelegate.activeStrokeIsEraser != activeStrokeIsEraser ||
         oldDelegate.eraserPreviewColor != eraserPreviewColor;
   }

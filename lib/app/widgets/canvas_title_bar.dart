@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart'
         ReorderableListView;
 import 'package:window_manager/window_manager.dart';
 
+import '../l10n/l10n.dart';
 import '../workspace/canvas_workspace_controller.dart';
 
 typedef CanvasTabCallback = void Function(String id);
@@ -241,26 +242,27 @@ class _LinuxWindowControls extends StatelessWidget {
     final Color hoverColor = FluentTheme.of(
       context,
     ).resources.subtleFillColorSecondary;
+    final l10n = context.l10n;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         _WindowControlButton(
-          tooltip: '最小化',
+          tooltip: l10n.minimize,
           icon: FluentIcons.chrome_minimize,
           onPressed: _handleMinimize,
           hoverColor: hoverColor,
         ),
         const SizedBox(width: 6),
         _WindowControlButton(
-          tooltip: '最大化/还原',
+          tooltip: l10n.maximizeRestore,
           icon: FluentIcons.chrome_restore,
           onPressed: _handleToggleMaximize,
           hoverColor: hoverColor,
         ),
         const SizedBox(width: 6),
         _WindowControlButton(
-          tooltip: '关闭',
+          tooltip: l10n.close,
           icon: FluentIcons.chrome_close,
           onPressed: _handleClose,
           hoverColor: hoverColor,

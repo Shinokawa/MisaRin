@@ -1,6 +1,22 @@
 part of 'painting_board.dart';
 
 mixin _PaintingBoardColorMixin on _PaintingBoardBase {
+  List<Color>? _resolveBucketSwallowColors() {
+    if (!_bucketSwallowColorLine) {
+      return null;
+    }
+    switch (_bucketSwallowColorLineMode) {
+      case BucketSwallowColorLineMode.all:
+        return kColorLinePresets;
+      case BucketSwallowColorLineMode.red:
+        return <Color>[kColorLinePresets[0]];
+      case BucketSwallowColorLineMode.green:
+        return <Color>[kColorLinePresets[2]];
+      case BucketSwallowColorLineMode.blue:
+        return <Color>[kColorLinePresets[1]];
+    }
+  }
+
   Future<void> _pickColor({
     required String title,
     required Color initialColor,
@@ -32,7 +48,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
                       horizontal: 8,
                       vertical: 4,
                     ),
-                    child: Text(mode.label),
+                    child: Text(mode.label(context.l10n)),
                   ),
                 );
               }
@@ -108,15 +124,15 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
                   Navigator.of(context).pop();
                   onCleared();
                 },
-                child: const Text('清除填充'),
+                child: Text(context.l10n.clearFill),
               ),
             Button(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
+              child: Text(context.l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(previewColor),
-              child: const Text('确定'),
+              child: Text(context.l10n.confirm),
             ),
           ],
         );
@@ -137,8 +153,9 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       color: _primaryColor,
       contiguous: _bucketContiguous,
       sampleAllLayers: _bucketSampleAllLayers,
-      swallowColors: _bucketSwallowColorLine ? kColorLinePresets : null,
+      swallowColors: _resolveBucketSwallowColors(),
       tolerance: _bucketTolerance,
+      fillGap: _bucketFillGap,
       antialiasLevel: _bucketAntialiasLevel,
     );
     setState(() {});
@@ -227,7 +244,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
   Future<void> _handleEditPrimaryColor() async {
     await _pickColor(
-      title: '调整当前颜色',
+      title: context.l10n.adjustCurrentColor,
       initialColor: _primaryColor,
       onSelected: (color) => _setPrimaryColor(color),
     );
@@ -235,7 +252,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
 
   Future<void> _handleEditTextStrokeColor() async {
     await _pickColor(
-      title: '调整描边颜色',
+      title: context.l10n.adjustStrokeColor,
       initialColor: _colorLineColor,
       onSelected: _setTextStrokeColor,
     );
@@ -293,7 +310,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text('色线', style: theme.typography.bodyStrong),
+        Text(context.l10n.colorLine, style: theme.typography.bodyStrong),
         const SizedBox(width: 12),
         Expanded(
           child: Wrap(
@@ -532,10 +549,11 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
         ? const Color(0xFF373737)
         : const Color(0xFFD6D6D6);
     final Color background = isDark ? const Color(0xFF1B1B1F) : Colors.white;
+    final l10n = context.l10n;
     return AppNotificationAnchor(
       child: HoverDetailTooltip(
-        message: '当前颜色 ${_hexStringForColor(_primaryColor)}',
-        detail: '点击打开颜色编辑器，可输入数值或复制 HEX 色值',
+        message: '${l10n.currentColor} ${_hexStringForColor(_primaryColor)}',
+        detail: l10n.colorIndicatorDetail,
         child: _ColorIndicatorButton(
           color: _primaryColor,
           borderColor: borderColor,
@@ -872,6 +890,7 @@ class _ColorHexPreview extends StatelessWidget {
     final FluentThemeData theme = FluentTheme.of(context);
     final bool isDark = theme.brightness.isDark;
     final String hex = _hexStringForColor(color);
+    final l10n = context.l10n;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -903,7 +922,7 @@ class _ColorHexPreview extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('当前颜色', style: theme.typography.bodyStrong),
+                Text(l10n.currentColor, style: theme.typography.bodyStrong),
                 const SizedBox(height: 2),
                 Text(hex, style: theme.typography.caption),
               ],
@@ -912,7 +931,7 @@ class _ColorHexPreview extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: Tooltip(
-              message: '复制 $hex',
+              message: '${l10n.menuCopy} $hex',
               child: IconButton(
                 icon: const Icon(FluentIcons.copy),
                 onPressed: () => _copyHex(context, hex),
@@ -933,7 +952,7 @@ class _ColorHexPreview extends StatelessWidget {
     Clipboard.setData(ClipboardData(text: hex));
     AppNotifications.show(
       context,
-      message: '已复制 $hex',
+      message: context.l10n.copiedHex(hex),
       severity: InfoBarSeverity.success,
       duration: const Duration(seconds: 2),
     );
@@ -980,16 +999,16 @@ class _FluentColorPickerHost extends StatelessWidget {
 enum _ColorAdjustMode { fluentBox, fluentRing, numericSliders, boardPanel }
 
 extension _ColorAdjustModeLabel on _ColorAdjustMode {
-  String get label {
+  String label(AppLocalizations l10n) {
     switch (this) {
       case _ColorAdjustMode.fluentBox:
-        return 'HSV 方形光谱';
+        return l10n.hsvBoxSpectrum;
       case _ColorAdjustMode.fluentRing:
-        return '色相环光谱';
+        return l10n.hueRingSpectrum;
       case _ColorAdjustMode.numericSliders:
-        return 'RGB / HSV 滑块';
+        return l10n.rgbHsvSliders;
       case _ColorAdjustMode.boardPanel:
-        return '画板取色器';
+        return l10n.boardPanelPicker;
     }
   }
 }
@@ -1008,15 +1027,16 @@ class _ColorSliderEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final HSVColor hsv = HSVColor.fromColor(color);
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('RGB', style: theme.typography.bodyStrong),
+        Text(l10n.rgb, style: theme.typography.bodyStrong),
         const SizedBox(height: 4),
         _buildSliderRow(
           context,
-          label: '红',
+          label: l10n.red,
           value: color.red.toDouble(),
           min: 0,
           max: 255,
@@ -1026,7 +1046,7 @@ class _ColorSliderEditor extends StatelessWidget {
         ),
         _buildSliderRow(
           context,
-          label: '绿',
+          label: l10n.green,
           value: color.green.toDouble(),
           min: 0,
           max: 255,
@@ -1036,7 +1056,7 @@ class _ColorSliderEditor extends StatelessWidget {
         ),
         _buildSliderRow(
           context,
-          label: '蓝',
+          label: l10n.blue,
           value: color.blue.toDouble(),
           min: 0,
           max: 255,
@@ -1045,11 +1065,11 @@ class _ColorSliderEditor extends StatelessWidget {
           onChanged: (value) => onChanged(color.withBlue(value.round())),
         ),
         const SizedBox(height: 12),
-        Text('HSV', style: theme.typography.bodyStrong),
+        Text(l10n.hsv, style: theme.typography.bodyStrong),
         const SizedBox(height: 4),
         _buildSliderRow(
           context,
-          label: '色相',
+          label: l10n.hue,
           value: hsv.hue.clamp(0, 360),
           min: 0,
           max: 360,
@@ -1059,7 +1079,7 @@ class _ColorSliderEditor extends StatelessWidget {
         ),
         _buildSliderRow(
           context,
-          label: '饱和度',
+          label: l10n.saturation,
           value: hsv.saturation.clamp(0, 1),
           min: 0,
           max: 1,
@@ -1070,7 +1090,7 @@ class _ColorSliderEditor extends StatelessWidget {
         ),
         _buildSliderRow(
           context,
-          label: '明度',
+          label: l10n.value,
           value: hsv.value.clamp(0, 1),
           min: 0,
           max: 1,

@@ -353,6 +353,7 @@ Future<PaintingWorkerPatch?> _controllerExecuteFloodFill(
   Color? targetColor,
   bool contiguous = true,
   int tolerance = 0,
+  int fillGap = 0,
 }) async {
   await controller._ensureWorkerSurfaceSynced();
   await controller._ensureWorkerSelectionMaskSynced();
@@ -370,6 +371,7 @@ Future<PaintingWorkerPatch?> _controllerExecuteFloodFill(
           contiguous: contiguous,
           mask: null,
           tolerance: tolerance,
+          fillGap: fillGap,
         ),
       );
   return patch;
