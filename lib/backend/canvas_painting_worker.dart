@@ -1527,8 +1527,13 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
 
   final Uint8List fillMask = Uint8List(width * height);
   final int clampedFillGap = fillGap.clamp(0, 64);
-  int effectiveStartIndex = startIndex;
-  Uint8List? fillableMask;
+
+  int minX = width;
+  int minY = height;
+  int maxX = -1;
+  int maxY = -1;
+  bool changed = false;
+
   if (clampedFillGap > 0) {
     final Uint8List targetMask = Uint8List(width * height);
     for (int i = 0; i < pixels.length; i++) {
@@ -1542,78 +1547,309 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
     if (targetMask[startIndex] == 0) {
       return _FloodFillResult.none();
     }
-    fillableMask = _paintingWorkerOpenMask8(
-      targetMask,
+
+    final Uint8List openedTarget = _paintingWorkerOpenMask8(
+      Uint8List.fromList(targetMask),
       width,
       height,
       clampedFillGap,
     );
-    if (fillableMask[startIndex] == 0) {
-      final int? snappedStart = _paintingWorkerFindNearestFillableStartIndex(
-        startIndex: startIndex,
-        fillable: fillableMask,
-        pixels: pixels,
-        baseColor: baseColor,
-        width: width,
-        height: height,
-        tolerance: tolerance,
-        selectionMask: mask,
-        maxDepth: clampedFillGap + 1,
-      );
-      if (snappedStart == null) {
-        return _FloodFillResult.none();
-      }
-      effectiveStartIndex = snappedStart;
-    }
-  }
 
-  final List<int> stack = <int>[effectiveStartIndex];
+    void fillFromTargetMask(int seedIndex) {
+      final List<int> stack = <int>[seedIndex];
+      while (stack.isNotEmpty) {
+        final int index = stack.removeLast();
+        if (index < 0 || index >= targetMask.length) {
+          continue;
+        }
+        if (targetMask[index] == 0) {
+          continue;
+        }
+        targetMask[index] = 0;
+        fillMask[index] = 1;
 
-  int minX = width;
-  int minY = height;
-  int maxX = -1;
-  int maxY = -1;
-  bool changed = false;
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
 
-  // Phase 1: Standard Flood Fill to populate fillMask
-  while (stack.isNotEmpty) {
-    final int index = stack.removeLast();
-    if (index < 0 || index >= pixels.length) {
-      continue;
-    }
-    if (fillMask[index] == 1) {
-      continue;
-    }
-    if (clampedFillGap > 0) {
-      if (fillableMask![index] == 0) {
-        continue;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (targetMask[neighbor] == 1) {
+            stack.add(neighbor);
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (targetMask[neighbor] == 1) {
+            stack.add(neighbor);
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (targetMask[neighbor] == 1) {
+            stack.add(neighbor);
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (targetMask[neighbor] == 1) {
+            stack.add(neighbor);
+          }
+        }
       }
-      if (mask != null && mask[index] == 0) {
-        continue;
+    }
+
+    final List<int> outsideSeeds = <int>[];
+    for (int x = 0; x < width; x++) {
+      final int topIndex = x;
+      if (topIndex < openedTarget.length && openedTarget[topIndex] == 1) {
+        outsideSeeds.add(topIndex);
       }
+      final int bottomIndex = (height - 1) * width + x;
+      if (bottomIndex >= 0 &&
+          bottomIndex < openedTarget.length &&
+          openedTarget[bottomIndex] == 1) {
+        outsideSeeds.add(bottomIndex);
+      }
+    }
+    for (int y = 1; y < height - 1; y++) {
+      final int leftIndex = y * width;
+      if (leftIndex < openedTarget.length && openedTarget[leftIndex] == 1) {
+        outsideSeeds.add(leftIndex);
+      }
+      final int rightIndex = y * width + (width - 1);
+      if (rightIndex >= 0 &&
+          rightIndex < openedTarget.length &&
+          openedTarget[rightIndex] == 1) {
+        outsideSeeds.add(rightIndex);
+      }
+    }
+
+    if (outsideSeeds.isEmpty) {
+      fillFromTargetMask(startIndex);
     } else {
+      final Uint8List outsideOpen = Uint8List(openedTarget.length);
+      final List<int> outsideQueue = List<int>.from(outsideSeeds);
+      int outsideHead = 0;
+      for (final int seed in outsideSeeds) {
+        outsideOpen[seed] = 1;
+      }
+      while (outsideHead < outsideQueue.length) {
+        final int index = outsideQueue[outsideHead++];
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            outsideOpen[neighbor] = 1;
+            outsideQueue.add(neighbor);
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            outsideOpen[neighbor] = 1;
+            outsideQueue.add(neighbor);
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            outsideOpen[neighbor] = 1;
+            outsideQueue.add(neighbor);
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+            outsideOpen[neighbor] = 1;
+            outsideQueue.add(neighbor);
+          }
+        }
+      }
+
+      int effectiveStartIndex = startIndex;
+      if (openedTarget[effectiveStartIndex] == 0) {
+        final int? snappedStart = _paintingWorkerFindNearestFillableStartIndex(
+          startIndex: startIndex,
+          fillable: openedTarget,
+          pixels: pixels,
+          baseColor: baseColor,
+          width: width,
+          height: height,
+          tolerance: tolerance,
+          selectionMask: mask,
+          maxDepth: clampedFillGap + 1,
+        );
+        if (snappedStart == null) {
+          fillFromTargetMask(startIndex);
+          effectiveStartIndex = -1;
+        } else {
+          effectiveStartIndex = snappedStart;
+        }
+      }
+
+      if (effectiveStartIndex >= 0) {
+        final Uint8List seedVisited = Uint8List(openedTarget.length);
+        final List<int> seedQueue = <int>[effectiveStartIndex];
+        seedVisited[effectiveStartIndex] = 1;
+        int seedHead = 0;
+        bool touchesOutside = outsideOpen[effectiveStartIndex] == 1;
+        while (seedHead < seedQueue.length) {
+          final int index = seedQueue[seedHead++];
+          if (outsideOpen[index] == 1) {
+            touchesOutside = true;
+            break;
+          }
+          final int x = index % width;
+          final int y = index ~/ width;
+          if (x > 0) {
+            final int neighbor = index - 1;
+            if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+              seedVisited[neighbor] = 1;
+              seedQueue.add(neighbor);
+            }
+          }
+          if (x < width - 1) {
+            final int neighbor = index + 1;
+            if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+              seedVisited[neighbor] = 1;
+              seedQueue.add(neighbor);
+            }
+          }
+          if (y > 0) {
+            final int neighbor = index - width;
+            if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+              seedVisited[neighbor] = 1;
+              seedQueue.add(neighbor);
+            }
+          }
+          if (y < height - 1) {
+            final int neighbor = index + width;
+            if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+              seedVisited[neighbor] = 1;
+              seedQueue.add(neighbor);
+            }
+          }
+        }
+
+        if (touchesOutside) {
+          fillFromTargetMask(startIndex);
+        } else {
+          final List<int> queue = List<int>.from(seedQueue);
+          int head = 0;
+          for (final int index in queue) {
+            if (targetMask[index] == 1 && outsideOpen[index] == 0) {
+              targetMask[index] = 0;
+              fillMask[index] = 1;
+              final int x = index % width;
+              final int y = index ~/ width;
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+          while (head < queue.length) {
+            final int index = queue[head++];
+            final int x = index % width;
+            final int y = index ~/ width;
+            if (x > 0) {
+              final int neighbor = index - 1;
+              if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
+                targetMask[neighbor] = 0;
+                fillMask[neighbor] = 1;
+                queue.add(neighbor);
+                final int nx = neighbor % width;
+                final int ny = neighbor ~/ width;
+                if (nx < minX) minX = nx;
+                if (ny < minY) minY = ny;
+                if (nx > maxX) maxX = nx;
+                if (ny > maxY) maxY = ny;
+              }
+            }
+            if (x < width - 1) {
+              final int neighbor = index + 1;
+              if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
+                targetMask[neighbor] = 0;
+                fillMask[neighbor] = 1;
+                queue.add(neighbor);
+                final int nx = neighbor % width;
+                final int ny = neighbor ~/ width;
+                if (nx < minX) minX = nx;
+                if (ny < minY) minY = ny;
+                if (nx > maxX) maxX = nx;
+                if (ny > maxY) maxY = ny;
+              }
+            }
+            if (y > 0) {
+              final int neighbor = index - width;
+              if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
+                targetMask[neighbor] = 0;
+                fillMask[neighbor] = 1;
+                queue.add(neighbor);
+                final int nx = neighbor % width;
+                final int ny = neighbor ~/ width;
+                if (nx < minX) minX = nx;
+                if (ny < minY) minY = ny;
+                if (nx > maxX) maxX = nx;
+                if (ny > maxY) maxY = ny;
+              }
+            }
+            if (y < height - 1) {
+              final int neighbor = index + width;
+              if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
+                targetMask[neighbor] = 0;
+                fillMask[neighbor] = 1;
+                queue.add(neighbor);
+                final int nx = neighbor % width;
+                final int ny = neighbor ~/ width;
+                if (nx < minX) minX = nx;
+                if (ny < minY) minY = ny;
+                if (nx > maxX) maxX = nx;
+                if (ny > maxY) maxY = ny;
+              }
+            }
+          }
+        }
+      }
+    }
+  } else {
+    final List<int> stack = <int>[startIndex];
+    // Phase 1: Standard Flood Fill to populate fillMask
+    while (stack.isNotEmpty) {
+      final int index = stack.removeLast();
+      if (index < 0 || index >= pixels.length) {
+        continue;
+      }
+      if (fillMask[index] == 1) {
+        continue;
+      }
       if (!_colorsWithinTolerance(pixels[index], baseColor, tolerance)) {
         continue;
       }
       if (mask != null && mask[index] == 0) {
         continue;
       }
+
+      fillMask[index] = 1;
+
+      final int x = index % width;
+      final int y = index ~/ width;
+
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+
+      if (x > 0) stack.add(index - 1);
+      if (x < width - 1) stack.add(index + 1);
+      if (y > 0) stack.add(index - width);
+      if (y < height - 1) stack.add(index + width);
     }
-
-    fillMask[index] = 1;
-
-    final int x = index % width;
-    final int y = index ~/ width;
-
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-
-    if (x > 0) stack.add(index - 1);
-    if (x < width - 1) stack.add(index + 1);
-    if (y > 0) stack.add(index - width);
-    if (y < height - 1) stack.add(index + width);
   }
 
   // Phase 2: Expand mask by 1 pixel (Dilation) to cover AA edges
