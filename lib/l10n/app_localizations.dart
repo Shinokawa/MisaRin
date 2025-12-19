@@ -2039,7 +2039,7 @@ abstract class AppLocalizations {
   /// No description provided for @fillGapDesc.
   ///
   /// In en, this message translates to:
-  /// **'Adds a buffer near edges during bucket fill to prevent leaks through small gaps. Higher values close larger gaps but may leave unfilled margins.'**
+  /// **'Attempts to close small gaps in line art during bucket fill to prevent leaks. Higher values close larger gaps but may miss very thin areas.'**
   String get fillGapDesc;
 
   /// No description provided for @antialiasingSliderDesc.

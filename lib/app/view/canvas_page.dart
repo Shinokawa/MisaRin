@@ -1754,7 +1754,7 @@ class CanvasPageState extends State<CanvasPage> {
           _showInfoBar('画布尚未准备好，无法扫描纸绘。', severity: InfoBarSeverity.warning);
           return;
         }
-        unawaited(board.scanPaperDrawing());
+        board.showScanPaperDrawingAdjustments();
       },
       layerFreeTransform: () {
         final board = _activeBoard;

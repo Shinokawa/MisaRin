@@ -1057,7 +1057,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get fillGapDesc =>
-      '채우기 시 가장자리 주변에 여유를 두어 작은 틈으로 색이 새는 것을 방지합니다. 값이 클수록 더 큰 틈를 막지만, 채우지 않은 여백이 남을 수 있습니다.';
+      '채우기 시 선화의 작은 틈을 닫아 색이 새는 것을 방지합니다. 값이 클수록 더 큰 틈을 닫지만, 아주 얇은 영역은 채우지 못할 수 있습니다.';
 
   @override
   String get antialiasingSliderDesc =>

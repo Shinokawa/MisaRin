@@ -1051,7 +1051,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get fillGapDesc =>
-      '塗りつぶし時にエッジ付近へバッファを設け、小さな隙間からの漏れを防ぎます。値を上げるほど大きな隙間を塞げますが、塗り残しの余白が出ることがあります。';
+      '塗りつぶし時に線画の小さな隙間を閉じて漏れを防ぎます。値を上げるほど大きな隙間を閉じられますが、細い領域が拾われにくくなることがあります。';
 
   @override
   String get antialiasingSliderDesc =>

@@ -52,6 +52,7 @@ enum _FilterPanelType {
   brightnessContrast,
   blackWhite,
   binarize,
+  scanPaperDrawing,
   gaussianBlur,
   leakRemoval,
   lineNarrow,
@@ -215,6 +216,10 @@ mixin _PaintingBoardFilterMixin
     _openFilterPanel(_FilterPanelType.binarize);
   }
 
+  void showScanPaperDrawingAdjustments() {
+    _openFilterPanel(_FilterPanelType.scanPaperDrawing);
+  }
+
   void showGaussianBlurAdjustments() {
     _openFilterPanel(_FilterPanelType.gaussianBlur);
   }
@@ -234,6 +239,10 @@ mixin _PaintingBoardFilterMixin
   void _openFilterPanel(_FilterPanelType type) async {
     final String? activeLayerId = _activeLayerId;
     final l10n = context.l10n;
+    if (type == _FilterPanelType.scanPaperDrawing && _controller.frame == null) {
+      _showFilterMessage(l10n.canvasNotReady);
+      return;
+    }
     if (activeLayerId == null) {
       _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
@@ -252,6 +261,9 @@ mixin _PaintingBoardFilterMixin
       _showFilterMessage(l10n.textLayerNoFilter);
       return;
     }
+    if (type == _FilterPanelType.scanPaperDrawing) {
+      await _controller.waitForPendingWorkerTasks();
+    }
     final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
     final int layerIndex = snapshot.indexWhere(
       (item) => item.id == activeLayerId,
@@ -259,6 +271,21 @@ mixin _PaintingBoardFilterMixin
     if (layerIndex < 0) {
       _showFilterMessage(l10n.cannotLocateLayer);
       return;
+    }
+    if (type == _FilterPanelType.scanPaperDrawing) {
+      final CanvasLayerData data = snapshot[layerIndex];
+      final Uint8List? bitmap = data.bitmap;
+      final bool hasBitmap =
+          bitmap != null &&
+          bitmap.isNotEmpty &&
+          (data.bitmapWidth ?? 0) > 0 &&
+          (data.bitmapHeight ?? 0) > 0;
+      final bool hasFill =
+          data.fillColor != null && data.fillColor!.alpha != 0;
+      if (!hasBitmap && !hasFill) {
+        _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
+        return;
+      }
     }
     _removeFilterOverlay(restoreOriginal: false);
 
@@ -293,7 +320,9 @@ mixin _PaintingBoardFilterMixin
     }
 
     // Initialize worker but don't use it for preview during drag
-    _initializeFilterWorker();
+    if (type != _FilterPanelType.scanPaperDrawing) {
+      _initializeFilterWorker();
+    }
 
     // Generate GPU preview images
     setState(() => _filterLoading = true);
@@ -341,7 +370,8 @@ mixin _PaintingBoardFilterMixin
     _previewBlackWhiteUpdateInFlight = false;
     if (session.type == _FilterPanelType.hueSaturation) {
       _scheduleHueSaturationPreviewImageUpdate();
-    } else if (session.type == _FilterPanelType.blackWhite) {
+    } else if (session.type == _FilterPanelType.blackWhite ||
+        session.type == _FilterPanelType.scanPaperDrawing) {
       _scheduleBlackWhitePreviewImageUpdate();
     }
   }
@@ -456,7 +486,9 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _scheduleBlackWhitePreviewImageUpdate() {
-    if (_filterSession?.type != _FilterPanelType.blackWhite) {
+    final _FilterPanelType? type = _filterSession?.type;
+    if (type != _FilterPanelType.blackWhite &&
+        type != _FilterPanelType.scanPaperDrawing) {
       return;
     }
     if (_previewActiveLayerPixels == null || _previewActiveLayerImage == null) {
@@ -479,7 +511,8 @@ mixin _PaintingBoardFilterMixin
       final ui.Image? baseImage = _previewActiveLayerImage;
       final Uint8List? source = _previewActiveLayerPixels;
       if (session == null ||
-          session.type != _FilterPanelType.blackWhite ||
+          (session.type != _FilterPanelType.blackWhite &&
+              session.type != _FilterPanelType.scanPaperDrawing) ||
           baseImage == null ||
           source == null) {
         break;
@@ -494,9 +527,15 @@ mixin _PaintingBoardFilterMixin
       ];
       Uint8List processed;
       try {
-        processed = await _generateBlackWhitePreviewBytes(args);
+        processed = session.type == _FilterPanelType.scanPaperDrawing
+            ? await _generateScanPaperDrawingPreviewBytes(args)
+            : await _generateBlackWhitePreviewBytes(args);
       } catch (error) {
-        debugPrint('Failed to compute black & white preview: $error');
+        debugPrint(
+          session.type == _FilterPanelType.scanPaperDrawing
+              ? 'Failed to compute scan paper drawing preview: $error'
+              : 'Failed to compute black & white preview: $error',
+        );
         break;
       }
       if (!mounted || token != _previewBlackWhiteUpdateToken) {
@@ -514,7 +553,7 @@ mixin _PaintingBoardFilterMixin
       setState(() {
         _previewFilteredActiveLayerImage?.dispose();
         _previewFilteredActiveLayerImage = image;
-        _previewFilteredImageType = _FilterPanelType.blackWhite;
+        _previewFilteredImageType = session.type;
       });
     }
     _previewBlackWhiteUpdateInFlight = false;
@@ -625,6 +664,17 @@ mixin _PaintingBoardFilterMixin
               onThresholdChanged: _updateBinarizeThreshold,
             );
             break;
+          case _FilterPanelType.scanPaperDrawing:
+            panelTitle = l10n.menuScanPaperDrawing;
+            panelBody = _BlackWhiteControls(
+              settings: session.blackWhite,
+              onBlackPointChanged: (value) =>
+                  _updateBlackWhite(blackPoint: value),
+              onWhitePointChanged: (value) =>
+                  _updateBlackWhite(whitePoint: value),
+              onMidToneChanged: (value) => _updateBlackWhite(midTone: value),
+            );
+            break;
           case _FilterPanelType.gaussianBlur:
             panelTitle = l10n.gaussianBlur;
             panelBody = _GaussianBlurControls(
@@ -705,14 +755,22 @@ mixin _PaintingBoardFilterMixin
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: _filterApplying ? null : _confirmFilterChanges,
+                  onPressed: _filterApplying
+                      ? null
+                      : (session.type == _FilterPanelType.scanPaperDrawing
+                            ? _confirmScanPaperDrawingChanges
+                            : _confirmFilterChanges),
                   child: _filterApplying
                       ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: ProgressRing(strokeWidth: 2),
                         )
-                      : Text(l10n.apply),
+                      : Text(
+                          session.type == _FilterPanelType.scanPaperDrawing
+                              ? l10n.menuScanPaperDrawing
+                              : l10n.apply,
+                        ),
                 ),
               ],
             ),
@@ -991,6 +1049,98 @@ mixin _PaintingBoardFilterMixin
     await _finalizeFilterApply(session, result);
   }
 
+  Future<void> _confirmScanPaperDrawingChanges() async {
+    final _FilterSession? session = _filterSession;
+    if (session == null || session.type != _FilterPanelType.scanPaperDrawing) {
+      return;
+    }
+
+    final l10n = context.l10n;
+    final CanvasLayerData data =
+        session.originalLayers[session.activeLayerIndex];
+    final Uint8List? bitmap = data.bitmap;
+    final bool hasBitmap =
+        bitmap != null &&
+        bitmap.isNotEmpty &&
+        (data.bitmapWidth ?? 0) > 0 &&
+        (data.bitmapHeight ?? 0) > 0;
+    final bool hasFill = data.fillColor != null && data.fillColor!.alpha != 0;
+    if (!hasBitmap && !hasFill) {
+      _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
+      _removeFilterOverlay();
+      return;
+    }
+
+    setState(() {
+      _filterApplying = true;
+    });
+    _filterOverlayEntry?.markNeedsBuild();
+
+    final _ScanPaperDrawingComputeResult result;
+    try {
+      result = await _generateScanPaperDrawingResult(
+        bitmap,
+        data.fillColor,
+        blackPoint: session.blackWhite.blackPoint,
+        whitePoint: session.blackWhite.whitePoint,
+        midTone: session.blackWhite.midTone,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Scan paper drawing apply failed: $error');
+      debugPrint('$stackTrace');
+      if (!mounted || _filterSession != session) {
+        return;
+      }
+      setState(() {
+        _filterApplying = false;
+      });
+      _filterOverlayEntry?.markNeedsBuild();
+      _showFilterMessage(l10n.filterApplyFailed);
+      return;
+    }
+
+    if (!result.changed) {
+      if (!mounted || _filterSession != session) {
+        return;
+      }
+      setState(() {
+        _filterApplying = false;
+      });
+      _filterOverlayEntry?.markNeedsBuild();
+      _showFilterMessage(l10n.scanPaperDrawingNoChanges);
+      return;
+    }
+
+    if (!mounted || _filterSession != session) {
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    final int? awaitedGeneration = _controller.frame?.generation;
+    final CanvasLayerData updated = CanvasLayerData(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      opacity: data.opacity,
+      locked: data.locked,
+      clippingMask: data.clippingMask,
+      blendMode: data.blendMode,
+      fillColor: result.fillColor != null ? Color(result.fillColor!) : null,
+      bitmap: result.bitmap,
+      bitmapWidth: result.bitmap != null ? data.bitmapWidth : null,
+      bitmapHeight: result.bitmap != null ? data.bitmapHeight : null,
+      bitmapLeft: result.bitmap != null ? data.bitmapLeft : null,
+      bitmapTop: result.bitmap != null ? data.bitmapTop : null,
+      text: data.text,
+      cloneBitmap: false,
+    );
+    _controller.replaceLayer(session.activeLayerId, updated);
+    _controller.setActiveLayer(session.activeLayerId);
+    _markDirty();
+    setState(() {});
+    _scheduleFilterOverlayRemovalAfterApply(awaitedGeneration);
+  }
+
   Future<void> _finalizeFilterApply(
     _FilterSession session,
     _FilterPreviewResult result,
@@ -1051,6 +1201,15 @@ mixin _PaintingBoardFilterMixin
         final _BrightnessContrastSettings settings = session.brightnessContrast;
         return settings.brightness == 0 && settings.contrast == 0;
       case _FilterPanelType.blackWhite:
+        final CanvasLayerData layer =
+            session.originalLayers[session.activeLayerIndex];
+        final bool hasBitmap =
+            layer.bitmap != null &&
+            (layer.bitmapWidth ?? 0) > 0 &&
+            (layer.bitmapHeight ?? 0) > 0;
+        final bool hasFill = layer.fillColor != null;
+        return !hasBitmap && !hasFill;
+      case _FilterPanelType.scanPaperDrawing:
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
         final bool hasBitmap =
@@ -2638,6 +2797,9 @@ class _FilterPreviewWorker {
       case _FilterPanelType.blackWhite:
         filterType = _kFilterTypeBlackWhite;
         break;
+      case _FilterPanelType.scanPaperDrawing:
+        filterType = _kFilterTypeBlackWhite;
+        break;
       case _FilterPanelType.binarize:
         filterType = _kFilterTypeBinarize;
         break;
@@ -3685,6 +3847,76 @@ Uint8List _computeBlackWhitePreviewPixels(List<Object?> args) {
   return pixels;
 }
 
+Future<Uint8List> _generateScanPaperDrawingPreviewBytes(
+  List<Object?> args,
+) async {
+  if (kIsWeb) {
+    return _computeScanPaperDrawingPreviewPixels(args);
+  }
+  try {
+    return await compute<List<Object?>, Uint8List>(
+      _computeScanPaperDrawingPreviewPixels,
+      args,
+    );
+  } on UnsupportedError catch (_) {
+    return _computeScanPaperDrawingPreviewPixels(args);
+  }
+}
+
+Uint8List _computeScanPaperDrawingPreviewPixels(List<Object?> args) {
+  final Uint8List source = args[0] as Uint8List;
+  final double blackPoint = (args[1] as num).toDouble();
+  final double whitePoint = (args[2] as num).toDouble();
+  final double midTone = (args[3] as num).toDouble();
+  final bool toneMappingEnabled =
+      blackPoint.abs() > 1e-6 ||
+      (whitePoint - 100.0).abs() > 1e-6 ||
+      midTone.abs() > 1e-6;
+
+  final double blackNorm = blackPoint.clamp(0.0, 100.0) / 100.0;
+  final double whiteNorm = whitePoint.clamp(0.0, 100.0) / 100.0;
+  final double safeWhite = math.max(
+    blackNorm + (_kBlackWhiteMinRange / 100.0),
+    whiteNorm,
+  );
+  final double invRange = 1.0 / math.max(0.0001, safeWhite - blackNorm);
+  final double gamma = math.pow(2.0, midTone.clamp(-100.0, 100.0) / 100.0)
+      .toDouble();
+
+  final Uint8List pixels = Uint8List.fromList(source);
+  for (int i = 0; i + 3 < pixels.length; i += 4) {
+    final int alpha = pixels[i + 3];
+    if (alpha == 0) {
+      continue;
+    }
+    final int r = pixels[i];
+    final int g = pixels[i + 1];
+    final int b = pixels[i + 2];
+    final int mapped = toneMappingEnabled
+        ? _scanPaperDrawingMapRgbToArgbWithToneMapping(
+            r,
+            g,
+            b,
+            black: blackNorm,
+            invRange: invRange,
+            gamma: gamma,
+          )
+        : _scanPaperDrawingMapRgbToArgb(r, g, b);
+    if (mapped == 0) {
+      pixels[i] = 0;
+      pixels[i + 1] = 0;
+      pixels[i + 2] = 0;
+      pixels[i + 3] = 0;
+      continue;
+    }
+    pixels[i] = (mapped >> 16) & 0xFF;
+    pixels[i + 1] = (mapped >> 8) & 0xFF;
+    pixels[i + 2] = mapped & 0xFF;
+    pixels[i + 3] = 255;
+  }
+  return pixels;
+}
+
 void _filterApplyHueSaturationToBitmap(
   Uint8List bitmap,
   double hueDelta,
@@ -3903,9 +4135,18 @@ bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
 
 Future<_ScanPaperDrawingComputeResult> _generateScanPaperDrawingResult(
   Uint8List? bitmap,
-  Color? fillColor,
-) async {
-  final List<Object?> args = <Object?>[bitmap, fillColor?.value];
+  Color? fillColor, {
+  double blackPoint = 0,
+  double whitePoint = 100,
+  double midTone = 0,
+}) async {
+  final List<Object?> args = <Object?>[
+    bitmap,
+    fillColor?.value,
+    blackPoint,
+    whitePoint,
+    midTone,
+  ];
   if (kIsWeb) {
     return _computeScanPaperDrawing(args);
   }
@@ -3956,9 +4197,84 @@ int _scanPaperDrawingMapRgbToArgb(int r, int g, int b) {
   return 0;
 }
 
+int _scanPaperDrawingMapRgbToArgbWithToneMapping(
+  int r,
+  int g,
+  int b, {
+  required double black,
+  required double invRange,
+  required double gamma,
+}) {
+  final int maxChannel = math.max(r, math.max(g, b));
+  final int minChannel = math.min(r, math.min(g, b));
+  final int delta = maxChannel - minChannel;
+
+  final double luminance = (r * 0.299 + g * 0.587 + b * 0.114) / 255.0;
+  double normalized = ((luminance - black) * invRange).clamp(0.0, 1.0);
+  normalized = math.pow(normalized, gamma).clamp(0.0, 1.0).toDouble();
+  final int gray = (normalized * 255.0).round().clamp(0, 255).toInt();
+  if (gray >= _kScanPaperWhiteMaxThreshold &&
+      delta <= _kScanPaperWhiteDeltaThreshold) {
+    return 0;
+  }
+
+  final int r2 = r * r;
+  final int g2 = g * g;
+  final int b2 = b * b;
+  final int dr = 255 - r;
+  final int dg = 255 - g;
+  final int db = 255 - b;
+
+  final int distRed = dr * dr + g2 + b2;
+  final int distGreen = r2 + dg * dg + b2;
+  final int distBlue = r2 + g2 + db * db;
+  int minDist = distRed;
+  int mapped = 0xFFFF0000;
+  if (distGreen < minDist) {
+    minDist = distGreen;
+    mapped = 0xFF00FF00;
+  }
+  if (distBlue < minDist) {
+    minDist = distBlue;
+    mapped = 0xFF0000FF;
+  }
+  if (minDist <= _kScanPaperColorDistanceThresholdSq) {
+    return mapped;
+  }
+
+  final int distBlack = r2 + g2 + b2;
+  if (distBlack <= _kScanPaperBlackDistanceThresholdSq) {
+    return 0xFF000000;
+  }
+  return 0;
+}
+
 _ScanPaperDrawingComputeResult _computeScanPaperDrawing(List<Object?> args) {
   final Uint8List? bitmap = args[0] as Uint8List?;
   final int? fillColor = args[1] as int?;
+  final double blackPoint = (args.length > 2 && args[2] is num)
+      ? (args[2] as num).toDouble()
+      : 0.0;
+  final double whitePoint = (args.length > 3 && args[3] is num)
+      ? (args[3] as num).toDouble()
+      : 100.0;
+  final double midTone = (args.length > 4 && args[4] is num)
+      ? (args[4] as num).toDouble()
+      : 0.0;
+  final bool toneMappingEnabled =
+      blackPoint.abs() > 1e-6 ||
+      (whitePoint - 100.0).abs() > 1e-6 ||
+      midTone.abs() > 1e-6;
+
+  final double blackNorm = blackPoint.clamp(0.0, 100.0) / 100.0;
+  final double whiteNorm = whitePoint.clamp(0.0, 100.0) / 100.0;
+  final double safeWhite = math.max(
+    blackNorm + (_kBlackWhiteMinRange / 100.0),
+    whiteNorm,
+  );
+  final double invRange = 1.0 / math.max(0.0001, safeWhite - blackNorm);
+  final double gamma = math.pow(2.0, midTone.clamp(-100.0, 100.0) / 100.0)
+      .toDouble();
 
   Uint8List? processed = bitmap != null ? Uint8List.fromList(bitmap) : null;
   bool changed = false;
@@ -3974,7 +4290,16 @@ _ScanPaperDrawingComputeResult _computeScanPaperDrawing(List<Object?> args) {
       final int r = processed[i];
       final int g = processed[i + 1];
       final int b = processed[i + 2];
-      final int mapped = _scanPaperDrawingMapRgbToArgb(r, g, b);
+      final int mapped = toneMappingEnabled
+          ? _scanPaperDrawingMapRgbToArgbWithToneMapping(
+              r,
+              g,
+              b,
+              black: blackNorm,
+              invRange: invRange,
+              gamma: gamma,
+            )
+          : _scanPaperDrawingMapRgbToArgb(r, g, b);
       if (mapped == 0) {
         if (alpha != 0) {
           changed = true;
@@ -4011,7 +4336,16 @@ _ScanPaperDrawingComputeResult _computeScanPaperDrawing(List<Object?> args) {
       final int r = (fillColor >> 16) & 0xFF;
       final int g = (fillColor >> 8) & 0xFF;
       final int b = fillColor & 0xFF;
-      final int mapped = _scanPaperDrawingMapRgbToArgb(r, g, b);
+      final int mapped = toneMappingEnabled
+          ? _scanPaperDrawingMapRgbToArgbWithToneMapping(
+              r,
+              g,
+              b,
+              black: blackNorm,
+              invRange: invRange,
+              gamma: gamma,
+            )
+          : _scanPaperDrawingMapRgbToArgb(r, g, b);
       if (mapped == 0) {
         processedFill = null;
         changed = true;

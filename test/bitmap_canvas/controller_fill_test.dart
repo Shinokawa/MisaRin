@@ -96,4 +96,99 @@ void main() {
     expect(safeLayer.surface.pixelAt(0, 0), const Color(0x00000000));
     expect(safeLayer.surface.pixelAt(3, 3), const Color(0xFFFF0000));
   });
+
+  test('bucket fill fillGap does not create an inner margin', () async {
+    BitmapLayerState buildClosedBoxLayer(BitmapCanvasController controller) {
+      final BitmapLayerState layer = controller.layers.last;
+      controller.setActiveLayer(layer.id);
+      final Uint32List pixels = layer.surface.pixels;
+      const int w = 11;
+      const int h = 11;
+      const int left = 2;
+      const int right = 8;
+      const int top = 2;
+      const int bottom = 8;
+      final int black = BitmapSurface.encodeColor(const Color(0xFF000000));
+      for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+          final bool isBorder =
+              (x == left || x == right) && y >= top && y <= bottom ||
+              (y == top || y == bottom) && x >= left && x <= right;
+          if (!isBorder) {
+            continue;
+          }
+          pixels[y * w + x] = black;
+        }
+      }
+      layer.surface.markDirty();
+      layer.revision += 1;
+      return layer;
+    }
+
+    final BitmapCanvasController controller = BitmapCanvasController(
+      width: 11,
+      height: 11,
+      backgroundColor: Colors.white,
+      creationLogic: CanvasCreationLogic.singleThread,
+    );
+    final BitmapLayerState layer = buildClosedBoxLayer(controller);
+    controller.floodFill(
+      const Offset(5, 5),
+      color: const Color(0xFFFF0000),
+      contiguous: true,
+      fillGap: 2,
+    );
+    await controller.waitForPendingWorkerTasks();
+    expect(layer.surface.pixelAt(0, 0), const Color(0x00000000));
+    expect(layer.surface.pixelAt(3, 3), const Color(0xFFFF0000));
+    expect(layer.surface.pixelAt(2, 2), const Color(0xFF000000));
+  });
+
+  test('bucket fill fillGap does not create margin with mask fill', () async {
+    BitmapLayerState buildClosedBoxLayer(BitmapCanvasController controller) {
+      final BitmapLayerState layer = controller.layers.last;
+      controller.setActiveLayer(layer.id);
+      final Uint32List pixels = layer.surface.pixels;
+      const int w = 11;
+      const int h = 11;
+      const int left = 2;
+      const int right = 8;
+      const int top = 2;
+      const int bottom = 8;
+      final int black = BitmapSurface.encodeColor(const Color(0xFF000000));
+      for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+          final bool isBorder =
+              (x == left || x == right) && y >= top && y <= bottom ||
+              (y == top || y == bottom) && x >= left && x <= right;
+          if (!isBorder) {
+            continue;
+          }
+          pixels[y * w + x] = black;
+        }
+      }
+      layer.surface.markDirty();
+      layer.revision += 1;
+      return layer;
+    }
+
+    final BitmapCanvasController controller = BitmapCanvasController(
+      width: 11,
+      height: 11,
+      backgroundColor: Colors.white,
+      creationLogic: CanvasCreationLogic.singleThread,
+    );
+    final BitmapLayerState layer = buildClosedBoxLayer(controller);
+    controller.floodFill(
+      const Offset(5, 5),
+      color: const Color(0xFFFF0000),
+      contiguous: true,
+      fillGap: 2,
+      swallowColors: const <Color>[Color(0xFF00FF00)],
+    );
+    await controller.waitForPendingWorkerTasks();
+    expect(layer.surface.pixelAt(0, 0), const Color(0x00000000));
+    expect(layer.surface.pixelAt(3, 3), const Color(0xFFFF0000));
+    expect(layer.surface.pixelAt(2, 2), const Color(0xFF000000));
+  });
 }

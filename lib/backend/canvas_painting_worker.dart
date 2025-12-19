@@ -1527,11 +1527,10 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
 
   final Uint8List fillMask = Uint8List(width * height);
   final int clampedFillGap = fillGap.clamp(0, 64);
-  Uint8List? targetMask;
-  Uint8List? blockedMask;
   int effectiveStartIndex = startIndex;
+  Uint8List? fillableMask;
   if (clampedFillGap > 0) {
-    targetMask = Uint8List(width * height);
+    final Uint8List targetMask = Uint8List(width * height);
     for (int i = 0; i < pixels.length; i++) {
       if (mask != null && mask[i] == 0) {
         continue;
@@ -1543,24 +1542,29 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
     if (targetMask[startIndex] == 0) {
       return _FloodFillResult.none();
     }
-    blockedMask = _paintingWorkerBuildFillGapMask(
+    fillableMask = _paintingWorkerOpenMask8(
       targetMask,
       width,
       height,
       clampedFillGap,
     );
-    final int? snappedStart = _paintingWorkerFindFillGapStartIndex(
-      startIndex,
-      targetMask,
-      blockedMask,
-      width,
-      height,
-      clampedFillGap,
-    );
-    if (snappedStart == null) {
-      return _FloodFillResult.none();
+    if (fillableMask[startIndex] == 0) {
+      final int? snappedStart = _paintingWorkerFindNearestFillableStartIndex(
+        startIndex: startIndex,
+        fillable: fillableMask,
+        pixels: pixels,
+        baseColor: baseColor,
+        width: width,
+        height: height,
+        tolerance: tolerance,
+        selectionMask: mask,
+        maxDepth: clampedFillGap + 1,
+      );
+      if (snappedStart == null) {
+        return _FloodFillResult.none();
+      }
+      effectiveStartIndex = snappedStart;
     }
-    effectiveStartIndex = snappedStart;
   }
 
   final List<int> stack = <int>[effectiveStartIndex];
@@ -1581,7 +1585,10 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
       continue;
     }
     if (clampedFillGap > 0) {
-      if (targetMask![index] == 0 || blockedMask![index] == 1) {
+      if (fillableMask![index] == 0) {
+        continue;
+      }
+      if (mask != null && mask[index] == 0) {
         continue;
       }
     } else {
@@ -1612,7 +1619,10 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
   // Phase 2: Expand mask by 1 pixel (Dilation) to cover AA edges
   // We iterate over the bounding box of the fill (expanded by 1px)
   // Only perform expansion if tolerance > 0. Precise fill (tolerance 0) should not expand.
-  if (tolerance > 0) {
+  //
+  // When fillGap is enabled we avoid this extra expansion to prevent bleeding
+  // into line art now that the fill no longer keeps an inner safety margin.
+  if (tolerance > 0 && clampedFillGap <= 0) {
     final int expandMinX = math.max(0, minX - 1);
     final int expandMaxX = math.min(width - 1, maxX + 1);
     final int expandMinY = math.max(0, minY - 1);
@@ -1629,9 +1639,6 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
         }
         if (mask != null && mask[index] == 0) {
           continue; // Respect selection mask
-        }
-        if (blockedMask != null && blockedMask[index] == 1) {
-          continue; // Respect fill gap mask
         }
 
         // Check neighbors for a filled pixel
@@ -1688,106 +1695,113 @@ _FloodFillResult _paintingWorkerFloodFillContiguous({
   );
 }
 
-Uint8List _paintingWorkerBuildFillGapMask(
-  Uint8List targetMask,
+Uint8List _paintingWorkerOpenMask8(
+  Uint8List mask,
   int width,
   int height,
-  int fillGap,
+  int radius,
 ) {
-  if (fillGap <= 0 || targetMask.isEmpty) {
-    return Uint8List(targetMask.length);
+  if (mask.isEmpty || width <= 0 || height <= 0 || radius <= 0) {
+    return mask;
   }
 
-  final Uint8List blocked = Uint8List(targetMask.length);
+  final Uint8List buffer = Uint8List(mask.length);
   final List<int> queue = <int>[];
 
-  for (int y = 0; y < height; y++) {
-    final int rowOffset = y * width;
-    for (int x = 0; x < width; x++) {
-      final int index = rowOffset + x;
-      if (index < 0 || index >= targetMask.length) {
-        break;
-      }
-      if (targetMask[index] == 0) {
+  void dilateFromMaskValue(Uint8List source, Uint8List out, int seedValue) {
+    queue.clear();
+    out.fillRange(0, out.length, 0);
+    for (int i = 0; i < source.length; i++) {
+      if (source[i] != seedValue) {
         continue;
       }
-      bool isBoundary = false;
-      if (x > 0 && targetMask[index - 1] == 0) {
-        isBoundary = true;
-      } else if (x < width - 1 && targetMask[index + 1] == 0) {
-        isBoundary = true;
-      } else if (y > 0 && targetMask[index - width] == 0) {
-        isBoundary = true;
-      } else if (y < height - 1 && targetMask[index + width] == 0) {
-        isBoundary = true;
+      out[i] = 1;
+      queue.add(i);
+    }
+    if (queue.isEmpty) {
+      return;
+    }
+
+    int head = 0;
+    final int lastRowStart = (height - 1) * width;
+    for (int step = 0; step < radius; step++) {
+      final int levelEnd = queue.length;
+      while (head < levelEnd) {
+        final int index = queue[head++];
+        final int x = index % width;
+        final bool hasLeft = x > 0;
+        final bool hasRight = x < width - 1;
+        final bool hasUp = index >= width;
+        final bool hasDown = index < lastRowStart;
+
+        void tryAdd(int neighbor) {
+          if (neighbor < 0 || neighbor >= out.length) {
+            return;
+          }
+          if (out[neighbor] != 0) {
+            return;
+          }
+          out[neighbor] = 1;
+          queue.add(neighbor);
+        }
+
+        if (hasLeft) {
+          tryAdd(index - 1);
+        }
+        if (hasRight) {
+          tryAdd(index + 1);
+        }
+        if (hasUp) {
+          tryAdd(index - width);
+          if (hasLeft) {
+            tryAdd(index - width - 1);
+          }
+          if (hasRight) {
+            tryAdd(index - width + 1);
+          }
+        }
+        if (hasDown) {
+          tryAdd(index + width);
+          if (hasLeft) {
+            tryAdd(index + width - 1);
+          }
+          if (hasRight) {
+            tryAdd(index + width + 1);
+          }
+        }
       }
-      if (!isBoundary) {
-        continue;
-      }
-      blocked[index] = 1;
-      queue.add(index);
     }
   }
 
-  int head = 0;
-  for (int step = 1; step < fillGap; step++) {
-    final int levelEnd = queue.length;
-    while (head < levelEnd) {
-      final int index = queue[head++];
-      final int x = index % width;
-      final int y = index ~/ width;
-      if (x > 0) {
-        final int neighbor = index - 1;
-        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
-          blocked[neighbor] = 1;
-          queue.add(neighbor);
-        }
-      }
-      if (x < width - 1) {
-        final int neighbor = index + 1;
-        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
-          blocked[neighbor] = 1;
-          queue.add(neighbor);
-        }
-      }
-      if (y > 0) {
-        final int neighbor = index - width;
-        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
-          blocked[neighbor] = 1;
-          queue.add(neighbor);
-        }
-      }
-      if (y < height - 1) {
-        final int neighbor = index + width;
-        if (targetMask[neighbor] == 1 && blocked[neighbor] == 0) {
-          blocked[neighbor] = 1;
-          queue.add(neighbor);
-        }
-      }
-    }
+  // Phase 1 (Erosion): erode by dilating the inverse and then inverting.
+  dilateFromMaskValue(mask, buffer, 0);
+  for (int i = 0; i < mask.length; i++) {
+    mask[i] = buffer[i] == 0 ? 1 : 0;
   }
 
-  return blocked;
+  // Phase 2 (Dilation): dilate eroded mask.
+  dilateFromMaskValue(mask, buffer, 1);
+  return buffer;
 }
 
-int? _paintingWorkerFindFillGapStartIndex(
-  int startIndex,
-  Uint8List targetMask,
-  Uint8List blocked,
-  int width,
-  int height,
-  int fillGap,
-) {
-  if (startIndex < 0 ||
-      startIndex >= targetMask.length ||
-      targetMask[startIndex] == 0) {
+int? _paintingWorkerFindNearestFillableStartIndex({
+  required int startIndex,
+  required Uint8List fillable,
+  required Uint32List pixels,
+  required int baseColor,
+  required int width,
+  required int height,
+  required int tolerance,
+  required Uint8List? selectionMask,
+  required int maxDepth,
+}) {
+  if (startIndex < 0 || startIndex >= fillable.length) {
     return null;
   }
-  if (blocked[startIndex] == 0) {
+  if (fillable[startIndex] == 1) {
     return startIndex;
   }
 
-  final int maxDepth = fillGap + 1;
   final Set<int> visited = <int>{startIndex};
   final List<int> queue = <int>[startIndex];
   int head = 0;
@@ -1796,35 +1810,34 @@ int? _paintingWorkerFindFillGapStartIndex(
     final int levelEnd = queue.length;
     while (head < levelEnd) {
       final int index = queue[head++];
-      if (blocked[index] == 0) {
+      if (fillable[index] == 1) {
         return index;
       }
+
       final int x = index % width;
       final int y = index ~/ width;
-      if (x > 0) {
-        final int neighbor = index - 1;
-        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
-          queue.add(neighbor);
+
+      void tryNeighbor(int nx, int ny) {
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+          return;
         }
-      }
-      if (x < width - 1) {
-        final int neighbor = index + 1;
-        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
-          queue.add(neighbor);
+        final int neighbor = ny * width + nx;
+        if (!visited.add(neighbor)) {
+          return;
         }
-      }
-      if (y > 0) {
-        final int neighbor = index - width;
-        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
-          queue.add(neighbor);
+        if (selectionMask != null && selectionMask[neighbor] == 0) {
+          return;
         }
-      }
-      if (y < height - 1) {
-        final int neighbor = index + width;
-        if (targetMask[neighbor] == 1 && visited.add(neighbor)) {
-          queue.add(neighbor);
+        if (!_colorsWithinTolerance(pixels[neighbor], baseColor, tolerance)) {
+          return;
         }
+        queue.add(neighbor);
       }
+
+      tryNeighbor(x - 1, y);
+      tryNeighbor(x + 1, y);
+      tryNeighbor(x, y - 1);
+      tryNeighbor(x, y + 1);
     }
     if (head >= queue.length) {
       break;

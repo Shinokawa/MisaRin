@@ -1044,7 +1044,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get fillGapDesc =>
-      '在油漆桶填充时为边缘预留间隔，防止通过小缺口漏色；数值越大越能封住更大的缺口，但可能留下未填充的边缘。';
+      '在油漆桶填充时尝试闭合线条的细小缺口，防止漏色；数值越大越能闭合更大的缺口，但可能吃掉较细的狭窄区域。';
 
   @override
   String get antialiasingSliderDesc =>
