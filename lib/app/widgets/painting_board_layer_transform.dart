@@ -310,6 +310,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   double _layerTransformInitialScaleY = 1.0;
   Matrix4? _layerTransformPointerStartInverse;
   Offset? _layerTransformHandleAnchorLocal;
+  Offset? _layerTransformHandleFixedLocal;
+  Offset? _layerTransformHandleFixedBoard;
   Offset _layerTransformPanelOffset = Offset.zero;
   Size _layerTransformPanelSize = const Size(
     _kLayerTransformPanelWidth,
@@ -329,6 +331,32 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformCursorHandle != null;
 
   bool get _shouldHideCursorForLayerTransform => _layerTransformCursorVisible;
+
+  _LayerTransformHandle? _layerTransformOppositeHandle(
+    _LayerTransformHandle handle,
+  ) {
+    switch (handle) {
+      case _LayerTransformHandle.topLeft:
+        return _LayerTransformHandle.bottomRight;
+      case _LayerTransformHandle.top:
+        return _LayerTransformHandle.bottom;
+      case _LayerTransformHandle.topRight:
+        return _LayerTransformHandle.bottomLeft;
+      case _LayerTransformHandle.right:
+        return _LayerTransformHandle.left;
+      case _LayerTransformHandle.bottomRight:
+        return _LayerTransformHandle.topLeft;
+      case _LayerTransformHandle.bottom:
+        return _LayerTransformHandle.top;
+      case _LayerTransformHandle.bottomLeft:
+        return _LayerTransformHandle.topRight;
+      case _LayerTransformHandle.left:
+        return _LayerTransformHandle.right;
+      case _LayerTransformHandle.translate:
+      case _LayerTransformHandle.rotation:
+        return null;
+    }
+  }
 
   void toggleLayerFreeTransform() {
     if (_layerTransformModeActive) {
@@ -430,6 +458,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformInitialScaleY = 1.0;
       _layerTransformPointerStartInverse = null;
       _layerTransformHandleAnchorLocal = null;
+      _layerTransformHandleFixedLocal = null;
+      _layerTransformHandleFixedBoard = null;
       _layerTransformApplying = false;
       _layerTransformRevision = 0;
       _layerTransformCursorWorkspacePosition = null;
@@ -459,6 +489,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformApplying = false;
       _layerTransformPointerStartInverse = null;
       _layerTransformHandleAnchorLocal = null;
+      _layerTransformHandleFixedLocal = null;
+      _layerTransformHandleFixedBoard = null;
       _layerTransformRevision = 0;
       _layerTransformCursorWorkspacePosition = null;
       _layerTransformCursorHandle = null;
@@ -510,6 +542,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         _layerTransformApplying = false;
         _layerTransformPointerStartInverse = null;
         _layerTransformHandleAnchorLocal = null;
+        _layerTransformHandleFixedLocal = null;
+        _layerTransformHandleFixedBoard = null;
         _layerTransformRevision = 0;
         _layerTransformCursorWorkspacePosition = null;
         _layerTransformCursorHandle = null;
@@ -690,6 +724,17 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     _layerTransformInitialScaleY = state.scaleY;
     _layerTransformPointerStartInverse = inverse;
     _layerTransformHandleAnchorLocal = state.localHandlePosition(handle);
+    final _LayerTransformHandle? fixedHandle = _layerTransformOppositeHandle(
+      handle,
+    );
+    if (fixedHandle == null) {
+      _layerTransformHandleFixedLocal = null;
+      _layerTransformHandleFixedBoard = null;
+    } else {
+      final Offset fixedLocal = state.localHandlePosition(fixedHandle);
+      _layerTransformHandleFixedLocal = fixedLocal;
+      _layerTransformHandleFixedBoard = state.transformPoint(fixedLocal);
+    }
     _updateLayerTransformCursor(boardLocal, handle);
   }
 
@@ -747,7 +792,12 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       default:
         final Matrix4? inverse = _layerTransformPointerStartInverse;
         final Offset? anchorLocal = _layerTransformHandleAnchorLocal;
-        if (inverse == null || anchorLocal == null) {
+        final Offset? fixedLocal = _layerTransformHandleFixedLocal;
+        final Offset? fixedBoard = _layerTransformHandleFixedBoard;
+        if (inverse == null ||
+            anchorLocal == null ||
+            fixedLocal == null ||
+            fixedBoard == null) {
           return;
         }
         final Offset localPoint = MatrixUtils.transformPoint(
@@ -773,14 +823,14 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
             affectY = true;
             break;
         }
-        final double baseDx = handleLocal.dx - state.pivotLocal.dx;
-        final double baseDy = handleLocal.dy - state.pivotLocal.dy;
+        final double baseDx = handleLocal.dx - fixedLocal.dx;
+        final double baseDy = handleLocal.dy - fixedLocal.dy;
         if (affectX && baseDx.abs() > 0.0001) {
-          final double currentDx = localPoint.dx - state.pivotLocal.dx;
+          final double currentDx = localPoint.dx - fixedLocal.dx;
           nextScaleX = (currentDx / baseDx) * _layerTransformInitialScaleX;
         }
         if (affectY && baseDy.abs() > 0.0001) {
-          final double currentDy = localPoint.dy - state.pivotLocal.dy;
+          final double currentDy = localPoint.dy - fixedLocal.dy;
           nextScaleY = (currentDy / baseDy) * _layerTransformInitialScaleY;
         }
         if (_isShiftModifierPressed()) {
@@ -804,7 +854,18 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           _kLayerTransformMinScale,
           _kLayerTransformMaxScale,
         );
+        final Matrix4 transformWithoutTranslation = Matrix4.identity()
+          ..translate(state.pivotLocal.dx, state.pivotLocal.dy)
+          ..rotateZ(_layerTransformInitialRotation)
+          ..scale(nextScaleX, nextScaleY)
+          ..translate(-state.pivotLocal.dx, -state.pivotLocal.dy);
+        final Offset fixedTransformed = MatrixUtils.transformPoint(
+          transformWithoutTranslation,
+          fixedLocal,
+        );
+        final Offset nextTranslation = fixedBoard - fixedTransformed;
         setState(() {
+          state.translation = nextTranslation;
           state.scaleX = nextScaleX;
           state.scaleY = nextScaleY;
           _layerTransformRevision++;
@@ -817,12 +878,16 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     _activeLayerTransformHandle = null;
     _layerTransformPointerStartInverse = null;
     _layerTransformHandleAnchorLocal = null;
+    _layerTransformHandleFixedLocal = null;
+    _layerTransformHandleFixedBoard = null;
   }
 
   void _handleLayerTransformPointerCancel() {
     _activeLayerTransformHandle = null;
     _layerTransformPointerStartInverse = null;
     _layerTransformHandleAnchorLocal = null;
+    _layerTransformHandleFixedLocal = null;
+    _layerTransformHandleFixedBoard = null;
     _updateLayerTransformCursor(null, null);
   }
 
