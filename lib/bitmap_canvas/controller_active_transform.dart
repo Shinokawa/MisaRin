@@ -263,7 +263,7 @@ void _prepareActiveLayerTransformPreview(
     bytes = BitmapCanvasController._pixelsToRgba(snapshot);
     premultiplyRgbaInPlace(bytes);
   }
-  controller._activeLayerTransformImage?.dispose();
+  _disposeActiveLayerTransformImage(controller);
   ui.decodeImageFromPixels(
     bytes,
     snapshotWidth,

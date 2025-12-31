@@ -88,6 +88,13 @@ class AppMenuActions {
       }
     }
 
+    void setStrokeStabilizerStrength(double value) {
+      if (prefs.strokeStabilizerStrength != value) {
+        prefs.strokeStabilizerStrength = value;
+        changed = true;
+      }
+    }
+
     switch (preset) {
       case WorkspacePreset.illustration:
         setPenAntialias(1);
@@ -100,6 +107,7 @@ class AppMenuActions {
       case WorkspacePreset.pixel:
         setPenAntialias(0);
         setBucketAntialias(0);
+        setStrokeStabilizerStrength(0.0);
         setPixelGridVisible(true);
         setVectorDrawingEnabled(false);
         break;
