@@ -1478,6 +1478,12 @@ abstract class AppLocalizations {
   /// **'Brush edge softening set to level 1'**
   String get workspaceIllustrationDesc;
 
+  /// No description provided for @workspaceIllustrationDesc2.
+  ///
+  /// In en, this message translates to:
+  /// **'StreamLine: On'**
+  String get workspaceIllustrationDesc2;
+
   /// No description provided for @workspaceCelShading.
   ///
   /// In en, this message translates to:
@@ -1525,6 +1531,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Vector Drawing: Off'**
   String get workspacePixelDesc3;
+
+  /// No description provided for @workspacePixelDesc4.
+  ///
+  /// In en, this message translates to:
+  /// **'Stabilizer: 0'**
+  String get workspacePixelDesc4;
 
   /// No description provided for @workspaceDefault.
   ///

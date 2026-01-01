@@ -149,7 +149,10 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
       _WorkspacePresetOption(
         preset: WorkspacePreset.illustration,
         title: l10n.workspaceIllustration,
-        changes: <String>[l10n.workspaceIllustrationDesc],
+        changes: <String>[
+          l10n.workspaceIllustrationDesc,
+          l10n.workspaceIllustrationDesc2,
+        ],
       ),
       _WorkspacePresetOption(
         preset: WorkspacePreset.celShading,
@@ -166,7 +169,8 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         changes: <String>[
           l10n.workspacePixelDesc1,
           l10n.workspacePixelDesc2,
-          l10n.workspacePixelDesc3
+          l10n.workspacePixelDesc3,
+          l10n.workspacePixelDesc4,
         ],
       ),
       _WorkspacePresetOption(

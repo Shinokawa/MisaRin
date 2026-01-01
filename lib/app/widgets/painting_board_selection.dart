@@ -1048,6 +1048,7 @@ class _SelectionOverlayPainter extends CustomPainter {
     required this.dashPhase,
     required this.viewportScale,
     this.showPreviewStroke = true,
+    this.fillSelectionPath = false,
   });
 
   final Path? selectionPath;
@@ -1056,7 +1057,11 @@ class _SelectionOverlayPainter extends CustomPainter {
   final double dashPhase;
   final double viewportScale;
   final bool showPreviewStroke;
+  final bool fillSelectionPath;
 
+  static final Paint _selectionFillPaint = Paint()
+    ..color = _kSelectionFillColor
+    ..style = PaintingStyle.fill;
   static final Paint _previewFillPaint = Paint()
     ..color = _kSelectionPreviewFillColor
     ..style = PaintingStyle.fill;
@@ -1070,6 +1075,9 @@ class _SelectionOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (fillSelectionPath && selectionPath != null) {
+      canvas.drawPath(selectionPath!, _selectionFillPaint);
+    }
     if (magicPreviewPath != null) {
       canvas.drawPath(magicPreviewPath!, _previewFillPaint);
       _selectionStroke.paint(
@@ -1107,6 +1115,7 @@ class _SelectionOverlayPainter extends CustomPainter {
         oldDelegate.magicPreviewPath != magicPreviewPath ||
         oldDelegate.dashPhase != dashPhase ||
         oldDelegate.viewportScale != viewportScale ||
-        oldDelegate.showPreviewStroke != showPreviewStroke;
+        oldDelegate.showPreviewStroke != showPreviewStroke ||
+        oldDelegate.fillSelectionPath != fillSelectionPath;
   }
 }

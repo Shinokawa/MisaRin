@@ -424,6 +424,19 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateStreamlineStrength(double value) {
+    final double clamped = value.clamp(0.0, 1.0);
+    if ((_streamlineStrength - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _streamlineStrength = clamped);
+    _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.streamlineStrength = clamped;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateStreamlineEnabled(bool value) {
     if (_streamlineEnabled == value) {
       return;
@@ -604,17 +617,6 @@ mixin _PaintingBoardInteractionMixin
     setState(() => _vectorDrawingEnabled = value);
     _controller.setVectorDrawingEnabled(value);
     prefs.vectorDrawingEnabled = value;
-    unawaited(AppPreferences.save());
-  }
-
-  void _updateVectorStrokeSmoothingEnabled(bool value) {
-    if (_vectorStrokeSmoothingEnabled == value) {
-      return;
-    }
-    setState(() => _vectorStrokeSmoothingEnabled = value);
-    _controller.setVectorStrokeSmoothingEnabled(value);
-    final AppPreferences prefs = AppPreferences.instance;
-    prefs.vectorStrokeSmoothingEnabled = value;
     unawaited(AppPreferences.save());
   }
 
@@ -917,13 +919,11 @@ mixin _PaintingBoardInteractionMixin
     if (!_streamlineEnabled) {
       return false;
     }
-    if (_strokeStabilizerStrength <= 0.0001) {
+    if (_streamlineStrength <= 0.0001) {
       return false;
     }
     // StreamLine 后处理需要矢量预览路径，否则笔画在绘制过程中已经被栅格化，无法“抬笔后重算”。
-    final bool usesVectorPipeline =
-        _vectorDrawingEnabled || _controller.activeStrokeHollowEnabled;
-    if (!usesVectorPipeline) {
+    if (!_vectorDrawingEnabled) {
       return false;
     }
     return _streamlinePostController != null;
@@ -954,7 +954,7 @@ mixin _PaintingBoardInteractionMixin
         _controller.activeStrokeRandomRotationEnabled;
     final int rotationSeed = _controller.activeStrokeRotationSeed;
 
-    final double strength = _strokeStabilizerStrength.clamp(0.0, 1.0);
+    final double strength = _streamlineStrength.clamp(0.0, 1.0);
     final _StreamlinePathData target = _buildStreamlinePostProcessTarget(
       rawPoints,
       rawRadii,
@@ -1420,11 +1420,27 @@ mixin _PaintingBoardInteractionMixin
     Offset? anchor,
   }) {
     final Offset clamped = _clampToCanvas(position);
-    final bool enableStabilizer =
-        _strokeStabilizerStrength > 0.0001 &&
-        (_effectiveActiveTool == CanvasTool.pen ||
-            _effectiveActiveTool == CanvasTool.eraser ||
-            _effectiveActiveTool == CanvasTool.perspectivePen);
+    final bool useStreamline = _streamlineEnabled && _vectorDrawingEnabled;
+    final bool supportsStrokeStabilizer =
+        _effectiveActiveTool == CanvasTool.pen ||
+        _effectiveActiveTool == CanvasTool.eraser ||
+        _effectiveActiveTool == CanvasTool.perspectivePen;
+    if (!supportsStrokeStabilizer) {
+      if (isInitialSample) {
+        _strokeStabilizer.reset();
+        _streamlineStabilizer.reset();
+      }
+      return _maybeSnapToPerspective(clamped, anchor: anchor);
+    }
+    if (useStreamline) {
+      if (isInitialSample) {
+        _strokeStabilizer.reset();
+        _streamlineStabilizer.reset();
+      }
+      return _maybeSnapToPerspective(clamped, anchor: anchor);
+    }
+
+    final bool enableStabilizer = _strokeStabilizerStrength > 0.0001;
     if (!enableStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
@@ -1432,15 +1448,11 @@ mixin _PaintingBoardInteractionMixin
       }
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
+
     if (isInitialSample) {
       _strokeStabilizer.reset();
       _streamlineStabilizer.reset();
-      if (!_streamlineEnabled) {
-        _strokeStabilizer.start(clamped);
-      }
-      return _maybeSnapToPerspective(clamped, anchor: anchor);
-    }
-    if (_streamlineEnabled) {
+      _strokeStabilizer.start(clamped);
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
     final Offset filtered = _strokeStabilizer.filter(

@@ -756,6 +756,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceIllustrationDesc => '画笔边缘柔化设为 1 级';
 
   @override
+  String get workspaceIllustrationDesc2 => '流线：开启';
+
+  @override
   String get workspaceCelShading => '赛璐璐';
 
   @override
@@ -778,6 +781,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workspacePixelDesc3 => '矢量作画：关闭';
+
+  @override
+  String get workspacePixelDesc4 => '手抖修正：0';
 
   @override
   String get workspaceDefault => '默认';

@@ -758,6 +758,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get workspaceIllustrationDesc => '브러시 가장자리 부드러움을 레벨 1로 설정';
 
   @override
+  String get workspaceIllustrationDesc2 => '스트림라인: 켜기';
+
+  @override
   String get workspaceCelShading => '셀 셰이딩';
 
   @override
@@ -780,6 +783,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get workspacePixelDesc3 => '벡터 드로잉: 끄기';
+
+  @override
+  String get workspacePixelDesc4 => '손떨림 보정: 0';
 
   @override
   String get workspaceDefault => '기본값';

@@ -68,6 +68,7 @@ class ToolSettingsSnapshot {
     required this.hollowStrokeEraseOccludedParts,
     required this.strokeStabilizerStrength,
     required this.streamlineEnabled,
+    required this.streamlineStrength,
     required this.stylusPressureEnabled,
     required this.simulatePenPressure,
     required this.penPressureProfile,
@@ -75,7 +76,6 @@ class ToolSettingsSnapshot {
     required this.bucketAntialiasLevel,
     required this.autoSharpPeakEnabled,
     required this.vectorDrawingEnabled,
-    required this.vectorStrokeSmoothingEnabled,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.bucketSwallowColorLine,
@@ -113,6 +113,7 @@ class ToolSettingsSnapshot {
   final bool hollowStrokeEraseOccludedParts;
   final double strokeStabilizerStrength;
   final bool streamlineEnabled;
+  final double streamlineStrength;
   final bool stylusPressureEnabled;
   final bool simulatePenPressure;
   final StrokePressureProfile penPressureProfile;
@@ -120,7 +121,6 @@ class ToolSettingsSnapshot {
   final int bucketAntialiasLevel;
   final bool autoSharpPeakEnabled;
   final bool vectorDrawingEnabled;
-  final bool vectorStrokeSmoothingEnabled;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final bool bucketSwallowColorLine;

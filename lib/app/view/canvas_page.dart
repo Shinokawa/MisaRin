@@ -1116,10 +1116,11 @@ class CanvasPageState extends State<CanvasPage> {
     }
     _removeBoardKey(_document.id);
     _workspace.remove(_document.id);
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
+    final NavigatorState navigator = Navigator.of(context, rootNavigator: true);
+    if (!navigator.canPop()) {
+      return;
     }
+    navigator.popUntil((route) => route.isFirst);
   }
 
   Future<void> openDocument(ProjectDocument document) async {

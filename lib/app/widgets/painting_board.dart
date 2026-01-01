@@ -274,6 +274,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
   bool _streamlineEnabled = AppPreferences.defaultStreamlineEnabled;
+  double _streamlineStrength = AppPreferences.defaultStreamlineStrength;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
   int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
@@ -281,8 +282,6 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
   bool _vectorDrawingEnabled = AppPreferences.defaultVectorDrawingEnabled;
-  bool _vectorStrokeSmoothingEnabled =
-      AppPreferences.defaultVectorStrokeSmoothingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   bool _brushRandomRotationEnabled =
       AppPreferences.defaultBrushRandomRotationEnabled;
@@ -1952,6 +1951,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
     _streamlineEnabled = prefs.streamlineEnabled;
+    _streamlineStrength = prefs.streamlineStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
@@ -1960,7 +1960,6 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
-    _vectorStrokeSmoothingEnabled = prefs.vectorStrokeSmoothingEnabled;
     _brushShape = prefs.brushShape;
     _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
     _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
@@ -1986,8 +1985,6 @@ class PaintingBoardState extends _PaintingBoardBase
       creationLogic: widget.settings.creationLogic,
     );
     _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
-    _controller.setVectorStrokeSmoothingEnabled(_vectorStrokeSmoothingEnabled);
-    _controller.setVectorStrokeSmoothingEnabled(_vectorStrokeSmoothingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
@@ -2480,6 +2477,7 @@ class PaintingBoardState extends _PaintingBoardBase
       hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       strokeStabilizerStrength: _strokeStabilizerStrength,
       streamlineEnabled: _streamlineEnabled,
+      streamlineStrength: _streamlineStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
       penPressureProfile: _penPressureProfile,
@@ -2487,7 +2485,6 @@ class PaintingBoardState extends _PaintingBoardBase
       bucketAntialiasLevel: _bucketAntialiasLevel,
       autoSharpPeakEnabled: _autoSharpPeakEnabled,
       vectorDrawingEnabled: _vectorDrawingEnabled,
-      vectorStrokeSmoothingEnabled: _vectorStrokeSmoothingEnabled,
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -2538,6 +2535,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
     _updateStreamlineEnabled(snapshot.streamlineEnabled);
+    _updateStreamlineStrength(snapshot.streamlineStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);
     _updatePenPressureProfile(snapshot.penPressureProfile);
@@ -2545,7 +2543,6 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
     _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
     _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
-    _updateVectorStrokeSmoothingEnabled(snapshot.vectorStrokeSmoothingEnabled);
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);

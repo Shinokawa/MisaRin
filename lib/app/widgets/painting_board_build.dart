@@ -461,6 +461,8 @@ mixin _PaintingBoardBuildMixin
 	          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
 	          streamlineEnabled: _streamlineEnabled,
 	          onStreamlineEnabledChanged: _updateStreamlineEnabled,
+	          streamlineStrength: _streamlineStrength,
+	          onStreamlineStrengthChanged: _updateStreamlineStrength,
 	          stylusPressureEnabled: _stylusPressureEnabled,
 	          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
 	          simulatePenPressure: _simulatePenPressure,
@@ -500,8 +502,6 @@ mixin _PaintingBoardBuildMixin
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
           vectorDrawingEnabled: _vectorDrawingEnabled,
           onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
-          vectorStrokeSmoothingEnabled: _vectorStrokeSmoothingEnabled,
-          onVectorStrokeSmoothingChanged: _updateVectorStrokeSmoothingEnabled,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
           compactLayout: isSai2Layout,
           textFontSize: _textFontSize,
@@ -1061,6 +1061,10 @@ mixin _PaintingBoardBuildMixin
                                                             _viewport.scale,
                                                         showPreviewStroke:
                                                             _effectiveActiveTool !=
+                                                            CanvasTool
+                                                                .selectionPen,
+                                                        fillSelectionPath:
+                                                            _activeTool ==
                                                             CanvasTool
                                                                 .selectionPen,
                                                       ),

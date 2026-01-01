@@ -770,6 +770,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspaceIllustrationDesc => 'Brush edge softening set to level 1';
 
   @override
+  String get workspaceIllustrationDesc2 => 'StreamLine: On';
+
+  @override
   String get workspaceCelShading => 'Cel Shading';
 
   @override
@@ -793,6 +796,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspacePixelDesc3 => 'Vector Drawing: Off';
+
+  @override
+  String get workspacePixelDesc4 => 'Stabilizer: 0';
 
   @override
   String get workspaceDefault => 'Default';

@@ -757,6 +757,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get workspaceIllustrationDesc => 'ブラシのエッジ柔化をレベル 1 に設定';
 
   @override
+  String get workspaceIllustrationDesc2 => 'ストリームライン: オン';
+
+  @override
   String get workspaceCelShading => 'アニメ塗り';
 
   @override
@@ -779,6 +782,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get workspacePixelDesc3 => 'ベクター描画: オフ';
+
+  @override
+  String get workspacePixelDesc4 => '手ブレ補正: 0';
 
   @override
   String get workspaceDefault => 'デフォルト';
