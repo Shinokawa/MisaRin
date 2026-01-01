@@ -2,7 +2,7 @@
   "@@locale": "zh_TW",
 
   "streamline": "\u6d41\u7dda",
-  "streamlineDesc": "\u985e\u4f3c Procreate \u7684 StreamLine\uff1a\u5728\u7b46\u5c16\u548c\u58a8\u8de1\u4e4b\u9593\u52a0\u5165\u300c\u865b\u64ec\u7e69\u7d22\u300d\u62d6\u62fd\uff0c\u904e\u6ffe\u9ad8\u983b\u6296\u52d5\uff0c\u7b49\u7d1a\u8d8a\u9ad8\u8d8a\u9806\u4f46\u5ef6\u9072\u4e5f\u66f4\u660e\u986f\u3002",
+  "streamlineDesc": "類似 Procreate 的 StreamLine：抬筆後對筆畫路徑做平滑重算，並以補間動畫回彈到更順的結果（等級越高越明顯）。",
 
   "webLoadingInitializingCanvas": "正在初始化畫板\u2026",
   "webLoadingMayTakeTime": "Web \u7aef\u8f09\u5165\u9700\u8981\u4e00\u4e9b\u6642\u9593\uff0c\u8acb\u7a0d\u5019\u3002",

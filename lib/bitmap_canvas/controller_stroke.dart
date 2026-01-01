@@ -384,6 +384,25 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeRotationSeed = 0;
 }
 
+void _strokeCancel(BitmapCanvasController controller) {
+  controller._currentStrokePoints.clear();
+  controller._currentStrokeRadii.clear();
+  controller._deferredStrokeCommands.clear();
+  controller._currentStrokeRadius = 0;
+  controller._currentStrokeLastRadius = 0;
+  controller._currentStrokeStylusPressureEnabled = false;
+  controller._currentStylusLastPressure = null;
+  controller._currentStrokeAntialiasLevel = 0;
+  controller._currentStrokeHasMoved = false;
+  controller._strokePressureSimulator.resetTracking();
+  controller._currentStrokeEraseMode = false;
+  controller._currentStrokeHollowEnabled = false;
+  controller._currentStrokeHollowRatio = 0.0;
+  controller._currentStrokeEraseOccludedParts = false;
+  controller._currentStrokeRandomRotationEnabled = false;
+  controller._currentStrokeRotationSeed = 0;
+}
+
 void _strokeSetPressureProfile(
   BitmapCanvasController controller,
   StrokePressureProfile profile,

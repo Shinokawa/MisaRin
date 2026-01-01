@@ -170,13 +170,6 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     setState(_resetShapeDrawingState);
   }
 
-  Offset _clampToCanvas(Offset value) {
-    final Size size = _canvasSize;
-    final double dx = value.dx.clamp(0.0, size.width);
-    final double dy = value.dy.clamp(0.0, size.height);
-    return Offset(dx, dy);
-  }
-
   bool get _isShapeShiftPressed {
     final Set<LogicalKeyboardKey> keys =
         HardwareKeyboard.instance.logicalKeysPressed;

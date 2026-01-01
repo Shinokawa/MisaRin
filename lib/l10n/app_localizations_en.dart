@@ -1092,7 +1092,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get streamlineDesc =>
-      'Procreate-style StreamLine smoothing. Adds a virtual rope between your pen and the ink so strokes stay smooth but feel more dragged/delayed at higher levels.';
+      'Procreate-like StreamLine: smooths the stroke after lift-off and tween-snaps it to a cleaner path (higher levels are stronger).';
 
   @override
   String get fontSizeDesc =>

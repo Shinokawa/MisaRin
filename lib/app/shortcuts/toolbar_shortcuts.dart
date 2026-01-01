@@ -15,6 +15,7 @@ enum ToolbarAction {
   magicWandTool,
   eyedropperTool,
   selectionTool,
+  selectionPenTool,
   textTool,
   handTool,
   rotateTool,
@@ -114,6 +115,10 @@ class ToolbarShortcuts {
     ToolbarAction.selectionTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyM)],
       primaryLabel: 'M',
+    ),
+    ToolbarAction.selectionPenTool: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyS)],
+      primaryLabel: 'S',
     ),
     ToolbarAction.textTool: ShortcutInfo(
       shortcuts: <LogicalKeySet>[LogicalKeySet(LogicalKeyboardKey.keyT)],

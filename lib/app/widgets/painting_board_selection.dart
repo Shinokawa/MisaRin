@@ -16,6 +16,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   Path? _selectionPreviewPath;
   bool _isSelectionDragging = false;
   Offset? _selectionDragStart;
+  bool _isSelectionPenDrawing = false;
+  Offset? _selectionPenLastPoint;
 
   final List<Offset> _polygonPoints = <Offset>[];
   Offset? _polygonHoverPoint;
@@ -30,6 +32,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   bool _selectionUndoArmed = false;
   bool _isAdditiveSelection = false;
   Path? _currentDragPath;
+
+  double get _selectionPenRadius => math.max(_penStrokeWidth / 2, 0.5);
 
   bool get _isShiftPressed {
     final Set<LogicalKeyboardKey> pressed =
@@ -280,6 +284,92 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   @override
+  void _handleSelectionPenPointerDown(Offset position) async {
+    if (_isSelectionPenDrawing) {
+      return;
+    }
+    _magicWandPreviewMask = null;
+    _magicWandPreviewPath = null;
+    await _prepareSelectionUndo();
+
+    final int width = _controller.width;
+    final int height = _controller.height;
+    Uint8List? mask = _selectionMask;
+    if (mask == null) {
+      mask = Uint8List(width * height);
+      setState(() => setSelectionState(mask: mask));
+    }
+    if (mask.isEmpty) {
+      return;
+    }
+
+    final Offset clamped = _clampToCanvas(position);
+    final double radius = _selectionPenRadius;
+
+    setState(() {
+      _isSelectionPenDrawing = true;
+      _selectionPenLastPoint = clamped;
+      _selectionPreviewPath = Path();
+      _stampSelectionPen(mask!, _selectionPreviewPath!, clamped, radius);
+    });
+    _updateSelectionAnimation();
+  }
+
+  @override
+  void _handleSelectionPenPointerMove(Offset position) {
+    if (!_isSelectionPenDrawing) {
+      return;
+    }
+    final Offset? previous = _selectionPenLastPoint;
+    final Uint8List? mask = _selectionMask;
+    final Path? previewPath = _selectionPreviewPath;
+    if (previous == null || mask == null || previewPath == null) {
+      return;
+    }
+    if (mask.isEmpty) {
+      return;
+    }
+    final Offset current = _clampToCanvas(position);
+    if ((current - previous).distanceSquared < 0.01) {
+      return;
+    }
+    final double radius = _selectionPenRadius;
+    setState(() {
+      _stampSelectionPenSegment(mask, previewPath, previous, current, radius);
+      _selectionPenLastPoint = current;
+    });
+  }
+
+  @override
+  void _handleSelectionPenPointerUp() {
+    if (!_isSelectionPenDrawing) {
+      return;
+    }
+    final Uint8List? mask = _selectionMask;
+    final bool hasCoverage = mask != null && _maskHasCoverage(mask);
+    final Path? resolvedPath = hasCoverage
+        ? _pathFromMask(mask!, _controller.width)
+        : null;
+    setState(() {
+      _isSelectionPenDrawing = false;
+      _selectionPenLastPoint = null;
+      _selectionPreviewPath = null;
+      if (!hasCoverage) {
+        setSelectionState(path: null, mask: null);
+      } else {
+        setSelectionState(path: resolvedPath, mask: mask);
+      }
+    });
+    _updateSelectionAnimation();
+    _finishSelectionUndo();
+  }
+
+  @override
+  void _handleSelectionPenPointerCancel() {
+    _handleSelectionPenPointerUp();
+  }
+
+  @override
   void _handleSelectionHover(Offset position) {
     if (_selectionShape != SelectionShape.polygon) {
       return;
@@ -470,6 +560,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _isSelectionDragging = false;
     _selectionDragStart = null;
     _selectionPreviewPath = null;
+    _isSelectionPenDrawing = false;
+    _selectionPenLastPoint = null;
   }
 
   @override
@@ -647,6 +739,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _clearMagicWandPreview();
     _isSelectionDragging = false;
     _selectionDragStart = null;
+    _isSelectionPenDrawing = false;
+    _selectionPenLastPoint = null;
     _resetPolygonState();
   }
 
@@ -683,6 +777,72 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       }
     }
     return mask;
+  }
+
+  void _stampSelectionPenSegment(
+    Uint8List mask,
+    Path previewPath,
+    Offset from,
+    Offset to,
+    double radius,
+  ) {
+    final double distance = (to - from).distance;
+    if (distance <= 0.0001) {
+      _stampSelectionPen(mask, previewPath, to, radius);
+      return;
+    }
+    final double step = math.max(1.0, radius * 0.5);
+    final int stamps = math.max(1, (distance / step).ceil());
+    for (int i = 1; i <= stamps; i++) {
+      final double t = i / stamps;
+      final Offset point = Offset.lerp(from, to, t) ?? to;
+      _stampSelectionPen(mask, previewPath, point, radius);
+    }
+  }
+
+  void _stampSelectionPen(
+    Uint8List mask,
+    Path previewPath,
+    Offset center,
+    double radius,
+  ) {
+    if (radius <= 0 || mask.isEmpty) {
+      return;
+    }
+    previewPath.addOval(Rect.fromCircle(center: center, radius: radius));
+
+    final int width = _controller.width;
+    final int height = _controller.height;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+
+    int minX = (center.dx - radius).floor();
+    int maxX = (center.dx + radius).ceil();
+    int minY = (center.dy - radius).floor();
+    int maxY = (center.dy + radius).ceil();
+
+    minX = minX.clamp(0, width - 1);
+    maxX = maxX.clamp(0, width - 1);
+    minY = minY.clamp(0, height - 1);
+    maxY = maxY.clamp(0, height - 1);
+
+    if (minX > maxX || minY > maxY) {
+      return;
+    }
+
+    final double radiusSquared = radius * radius;
+    for (int y = minY; y <= maxY; y++) {
+      final double dy = (y + 0.5) - center.dy;
+      final double dySquared = dy * dy;
+      final int rowOffset = y * width;
+      for (int x = minX; x <= maxX; x++) {
+        final double dx = (x + 0.5) - center.dx;
+        if (dx * dx + dySquared <= radiusSquared) {
+          mask[rowOffset + x] = 1;
+        }
+      }
+    }
   }
 
   bool _maskHasCoverage(Uint8List mask) {
@@ -887,6 +1047,7 @@ class _SelectionOverlayPainter extends CustomPainter {
     this.magicPreviewPath,
     required this.dashPhase,
     required this.viewportScale,
+    this.showPreviewStroke = true,
   });
 
   final Path? selectionPath;
@@ -894,6 +1055,7 @@ class _SelectionOverlayPainter extends CustomPainter {
   final Path? magicPreviewPath;
   final double dashPhase;
   final double viewportScale;
+  final bool showPreviewStroke;
 
   static final Paint _previewFillPaint = Paint()
     ..color = _kSelectionPreviewFillColor
@@ -919,12 +1081,14 @@ class _SelectionOverlayPainter extends CustomPainter {
     }
     if (selectionPreviewPath != null) {
       canvas.drawPath(selectionPreviewPath!, _previewFillPaint);
-      _selectionStroke.paint(
-        canvas,
-        selectionPreviewPath!,
-        dashPhase,
-        viewportScale: viewportScale,
-      );
+      if (showPreviewStroke) {
+        _selectionStroke.paint(
+          canvas,
+          selectionPreviewPath!,
+          dashPhase,
+          viewportScale: viewportScale,
+        );
+      }
     }
     if (selectionPath != null) {
       _selectionStroke.paint(
@@ -942,6 +1106,7 @@ class _SelectionOverlayPainter extends CustomPainter {
         oldDelegate.selectionPreviewPath != selectionPreviewPath ||
         oldDelegate.magicPreviewPath != magicPreviewPath ||
         oldDelegate.dashPhase != dashPhase ||
-        oldDelegate.viewportScale != viewportScale;
+        oldDelegate.viewportScale != viewportScale ||
+        oldDelegate.showPreviewStroke != showPreviewStroke;
   }
 }

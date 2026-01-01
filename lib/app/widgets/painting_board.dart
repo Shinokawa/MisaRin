@@ -491,6 +491,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         position.dy <= size.height;
   }
 
+  Offset _clampToCanvas(Offset value) {
+    final Size size = _canvasSize;
+    final double dx = value.dx.clamp(0.0, size.width);
+    final double dy = value.dy.clamp(0.0, size.height);
+    return Offset(dx, dy);
+  }
+
   void _applyStylusSettingsToController() {
     _controller.configureStylusPressure(
       enabled: _stylusPressureEnabled,
@@ -1022,7 +1029,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       _effectiveActiveTool == CanvasTool.spray ||
       _effectiveActiveTool == CanvasTool.curvePen ||
       _effectiveActiveTool == CanvasTool.shape ||
-      _effectiveActiveTool == CanvasTool.eraser;
+      _effectiveActiveTool == CanvasTool.eraser ||
+      _effectiveActiveTool == CanvasTool.selectionPen;
 
   bool get _isBrushEraserEnabled =>
       _brushToolsEraserMode || _activeTool == CanvasTool.eraser;
@@ -1078,6 +1086,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _handleSelectionPointerMove(Offset position);
   void _handleSelectionPointerUp();
   void _handleSelectionPointerCancel();
+  void _handleSelectionPenPointerDown(Offset position);
+  void _handleSelectionPenPointerMove(Offset position);
+  void _handleSelectionPenPointerUp();
+  void _handleSelectionPenPointerCancel();
   void _handleSelectionHover(Offset position);
   void _clearSelectionHover();
   void _clearSelection();
@@ -1914,6 +1926,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _viewInfoNotifier = ValueNotifier<CanvasViewInfo>(_buildViewInfo());
     initializeTextTool();
     initializeSelectionTicker(this);
+    initializeStreamlinePostProcessor(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
     _pixelGridVisible = prefs.pixelGridVisible;

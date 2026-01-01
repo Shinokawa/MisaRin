@@ -572,6 +572,38 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void endStroke() => _strokeEnd(this);
 
+  void cancelStroke() => _strokeCancel(this);
+
+  Future<void> commitVectorStroke({
+    required List<Offset> points,
+    required List<double> radii,
+    required Color color,
+    required BrushShape brushShape,
+    bool applyVectorSmoothing = true,
+    bool erase = false,
+    int antialiasLevel = 0,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    bool eraseOccludedParts = false,
+    bool randomRotation = false,
+    int rotationSeed = 0,
+  }) =>
+      _controllerCommitVectorStroke(
+        this,
+        points: points,
+        radii: radii,
+        color: color,
+        brushShape: brushShape,
+        applyVectorSmoothing: applyVectorSmoothing,
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: eraseOccludedParts,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
+      );
+
   void drawFilledPolygon({
     required List<Offset> points,
     required Color color,

@@ -204,6 +204,10 @@ mixin _PaintingBoardBuildMixin
             ).shortcuts)
               key: const SelectToolIntent(CanvasTool.selection),
             for (final key in ToolbarShortcuts.of(
+              ToolbarAction.selectionPenTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.selectionPen),
+            for (final key in ToolbarShortcuts.of(
               ToolbarAction.textTool,
             ).shortcuts)
               key: const SelectToolIntent(CanvasTool.text),
@@ -317,9 +321,10 @@ mixin _PaintingBoardBuildMixin
             ? _sprayStrokeWidth
             : _penStrokeWidth;
         final BrushShape overlayBrushShape =
-            _effectiveActiveTool == CanvasTool.spray
-            ? BrushShape.circle
-            : _brushShape;
+            _effectiveActiveTool == CanvasTool.spray ||
+                    _effectiveActiveTool == CanvasTool.selectionPen
+                ? BrushShape.circle
+                : _brushShape;
         final Widget? antialiasCard = _buildAntialiasCard();
         final Widget? colorRangeCard = _buildColorRangeCard();
         final Widget? transformPanel = buildLayerTransformPanel();
@@ -375,6 +380,9 @@ mixin _PaintingBoardBuildMixin
                 workspaceCursor = SystemMouseCursors.precise;
                 break;
               case CanvasTool.eraser:
+                workspaceCursor = SystemMouseCursors.precise;
+                break;
+              case CanvasTool.selectionPen:
                 workspaceCursor = SystemMouseCursors.precise;
                 break;
               case CanvasTool.eyedropper:
@@ -899,6 +907,22 @@ mixin _PaintingBoardBuildMixin
                                                       ),
                                                     ),
                                                   ),
+                                                if (_streamlinePostStroke != null &&
+                                                    _streamlinePostController != null)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter:
+                                                            _StreamlinePostStrokeOverlayPainter(
+                                                          stroke:
+                                                              _streamlinePostStroke!,
+                                                          progress:
+                                                              _streamlinePostController!,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
                                                 if (showActiveStroke)
                                                   Positioned.fill(
                                                     child: CustomPaint(
@@ -1035,6 +1059,10 @@ mixin _PaintingBoardBuildMixin
                                                             selectionDashPhase,
                                                         viewportScale:
                                                             _viewport.scale,
+                                                        showPreviewStroke:
+                                                            _effectiveActiveTool !=
+                                                            CanvasTool
+                                                                .selectionPen,
                                                       ),
                                                     ),
                                                   ),

@@ -2075,7 +2075,7 @@ abstract class AppLocalizations {
   /// No description provided for @streamlineDesc.
   ///
   /// In en, this message translates to:
-  /// **'Procreate-style StreamLine smoothing. Adds a virtual rope between your pen and the ink so strokes stay smooth but feel more dragged/delayed at higher levels.'**
+  /// **'Procreate-like StreamLine: smooths the stroke after lift-off and tween-snaps it to a cleaner path (higher levels are stronger).'**
   String get streamlineDesc;
 
   /// No description provided for @fontSizeDesc.

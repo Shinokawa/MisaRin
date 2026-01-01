@@ -379,6 +379,125 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   }
 }
 
+class _StreamlinePostStroke {
+  const _StreamlinePostStroke({
+    required this.fromPoints,
+    required this.fromRadii,
+    required this.toPoints,
+    required this.toRadii,
+    required this.color,
+    required this.shape,
+    required this.erase,
+    required this.antialiasLevel,
+    required this.hollowStrokeEnabled,
+    required this.hollowStrokeRatio,
+    required this.eraseOccludedParts,
+    required this.randomRotationEnabled,
+    required this.rotationSeed,
+  });
+
+  final List<Offset> fromPoints;
+  final List<double> fromRadii;
+  final List<Offset> toPoints;
+  final List<double> toRadii;
+  final Color color;
+  final BrushShape shape;
+  final bool erase;
+  final int antialiasLevel;
+  final bool hollowStrokeEnabled;
+  final double hollowStrokeRatio;
+  final bool eraseOccludedParts;
+  final bool randomRotationEnabled;
+  final int rotationSeed;
+}
+
+class _StreamlinePostStrokeOverlayPainter extends CustomPainter {
+  _StreamlinePostStrokeOverlayPainter({
+    required this.stroke,
+    required this.progress,
+    this.curve = Curves.easeOutBack,
+    this.eraserPreviewColor = _kVectorEraserPreviewColor,
+  }) : super(repaint: progress);
+
+  final _StreamlinePostStroke stroke;
+  final AnimationController progress;
+  final Curve curve;
+  final Color eraserPreviewColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final List<Offset> from = stroke.fromPoints;
+    final List<Offset> to = stroke.toPoints;
+    if (from.isEmpty || to.isEmpty) {
+      return;
+    }
+
+    final int count = math.min(from.length, to.length);
+    if (count == 0) {
+      return;
+    }
+
+    final double t = curve.transform(progress.value);
+    final List<Offset> points = List<Offset>.filled(
+      count,
+      Offset.zero,
+      growable: false,
+    );
+    for (int i = 0; i < count; i++) {
+      final Offset p0 = from[i];
+      final Offset p1 = to[i];
+      points[i] = p0 + (p1 - p0) * t;
+    }
+
+    double radiusAt(List<double> radii, int index) {
+      if (radii.isEmpty) {
+        return 1.0;
+      }
+      if (index < 0) {
+        return radii.first;
+      }
+      if (index >= radii.length) {
+        return radii.last;
+      }
+      final double value = radii[index];
+      if (value.isFinite && value >= 0) {
+        return value;
+      }
+      return radii.last >= 0 ? radii.last : 1.0;
+    }
+
+    final List<double> radii = List<double>.filled(count, 1.0, growable: false);
+    for (int i = 0; i < count; i++) {
+      final double r0 = radiusAt(stroke.fromRadii, i);
+      final double r1 = radiusAt(stroke.toRadii, i);
+      radii[i] = (ui.lerpDouble(r0, r1, t) ?? r1).clamp(0.0, double.infinity);
+    }
+
+    final Color color = stroke.erase ? eraserPreviewColor : stroke.color;
+    final bool hollow = stroke.hollowStrokeEnabled && !stroke.erase;
+    VectorStrokePainter.paint(
+      canvas: canvas,
+      points: points,
+      radii: radii,
+      color: color,
+      shape: stroke.shape,
+      antialiasLevel: stroke.antialiasLevel,
+      hollow: hollow,
+      hollowRatio: stroke.hollowStrokeRatio,
+      randomRotation: stroke.randomRotationEnabled,
+      rotationSeed: stroke.rotationSeed,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_StreamlinePostStrokeOverlayPainter oldDelegate) {
+    return oldDelegate.stroke != stroke ||
+        oldDelegate.progress != progress ||
+        oldDelegate.curve != curve ||
+        oldDelegate.eraserPreviewColor != eraserPreviewColor;
+  }
+}
+
 class _BucketOptionTile extends StatelessWidget {
   const _BucketOptionTile({
     required this.title,

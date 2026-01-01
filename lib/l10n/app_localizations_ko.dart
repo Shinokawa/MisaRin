@@ -1078,7 +1078,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get streamlineDesc =>
-      'Procreate의 StreamLine처럼, 펜 끝과 잉크 사이에 \'가상 로프\'를 두어 고주파 흔들림을 줄입니다. 레벨이 높을수록 더 부드럽지만 지연도 늘어납니다.';
+      'Procreate 스타일 StreamLine: 펜을 뗀 후 획을 부드럽게 재계산하고 보간 애니메이션으로 더 매끄러운 경로로 돌아갑니다(레벨이 높을수록 강함).';
 
   @override
   String get fontSizeDesc => '전체 크기 조정을 위해 텍스트의 픽셀 높이를 조정합니다.';

@@ -522,7 +522,7 @@
   "fillGapDesc": "Attempts to close small gaps in line art during bucket fill to prevent leaks. Higher values close larger gaps but may miss very thin areas.",
   "antialiasingSliderDesc": "Adds multi-sampling smoothing to brush or fill edges, preserving line density. Level 0 keeps pixel style.",
   "stabilizerDesc": "Smooths pointer trajectory in real-time to counteract hand tremors. Higher levels are steadier but respond slower.",
-  "streamlineDesc": "Procreate-style StreamLine smoothing. Adds a virtual rope between your pen and the ink so strokes stay smooth but feel more dragged/delayed at higher levels.",
+  "streamlineDesc": "Procreate-like StreamLine: smooths the stroke after lift-off and tween-snaps it to a cleaner path (higher levels are stronger).",
   "fontSizeDesc": "Adjusts the pixel height of the text for overall scaling.",
   "lineHeightDesc": "Controls vertical distance between lines of text.",
   "letterSpacingDesc": "Changes horizontal spacing between characters.",

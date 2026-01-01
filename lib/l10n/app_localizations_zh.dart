@@ -1064,7 +1064,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get streamlineDesc =>
-      '类似 Procreate 的 StreamLine：在笔尖和墨迹之间加入\"虚拟绳索\"拖拽，过滤高频抖动，等级越高越顺但延迟也更明显。';
+      '类似 Procreate 的 StreamLine：抬笔后对笔画路径做平滑重算，并以补间动画回弹到更顺的结果（等级越高越明显）。';
 
   @override
   String get fontSizeDesc => '调整文字的像素高度，用于整体放大或缩小当前文本。';
@@ -3148,7 +3148,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get streamlineDesc =>
-      '類似 Procreate 的 StreamLine：在筆尖和墨跡之間加入「虛擬繩索」拖拽，過濾高頻抖動，等級越高越順但延遲也更明顯。';
+      '類似 Procreate 的 StreamLine：抬筆後對筆畫路徑做平滑重算，並以補間動畫回彈到更順的結果（等級越高越明顯）。';
 
   @override
   String get hollowStrokeDesc => '將筆畫中心挖空，形成空心描邊效果。';

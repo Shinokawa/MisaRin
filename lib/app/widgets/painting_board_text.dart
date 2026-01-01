@@ -907,6 +907,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       case CanvasTool.bucket:
       case CanvasTool.magicWand:
       case CanvasTool.selection:
+      case CanvasTool.selectionPen:
         return true;
     }
   }

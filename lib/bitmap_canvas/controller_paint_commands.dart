@@ -98,6 +98,99 @@ void _controllerFlushDeferredStrokeCommands(
       });
 }
 
+Future<void> _controllerCommitVectorStroke(
+  BitmapCanvasController controller, {
+  required List<Offset> points,
+  required List<double> radii,
+  required Color color,
+  required BrushShape brushShape,
+  required bool applyVectorSmoothing,
+  required bool erase,
+  required int antialiasLevel,
+  bool hollow = false,
+  double hollowRatio = 0.0,
+  bool eraseOccludedParts = false,
+  bool randomRotation = false,
+  int rotationSeed = 0,
+}) async {
+  if (controller._layers.isEmpty || controller._activeLayer.locked) {
+    return;
+  }
+  if (points.isEmpty) {
+    return;
+  }
+
+  List<Offset> resolvedPoints = List<Offset>.from(points);
+  List<double> resolvedRadii = List<double>.from(radii);
+  if (applyVectorSmoothing &&
+      controller._vectorStrokeSmoothingEnabled &&
+      resolvedPoints.length >= 3) {
+    final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
+      resolvedPoints,
+      resolvedRadii,
+    );
+    resolvedPoints = smoothed.points;
+    resolvedRadii = smoothed.radii;
+  }
+
+  final bool resolvedHollow = hollow && !erase;
+  final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
+    points: resolvedPoints,
+    radii: resolvedRadii,
+    colorValue: color.value,
+    shapeIndex: brushShape.index,
+    antialiasLevel: antialiasLevel.clamp(0, 3),
+    erase: erase,
+    hollow: resolvedHollow,
+    hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
+    eraseOccludedParts: resolvedHollow && eraseOccludedParts,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
+  );
+
+  controller._committingStrokes.add(vectorCommand);
+  controller.notifyListeners();
+
+  double minX = double.infinity;
+  double minY = double.infinity;
+  double maxX = double.negativeInfinity;
+  double maxY = double.negativeInfinity;
+  double maxRadius = 0.0;
+
+  for (int i = 0; i < resolvedPoints.length; i++) {
+    final Offset point = resolvedPoints[i];
+    final double radius = _strokeRadiusAtIndex(resolvedRadii, i);
+    if (radius > maxRadius) {
+      maxRadius = radius;
+    }
+    if (point.dx < minX) minX = point.dx;
+    if (point.dx > maxX) maxX = point.dx;
+    if (point.dy < minY) minY = point.dy;
+    if (point.dy > maxY) maxY = point.dy;
+  }
+
+  final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY)
+      .inflate(maxRadius + 2.0);
+
+  await controller._rasterizeVectorStroke(
+    resolvedPoints,
+    resolvedRadii,
+    color,
+    brushShape,
+    dirtyRegion,
+    erase,
+    antialiasLevel.clamp(0, 3),
+    hollow: resolvedHollow,
+    hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
+    eraseOccludedParts: resolvedHollow && eraseOccludedParts,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
+  );
+
+  controller._committingStrokes.remove(vectorCommand);
+  controller.notifyListeners();
+}
+
 Future<void> _controllerRasterizeVectorStroke(
   BitmapCanvasController controller,
   List<Offset> points,

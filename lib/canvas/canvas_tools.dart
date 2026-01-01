@@ -10,6 +10,7 @@ enum CanvasTool {
   magicWand,
   eyedropper,
   selection,
+  selectionPen,
   text,
   hand,
   rotate,

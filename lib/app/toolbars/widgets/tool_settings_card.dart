@@ -432,6 +432,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       case CanvasTool.selection:
         content = _buildSelectionShapeRow(theme);
         break;
+      case CanvasTool.selectionPen:
+        content = _buildBrushSizeRow(theme);
+        break;
       case CanvasTool.text:
         content = _buildTextControls(theme);
         break;

@@ -1072,7 +1072,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get streamlineDesc =>
-      'Procreate の StreamLine 風の平滑化。ペン先とインクの間に「仮想ロープ」を入れて高周波の揺れを吸収し、レベルが高いほど滑らかですが遅延も増えます。';
+      'Procreate の StreamLine 風の補正です。ペンを離した後にストロークを平滑化し、補間アニメーションでより滑らかな線に戻します（レベルが高いほど強い）。';
 
   @override
   String get fontSizeDesc => 'テキスト全体のピクセル高さを調整します。';
