@@ -930,6 +930,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushShape => '브러시 모양';
 
   @override
+  String get randomRotation => '무작위 회전';
+
+  @override
   String get selectionShape => '선택 모양';
 
   @override
@@ -1044,6 +1047,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get square => '정사각형';
 
   @override
+  String get star => '오각별';
+
+  @override
   String get brushSizeDesc =>
       '현재 브러시의 직경(픽셀)을 설정합니다. 값이 클수록 선이 굵어지고, 작을수록 세부 묐사에 적합합니다.';
 
@@ -1092,6 +1098,9 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get solidFillDesc =>
       '도형 도구가 채워진 블록을 그릴지 빈 윤곽선을 그릴지 결정합니다. 켜면 채워진 도형을 그립니다.';
+
+  @override
+  String get randomRotationDesc => '켜면 사각형/삼각형/오각별 스탬프가 스트로크를 따라 무작위로 회전합니다.';
 
   @override
   String get autoSharpTaperDesc =>
@@ -1179,6 +1188,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get squareTipDesc => '사각형 팁을 사용하여 날카로운 픽셀 스트로크를 만듭니다.';
+
+  @override
+  String get starTipDesc => '오각별 팁으로 장식적인 스트로크를 그립니다.';
 
   @override
   String get apply => '적용';

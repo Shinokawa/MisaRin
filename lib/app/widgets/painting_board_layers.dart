@@ -80,30 +80,96 @@ mixin _PaintingBoardLayerMixin
     }
   }
 
-  void _beginLayerRename(BitmapLayerState layer) {
+  Future<void> _beginLayerRename(BitmapLayerState layer) async {
     if (layer.locked) {
       return;
     }
-    if (_renamingLayerId != null && _renamingLayerId != layer.id) {
-      _finalizeLayerRename(cancel: true);
+
+    final BitmapLayerState? target = _layerById(layer.id);
+    if (target == null || target.locked) {
+      return;
     }
-    _layerRenameController
-      ..text = layer.name
-      ..selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: layer.name.length,
-      );
-    setState(() {
-      _renamingLayerId = layer.id;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _renamingLayerId != layer.id) {
-        return;
-      }
-      if (!_layerRenameFocusNode.hasFocus) {
-        _layerRenameFocusNode.requestFocus();
-      }
-    });
+
+    final TextEditingController controller = TextEditingController(
+      text: target.name,
+    );
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.text.length,
+    );
+    String? errorText;
+
+    final String? result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final l10n = dialogContext.l10n;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            void submit() {
+              final String trimmed = controller.text.trim();
+              if (trimmed.isEmpty) {
+                setState(() => errorText = l10n.nameCannotBeEmpty);
+                return;
+              }
+              Navigator.of(dialogContext).pop(trimmed);
+            }
+
+            return MisarinDialog(
+              title: Text(l10n.rename),
+              contentWidth: 360,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextBox(
+                    controller: controller,
+                    autofocus: true,
+                    onChanged: (_) {
+                      if (errorText != null) {
+                        setState(() => errorText = null);
+                      }
+                    },
+                    onSubmitted: (_) => submit(),
+                  ),
+                  if (errorText != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      errorText!,
+                      style: const TextStyle(color: Color(0xFFD13438)),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                Button(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(onPressed: submit, child: Text(l10n.rename)),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted) {
+      return;
+    }
+    final String nextName = result?.trim() ?? '';
+    if (nextName.isEmpty) {
+      return;
+    }
+
+    final BitmapLayerState? refreshed = _layerById(layer.id);
+    if (refreshed == null || refreshed.locked || refreshed.name == nextName) {
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    _controller.renameLayer(layer.id, nextName);
+    setState(() {});
+    _markDirty();
   }
 
   void _finalizeLayerRename({bool cancel = false}) async {

@@ -25,6 +25,8 @@ void _controllerFlushDeferredStrokeCommands(
   final bool hollow = controller._currentStrokeHollowEnabled;
   final double hollowRatio = controller._currentStrokeHollowRatio;
   final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
+  final bool randomRotation = controller._currentStrokeRandomRotationEnabled;
+  final int rotationSeed = controller._currentStrokeRotationSeed;
 
   if (controller._vectorStrokeSmoothingEnabled && points.length >= 3) {
     final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
@@ -45,6 +47,8 @@ void _controllerFlushDeferredStrokeCommands(
     hollow: hollow,
     hollowRatio: hollowRatio,
     eraseOccludedParts: eraseOccludedParts,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
   );
   controller._committingStrokes.add(vectorCommand);
 
@@ -85,6 +89,8 @@ void _controllerFlushDeferredStrokeCommands(
         hollow: hollow,
         hollowRatio: hollowRatio,
         eraseOccludedParts: eraseOccludedParts,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       )
       .then((_) {
         controller._committingStrokes.remove(vectorCommand);
@@ -105,6 +111,8 @@ Future<void> _controllerRasterizeVectorStroke(
   bool hollow = false,
   double hollowRatio = 0.0,
   bool eraseOccludedParts = false,
+  bool randomRotation = false,
+  int rotationSeed = 0,
 }
 ) async {
   final bool applyHollowCutoutErase =
@@ -136,6 +144,8 @@ Future<void> _controllerRasterizeVectorStroke(
     antialiasLevel: antialiasLevel,
     hollow: hollow,
     hollowRatio: hollowRatio,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
   );
 
   final ui.Picture picture = recorder.endRecording();
@@ -176,6 +186,8 @@ Future<void> _controllerRasterizeVectorStroke(
         color: const Color(0xFFFFFFFF),
         shape: shape,
         antialiasLevel: antialiasLevel,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       );
 
       final ui.Picture maskPicture = maskRecorder.endRecording();
@@ -259,6 +271,8 @@ Future<void> _controllerRasterizeVectorStroke(
         color: const Color(0xFFFFFFFF),
         shape: shape,
         antialiasLevel: antialiasLevel,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       );
       final ui.Picture maskPicture = maskRecorder.endRecording();
       final ui.Image maskImage = await maskPicture.toImage(
@@ -647,6 +661,8 @@ void _controllerApplyPaintingCommandsSynchronously(
           antialiasLevel: command.antialiasLevel,
           erase: erase,
           softness: command.softness ?? 0.0,
+          randomRotation: command.randomRotation ?? false,
+          rotationSeed: command.rotationSeed ?? 0,
         );
         anyChange = true;
         break;
@@ -722,6 +738,8 @@ void _controllerApplyPaintingCommandsSynchronously(
           mask: mask,
           antialias: command.antialiasLevel,
           erase: erase,
+          randomRotation: command.randomRotation ?? false,
+          rotationSeed: command.rotationSeed ?? 0,
         );
         anyChange = true;
         break;
@@ -767,6 +785,8 @@ void _controllerApplyStampSegmentFallback({
   required Uint8List? mask,
   required int antialias,
   required bool erase,
+  bool randomRotation = false,
+  int rotationSeed = 0,
 }) {
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
@@ -778,6 +798,8 @@ void _controllerApplyStampSegmentFallback({
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
     return;
   }
@@ -801,6 +823,8 @@ void _controllerApplyStampSegmentFallback({
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
   }
 }

@@ -100,6 +100,8 @@ class BitmapCanvasController extends ChangeNotifier {
   int _currentStrokeAntialiasLevel = 0;
   bool _currentStrokeHasMoved = false;
   BrushShape _currentBrushShape = BrushShape.circle;
+  bool _currentStrokeRandomRotationEnabled = false;
+  int _currentStrokeRotationSeed = 0;
   final StrokePressureSimulator _strokePressureSimulator =
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
@@ -230,6 +232,8 @@ class BitmapCanvasController extends ChangeNotifier {
   bool get activeStrokeHollowEnabled => _currentStrokeHollowEnabled;
   double get activeStrokeHollowRatio => _currentStrokeHollowRatio;
   bool get activeStrokeEraseOccludedParts => _currentStrokeEraseOccludedParts;
+  bool get activeStrokeRandomRotationEnabled => _currentStrokeRandomRotationEnabled;
+  int get activeStrokeRotationSeed => _currentStrokeRotationSeed;
 
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
@@ -250,6 +254,8 @@ class BitmapCanvasController extends ChangeNotifier {
     bool hollow = false,
     double hollowRatio = 0.0,
     bool eraseOccludedParts = false,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) => _controllerRasterizeVectorStroke(
     this,
     points,
@@ -262,6 +268,8 @@ class BitmapCanvasController extends ChangeNotifier {
     hollow: hollow,
     hollowRatio: hollowRatio,
     eraseOccludedParts: eraseOccludedParts,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
   );
 
   void _flushRealtimeStrokeCommands() =>
@@ -515,6 +523,7 @@ class BitmapCanvasController extends ChangeNotifier {
     int antialiasLevel = 0,
     BrushShape brushShape = BrushShape.circle,
     bool enableNeedleTips = false,
+    bool randomRotation = false,
     bool erase = false,
     bool hollow = false,
     double hollowRatio = 0.0,
@@ -535,6 +544,7 @@ class BitmapCanvasController extends ChangeNotifier {
     antialiasLevel: antialiasLevel,
     brushShape: brushShape,
     enableNeedleTips: enableNeedleTips,
+    randomRotation: randomRotation,
     erase: erase,
     hollow: hollow,
     hollowRatio: hollowRatio,

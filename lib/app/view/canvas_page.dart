@@ -97,6 +97,7 @@ class CanvasPageState extends State<CanvasPage> {
     'bmp',
     'gif',
   };
+  static const Duration _kDropDuplicateDebounce = Duration(seconds: 1);
 
   late ProjectDocument _document;
   bool _hasUnsavedChanges = false;
@@ -113,6 +114,12 @@ class CanvasPageState extends State<CanvasPage> {
   PaintingBoardState? get _activeBoard => _boardFor(_document.id);
   bool get _supportsFileDrops =>
       !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+  bool _isHandlingTabBarDrop = false;
+  String? _lastTabBarDropSignature;
+  DateTime? _lastTabBarDropAt;
+  bool _isHandlingCanvasDrop = false;
+  String? _lastCanvasDropSignature;
+  DateTime? _lastCanvasDropAt;
 
   List<ProjectDocument> _undoStackFor(String id) {
     return _documentUndoStacks.putIfAbsent(id, () => <ProjectDocument>[]);
@@ -1315,42 +1322,58 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
+    final String signature = _dropItemsSignature(candidates);
+    if (_isHandlingTabBarDrop ||
+        _isRecentDuplicateDrop(
+          signature,
+          previousSignature: _lastTabBarDropSignature,
+          previousAt: _lastTabBarDropAt,
+        )) {
+      return;
+    }
+    _isHandlingTabBarDrop = true;
     int createdCount = 0;
-    for (final DropItem item in candidates) {
+    try {
+      for (final DropItem item in candidates) {
+        if (!mounted) {
+          return;
+        }
+        try {
+          final ProjectDocument? document = await _createDocumentFromDropItem(
+            item,
+          );
+          if (document == null) {
+            continue;
+          }
+          await openDocument(document);
+          createdCount += 1;
+        } catch (error) {
+          _showInfoBar(
+            context.l10n.importFailed(_describeDropItem(item), error),
+            severity: InfoBarSeverity.error,
+          );
+        }
+      }
       if (!mounted) {
         return;
       }
-      try {
-        final ProjectDocument? document = await _createDocumentFromDropItem(
-          item,
-        );
-        if (document == null) {
-          continue;
-        }
-        await openDocument(document);
-        createdCount += 1;
-      } catch (error) {
+      if (createdCount > 0) {
         _showInfoBar(
-          context.l10n.importFailed(_describeDropItem(item), error),
-          severity: InfoBarSeverity.error,
+          createdCount == 1
+              ? context.l10n.createdCanvasFromDrop
+              : context.l10n.createdCanvasesFromDrop(createdCount),
+          severity: InfoBarSeverity.success,
+        );
+      } else {
+        _showInfoBar(
+          context.l10n.dropImageCreateFailed,
+          severity: InfoBarSeverity.warning,
         );
       }
-    }
-    if (!mounted) {
-      return;
-    }
-    if (createdCount > 0) {
-      _showInfoBar(
-        createdCount == 1
-            ? context.l10n.createdCanvasFromDrop
-            : context.l10n.createdCanvasesFromDrop(createdCount),
-        severity: InfoBarSeverity.success,
-      );
-    } else {
-      _showInfoBar(
-        context.l10n.dropImageCreateFailed,
-        severity: InfoBarSeverity.warning,
-      );
+    } finally {
+      _isHandlingTabBarDrop = false;
+      _lastTabBarDropSignature = signature;
+      _lastTabBarDropAt = DateTime.now();
     }
   }
 
@@ -1374,42 +1397,189 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
-    int insertedCount = 0;
-    for (final DropItem item in candidates) {
-      final Uint8List? bytes = await _readDropItemBytes(item);
-      if (bytes == null) {
-        continue;
-      }
-      final bool inserted = await board.insertImageLayerFromBytes(
-        bytes,
-        name: _preferredLayerNameForDrop(item),
-      );
-      if (inserted) {
-        insertedCount += 1;
-      }
-    }
-    if (!mounted) {
+    final String signature = _dropItemsSignature(candidates);
+    if (_isHandlingCanvasDrop ||
+        _isRecentDuplicateDrop(
+          signature,
+          previousSignature: _lastCanvasDropSignature,
+          previousAt: _lastCanvasDropAt,
+        )) {
       return;
     }
-    if (insertedCount > 0) {
-      _showInfoBar(
-        insertedCount == 1
-            ? context.l10n.insertedDropImage
-            : context.l10n.insertedDropImages(insertedCount),
-        severity: InfoBarSeverity.success,
-      );
-    } else {
-      _showInfoBar(
-        context.l10n.dropImageInsertFailed,
-        severity: InfoBarSeverity.error,
-      );
+    _isHandlingCanvasDrop = true;
+    int insertedCount = 0;
+    try {
+      for (final DropItem item in candidates) {
+        final Uint8List? bytes = await _readDropItemBytes(item);
+        if (bytes == null) {
+          continue;
+        }
+        final bool inserted = await board.insertImageLayerFromBytes(
+          bytes,
+          name: _preferredLayerNameForDrop(item),
+        );
+        if (inserted) {
+          insertedCount += 1;
+        }
+      }
+      if (!mounted) {
+        return;
+      }
+      if (insertedCount > 0) {
+        _showInfoBar(
+          insertedCount == 1
+              ? context.l10n.insertedDropImage
+              : context.l10n.insertedDropImages(insertedCount),
+          severity: InfoBarSeverity.success,
+        );
+      } else {
+        _showInfoBar(
+          context.l10n.dropImageInsertFailed,
+          severity: InfoBarSeverity.error,
+        );
+      }
+    } finally {
+      _isHandlingCanvasDrop = false;
+      _lastCanvasDropSignature = signature;
+      _lastCanvasDropAt = DateTime.now();
     }
   }
 
+  bool _isRecentDuplicateDrop(
+    String signature, {
+    required String? previousSignature,
+    required DateTime? previousAt,
+  }) {
+    if (signature.trim().isEmpty) {
+      return false;
+    }
+    if (previousSignature == null || previousSignature.trim().isEmpty) {
+      return false;
+    }
+    if (signature != previousSignature) {
+      return false;
+    }
+    if (previousAt == null) {
+      return false;
+    }
+    return DateTime.now().difference(previousAt) < _kDropDuplicateDebounce;
+  }
+
+  String _dropItemsSignature(List<DropItem> items) {
+    if (items.isEmpty) {
+      return '';
+    }
+    final List<String> keys = <String>{
+      for (final DropItem item in items) _dropItemDedupKey(item),
+    }.toList()
+      ..sort();
+    return keys.join('|');
+  }
+
+  String _dropItemDedupKey(DropItem item) {
+    final String normalizedPath = _normalizeDropItemPath(item.path);
+    if (normalizedPath.isNotEmpty) {
+      final String resolved = Platform.isWindows
+          ? normalizedPath.toLowerCase()
+          : normalizedPath;
+      return 'path:$resolved';
+    }
+    final String name = item.name.trim();
+    if (name.isNotEmpty) {
+      return 'name:${name.toLowerCase()}';
+    }
+    return 'hash:${item.hashCode}';
+  }
+
+  String _normalizeDropItemPath(String rawPath) {
+    final String trimmed = rawPath.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    if (trimmed.startsWith('file://')) {
+      final Uri? uri = Uri.tryParse(trimmed);
+      if (uri != null) {
+        try {
+          final String decodedPath = uri.toFilePath();
+          if (decodedPath.trim().isNotEmpty) {
+            return p.normalize(decodedPath);
+          }
+        } catch (_) {
+          return p.normalize(trimmed);
+        }
+      }
+    }
+    return p.normalize(trimmed);
+  }
+
   List<DropItem> _filterSupportedDropItems(List<DropItem> items) {
+    final Set<String> seen = <String>{};
+    final List<DropItem> result = <DropItem>[];
+    for (final DropItem item in items) {
+      if (!_isSupportedDropItem(item)) {
+        continue;
+      }
+      final String key = _dropItemDedupKey(item);
+      if (!seen.add(key)) {
+        continue;
+      }
+      result.add(item);
+    }
+    if (kIsWeb || !Platform.isMacOS || result.length < 2) {
+      return result;
+    }
+    return _dedupeMacOSFilePromiseItems(result);
+  }
+
+  List<DropItem> _dedupeMacOSFilePromiseItems(List<DropItem> items) {
+    final String promiseDirectory = p.normalize(
+      p.join(Directory.systemTemp.path, 'Drops'),
+    );
+    final Map<String, List<DropItem>> groups = <String, List<DropItem>>{};
+    for (final DropItem item in items) {
+      final String normalizedPath = _normalizeDropItemPath(item.path);
+      if (normalizedPath.isEmpty) {
+        continue;
+      }
+      final String basename = p.basename(normalizedPath).toLowerCase();
+      if (basename.isEmpty) {
+        continue;
+      }
+      groups.putIfAbsent(basename, () => <DropItem>[]).add(item);
+    }
+    if (groups.isEmpty) {
+      return items;
+    }
+    final Set<String> promisePaths = <String>{};
+    for (final List<DropItem> group in groups.values) {
+      if (group.length < 2) {
+        continue;
+      }
+      bool hasPromise = false;
+      bool hasNormal = false;
+      final List<String> promiseCandidates = <String>[];
+      for (final DropItem item in group) {
+        final String normalizedPath = _normalizeDropItemPath(item.path);
+        final bool isPromise =
+            p.isWithin(promiseDirectory, normalizedPath) ||
+            p.equals(promiseDirectory, normalizedPath);
+        if (isPromise) {
+          hasPromise = true;
+          promiseCandidates.add(normalizedPath);
+        } else {
+          hasNormal = true;
+        }
+      }
+      if (hasPromise && hasNormal) {
+        promisePaths.addAll(promiseCandidates);
+      }
+    }
+    if (promisePaths.isEmpty) {
+      return items;
+    }
     return <DropItem>[
       for (final DropItem item in items)
-        if (_isSupportedDropItem(item)) item,
+        if (!promisePaths.contains(_normalizeDropItemPath(item.path))) item,
     ];
   }
 
@@ -1538,12 +1708,13 @@ class CanvasPageState extends State<CanvasPage> {
     }
   }
 
-  Widget _buildBoard(CanvasWorkspaceEntry entry) {
+  Widget _buildBoard(CanvasWorkspaceEntry entry, {required bool isActive}) {
     final String id = entry.id;
     return PaintingBoard(
       key: _ensureBoardKey(id),
       settings: entry.document.settings,
       onRequestExit: _handleExitRequest,
+      isActive: isActive,
       onDirtyChanged: (dirty) => _handleDirtyChanged(id, dirty),
       initialLayers: entry.document.layers,
       initialPerspectiveGuide: entry.document.perspectiveGuide,
@@ -1873,7 +2044,13 @@ class CanvasPageState extends State<CanvasPage> {
             alignment: Alignment.center,
             children: [
               for (final CanvasWorkspaceEntry entry in entries)
-                Align(alignment: Alignment.center, child: _buildBoard(entry)),
+                Align(
+                  alignment: Alignment.center,
+                  child: _buildBoard(
+                    entry,
+                    isActive: entry.id == _document.id,
+                  ),
+                ),
             ],
           );
         },

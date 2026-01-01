@@ -59,6 +59,7 @@ import 'package:flutter/widgets.dart'
         CustomPaint,
         EditableText,
         FocusNode,
+        StatefulBuilder,
         SingleChildRenderObjectWidget,
         StrutStyle,
         TextEditingController,
@@ -69,6 +70,7 @@ import 'package:flutter_localizations/flutter_localizations.dart'
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'package:file_picker/file_picker.dart';
 
+import '../dialogs/misarin_dialog.dart';
 import '../l10n/l10n.dart';
 
 import '../../bitmap_canvas/bitmap_canvas.dart';
@@ -217,6 +219,7 @@ class PaintingBoard extends StatefulWidget {
     super.key,
     required this.settings,
     required this.onRequestExit,
+    this.isActive = true,
     this.onDirtyChanged,
     this.initialLayers,
     this.initialPerspectiveGuide,
@@ -232,6 +235,7 @@ class PaintingBoard extends StatefulWidget {
 
   final CanvasSettings settings;
   final VoidCallback onRequestExit;
+  final bool isActive;
   final ValueChanged<bool>? onDirtyChanged;
   final List<CanvasLayerData>? initialLayers;
   final PerspectiveGuideState? initialPerspectiveGuide;
@@ -278,6 +282,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _vectorStrokeSmoothingEnabled =
       AppPreferences.defaultVectorStrokeSmoothingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
+  bool _brushRandomRotationEnabled =
+      AppPreferences.defaultBrushRandomRotationEnabled;
   bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
   double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
   bool _hollowStrokeEraseOccludedParts =
@@ -1876,6 +1882,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void setPerspectiveGuideMode(PerspectiveGuideMode mode) {
     setPerspectiveMode(mode);
   }
+
+  @protected
+  void _scheduleWorkspaceCardsOverlaySync() {}
 }
 
 class PaintingBoardState extends _PaintingBoardBase
@@ -1934,6 +1943,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
     _vectorStrokeSmoothingEnabled = prefs.vectorStrokeSmoothingEnabled;
     _brushShape = prefs.brushShape;
+    _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
     _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
     _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
     _hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;

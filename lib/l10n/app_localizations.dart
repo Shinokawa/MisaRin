@@ -1790,6 +1790,12 @@ abstract class AppLocalizations {
   /// **'Brush Shape'**
   String get brushShape;
 
+  /// No description provided for @randomRotation.
+  ///
+  /// In en, this message translates to:
+  /// **'Random rotation'**
+  String get randomRotation;
+
   /// No description provided for @selectionShape.
   ///
   /// In en, this message translates to:
@@ -2018,6 +2024,12 @@ abstract class AppLocalizations {
   /// **'Square'**
   String get square;
 
+  /// No description provided for @star.
+  ///
+  /// In en, this message translates to:
+  /// **'Star'**
+  String get star;
+
   /// No description provided for @brushSizeDesc.
   ///
   /// In en, this message translates to:
@@ -2101,6 +2113,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.'**
   String get solidFillDesc;
+
+  /// No description provided for @randomRotationDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, square/triangle/star stamps rotate randomly along the stroke.'**
+  String get randomRotationDesc;
 
   /// No description provided for @autoSharpTaperDesc.
   ///
@@ -2257,6 +2275,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use a square tip for hard-edged pixel strokes.'**
   String get squareTipDesc;
+
+  /// No description provided for @starTipDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a five-point star tip for decorative strokes.'**
+  String get starTipDesc;
 
   /// No description provided for @apply.
   ///

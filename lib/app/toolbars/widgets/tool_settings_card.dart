@@ -30,6 +30,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onSprayModeChanged,
     required this.brushShape,
     required this.onBrushShapeChanged,
+    required this.brushRandomRotationEnabled,
+    required this.onBrushRandomRotationEnabledChanged,
     required this.hollowStrokeEnabled,
     required this.hollowStrokeRatio,
     required this.onHollowStrokeEnabledChanged,
@@ -118,6 +120,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<SprayMode> onSprayModeChanged;
   final BrushShape brushShape;
   final ValueChanged<BrushShape> onBrushShapeChanged;
+  final bool brushRandomRotationEnabled;
+  final ValueChanged<bool> onBrushRandomRotationEnabledChanged;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final ValueChanged<bool> onHollowStrokeEnabledChanged;
@@ -528,6 +532,13 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final List<Widget> wrapChildren = <Widget>[
       _buildBrushSizeRow(theme),
       _buildBrushShapeRow(theme),
+      _buildToggleSwitchRow(
+        theme,
+        label: l10n.randomRotation,
+        detail: l10n.randomRotationDesc,
+        value: widget.brushRandomRotationEnabled,
+        onChanged: widget.onBrushRandomRotationEnabledChanged,
+      ),
       if (isPenTool || isEraserTool) _buildStrokeStabilizerRow(theme),
     ];
 
@@ -2160,6 +2171,8 @@ extension on AppLocalizations {
         return triangle;
       case BrushShape.square:
         return square;
+      case BrushShape.star:
+        return star;
     }
   }
 
@@ -2171,6 +2184,8 @@ extension on AppLocalizations {
         return triangleShapeDesc;
       case BrushShape.square:
         return squareTipDesc;
+      case BrushShape.star:
+        return starTipDesc;
     }
   }
 }
@@ -2183,5 +2198,7 @@ IconData _brushShapeIcon(BrushShape shape) {
       return FluentIcons.triangle_shape;
     case BrushShape.square:
       return FluentIcons.square_shape;
+    case BrushShape.star:
+      return FluentIcons.favorite_star;
   }
 }

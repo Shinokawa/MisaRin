@@ -920,6 +920,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushShape => '笔刷形状';
 
   @override
+  String get randomRotation => '随机旋转';
+
+  @override
   String get selectionShape => '选区形状';
 
   @override
@@ -1034,6 +1037,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get square => '正方形';
 
   @override
+  String get star => '五角星';
+
+  @override
   String get brushSizeDesc => '设置当前笔刷的像素直径，数值越大线条越粗，越小越适合描画细节。';
 
   @override
@@ -1076,6 +1082,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get solidFillDesc => '决定形状工具是绘制填充色块还是空心轮廓，开启后直接生成实心图形。';
+
+  @override
+  String get randomRotationDesc => '开启后，方形/三角形/五角星笔刷会在笔触的每个印章上随机旋转。';
 
   @override
   String get autoSharpTaperDesc => '为笔刷起笔与收笔自动收尖，营造赛璐璐式的利落线条。';
@@ -1156,6 +1165,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get squareTipDesc => '使用方形笔尖绘制硬边像素风笔触。';
+
+  @override
+  String get starTipDesc => '使用五角星笔尖绘制装饰性笔触。';
 
   @override
   String get apply => '应用';
@@ -3119,6 +3131,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get eraseOccludedParts => '擦除被遮擋部分';
 
   @override
+  String get randomRotation => '隨機旋轉';
+
+  @override
+  String get star => '五角星';
+
+  @override
   String get hollowStrokeDesc => '將筆畫中心挖空，形成空心描邊效果。';
 
   @override
@@ -3126,6 +3144,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get eraseOccludedPartsDesc => '開啟後，同一圖層裡後畫的空心線條會吃掉與其他線條的重合部分。';
+
+  @override
+  String get randomRotationDesc => '開啟後，正方形/三角形/五角星筆刷會在筆觸的每個印章上隨機旋轉。';
 
   @override
   String get swallowBlueColorLineDesc => '色塊填充時只吞併藍色線。';
@@ -3138,6 +3159,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get swallowAllColorLineDesc => '色塊填充時吞併紅/綠/藍色線。';
+
+  @override
+  String get starTipDesc => '使用五角星筆尖繪製裝飾性筆觸。';
 
   @override
   String get layerEmptyScanPaperDrawing => '目前圖層為空，無法掃描紙繪。';

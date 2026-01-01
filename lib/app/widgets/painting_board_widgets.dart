@@ -134,7 +134,13 @@ class _CheckboardPainter extends CustomPainter {
     final Paint darkPaint = Paint()
       ..color = darkColor
       ..isAntiAlias = false;
-    final double step = cellSize <= 0 ? 12.0 : cellSize;
+    double step = cellSize <= 0 ? 12.0 : cellSize;
+    if (size.width > 0 && size.height > 0) {
+      final double minSide = math.min(size.width, size.height);
+      if (minSide > 0 && step >= minSide) {
+        step = math.max(1.0, minSide / 2.0);
+      }
+    }
     final int horizontalCount = (size.width / step).ceil();
     final int verticalCount = (size.height / step).ceil();
 
@@ -289,6 +295,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     required this.radii,
     required this.color,
     this.shape = BrushShape.circle,
+    required this.randomRotationEnabled,
+    required this.rotationSeed,
     required this.committingStrokes,
     this.antialiasLevel = 1,
     this.hollowStrokeEnabled = false,
@@ -301,6 +309,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   final List<double> radii;
   final Color color;
   final BrushShape shape;
+  final bool randomRotationEnabled;
+  final int rotationSeed;
   final List<PaintingDrawCommand> committingStrokes;
   final int antialiasLevel;
   final bool hollowStrokeEnabled;
@@ -326,6 +336,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         antialiasLevel: command.antialiasLevel,
         hollow: commandHollow,
         hollowRatio: command.hollowRatio ?? 0.0,
+        randomRotation: command.randomRotation ?? false,
+        rotationSeed: command.rotationSeed ?? 0,
       );
     }
 
@@ -344,6 +356,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         antialiasLevel: antialiasLevel,
         hollow: activeHollow,
         hollowRatio: hollowStrokeRatio,
+        randomRotation: randomRotationEnabled,
+        rotationSeed: rotationSeed,
       );
     }
   }
@@ -354,6 +368,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.radii != radii ||
         oldDelegate.color != color ||
         oldDelegate.shape != shape ||
+        oldDelegate.randomRotationEnabled != randomRotationEnabled ||
+        oldDelegate.rotationSeed != rotationSeed ||
         oldDelegate.committingStrokes != committingStrokes ||
         oldDelegate.antialiasLevel != antialiasLevel ||
         oldDelegate.hollowStrokeEnabled != hollowStrokeEnabled ||

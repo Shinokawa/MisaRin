@@ -249,6 +249,16 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateBrushRandomRotationEnabled(bool value) {
+    if (_brushRandomRotationEnabled == value) {
+      return;
+    }
+    setState(() => _brushRandomRotationEnabled = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.brushRandomRotationEnabled = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateHollowStrokeEnabled(bool value) {
     if (_hollowStrokeEnabled == value) {
       return;
@@ -635,6 +645,7 @@ mixin _PaintingBoardInteractionMixin
         timestampMillis: timestamp.inMicroseconds / 1000.0,
         antialiasLevel: _penAntialiasLevel,
         brushShape: _brushShape,
+        randomRotation: _brushRandomRotationEnabled,
         erase: erase,
         hollow: hollow,
         hollowRatio: _hollowStrokeRatio,
@@ -1514,6 +1525,7 @@ mixin _PaintingBoardInteractionMixin
           profile: _penPressureProfile,
           antialiasLevel: _penAntialiasLevel,
           brushShape: _brushShape,
+          randomRotation: _brushRandomRotationEnabled,
           erase: erase,
           hollow: _hollowStrokeEnabled && !erase,
           hollowRatio: _hollowStrokeRatio,
@@ -1785,6 +1797,7 @@ mixin _PaintingBoardInteractionMixin
       antialiasLevel: _penAntialiasLevel,
       brushShape: _brushShape,
       enableNeedleTips: enableNeedleTips,
+      randomRotation: _brushRandomRotationEnabled,
       erase: erase,
       hollow: hollow,
       hollowRatio: _hollowStrokeRatio,

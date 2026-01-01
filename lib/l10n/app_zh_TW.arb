@@ -428,5 +428,10 @@
   "swallowBlueColorLineDesc": "色塊填充時只吞併藍色線。",
   "swallowGreenColorLineDesc": "色塊填充時只吞併綠色線。",
   "swallowRedColorLineDesc": "色塊填充時只吞併紅色線。",
-  "swallowAllColorLineDesc": "色塊填充時吞併紅/綠/藍色線。"
+  "swallowAllColorLineDesc": "色塊填充時吞併紅/綠/藍色線。",
+
+  "randomRotation": "隨機旋轉",
+  "randomRotationDesc": "開啟後，正方形/三角形/五角星筆刷會在筆觸的每個印章上隨機旋轉。",
+  "star": "五角星",
+  "starTipDesc": "使用五角星筆尖繪製裝飾性筆觸。"
 }

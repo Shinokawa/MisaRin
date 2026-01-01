@@ -32,6 +32,7 @@ class AppPreferences {
     required this.penStrokeSliderRange,
     required this.strokeStabilizerStrength,
     required this.brushShape,
+    this.brushRandomRotationEnabled = _defaultBrushRandomRotationEnabled,
     required this.layerAdjustCropOutside,
     required this.colorLineColor,
     required this.bucketSwallowColorLine,
@@ -64,7 +65,7 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 34;
+  static const int _version = 35;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -84,6 +85,7 @@ class AppPreferences {
       PenStrokeSliderRange.compact;
   static const double _defaultStrokeStabilizerStrength = 0.0;
   static const BrushShape _defaultBrushShape = BrushShape.circle;
+  static const bool _defaultBrushRandomRotationEnabled = false;
   static const bool _defaultHollowStrokeEnabled = false;
   static const double _defaultHollowStrokeRatio = 0.7;
   static const bool _defaultHollowStrokeEraseOccludedParts = false;
@@ -125,6 +127,8 @@ class AppPreferences {
   static const double defaultStrokeStabilizerStrength =
       _defaultStrokeStabilizerStrength;
   static const BrushShape defaultBrushShape = _defaultBrushShape;
+  static const bool defaultBrushRandomRotationEnabled =
+      _defaultBrushRandomRotationEnabled;
   static const bool defaultHollowStrokeEnabled = _defaultHollowStrokeEnabled;
   static const double defaultHollowStrokeRatio = _defaultHollowStrokeRatio;
   static const bool defaultHollowStrokeEraseOccludedParts =
@@ -174,6 +178,7 @@ class AppPreferences {
   PenStrokeSliderRange penStrokeSliderRange;
   double strokeStabilizerStrength;
   BrushShape brushShape;
+  bool brushRandomRotationEnabled;
   bool hollowStrokeEnabled;
   double hollowStrokeRatio;
   bool hollowStrokeEraseOccludedParts;
@@ -250,6 +255,10 @@ class AppPreferences {
               version >= 34 && bytes.length >= 50
                   ? _clampFillGapValue(bytes[49])
                   : _defaultBucketFillGap;
+          final bool decodedBrushRandomRotationEnabled =
+              version >= 35 && bytes.length >= 51
+                  ? bytes[50] != 0
+                  : _defaultBrushRandomRotationEnabled;
           if (version >= 20 && bytes.length >= 26) {
             final bool hasWorkspaceSplitPayload =
                 version >= 21 && bytes.length >= 32;
@@ -344,6 +353,7 @@ class AppPreferences {
                   bytes[15],
                 ),
                 brushShape: _decodeBrushShape(bytes[16]),
+                brushRandomRotationEnabled: decodedBrushRandomRotationEnabled,
                 layerAdjustCropOutside: bytes[17] != 0,
                 colorLineColor: decodedColorLineColor,
                 bucketSwallowColorLine: decodedBucketSwallowColorLine,
@@ -1261,6 +1271,7 @@ class AppPreferences {
       hollowStrokeEraseOccludedParts ? 1 : 0,
       bucketSwallowColorLineModeEncoded,
       bucketFillGapEncoded,
+      prefs.brushRandomRotationEnabled ? 1 : 0,
     ]);
     await _writePreferencesPayload(payload);
   }
@@ -1613,6 +1624,8 @@ class AppPreferences {
         return BrushShape.triangle;
       case 2:
         return BrushShape.square;
+      case 3:
+        return BrushShape.star;
       case 0:
       default:
         return BrushShape.circle;
@@ -1627,6 +1640,8 @@ class AppPreferences {
         return 1;
       case BrushShape.square:
         return 2;
+      case BrushShape.star:
+        return 3;
     }
   }
 

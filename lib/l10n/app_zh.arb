@@ -474,6 +474,7 @@
   "smoothCurve": "平滑曲线",
   "sprayEffect": "喷枪效果",
   "brushShape": "笔刷形状",
+  "randomRotation": "随机旋转",
   "selectionShape": "选区形状",
   "fontSize": "字号",
   "lineHeight": "行距",
@@ -512,6 +513,7 @@
   "line": "直线",
   "circle": "圆形",
   "square": "正方形",
+  "star": "五角星",
 
   "brushSizeDesc": "设置当前笔刷的像素直径，数值越大线条越粗，越小越适合描画细节。",
   "spraySizeDesc": "决定喷枪喷洒区域的半径，半径大时覆盖面更广但颗粒更分散。",
@@ -528,6 +530,7 @@
   "eraseOccludedPartsDesc": "开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。",
 
   "solidFillDesc": "决定形状工具是绘制填充色块还是空心轮廓，开启后直接生成实心图形。",
+  "randomRotationDesc": "开启后，方形/三角形/五角星笔刷会在笔触的每个印章上随机旋转。",
   "autoSharpTaperDesc": "为笔刷起笔与收笔自动收尖，营造赛璐璐式的利落线条。",
   "stylusPressureDesc": "让数位笔的压力实时影响笔刷粗细或透明度，关闭后忽略硬件笔压。",
   "simulatedPressureDesc": "在没有压感设备时根据鼠标速度模拟笔压变化，开启后也能画出有粗细变化的线条。",
@@ -556,6 +559,7 @@
   "lineShapeDesc": "从起点到终点绘制直线段，适合构造硬质结构。",
   "circleTipDesc": "笔尖保持圆形，适合顺滑、柔和的笔触。",
   "squareTipDesc": "使用方形笔尖绘制硬边像素风笔触。",
+  "starTipDesc": "使用五角星笔尖绘制装饰性笔触。",
 
   "apply": "应用",
   "next": "下一步",

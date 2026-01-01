@@ -474,6 +474,7 @@
   "smoothCurve": "Smooth Curve",
   "sprayEffect": "Spray Effect",
   "brushShape": "Brush Shape",
+  "randomRotation": "Random rotation",
   "selectionShape": "Selection Shape",
   "fontSize": "Font Size",
   "lineHeight": "Line Height",
@@ -512,6 +513,7 @@
   "line": "Line",
   "circle": "Circle",
   "square": "Square",
+  "star": "Star",
 
   "brushSizeDesc": "Sets the pixel diameter of the current brush. Larger values make thicker lines, smaller for details.",
   "spraySizeDesc": "Determines the radius of the spray area. Larger radius covers more area but particles are more dispersed.",
@@ -528,6 +530,7 @@
   "eraseOccludedPartsDesc": "When enabled, later hollow strokes erase overlapping pixels from existing strokes on the same layer.",
   
   "solidFillDesc": "Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.",
+  "randomRotationDesc": "When enabled, square/triangle/star stamps rotate randomly along the stroke.",
   "autoSharpTaperDesc": "Automatically tapers the start and end of strokes for a sharp, cel-shading look.",
   "stylusPressureDesc": "Allows stylus pressure to affect brush size/opacity. Turn off to ignore hardware pressure.",
   "simulatedPressureDesc": "Simulates pressure based on mouse speed when no pressure device is present.",
@@ -556,6 +559,7 @@
   "lineShapeDesc": "Draw straight lines from start to end.",
   "circleTipDesc": "Keep brush tip circular for smooth, soft strokes.",
   "squareTipDesc": "Use a square tip for hard-edged pixel strokes.",
+  "starTipDesc": "Use a five-point star tip for decorative strokes.",
 
   "apply": "Apply",
   "next": "Next",

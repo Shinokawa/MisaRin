@@ -311,6 +311,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         ),
       );
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   Future<void> _exportPaletteCard(int id) async {
@@ -635,6 +636,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     setState(() {
       _paletteCards.removeWhere((card) => card.id == id);
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _updatePaletteCardOffset(int id, Offset delta) {
@@ -649,6 +651,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       final Offset next = entry.offset + delta;
       entry.offset = _clampPaletteOffset(next, entry.size);
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _focusPaletteCard(int id) {
@@ -660,6 +663,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       final _PaletteCardEntry entry = _paletteCards.removeAt(index);
       _paletteCards.add(entry);
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _updatePaletteCardSize(int id, Size size) {
@@ -675,6 +679,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
     setState(() {
       entry.offset = clamped;
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   Offset _initialPaletteOffset() {
@@ -688,18 +693,14 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
   }
 
   Offset _clampPaletteOffset(Offset value, [Size? size]) {
-    if (_workspaceSize.isEmpty) {
-      return value;
-    }
     final double width = size?.width ?? _paletteCardWidth;
     final double height = size?.height ?? 180.0;
-    final double minX = _toolButtonPadding;
-    final double minY = _toolButtonPadding;
-    final double maxX = math.max(minX, _workspaceSize.width - width - minX);
-    final double maxY = math.max(minY, _workspaceSize.height - height - minY);
-    final double clampedX = value.dx.clamp(minX, maxX);
-    final double clampedY = value.dy.clamp(minY, maxY);
-    return Offset(clampedX, clampedY);
+    return _clampWorkspaceOffsetToViewport(
+      this,
+      value,
+      childSize: Size(width, height),
+      margin: _toolButtonPadding,
+    );
   }
 
   _PaletteCardEntry? _paletteCardById(int id) {
@@ -745,6 +746,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         _paletteCards.add(entry);
       }
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   List<Color> _buildPrimaryColorGradientPalette() {

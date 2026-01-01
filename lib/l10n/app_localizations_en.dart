@@ -942,6 +942,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushShape => 'Brush Shape';
 
   @override
+  String get randomRotation => 'Random rotation';
+
+  @override
   String get selectionShape => 'Selection Shape';
 
   @override
@@ -1057,6 +1060,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get square => 'Square';
 
   @override
+  String get star => 'Star';
+
+  @override
   String get brushSizeDesc =>
       'Sets the pixel diameter of the current brush. Larger values make thicker lines, smaller for details.';
 
@@ -1110,6 +1116,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get solidFillDesc =>
       'Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.';
+
+  @override
+  String get randomRotationDesc =>
+      'When enabled, square/triangle/star stamps rotate randomly along the stroke.';
 
   @override
   String get autoSharpTaperDesc =>
@@ -1207,6 +1217,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get squareTipDesc => 'Use a square tip for hard-edged pixel strokes.';
+
+  @override
+  String get starTipDesc => 'Use a five-point star tip for decorative strokes.';
 
   @override
   String get apply => 'Apply';

@@ -440,6 +440,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       timestampMillis: initialTimestamp,
       antialiasLevel: _penAntialiasLevel,
       brushShape: _brushShape,
+      randomRotation: _brushRandomRotationEnabled,
       erase: erase,
     );
     if (simulatePressure) {

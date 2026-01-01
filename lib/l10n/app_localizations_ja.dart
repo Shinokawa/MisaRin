@@ -926,6 +926,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushShape => 'ブラシ形状';
 
   @override
+  String get randomRotation => 'ランダム回転';
+
+  @override
   String get selectionShape => '選択形状';
 
   @override
@@ -1040,6 +1043,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get square => '正方形';
 
   @override
+  String get star => '五芒星';
+
+  @override
   String get brushSizeDesc =>
       '現在のブラシの直径（ピクセル）を設定します。値が大きいほど線が太くなり、小さいほど細部用になります。';
 
@@ -1085,6 +1091,10 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get solidFillDesc =>
       '図形ツールで塗りつぶされたブロックを描くか、中空の輪郭を描くかを決定します。オンにすると塗りつぶされます。';
+
+  @override
+  String get randomRotationDesc =>
+      'オンにすると、四角形/三角形/五芒星のスタンプがストロークに沿ってランダムに回転します。';
 
   @override
   String get autoSharpTaperDesc => 'ストロークの始点と終点を自動的に細くし、アニメ塗りのようなシャープな線にします。';
@@ -1170,6 +1180,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get squareTipDesc => '四角形のチップを使用し、ハードエッジなピクセルストロークにします。';
+
+  @override
+  String get starTipDesc => '五芒星のチップで装飾的なストロークを描きます。';
 
   @override
   String get apply => '適用';

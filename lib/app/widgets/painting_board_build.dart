@@ -11,8 +11,88 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
+  OverlayEntry? _workspaceCardsOverlayEntry;
+  bool _workspaceCardsOverlaySyncScheduled = false;
+
+  bool get _wantsWorkspaceCardsOverlay {
+    if (!widget.isActive) {
+      return false;
+    }
+    return _referenceCards.isNotEmpty || _paletteCards.isNotEmpty;
+  }
+
+  @override
+  void _scheduleWorkspaceCardsOverlaySync() {
+    if (_workspaceCardsOverlayEntry?.mounted == true) {
+      if (_wantsWorkspaceCardsOverlay) {
+        _workspaceCardsOverlayEntry!.markNeedsBuild();
+        return;
+      }
+    }
+    if (_workspaceCardsOverlaySyncScheduled) {
+      return;
+    }
+    _workspaceCardsOverlaySyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _workspaceCardsOverlaySyncScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      _syncWorkspaceCardsOverlay();
+    });
+  }
+
+  void _syncWorkspaceCardsOverlay() {
+    if (!_wantsWorkspaceCardsOverlay) {
+      final OverlayEntry? entry = _workspaceCardsOverlayEntry;
+      if (entry != null && entry.mounted) {
+        entry.remove();
+      }
+      _workspaceCardsOverlayEntry = null;
+      return;
+    }
+
+    final OverlayState? overlay = Overlay.of(context, rootOverlay: true);
+    if (overlay == null) {
+      return;
+    }
+
+    final OverlayEntry entry =
+        _workspaceCardsOverlayEntry ??= OverlayEntry(builder: _buildWorkspaceCardsOverlay);
+
+    if (entry.mounted) {
+      entry.markNeedsBuild();
+      return;
+    }
+
+    if (_filterOverlayEntry?.mounted == true) {
+      overlay.insert(entry, below: _filterOverlayEntry);
+    } else {
+      overlay.insert(entry);
+    }
+  }
+
+  Widget _buildWorkspaceCardsOverlay(BuildContext overlayContext) {
+    if (!_wantsWorkspaceCardsOverlay) {
+      return const SizedBox.shrink();
+    }
+    final RenderObject? renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox) {
+      return const SizedBox.shrink();
+    }
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        ..._buildReferenceCards(),
+        ..._buildPaletteCards(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    _scheduleWorkspaceCardsOverlaySync();
     _refreshStylusPreferencesIfNeeded();
     _refreshHistoryLimit();
     final bool canUndo = this.canUndo || widget.externalCanUndo;
@@ -350,6 +430,9 @@ mixin _PaintingBoardBuildMixin
           onSprayModeChanged: _updateSprayMode,
           brushShape: _brushShape,
           onBrushShapeChanged: _updateBrushShape,
+          brushRandomRotationEnabled: _brushRandomRotationEnabled,
+          onBrushRandomRotationEnabledChanged:
+              _updateBrushRandomRotationEnabled,
           hollowStrokeEnabled: _hollowStrokeEnabled,
           hollowStrokeRatio: _hollowStrokeRatio,
           onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
@@ -817,6 +900,11 @@ mixin _PaintingBoardBuildMixin
                                                             .activeStrokeColor,
                                                         shape: _controller
                                                             .activeStrokeShape,
+                                                        randomRotationEnabled:
+                                                            _controller
+                                                                .activeStrokeRandomRotationEnabled,
+                                                        rotationSeed: _controller
+                                                            .activeStrokeRotationSeed,
                                                         antialiasLevel: _controller
                                                             .activeStrokeAntialiasLevel,
                                                         hollowStrokeEnabled:
@@ -1064,8 +1152,6 @@ mixin _PaintingBoardBuildMixin
                           if (textHoverOverlay != null) textHoverOverlay,
                           if (textOverlay != null) textOverlay,
                           ...toolbarLayoutResult.widgets,
-                          ..._buildReferenceCards(),
-                          ..._buildPaletteCards(),
                           if (colorRangeCard != null) colorRangeCard,
                           if (antialiasCard != null) antialiasCard,
                           if (transformPanel != null) transformPanel,
@@ -1129,9 +1215,10 @@ mixin _PaintingBoardBuildMixin
     }
     return _paletteCards
         .map((entry) {
+          final Offset overlayOffset = _workspaceToOverlayOffset(this, entry.offset);
           return Positioned(
-            left: entry.offset.dx,
-            top: entry.offset.dy,
+            left: overlayOffset.dx,
+            top: overlayOffset.dy,
             child: _WorkspacePaletteCard(
               title: entry.title,
               colors: entry.colors,
@@ -1156,9 +1243,10 @@ mixin _PaintingBoardBuildMixin
     final bool eyedropperActive = _effectiveActiveTool == CanvasTool.eyedropper;
     return _referenceCards
         .map((entry) {
+          final Offset overlayOffset = _workspaceToOverlayOffset(this, entry.offset);
           return Positioned(
-            left: entry.offset.dx,
-            top: entry.offset.dy,
+            left: overlayOffset.dx,
+            top: overlayOffset.dy,
             child: _ReferenceImageCard(
               image: entry.image,
               bodySize: entry.bodySize,
@@ -1472,6 +1560,16 @@ mixin _PaintingBoardBuildMixin
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    final OverlayEntry? entry = _workspaceCardsOverlayEntry;
+    if (entry != null && entry.mounted) {
+      entry.remove();
+    }
+    _workspaceCardsOverlayEntry = null;
+    super.dispose();
   }
 }
 
