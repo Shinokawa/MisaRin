@@ -845,13 +845,28 @@ class BitmapCanvasController extends ChangeNotifier {
     );
   }
 
-  void _markDirty({Rect? region, String? layerId, bool pixelsDirty = true}) =>
-      _compositeMarkDirty(
-        this,
-        region: region,
-        layerId: layerId,
-        pixelsDirty: pixelsDirty,
-      );
+  void _markDirty({Rect? region, String? layerId, bool pixelsDirty = true}) {
+    if (pixelsDirty) {
+      if (layerId == null) {
+        for (final BitmapLayerState layer in _layers) {
+          layer.revision += 1;
+        }
+      } else {
+        for (final BitmapLayerState layer in _layers) {
+          if (layer.id == layerId) {
+            layer.revision += 1;
+            break;
+          }
+        }
+      }
+    }
+    _compositeMarkDirty(
+      this,
+      region: region,
+      layerId: layerId,
+      pixelsDirty: pixelsDirty,
+    );
+  }
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 

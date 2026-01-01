@@ -611,7 +611,6 @@ bool _controllerMergeVectorPatchOnMainThread(
   }
 
   controller._resetWorkerSurfaceSync();
-  controller._activeLayer.revision += 1;
   final Rect dirtyRegion = Rect.fromLTRB(
     clampedLeft.toDouble(),
     clampedTop.toDouble(),
@@ -765,7 +764,6 @@ void _controllerApplyPaintingCommandsSynchronously(
     return;
   }
   controller._resetWorkerSurfaceSync();
-  controller._activeLayer.revision += 1;
   controller._markDirty(
     region: region,
     layerId: controller._activeLayer.id,

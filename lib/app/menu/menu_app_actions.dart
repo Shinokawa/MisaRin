@@ -28,8 +28,9 @@ class AppMenuActions {
     }
     try {
       _applyWorkspacePreset(config.workspacePreset);
-      final ProjectDocument document = await ProjectRepository.instance
+      ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
+      document = _applyNewProjectPresetDefaults(document, config);
       if (!context.mounted) {
         return;
       }
@@ -44,6 +45,34 @@ class AppMenuActions {
         severity: InfoBarSeverity.error,
       );
     }
+  }
+
+  static ProjectDocument _applyNewProjectPresetDefaults(
+    ProjectDocument document,
+    NewProjectConfig config,
+  ) {
+    if (!_shouldHideSolidBackgroundLayer(config)) {
+      return document;
+    }
+    if (document.layers.isEmpty) {
+      return document;
+    }
+    final firstLayer = document.layers.first;
+    if (!firstLayer.visible || firstLayer.fillColor == null) {
+      return document;
+    }
+    final layers = List.of(document.layers);
+    layers[0] = firstLayer.copyWith(visible: false);
+    return document.copyWith(layers: layers);
+  }
+
+  static bool _shouldHideSolidBackgroundLayer(NewProjectConfig config) {
+    if (config.workspacePreset == WorkspacePreset.pixel) {
+      return true;
+    }
+    final int width = config.settings.width.round();
+    final int height = config.settings.height.round();
+    return width == height && (width == 64 || width == 32 || width == 16);
   }
 
   static void _applyWorkspacePreset(WorkspacePreset preset) {
