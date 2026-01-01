@@ -242,6 +242,7 @@
   "menuColorRangeEllipsis": "\u8272\u5f69\u7bc4\u570d\u2026",
   "menuBlackWhiteEllipsis": "\u9ed1\u767d\u2026",
   "menuBinarizeEllipsis": "\u4e8c\u503c\u5316\u2026",
+  "menuScanPaperDrawingEllipsis": "\u6383\u63cf\u7d19\u7e6a\u2026",
   "menuScanPaperDrawing": "掃描紙繪",
   "menuInvertColors": "顏色反轉",
 

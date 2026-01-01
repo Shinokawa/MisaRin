@@ -25,6 +25,11 @@ enum ToolbarAction {
   resizeCanvas,
   adjustHueSaturation,
   adjustBrightnessContrast,
+  colorRange,
+  adjustBlackWhite,
+  binarize,
+  scanPaperDrawing,
+  invertColors,
   narrowLines,
   expandFill,
   gaussianBlur,
@@ -203,6 +208,90 @@ class ToolbarShortcuts {
       ],
       primaryLabel: 'Ctrl+M',
       macLabel: 'Command+M',
+    ),
+    ToolbarAction.colorRange: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.shift,
+          LogicalKeyboardKey.keyR,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.shift,
+          LogicalKeyboardKey.keyR,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+Shift+R',
+      macLabel: 'Command+Option+Shift+R',
+    ),
+    ToolbarAction.adjustBlackWhite: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyK,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyK,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+K',
+      macLabel: 'Command+Option+K',
+    ),
+    ToolbarAction.binarize: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyB,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyB,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+B',
+      macLabel: 'Command+Option+B',
+    ),
+    ToolbarAction.scanPaperDrawing: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyP,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.keyP,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+P',
+      macLabel: 'Command+Option+P',
+    ),
+    ToolbarAction.invertColors: ShortcutInfo(
+      shortcuts: <LogicalKeySet>[
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.shift,
+          LogicalKeyboardKey.keyI,
+        ),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.alt,
+          LogicalKeyboardKey.shift,
+          LogicalKeyboardKey.keyI,
+        ),
+      ],
+      primaryLabel: 'Ctrl+Alt+Shift+I',
+      macLabel: 'Command+Option+Shift+I',
     ),
     ToolbarAction.narrowLines: ShortcutInfo(
       shortcuts: <LogicalKeySet>[

@@ -136,6 +136,26 @@ mixin _PaintingBoardBuildMixin
             ).shortcuts)
               key: const AdjustBrightnessContrastIntent(),
             for (final key in ToolbarShortcuts.of(
+              ToolbarAction.colorRange,
+            ).shortcuts)
+              key: const ShowColorRangeIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.adjustBlackWhite,
+            ).shortcuts)
+              key: const AdjustBlackWhiteIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.binarize,
+            ).shortcuts)
+              key: const AdjustBinarizeIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.scanPaperDrawing,
+            ).shortcuts)
+              key: const AdjustScanPaperDrawingIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.invertColors,
+            ).shortcuts)
+              key: const InvertColorsIntent(),
+            for (final key in ToolbarShortcuts.of(
               ToolbarAction.narrowLines,
             ).shortcuts)
               key: const NarrowLinesIntent(),
@@ -688,6 +708,37 @@ mixin _PaintingBoardBuildMixin
                       return null;
                     },
                   ),
+              ShowColorRangeIntent: CallbackAction<ShowColorRangeIntent>(
+                onInvoke: (intent) {
+                  unawaited(showColorRangeCard());
+                  return null;
+                },
+              ),
+              AdjustBlackWhiteIntent: CallbackAction<AdjustBlackWhiteIntent>(
+                onInvoke: (intent) {
+                  showBlackWhiteAdjustments();
+                  return null;
+                },
+              ),
+              AdjustBinarizeIntent: CallbackAction<AdjustBinarizeIntent>(
+                onInvoke: (intent) {
+                  showBinarizeAdjustments();
+                  return null;
+                },
+              ),
+              AdjustScanPaperDrawingIntent:
+                  CallbackAction<AdjustScanPaperDrawingIntent>(
+                    onInvoke: (intent) {
+                      showScanPaperDrawingAdjustments();
+                      return null;
+                    },
+                  ),
+              InvertColorsIntent: CallbackAction<InvertColorsIntent>(
+                onInvoke: (intent) {
+                  unawaited(invertActiveLayerColors());
+                  return null;
+                },
+              ),
               NarrowLinesIntent: CallbackAction<NarrowLinesIntent>(
                 onInvoke: (intent) {
                   showLineNarrowAdjustments();

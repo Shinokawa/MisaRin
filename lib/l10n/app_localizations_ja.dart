@@ -503,6 +503,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuBinarizeEllipsis => '二値化…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => 'スキャン紙絵…';
+
+  @override
   String get menuScanPaperDrawing => 'スキャン紙絵';
 
   @override

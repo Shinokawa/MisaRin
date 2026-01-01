@@ -239,6 +239,7 @@
   "menuColorRangeEllipsis": "\uc0c9\uc0c1 \ubc94\uc704\u2026",
   "menuBlackWhiteEllipsis": "\ud751\ubc31\u2026",
   "menuBinarizeEllipsis": "\uc774\uc9c4\ud654\u2026",
+  "menuScanPaperDrawingEllipsis": "\uc2a4\uce94 \uc885\uc774\uadf8\ub9bc\u2026",
   "menuScanPaperDrawing": "\uc2a4\uce94 \uc885\uc774\uadf8\ub9bc",
   "menuInvertColors": "\uc0c9\uc0c1 \ubc18\uc804",
 

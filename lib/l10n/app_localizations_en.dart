@@ -514,6 +514,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuBinarizeEllipsis => 'Binarize…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => 'Scan Paper Drawing…';
+
+  @override
   String get menuScanPaperDrawing => 'Scan Paper Drawing';
 
   @override

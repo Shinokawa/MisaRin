@@ -504,6 +504,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuBinarizeEllipsis => '이진화…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => '스캔 종이그림…';
+
+  @override
   String get menuScanPaperDrawing => '스캔 종이그림';
 
   @override

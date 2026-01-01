@@ -40,6 +40,26 @@ class AdjustBrightnessContrastIntent extends Intent {
   const AdjustBrightnessContrastIntent();
 }
 
+class ShowColorRangeIntent extends Intent {
+  const ShowColorRangeIntent();
+}
+
+class AdjustBlackWhiteIntent extends Intent {
+  const AdjustBlackWhiteIntent();
+}
+
+class AdjustBinarizeIntent extends Intent {
+  const AdjustBinarizeIntent();
+}
+
+class AdjustScanPaperDrawingIntent extends Intent {
+  const AdjustScanPaperDrawingIntent();
+}
+
+class InvertColorsIntent extends Intent {
+  const InvertColorsIntent();
+}
+
 class AdjustGaussianBlurIntent extends Intent {
   const AdjustGaussianBlurIntent();
 }

@@ -1022,6 +1022,12 @@ abstract class AppLocalizations {
   /// **'Binarize…'**
   String get menuBinarizeEllipsis;
 
+  /// No description provided for @menuScanPaperDrawingEllipsis.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Paper Drawing…'**
+  String get menuScanPaperDrawingEllipsis;
+
   /// No description provided for @menuScanPaperDrawing.
   ///
   /// In en, this message translates to:

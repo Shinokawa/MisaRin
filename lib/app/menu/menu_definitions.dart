@@ -707,26 +707,53 @@ class MenuDefinitionBuilder {
         MenuActionEntry(
           label: l10n.menuColorRangeEllipsis,
           action: handler.colorRange,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyR,
+            meta: true,
+            alt: true,
+            shift: true,
+          ),
         ),
       if (handler.adjustBlackWhite != null)
         MenuActionEntry(
           label: l10n.menuBlackWhiteEllipsis,
           action: handler.adjustBlackWhite,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyK,
+            meta: true,
+            alt: true,
+          ),
         ),
       if (handler.binarizeLayer != null)
         MenuActionEntry(
           label: l10n.menuBinarizeEllipsis,
           action: handler.binarizeLayer,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyB,
+            meta: true,
+            alt: true,
+          ),
         ),
       if (handler.scanPaperDrawing != null)
         MenuActionEntry(
-          label: l10n.menuScanPaperDrawing,
+          label: l10n.menuScanPaperDrawingEllipsis,
           action: handler.scanPaperDrawing,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyP,
+            meta: true,
+            alt: true,
+          ),
         ),
       if (handler.invertColors != null)
         MenuActionEntry(
           label: l10n.menuInvertColors,
           action: handler.invertColors,
+          shortcut: const SingleActivator(
+            LogicalKeyboardKey.keyI,
+            meta: true,
+            alt: true,
+            shift: true,
+          ),
         ),
     ];
     if (entries.isEmpty) {

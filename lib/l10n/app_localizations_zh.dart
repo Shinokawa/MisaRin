@@ -502,6 +502,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuBinarizeEllipsis => '二值化…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => '扫描纸绘…';
+
+  @override
   String get menuScanPaperDrawing => '扫描纸绘';
 
   @override
@@ -3115,6 +3118,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuBinarizeEllipsis => '二值化…';
+
+  @override
+  String get menuScanPaperDrawingEllipsis => '掃描紙繪…';
 
   @override
   String get menuScanPaperDrawing => '掃描紙繪';
