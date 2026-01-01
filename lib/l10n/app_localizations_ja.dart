@@ -47,7 +47,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeOpenProject => 'プロジェクトを開く';
 
   @override
-  String get homeOpenProjectDesc => 'ディスクから .rin / .psd ファイルを読み込む';
+  String get homeOpenProjectDesc => 'ディスクから .rin / .psd または画像ファイルを読み込む';
 
   @override
   String get homeRecentProjects => '最近開いた';
@@ -998,6 +998,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get stabilizer => '手ブレ補正';
 
   @override
+  String get streamline => 'ストリームライン';
+
+  @override
   String get off => 'オフ';
 
   @override
@@ -1066,6 +1069,10 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get stabilizerDesc =>
       '手の震えを打ち消すためにポインタの軌跡をリアルタイムで滑らかにします。レベルが高いほど安定しますが、追従は遅れます。';
+
+  @override
+  String get streamlineDesc =>
+      'Procreate の StreamLine 風の平滑化。ペン先とインクの間に「仮想ロープ」を入れて高周波の揺れを吸収し、レベルが高いほど滑らかですが遅延も増えます。';
 
   @override
   String get fontSizeDesc => 'テキスト全体のピクセル高さを調整します。';

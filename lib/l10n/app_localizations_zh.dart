@@ -47,7 +47,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homeOpenProject => '打开项目';
 
   @override
-  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 文件';
+  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 或图片文件';
 
   @override
   String get homeRecentProjects => '最近打开';
@@ -992,6 +992,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stabilizer => '手抖修正';
 
   @override
+  String get streamline => '流线';
+
+  @override
   String get off => '关';
 
   @override
@@ -1058,6 +1061,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get stabilizerDesc => '实时平滑指针轨迹来抵消手抖，等级越高线条越稳但响应会稍慢。';
+
+  @override
+  String get streamlineDesc =>
+      '类似 Procreate 的 StreamLine：在笔尖和墨迹之间加入\"虚拟绳索\"拖拽，过滤高频抖动，等级越高越顺但延迟也更明显。';
 
   @override
   String get fontSizeDesc => '调整文字的像素高度，用于整体放大或缩小当前文本。';
@@ -1915,7 +1922,7 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get homeOpenProject => '打开项目';
 
   @override
-  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 文件';
+  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 或图片文件';
 
   @override
   String get homeRecentProjects => '最近打开';
@@ -2649,7 +2656,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get homeOpenProject => '開啟專案';
 
   @override
-  String get homeOpenProjectDesc => '從磁碟載入 .rin / .psd 檔案';
+  String get homeOpenProjectDesc => '從磁碟載入 .rin / .psd 或影像檔案';
 
   @override
   String get homeRecentProjects => '最近開啟';
@@ -3134,7 +3141,14 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get randomRotation => '隨機旋轉';
 
   @override
+  String get streamline => '流線';
+
+  @override
   String get star => '五角星';
+
+  @override
+  String get streamlineDesc =>
+      '類似 Procreate 的 StreamLine：在筆尖和墨跡之間加入「虛擬繩索」拖拽，過濾高頻抖動，等級越高越順但延遲也更明顯。';
 
   @override
   String get hollowStrokeDesc => '將筆畫中心挖空，形成空心描邊效果。';

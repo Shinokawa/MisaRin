@@ -40,6 +40,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onHollowStrokeEraseOccludedPartsChanged,
     required this.strokeStabilizerStrength,
     required this.onStrokeStabilizerChanged,
+    required this.streamlineEnabled,
+    required this.onStreamlineEnabledChanged,
     required this.stylusPressureEnabled,
     required this.onStylusPressureEnabledChanged,
     required this.simulatePenPressure,
@@ -130,6 +132,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onHollowStrokeEraseOccludedPartsChanged;
   final double strokeStabilizerStrength;
   final ValueChanged<double> onStrokeStabilizerChanged;
+  final bool streamlineEnabled;
+  final ValueChanged<bool> onStreamlineEnabledChanged;
   final bool stylusPressureEnabled;
   final ValueChanged<bool> onStylusPressureEnabledChanged;
   final bool simulatePenPressure;
@@ -539,6 +543,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         value: widget.brushRandomRotationEnabled,
         onChanged: widget.onBrushRandomRotationEnabledChanged,
       ),
+      if (isPenTool || isEraserTool)
+        _buildToggleSwitchRow(
+          theme,
+          label: l10n.streamline,
+          detail: l10n.streamlineDesc,
+          value: widget.streamlineEnabled,
+          onChanged: widget.onStreamlineEnabledChanged,
+        ),
       if (isPenTool || isEraserTool) _buildStrokeStabilizerRow(theme),
     ];
 
@@ -1699,6 +1711,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
   Widget _buildStrokeStabilizerRow(FluentThemeData theme) {
     final l10n = context.l10n;
+    final bool useStreamline = widget.streamlineEnabled;
+    final String controlLabel = useStreamline ? l10n.streamline : l10n.stabilizer;
+    final String detail = useStreamline ? l10n.streamlineDesc : l10n.stabilizerDesc;
     final double value = widget.strokeStabilizerStrength.clamp(0.0, 1.0);
     final double projected = (value * widget.strokeStabilizerMaxLevel).clamp(
       0.0,
@@ -1721,15 +1736,15 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
     if (!widget.compactLayout) {
       final Widget sliderControl = _wrapSliderTooltip(
-        label: l10n.stabilizer,
-        detail: l10n.stabilizerDesc,
+        label: controlLabel,
+        detail: detail,
         valueText: label,
         child: SizedBox(width: _defaultSliderWidth, child: slider),
       );
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.stabilizer, style: theme.typography.bodyStrong),
+          Text(controlLabel, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
           sliderControl,
           const SizedBox(width: 8),
@@ -1746,11 +1761,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     }
     return _buildSliderSection(
       theme,
-      label: l10n.stabilizer,
+      label: controlLabel,
       valueText: label,
       slider: slider,
-      tooltipText: '${l10n.stabilizer}: $label',
-      detail: l10n.stabilizerDesc,
+      tooltipText: '$controlLabel: $label',
+      detail: detail,
     );
   }
 

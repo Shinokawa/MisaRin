@@ -167,7 +167,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeOpenProjectDesc.
   ///
   /// In en, this message translates to:
-  /// **'Load a .rin / .psd file from disk'**
+  /// **'Load a .rin / .psd or image file from disk'**
   String get homeOpenProjectDesc;
 
   /// No description provided for @homeRecentProjects.
@@ -1934,6 +1934,12 @@ abstract class AppLocalizations {
   /// **'Stabilizer'**
   String get stabilizer;
 
+  /// No description provided for @streamline.
+  ///
+  /// In en, this message translates to:
+  /// **'StreamLine'**
+  String get streamline;
+
   /// No description provided for @off.
   ///
   /// In en, this message translates to:
@@ -2065,6 +2071,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Smooths pointer trajectory in real-time to counteract hand tremors. Higher levels are steadier but respond slower.'**
   String get stabilizerDesc;
+
+  /// No description provided for @streamlineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Procreate-style StreamLine smoothing. Adds a virtual rope between your pen and the ink so strokes stay smooth but feel more dragged/delayed at higher levels.'**
+  String get streamlineDesc;
 
   /// No description provided for @fontSizeDesc.
   ///

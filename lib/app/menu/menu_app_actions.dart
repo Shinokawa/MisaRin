@@ -5,6 +5,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
+import 'package:path/path.dart' as p;
 
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
@@ -125,7 +126,15 @@ class AppMenuActions {
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
       dialogTitle: l10n.openProjectDialogTitle,
       type: FileType.custom,
-      allowedExtensions: const ['rin', 'psd'],
+      allowedExtensions: const [
+        'rin',
+        'psd',
+        'png',
+        'jpg',
+        'jpeg',
+        'webp',
+        'avif',
+      ],
       withData: kIsWeb,
     );
     final PlatformFile? file = result?.files.singleOrNull;
@@ -144,8 +153,8 @@ class AppMenuActions {
             title: l10n.openingProjectTitle,
             message: l10n.openingProjectMessage(file.name),
             action: () async {
-              final String extension = file.name.toLowerCase();
-              if (extension.endsWith('.psd')) {
+              final String extension = p.extension(file.name).toLowerCase();
+              if (extension == '.psd') {
                 if (path != null && !kIsWeb) {
                   return ProjectRepository.instance.importPsd(path);
                 } else if (bytes != null) {
@@ -155,6 +164,26 @@ class AppMenuActions {
                   );
                 }
                 throw Exception(l10n.cannotReadPsdContent);
+              }
+              if (extension == '.png' ||
+                  extension == '.jpg' ||
+                  extension == '.jpeg' ||
+                  extension == '.webp' ||
+                  extension == '.avif') {
+                final String name = p.basenameWithoutExtension(file.name);
+                if (path != null && !kIsWeb) {
+                  return ProjectRepository.instance.createDocumentFromImage(
+                    path,
+                    name: name,
+                  );
+                }
+                if (bytes != null) {
+                  return ProjectRepository.instance.createDocumentFromImageBytes(
+                    bytes,
+                    name: name,
+                  );
+                }
+                throw Exception(l10n.cannotReadProjectFileContent);
               }
               if (path != null && !kIsWeb) {
                 return ProjectRepository.instance.loadDocument(path);

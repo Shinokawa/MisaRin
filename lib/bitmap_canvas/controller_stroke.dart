@@ -64,6 +64,7 @@ void _strokeBegin(
   BrushShape brushShape = BrushShape.circle,
   bool enableNeedleTips = false,
   bool randomRotation = false,
+  int? rotationSeed,
   bool erase = false,
   bool hollow = false,
   double hollowRatio = 0.0,
@@ -101,7 +102,7 @@ void _strokeBegin(
   controller._currentBrushShape = brushShape;
   controller._currentStrokeRandomRotationEnabled = randomRotation;
   controller._currentStrokeRotationSeed = randomRotation
-      ? math.Random().nextInt(1 << 31)
+      ? (rotationSeed ?? math.Random().nextInt(1 << 31))
       : 0;
   final double resolvedTimestamp = timestampMillis ?? 0.0;
   final double? simulatedInitialRadius = controller._strokePressureSimulator

@@ -31,6 +31,7 @@ class AppPreferences {
     required this.autoSharpPeakEnabled,
     required this.penStrokeSliderRange,
     required this.strokeStabilizerStrength,
+    this.streamlineEnabled = _defaultStreamlineEnabled,
     required this.brushShape,
     this.brushRandomRotationEnabled = _defaultBrushRandomRotationEnabled,
     required this.layerAdjustCropOutside,
@@ -65,7 +66,7 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 35;
+  static const int _version = 36;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -84,6 +85,7 @@ class AppPreferences {
   static const PenStrokeSliderRange _defaultPenStrokeSliderRange =
       PenStrokeSliderRange.compact;
   static const double _defaultStrokeStabilizerStrength = 0.0;
+  static const bool _defaultStreamlineEnabled = false;
   static const BrushShape _defaultBrushShape = BrushShape.circle;
   static const bool _defaultBrushRandomRotationEnabled = false;
   static const bool _defaultHollowStrokeEnabled = false;
@@ -126,6 +128,7 @@ class AppPreferences {
       _defaultPenStrokeSliderRange;
   static const double defaultStrokeStabilizerStrength =
       _defaultStrokeStabilizerStrength;
+  static const bool defaultStreamlineEnabled = _defaultStreamlineEnabled;
   static const BrushShape defaultBrushShape = _defaultBrushShape;
   static const bool defaultBrushRandomRotationEnabled =
       _defaultBrushRandomRotationEnabled;
@@ -177,6 +180,7 @@ class AppPreferences {
   bool autoSharpPeakEnabled;
   PenStrokeSliderRange penStrokeSliderRange;
   double strokeStabilizerStrength;
+  bool streamlineEnabled;
   BrushShape brushShape;
   bool brushRandomRotationEnabled;
   bool hollowStrokeEnabled;
@@ -259,6 +263,10 @@ class AppPreferences {
               version >= 35 && bytes.length >= 51
                   ? bytes[50] != 0
                   : _defaultBrushRandomRotationEnabled;
+          final bool decodedStreamlineEnabled =
+              version >= 36 && bytes.length >= 52
+                  ? bytes[51] != 0
+                  : _defaultStreamlineEnabled;
           if (version >= 20 && bytes.length >= 26) {
             final bool hasWorkspaceSplitPayload =
                 version >= 21 && bytes.length >= 32;
@@ -352,6 +360,7 @@ class AppPreferences {
                 strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
                   bytes[15],
                 ),
+                streamlineEnabled: decodedStreamlineEnabled,
                 brushShape: _decodeBrushShape(bytes[16]),
                 brushRandomRotationEnabled: decodedBrushRandomRotationEnabled,
                 layerAdjustCropOutside: bytes[17] != 0,
@@ -1140,6 +1149,7 @@ class AppPreferences {
       autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
       penStrokeSliderRange: _defaultPenStrokeSliderRange,
       strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
+      streamlineEnabled: _defaultStreamlineEnabled,
       brushShape: _defaultBrushShape,
       layerAdjustCropOutside: false,
       colorLineColor: _defaultColorLineColor,
@@ -1272,6 +1282,7 @@ class AppPreferences {
       bucketSwallowColorLineModeEncoded,
       bucketFillGapEncoded,
       prefs.brushRandomRotationEnabled ? 1 : 0,
+      prefs.streamlineEnabled ? 1 : 0,
     ]);
     await _writePreferencesPayload(payload);
   }

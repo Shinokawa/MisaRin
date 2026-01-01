@@ -1532,12 +1532,13 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   List<DropItem> _dedupeMacOSFilePromiseItems(List<DropItem> items) {
-    final String promiseDirectory = p.normalize(
-      p.join(Directory.systemTemp.path, 'Drops'),
+    final String promiseDirectory = _normalizeMacOSVarPath(
+      p.normalize(p.join(Directory.systemTemp.path, 'Drops')),
     );
     final Map<String, List<DropItem>> groups = <String, List<DropItem>>{};
     for (final DropItem item in items) {
-      final String normalizedPath = _normalizeDropItemPath(item.path);
+      final String normalizedPath =
+          _normalizeMacOSVarPath(_normalizeDropItemPath(item.path));
       if (normalizedPath.isEmpty) {
         continue;
       }
@@ -1559,7 +1560,8 @@ class CanvasPageState extends State<CanvasPage> {
       bool hasNormal = false;
       final List<String> promiseCandidates = <String>[];
       for (final DropItem item in group) {
-        final String normalizedPath = _normalizeDropItemPath(item.path);
+        final String normalizedPath =
+            _normalizeMacOSVarPath(_normalizeDropItemPath(item.path));
         final bool isPromise =
             p.isWithin(promiseDirectory, normalizedPath) ||
             p.equals(promiseDirectory, normalizedPath);
@@ -1579,8 +1581,18 @@ class CanvasPageState extends State<CanvasPage> {
     }
     return <DropItem>[
       for (final DropItem item in items)
-        if (!promisePaths.contains(_normalizeDropItemPath(item.path))) item,
+        if (!promisePaths.contains(
+          _normalizeMacOSVarPath(_normalizeDropItemPath(item.path)),
+        ))
+          item,
     ];
+  }
+
+  String _normalizeMacOSVarPath(String path) {
+    if (path.startsWith('/private/var/')) {
+      return '/var/${path.substring('/private/var/'.length)}';
+    }
+    return path;
   }
 
   bool _isSupportedDropItem(DropItem item) {

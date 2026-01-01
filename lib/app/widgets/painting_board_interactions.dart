@@ -194,6 +194,7 @@ mixin _PaintingBoardInteractionMixin
       }
     });
     _updateSelectionAnimation();
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _updatePenStrokeWidth(double value) {
@@ -253,7 +254,12 @@ mixin _PaintingBoardInteractionMixin
     if (_brushRandomRotationEnabled == value) {
       return;
     }
-    setState(() => _brushRandomRotationEnabled = value);
+    setState(() {
+      _brushRandomRotationEnabled = value;
+      if (value) {
+        _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+      }
+    });
     final AppPreferences prefs = AppPreferences.instance;
     prefs.brushRandomRotationEnabled = value;
     unawaited(AppPreferences.save());
@@ -297,8 +303,21 @@ mixin _PaintingBoardInteractionMixin
     }
     setState(() => _strokeStabilizerStrength = clamped);
     _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
     final AppPreferences prefs = AppPreferences.instance;
     prefs.strokeStabilizerStrength = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateStreamlineEnabled(bool value) {
+    if (_streamlineEnabled == value) {
+      return;
+    }
+    setState(() => _streamlineEnabled = value);
+    _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.streamlineEnabled = value;
     unawaited(AppPreferences.save());
   }
 
@@ -646,6 +665,7 @@ mixin _PaintingBoardInteractionMixin
         antialiasLevel: _penAntialiasLevel,
         brushShape: _brushShape,
         randomRotation: _brushRandomRotationEnabled,
+        rotationSeed: _brushRandomRotationPreviewSeed,
         erase: erase,
         hollow: hollow,
         hollowRatio: _hollowStrokeRatio,
@@ -669,6 +689,7 @@ mixin _PaintingBoardInteractionMixin
     final double? deltaMillis = _registerPenSample(timestamp);
     final Offset clamped = _sanitizeStrokePosition(
       position,
+      deltaTimeMillis: deltaMillis,
       anchor: _lastStrokeBoardPosition,
     );
     double? stylusPressure = _stylusPressureValue(rawEvent);
@@ -761,6 +782,9 @@ mixin _PaintingBoardInteractionMixin
     _controller.endStroke();
     setState(() {
       _isDrawing = false;
+      if (_brushRandomRotationEnabled) {
+        _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+      }
     });
     _resetPerspectiveLock();
     _lastPenSampleTimestamp = null;
@@ -771,6 +795,7 @@ mixin _PaintingBoardInteractionMixin
     _lastStrokeBoardPosition = null;
     _lastStylusDirection = null;
     _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
   }
 
   double _resolveSprayPressure(PointerEvent? event) {
@@ -1117,27 +1142,42 @@ mixin _PaintingBoardInteractionMixin
   Offset _sanitizeStrokePosition(
     Offset position, {
     bool isInitialSample = false,
+    double? deltaTimeMillis,
     Offset? anchor,
   }) {
     final Offset clamped = _clampToCanvas(position);
     final bool enableStabilizer =
         _strokeStabilizerStrength > 0.0001 &&
         (_effectiveActiveTool == CanvasTool.pen ||
-            _effectiveActiveTool == CanvasTool.eraser);
+            _effectiveActiveTool == CanvasTool.eraser ||
+            _effectiveActiveTool == CanvasTool.perspectivePen);
     if (!enableStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
+        _streamlineStabilizer.reset();
       }
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
     if (isInitialSample) {
-      _strokeStabilizer.start(clamped);
+      _strokeStabilizer.reset();
+      _streamlineStabilizer.reset();
+      if (_streamlineEnabled) {
+        _streamlineStabilizer.start(clamped);
+      } else {
+        _strokeStabilizer.start(clamped);
+      }
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
-    final Offset filtered = _strokeStabilizer.filter(
-      clamped,
-      _strokeStabilizerStrength,
-    );
+    final Offset filtered = _streamlineEnabled
+        ? _streamlineStabilizer.filter(
+            clamped,
+            _strokeStabilizerStrength,
+            deltaTimeMillis: deltaTimeMillis,
+          )
+        : _strokeStabilizer.filter(
+            clamped,
+            _strokeStabilizerStrength,
+          );
     return _maybeSnapToPerspective(filtered, anchor: anchor);
   }
 
@@ -1526,12 +1566,17 @@ mixin _PaintingBoardInteractionMixin
           antialiasLevel: _penAntialiasLevel,
           brushShape: _brushShape,
           randomRotation: _brushRandomRotationEnabled,
+          rotationSeed: _brushRandomRotationPreviewSeed,
           erase: erase,
           hollow: _hollowStrokeEnabled && !erase,
           hollowRatio: _hollowStrokeRatio,
           eraseOccludedParts: _hollowStrokeEraseOccludedParts,
         );
         _controller.endStroke();
+        if (_brushRandomRotationEnabled) {
+          _brushRandomRotationPreviewSeed =
+              _brushRotationRandom.nextInt(1 << 31);
+        }
         _markDirty();
       }
       setState(() {
@@ -1794,14 +1839,15 @@ mixin _PaintingBoardInteractionMixin
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
       timestampMillis: initialTimestamp,
-      antialiasLevel: _penAntialiasLevel,
-      brushShape: _brushShape,
-      enableNeedleTips: enableNeedleTips,
-      randomRotation: _brushRandomRotationEnabled,
-      erase: erase,
-      hollow: hollow,
-      hollowRatio: _hollowStrokeRatio,
-      eraseOccludedParts: _hollowStrokeEraseOccludedParts,
+        antialiasLevel: _penAntialiasLevel,
+        brushShape: _brushShape,
+        enableNeedleTips: enableNeedleTips,
+        randomRotation: _brushRandomRotationEnabled,
+        rotationSeed: _brushRandomRotationPreviewSeed,
+        erase: erase,
+        hollow: hollow,
+        hollowRatio: _hollowStrokeRatio,
+        eraseOccludedParts: _hollowStrokeEraseOccludedParts,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,
@@ -1828,6 +1874,9 @@ mixin _PaintingBoardInteractionMixin
       }
     }
     _controller.endStroke();
+    if (_brushRandomRotationEnabled) {
+      _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+    }
     _markDirty();
   }
 
@@ -2321,6 +2370,7 @@ mixin _PaintingBoardInteractionMixin
           }
           _penCursorWorkspacePosition = null;
         });
+        _scheduleWorkspaceCardsOverlaySync();
         return KeyEventResult.handled;
       }
       if (event is KeyUpEvent) {
@@ -2337,6 +2387,7 @@ mixin _PaintingBoardInteractionMixin
         if (pointer != null && _boardRect.contains(pointer)) {
           _updateToolCursorOverlay(pointer);
         }
+        _scheduleWorkspaceCardsOverlaySync();
         return KeyEventResult.handled;
       }
       return KeyEventResult.handled;
@@ -2353,6 +2404,7 @@ mixin _PaintingBoardInteractionMixin
         _spacePanOverrideActive = true;
         _penCursorWorkspacePosition = null;
       });
+      _scheduleWorkspaceCardsOverlaySync();
       return KeyEventResult.handled;
     }
     if (event is KeyUpEvent) {
@@ -2367,6 +2419,7 @@ mixin _PaintingBoardInteractionMixin
       if (pointer != null && _boardRect.contains(pointer)) {
         _updateToolCursorOverlay(pointer);
       }
+      _scheduleWorkspaceCardsOverlaySync();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -2615,5 +2668,67 @@ class _StrokeStabilizer {
       return _recentSamples.last;
     }
     return accumulator / totalWeight;
+  }
+}
+
+class _StreamlineStabilizer {
+  static const double _minDeltaMs = 1.0;
+  static const double _maxDeltaMs = 80.0;
+  static const double _defaultDeltaMs = 16.0;
+  static const double _maxRopeLength = 80.0;
+  static const double _maxTimeConstantMs = 180.0;
+
+  Offset? _filtered;
+
+  void start(Offset position) {
+    _filtered = position;
+  }
+
+  Offset filter(
+    Offset position,
+    double strength, {
+    double? deltaTimeMillis,
+  }) {
+    final double t = strength.isFinite ? strength.clamp(0.0, 1.0) : 0.0;
+    final Offset? previous = _filtered;
+    if (previous == null) {
+      start(position);
+      return position;
+    }
+    if (t <= 0.0001) {
+      _filtered = position;
+      return position;
+    }
+
+    final double rawDelta = deltaTimeMillis ?? _defaultDeltaMs;
+    final double dt = rawDelta.isFinite
+        ? rawDelta.clamp(_minDeltaMs, _maxDeltaMs)
+        : _defaultDeltaMs;
+    final double rope =
+        ui.lerpDouble(0.0, _maxRopeLength, math.pow(t, 2.2).toDouble()) ?? 0.0;
+    final double tau =
+        ui.lerpDouble(0.0, _maxTimeConstantMs, math.pow(t, 1.4).toDouble()) ??
+        0.0;
+    final double alpha =
+        tau <= 0.0001 ? 1.0 : 1.0 - math.exp(-dt / tau);
+
+    Offset next = previous + (position - previous) * alpha.clamp(0.0, 1.0);
+    if (rope > 0.0001) {
+      final Offset delta = position - next;
+      final double dist = delta.distance;
+      if (dist.isFinite && dist > rope) {
+        final Offset dir = delta / dist;
+        next = position - dir * rope;
+      }
+    } else {
+      next = position;
+    }
+
+    _filtered = next;
+    return next;
+  }
+
+  void reset() {
+    _filtered = null;
   }
 }

@@ -67,6 +67,7 @@ class ToolSettingsSnapshot {
     required this.hollowStrokeRatio,
     required this.hollowStrokeEraseOccludedParts,
     required this.strokeStabilizerStrength,
+    required this.streamlineEnabled,
     required this.stylusPressureEnabled,
     required this.simulatePenPressure,
     required this.penPressureProfile,
@@ -111,6 +112,7 @@ class ToolSettingsSnapshot {
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
   final double strokeStabilizerStrength;
+  final bool streamlineEnabled;
   final bool stylusPressureEnabled;
   final bool simulatePenPressure;
   final StrokePressureProfile penPressureProfile;

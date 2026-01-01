@@ -83,6 +83,7 @@ import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
+import '../../canvas/brush_random_rotation.dart';
 import '../../canvas/vector_stroke_painter.dart';
 import '../../canvas/text_renderer.dart';
 import '../../canvas/perspective_guide.dart';
@@ -272,6 +273,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
+  bool _streamlineEnabled = AppPreferences.defaultStreamlineEnabled;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
   int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
@@ -284,6 +286,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   bool _brushRandomRotationEnabled =
       AppPreferences.defaultBrushRandomRotationEnabled;
+  final math.Random _brushRotationRandom = math.Random();
+  int _brushRandomRotationPreviewSeed = 0;
   bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
   double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
   bool _hollowStrokeEraseOccludedParts =
@@ -348,6 +352,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _lastStrokeBoardPosition;
   Offset? _lastStylusDirection;
   final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
+  final _StreamlineStabilizer _streamlineStabilizer = _StreamlineStabilizer();
   bool _isSpraying = false;
   Offset? _sprayBoardPosition;
   Ticker? _sprayTicker;
@@ -1933,6 +1938,7 @@ class PaintingBoardState extends _PaintingBoardBase
     );
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
+    _streamlineEnabled = prefs.streamlineEnabled;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
@@ -1944,6 +1950,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _vectorStrokeSmoothingEnabled = prefs.vectorStrokeSmoothingEnabled;
     _brushShape = prefs.brushShape;
     _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
+    _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
     _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
     _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
     _hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
@@ -2459,6 +2466,7 @@ class PaintingBoardState extends _PaintingBoardBase
       hollowStrokeRatio: _hollowStrokeRatio,
       hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       strokeStabilizerStrength: _strokeStabilizerStrength,
+      streamlineEnabled: _streamlineEnabled,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
       penPressureProfile: _penPressureProfile,
@@ -2516,6 +2524,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
     _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
+    _updateStreamlineEnabled(snapshot.streamlineEnabled);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);
     _updatePenPressureProfile(snapshot.penPressureProfile);

@@ -47,7 +47,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeOpenProject => '프로젝트 열기';
 
   @override
-  String get homeOpenProjectDesc => '디스크에서 .rin / .psd 파일 불러오기';
+  String get homeOpenProjectDesc => '디스크에서 .rin / .psd 또는 이미지 파일 불러오기';
 
   @override
   String get homeRecentProjects => '최근 열기';
@@ -1002,6 +1002,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get stabilizer => '손떨림 보정';
 
   @override
+  String get streamline => '스트림라인';
+
+  @override
   String get off => '끄기';
 
   @override
@@ -1072,6 +1075,10 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get stabilizerDesc =>
       '손떨림을 상쇄하기 위해 포인터 궤적을 실시간으로 부드럽게 합니다. 레벨이 높을수록 안정적이지만 반응이 느려집니다.';
+
+  @override
+  String get streamlineDesc =>
+      'Procreate의 StreamLine처럼, 펜 끝과 잉크 사이에 \'가상 로프\'를 두어 고주파 흔들림을 줄입니다. 레벨이 높을수록 더 부드럽지만 지연도 늘어납니다.';
 
   @override
   String get fontSizeDesc => '전체 크기 조정을 위해 텍스트의 픽셀 높이를 조정합니다.';

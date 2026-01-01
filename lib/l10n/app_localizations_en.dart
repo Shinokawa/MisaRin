@@ -50,7 +50,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeOpenProject => 'Open Project';
 
   @override
-  String get homeOpenProjectDesc => 'Load a .rin / .psd file from disk';
+  String get homeOpenProjectDesc =>
+      'Load a .rin / .psd or image file from disk';
 
   @override
   String get homeRecentProjects => 'Recent';
@@ -1015,6 +1016,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stabilizer => 'Stabilizer';
 
   @override
+  String get streamline => 'StreamLine';
+
+  @override
   String get off => 'Off';
 
   @override
@@ -1085,6 +1089,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get stabilizerDesc =>
       'Smooths pointer trajectory in real-time to counteract hand tremors. Higher levels are steadier but respond slower.';
+
+  @override
+  String get streamlineDesc =>
+      'Procreate-style StreamLine smoothing. Adds a virtual rope between your pen and the ink so strokes stay smooth but feel more dragged/delayed at higher levels.';
 
   @override
   String get fontSizeDesc =>

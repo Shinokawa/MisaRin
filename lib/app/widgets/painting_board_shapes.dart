@@ -441,6 +441,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       antialiasLevel: _penAntialiasLevel,
       brushShape: _brushShape,
       randomRotation: _brushRandomRotationEnabled,
+      rotationSeed: _brushRandomRotationPreviewSeed,
       erase: erase,
     );
     if (simulatePressure) {
@@ -463,6 +464,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       }
     }
     _controller.endStroke();
+    if (_brushRandomRotationEnabled) {
+      _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+    }
     _markDirty();
   }
 

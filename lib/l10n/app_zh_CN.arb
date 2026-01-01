@@ -18,7 +18,7 @@
   "homeNewProject": "新建项目",
   "homeNewProjectDesc": "从空白画布开启新的创意",
   "homeOpenProject": "打开项目",
-  "homeOpenProjectDesc": "从磁盘加载 .rin / .psd 文件",
+  "homeOpenProjectDesc": "从磁盘加载 .rin / .psd 或图片文件",
   "homeRecentProjects": "最近打开",
   "homeRecentProjectsDesc": "快速恢复自动保存的项目",
   "homeProjectManager": "项目管理",

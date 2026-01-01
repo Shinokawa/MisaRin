@@ -149,11 +149,13 @@ class PenCursorOverlay extends StatelessWidget {
     required this.position,
     required this.diameter,
     required this.shape,
+    this.rotation = 0.0,
   });
 
   final Offset position;
   final double diameter;
   final BrushShape shape;
+  final double rotation;
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +175,11 @@ class PenCursorOverlay extends StatelessWidget {
           width: side,
           height: side,
           child: CustomPaint(
-            painter: _PenCursorPainter(radius: radius, shape: shape),
+            painter: _PenCursorPainter(
+              radius: radius,
+              shape: shape,
+              rotation: rotation,
+            ),
             isComplex: false,
             willChange: false,
           ),
@@ -184,10 +190,15 @@ class PenCursorOverlay extends StatelessWidget {
 }
 
 class _PenCursorPainter extends CustomPainter {
-  const _PenCursorPainter({required this.radius, required this.shape});
+  const _PenCursorPainter({
+    required this.radius,
+    required this.shape,
+    required this.rotation,
+  });
 
   final double radius;
   final BrushShape shape;
+  final double rotation;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -207,6 +218,14 @@ class _PenCursorPainter extends CustomPainter {
 
     final double outerRadius = radius + 1;
     final double innerRadius = math.max(radius - 1, 0);
+
+    final bool rotateShape = rotation != 0.0 && shape != BrushShape.circle;
+    if (rotateShape) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(rotation);
+      canvas.translate(-center.dx, -center.dy);
+    }
 
     if (outerRadius > 0) {
       final Path outline = BrushShapeGeometry.pathFor(
@@ -237,11 +256,17 @@ class _PenCursorPainter extends CustomPainter {
         centerDot,
       );
     }
+
+    if (rotateShape) {
+      canvas.restore();
+    }
   }
 
   @override
   bool shouldRepaint(covariant _PenCursorPainter oldDelegate) =>
-      oldDelegate.radius != radius || oldDelegate.shape != shape;
+      oldDelegate.radius != radius ||
+      oldDelegate.shape != shape ||
+      oldDelegate.rotation != rotation;
 }
 
 class _OutlinedToolCursorIcon extends StatelessWidget {

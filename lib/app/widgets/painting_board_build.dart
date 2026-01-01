@@ -23,11 +23,12 @@ mixin _PaintingBoardBuildMixin
 
   @override
   void _scheduleWorkspaceCardsOverlaySync() {
-    if (_workspaceCardsOverlayEntry?.mounted == true) {
-      if (_wantsWorkspaceCardsOverlay) {
-        _workspaceCardsOverlayEntry!.markNeedsBuild();
-        return;
-      }
+    final SchedulerPhase phase = SchedulerBinding.instance.schedulerPhase;
+    final bool safeToSyncNow =
+        phase == SchedulerPhase.idle || phase == SchedulerPhase.postFrameCallbacks;
+    if (safeToSyncNow) {
+      _syncWorkspaceCardsOverlay();
+      return;
     }
     if (_workspaceCardsOverlaySyncScheduled) {
       return;
@@ -91,8 +92,16 @@ mixin _PaintingBoardBuildMixin
   }
 
   @override
-  Widget build(BuildContext context) {
+  void didUpdateWidget(covariant PaintingBoard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive == widget.isActive) {
+      return;
+    }
     _scheduleWorkspaceCardsOverlaySync();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     _refreshStylusPreferencesIfNeeded();
     _refreshHistoryLimit();
     final bool canUndo = this.canUndo || widget.externalCanUndo;
@@ -438,15 +447,17 @@ mixin _PaintingBoardBuildMixin
           onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
           onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
           hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
-          onHollowStrokeEraseOccludedPartsChanged:
-              _updateHollowStrokeEraseOccludedParts,
-          strokeStabilizerStrength: _strokeStabilizerStrength,
-          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
-          stylusPressureEnabled: _stylusPressureEnabled,
-          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
-          simulatePenPressure: _simulatePenPressure,
-          onSimulatePenPressureChanged: _updatePenPressureSimulation,
-          penPressureProfile: _penPressureProfile,
+	          onHollowStrokeEraseOccludedPartsChanged:
+	              _updateHollowStrokeEraseOccludedParts,
+	          strokeStabilizerStrength: _strokeStabilizerStrength,
+	          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
+	          streamlineEnabled: _streamlineEnabled,
+	          onStreamlineEnabledChanged: _updateStreamlineEnabled,
+	          stylusPressureEnabled: _stylusPressureEnabled,
+	          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+	          simulatePenPressure: _simulatePenPressure,
+	          onSimulatePenPressureChanged: _updatePenPressureSimulation,
+	          penPressureProfile: _penPressureProfile,
           onPenPressureProfileChanged: _updatePenPressureProfile,
           brushAntialiasLevel: _penAntialiasLevel,
           onBrushAntialiasChanged: _updatePenAntialiasLevel,
@@ -1182,6 +1193,18 @@ mixin _PaintingBoardBuildMixin
                               position: _penCursorWorkspacePosition!,
                               diameter: overlayBrushDiameter * _viewport.scale,
                               shape: overlayBrushShape,
+                              rotation:
+                                  _brushRandomRotationEnabled &&
+                                          overlayBrushShape != BrushShape.circle
+                                      ? brushRandomRotationRadians(
+                                          center: _toBoardLocal(
+                                            _penCursorWorkspacePosition!,
+                                          ),
+                                          seed: _isDrawing
+                                              ? _controller.activeStrokeRotationSeed
+                                              : _brushRandomRotationPreviewSeed,
+                                        )
+                                      : 0.0,
                             ),
                           if (_toolCursorPosition != null)
                             Positioned(
