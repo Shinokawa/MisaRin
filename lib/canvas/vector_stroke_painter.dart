@@ -237,7 +237,13 @@ class VectorStrokePainter {
       canvas.translate(-center.dx, -center.dy);
     }
     if (shape == BrushShape.square) {
-      final Rect rect = Rect.fromCircle(center: center, radius: radius);
+      final double clamped = math.max(radius.abs(), 0.0);
+      final double halfSide = clamped <= 0 ? 0.0 : clamped / math.sqrt2;
+      final Rect rect = Rect.fromCenter(
+        center: center,
+        width: halfSide * 2,
+        height: halfSide * 2,
+      );
       canvas.drawRect(rect, paint);
     } else if (shape == BrushShape.triangle) {
       // Equilateral triangle inscribed in circle of radius
