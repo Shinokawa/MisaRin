@@ -47,3 +47,8 @@ app.*.map.json
 /.dart-tool
 /.dartServer
 /windows/flutter/ephemeral
+
+# Web release updater (update_web_release.py)
+.misa_rin_web_state.json
+.misa_rin_web_staging/
+.misa_rin_web_download.zip

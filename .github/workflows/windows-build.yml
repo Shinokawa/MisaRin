@@ -1,4 +1,4 @@
-name: Build Windows ZIP
+name: Build Windows ZIP and Installer
 
 on:
   workflow_call:
@@ -32,9 +32,121 @@ jobs:
       - name: 获取依赖
         shell: pwsh
         run: flutter pub get
+      - name: 安装 Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+      - name: 补充 Inno Setup 语言包
+        shell: pwsh
+        run: |
+          $langFile = Join-Path "${env:ProgramFiles(x86)}" "Inno Setup 6\Languages\ChineseSimplified.isl"
+          if (-not (Test-Path $langFile)) {
+            Write-Host "ChineseSimplified.isl 缺失，尝试下载..."
+            $langDir = Split-Path $langFile -Parent
+            New-Item -ItemType Directory -Path $langDir -Force | Out-Null
+            $urls = @(
+              "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/ChineseSimplified.isl",
+              "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl",
+              "https://raw.githubusercontent.com/jrsoftware/issrc/master/Files/Languages/ChineseSimplified.isl",
+              "https://raw.githubusercontent.com/jrsoftware/issrc/master/Files/Languages/Unofficial/ChineseSimplified.isl"
+            )
+            foreach ($u in $urls) {
+              try {
+                Invoke-WebRequest -Uri $u -OutFile $langFile -UseBasicParsing -ErrorAction Stop
+                Write-Host "下载成功：$u"
+                break
+              } catch {
+                Write-Warning "下载失败：$u -- $($_.Exception.Message)"
+              }
+            }
+            if (-not (Test-Path $langFile)) {
+              $defaultLang = Join-Path (Split-Path $langDir -Parent) "Default.isl"
+              if (-not (Test-Path $defaultLang)) {
+                Write-Error "未找到 Default.isl，无法生成语言文件"
+              }
+              Copy-Item $defaultLang $langFile -Force
+              Write-Warning "使用 Default.isl 作为占位，安装器语言将 fallback 为英文。"
+            }
+          } else {
+            Write-Host "ChineseSimplified.isl 已存在：$langFile"
+          }
       - name: 构建 Windows 应用
         shell: pwsh
         run: flutter build windows --release
+      - name: 构建 Windows 安装程序
+        shell: pwsh
+        run: |
+          $artifactDir = "build/artifacts"
+          $buildDir = "build/windows/$env:TARGET_ARCH/runner/Release"
+          if (-not (Test-Path $buildDir)) {
+            Write-Error "未找到 Windows 构建输出：$buildDir"
+          }
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+          $buildDir = (Resolve-Path $buildDir).Path
+          $artifactDir = (Resolve-Path $artifactDir).Path
+
+          $installerScript = Join-Path $env:RUNNER_TEMP "MisaRinInstaller.iss"
+          $outputBaseName = "MisaRin-windows-$($env:TARGET_ARCH)-$($env:APP_VERSION)-setup"
+
+          $arch = switch ($env:TARGET_ARCH.ToLowerInvariant()) {
+            "x64" { "x64" }
+            "arm64" { "arm64" }
+            "x86" { "x86" }
+            default { "x64" }
+          }
+
+          @"
+          #define MyAppName "Misa Rin"
+          #define MyAppVersion "${env:APP_VERSION}"
+          #define MyAppPublisher "MCDFSteve"
+          #define MyAppExeName "misa_rin.exe"
+
+          [Setup]
+          AppId={{B4F2E0AD-D487-4203-A0CB-2C169BDAAEB7}}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppPublisher}
+          DefaultDirName={code:GetAppDir}
+          DefaultGroupName=Misa Rin
+          OutputDir="$artifactDir"
+          OutputBaseFilename="$outputBaseName"
+          Compression=lzma
+          SolidCompression=yes
+          ArchitecturesAllowed=$arch
+          DisableWelcomePage=yes
+          WizardStyle=modern
+          PrivilegesRequired=lowest
+          PrivilegesRequiredOverridesAllowed=dialog
+          UsePreviousPrivileges=yes
+
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+          Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+
+          [Files]
+          Source: "$buildDir\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{autoprograms}\Misa Rin"; Filename: "{app}\{#MyAppExeName}"
+          Name: "{autodesktop}\Misa Rin"; Filename: "{app}\{#MyAppExeName}"
+
+          [Run]
+          Filename: "{app}\{#MyAppExeName}"; Description: "启动 Misa Rin"; Flags: nowait postinstall skipifsilent
+
+          [Code]
+          function GetAppDir(Default: string): string;
+          begin
+            if IsAdminInstallMode then
+              Result := ExpandConstant('{pf}\Misa Rin')
+            else
+              Result := ExpandConstant('{localappdata}\Programs\Misa Rin');
+          end;
+          "@ | Set-Content -Path $installerScript -Encoding UTF8
+
+          $isccPath = Join-Path -Path "${env:ProgramFiles(x86)}" -ChildPath "Inno Setup 6\\ISCC.exe"
+          if (-not (Test-Path $isccPath)) {
+            Write-Error "未找到 ISCC 可执行文件：$isccPath"
+          }
+          & $isccPath $installerScript
       - name: 打包 ZIP
         shell: pwsh
         run: |
@@ -44,15 +156,21 @@ jobs:
           if (-not (Test-Path $buildDir)) {
             Write-Error "未找到 Windows 构建输出：$buildDir"
           }
-          $artifactName = "windows-$($env:TARGET_ARCH)-$($env:APP_VERSION).zip"
+          $artifactName = "MisaRin-windows-$($env:TARGET_ARCH)-$($env:APP_VERSION).zip"
           $destination = Join-Path $artifactDir $artifactName
           if (Test-Path $destination) {
             Remove-Item $destination -Force
           }
           Compress-Archive -Path (Join-Path $buildDir '*') -DestinationPath $destination -Force
+      - name: 上传 Windows 安装程序
+        uses: actions/upload-artifact@v4
+        with:
+          name: MisaRin-windows-${{ env.TARGET_ARCH }}-${{ env.APP_VERSION }}-setup.exe
+          path: build/artifacts/MisaRin-windows-${{ env.TARGET_ARCH }}-${{ env.APP_VERSION }}-setup.exe
+          if-no-files-found: error
       - name: 上传 Windows 构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: windows-${{ env.TARGET_ARCH }}-${{ env.APP_VERSION }}.zip
-          path: build/artifacts/windows-${{ env.TARGET_ARCH }}-${{ env.APP_VERSION }}.zip
+          name: MisaRin-windows-${{ env.TARGET_ARCH }}-${{ env.APP_VERSION }}.zip
+          path: build/artifacts/MisaRin-windows-${{ env.TARGET_ARCH }}-${{ env.APP_VERSION }}.zip
           if-no-files-found: error
