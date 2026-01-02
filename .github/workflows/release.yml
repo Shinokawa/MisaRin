@@ -101,6 +101,8 @@ jobs:
           tag_name: v${{ needs.prepare.outputs.version }}
           name: Misa Rin ${{ needs.prepare.outputs.version }}
           body: |
+            ${{ github.event.head_commit.message }}
+
             自动发布版本：${{ needs.prepare.outputs.version }}
 
             - macOS 通用 DMG
