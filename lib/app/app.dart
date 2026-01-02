@@ -194,7 +194,21 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
 	            appBody = MacosMenuShell(child: appBody);
 	          }
 
-	          return appBody;
+	          final FluentThemeData theme = FluentTheme.of(context);
+	          final Color selectionColor =
+	              Color.lerp(
+	                theme.resources.controlFillColorInputActive,
+	                theme.resources.textFillColorPrimary,
+	                0.25,
+	              ) ??
+	              theme.resources.textFillColorPrimary.withOpacity(0.25);
+
+	          return DefaultSelectionStyle(
+	            cursorColor:
+	                theme.accentColor.defaultBrushFor(theme.brightness),
+	            selectionColor: selectionColor,
+	            child: appBody,
+	          );
 	        },
 	        theme: FluentThemeData(
 	          brightness: Brightness.light,

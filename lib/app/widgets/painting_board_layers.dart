@@ -93,9 +93,8 @@ mixin _PaintingBoardLayerMixin
     final TextEditingController controller = TextEditingController(
       text: target.name,
     );
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
     );
     String? errorText;
 
