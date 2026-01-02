@@ -10,8 +10,9 @@
 
 <img width="1470" height="879" alt="Misa Rin screenshot" src="https://github.com/user-attachments/assets/b524add6-66ab-4567-889c-9f9e076ec737" />
 
-<details open>
-<summary><b id="lang-zh-cn">简体中文</b></summary>
+<a id="lang-zh-cn"></a>
+
+## 简体中文
 
 Misa Rin 是一款聚焦桌面端的现代化数字绘画与像素创作软件。界面基于 Fluent UI，在 **12MB** 的极致体积下，实现了秒级启动与媲美原生应用的流畅体验。
 
@@ -108,10 +109,12 @@ Misa Rin 致力于探索 Flutter 在高性能图形领域的极限。
 
 本项目使用 **MIT License** 开源，随意下载、修改、分享与魔改。
 
-</details>
+<br>
+<br>
 
-<details>
-<summary><b id="lang-zh-tw">繁體中文</b></summary>
+<a id="lang-zh-tw"></a>
+
+## 繁體中文
 
 Misa Rin 是一款聚焦桌面端的現代化數位繪畫與像素創作軟體。介面基於 Fluent UI，在 **12MB** 的極致體積下，實現秒級啟動與媲美原生應用的流暢體驗。
 
@@ -208,10 +211,12 @@ Misa Rin 致力於探索 Flutter 在高效能圖形領域的極限。
 
 本專案使用 **MIT License** 開源，隨意下載、修改、分享與魔改。
 
-</details>
+<br>
+<br>
 
-<details>
-<summary><b id="lang-en">English</b></summary>
+<a id="lang-en"></a>
+
+## English
 
 Misa Rin is a modern digital painting and pixel creation app focused on desktop. With a Fluent UI-inspired interface and an ultra-small **12MB** footprint, it starts instantly and feels as smooth as a native app.
 
@@ -308,10 +313,12 @@ Misa Rin explores the limits of Flutter in high-performance graphics.
 
 Released under the **MIT License** — feel free to download, modify, and share.
 
-</details>
+<br>
+<br>
 
-<details>
-<summary><b id="lang-ko">한국어</b></summary>
+<a id="lang-ko"></a>
+
+## 한국어
 
 Misa Rin은 데스크톱에 초점을 둔 현대적인 디지털 드로잉·픽셀 아트 제작 소프트웨어입니다. Fluent UI 기반의 UI와 **12MB** 수준의 초경량 크기로, 빠른 실행과 네이티브급 부드러움을 제공합니다.
 
@@ -408,10 +415,12 @@ Misa Rin은 고성능 그래픽 영역에서 Flutter의 한계를 탐구합니�
 
 본 프로젝트는 **MIT License**로 오픈소스이며, 자유롭게 다운로드/수정/공유할 수 있습니다.
 
-</details>
+<br>
+<br>
 
-<details>
-<summary><b id="lang-ja">日本語</b></summary>
+<a id="lang-ja"></a>
+
+## 日本語
 
 Misa Rin はデスクトップ向けにフォーカスしたモダンなデジタルペイント／ピクセル制作ソフトです。Fluent UI ベースの UI と **12MB** 級の超軽量設計で、秒起動とネイティブ級の滑らかさを実現します。
 
@@ -507,5 +516,3 @@ Misa Rin は高性能グラフィックス領域における Flutter の限界�
 - *Keywords for developers: Flutter, CanvasKit, Pixel Art, Cel Shading, Retas, PaintMan, Color Trace (色トレス), Binary Pen (二值化ペン).*
 
 本プロジェクトは **MIT License** で公開されています。自由にダウンロード/改変/共有してください。
-
-</details>
