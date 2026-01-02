@@ -5,6 +5,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
+import 'package:path/path.dart' as p;
 
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
@@ -27,8 +28,9 @@ class AppMenuActions {
     }
     try {
       _applyWorkspacePreset(config.workspacePreset);
-      final ProjectDocument document = await ProjectRepository.instance
+      ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
+      document = _applyNewProjectPresetDefaults(document, config);
       if (!context.mounted) {
         return;
       }
@@ -43,6 +45,34 @@ class AppMenuActions {
         severity: InfoBarSeverity.error,
       );
     }
+  }
+
+  static ProjectDocument _applyNewProjectPresetDefaults(
+    ProjectDocument document,
+    NewProjectConfig config,
+  ) {
+    if (!_shouldHideSolidBackgroundLayer(config)) {
+      return document;
+    }
+    if (document.layers.isEmpty) {
+      return document;
+    }
+    final firstLayer = document.layers.first;
+    if (!firstLayer.visible || firstLayer.fillColor == null) {
+      return document;
+    }
+    final layers = List.of(document.layers);
+    layers[0] = firstLayer.copyWith(visible: false);
+    return document.copyWith(layers: layers);
+  }
+
+  static bool _shouldHideSolidBackgroundLayer(NewProjectConfig config) {
+    if (config.workspacePreset == WorkspacePreset.pixel) {
+      return true;
+    }
+    final int width = config.settings.width.round();
+    final int height = config.settings.height.round();
+    return width == height && (width == 64 || width == 32 || width == 16);
   }
 
   static void _applyWorkspacePreset(WorkspacePreset preset) {
@@ -95,9 +125,17 @@ class AppMenuActions {
       }
     }
 
+    void setStreamlineEnabled(bool value) {
+      if (prefs.streamlineEnabled != value) {
+        prefs.streamlineEnabled = value;
+        changed = true;
+      }
+    }
+
     switch (preset) {
       case WorkspacePreset.illustration:
         setPenAntialias(1);
+        setStreamlineEnabled(true);
         break;
       case WorkspacePreset.celShading:
         setPenAntialias(0);
@@ -125,7 +163,15 @@ class AppMenuActions {
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
       dialogTitle: l10n.openProjectDialogTitle,
       type: FileType.custom,
-      allowedExtensions: const ['rin', 'psd'],
+      allowedExtensions: const [
+        'rin',
+        'psd',
+        'png',
+        'jpg',
+        'jpeg',
+        'webp',
+        'avif',
+      ],
       withData: kIsWeb,
     );
     final PlatformFile? file = result?.files.singleOrNull;
@@ -144,8 +190,8 @@ class AppMenuActions {
             title: l10n.openingProjectTitle,
             message: l10n.openingProjectMessage(file.name),
             action: () async {
-              final String extension = file.name.toLowerCase();
-              if (extension.endsWith('.psd')) {
+              final String extension = p.extension(file.name).toLowerCase();
+              if (extension == '.psd') {
                 if (path != null && !kIsWeb) {
                   return ProjectRepository.instance.importPsd(path);
                 } else if (bytes != null) {
@@ -155,6 +201,26 @@ class AppMenuActions {
                   );
                 }
                 throw Exception(l10n.cannotReadPsdContent);
+              }
+              if (extension == '.png' ||
+                  extension == '.jpg' ||
+                  extension == '.jpeg' ||
+                  extension == '.webp' ||
+                  extension == '.avif') {
+                final String name = p.basenameWithoutExtension(file.name);
+                if (path != null && !kIsWeb) {
+                  return ProjectRepository.instance.createDocumentFromImage(
+                    path,
+                    name: name,
+                  );
+                }
+                if (bytes != null) {
+                  return ProjectRepository.instance.createDocumentFromImageBytes(
+                    bytes,
+                    name: name,
+                  );
+                }
+                throw Exception(l10n.cannotReadProjectFileContent);
               }
               if (path != null && !kIsWeb) {
                 return ProjectRepository.instance.loadDocument(path);

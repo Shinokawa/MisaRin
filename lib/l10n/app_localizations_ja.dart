@@ -47,7 +47,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeOpenProject => 'プロジェクトを開く';
 
   @override
-  String get homeOpenProjectDesc => 'ディスクから .rin / .psd ファイルを読み込む';
+  String get homeOpenProjectDesc => 'ディスクから .rin / .psd または画像ファイルを読み込む';
 
   @override
   String get homeRecentProjects => '最近開いた';
@@ -503,6 +503,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuBinarizeEllipsis => '二値化…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => 'スキャン紙絵…';
+
+  @override
   String get menuScanPaperDrawing => 'スキャン紙絵';
 
   @override
@@ -757,6 +760,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get workspaceIllustrationDesc => 'ブラシのエッジ柔化をレベル 1 に設定';
 
   @override
+  String get workspaceIllustrationDesc2 => 'ストリームライン: オン';
+
+  @override
   String get workspaceCelShading => 'アニメ塗り';
 
   @override
@@ -779,6 +785,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get workspacePixelDesc3 => 'ベクター描画: オフ';
+
+  @override
+  String get workspacePixelDesc4 => '手ブレ補正: 0';
 
   @override
   String get workspaceDefault => 'デフォルト';
@@ -926,6 +935,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushShape => 'ブラシ形状';
 
   @override
+  String get randomRotation => 'ランダム回転';
+
+  @override
   String get selectionShape => '選択形状';
 
   @override
@@ -995,6 +1007,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get stabilizer => '手ブレ補正';
 
   @override
+  String get streamline => 'ストリームライン';
+
+  @override
   String get off => 'オフ';
 
   @override
@@ -1040,6 +1055,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get square => '正方形';
 
   @override
+  String get star => '五芒星';
+
+  @override
   String get brushSizeDesc =>
       '現在のブラシの直径（ピクセル）を設定します。値が大きいほど線が太くなり、小さいほど細部用になります。';
 
@@ -1060,6 +1078,10 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get stabilizerDesc =>
       '手の震えを打ち消すためにポインタの軌跡をリアルタイムで滑らかにします。レベルが高いほど安定しますが、追従は遅れます。';
+
+  @override
+  String get streamlineDesc =>
+      'Procreate の StreamLine 風の補正です。ペンを離した後にストロークを平滑化し、補間アニメーションでより滑らかな線に戻します（レベルが高いほど強い）。';
 
   @override
   String get fontSizeDesc => 'テキスト全体のピクセル高さを調整します。';
@@ -1085,6 +1107,10 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get solidFillDesc =>
       '図形ツールで塗りつぶされたブロックを描くか、中空の輪郭を描くかを決定します。オンにすると塗りつぶされます。';
+
+  @override
+  String get randomRotationDesc =>
+      'オンにすると、四角形/三角形/五芒星のスタンプがストロークに沿ってランダムに回転します。';
 
   @override
   String get autoSharpTaperDesc => 'ストロークの始点と終点を自動的に細くし、アニメ塗りのようなシャープな線にします。';
@@ -1170,6 +1196,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get squareTipDesc => '四角形のチップを使用し、ハードエッジなピクセルストロークにします。';
+
+  @override
+  String get starTipDesc => '五芒星のチップで装飾的なストロークを描きます。';
 
   @override
   String get apply => '適用';

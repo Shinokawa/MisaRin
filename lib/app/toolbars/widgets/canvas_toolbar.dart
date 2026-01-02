@@ -11,6 +11,7 @@ import 'pen_tool_button.dart';
 import 'eraser_tool_button.dart';
 import 'perspective_pen_tool_button.dart';
 import 'selection_tool_button.dart';
+import 'selection_pen_tool_button.dart';
 import 'redo_tool_button.dart';
 import 'undo_tool_button.dart';
 import 'layer_adjust_tool_button.dart';
@@ -48,7 +49,7 @@ class CanvasToolbar extends StatelessWidget {
   final CanvasToolbarLayout layout;
   final bool includeHistoryButtons;
 
-  static const int buttonCount = 14;
+  static const int buttonCount = 15;
   static const int historyButtonCount = 2;
   static const double buttonSize = 48;
   static const double spacing = 9;
@@ -126,6 +127,7 @@ class CanvasToolbar extends StatelessWidget {
     ToolbarAction.magicWandTool: '根据颜色相似度自动生成选区',
     ToolbarAction.eyedropperTool: '拾取画布上的颜色并设置为当前前景色',
     ToolbarAction.selectionTool: '创建矩形或椭圆选区以移动、复制或裁剪内容',
+    ToolbarAction.selectionPenTool: '像画笔一样涂抹创建选区，可与现有选区叠加',
     ToolbarAction.textTool: '在画布上插入文本并调整字体样式',
     ToolbarAction.handTool: '拖拽画布以平移视图，便于查看不同区域',
     ToolbarAction.undo: '撤销最近的操作，逐步回退修改',
@@ -276,6 +278,14 @@ class CanvasToolbar extends StatelessWidget {
           isSelected: activeTool == CanvasTool.selection,
           selectionShape: selectionShape,
           onPressed: () => onToolSelected(CanvasTool.selection),
+        ),
+      ),
+      wrapWithTooltip(
+        action: ToolbarAction.selectionPenTool,
+        label: '选区笔',
+        child: SelectionPenToolButton(
+          isSelected: activeTool == CanvasTool.selectionPen,
+          onPressed: () => onToolSelected(CanvasTool.selectionPen),
         ),
       ),
       wrapWithTooltip(

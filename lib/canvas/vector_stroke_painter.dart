@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'canvas_tools.dart';
+import 'brush_random_rotation.dart';
 import 'brush_shape_geometry.dart';
 
 class VectorStrokePainter {
@@ -14,6 +15,8 @@ class VectorStrokePainter {
     int antialiasLevel = 1,
     bool hollow = false,
     double hollowRatio = 0.0,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) {
     if (points.isEmpty) return;
 
@@ -37,7 +40,15 @@ class VectorStrokePainter {
       if (shape == BrushShape.circle) {
         _paintCircleStroke(canvas, points, radii, paint);
       } else {
-        _paintStampStroke(canvas, points, radii, paint, shape);
+        _paintStampStroke(
+          canvas,
+          points,
+          radii,
+          paint,
+          shape,
+          randomRotation: randomRotation,
+          rotationSeed: rotationSeed,
+        );
       }
       return;
     }
@@ -46,7 +57,15 @@ class VectorStrokePainter {
     if (shape == BrushShape.circle) {
       _paintCircleStroke(canvas, points, radii, paint);
     } else {
-      _paintStampStroke(canvas, points, radii, paint, shape);
+      _paintStampStroke(
+        canvas,
+        points,
+        radii,
+        paint,
+        shape,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
+      );
     }
 
     // Cut out the inner stroke (hollow area)
@@ -74,6 +93,8 @@ class VectorStrokePainter {
         clearPaint,
         shape,
         radiusScale: ratio,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       );
     }
   }
@@ -138,7 +159,11 @@ class VectorStrokePainter {
     List<double> radii,
     Paint paint,
     BrushShape shape,
-    {double radiusScale = 1.0}
+    {
+      double radiusScale = 1.0,
+      bool randomRotation = false,
+      int rotationSeed = 0,
+    }
   ) {
     // Use a denser stamping for shapes to avoid gaps, but not too dense to kill performance
     // For vector drawing, we can just draw at every point if they are dense enough.
@@ -147,7 +172,15 @@ class VectorStrokePainter {
     if (points.isEmpty) return;
 
     // Draw first point
-    _drawShapeAt(canvas, points.first, radii.first * radiusScale, paint, shape);
+    _drawShapeAt(
+      canvas,
+      points.first,
+      radii.first * radiusScale,
+      paint,
+      shape,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
+    );
 
     for (int i = 0; i < points.length - 1; i++) {
       final Offset p1 = points[i];
@@ -171,14 +204,46 @@ class VectorStrokePainter {
         final double t = s / steps;
         final Offset pos = Offset.lerp(p1, p2, t)!;
         final double r = lerpDouble(r1, r2, t)!;
-        _drawShapeAt(canvas, pos, r, paint, shape);
+        _drawShapeAt(
+          canvas,
+          pos,
+          r,
+          paint,
+          shape,
+          randomRotation: randomRotation,
+          rotationSeed: rotationSeed,
+        );
       }
     }
   }
 
-  static void _drawShapeAt(Canvas canvas, Offset center, double radius, Paint paint, BrushShape shape) {
+  static void _drawShapeAt(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Paint paint,
+    BrushShape shape, {
+    required bool randomRotation,
+    required int rotationSeed,
+  }) {
+    final double rotation = randomRotation
+        ? brushRandomRotationRadians(center: center, seed: rotationSeed)
+        : 0.0;
+    final bool needsRotation = rotation != 0.0;
+    if (needsRotation) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(rotation);
+      canvas.translate(-center.dx, -center.dy);
+    }
     if (shape == BrushShape.square) {
-      final Rect rect = Rect.fromCircle(center: center, radius: radius);
+      final double clamped = math.max(radius.abs(), 0.0);
+      final double halfSide = clamped <= 0 ? 0.0 : clamped / math.sqrt2;
+      final Rect rect = Rect.fromCenter(
+        center: center,
+        width: halfSide * 2,
+        height: halfSide * 2,
+      );
       canvas.drawRect(rect, paint);
     } else if (shape == BrushShape.triangle) {
       // Equilateral triangle inscribed in circle of radius
@@ -195,6 +260,25 @@ class VectorStrokePainter {
       path.lineTo(center.dx - r * 0.866, center.dy + r * 0.5);
       path.close();
       canvas.drawPath(path, paint);
+    } else if (shape == BrushShape.star) {
+      final List<Offset> vertices = BrushShapeGeometry.polygonFor(
+        shape,
+        center,
+        radius,
+      );
+      if (vertices.length < 3) {
+        return;
+      }
+      final Path path = Path()..moveTo(vertices.first.dx, vertices.first.dy);
+      for (int i = 1; i < vertices.length; i++) {
+        final Offset v = vertices[i];
+        path.lineTo(v.dx, v.dy);
+      }
+      path.close();
+      canvas.drawPath(path, paint);
+    }
+    if (needsRotation) {
+      canvas.restore();
     }
   }
 }

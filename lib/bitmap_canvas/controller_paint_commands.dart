@@ -25,6 +25,8 @@ void _controllerFlushDeferredStrokeCommands(
   final bool hollow = controller._currentStrokeHollowEnabled;
   final double hollowRatio = controller._currentStrokeHollowRatio;
   final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
+  final bool randomRotation = controller._currentStrokeRandomRotationEnabled;
+  final int rotationSeed = controller._currentStrokeRotationSeed;
 
   if (controller._vectorStrokeSmoothingEnabled && points.length >= 3) {
     final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
@@ -45,6 +47,8 @@ void _controllerFlushDeferredStrokeCommands(
     hollow: hollow,
     hollowRatio: hollowRatio,
     eraseOccludedParts: eraseOccludedParts,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
   );
   controller._committingStrokes.add(vectorCommand);
 
@@ -85,11 +89,106 @@ void _controllerFlushDeferredStrokeCommands(
         hollow: hollow,
         hollowRatio: hollowRatio,
         eraseOccludedParts: eraseOccludedParts,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       )
       .then((_) {
         controller._committingStrokes.remove(vectorCommand);
         controller.notifyListeners();
       });
+}
+
+Future<void> _controllerCommitVectorStroke(
+  BitmapCanvasController controller, {
+  required List<Offset> points,
+  required List<double> radii,
+  required Color color,
+  required BrushShape brushShape,
+  required bool applyVectorSmoothing,
+  required bool erase,
+  required int antialiasLevel,
+  bool hollow = false,
+  double hollowRatio = 0.0,
+  bool eraseOccludedParts = false,
+  bool randomRotation = false,
+  int rotationSeed = 0,
+}) async {
+  if (controller._layers.isEmpty || controller._activeLayer.locked) {
+    return;
+  }
+  if (points.isEmpty) {
+    return;
+  }
+
+  List<Offset> resolvedPoints = List<Offset>.from(points);
+  List<double> resolvedRadii = List<double>.from(radii);
+  if (applyVectorSmoothing &&
+      controller._vectorStrokeSmoothingEnabled &&
+      resolvedPoints.length >= 3) {
+    final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
+      resolvedPoints,
+      resolvedRadii,
+    );
+    resolvedPoints = smoothed.points;
+    resolvedRadii = smoothed.radii;
+  }
+
+  final bool resolvedHollow = hollow && !erase;
+  final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
+    points: resolvedPoints,
+    radii: resolvedRadii,
+    colorValue: color.value,
+    shapeIndex: brushShape.index,
+    antialiasLevel: antialiasLevel.clamp(0, 3),
+    erase: erase,
+    hollow: resolvedHollow,
+    hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
+    eraseOccludedParts: resolvedHollow && eraseOccludedParts,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
+  );
+
+  controller._committingStrokes.add(vectorCommand);
+  controller.notifyListeners();
+
+  double minX = double.infinity;
+  double minY = double.infinity;
+  double maxX = double.negativeInfinity;
+  double maxY = double.negativeInfinity;
+  double maxRadius = 0.0;
+
+  for (int i = 0; i < resolvedPoints.length; i++) {
+    final Offset point = resolvedPoints[i];
+    final double radius = _strokeRadiusAtIndex(resolvedRadii, i);
+    if (radius > maxRadius) {
+      maxRadius = radius;
+    }
+    if (point.dx < minX) minX = point.dx;
+    if (point.dx > maxX) maxX = point.dx;
+    if (point.dy < minY) minY = point.dy;
+    if (point.dy > maxY) maxY = point.dy;
+  }
+
+  final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY)
+      .inflate(maxRadius + 2.0);
+
+  await controller._rasterizeVectorStroke(
+    resolvedPoints,
+    resolvedRadii,
+    color,
+    brushShape,
+    dirtyRegion,
+    erase,
+    antialiasLevel.clamp(0, 3),
+    hollow: resolvedHollow,
+    hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
+    eraseOccludedParts: resolvedHollow && eraseOccludedParts,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
+  );
+
+  controller._committingStrokes.remove(vectorCommand);
+  controller.notifyListeners();
 }
 
 Future<void> _controllerRasterizeVectorStroke(
@@ -105,6 +204,8 @@ Future<void> _controllerRasterizeVectorStroke(
   bool hollow = false,
   double hollowRatio = 0.0,
   bool eraseOccludedParts = false,
+  bool randomRotation = false,
+  int rotationSeed = 0,
 }
 ) async {
   final bool applyHollowCutoutErase =
@@ -136,6 +237,8 @@ Future<void> _controllerRasterizeVectorStroke(
     antialiasLevel: antialiasLevel,
     hollow: hollow,
     hollowRatio: hollowRatio,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
   );
 
   final ui.Picture picture = recorder.endRecording();
@@ -176,6 +279,8 @@ Future<void> _controllerRasterizeVectorStroke(
         color: const Color(0xFFFFFFFF),
         shape: shape,
         antialiasLevel: antialiasLevel,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       );
 
       final ui.Picture maskPicture = maskRecorder.endRecording();
@@ -259,6 +364,8 @@ Future<void> _controllerRasterizeVectorStroke(
         color: const Color(0xFFFFFFFF),
         shape: shape,
         antialiasLevel: antialiasLevel,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       );
       final ui.Picture maskPicture = maskRecorder.endRecording();
       final ui.Image maskImage = await maskPicture.toImage(
@@ -597,7 +704,6 @@ bool _controllerMergeVectorPatchOnMainThread(
   }
 
   controller._resetWorkerSurfaceSync();
-  controller._activeLayer.revision += 1;
   final Rect dirtyRegion = Rect.fromLTRB(
     clampedLeft.toDouble(),
     clampedTop.toDouble(),
@@ -647,6 +753,8 @@ void _controllerApplyPaintingCommandsSynchronously(
           antialiasLevel: command.antialiasLevel,
           erase: erase,
           softness: command.softness ?? 0.0,
+          randomRotation: command.randomRotation ?? false,
+          rotationSeed: command.rotationSeed ?? 0,
         );
         anyChange = true;
         break;
@@ -722,6 +830,8 @@ void _controllerApplyPaintingCommandsSynchronously(
           mask: mask,
           antialias: command.antialiasLevel,
           erase: erase,
+          randomRotation: command.randomRotation ?? false,
+          rotationSeed: command.rotationSeed ?? 0,
         );
         anyChange = true;
         break;
@@ -747,7 +857,6 @@ void _controllerApplyPaintingCommandsSynchronously(
     return;
   }
   controller._resetWorkerSurfaceSync();
-  controller._activeLayer.revision += 1;
   controller._markDirty(
     region: region,
     layerId: controller._activeLayer.id,
@@ -767,6 +876,8 @@ void _controllerApplyStampSegmentFallback({
   required Uint8List? mask,
   required int antialias,
   required bool erase,
+  bool randomRotation = false,
+  int rotationSeed = 0,
 }) {
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
@@ -778,6 +889,8 @@ void _controllerApplyStampSegmentFallback({
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
     return;
   }
@@ -801,6 +914,8 @@ void _controllerApplyStampSegmentFallback({
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
   }
 }

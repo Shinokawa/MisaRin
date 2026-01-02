@@ -177,3 +177,31 @@ Offset _workspaceToOverlayOffset(
   }
   return workspaceOffset;
 }
+
+Offset _clampWorkspaceOffsetToViewport(
+  _PaintingBoardBase host,
+  Offset workspaceOffset, {
+  required Size childSize,
+  double margin = 12,
+}) {
+  final RenderObject? renderObject = host.context.findRenderObject();
+  if (renderObject is! RenderBox) {
+    return workspaceOffset;
+  }
+  final Offset origin = renderObject.localToGlobal(Offset.zero);
+  final Size viewportSize = MediaQuery.sizeOf(host.context);
+  final double minX = margin - origin.dx;
+  final double minY = margin - origin.dy;
+  final double maxX = math.max(
+    minX,
+    viewportSize.width - childSize.width - margin - origin.dx,
+  );
+  final double maxY = math.max(
+    minY,
+    viewportSize.height - childSize.height - margin - origin.dy,
+  );
+  return Offset(
+    workspaceOffset.dx.clamp(minX, maxX),
+    workspaceOffset.dy.clamp(minY, maxY),
+  );
+}

@@ -217,6 +217,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         ),
       );
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _closeReferenceCard(int id) {
@@ -229,6 +230,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
       _referenceCards.removeAt(index);
     });
     entry.image.dispose();
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _updateReferenceCardOffset(int id, Offset delta) {
@@ -246,6 +248,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         entry.size ?? _referencePanelSize(entry.bodySize),
       );
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _resizeReferenceCard(
@@ -343,6 +346,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         _referencePanelSize(nextBodySize),
       );
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _handleReferenceCardSizeChanged(int id, Size size) {
@@ -358,6 +362,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     setState(() {
       entry.offset = clamped;
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _focusReferenceCard(int id) {
@@ -369,6 +374,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
       final _ReferenceCardEntry entry = _referenceCards.removeAt(index);
       _referenceCards.add(entry);
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _beginReferenceCardResize(int id) {
@@ -403,9 +409,6 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
   }
 
   Offset _clampReferenceCardOffset(Offset value, [Size? size]) {
-    if (_workspaceSize.isEmpty) {
-      return value;
-    }
     final double width =
         size?.width ??
         _referencePanelSize(
@@ -417,12 +420,12 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
           const Size(_referenceCardMinBodyWidth, _referenceCardMinBodyHeight),
         ).height;
     const double margin = 12.0;
-    final double maxX = math.max(margin, _workspaceSize.width - width - margin);
-    final double maxY = math.max(
-      margin,
-      _workspaceSize.height - height - margin,
+    return _clampWorkspaceOffsetToViewport(
+      this,
+      value,
+      childSize: Size(width, height),
+      margin: margin,
     );
-    return Offset(value.dx.clamp(margin, maxX), value.dy.clamp(margin, maxY));
   }
 
   _ReferenceCardEntry? _referenceCardById(int id) {
@@ -618,6 +621,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     setState(() {
       _referenceCards.addAll(restored);
     });
+    _scheduleWorkspaceCardsOverlaySync();
   }
 }
 

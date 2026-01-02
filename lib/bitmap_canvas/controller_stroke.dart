@@ -63,6 +63,8 @@ void _strokeBegin(
   int antialiasLevel = 0,
   BrushShape brushShape = BrushShape.circle,
   bool enableNeedleTips = false,
+  bool randomRotation = false,
+  int? rotationSeed,
   bool erase = false,
   bool hollow = false,
   double hollowRatio = 0.0,
@@ -98,6 +100,10 @@ void _strokeBegin(
   controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 3);
   controller._currentStrokeHasMoved = false;
   controller._currentBrushShape = brushShape;
+  controller._currentStrokeRandomRotationEnabled = randomRotation;
+  controller._currentStrokeRotationSeed = randomRotation
+      ? (rotationSeed ?? math.Random().nextInt(1 << 31))
+      : 0;
   final double resolvedTimestamp = timestampMillis ?? 0.0;
   final double? simulatedInitialRadius = controller._strokePressureSimulator
       .beginStroke(
@@ -374,6 +380,27 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeHollowEnabled = false;
   controller._currentStrokeHollowRatio = 0.0;
   controller._currentStrokeEraseOccludedParts = false;
+  controller._currentStrokeRandomRotationEnabled = false;
+  controller._currentStrokeRotationSeed = 0;
+}
+
+void _strokeCancel(BitmapCanvasController controller) {
+  controller._currentStrokePoints.clear();
+  controller._currentStrokeRadii.clear();
+  controller._deferredStrokeCommands.clear();
+  controller._currentStrokeRadius = 0;
+  controller._currentStrokeLastRadius = 0;
+  controller._currentStrokeStylusPressureEnabled = false;
+  controller._currentStylusLastPressure = null;
+  controller._currentStrokeAntialiasLevel = 0;
+  controller._currentStrokeHasMoved = false;
+  controller._strokePressureSimulator.resetTracking();
+  controller._currentStrokeEraseMode = false;
+  controller._currentStrokeHollowEnabled = false;
+  controller._currentStrokeHollowRatio = 0.0;
+  controller._currentStrokeEraseOccludedParts = false;
+  controller._currentStrokeRandomRotationEnabled = false;
+  controller._currentStrokeRotationSeed = 0;
 }
 
 void _strokeSetPressureProfile(
@@ -487,6 +514,8 @@ void _strokeDrawPoint(
       radius: resolvedRadius,
       colorValue: controller._currentStrokeColor.value,
       shapeIndex: brushShape.index,
+      randomRotation: controller._currentStrokeRandomRotationEnabled,
+      rotationSeed: controller._currentStrokeRotationSeed,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
       erase: erase,
     ),
@@ -510,6 +539,8 @@ void _strokeStampSegment(
       endRadius: endRadius,
       colorValue: controller._currentStrokeColor.value,
       shapeIndex: controller._currentBrushShape.index,
+      randomRotation: controller._currentStrokeRandomRotationEnabled,
+      rotationSeed: controller._currentStrokeRotationSeed,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
       includeStart: includeStart,
       erase: controller._currentStrokeEraseMode,

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+import '../canvas/brush_random_rotation.dart';
 import '../canvas/brush_shape_geometry.dart';
 import '../canvas/canvas_tools.dart';
 import 'brush_tip_cache.dart';
@@ -376,6 +377,8 @@ class BitmapSurface {
     int antialiasLevel = 0,
     bool erase = false,
     double softness = 0.0,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) {
     final int level = antialiasLevel.clamp(0, 3);
     if (shape == BrushShape.circle) {
@@ -391,7 +394,7 @@ class BitmapSurface {
       return;
     }
     final double effectiveRadius = math.max(radius.abs(), 0.01);
-    final List<Offset> vertices = BrushShapeGeometry.polygonFor(
+    List<Offset> vertices = BrushShapeGeometry.polygonFor(
       shape,
       center,
       effectiveRadius,
@@ -406,13 +409,32 @@ class BitmapSurface {
       );
       return;
     }
-    final Rect bounds = BrushShapeGeometry.boundsFor(
-      shape,
-      center,
-      effectiveRadius,
-    ).inflate(_featherForLevel(level) + 1.5);
+    if (randomRotation) {
+      final double rotation = brushRandomRotationRadians(
+        center: center,
+        seed: rotationSeed,
+      );
+      vertices = _rotateVertices(vertices, center, rotation);
+    }
+    final List<Offset> sanitized = _sanitizePolygonVertices(vertices);
+    if (sanitized.length < 3) {
+      return;
+    }
+    double minX = sanitized.first.dx;
+    double maxX = sanitized.first.dx;
+    double minY = sanitized.first.dy;
+    double maxY = sanitized.first.dy;
+    for (final Offset vertex in sanitized) {
+      if (vertex.dx < minX) minX = vertex.dx;
+      if (vertex.dx > maxX) maxX = vertex.dx;
+      if (vertex.dy < minY) minY = vertex.dy;
+      if (vertex.dy > maxY) maxY = vertex.dy;
+    }
+    final Rect bounds = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(
+      _featherForLevel(level) + 1.5,
+    );
     _drawPolygonStamp(
-      vertices: vertices,
+      vertices: sanitized,
       bounds: bounds,
       radius: effectiveRadius,
       color: color,
@@ -420,6 +442,28 @@ class BitmapSurface {
       antialiasLevel: level,
       erase: erase,
     );
+  }
+
+  List<Offset> _rotateVertices(
+    List<Offset> vertices,
+    Offset center,
+    double radians,
+  ) {
+    if (vertices.isEmpty || radians == 0.0) {
+      return vertices;
+    }
+    final double sinR = math.sin(radians);
+    final double cosR = math.cos(radians);
+    return vertices
+        .map((v) {
+          final double dx = v.dx - center.dx;
+          final double dy = v.dy - center.dy;
+          return Offset(
+            center.dx + dx * cosR - dy * sinR,
+            center.dy + dx * sinR + dy * cosR,
+          );
+        })
+        .toList(growable: false);
   }
 
   double _featherForLevel(int level) {

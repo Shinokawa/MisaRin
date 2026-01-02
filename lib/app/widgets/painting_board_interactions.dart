@@ -21,6 +21,113 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         TickerProvider {
+  _StreamlinePostStroke? _streamlinePostStroke;
+  AnimationController? _streamlinePostController;
+
+  void initializeStreamlinePostProcessor(TickerProvider provider) {
+    if (_streamlinePostController != null) {
+      return;
+    }
+    final AnimationController controller = AnimationController(
+      vsync: provider,
+      duration: const Duration(milliseconds: 180),
+    )..addStatusListener(_handleStreamlinePostAnimationStatus);
+    _streamlinePostController = controller;
+  }
+
+  void disposeStreamlinePostProcessor() {
+    final AnimationController? controller = _streamlinePostController;
+    if (controller == null) {
+      return;
+    }
+    controller
+      ..removeStatusListener(_handleStreamlinePostAnimationStatus)
+      ..dispose();
+    _streamlinePostController = null;
+    _streamlinePostStroke = null;
+  }
+
+  @override
+  void dispose() {
+    disposeStreamlinePostProcessor();
+    super.dispose();
+  }
+
+  bool get _isStreamlinePostProcessingActive =>
+      _streamlinePostStroke != null &&
+      (_streamlinePostController?.isAnimating ?? false);
+
+  void _handleStreamlinePostAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) {
+      return;
+    }
+    final _StreamlinePostStroke? stroke = _streamlinePostStroke;
+    if (stroke == null) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    _streamlinePostStroke = null;
+    unawaited(
+      _controller.commitVectorStroke(
+        points: stroke.toPoints,
+        radii: stroke.toRadii,
+        color: stroke.color,
+        brushShape: stroke.shape,
+        applyVectorSmoothing: false,
+        erase: stroke.erase,
+        antialiasLevel: stroke.antialiasLevel,
+        hollow: stroke.hollowStrokeEnabled,
+        hollowRatio: stroke.hollowStrokeRatio,
+        eraseOccludedParts: stroke.eraseOccludedParts,
+        randomRotation: stroke.randomRotationEnabled,
+        rotationSeed: stroke.rotationSeed,
+      ),
+    );
+    setState(() {});
+  }
+
+  void _finalizeStreamlinePostProcessing({required bool commitFinalStroke}) {
+    final _StreamlinePostStroke? stroke = _streamlinePostStroke;
+    if (stroke == null) {
+      return;
+    }
+    _streamlinePostController?.stop(canceled: true);
+    _streamlinePostStroke = null;
+    if (commitFinalStroke) {
+      unawaited(
+        _controller.commitVectorStroke(
+          points: stroke.toPoints,
+          radii: stroke.toRadii,
+          color: stroke.color,
+          brushShape: stroke.shape,
+          applyVectorSmoothing: false,
+          erase: stroke.erase,
+          antialiasLevel: stroke.antialiasLevel,
+          hollow: stroke.hollowStrokeEnabled,
+          hollowRatio: stroke.hollowStrokeRatio,
+          eraseOccludedParts: stroke.eraseOccludedParts,
+          randomRotation: stroke.randomRotationEnabled,
+          rotationSeed: stroke.rotationSeed,
+        ),
+      );
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Duration _streamlinePostDurationForStrength(double strength) {
+    final double t = strength.isFinite ? strength.clamp(0.0, 1.0) : 0.0;
+    final double eased = math.pow(t, 0.9).toDouble();
+    final double rawMillis = ui.lerpDouble(90.0, 260.0, eased) ?? 180.0;
+    return Duration(
+      milliseconds: rawMillis.round().clamp(60, 340),
+    );
+  }
+
   void clear() async {
     if (_isTextEditingActive) {
       await _cancelTextEditingSession();
@@ -142,6 +249,9 @@ mixin _PaintingBoardInteractionMixin
     if (_activeTool == CanvasTool.eyedropper && _isEyedropperSampling) {
       _finishEyedropperSample();
     }
+    if (_activeTool == CanvasTool.selectionPen) {
+      _handleSelectionPenPointerCancel();
+    }
     if (tool != CanvasTool.text) {
       _clearTextHoverHighlight();
     }
@@ -157,7 +267,12 @@ mixin _PaintingBoardInteractionMixin
       if (tool == CanvasTool.magicWand) {
         _convertSelectionToMagicWandPreview();
       }
-      if (tool != CanvasTool.selection) {
+      final bool nextIsSelectionTool =
+          tool == CanvasTool.selection || tool == CanvasTool.selectionPen;
+      final bool currentIsSelectionTool =
+          _activeTool == CanvasTool.selection ||
+          _activeTool == CanvasTool.selectionPen;
+      if (!nextIsSelectionTool || currentIsSelectionTool) {
         _resetSelectionPreview();
         _resetPolygonState();
       }
@@ -194,6 +309,7 @@ mixin _PaintingBoardInteractionMixin
       }
     });
     _updateSelectionAnimation();
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _updatePenStrokeWidth(double value) {
@@ -249,6 +365,21 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateBrushRandomRotationEnabled(bool value) {
+    if (_brushRandomRotationEnabled == value) {
+      return;
+    }
+    setState(() {
+      _brushRandomRotationEnabled = value;
+      if (value) {
+        _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+      }
+    });
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.brushRandomRotationEnabled = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateHollowStrokeEnabled(bool value) {
     if (_hollowStrokeEnabled == value) {
       return;
@@ -287,8 +418,34 @@ mixin _PaintingBoardInteractionMixin
     }
     setState(() => _strokeStabilizerStrength = clamped);
     _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
     final AppPreferences prefs = AppPreferences.instance;
     prefs.strokeStabilizerStrength = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateStreamlineStrength(double value) {
+    final double clamped = value.clamp(0.0, 1.0);
+    if ((_streamlineStrength - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _streamlineStrength = clamped);
+    _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.streamlineStrength = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateStreamlineEnabled(bool value) {
+    if (_streamlineEnabled == value) {
+      return;
+    }
+    setState(() => _streamlineEnabled = value);
+    _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.streamlineEnabled = value;
     unawaited(AppPreferences.save());
   }
 
@@ -463,17 +620,6 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
-  void _updateVectorStrokeSmoothingEnabled(bool value) {
-    if (_vectorStrokeSmoothingEnabled == value) {
-      return;
-    }
-    setState(() => _vectorStrokeSmoothingEnabled = value);
-    _controller.setVectorStrokeSmoothingEnabled(value);
-    final AppPreferences prefs = AppPreferences.instance;
-    prefs.vectorStrokeSmoothingEnabled = value;
-    unawaited(AppPreferences.save());
-  }
-
   void _updateBucketSampleAllLayers(bool value) {
     if (_bucketSampleAllLayers == value) {
       return;
@@ -588,6 +734,7 @@ mixin _PaintingBoardInteractionMixin
     Duration timestamp,
     PointerEvent? rawEvent,
   ) async {
+    _finalizeStreamlinePostProcessing(commitFinalStroke: true);
     _resetPerspectiveLock();
     final Offset start = _sanitizeStrokePosition(
       position,
@@ -635,6 +782,8 @@ mixin _PaintingBoardInteractionMixin
         timestampMillis: timestamp.inMicroseconds / 1000.0,
         antialiasLevel: _penAntialiasLevel,
         brushShape: _brushShape,
+        randomRotation: _brushRandomRotationEnabled,
+        rotationSeed: _brushRandomRotationPreviewSeed,
         erase: erase,
         hollow: hollow,
         hollowRatio: _hollowStrokeRatio,
@@ -750,6 +899,9 @@ mixin _PaintingBoardInteractionMixin
     _controller.endStroke();
     setState(() {
       _isDrawing = false;
+      if (_brushRandomRotationEnabled) {
+        _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+      }
     });
     _resetPerspectiveLock();
     _lastPenSampleTimestamp = null;
@@ -760,6 +912,165 @@ mixin _PaintingBoardInteractionMixin
     _lastStrokeBoardPosition = null;
     _lastStylusDirection = null;
     _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
+  }
+
+  bool _shouldApplyStreamlinePostProcessingForCurrentStroke() {
+    if (!_streamlineEnabled) {
+      return false;
+    }
+    if (_streamlineStrength <= 0.0001) {
+      return false;
+    }
+    // StreamLine 后处理需要矢量预览路径，否则笔画在绘制过程中已经被栅格化，无法“抬笔后重算”。
+    if (!_vectorDrawingEnabled) {
+      return false;
+    }
+    return _streamlinePostController != null;
+  }
+
+  void _finishStrokeWithStreamlinePostProcessing(Duration timestamp) {
+    if (!_isDrawing) {
+      return;
+    }
+
+    _finalizeStreamlinePostProcessing(commitFinalStroke: true);
+    _registerPenSample(timestamp);
+
+    final List<Offset> rawPoints = List<Offset>.from(
+      _controller.activeStrokePoints,
+    );
+    final List<double> rawRadii = List<double>.from(
+      _controller.activeStrokeRadii,
+    );
+    final Color strokeColor = _controller.activeStrokeColor;
+    final BrushShape strokeShape = _controller.activeStrokeShape;
+    final bool erase = _controller.activeStrokeEraseMode;
+    final int antialiasLevel = _controller.activeStrokeAntialiasLevel;
+    final bool hollowStrokeEnabled = _controller.activeStrokeHollowEnabled;
+    final double hollowStrokeRatio = _controller.activeStrokeHollowRatio;
+    final bool eraseOccludedParts = _controller.activeStrokeEraseOccludedParts;
+    final bool randomRotationEnabled =
+        _controller.activeStrokeRandomRotationEnabled;
+    final int rotationSeed = _controller.activeStrokeRotationSeed;
+
+    final double strength = _streamlineStrength.clamp(0.0, 1.0);
+    final _StreamlinePathData target = _buildStreamlinePostProcessTarget(
+      rawPoints,
+      rawRadii,
+      strength,
+    );
+    final List<double> ratios = _strokeProgressRatios(target.points);
+    final _StreamlinePathData from = _resampleStrokeAtRatios(
+      rawPoints,
+      rawRadii,
+      ratios,
+    );
+
+    final _StreamlinePostStroke stroke = _StreamlinePostStroke(
+      fromPoints: from.points,
+      fromRadii: from.radii,
+      toPoints: target.points,
+      toRadii: target.radii,
+      color: strokeColor,
+      shape: strokeShape,
+      erase: erase,
+      antialiasLevel: antialiasLevel,
+      hollowStrokeEnabled: hollowStrokeEnabled,
+      hollowStrokeRatio: hollowStrokeRatio,
+      eraseOccludedParts: eraseOccludedParts,
+      randomRotationEnabled: randomRotationEnabled,
+      rotationSeed: rotationSeed,
+    );
+
+    _controller.cancelStroke();
+
+    final bool needsAnimation =
+        _streamlineMaxDelta(from.points, target.points) >= 0.45;
+    if (!needsAnimation) {
+      setState(() {
+        _isDrawing = false;
+        if (_brushRandomRotationEnabled) {
+          _brushRandomRotationPreviewSeed =
+              _brushRotationRandom.nextInt(1 << 31);
+        }
+      });
+      _resetPerspectiveLock();
+      _lastPenSampleTimestamp = null;
+      _activeStrokeUsesStylus = false;
+      _activeStylusPressureMin = null;
+      _activeStylusPressureMax = null;
+      _lastStylusPressureValue = null;
+      _lastStrokeBoardPosition = null;
+      _lastStylusDirection = null;
+      _strokeStabilizer.reset();
+      _streamlineStabilizer.reset();
+      unawaited(
+        _controller.commitVectorStroke(
+          points: stroke.toPoints,
+          radii: stroke.toRadii,
+          color: stroke.color,
+          brushShape: stroke.shape,
+          applyVectorSmoothing: false,
+          erase: stroke.erase,
+          antialiasLevel: stroke.antialiasLevel,
+          hollow: stroke.hollowStrokeEnabled,
+          hollowRatio: stroke.hollowStrokeRatio,
+          eraseOccludedParts: stroke.eraseOccludedParts,
+          randomRotation: stroke.randomRotationEnabled,
+          rotationSeed: stroke.rotationSeed,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isDrawing = false;
+      if (_brushRandomRotationEnabled) {
+        _brushRandomRotationPreviewSeed =
+            _brushRotationRandom.nextInt(1 << 31);
+      }
+      _streamlinePostStroke = stroke;
+    });
+    _resetPerspectiveLock();
+    _lastPenSampleTimestamp = null;
+    _activeStrokeUsesStylus = false;
+    _activeStylusPressureMin = null;
+    _activeStylusPressureMax = null;
+    _lastStylusPressureValue = null;
+    _lastStrokeBoardPosition = null;
+    _lastStylusDirection = null;
+    _strokeStabilizer.reset();
+    _streamlineStabilizer.reset();
+
+    final AnimationController? controller = _streamlinePostController;
+    if (controller == null) {
+      _streamlinePostStroke = null;
+      unawaited(
+        _controller.commitVectorStroke(
+          points: stroke.toPoints,
+          radii: stroke.toRadii,
+          color: stroke.color,
+          brushShape: stroke.shape,
+          applyVectorSmoothing: false,
+          erase: stroke.erase,
+          antialiasLevel: stroke.antialiasLevel,
+          hollow: stroke.hollowStrokeEnabled,
+          hollowRatio: stroke.hollowStrokeRatio,
+          eraseOccludedParts: stroke.eraseOccludedParts,
+          randomRotation: stroke.randomRotationEnabled,
+          rotationSeed: stroke.rotationSeed,
+        ),
+      );
+      setState(() {});
+      return;
+    }
+
+    controller
+      ..stop(canceled: true)
+      ..value = 0.0
+      ..duration = _streamlinePostDurationForStrength(strength);
+    unawaited(controller.forward(from: 0.0));
   }
 
   double _resolveSprayPressure(PointerEvent? event) {
@@ -1109,17 +1420,38 @@ mixin _PaintingBoardInteractionMixin
     Offset? anchor,
   }) {
     final Offset clamped = _clampToCanvas(position);
-    final bool enableStabilizer =
-        _strokeStabilizerStrength > 0.0001 &&
-        (_effectiveActiveTool == CanvasTool.pen ||
-            _effectiveActiveTool == CanvasTool.eraser);
-    if (!enableStabilizer) {
+    final bool useStreamline = _streamlineEnabled && _vectorDrawingEnabled;
+    final bool supportsStrokeStabilizer =
+        _effectiveActiveTool == CanvasTool.pen ||
+        _effectiveActiveTool == CanvasTool.eraser ||
+        _effectiveActiveTool == CanvasTool.perspectivePen;
+    if (!supportsStrokeStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
+        _streamlineStabilizer.reset();
       }
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
+    if (useStreamline) {
+      if (isInitialSample) {
+        _strokeStabilizer.reset();
+        _streamlineStabilizer.reset();
+      }
+      return _maybeSnapToPerspective(clamped, anchor: anchor);
+    }
+
+    final bool enableStabilizer = _strokeStabilizerStrength > 0.0001;
+    if (!enableStabilizer) {
+      if (isInitialSample) {
+        _strokeStabilizer.reset();
+        _streamlineStabilizer.reset();
+      }
+      return _maybeSnapToPerspective(clamped, anchor: anchor);
+    }
+
     if (isInitialSample) {
+      _strokeStabilizer.reset();
+      _streamlineStabilizer.reset();
       _strokeStabilizer.start(clamped);
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
@@ -1514,12 +1846,18 @@ mixin _PaintingBoardInteractionMixin
           profile: _penPressureProfile,
           antialiasLevel: _penAntialiasLevel,
           brushShape: _brushShape,
+          randomRotation: _brushRandomRotationEnabled,
+          rotationSeed: _brushRandomRotationPreviewSeed,
           erase: erase,
           hollow: _hollowStrokeEnabled && !erase,
           hollowRatio: _hollowStrokeRatio,
           eraseOccludedParts: _hollowStrokeEraseOccludedParts,
         );
         _controller.endStroke();
+        if (_brushRandomRotationEnabled) {
+          _brushRandomRotationPreviewSeed =
+              _brushRotationRandom.nextInt(1 << 31);
+        }
         _markDirty();
       }
       setState(() {
@@ -1782,13 +2120,15 @@ mixin _PaintingBoardInteractionMixin
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
       timestampMillis: initialTimestamp,
-      antialiasLevel: _penAntialiasLevel,
-      brushShape: _brushShape,
-      enableNeedleTips: enableNeedleTips,
-      erase: erase,
-      hollow: hollow,
-      hollowRatio: _hollowStrokeRatio,
-      eraseOccludedParts: _hollowStrokeEraseOccludedParts,
+        antialiasLevel: _penAntialiasLevel,
+        brushShape: _brushShape,
+        enableNeedleTips: enableNeedleTips,
+        randomRotation: _brushRandomRotationEnabled,
+        rotationSeed: _brushRandomRotationPreviewSeed,
+        erase: erase,
+        hollow: hollow,
+        hollowRatio: _hollowStrokeRatio,
+        eraseOccludedParts: _hollowStrokeEraseOccludedParts,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,
@@ -1815,6 +2155,9 @@ mixin _PaintingBoardInteractionMixin
       }
     }
     _controller.endStroke();
+    if (_brushRandomRotationEnabled) {
+      _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+    }
     _markDirty();
   }
 
@@ -1901,6 +2244,7 @@ mixin _PaintingBoardInteractionMixin
     final bool toolCanStartOutsideCanvas =
         tool == CanvasTool.curvePen ||
         tool == CanvasTool.selection ||
+        tool == CanvasTool.selectionPen ||
         tool == CanvasTool.spray ||
         tool == CanvasTool.pen ||
         tool == CanvasTool.eraser ||
@@ -2006,6 +2350,10 @@ mixin _PaintingBoardInteractionMixin
         _focusNode.requestFocus();
         _handleSelectionPointerDown(boardLocal, event.timeStamp);
         break;
+      case CanvasTool.selectionPen:
+        _focusNode.requestFocus();
+        _handleSelectionPenPointerDown(boardLocal);
+        break;
       case CanvasTool.text:
         _focusNode.requestFocus();
         if (!pointerInsideBoard) {
@@ -2088,6 +2436,10 @@ mixin _PaintingBoardInteractionMixin
         final Offset boardLocal = _toBoardLocal(event.localPosition);
         _handleSelectionPointerMove(boardLocal);
         break;
+      case CanvasTool.selectionPen:
+        final Offset boardLocal = _toBoardLocal(event.localPosition);
+        _handleSelectionPenPointerMove(boardLocal);
+        break;
       case CanvasTool.hand:
         if (_isDraggingBoard) {
           _updateDragBoard(event.delta);
@@ -2124,12 +2476,18 @@ mixin _PaintingBoardInteractionMixin
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           final double? releasePressure = _stylusPressureValue(event);
+          final bool shouldStreamlinePostProcess =
+              _shouldApplyStreamlinePostProcessingForCurrentStroke();
           if (_activeStrokeUsesStylus) {
             _appendStylusReleaseSample(
               boardLocal,
               event.timeStamp,
               releasePressure,
             );
+          }
+          if (shouldStreamlinePostProcess) {
+            _finishStrokeWithStreamlinePostProcessing(event.timeStamp);
+          } else if (_activeStrokeUsesStylus) {
             _finishStroke();
           } else {
             _finishStroke(event.timeStamp);
@@ -2155,6 +2513,9 @@ mixin _PaintingBoardInteractionMixin
         break;
       case CanvasTool.selection:
         _handleSelectionPointerUp();
+        break;
+      case CanvasTool.selectionPen:
+        _handleSelectionPenPointerUp();
         break;
       case CanvasTool.hand:
         if (_isDraggingBoard) {
@@ -2210,6 +2571,9 @@ mixin _PaintingBoardInteractionMixin
         break;
       case CanvasTool.selection:
         _handleSelectionPointerCancel();
+        break;
+      case CanvasTool.selectionPen:
+        _handleSelectionPenPointerCancel();
         break;
       case CanvasTool.hand:
         if (_isDraggingBoard) {
@@ -2308,6 +2672,7 @@ mixin _PaintingBoardInteractionMixin
           }
           _penCursorWorkspacePosition = null;
         });
+        _scheduleWorkspaceCardsOverlaySync();
         return KeyEventResult.handled;
       }
       if (event is KeyUpEvent) {
@@ -2324,6 +2689,7 @@ mixin _PaintingBoardInteractionMixin
         if (pointer != null && _boardRect.contains(pointer)) {
           _updateToolCursorOverlay(pointer);
         }
+        _scheduleWorkspaceCardsOverlaySync();
         return KeyEventResult.handled;
       }
       return KeyEventResult.handled;
@@ -2340,6 +2706,7 @@ mixin _PaintingBoardInteractionMixin
         _spacePanOverrideActive = true;
         _penCursorWorkspacePosition = null;
       });
+      _scheduleWorkspaceCardsOverlaySync();
       return KeyEventResult.handled;
     }
     if (event is KeyUpEvent) {
@@ -2354,6 +2721,7 @@ mixin _PaintingBoardInteractionMixin
       if (pointer != null && _boardRect.contains(pointer)) {
         _updateToolCursorOverlay(pointer);
       }
+      _scheduleWorkspaceCardsOverlaySync();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -2603,4 +2971,402 @@ class _StrokeStabilizer {
     }
     return accumulator / totalWeight;
   }
+}
+
+class _StreamlineStabilizer {
+  static const double _minDeltaMs = 1.0;
+  static const double _maxDeltaMs = 80.0;
+  static const double _defaultDeltaMs = 16.0;
+  static const double _maxRopeLength = 80.0;
+  static const double _maxTimeConstantMs = 180.0;
+
+  Offset? _filtered;
+
+  void start(Offset position) {
+    _filtered = position;
+  }
+
+  Offset filter(
+    Offset position,
+    double strength, {
+    double? deltaTimeMillis,
+  }) {
+    final double t = strength.isFinite ? strength.clamp(0.0, 1.0) : 0.0;
+    final Offset? previous = _filtered;
+    if (previous == null) {
+      start(position);
+      return position;
+    }
+    if (t <= 0.0001) {
+      _filtered = position;
+      return position;
+    }
+
+    final double rawDelta = deltaTimeMillis ?? _defaultDeltaMs;
+    final double dt = rawDelta.isFinite
+        ? rawDelta.clamp(_minDeltaMs, _maxDeltaMs)
+        : _defaultDeltaMs;
+    final double rope =
+        ui.lerpDouble(0.0, _maxRopeLength, math.pow(t, 2.2).toDouble()) ?? 0.0;
+    final double tau =
+        ui.lerpDouble(0.0, _maxTimeConstantMs, math.pow(t, 1.4).toDouble()) ??
+        0.0;
+    final double alpha =
+        tau <= 0.0001 ? 1.0 : 1.0 - math.exp(-dt / tau);
+
+    Offset next = previous + (position - previous) * alpha.clamp(0.0, 1.0);
+    if (rope > 0.0001) {
+      final Offset delta = position - next;
+      final double dist = delta.distance;
+      if (dist.isFinite && dist > rope) {
+        final Offset dir = delta / dist;
+        next = position - dir * rope;
+      }
+    } else {
+      next = position;
+    }
+
+    _filtered = next;
+    return next;
+  }
+
+  void reset() {
+    _filtered = null;
+  }
+}
+
+class _StreamlinePathData {
+  const _StreamlinePathData({
+    required this.points,
+    required this.radii,
+  });
+
+  final List<Offset> points;
+  final List<double> radii;
+}
+
+const double _kStreamlineCatmullSampleSpacing = 4.0;
+const double _kStreamlineCatmullMinSegment = 0.5;
+const int _kStreamlineCatmullMaxSamplesPerSegment = 48;
+
+_StreamlinePathData _buildStreamlinePostProcessTarget(
+  List<Offset> rawPoints,
+  List<double> rawRadii,
+  double strength,
+) {
+  if (rawPoints.isEmpty) {
+    return const _StreamlinePathData(points: <Offset>[], radii: <double>[]);
+  }
+  if (rawPoints.length < 3 || strength <= 0.0001) {
+    return _StreamlinePathData(
+      points: List<Offset>.from(rawPoints),
+      radii: List<double>.from(rawRadii),
+    );
+  }
+
+  final List<Offset> stabilized = _streamlineZeroPhaseSmoothPoints(
+    rawPoints,
+    strength,
+  );
+  return _streamlineCatmullRomResample(stabilized, rawRadii);
+}
+
+List<Offset> _streamlineZeroPhaseSmoothPoints(
+  List<Offset> points,
+  double strength,
+) {
+  if (points.length < 3) {
+    return List<Offset>.from(points);
+  }
+
+  final double t = strength.isFinite ? strength.clamp(0.0, 1.0) : 0.0;
+  if (t <= 0.0001) {
+    return List<Offset>.from(points);
+  }
+
+  final double eased = math.pow(t, 1.35).toDouble();
+  final double alpha =
+      (ui.lerpDouble(1.0, 0.08, eased) ?? 1.0).clamp(0.0, 1.0);
+  final int iterations = (1 + (eased * 2.0).floor()).clamp(1, 3);
+
+  List<Offset> current = List<Offset>.from(points);
+  for (int i = 0; i < iterations; i++) {
+    current = _streamlineZeroPhaseIir(current, alpha);
+    current[0] = points.first;
+    current[current.length - 1] = points.last;
+  }
+  return current;
+}
+
+List<Offset> _streamlineZeroPhaseIir(List<Offset> points, double alpha) {
+  if (points.length < 2) {
+    return List<Offset>.from(points);
+  }
+  final double resolvedAlpha =
+      alpha.isFinite ? alpha.clamp(0.0, 1.0) : 1.0;
+
+  final int length = points.length;
+  final List<Offset> forward = List<Offset>.filled(length, Offset.zero);
+  forward[0] = points[0];
+  for (int i = 1; i < length; i++) {
+    final Offset previous = forward[i - 1];
+    final Offset next = points[i];
+    forward[i] = previous + (next - previous) * resolvedAlpha;
+  }
+
+  final List<Offset> output = List<Offset>.filled(length, Offset.zero);
+  output[length - 1] = forward[length - 1];
+  for (int i = length - 2; i >= 0; i--) {
+    final Offset previous = output[i + 1];
+    final Offset next = forward[i];
+    output[i] = previous + (next - previous) * resolvedAlpha;
+  }
+
+  return output;
+}
+
+_StreamlinePathData _streamlineCatmullRomResample(
+  List<Offset> points,
+  List<double> radii,
+) {
+  if (points.length < 3) {
+    return _StreamlinePathData(
+      points: List<Offset>.from(points),
+      radii: List<double>.from(radii),
+    );
+  }
+
+  final List<Offset> smoothedPoints = <Offset>[points.first];
+  final List<double> smoothedRadii = <double>[
+    _streamlineRadiusAtIndex(radii, 0),
+  ];
+
+  for (int i = 0; i < points.length - 1; i++) {
+    final Offset p0 = i == 0 ? points[i] : points[i - 1];
+    final Offset p1 = points[i];
+    final Offset p2 = points[i + 1];
+    final Offset p3 = (i + 2 < points.length) ? points[i + 2] : points[i + 1];
+    final double r0 = i == 0
+        ? _streamlineRadiusAtIndex(radii, i)
+        : _streamlineRadiusAtIndex(radii, i - 1);
+    final double r1 = _streamlineRadiusAtIndex(radii, i);
+    final double r2 = _streamlineRadiusAtIndex(radii, i + 1);
+    final double r3 = (i + 2 < points.length)
+        ? _streamlineRadiusAtIndex(radii, i + 2)
+        : _streamlineRadiusAtIndex(radii, i + 1);
+
+    final double segmentLength = (p2 - p1).distance;
+    if (segmentLength < _kStreamlineCatmullMinSegment) {
+      continue;
+    }
+
+    final int samples = math.max(
+      2,
+      math.min(
+        _kStreamlineCatmullMaxSamplesPerSegment,
+        (segmentLength / _kStreamlineCatmullSampleSpacing).ceil() + 1,
+      ),
+    );
+
+    for (int s = 1; s < samples; s++) {
+      final double t = s / (samples - 1);
+      final Offset smoothedPoint = _streamlineCatmullRomOffset(p0, p1, p2, p3, t);
+      final double smoothedRadius =
+          _streamlineCatmullRomScalar(r0, r1, r2, r3, t).clamp(
+            0.0,
+            double.infinity,
+          );
+      smoothedPoints.add(smoothedPoint);
+      smoothedRadii.add(smoothedRadius);
+    }
+  }
+
+  if (smoothedPoints.length == 1) {
+    smoothedPoints.add(points.last);
+    smoothedRadii.add(_streamlineRadiusAtIndex(radii, points.length - 1));
+  } else {
+    smoothedPoints[smoothedPoints.length - 1] = points.last;
+    smoothedRadii[smoothedRadii.length - 1] =
+        _streamlineRadiusAtIndex(radii, points.length - 1);
+  }
+
+  return _StreamlinePathData(points: smoothedPoints, radii: smoothedRadii);
+}
+
+double _streamlineRadiusAtIndex(List<double> radii, int index) {
+  if (radii.isEmpty) {
+    return 1.0;
+  }
+  if (index < 0) {
+    return radii.first;
+  }
+  if (index >= radii.length) {
+    return radii.last;
+  }
+  final double value = radii[index];
+  if (value.isFinite && value >= 0) {
+    return value;
+  }
+  return radii.last >= 0 ? radii.last : 1.0;
+}
+
+Offset _streamlineCatmullRomOffset(
+  Offset p0,
+  Offset p1,
+  Offset p2,
+  Offset p3,
+  double t,
+) {
+  return Offset(
+    _streamlineCatmullRomScalar(p0.dx, p1.dx, p2.dx, p3.dx, t),
+    _streamlineCatmullRomScalar(p0.dy, p1.dy, p2.dy, p3.dy, t),
+  );
+}
+
+double _streamlineCatmullRomScalar(
+  double p0,
+  double p1,
+  double p2,
+  double p3,
+  double t,
+) {
+  final double t2 = t * t;
+  final double t3 = t2 * t;
+  return 0.5 *
+      ((2 * p1) +
+          (-p0 + p2) * t +
+          (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+          (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+}
+
+List<double> _strokeProgressRatios(List<Offset> points) {
+  if (points.isEmpty) {
+    return const <double>[];
+  }
+  if (points.length == 1) {
+    return const <double>[0.0];
+  }
+
+  final int length = points.length;
+  final List<double> cumulative = List<double>.filled(length, 0.0);
+  double total = 0.0;
+  for (int i = 1; i < length; i++) {
+    final double delta = (points[i] - points[i - 1]).distance;
+    if (delta.isFinite) {
+      total += delta;
+    }
+    cumulative[i] = total;
+  }
+
+  if (total <= 1e-5) {
+    for (int i = 0; i < length; i++) {
+      cumulative[i] = length == 1 ? 0.0 : (i / (length - 1));
+    }
+    return cumulative;
+  }
+
+  for (int i = 0; i < length; i++) {
+    cumulative[i] = (cumulative[i] / total).clamp(0.0, 1.0);
+  }
+  cumulative[length - 1] = 1.0;
+  return cumulative;
+}
+
+_StreamlinePathData _resampleStrokeAtRatios(
+  List<Offset> points,
+  List<double> radii,
+  List<double> ratios,
+) {
+  if (points.isEmpty || ratios.isEmpty) {
+    return const _StreamlinePathData(points: <Offset>[], radii: <double>[]);
+  }
+  if (points.length == 1) {
+    final Offset p = points.first;
+    final double r = _streamlineRadiusAtIndex(radii, 0);
+    return _StreamlinePathData(
+      points: List<Offset>.filled(ratios.length, p, growable: false),
+      radii: List<double>.filled(ratios.length, r, growable: false),
+    );
+  }
+
+  final int sourceLength = points.length;
+  final List<double> cumulative = List<double>.filled(sourceLength, 0.0);
+  double total = 0.0;
+  for (int i = 1; i < sourceLength; i++) {
+    final double delta = (points[i] - points[i - 1]).distance;
+    if (delta.isFinite) {
+      total += delta;
+    }
+    cumulative[i] = total;
+  }
+  if (total <= 1e-5) {
+    final Offset p = points.first;
+    final double r = _streamlineRadiusAtIndex(radii, 0);
+    return _StreamlinePathData(
+      points: List<Offset>.filled(ratios.length, p, growable: false),
+      radii: List<double>.filled(ratios.length, r, growable: false),
+    );
+  }
+
+  final List<Offset> sampledPoints = List<Offset>.filled(
+    ratios.length,
+    points.first,
+    growable: false,
+  );
+  final List<double> sampledRadii = List<double>.filled(
+    ratios.length,
+    _streamlineRadiusAtIndex(radii, 0),
+    growable: false,
+  );
+
+  int segment = 0;
+  for (int i = 0; i < ratios.length; i++) {
+    final double ratio = ratios[i].isFinite ? ratios[i].clamp(0.0, 1.0) : 0.0;
+    final double targetDist = ratio * total;
+
+    while (segment < sourceLength - 2 && cumulative[segment + 1] < targetDist) {
+      segment++;
+    }
+
+    final double d0 = cumulative[segment];
+    final double d1 = cumulative[segment + 1];
+    final double segmentLen = d1 - d0;
+    final double localT = segmentLen <= 1e-5 ? 0.0 : (targetDist - d0) / segmentLen;
+
+    sampledPoints[i] =
+        Offset.lerp(points[segment], points[segment + 1], localT) ??
+        points[segment + 1];
+
+    final double r0 = _streamlineRadiusAtIndex(radii, segment);
+    final double r1 = _streamlineRadiusAtIndex(radii, segment + 1);
+    sampledRadii[i] = (ui.lerpDouble(r0, r1, localT) ?? r1).clamp(
+      0.0,
+      double.infinity,
+    );
+  }
+
+  if (sampledPoints.isNotEmpty) {
+    sampledPoints[0] = points.first;
+    sampledRadii[0] = _streamlineRadiusAtIndex(radii, 0);
+    sampledPoints[sampledPoints.length - 1] = points.last;
+    sampledRadii[sampledRadii.length - 1] =
+        _streamlineRadiusAtIndex(radii, points.length - 1);
+  }
+
+  return _StreamlinePathData(points: sampledPoints, radii: sampledRadii);
+}
+
+double _streamlineMaxDelta(List<Offset> a, List<Offset> b) {
+  if (a.isEmpty || b.isEmpty) {
+    return 0.0;
+  }
+  final int count = math.min(a.length, b.length);
+  double maxDelta = 0.0;
+  for (int i = 0; i < count; i++) {
+    final double dist = (a[i] - b[i]).distance;
+    if (dist.isFinite && dist > maxDelta) {
+      maxDelta = dist;
+    }
+  }
+  return maxDelta;
 }

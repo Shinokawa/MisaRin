@@ -167,7 +167,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeOpenProjectDesc.
   ///
   /// In en, this message translates to:
-  /// **'Load a .rin / .psd file from disk'**
+  /// **'Load a .rin / .psd or image file from disk'**
   String get homeOpenProjectDesc;
 
   /// No description provided for @homeRecentProjects.
@@ -1022,6 +1022,12 @@ abstract class AppLocalizations {
   /// **'Binarize…'**
   String get menuBinarizeEllipsis;
 
+  /// No description provided for @menuScanPaperDrawingEllipsis.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Paper Drawing…'**
+  String get menuScanPaperDrawingEllipsis;
+
   /// No description provided for @menuScanPaperDrawing.
   ///
   /// In en, this message translates to:
@@ -1478,6 +1484,12 @@ abstract class AppLocalizations {
   /// **'Brush edge softening set to level 1'**
   String get workspaceIllustrationDesc;
 
+  /// No description provided for @workspaceIllustrationDesc2.
+  ///
+  /// In en, this message translates to:
+  /// **'StreamLine: On'**
+  String get workspaceIllustrationDesc2;
+
   /// No description provided for @workspaceCelShading.
   ///
   /// In en, this message translates to:
@@ -1525,6 +1537,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Vector Drawing: Off'**
   String get workspacePixelDesc3;
+
+  /// No description provided for @workspacePixelDesc4.
+  ///
+  /// In en, this message translates to:
+  /// **'Stabilizer: 0'**
+  String get workspacePixelDesc4;
 
   /// No description provided for @workspaceDefault.
   ///
@@ -1790,6 +1808,12 @@ abstract class AppLocalizations {
   /// **'Brush Shape'**
   String get brushShape;
 
+  /// No description provided for @randomRotation.
+  ///
+  /// In en, this message translates to:
+  /// **'Random rotation'**
+  String get randomRotation;
+
   /// No description provided for @selectionShape.
   ///
   /// In en, this message translates to:
@@ -1928,6 +1952,12 @@ abstract class AppLocalizations {
   /// **'Stabilizer'**
   String get stabilizer;
 
+  /// No description provided for @streamline.
+  ///
+  /// In en, this message translates to:
+  /// **'StreamLine'**
+  String get streamline;
+
   /// No description provided for @off.
   ///
   /// In en, this message translates to:
@@ -2018,6 +2048,12 @@ abstract class AppLocalizations {
   /// **'Square'**
   String get square;
 
+  /// No description provided for @star.
+  ///
+  /// In en, this message translates to:
+  /// **'Star'**
+  String get star;
+
   /// No description provided for @brushSizeDesc.
   ///
   /// In en, this message translates to:
@@ -2053,6 +2089,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Smooths pointer trajectory in real-time to counteract hand tremors. Higher levels are steadier but respond slower.'**
   String get stabilizerDesc;
+
+  /// No description provided for @streamlineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Procreate-like StreamLine: smooths the stroke after lift-off and tween-snaps it to a cleaner path (higher levels are stronger).'**
+  String get streamlineDesc;
 
   /// No description provided for @fontSizeDesc.
   ///
@@ -2101,6 +2143,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.'**
   String get solidFillDesc;
+
+  /// No description provided for @randomRotationDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, square/triangle/star stamps rotate randomly along the stroke.'**
+  String get randomRotationDesc;
 
   /// No description provided for @autoSharpTaperDesc.
   ///
@@ -2257,6 +2305,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use a square tip for hard-edged pixel strokes.'**
   String get squareTipDesc;
+
+  /// No description provided for @starTipDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a five-point star tip for decorative strokes.'**
+  String get starTipDesc;
 
   /// No description provided for @apply.
   ///

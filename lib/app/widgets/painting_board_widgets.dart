@@ -40,6 +40,26 @@ class AdjustBrightnessContrastIntent extends Intent {
   const AdjustBrightnessContrastIntent();
 }
 
+class ShowColorRangeIntent extends Intent {
+  const ShowColorRangeIntent();
+}
+
+class AdjustBlackWhiteIntent extends Intent {
+  const AdjustBlackWhiteIntent();
+}
+
+class AdjustBinarizeIntent extends Intent {
+  const AdjustBinarizeIntent();
+}
+
+class AdjustScanPaperDrawingIntent extends Intent {
+  const AdjustScanPaperDrawingIntent();
+}
+
+class InvertColorsIntent extends Intent {
+  const InvertColorsIntent();
+}
+
 class AdjustGaussianBlurIntent extends Intent {
   const AdjustGaussianBlurIntent();
 }
@@ -134,7 +154,13 @@ class _CheckboardPainter extends CustomPainter {
     final Paint darkPaint = Paint()
       ..color = darkColor
       ..isAntiAlias = false;
-    final double step = cellSize <= 0 ? 12.0 : cellSize;
+    double step = cellSize <= 0 ? 12.0 : cellSize;
+    if (size.width > 0 && size.height > 0) {
+      final double minSide = math.min(size.width, size.height);
+      if (minSide > 0 && step >= minSide) {
+        step = math.max(1.0, minSide / 2.0);
+      }
+    }
     final int horizontalCount = (size.width / step).ceil();
     final int verticalCount = (size.height / step).ceil();
 
@@ -289,6 +315,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     required this.radii,
     required this.color,
     this.shape = BrushShape.circle,
+    required this.randomRotationEnabled,
+    required this.rotationSeed,
     required this.committingStrokes,
     this.antialiasLevel = 1,
     this.hollowStrokeEnabled = false,
@@ -301,6 +329,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   final List<double> radii;
   final Color color;
   final BrushShape shape;
+  final bool randomRotationEnabled;
+  final int rotationSeed;
   final List<PaintingDrawCommand> committingStrokes;
   final int antialiasLevel;
   final bool hollowStrokeEnabled;
@@ -326,6 +356,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         antialiasLevel: command.antialiasLevel,
         hollow: commandHollow,
         hollowRatio: command.hollowRatio ?? 0.0,
+        randomRotation: command.randomRotation ?? false,
+        rotationSeed: command.rotationSeed ?? 0,
       );
     }
 
@@ -344,6 +376,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         antialiasLevel: antialiasLevel,
         hollow: activeHollow,
         hollowRatio: hollowStrokeRatio,
+        randomRotation: randomRotationEnabled,
+        rotationSeed: rotationSeed,
       );
     }
   }
@@ -354,11 +388,132 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.radii != radii ||
         oldDelegate.color != color ||
         oldDelegate.shape != shape ||
+        oldDelegate.randomRotationEnabled != randomRotationEnabled ||
+        oldDelegate.rotationSeed != rotationSeed ||
         oldDelegate.committingStrokes != committingStrokes ||
         oldDelegate.antialiasLevel != antialiasLevel ||
         oldDelegate.hollowStrokeEnabled != hollowStrokeEnabled ||
         oldDelegate.hollowStrokeRatio != hollowStrokeRatio ||
         oldDelegate.activeStrokeIsEraser != activeStrokeIsEraser ||
+        oldDelegate.eraserPreviewColor != eraserPreviewColor;
+  }
+}
+
+class _StreamlinePostStroke {
+  const _StreamlinePostStroke({
+    required this.fromPoints,
+    required this.fromRadii,
+    required this.toPoints,
+    required this.toRadii,
+    required this.color,
+    required this.shape,
+    required this.erase,
+    required this.antialiasLevel,
+    required this.hollowStrokeEnabled,
+    required this.hollowStrokeRatio,
+    required this.eraseOccludedParts,
+    required this.randomRotationEnabled,
+    required this.rotationSeed,
+  });
+
+  final List<Offset> fromPoints;
+  final List<double> fromRadii;
+  final List<Offset> toPoints;
+  final List<double> toRadii;
+  final Color color;
+  final BrushShape shape;
+  final bool erase;
+  final int antialiasLevel;
+  final bool hollowStrokeEnabled;
+  final double hollowStrokeRatio;
+  final bool eraseOccludedParts;
+  final bool randomRotationEnabled;
+  final int rotationSeed;
+}
+
+class _StreamlinePostStrokeOverlayPainter extends CustomPainter {
+  _StreamlinePostStrokeOverlayPainter({
+    required this.stroke,
+    required this.progress,
+    this.curve = Curves.easeOutBack,
+    this.eraserPreviewColor = _kVectorEraserPreviewColor,
+  }) : super(repaint: progress);
+
+  final _StreamlinePostStroke stroke;
+  final AnimationController progress;
+  final Curve curve;
+  final Color eraserPreviewColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final List<Offset> from = stroke.fromPoints;
+    final List<Offset> to = stroke.toPoints;
+    if (from.isEmpty || to.isEmpty) {
+      return;
+    }
+
+    final int count = math.min(from.length, to.length);
+    if (count == 0) {
+      return;
+    }
+
+    final double t = curve.transform(progress.value);
+    final List<Offset> points = List<Offset>.filled(
+      count,
+      Offset.zero,
+      growable: false,
+    );
+    for (int i = 0; i < count; i++) {
+      final Offset p0 = from[i];
+      final Offset p1 = to[i];
+      points[i] = p0 + (p1 - p0) * t;
+    }
+
+    double radiusAt(List<double> radii, int index) {
+      if (radii.isEmpty) {
+        return 1.0;
+      }
+      if (index < 0) {
+        return radii.first;
+      }
+      if (index >= radii.length) {
+        return radii.last;
+      }
+      final double value = radii[index];
+      if (value.isFinite && value >= 0) {
+        return value;
+      }
+      return radii.last >= 0 ? radii.last : 1.0;
+    }
+
+    final List<double> radii = List<double>.filled(count, 1.0, growable: false);
+    for (int i = 0; i < count; i++) {
+      final double r0 = radiusAt(stroke.fromRadii, i);
+      final double r1 = radiusAt(stroke.toRadii, i);
+      radii[i] = (ui.lerpDouble(r0, r1, t) ?? r1).clamp(0.0, double.infinity);
+    }
+
+    final Color color = stroke.erase ? eraserPreviewColor : stroke.color;
+    final bool hollow = stroke.hollowStrokeEnabled && !stroke.erase;
+    VectorStrokePainter.paint(
+      canvas: canvas,
+      points: points,
+      radii: radii,
+      color: color,
+      shape: stroke.shape,
+      antialiasLevel: stroke.antialiasLevel,
+      hollow: hollow,
+      hollowRatio: stroke.hollowStrokeRatio,
+      randomRotation: stroke.randomRotationEnabled,
+      rotationSeed: stroke.rotationSeed,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_StreamlinePostStrokeOverlayPainter oldDelegate) {
+    return oldDelegate.stroke != stroke ||
+        oldDelegate.progress != progress ||
+        oldDelegate.curve != curve ||
         oldDelegate.eraserPreviewColor != eraserPreviewColor;
   }
 }

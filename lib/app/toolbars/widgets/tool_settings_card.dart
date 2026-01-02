@@ -30,6 +30,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onSprayModeChanged,
     required this.brushShape,
     required this.onBrushShapeChanged,
+    required this.brushRandomRotationEnabled,
+    required this.onBrushRandomRotationEnabledChanged,
     required this.hollowStrokeEnabled,
     required this.hollowStrokeRatio,
     required this.onHollowStrokeEnabledChanged,
@@ -38,6 +40,10 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onHollowStrokeEraseOccludedPartsChanged,
     required this.strokeStabilizerStrength,
     required this.onStrokeStabilizerChanged,
+    required this.streamlineEnabled,
+    required this.onStreamlineEnabledChanged,
+    required this.streamlineStrength,
+    required this.onStreamlineStrengthChanged,
     required this.stylusPressureEnabled,
     required this.onStylusPressureEnabledChanged,
     required this.simulatePenPressure,
@@ -77,8 +83,6 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onBrushToolsEraserModeChanged,
     required this.vectorDrawingEnabled,
     required this.onVectorDrawingEnabledChanged,
-    required this.vectorStrokeSmoothingEnabled,
-    required this.onVectorStrokeSmoothingChanged,
     required this.strokeStabilizerMaxLevel,
     required this.textFontSize,
     required this.onTextFontSizeChanged,
@@ -118,6 +122,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<SprayMode> onSprayModeChanged;
   final BrushShape brushShape;
   final ValueChanged<BrushShape> onBrushShapeChanged;
+  final bool brushRandomRotationEnabled;
+  final ValueChanged<bool> onBrushRandomRotationEnabledChanged;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final ValueChanged<bool> onHollowStrokeEnabledChanged;
@@ -126,6 +132,10 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onHollowStrokeEraseOccludedPartsChanged;
   final double strokeStabilizerStrength;
   final ValueChanged<double> onStrokeStabilizerChanged;
+  final bool streamlineEnabled;
+  final ValueChanged<bool> onStreamlineEnabledChanged;
+  final double streamlineStrength;
+  final ValueChanged<double> onStreamlineStrengthChanged;
   final bool stylusPressureEnabled;
   final ValueChanged<bool> onStylusPressureEnabledChanged;
   final bool simulatePenPressure;
@@ -166,8 +176,6 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onBrushToolsEraserModeChanged;
   final bool vectorDrawingEnabled;
   final ValueChanged<bool> onVectorDrawingEnabledChanged;
-  final bool vectorStrokeSmoothingEnabled;
-  final ValueChanged<bool> onVectorStrokeSmoothingChanged;
   final int strokeStabilizerMaxLevel;
   final bool compactLayout;
   final double textFontSize;
@@ -424,6 +432,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       case CanvasTool.selection:
         content = _buildSelectionShapeRow(theme);
         break;
+      case CanvasTool.selectionPen:
+        content = _buildBrushSizeRow(theme);
+        break;
       case CanvasTool.text:
         content = _buildTextControls(theme);
         break;
@@ -524,14 +535,27 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final bool isShapeTool = widget.activeTool == CanvasTool.shape;
     final bool showAdvancedBrushToggles =
         isPenTool || isCurvePenTool || isShapeTool || isEraserTool;
+    final bool supportsStrokeStabilizer = isPenTool || isEraserTool;
+    final bool showStreamlineControls =
+        widget.vectorDrawingEnabled && supportsStrokeStabilizer;
+    final bool streamlineActive = showStreamlineControls && widget.streamlineEnabled;
 
     final List<Widget> wrapChildren = <Widget>[
       _buildBrushSizeRow(theme),
       _buildBrushShapeRow(theme),
-      if (isPenTool || isEraserTool) _buildStrokeStabilizerRow(theme),
+      _buildToggleSwitchRow(
+        theme,
+        label: l10n.randomRotation,
+        detail: l10n.randomRotationDesc,
+        value: widget.brushRandomRotationEnabled,
+        onChanged: widget.onBrushRandomRotationEnabledChanged,
+      ),
     ];
 
     if (showAdvancedBrushToggles) {
+      if (supportsStrokeStabilizer && !streamlineActive) {
+        wrapChildren.add(_buildStrokeStabilizerRow(theme));
+      }
       wrapChildren.add(_buildBrushAntialiasRow(theme));
       final bool supportsHollowStroke = isPenTool || isCurvePenTool;
       if (supportsHollowStroke) {
@@ -633,17 +657,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           onChanged: widget.onVectorDrawingEnabledChanged,
         ),
       );
-      if (widget.vectorDrawingEnabled) {
-        wrapChildren.add(
-          _buildToggleSwitchRow(
-            theme,
-            label: l10n.smoothCurve,
-            detail: l10n.smoothCurveDesc,
-            value: widget.vectorStrokeSmoothingEnabled,
-            onChanged: widget.onVectorStrokeSmoothingChanged,
-          ),
-        );
-      }
       if (widget.simulatePenPressure) {
         wrapChildren.add(
           SizedBox(
@@ -666,6 +679,21 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
             ),
           ),
         );
+      }
+
+      if (widget.vectorDrawingEnabled && (isPenTool || isEraserTool)) {
+        wrapChildren.add(
+          _buildToggleSwitchRow(
+            theme,
+            label: l10n.streamline,
+            detail: l10n.streamlineDesc,
+            value: widget.streamlineEnabled,
+            onChanged: widget.onStreamlineEnabledChanged,
+          ),
+        );
+        if (widget.streamlineEnabled) {
+          wrapChildren.add(_buildStreamlineStrengthRow(theme));
+        }
       }
     }
 
@@ -1743,6 +1771,63 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
+  Widget _buildStreamlineStrengthRow(FluentThemeData theme) {
+    final l10n = context.l10n;
+    final double value = widget.streamlineStrength.clamp(0.0, 1.0);
+    final double projected = (value * widget.strokeStabilizerMaxLevel).clamp(
+      0.0,
+      widget.strokeStabilizerMaxLevel.toDouble(),
+    );
+    final int level = projected.round().clamp(
+      0,
+      widget.strokeStabilizerMaxLevel,
+    );
+    final double sliderValue = level.toDouble();
+    final String label = level == 0 ? l10n.off : l10n.levelLabel(level);
+    final Slider slider = Slider(
+      value: sliderValue,
+      min: 0,
+      max: widget.strokeStabilizerMaxLevel.toDouble(),
+      divisions: widget.strokeStabilizerMaxLevel,
+      onChanged: (raw) => widget.onStreamlineStrengthChanged(
+        (raw / widget.strokeStabilizerMaxLevel).clamp(0.0, 1.0),
+      ),
+    );
+    if (!widget.compactLayout) {
+      final Widget sliderControl = _wrapSliderTooltip(
+        label: l10n.streamline,
+        detail: l10n.streamlineDesc,
+        valueText: label,
+        child: SizedBox(width: _defaultSliderWidth, child: slider),
+      );
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(l10n.streamline, style: theme.typography.bodyStrong),
+          const SizedBox(width: 8),
+          sliderControl,
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 56,
+            child: Text(
+              label,
+              style: theme.typography.caption,
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      );
+    }
+    return _buildSliderSection(
+      theme,
+      label: l10n.streamline,
+      valueText: label,
+      slider: slider,
+      tooltipText: '${l10n.streamline}: $label',
+      detail: l10n.streamlineDesc,
+    );
+  }
+
   Widget _buildToggleSwitchRow(
     FluentThemeData theme, {
     required String label,
@@ -2160,6 +2245,8 @@ extension on AppLocalizations {
         return triangle;
       case BrushShape.square:
         return square;
+      case BrushShape.star:
+        return star;
     }
   }
 
@@ -2171,6 +2258,8 @@ extension on AppLocalizations {
         return triangleShapeDesc;
       case BrushShape.square:
         return squareTipDesc;
+      case BrushShape.star:
+        return starTipDesc;
     }
   }
 }
@@ -2183,5 +2272,7 @@ IconData _brushShapeIcon(BrushShape shape) {
       return FluentIcons.triangle_shape;
     case BrushShape.square:
       return FluentIcons.square_shape;
+    case BrushShape.star:
+      return FluentIcons.favorite_star;
   }
 }

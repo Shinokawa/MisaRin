@@ -100,6 +100,8 @@ class BitmapCanvasController extends ChangeNotifier {
   int _currentStrokeAntialiasLevel = 0;
   bool _currentStrokeHasMoved = false;
   BrushShape _currentBrushShape = BrushShape.circle;
+  bool _currentStrokeRandomRotationEnabled = false;
+  int _currentStrokeRotationSeed = 0;
   final StrokePressureSimulator _strokePressureSimulator =
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
@@ -230,6 +232,8 @@ class BitmapCanvasController extends ChangeNotifier {
   bool get activeStrokeHollowEnabled => _currentStrokeHollowEnabled;
   double get activeStrokeHollowRatio => _currentStrokeHollowRatio;
   bool get activeStrokeEraseOccludedParts => _currentStrokeEraseOccludedParts;
+  bool get activeStrokeRandomRotationEnabled => _currentStrokeRandomRotationEnabled;
+  int get activeStrokeRotationSeed => _currentStrokeRotationSeed;
 
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
@@ -250,6 +254,8 @@ class BitmapCanvasController extends ChangeNotifier {
     bool hollow = false,
     double hollowRatio = 0.0,
     bool eraseOccludedParts = false,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) => _controllerRasterizeVectorStroke(
     this,
     points,
@@ -262,6 +268,8 @@ class BitmapCanvasController extends ChangeNotifier {
     hollow: hollow,
     hollowRatio: hollowRatio,
     eraseOccludedParts: eraseOccludedParts,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
   );
 
   void _flushRealtimeStrokeCommands() =>
@@ -515,6 +523,8 @@ class BitmapCanvasController extends ChangeNotifier {
     int antialiasLevel = 0,
     BrushShape brushShape = BrushShape.circle,
     bool enableNeedleTips = false,
+    bool randomRotation = false,
+    int? rotationSeed,
     bool erase = false,
     bool hollow = false,
     double hollowRatio = 0.0,
@@ -535,6 +545,8 @@ class BitmapCanvasController extends ChangeNotifier {
     antialiasLevel: antialiasLevel,
     brushShape: brushShape,
     enableNeedleTips: enableNeedleTips,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
     erase: erase,
     hollow: hollow,
     hollowRatio: hollowRatio,
@@ -559,6 +571,38 @@ class BitmapCanvasController extends ChangeNotifier {
   );
 
   void endStroke() => _strokeEnd(this);
+
+  void cancelStroke() => _strokeCancel(this);
+
+  Future<void> commitVectorStroke({
+    required List<Offset> points,
+    required List<double> radii,
+    required Color color,
+    required BrushShape brushShape,
+    bool applyVectorSmoothing = true,
+    bool erase = false,
+    int antialiasLevel = 0,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    bool eraseOccludedParts = false,
+    bool randomRotation = false,
+    int rotationSeed = 0,
+  }) =>
+      _controllerCommitVectorStroke(
+        this,
+        points: points,
+        radii: radii,
+        color: color,
+        brushShape: brushShape,
+        applyVectorSmoothing: applyVectorSmoothing,
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: eraseOccludedParts,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
+      );
 
   void drawFilledPolygon({
     required List<Offset> points,
@@ -833,13 +877,28 @@ class BitmapCanvasController extends ChangeNotifier {
     );
   }
 
-  void _markDirty({Rect? region, String? layerId, bool pixelsDirty = true}) =>
-      _compositeMarkDirty(
-        this,
-        region: region,
-        layerId: layerId,
-        pixelsDirty: pixelsDirty,
-      );
+  void _markDirty({Rect? region, String? layerId, bool pixelsDirty = true}) {
+    if (pixelsDirty) {
+      if (layerId == null) {
+        for (final BitmapLayerState layer in _layers) {
+          layer.revision += 1;
+        }
+      } else {
+        for (final BitmapLayerState layer in _layers) {
+          if (layer.id == layerId) {
+            layer.revision += 1;
+            break;
+          }
+        }
+      }
+    }
+    _compositeMarkDirty(
+      this,
+      region: region,
+      layerId: layerId,
+      pixelsDirty: pixelsDirty,
+    );
+  }
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 

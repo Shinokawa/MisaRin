@@ -47,7 +47,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeOpenProject => '프로젝트 열기';
 
   @override
-  String get homeOpenProjectDesc => '디스크에서 .rin / .psd 파일 불러오기';
+  String get homeOpenProjectDesc => '디스크에서 .rin / .psd 또는 이미지 파일 불러오기';
 
   @override
   String get homeRecentProjects => '최근 열기';
@@ -504,6 +504,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuBinarizeEllipsis => '이진화…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => '스캔 종이그림…';
+
+  @override
   String get menuScanPaperDrawing => '스캔 종이그림';
 
   @override
@@ -758,6 +761,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get workspaceIllustrationDesc => '브러시 가장자리 부드러움을 레벨 1로 설정';
 
   @override
+  String get workspaceIllustrationDesc2 => '스트림라인: 켜기';
+
+  @override
   String get workspaceCelShading => '셀 셰이딩';
 
   @override
@@ -780,6 +786,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get workspacePixelDesc3 => '벡터 드로잉: 끄기';
+
+  @override
+  String get workspacePixelDesc4 => '손떨림 보정: 0';
 
   @override
   String get workspaceDefault => '기본값';
@@ -930,6 +939,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushShape => '브러시 모양';
 
   @override
+  String get randomRotation => '무작위 회전';
+
+  @override
   String get selectionShape => '선택 모양';
 
   @override
@@ -999,6 +1011,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get stabilizer => '손떨림 보정';
 
   @override
+  String get streamline => '스트림라인';
+
+  @override
   String get off => '끄기';
 
   @override
@@ -1044,6 +1059,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get square => '정사각형';
 
   @override
+  String get star => '오각별';
+
+  @override
   String get brushSizeDesc =>
       '현재 브러시의 직경(픽셀)을 설정합니다. 값이 클수록 선이 굵어지고, 작을수록 세부 묐사에 적합합니다.';
 
@@ -1066,6 +1084,10 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get stabilizerDesc =>
       '손떨림을 상쇄하기 위해 포인터 궤적을 실시간으로 부드럽게 합니다. 레벨이 높을수록 안정적이지만 반응이 느려집니다.';
+
+  @override
+  String get streamlineDesc =>
+      'Procreate 스타일 StreamLine: 펜을 뗀 후 획을 부드럽게 재계산하고 보간 애니메이션으로 더 매끄러운 경로로 돌아갑니다(레벨이 높을수록 강함).';
 
   @override
   String get fontSizeDesc => '전체 크기 조정을 위해 텍스트의 픽셀 높이를 조정합니다.';
@@ -1092,6 +1114,9 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get solidFillDesc =>
       '도형 도구가 채워진 블록을 그릴지 빈 윤곽선을 그릴지 결정합니다. 켜면 채워진 도형을 그립니다.';
+
+  @override
+  String get randomRotationDesc => '켜면 사각형/삼각형/오각별 스탬프가 스트로크를 따라 무작위로 회전합니다.';
 
   @override
   String get autoSharpTaperDesc =>
@@ -1179,6 +1204,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get squareTipDesc => '사각형 팁을 사용하여 날카로운 픽셀 스트로크를 만듭니다.';
+
+  @override
+  String get starTipDesc => '오각별 팁으로 장식적인 스트로크를 그립니다.';
 
   @override
   String get apply => '적용';

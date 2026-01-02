@@ -593,7 +593,7 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _insertFilterOverlay() {
-    final OverlayState? overlay = Overlay.of(context);
+    final OverlayState? overlay = Overlay.of(context, rootOverlay: true);
     if (overlay == null) {
       return;
     }

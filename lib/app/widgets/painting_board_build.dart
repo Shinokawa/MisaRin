@@ -11,6 +11,95 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
+  OverlayEntry? _workspaceCardsOverlayEntry;
+  bool _workspaceCardsOverlaySyncScheduled = false;
+
+  bool get _wantsWorkspaceCardsOverlay {
+    if (!widget.isActive) {
+      return false;
+    }
+    return _referenceCards.isNotEmpty || _paletteCards.isNotEmpty;
+  }
+
+  @override
+  void _scheduleWorkspaceCardsOverlaySync() {
+    final SchedulerPhase phase = SchedulerBinding.instance.schedulerPhase;
+    final bool safeToSyncNow =
+        phase == SchedulerPhase.idle || phase == SchedulerPhase.postFrameCallbacks;
+    if (safeToSyncNow) {
+      _syncWorkspaceCardsOverlay();
+      return;
+    }
+    if (_workspaceCardsOverlaySyncScheduled) {
+      return;
+    }
+    _workspaceCardsOverlaySyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _workspaceCardsOverlaySyncScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      _syncWorkspaceCardsOverlay();
+    });
+  }
+
+  void _syncWorkspaceCardsOverlay() {
+    if (!_wantsWorkspaceCardsOverlay) {
+      final OverlayEntry? entry = _workspaceCardsOverlayEntry;
+      if (entry != null && entry.mounted) {
+        entry.remove();
+      }
+      _workspaceCardsOverlayEntry = null;
+      return;
+    }
+
+    final OverlayState? overlay = Overlay.of(context, rootOverlay: true);
+    if (overlay == null) {
+      return;
+    }
+
+    final OverlayEntry entry =
+        _workspaceCardsOverlayEntry ??= OverlayEntry(builder: _buildWorkspaceCardsOverlay);
+
+    if (entry.mounted) {
+      entry.markNeedsBuild();
+      return;
+    }
+
+    if (_filterOverlayEntry?.mounted == true) {
+      overlay.insert(entry, below: _filterOverlayEntry);
+    } else {
+      overlay.insert(entry);
+    }
+  }
+
+  Widget _buildWorkspaceCardsOverlay(BuildContext overlayContext) {
+    if (!_wantsWorkspaceCardsOverlay) {
+      return const SizedBox.shrink();
+    }
+    final RenderObject? renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox) {
+      return const SizedBox.shrink();
+    }
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        ..._buildReferenceCards(),
+        ..._buildPaletteCards(),
+      ],
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant PaintingBoard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive == widget.isActive) {
+      return;
+    }
+    _scheduleWorkspaceCardsOverlaySync();
+  }
+
   @override
   Widget build(BuildContext context) {
     _refreshStylusPreferencesIfNeeded();
@@ -46,6 +135,26 @@ mixin _PaintingBoardBuildMixin
               ToolbarAction.adjustBrightnessContrast,
             ).shortcuts)
               key: const AdjustBrightnessContrastIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.colorRange,
+            ).shortcuts)
+              key: const ShowColorRangeIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.adjustBlackWhite,
+            ).shortcuts)
+              key: const AdjustBlackWhiteIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.binarize,
+            ).shortcuts)
+              key: const AdjustBinarizeIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.scanPaperDrawing,
+            ).shortcuts)
+              key: const AdjustScanPaperDrawingIntent(),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.invertColors,
+            ).shortcuts)
+              key: const InvertColorsIntent(),
             for (final key in ToolbarShortcuts.of(
               ToolbarAction.narrowLines,
             ).shortcuts)
@@ -114,6 +223,10 @@ mixin _PaintingBoardBuildMixin
               ToolbarAction.selectionTool,
             ).shortcuts)
               key: const SelectToolIntent(CanvasTool.selection),
+            for (final key in ToolbarShortcuts.of(
+              ToolbarAction.selectionPenTool,
+            ).shortcuts)
+              key: const SelectToolIntent(CanvasTool.selectionPen),
             for (final key in ToolbarShortcuts.of(
               ToolbarAction.textTool,
             ).shortcuts)
@@ -228,9 +341,10 @@ mixin _PaintingBoardBuildMixin
             ? _sprayStrokeWidth
             : _penStrokeWidth;
         final BrushShape overlayBrushShape =
-            _effectiveActiveTool == CanvasTool.spray
-            ? BrushShape.circle
-            : _brushShape;
+            _effectiveActiveTool == CanvasTool.spray ||
+                    _effectiveActiveTool == CanvasTool.selectionPen
+                ? BrushShape.circle
+                : _brushShape;
         final Widget? antialiasCard = _buildAntialiasCard();
         final Widget? colorRangeCard = _buildColorRangeCard();
         final Widget? transformPanel = buildLayerTransformPanel();
@@ -286,6 +400,9 @@ mixin _PaintingBoardBuildMixin
                 workspaceCursor = SystemMouseCursors.precise;
                 break;
               case CanvasTool.eraser:
+                workspaceCursor = SystemMouseCursors.precise;
+                break;
+              case CanvasTool.selectionPen:
                 workspaceCursor = SystemMouseCursors.precise;
                 break;
               case CanvasTool.eyedropper:
@@ -350,20 +467,27 @@ mixin _PaintingBoardBuildMixin
           onSprayModeChanged: _updateSprayMode,
           brushShape: _brushShape,
           onBrushShapeChanged: _updateBrushShape,
+          brushRandomRotationEnabled: _brushRandomRotationEnabled,
+          onBrushRandomRotationEnabledChanged:
+              _updateBrushRandomRotationEnabled,
           hollowStrokeEnabled: _hollowStrokeEnabled,
           hollowStrokeRatio: _hollowStrokeRatio,
           onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
           onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
           hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
-          onHollowStrokeEraseOccludedPartsChanged:
-              _updateHollowStrokeEraseOccludedParts,
-          strokeStabilizerStrength: _strokeStabilizerStrength,
-          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
-          stylusPressureEnabled: _stylusPressureEnabled,
-          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
-          simulatePenPressure: _simulatePenPressure,
-          onSimulatePenPressureChanged: _updatePenPressureSimulation,
-          penPressureProfile: _penPressureProfile,
+	          onHollowStrokeEraseOccludedPartsChanged:
+	              _updateHollowStrokeEraseOccludedParts,
+	          strokeStabilizerStrength: _strokeStabilizerStrength,
+	          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
+	          streamlineEnabled: _streamlineEnabled,
+	          onStreamlineEnabledChanged: _updateStreamlineEnabled,
+	          streamlineStrength: _streamlineStrength,
+	          onStreamlineStrengthChanged: _updateStreamlineStrength,
+	          stylusPressureEnabled: _stylusPressureEnabled,
+	          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+	          simulatePenPressure: _simulatePenPressure,
+	          onSimulatePenPressureChanged: _updatePenPressureSimulation,
+	          penPressureProfile: _penPressureProfile,
           onPenPressureProfileChanged: _updatePenPressureProfile,
           brushAntialiasLevel: _penAntialiasLevel,
           onBrushAntialiasChanged: _updatePenAntialiasLevel,
@@ -398,8 +522,6 @@ mixin _PaintingBoardBuildMixin
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
           vectorDrawingEnabled: _vectorDrawingEnabled,
           onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
-          vectorStrokeSmoothingEnabled: _vectorStrokeSmoothingEnabled,
-          onVectorStrokeSmoothingChanged: _updateVectorStrokeSmoothingEnabled,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
           compactLayout: isSai2Layout,
           textFontSize: _textFontSize,
@@ -586,6 +708,37 @@ mixin _PaintingBoardBuildMixin
                       return null;
                     },
                   ),
+              ShowColorRangeIntent: CallbackAction<ShowColorRangeIntent>(
+                onInvoke: (intent) {
+                  unawaited(showColorRangeCard());
+                  return null;
+                },
+              ),
+              AdjustBlackWhiteIntent: CallbackAction<AdjustBlackWhiteIntent>(
+                onInvoke: (intent) {
+                  showBlackWhiteAdjustments();
+                  return null;
+                },
+              ),
+              AdjustBinarizeIntent: CallbackAction<AdjustBinarizeIntent>(
+                onInvoke: (intent) {
+                  showBinarizeAdjustments();
+                  return null;
+                },
+              ),
+              AdjustScanPaperDrawingIntent:
+                  CallbackAction<AdjustScanPaperDrawingIntent>(
+                    onInvoke: (intent) {
+                      showScanPaperDrawingAdjustments();
+                      return null;
+                    },
+                  ),
+              InvertColorsIntent: CallbackAction<InvertColorsIntent>(
+                onInvoke: (intent) {
+                  unawaited(invertActiveLayerColors());
+                  return null;
+                },
+              ),
               NarrowLinesIntent: CallbackAction<NarrowLinesIntent>(
                 onInvoke: (intent) {
                   showLineNarrowAdjustments();
@@ -805,6 +958,22 @@ mixin _PaintingBoardBuildMixin
                                                       ),
                                                     ),
                                                   ),
+                                                if (_streamlinePostStroke != null &&
+                                                    _streamlinePostController != null)
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter:
+                                                            _StreamlinePostStrokeOverlayPainter(
+                                                          stroke:
+                                                              _streamlinePostStroke!,
+                                                          progress:
+                                                              _streamlinePostController!,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
                                                 if (showActiveStroke)
                                                   Positioned.fill(
                                                     child: CustomPaint(
@@ -817,6 +986,11 @@ mixin _PaintingBoardBuildMixin
                                                             .activeStrokeColor,
                                                         shape: _controller
                                                             .activeStrokeShape,
+                                                        randomRotationEnabled:
+                                                            _controller
+                                                                .activeStrokeRandomRotationEnabled,
+                                                        rotationSeed: _controller
+                                                            .activeStrokeRotationSeed,
                                                         antialiasLevel: _controller
                                                             .activeStrokeAntialiasLevel,
                                                         hollowStrokeEnabled:
@@ -936,6 +1110,14 @@ mixin _PaintingBoardBuildMixin
                                                             selectionDashPhase,
                                                         viewportScale:
                                                             _viewport.scale,
+                                                        showPreviewStroke:
+                                                            _effectiveActiveTool !=
+                                                            CanvasTool
+                                                                .selectionPen,
+                                                        fillSelectionPath:
+                                                            _activeTool ==
+                                                            CanvasTool
+                                                                .selectionPen,
                                                       ),
                                                     ),
                                                   ),
@@ -1064,8 +1246,6 @@ mixin _PaintingBoardBuildMixin
                           if (textHoverOverlay != null) textHoverOverlay,
                           if (textOverlay != null) textOverlay,
                           ...toolbarLayoutResult.widgets,
-                          ..._buildReferenceCards(),
-                          ..._buildPaletteCards(),
                           if (colorRangeCard != null) colorRangeCard,
                           if (antialiasCard != null) antialiasCard,
                           if (transformPanel != null) transformPanel,
@@ -1096,6 +1276,18 @@ mixin _PaintingBoardBuildMixin
                               position: _penCursorWorkspacePosition!,
                               diameter: overlayBrushDiameter * _viewport.scale,
                               shape: overlayBrushShape,
+                              rotation:
+                                  _brushRandomRotationEnabled &&
+                                          overlayBrushShape != BrushShape.circle
+                                      ? brushRandomRotationRadians(
+                                          center: _toBoardLocal(
+                                            _penCursorWorkspacePosition!,
+                                          ),
+                                          seed: _isDrawing
+                                              ? _controller.activeStrokeRotationSeed
+                                              : _brushRandomRotationPreviewSeed,
+                                        )
+                                      : 0.0,
                             ),
                           if (_toolCursorPosition != null)
                             Positioned(
@@ -1129,9 +1321,10 @@ mixin _PaintingBoardBuildMixin
     }
     return _paletteCards
         .map((entry) {
+          final Offset overlayOffset = _workspaceToOverlayOffset(this, entry.offset);
           return Positioned(
-            left: entry.offset.dx,
-            top: entry.offset.dy,
+            left: overlayOffset.dx,
+            top: overlayOffset.dy,
             child: _WorkspacePaletteCard(
               title: entry.title,
               colors: entry.colors,
@@ -1156,9 +1349,10 @@ mixin _PaintingBoardBuildMixin
     final bool eyedropperActive = _effectiveActiveTool == CanvasTool.eyedropper;
     return _referenceCards
         .map((entry) {
+          final Offset overlayOffset = _workspaceToOverlayOffset(this, entry.offset);
           return Positioned(
-            left: entry.offset.dx,
-            top: entry.offset.dy,
+            left: overlayOffset.dx,
+            top: overlayOffset.dy,
             child: _ReferenceImageCard(
               image: entry.image,
               bodySize: entry.bodySize,
@@ -1472,6 +1666,16 @@ mixin _PaintingBoardBuildMixin
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    final OverlayEntry? entry = _workspaceCardsOverlayEntry;
+    if (entry != null && entry.mounted) {
+      entry.remove();
+    }
+    _workspaceCardsOverlayEntry = null;
+    super.dispose();
   }
 }
 

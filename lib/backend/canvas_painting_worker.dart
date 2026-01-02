@@ -27,6 +27,8 @@ class PaintingDrawCommand {
     this.center,
     this.radius,
     this.shapeIndex,
+    this.randomRotation,
+    this.rotationSeed,
     this.start,
     this.end,
     this.startRadius,
@@ -48,6 +50,8 @@ class PaintingDrawCommand {
     required int antialiasLevel,
     required bool erase,
     double softness = 0.0,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.brushStamp,
@@ -58,6 +62,8 @@ class PaintingDrawCommand {
       radius: radius,
       shapeIndex: shapeIndex,
       softness: softness,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
   }
 
@@ -115,6 +121,8 @@ class PaintingDrawCommand {
     required int antialiasLevel,
     required bool includeStart,
     required bool erase,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.stampSegment,
@@ -127,6 +135,8 @@ class PaintingDrawCommand {
       endRadius: endRadius,
       includeStartCap: includeStart,
       shapeIndex: shapeIndex,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
   }
 
@@ -140,6 +150,8 @@ class PaintingDrawCommand {
     bool hollow = false,
     double hollowRatio = 0.0,
     bool eraseOccludedParts = false,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.vectorStroke,
@@ -152,6 +164,8 @@ class PaintingDrawCommand {
       hollow: hollow,
       hollowRatio: hollowRatio,
       eraseOccludedParts: eraseOccludedParts,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
   }
 
@@ -177,6 +191,8 @@ class PaintingDrawCommand {
   final Offset? center;
   final double? radius;
   final int? shapeIndex;
+  final bool? randomRotation;
+  final int? rotationSeed;
   final Offset? start;
   final Offset? end;
   final double? startRadius;
@@ -198,6 +214,8 @@ class PaintingDrawCommand {
       'center': center == null ? null : <double>[center!.dx, center!.dy],
       'radius': radius,
       'shape': shapeIndex,
+      'randomRotation': randomRotation,
+      'rotationSeed': rotationSeed,
       'softness': softness,
       'start': start == null ? null : <double>[start!.dx, start!.dy],
       'end': end == null ? null : <double>[end!.dx, end!.dy],
@@ -1074,6 +1092,8 @@ void _paintingWorkerApplyCommand({
           ?.cast<double>();
       final double radius = (command['radius'] as num? ?? 0).toDouble();
       final int shapeIndex = command['shape'] as int? ?? 0;
+      final bool randomRotation = command['randomRotation'] as bool? ?? false;
+      final int rotationSeed = command['rotationSeed'] as int? ?? 0;
       final double softness =
           (command['softness'] as num? ?? 0).toDouble().clamp(0.0, 1.0);
       final BrushShape shape =
@@ -1087,6 +1107,8 @@ void _paintingWorkerApplyCommand({
         antialiasLevel: antialias,
         erase: erase,
         softness: softness,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       );
       break;
     case PaintingDrawCommandType.line:
@@ -1138,6 +1160,8 @@ void _paintingWorkerApplyCommand({
       final double endRadius = (command['endRadius'] as num? ?? 0).toDouble();
       final bool includeStart = command['includeStartCap'] as bool? ?? true;
       final int shapeIndex = command['shape'] as int? ?? 0;
+      final bool randomRotation = command['randomRotation'] as bool? ?? false;
+      final int rotationSeed = command['rotationSeed'] as int? ?? 0;
       final BrushShape shape =
           BrushShape.values[shapeIndex.clamp(0, BrushShape.values.length - 1)];
       _paintingWorkerStampSegment(
@@ -1152,6 +1176,8 @@ void _paintingWorkerApplyCommand({
         mask: mask,
         antialias: antialias,
         erase: erase,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
       );
       break;
     case PaintingDrawCommandType.vectorStroke:
@@ -1322,6 +1348,8 @@ void _paintingWorkerStampSegment({
   required Uint8List? mask,
   required int antialias,
   required bool erase,
+  required bool randomRotation,
+  required int rotationSeed,
 }) {
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
@@ -1333,6 +1361,8 @@ void _paintingWorkerStampSegment({
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
     return;
   }
@@ -1356,6 +1386,8 @@ void _paintingWorkerStampSegment({
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
     );
   }
 }

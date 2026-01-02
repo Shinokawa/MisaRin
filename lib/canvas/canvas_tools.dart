@@ -10,6 +10,7 @@ enum CanvasTool {
   magicWand,
   eyedropper,
   selection,
+  selectionPen,
   text,
   hand,
   rotate,
@@ -21,4 +22,4 @@ enum SelectionShape { rectangle, ellipse, polygon }
 
 enum ShapeToolVariant { rectangle, ellipse, triangle, line }
 
-enum BrushShape { circle, triangle, square }
+enum BrushShape { circle, triangle, square, star }

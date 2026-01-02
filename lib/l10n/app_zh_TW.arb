@@ -1,6 +1,9 @@
 {
   "@@locale": "zh_TW",
 
+  "streamline": "\u6d41\u7dda",
+  "streamlineDesc": "類似 Procreate 的 StreamLine：抬筆後對筆畫路徑做平滑重算，並以補間動畫回彈到更順的結果（等級越高越明顯）。",
+
   "webLoadingInitializingCanvas": "正在初始化畫板\u2026",
   "webLoadingMayTakeTime": "Web \u7aef\u8f09\u5165\u9700\u8981\u4e00\u4e9b\u6642\u9593\uff0c\u8acb\u7a0d\u5019\u3002",
 
@@ -18,7 +21,7 @@
   "homeNewProject": "\u65b0\u5efa\u5c08\u6848",
   "homeNewProjectDesc": "\u5f9e\u7a7a\u767d\u756b\u5e03\u958b\u555f\u65b0\u7684\u5275\u610f",
   "homeOpenProject": "\u958b\u555f\u5c08\u6848",
-  "homeOpenProjectDesc": "\u5f9e\u78c1\u789f\u8f09\u5165 .rin / .psd \u6a94\u6848",
+  "homeOpenProjectDesc": "\u5f9e\u78c1\u789f\u8f09\u5165 .rin / .psd \u6216\u5f71\u50cf\u6a94\u6848",
   "homeRecentProjects": "\u6700\u8fd1\u958b\u555f",
   "homeRecentProjectsDesc": "\u5feb\u901f\u6062\u5fa9\u81ea\u52d5\u5132\u5b58\u7684\u5c08\u6848",
   "homeProjectManager": "\u5c08\u6848\u7ba1\u7406",
@@ -239,6 +242,7 @@
   "menuColorRangeEllipsis": "\u8272\u5f69\u7bc4\u570d\u2026",
   "menuBlackWhiteEllipsis": "\u9ed1\u767d\u2026",
   "menuBinarizeEllipsis": "\u4e8c\u503c\u5316\u2026",
+  "menuScanPaperDrawingEllipsis": "\u6383\u63cf\u7d19\u7e6a\u2026",
   "menuScanPaperDrawing": "掃描紙繪",
   "menuInvertColors": "顏色反轉",
 
@@ -428,5 +432,10 @@
   "swallowBlueColorLineDesc": "色塊填充時只吞併藍色線。",
   "swallowGreenColorLineDesc": "色塊填充時只吞併綠色線。",
   "swallowRedColorLineDesc": "色塊填充時只吞併紅色線。",
-  "swallowAllColorLineDesc": "色塊填充時吞併紅/綠/藍色線。"
+  "swallowAllColorLineDesc": "色塊填充時吞併紅/綠/藍色線。",
+
+  "randomRotation": "隨機旋轉",
+  "randomRotationDesc": "開啟後，正方形/三角形/五角星筆刷會在筆觸的每個印章上隨機旋轉。",
+  "star": "五角星",
+  "starTipDesc": "使用五角星筆尖繪製裝飾性筆觸。"
 }

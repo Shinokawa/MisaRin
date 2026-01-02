@@ -59,6 +59,7 @@ import 'package:flutter/widgets.dart'
         CustomPaint,
         EditableText,
         FocusNode,
+        StatefulBuilder,
         SingleChildRenderObjectWidget,
         StrutStyle,
         TextEditingController,
@@ -69,6 +70,7 @@ import 'package:flutter_localizations/flutter_localizations.dart'
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'package:file_picker/file_picker.dart';
 
+import '../dialogs/misarin_dialog.dart';
 import '../l10n/l10n.dart';
 
 import '../../bitmap_canvas/bitmap_canvas.dart';
@@ -81,6 +83,7 @@ import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
+import '../../canvas/brush_random_rotation.dart';
 import '../../canvas/vector_stroke_painter.dart';
 import '../../canvas/text_renderer.dart';
 import '../../canvas/perspective_guide.dart';
@@ -217,6 +220,7 @@ class PaintingBoard extends StatefulWidget {
     super.key,
     required this.settings,
     required this.onRequestExit,
+    this.isActive = true,
     this.onDirtyChanged,
     this.initialLayers,
     this.initialPerspectiveGuide,
@@ -232,6 +236,7 @@ class PaintingBoard extends StatefulWidget {
 
   final CanvasSettings settings;
   final VoidCallback onRequestExit;
+  final bool isActive;
   final ValueChanged<bool>? onDirtyChanged;
   final List<CanvasLayerData>? initialLayers;
   final PerspectiveGuideState? initialPerspectiveGuide;
@@ -268,6 +273,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
+  bool _streamlineEnabled = AppPreferences.defaultStreamlineEnabled;
+  double _streamlineStrength = AppPreferences.defaultStreamlineStrength;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
   int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
@@ -275,9 +282,11 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
   bool _vectorDrawingEnabled = AppPreferences.defaultVectorDrawingEnabled;
-  bool _vectorStrokeSmoothingEnabled =
-      AppPreferences.defaultVectorStrokeSmoothingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
+  bool _brushRandomRotationEnabled =
+      AppPreferences.defaultBrushRandomRotationEnabled;
+  final math.Random _brushRotationRandom = math.Random();
+  int _brushRandomRotationPreviewSeed = 0;
   bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
   double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
   bool _hollowStrokeEraseOccludedParts =
@@ -342,6 +351,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   Offset? _lastStrokeBoardPosition;
   Offset? _lastStylusDirection;
   final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
+  final _StreamlineStabilizer _streamlineStabilizer = _StreamlineStabilizer();
   bool _isSpraying = false;
   Offset? _sprayBoardPosition;
   Ticker? _sprayTicker;
@@ -478,6 +488,13 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
         position.dy >= 0 &&
         position.dx <= size.width &&
         position.dy <= size.height;
+  }
+
+  Offset _clampToCanvas(Offset value) {
+    final Size size = _canvasSize;
+    final double dx = value.dx.clamp(0.0, size.width);
+    final double dy = value.dy.clamp(0.0, size.height);
+    return Offset(dx, dy);
   }
 
   void _applyStylusSettingsToController() {
@@ -1011,7 +1028,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
       _effectiveActiveTool == CanvasTool.spray ||
       _effectiveActiveTool == CanvasTool.curvePen ||
       _effectiveActiveTool == CanvasTool.shape ||
-      _effectiveActiveTool == CanvasTool.eraser;
+      _effectiveActiveTool == CanvasTool.eraser ||
+      _effectiveActiveTool == CanvasTool.selectionPen;
 
   bool get _isBrushEraserEnabled =>
       _brushToolsEraserMode || _activeTool == CanvasTool.eraser;
@@ -1067,6 +1085,10 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void _handleSelectionPointerMove(Offset position);
   void _handleSelectionPointerUp();
   void _handleSelectionPointerCancel();
+  void _handleSelectionPenPointerDown(Offset position);
+  void _handleSelectionPenPointerMove(Offset position);
+  void _handleSelectionPenPointerUp();
+  void _handleSelectionPenPointerCancel();
   void _handleSelectionHover(Offset position);
   void _clearSelectionHover();
   void _clearSelection();
@@ -1876,6 +1898,9 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   void setPerspectiveGuideMode(PerspectiveGuideMode mode) {
     setPerspectiveMode(mode);
   }
+
+  @protected
+  void _scheduleWorkspaceCardsOverlaySync() {}
 }
 
 class PaintingBoardState extends _PaintingBoardBase
@@ -1900,6 +1925,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _viewInfoNotifier = ValueNotifier<CanvasViewInfo>(_buildViewInfo());
     initializeTextTool();
     initializeSelectionTicker(this);
+    initializeStreamlinePostProcessor(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
     _pixelGridVisible = prefs.pixelGridVisible;
@@ -1924,6 +1950,8 @@ class PaintingBoardState extends _PaintingBoardBase
     );
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
+    _streamlineEnabled = prefs.streamlineEnabled;
+    _streamlineStrength = prefs.streamlineStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
@@ -1932,8 +1960,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
     _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
-    _vectorStrokeSmoothingEnabled = prefs.vectorStrokeSmoothingEnabled;
     _brushShape = prefs.brushShape;
+    _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
+    _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
     _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
     _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
     _hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
@@ -1956,8 +1985,6 @@ class PaintingBoardState extends _PaintingBoardBase
       creationLogic: widget.settings.creationLogic,
     );
     _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
-    _controller.setVectorStrokeSmoothingEnabled(_vectorStrokeSmoothingEnabled);
-    _controller.setVectorStrokeSmoothingEnabled(_vectorStrokeSmoothingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
@@ -2449,6 +2476,8 @@ class PaintingBoardState extends _PaintingBoardBase
       hollowStrokeRatio: _hollowStrokeRatio,
       hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       strokeStabilizerStrength: _strokeStabilizerStrength,
+      streamlineEnabled: _streamlineEnabled,
+      streamlineStrength: _streamlineStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
       penPressureProfile: _penPressureProfile,
@@ -2456,7 +2485,6 @@ class PaintingBoardState extends _PaintingBoardBase
       bucketAntialiasLevel: _bucketAntialiasLevel,
       autoSharpPeakEnabled: _autoSharpPeakEnabled,
       vectorDrawingEnabled: _vectorDrawingEnabled,
-      vectorStrokeSmoothingEnabled: _vectorStrokeSmoothingEnabled,
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -2506,6 +2534,8 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
     _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
+    _updateStreamlineEnabled(snapshot.streamlineEnabled);
+    _updateStreamlineStrength(snapshot.streamlineStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);
     _updatePenPressureProfile(snapshot.penPressureProfile);
@@ -2513,7 +2543,6 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
     _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
     _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
-    _updateVectorStrokeSmoothingEnabled(snapshot.vectorStrokeSmoothingEnabled);
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);

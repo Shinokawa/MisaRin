@@ -152,6 +152,13 @@ class _AnchorGrid extends StatelessWidget {
   final CanvasResizeAnchor selected;
   final ValueChanged<CanvasResizeAnchor> onSelected;
 
+  static Color _bestForegroundFor(Color background) {
+    final double luminance = background.computeLuminance();
+    final double contrastWithWhite = (1.05) / (luminance + 0.05);
+    final double contrastWithBlack = (luminance + 0.05) / 0.05;
+    return contrastWithWhite >= contrastWithBlack ? Colors.white : Colors.black;
+  }
+
   static final List<CanvasResizeAnchor> _anchors = <CanvasResizeAnchor>[
     CanvasResizeAnchor.topLeft,
     CanvasResizeAnchor.topCenter,
@@ -179,6 +186,9 @@ class _AnchorGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final Color selectedBackground =
+        theme.accentColor.defaultBrushFor(theme.brightness);
+    final Color selectedForeground = _bestForegroundFor(selectedBackground);
     final buttons = <Widget>[];
     for (int i = 0; i < _anchors.length; i++) {
       final anchor = _anchors[i];
@@ -195,7 +205,7 @@ class _AnchorGrid extends StatelessWidget {
                 ),
                 backgroundColor: WidgetStateProperty.resolveWith<Color?>(
                   (states) => isSelected
-                      ? theme.accentColor.defaultBrushFor(theme.brightness)
+                      ? selectedBackground
                       : theme.resources.controlFillColorDefault,
                 ),
               ),
@@ -204,7 +214,7 @@ class _AnchorGrid extends StatelessWidget {
                 label,
                 style: theme.typography.subtitle?.copyWith(
                   color: isSelected
-                      ? Colors.white
+                      ? selectedForeground
                       : theme.typography.body?.color,
                 ),
               ),

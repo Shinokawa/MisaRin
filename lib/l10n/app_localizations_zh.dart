@@ -47,7 +47,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homeOpenProject => '打开项目';
 
   @override
-  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 文件';
+  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 或图片文件';
 
   @override
   String get homeRecentProjects => '最近打开';
@@ -502,6 +502,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuBinarizeEllipsis => '二值化…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => '扫描纸绘…';
+
+  @override
   String get menuScanPaperDrawing => '扫描纸绘';
 
   @override
@@ -756,6 +759,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceIllustrationDesc => '画笔边缘柔化设为 1 级';
 
   @override
+  String get workspaceIllustrationDesc2 => '流线：开启';
+
+  @override
   String get workspaceCelShading => '赛璐璐';
 
   @override
@@ -778,6 +784,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workspacePixelDesc3 => '矢量作画：关闭';
+
+  @override
+  String get workspacePixelDesc4 => '手抖修正：0';
 
   @override
   String get workspaceDefault => '默认';
@@ -920,6 +929,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushShape => '笔刷形状';
 
   @override
+  String get randomRotation => '随机旋转';
+
+  @override
   String get selectionShape => '选区形状';
 
   @override
@@ -989,6 +1001,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stabilizer => '手抖修正';
 
   @override
+  String get streamline => '流线';
+
+  @override
   String get off => '关';
 
   @override
@@ -1034,6 +1049,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get square => '正方形';
 
   @override
+  String get star => '五角星';
+
+  @override
   String get brushSizeDesc => '设置当前笔刷的像素直径，数值越大线条越粗，越小越适合描画细节。';
 
   @override
@@ -1052,6 +1070,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get stabilizerDesc => '实时平滑指针轨迹来抵消手抖，等级越高线条越稳但响应会稍慢。';
+
+  @override
+  String get streamlineDesc =>
+      '类似 Procreate 的 StreamLine：抬笔后对笔画路径做平滑重算，并以补间动画回弹到更顺的结果（等级越高越明显）。';
 
   @override
   String get fontSizeDesc => '调整文字的像素高度，用于整体放大或缩小当前文本。';
@@ -1076,6 +1098,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get solidFillDesc => '决定形状工具是绘制填充色块还是空心轮廓，开启后直接生成实心图形。';
+
+  @override
+  String get randomRotationDesc => '开启后，方形/三角形/五角星笔刷会在笔触的每个印章上随机旋转。';
 
   @override
   String get autoSharpTaperDesc => '为笔刷起笔与收笔自动收尖，营造赛璐璐式的利落线条。';
@@ -1156,6 +1181,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get squareTipDesc => '使用方形笔尖绘制硬边像素风笔触。';
+
+  @override
+  String get starTipDesc => '使用五角星笔尖绘制装饰性笔触。';
 
   @override
   String get apply => '应用';
@@ -1903,7 +1931,7 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get homeOpenProject => '打开项目';
 
   @override
-  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 文件';
+  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 或图片文件';
 
   @override
   String get homeRecentProjects => '最近打开';
@@ -2637,7 +2665,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get homeOpenProject => '開啟專案';
 
   @override
-  String get homeOpenProjectDesc => '從磁碟載入 .rin / .psd 檔案';
+  String get homeOpenProjectDesc => '從磁碟載入 .rin / .psd 或影像檔案';
 
   @override
   String get homeRecentProjects => '最近開啟';
@@ -3092,6 +3120,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuBinarizeEllipsis => '二值化…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => '掃描紙繪…';
+
+  @override
   String get menuScanPaperDrawing => '掃描紙繪';
 
   @override
@@ -3119,6 +3150,19 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get eraseOccludedParts => '擦除被遮擋部分';
 
   @override
+  String get randomRotation => '隨機旋轉';
+
+  @override
+  String get streamline => '流線';
+
+  @override
+  String get star => '五角星';
+
+  @override
+  String get streamlineDesc =>
+      '類似 Procreate 的 StreamLine：抬筆後對筆畫路徑做平滑重算，並以補間動畫回彈到更順的結果（等級越高越明顯）。';
+
+  @override
   String get hollowStrokeDesc => '將筆畫中心挖空，形成空心描邊效果。';
 
   @override
@@ -3126,6 +3170,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get eraseOccludedPartsDesc => '開啟後，同一圖層裡後畫的空心線條會吃掉與其他線條的重合部分。';
+
+  @override
+  String get randomRotationDesc => '開啟後，正方形/三角形/五角星筆刷會在筆觸的每個印章上隨機旋轉。';
 
   @override
   String get swallowBlueColorLineDesc => '色塊填充時只吞併藍色線。';
@@ -3138,6 +3185,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get swallowAllColorLineDesc => '色塊填充時吞併紅/綠/藍色線。';
+
+  @override
+  String get starTipDesc => '使用五角星筆尖繪製裝飾性筆觸。';
 
   @override
   String get layerEmptyScanPaperDrawing => '目前圖層為空，無法掃描紙繪。';

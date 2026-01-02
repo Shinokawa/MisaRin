@@ -50,7 +50,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeOpenProject => 'Open Project';
 
   @override
-  String get homeOpenProjectDesc => 'Load a .rin / .psd file from disk';
+  String get homeOpenProjectDesc =>
+      'Load a .rin / .psd or image file from disk';
 
   @override
   String get homeRecentProjects => 'Recent';
@@ -513,6 +514,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuBinarizeEllipsis => 'Binarize…';
 
   @override
+  String get menuScanPaperDrawingEllipsis => 'Scan Paper Drawing…';
+
+  @override
   String get menuScanPaperDrawing => 'Scan Paper Drawing';
 
   @override
@@ -769,6 +773,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspaceIllustrationDesc => 'Brush edge softening set to level 1';
 
   @override
+  String get workspaceIllustrationDesc2 => 'StreamLine: On';
+
+  @override
   String get workspaceCelShading => 'Cel Shading';
 
   @override
@@ -792,6 +799,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspacePixelDesc3 => 'Vector Drawing: Off';
+
+  @override
+  String get workspacePixelDesc4 => 'Stabilizer: 0';
 
   @override
   String get workspaceDefault => 'Default';
@@ -942,6 +952,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushShape => 'Brush Shape';
 
   @override
+  String get randomRotation => 'Random rotation';
+
+  @override
   String get selectionShape => 'Selection Shape';
 
   @override
@@ -1012,6 +1025,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stabilizer => 'Stabilizer';
 
   @override
+  String get streamline => 'StreamLine';
+
+  @override
   String get off => 'Off';
 
   @override
@@ -1057,6 +1073,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get square => 'Square';
 
   @override
+  String get star => 'Star';
+
+  @override
   String get brushSizeDesc =>
       'Sets the pixel diameter of the current brush. Larger values make thicker lines, smaller for details.';
 
@@ -1079,6 +1098,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get stabilizerDesc =>
       'Smooths pointer trajectory in real-time to counteract hand tremors. Higher levels are steadier but respond slower.';
+
+  @override
+  String get streamlineDesc =>
+      'Procreate-like StreamLine: smooths the stroke after lift-off and tween-snaps it to a cleaner path (higher levels are stronger).';
 
   @override
   String get fontSizeDesc =>
@@ -1110,6 +1133,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get solidFillDesc =>
       'Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.';
+
+  @override
+  String get randomRotationDesc =>
+      'When enabled, square/triangle/star stamps rotate randomly along the stroke.';
 
   @override
   String get autoSharpTaperDesc =>
@@ -1207,6 +1234,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get squareTipDesc => 'Use a square tip for hard-edged pixel strokes.';
+
+  @override
+  String get starTipDesc => 'Use a five-point star tip for decorative strokes.';
 
   @override
   String get apply => 'Apply';

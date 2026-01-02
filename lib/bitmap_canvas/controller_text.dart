@@ -72,7 +72,6 @@ Future<void> _textLayerRender(
   layer.surface.markDirty();
   layer.text = data;
   layer.textBounds = raster.layout.bounds;
-  layer.revision += 1;
   controller._layerOverflowStores[layer.id]?.clear();
   controller._markDirty(
     region: raster.layout.bounds.inflate(2),

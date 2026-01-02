@@ -270,9 +270,9 @@ void _controllerApplyWorkerPatch(
   if (wroteCoverage) {
     surface.markDirty();
   }
-  controller._activeLayer.revision += 1;
-  controller._paintingWorkerSyncedLayerId = controller._activeLayer.id;
-  controller._paintingWorkerSyncedRevision = controller._activeLayer.revision;
+  final BitmapLayerState layer = controller._activeLayer;
+  controller._paintingWorkerSyncedLayerId = layer.id;
+  controller._paintingWorkerSyncedRevision = layer.revision + 1;
   final Rect dirtyRegion = Rect.fromLTWH(
     effectiveLeft.toDouble(),
     effectiveTop.toDouble(),
@@ -281,7 +281,7 @@ void _controllerApplyWorkerPatch(
   );
   controller._markDirty(
     region: dirtyRegion,
-    layerId: controller._activeLayer.id,
+    layerId: layer.id,
     pixelsDirty: true,
   );
 }

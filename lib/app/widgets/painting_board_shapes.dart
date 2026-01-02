@@ -170,13 +170,6 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     setState(_resetShapeDrawingState);
   }
 
-  Offset _clampToCanvas(Offset value) {
-    final Size size = _canvasSize;
-    final double dx = value.dx.clamp(0.0, size.width);
-    final double dy = value.dy.clamp(0.0, size.height);
-    return Offset(dx, dy);
-  }
-
   bool get _isShapeShiftPressed {
     final Set<LogicalKeyboardKey> keys =
         HardwareKeyboard.instance.logicalKeysPressed;
@@ -440,6 +433,8 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       timestampMillis: initialTimestamp,
       antialiasLevel: _penAntialiasLevel,
       brushShape: _brushShape,
+      randomRotation: _brushRandomRotationEnabled,
+      rotationSeed: _brushRandomRotationPreviewSeed,
       erase: erase,
     );
     if (simulatePressure) {
@@ -462,6 +457,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       }
     }
     _controller.endStroke();
+    if (_brushRandomRotationEnabled) {
+      _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+    }
     _markDirty();
   }
 

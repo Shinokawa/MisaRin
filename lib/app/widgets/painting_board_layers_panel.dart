@@ -912,7 +912,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
           ? null
           : () {
               _handleLayerSelected(layer.id);
-              _beginLayerRename(layer);
+              unawaited(_beginLayerRename(layer));
             },
     );
     if (!isTextLayer) {
