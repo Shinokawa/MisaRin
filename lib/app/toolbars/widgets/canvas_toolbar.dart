@@ -65,48 +65,15 @@ class CanvasToolbar extends StatelessWidget {
 
     final double singleColumnHeight =
         buttonSize * clampedToolCount + spacing * (clampedToolCount - 1);
-    if (effectiveHeight == double.infinity ||
-        effectiveHeight >= singleColumnHeight) {
-      return CanvasToolbarLayout(
-        columns: 1,
-        rows: clampedToolCount,
-        width: buttonSize,
-        height: singleColumnHeight,
-        buttonExtent: buttonSize,
-      );
-    }
-
-    if (effectiveHeight <= buttonSize) {
-      final double width =
-          buttonSize * clampedToolCount + spacing * (clampedToolCount - 1);
-      return CanvasToolbarLayout(
-        columns: clampedToolCount,
-        rows: 1,
-        width: width,
-        height: buttonSize,
-        buttonExtent: buttonSize,
-        horizontalFlow: true,
-        flowDirection: Axis.horizontal,
-      );
-    }
-
-    final int itemsPerColumn = math.max(
-      1,
-      ((effectiveHeight + spacing) / (buttonSize + spacing)).floor(),
-    );
-    final int columns = (clampedToolCount / itemsPerColumn).ceil();
-    final double height =
-        itemsPerColumn * buttonSize + spacing * (itemsPerColumn - 1);
-    final double width = columns * buttonSize + spacing * (columns - 1);
-
+    final double height = effectiveHeight == double.infinity
+        ? singleColumnHeight
+        : math.max(buttonSize, math.min(singleColumnHeight, effectiveHeight));
     return CanvasToolbarLayout(
-      columns: columns,
-      rows: itemsPerColumn,
-      width: width,
+      columns: 1,
+      rows: clampedToolCount,
+      width: buttonSize,
       height: height,
       buttonExtent: buttonSize,
-      horizontalFlow: true,
-      flowDirection: Axis.vertical,
     );
   }
 
@@ -199,60 +166,20 @@ class CanvasToolbar extends StatelessWidget {
         ),
       ),
       wrapWithTooltip(
-        action: ToolbarAction.penTool,
-        label: '画笔工具',
-        child: PenToolButton(
-          isSelected: activeTool == CanvasTool.pen,
-          onPressed: () => onToolSelected(CanvasTool.pen),
+        action: ToolbarAction.selectionTool,
+        label: '选区工具',
+        child: SelectionToolButton(
+          isSelected: activeTool == CanvasTool.selection,
+          selectionShape: selectionShape,
+          onPressed: () => onToolSelected(CanvasTool.selection),
         ),
       ),
       wrapWithTooltip(
-        action: ToolbarAction.perspectivePenTool,
-        label: '透视画笔',
-        child: PerspectivePenToolButton(
-          isSelected: activeTool == CanvasTool.perspectivePen,
-          onPressed: () => onToolSelected(CanvasTool.perspectivePen),
-        ),
-      ),
-      wrapWithTooltip(
-        action: ToolbarAction.sprayTool,
-        label: '喷枪工具',
-        child: SprayToolButton(
-          isSelected: activeTool == CanvasTool.spray,
-          onPressed: () => onToolSelected(CanvasTool.spray),
-        ),
-      ),
-      wrapWithTooltip(
-        action: ToolbarAction.curvePenTool,
-        label: '曲线画笔',
-        child: CurvePenToolButton(
-          isSelected: activeTool == CanvasTool.curvePen,
-          onPressed: () => onToolSelected(CanvasTool.curvePen),
-        ),
-      ),
-      wrapWithTooltip(
-        action: ToolbarAction.shapeTool,
-        label: _shapeTooltipLabel(shapeToolVariant),
-        child: ShapeToolButton(
-          isSelected: activeTool == CanvasTool.shape,
-          variant: shapeToolVariant,
-          onPressed: () => onToolSelected(CanvasTool.shape),
-        ),
-      ),
-      wrapWithTooltip(
-        action: ToolbarAction.eraserTool,
-        label: '橡皮擦',
-        child: EraserToolButton(
-          isSelected: activeTool == CanvasTool.eraser,
-          onPressed: () => onToolSelected(CanvasTool.eraser),
-        ),
-      ),
-      wrapWithTooltip(
-        action: ToolbarAction.bucketTool,
-        label: '油漆桶',
-        child: BucketToolButton(
-          isSelected: activeTool == CanvasTool.bucket,
-          onPressed: () => onToolSelected(CanvasTool.bucket),
+        action: ToolbarAction.selectionPenTool,
+        label: '选区笔',
+        child: SelectionPenToolButton(
+          isSelected: activeTool == CanvasTool.selectionPen,
+          onPressed: () => onToolSelected(CanvasTool.selectionPen),
         ),
       ),
       wrapWithTooltip(
@@ -272,20 +199,51 @@ class CanvasToolbar extends StatelessWidget {
         ),
       ),
       wrapWithTooltip(
-        action: ToolbarAction.selectionTool,
-        label: '选区工具',
-        child: SelectionToolButton(
-          isSelected: activeTool == CanvasTool.selection,
-          selectionShape: selectionShape,
-          onPressed: () => onToolSelected(CanvasTool.selection),
+        action: ToolbarAction.penTool,
+        label: '画笔工具',
+        child: PenToolButton(
+          isSelected: activeTool == CanvasTool.pen,
+          onPressed: () => onToolSelected(CanvasTool.pen),
         ),
       ),
       wrapWithTooltip(
-        action: ToolbarAction.selectionPenTool,
-        label: '选区笔',
-        child: SelectionPenToolButton(
-          isSelected: activeTool == CanvasTool.selectionPen,
-          onPressed: () => onToolSelected(CanvasTool.selectionPen),
+        action: ToolbarAction.sprayTool,
+        label: '喷枪工具',
+        child: SprayToolButton(
+          isSelected: activeTool == CanvasTool.spray,
+          onPressed: () => onToolSelected(CanvasTool.spray),
+        ),
+      ),
+      wrapWithTooltip(
+        action: ToolbarAction.perspectivePenTool,
+        label: '透视画笔',
+        child: PerspectivePenToolButton(
+          isSelected: activeTool == CanvasTool.perspectivePen,
+          onPressed: () => onToolSelected(CanvasTool.perspectivePen),
+        ),
+      ),
+      wrapWithTooltip(
+        action: ToolbarAction.curvePenTool,
+        label: '曲线画笔',
+        child: CurvePenToolButton(
+          isSelected: activeTool == CanvasTool.curvePen,
+          onPressed: () => onToolSelected(CanvasTool.curvePen),
+        ),
+      ),
+      wrapWithTooltip(
+        action: ToolbarAction.eraserTool,
+        label: '橡皮擦',
+        child: EraserToolButton(
+          isSelected: activeTool == CanvasTool.eraser,
+          onPressed: () => onToolSelected(CanvasTool.eraser),
+        ),
+      ),
+      wrapWithTooltip(
+        action: ToolbarAction.bucketTool,
+        label: '油漆桶',
+        child: BucketToolButton(
+          isSelected: activeTool == CanvasTool.bucket,
+          onPressed: () => onToolSelected(CanvasTool.bucket),
         ),
       ),
       wrapWithTooltip(
@@ -294,6 +252,15 @@ class CanvasToolbar extends StatelessWidget {
         child: TextToolButton(
           isSelected: activeTool == CanvasTool.text,
           onPressed: () => onToolSelected(CanvasTool.text),
+        ),
+      ),
+      wrapWithTooltip(
+        action: ToolbarAction.shapeTool,
+        label: _shapeTooltipLabel(shapeToolVariant),
+        child: ShapeToolButton(
+          isSelected: activeTool == CanvasTool.shape,
+          variant: shapeToolVariant,
+          onPressed: () => onToolSelected(CanvasTool.shape),
         ),
       ),
       wrapWithTooltip(
@@ -351,10 +318,22 @@ class CanvasToolbar extends StatelessWidget {
     }
 
     if (layout.columns <= 1) {
-      return Column(
+      final Widget content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: withVerticalSpacing(sizedItems(items)),
+      );
+      final int itemCount = items.length;
+      final double contentHeight = itemCount <= 0
+          ? 0
+          : buttonExtent * itemCount + spacing * (itemCount - 1);
+      if (contentHeight <= layout.height + 0.5) {
+        return content;
+      }
+      return SizedBox(
+        width: layout.width,
+        height: layout.height,
+        child: _CanvasToolbarScrollArea(child: content),
       );
     }
 
@@ -434,4 +413,44 @@ class CanvasToolbarLayout {
   final Axis flowDirection;
 
   bool get isMultiColumn => columns > 1;
+}
+
+class _CanvasToolbarScrollArea extends StatefulWidget {
+  const _CanvasToolbarScrollArea({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_CanvasToolbarScrollArea> createState() => _CanvasToolbarScrollAreaState();
+}
+
+class _CanvasToolbarScrollAreaState extends State<_CanvasToolbarScrollArea> {
+  late final ScrollController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      controller: _controller,
+      child: SingleChildScrollView(
+        controller: _controller,
+        primary: false,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
 }
