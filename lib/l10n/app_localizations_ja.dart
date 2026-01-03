@@ -1706,6 +1706,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get fontLanguageAll => 'すべて';
 
   @override
+  String get fontFavorites => 'お気に入り';
+
+  @override
+  String get noFavoriteFonts => 'お気に入りのフォントはまだありません。';
+
+  @override
   String get importPaletteTitle => 'パレットをインポート';
 
   @override

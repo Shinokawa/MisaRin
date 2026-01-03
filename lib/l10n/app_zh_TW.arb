@@ -256,6 +256,8 @@
   "fontPreviewLanguages": "測試語言",
   "fontLanguageCategory": "語言分類",
   "fontLanguageAll": "全部",
+  "fontFavorites": "收藏",
+  "noFavoriteFonts": "尚無收藏字體。",
   "importPaletteTitle": "匯入調色盤",
   "cannotReadFile": "無法讀取檔案",
   "paletteImported": "已匯入調色盤：{name}",

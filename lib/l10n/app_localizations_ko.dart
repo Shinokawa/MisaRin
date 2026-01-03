@@ -1717,6 +1717,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get fontLanguageAll => '전체';
 
   @override
+  String get fontFavorites => '즐겨찾기';
+
+  @override
+  String get noFavoriteFonts => '즐겨찾는 글꼴이 없습니다.';
+
+  @override
   String get importPaletteTitle => '팔레트 가져오기';
 
   @override

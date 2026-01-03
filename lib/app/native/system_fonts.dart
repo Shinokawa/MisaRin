@@ -1,11 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:system_fonts/system_fonts.dart' as sys_fonts;
 
 class SystemFonts {
   const SystemFonts._();
+
+  static const MethodChannel _platformChannel = MethodChannel(
+    'misarin/system_fonts',
+  );
 
   static List<String>? _cachedFamilies;
 
@@ -29,6 +33,15 @@ class SystemFonts {
       _cachedFamilies = _fallbackFamilies;
       return _cachedFamilies!;
     }
+
+    if (Platform.isMacOS) {
+      final List<String>? native = await _loadFamiliesFromPlatformChannel();
+      if (native != null && native.isNotEmpty) {
+        _cachedFamilies = native;
+        return _cachedFamilies!;
+      }
+    }
+
     final List<String> directories = _fontDirectories();
     if (directories.isEmpty) {
       _cachedFamilies = _fallbackFamilies;
@@ -46,6 +59,20 @@ class SystemFonts {
     return _cachedFamilies!;
   }
 
+  static Future<List<String>?> _loadFamiliesFromPlatformChannel() async {
+    try {
+      final List<String>? families = await _platformChannel.invokeListMethod<String>(
+        'getFamilies',
+      );
+      if (families == null || families.isEmpty) {
+        return null;
+      }
+      return families;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static bool get _supportsNativeFonts {
     if (kIsWeb) {
       return false;
@@ -61,6 +88,25 @@ class SystemFonts {
       final String? home = Platform.environment['HOME'];
       if (home != null && home.isNotEmpty) {
         dirs.add(p.join(home, 'Library', 'Fonts'));
+      }
+      dirs.add('/Network/Library/Fonts');
+      try {
+        final Directory assetsRoot = Directory('/System/Library/AssetsV2');
+        if (assetsRoot.existsSync()) {
+          for (final FileSystemEntity entity
+              in assetsRoot.listSync(followLinks: false)) {
+            if (entity is! Directory) {
+              continue;
+            }
+            final String name = p.basename(entity.path);
+            if (!name.startsWith('com_apple_MobileAsset_Font')) {
+              continue;
+            }
+            dirs.add(entity.path);
+          }
+        }
+      } catch (_) {
+        // Ignore sandboxed asset directories.
       }
     } else if (Platform.isWindows) {
       final String? winDir = Platform.environment['WINDIR'];
@@ -89,28 +135,34 @@ class SystemFonts {
 }
 
 List<String> _collectFontNames(List<String> roots) {
-  final sys_fonts.SystemFonts loader = sys_fonts.SystemFonts();
-  final Set<String> visited = <String>{};
+  final Set<String> visitedDirs = <String>{};
+  final Map<String, String> familiesByLower = <String, String>{};
   for (final String root in roots) {
-    _registerDirectory(loader, root, visited);
+    _collectDirectoryFontNames(root, visitedDirs, familiesByLower);
   }
-  final List<String> fonts = loader.getFontList();
-  fonts.sort(
-    (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
-  );
+  final List<String> fonts = familiesByLower.values.toList(growable: false);
+  fonts.sort((String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
   return fonts;
 }
 
-void _registerDirectory(
-  sys_fonts.SystemFonts loader,
+const Set<String> _supportedFontExtensions = <String>{
+  '.ttf',
+  '.otf',
+  '.ttc',
+  '.otc',
+  '.dfont',
+};
+
+void _collectDirectoryFontNames(
   String rawPath,
-  Set<String> visited,
+  Set<String> visitedDirs,
+  Map<String, String> familiesByLower,
 ) {
   if (rawPath.isEmpty) {
     return;
   }
   final String normalized = p.normalize(rawPath);
-  if (!visited.add(normalized)) {
+  if (!visitedDirs.add(normalized)) {
     return;
   }
   final Directory directory = Directory(normalized);
@@ -118,15 +170,24 @@ void _registerDirectory(
     return;
   }
   try {
-    loader.addAdditionalFontDirectory(normalized);
-  } catch (_) {
-    return;
-  }
-  try {
-    for (final FileSystemEntity entity in directory.listSync(followLinks: false)) {
+    for (final FileSystemEntity entity
+        in directory.listSync(followLinks: false)) {
       if (entity is Directory) {
-        _registerDirectory(loader, entity.path, visited);
+        _collectDirectoryFontNames(entity.path, visitedDirs, familiesByLower);
+        continue;
       }
+      if (entity is! File) {
+        continue;
+      }
+      final String ext = p.extension(entity.path).toLowerCase();
+      if (!_supportedFontExtensions.contains(ext)) {
+        continue;
+      }
+      final String family = p.basenameWithoutExtension(entity.path).trim();
+      if (family.isEmpty) {
+        continue;
+      }
+      familiesByLower.putIfAbsent(family.toLowerCase(), () => family);
     }
   } catch (_) {
     // Ignore directories we cannot traverse.

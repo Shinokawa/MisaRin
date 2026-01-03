@@ -805,5 +805,7 @@
   "fontPreviewText": "预览文本",
   "fontPreviewLanguages": "测试语言",
   "fontLanguageCategory": "语言分类",
-  "fontLanguageAll": "全部"
+  "fontLanguageAll": "全部",
+  "fontFavorites": "收藏",
+  "noFavoriteFonts": "暂无收藏字体。"
 }

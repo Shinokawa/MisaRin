@@ -1,10 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/l10n.dart';
 
-enum _FontLanguageCategory { all, latin, zhHans, zhHant, ja, ko }
+enum _FontLanguageCategory { all, favorites, latin, zhHans, zhHant, ja, ko }
 
 Future<String?> showFontFamilyPickerDialog(
   BuildContext context, {
@@ -43,12 +44,13 @@ class FontFamilyPickerDialog extends StatefulWidget {
 }
 
 class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
+  static const String _favoritesStorageKey = 'misa_rin.font_favorites';
   static const double _listItemExtent = 44;
   static const double _minPreviewSize = 10;
   static const double _maxPreviewSize = 200;
   static const String _sampleLatin = 'The quick brown fox jumps over the lazy dog. 0123456789';
-  static const String _sampleZhHans = '简体中文：你好，世界！';
-  static const String _sampleZhHant = '繁體中文：你好，世界！';
+  static const String _sampleZhHans = '简体中文：欢迎使用字体测试！';
+  static const String _sampleZhHant = '繁體中文：歡迎使用字體測試！';
   static const String _sampleJa = '日本語：こんにちは世界！';
   static const String _sampleKo = '한국어: 안녕하세요 세계!';
 
@@ -80,6 +82,35 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
     caseSensitive: false,
   );
 
+  static bool _containsRuneInRange(String input, int start, int end) {
+    for (final int rune in input.runes) {
+      if (rune >= start && rune <= end) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _containsHangul(String input) {
+    return _containsRuneInRange(input, 0xAC00, 0xD7AF) ||
+        _containsRuneInRange(input, 0x1100, 0x11FF) ||
+        _containsRuneInRange(input, 0x3130, 0x318F) ||
+        _containsRuneInRange(input, 0xA960, 0xA97F) ||
+        _containsRuneInRange(input, 0xD7B0, 0xD7FF);
+  }
+
+  static bool _containsKana(String input) {
+    return _containsRuneInRange(input, 0x3040, 0x30FF) ||
+        _containsRuneInRange(input, 0x31F0, 0x31FF) ||
+        _containsRuneInRange(input, 0xFF66, 0xFF9D);
+  }
+
+  static bool _containsHan(String input) {
+    return _containsRuneInRange(input, 0x4E00, 0x9FFF) ||
+        _containsRuneInRange(input, 0x3400, 0x4DBF) ||
+        _containsRuneInRange(input, 0xF900, 0xFAFF);
+  }
+
   late final TextEditingController _searchController;
   late final TextEditingController _previewController;
   late final ScrollController _scrollController;
@@ -89,6 +120,7 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
   late String _selectedFamily;
   late double _previewSize;
   _FontLanguageCategory _languageCategory = _FontLanguageCategory.all;
+  Set<String> _favoriteFamilies = <String>{};
   bool _includeLatin = true;
   bool _includeZhHans = true;
   bool _includeZhHant = true;
@@ -117,6 +149,7 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
         })
         .toList(growable: false);
     _filteredEntries = _entries;
+    _loadFavorites();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -161,6 +194,53 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
     });
   }
 
+  Future<void> _loadFavorites() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String>? stored = prefs.getStringList(_favoritesStorageKey);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _favoriteFamilies = (stored ?? const <String>[]).toSet();
+      });
+      if (_languageCategory == _FontLanguageCategory.favorites) {
+        _applySearch();
+      }
+    } catch (_) {
+      // Ignore persistence failures.
+    }
+  }
+
+  Future<void> _saveFavorites() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final List<String> values = _favoriteFamilies.toList(growable: false)
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      await prefs.setStringList(_favoritesStorageKey, values);
+    } catch (_) {
+      // Ignore persistence failures.
+    }
+  }
+
+  void _toggleFavorite(String family) {
+    if (family == 'System Default') {
+      return;
+    }
+    final bool nextIsFavorite = !_favoriteFamilies.contains(family);
+    setState(() {
+      if (nextIsFavorite) {
+        _favoriteFamilies.add(family);
+      } else {
+        _favoriteFamilies.remove(family);
+      }
+    });
+    _saveFavorites();
+    if (_languageCategory == _FontLanguageCategory.favorites) {
+      _applySearch();
+    }
+  }
+
   bool _matchesLanguageCategory(
     _FontFamilyEntry entry,
     _FontLanguageCategory category,
@@ -171,6 +251,8 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
     switch (category) {
       case _FontLanguageCategory.all:
         return true;
+      case _FontLanguageCategory.favorites:
+        return _favoriteFamilies.contains(entry.family);
       case _FontLanguageCategory.latin:
         return entry.languageTags == 0;
       case _FontLanguageCategory.zhHans:
@@ -188,15 +270,21 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
     if (family == 'System Default') {
       return _langCjk;
     }
+    int tags = 0;
+    if (_containsHangul(family)) {
+      tags |= _langKo;
+    }
+    if (_containsKana(family)) {
+      tags |= _langJa;
+    }
+    if (_containsHan(family) && (tags & (_langJa | _langKo)) == 0) {
+      tags |= _langZhHans | _langZhHant;
+    }
     final String normalized = family
         .toLowerCase()
         .replaceAll(RegExp(r'[_-]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    if (_cjkNamePattern.hasMatch(normalized)) {
-      return _langCjk;
-    }
-    int tags = 0;
     if (_zhHansNamePattern.hasMatch(normalized)) {
       tags |= _langZhHans;
     }
@@ -208,6 +296,28 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
     }
     if (_koNamePattern.hasMatch(normalized)) {
       tags |= _langKo;
+    }
+    final bool likelyHans =
+        family.contains('简体') ||
+        family.contains('簡體') ||
+        family.contains('简中') ||
+        family.contains('字体');
+    final bool likelyHant =
+        family.contains('繁體') ||
+        family.contains('繁体') ||
+        family.contains('繁中') ||
+        family.contains('臺') ||
+        family.contains('字體');
+    if (likelyHans && !likelyHant) {
+      tags = (tags & ~_langZhHant) | _langZhHans;
+    } else if (likelyHant && !likelyHans) {
+      tags = (tags & ~_langZhHans) | _langZhHant;
+    }
+    if (tags != 0) {
+      return tags;
+    }
+    if (_cjkNamePattern.hasMatch(normalized)) {
+      return _langCjk;
     }
     return tags;
   }
@@ -368,10 +478,7 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
       placeholder: l10n.fontSearchPlaceholder,
     );
 
-    Widget buildCategoryToggle(
-      _FontLanguageCategory category,
-      String label,
-    ) {
+    Widget buildCategoryToggle(_FontLanguageCategory category, Widget child) {
       final bool selected = _languageCategory == category;
       return ToggleButton(
         checked: selected,
@@ -384,7 +491,7 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Text(label),
+          child: child,
         ),
       );
     }
@@ -393,14 +500,36 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
       spacing: 8,
       runSpacing: 8,
       children: [
-        buildCategoryToggle(_FontLanguageCategory.all, l10n.fontLanguageAll),
-        buildCategoryToggle(_FontLanguageCategory.latin, 'EN+123'),
-        buildCategoryToggle(_FontLanguageCategory.zhHans, '简体'),
-        buildCategoryToggle(_FontLanguageCategory.zhHant, '繁體'),
-        buildCategoryToggle(_FontLanguageCategory.ja, '日本語'),
-        buildCategoryToggle(_FontLanguageCategory.ko, '한국어'),
+        buildCategoryToggle(
+          _FontLanguageCategory.all,
+          Text(l10n.fontLanguageAll),
+        ),
+        buildCategoryToggle(
+          _FontLanguageCategory.favorites,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(FluentIcons.favorite_star_fill, size: 14),
+              const SizedBox(width: 6),
+              Text(l10n.fontFavorites),
+            ],
+          ),
+        ),
+        buildCategoryToggle(_FontLanguageCategory.latin, const Text('EN+123')),
+        buildCategoryToggle(_FontLanguageCategory.zhHans, const Text('简体')),
+        buildCategoryToggle(_FontLanguageCategory.zhHant, const Text('繁體')),
+        buildCategoryToggle(_FontLanguageCategory.ja, const Text('日本語')),
+        buildCategoryToggle(_FontLanguageCategory.ko, const Text('한국어')),
       ],
     );
+
+    final bool shouldShowEmptyFavoritesHint =
+        _languageCategory == _FontLanguageCategory.favorites &&
+        _favoriteFamilies.isEmpty &&
+        _searchController.text.trim().isEmpty;
+    final String emptyHint = shouldShowEmptyFavoritesHint
+        ? l10n.noFavoriteFonts
+        : l10n.noMatchingFonts;
 
     final Widget fontList = Container(
       decoration: BoxDecoration(
@@ -411,7 +540,7 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
       child: _filteredEntries.isEmpty
           ? Center(
               child: Text(
-                l10n.noMatchingFonts,
+                emptyHint,
                 style: theme.typography.caption,
                 textAlign: TextAlign.center,
               ),
@@ -425,11 +554,18 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
                 itemBuilder: (context, index) {
                   final _FontFamilyEntry entry = _filteredEntries[index];
                   final bool selected = entry.family == _selectedFamily;
+                  final bool isFavorite =
+                      _favoriteFamilies.contains(entry.family);
                   final Color foreground = selected
                       ? selectedForeground
                       : theme.typography.body?.color ?? Colors.black;
                   final String? family =
                       entry.family == 'System Default' ? null : entry.family;
+                  final Color favoriteIconColor = selected
+                      ? selectedForeground
+                      : isFavorite
+                          ? theme.accentColor.defaultBrushFor(theme.brightness)
+                          : theme.resources.textFillColorSecondary;
                   return Button(
                     style: ButtonStyle(
                       padding: WidgetStateProperty.all<EdgeInsets>(
@@ -448,18 +584,32 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
                       ),
                     ),
                     onPressed: () => _selectFamily(entry.family),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        entry.display,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                        style: theme.typography.body?.copyWith(
-                          color: foreground,
-                          fontFamily: family,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            entry.display,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: theme.typography.body?.copyWith(
+                              color: foreground,
+                              fontFamily: family,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (entry.family != 'System Default')
+                          IconButton(
+                            icon: Icon(
+                              isFavorite
+                                  ? FluentIcons.favorite_star_fill
+                                  : FluentIcons.favorite_star,
+                              size: 14,
+                              color: favoriteIconColor,
+                            ),
+                            onPressed: () => _toggleFavorite(entry.family),
+                          ),
+                      ],
                     ),
                   );
                 },

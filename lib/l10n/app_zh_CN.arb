@@ -248,6 +248,8 @@
   "fontPreviewLanguages": "测试语言",
   "fontLanguageCategory": "语言分类",
   "fontLanguageAll": "全部",
+  "fontFavorites": "收藏",
+  "noFavoriteFonts": "暂无收藏字体。",
   "importPaletteTitle": "导入调色板",
   "cannotReadFile": "无法读取文件",
   "paletteImported": "已导入调色板：{name}",

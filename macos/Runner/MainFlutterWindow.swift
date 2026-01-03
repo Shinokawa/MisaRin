@@ -3,10 +3,12 @@ import FlutterMacOS
 
 private final class LoggingFlutterViewController: FlutterViewController {
   private var tabletChannel: FlutterMethodChannel?
+  private var systemFontsChannel: FlutterMethodChannel?
 
   override func viewDidLoad() {
     super.viewDidLoad()
     configureTabletChannel()
+    configureSystemFontsChannel()
   }
 
   private func configureTabletChannel() {
@@ -18,6 +20,29 @@ private final class LoggingFlutterViewController: FlutterViewController {
       name: "misarin/tablet_input",
       binaryMessenger: engine.binaryMessenger
     )
+  }
+
+  private func configureSystemFontsChannel() {
+    if systemFontsChannel != nil {
+      return
+    }
+    let engine = self.engine
+    let channel = FlutterMethodChannel(
+      name: "misarin/system_fonts",
+      binaryMessenger: engine.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "getFamilies":
+        let families = NSFontManager.shared.availableFontFamilies.sorted {
+          $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+        result(families)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    systemFontsChannel = channel
   }
 
   private func dispatchPointerEvent(tag: String, event: NSEvent, inContact: Bool) {

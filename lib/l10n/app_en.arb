@@ -806,6 +806,8 @@
   "fontPreviewLanguages": "Test languages",
   "fontLanguageCategory": "Language category",
   "fontLanguageAll": "All",
+  "fontFavorites": "Favorites",
+  "noFavoriteFonts": "No favorite fonts yet.",
 
   "importPaletteTitle": "Import Palette",
   "cannotReadFile": "Cannot read file",

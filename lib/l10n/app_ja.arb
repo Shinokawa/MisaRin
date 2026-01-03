@@ -807,6 +807,8 @@
   "fontPreviewLanguages": "テスト言語",
   "fontLanguageCategory": "言語カテゴリ",
   "fontLanguageAll": "すべて",
+  "fontFavorites": "お気に入り",
+  "noFavoriteFonts": "お気に入りのフォントはまだありません。",
   "importPaletteTitle": "パレットをインポート",
   "cannotReadFile": "ファイルを読み取れません",
   "paletteImported": "パレットをインポートしました: {name}",

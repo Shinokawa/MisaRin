@@ -1691,6 +1691,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fontLanguageAll => '全部';
 
   @override
+  String get fontFavorites => '收藏';
+
+  @override
+  String get noFavoriteFonts => '暂无收藏字体。';
+
+  @override
   String get importPaletteTitle => 'Import Palette';
 
   @override
@@ -2444,6 +2450,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get fontLanguageAll => '全部';
+
+  @override
+  String get fontFavorites => '收藏';
+
+  @override
+  String get noFavoriteFonts => '暂无收藏字体。';
 
   @override
   String get importPaletteTitle => '导入调色板';
@@ -3251,6 +3263,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get fontLanguageAll => '全部';
+
+  @override
+  String get fontFavorites => '收藏';
+
+  @override
+  String get noFavoriteFonts => '尚無收藏字體。';
 
   @override
   String get importPaletteTitle => '匯入調色盤';

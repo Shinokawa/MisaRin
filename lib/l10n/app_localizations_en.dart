@@ -1772,6 +1772,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fontLanguageAll => 'All';
 
   @override
+  String get fontFavorites => 'Favorites';
+
+  @override
+  String get noFavoriteFonts => 'No favorite fonts yet.';
+
+  @override
   String get importPaletteTitle => 'Import Palette';
 
   @override

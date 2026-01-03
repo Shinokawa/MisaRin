@@ -3266,6 +3266,18 @@ abstract class AppLocalizations {
   /// **'All'**
   String get fontLanguageAll;
 
+  /// No description provided for @fontFavorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get fontFavorites;
+
+  /// No description provided for @noFavoriteFonts.
+  ///
+  /// In en, this message translates to:
+  /// **'No favorite fonts yet.'**
+  String get noFavoriteFonts;
+
   /// No description provided for @importPaletteTitle.
   ///
   /// In en, this message translates to:
