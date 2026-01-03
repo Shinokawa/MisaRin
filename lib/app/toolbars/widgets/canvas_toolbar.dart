@@ -421,7 +421,8 @@ class _CanvasToolbarScrollArea extends StatefulWidget {
   final Widget child;
 
   @override
-  State<_CanvasToolbarScrollArea> createState() => _CanvasToolbarScrollAreaState();
+  State<_CanvasToolbarScrollArea> createState() =>
+      _CanvasToolbarScrollAreaState();
 }
 
 class _CanvasToolbarScrollAreaState extends State<_CanvasToolbarScrollArea> {
@@ -441,15 +442,15 @@ class _CanvasToolbarScrollAreaState extends State<_CanvasToolbarScrollArea> {
 
   @override
   Widget build(BuildContext context) {
-    return Scrollbar(
-      controller: _controller,
+    final ScrollBehavior behavior = ScrollConfiguration.of(
+      context,
+    ).copyWith(scrollbars: false);
+    return ScrollConfiguration(
+      behavior: behavior,
       child: SingleChildScrollView(
         controller: _controller,
         primary: false,
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: widget.child,
-        ),
+        child: Align(alignment: Alignment.topLeft, child: widget.child),
       ),
     );
   }

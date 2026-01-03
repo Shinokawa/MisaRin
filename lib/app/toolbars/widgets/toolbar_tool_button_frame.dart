@@ -71,17 +71,7 @@ class _ToolbarToolButtonFrameState extends State<ToolbarToolButtonFrame> {
         : (showHover ? hoverIcon : baseIcon);
 
     final List<BoxShadow> shadows = <BoxShadow>[];
-    if (widget.isSelected) {
-      shadows.add(
-        BoxShadow(
-          color:
-              Color.lerp(Colors.transparent, accent, isDark ? 0.45 : 0.28) ??
-              Colors.transparent,
-          blurRadius: 9,
-          offset: const Offset(0, 4),
-        ),
-      );
-    } else if (showHover) {
+    if (showHover) {
       shadows.add(
         BoxShadow(
           color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
