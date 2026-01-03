@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../../canvas/canvas_tools.dart';
 import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
+import '../../dialogs/font_family_picker_dialog.dart';
 import '../../l10n/l10n.dart';
 import '../../preferences/app_preferences.dart'
     show BucketSwallowColorLineMode, PenStrokeSliderRange;
@@ -908,28 +909,36 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required String selectedFont,
     required bool isLoading,
   }) {
-    final ComboBox<String> comboBox = ComboBox<String>(
-      value: selectedFont,
-      isExpanded: true,
-      items: fontOptions
-          .map(
-            (family) => ComboBoxItem<String>(
-              value: family,
-              child: Text(
-                _sanitizeDisplayText(family),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-              ),
+    Future<void> openFontPicker() async {
+      final String? picked = await showFontFamilyPickerDialog(
+        context,
+        fontFamilies: fontOptions,
+        selectedFamily: selectedFont,
+        isLoading: isLoading,
+        initialPreviewSize: widget.textFontSize,
+      );
+      if (!mounted || picked == null) {
+        return;
+      }
+      widget.onTextFontFamilyChanged(picked == 'System Default' ? '' : picked);
+    }
+
+    final Button pickerButton = Button(
+      onPressed: openFontPicker,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _sanitizeDisplayText(selectedFont),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
             ),
-          )
-          .toList(growable: false),
-      onChanged: (value) {
-        if (value == null) {
-          return;
-        }
-        widget.onTextFontFamilyChanged(value == 'System Default' ? '' : value);
-      },
+          ),
+          const SizedBox(width: 8),
+          const Icon(FluentIcons.search, size: 14),
+        ],
+      ),
     );
 
     final Widget loadingIndicator = SizedBox(
@@ -945,7 +954,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         children: [
           Text(context.l10n.fontFamily, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          SizedBox(width: 220, child: comboBox),
+          SizedBox(width: 220, child: pickerButton),
           if (isLoading) ...[const SizedBox(width: 8), loadingIndicator],
         ],
       );
@@ -958,7 +967,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: comboBox),
+            Expanded(child: pickerButton),
             if (isLoading) ...[const SizedBox(width: 8), loadingIndicator],
           ],
         ),

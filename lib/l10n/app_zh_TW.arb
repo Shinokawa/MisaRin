@@ -250,6 +250,10 @@
   "scanPaperDrawingNoChanges": "未偵測到可轉換的像素。",
 
   "fontFamily": "字體系列",
+  "fontSearchPlaceholder": "搜尋字體...",
+  "noMatchingFonts": "沒有符合的字體。",
+  "fontPreviewText": "預覽文字",
+  "fontPreviewLanguages": "測試語言",
   "importPaletteTitle": "匯入調色盤",
   "cannotReadFile": "無法讀取檔案",
   "paletteImported": "已匯入調色盤：{name}",

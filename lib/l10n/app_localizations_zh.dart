@@ -1673,6 +1673,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fontFamily => '字体';
 
   @override
+  String get fontSearchPlaceholder => '搜索字体...';
+
+  @override
+  String get noMatchingFonts => '没有匹配的字体。';
+
+  @override
+  String get fontPreviewText => '预览文本';
+
+  @override
+  String get fontPreviewLanguages => '测试语言';
+
+  @override
   String get importPaletteTitle => 'Import Palette';
 
   @override
@@ -2408,6 +2420,18 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get fontFamily => '字体系列';
+
+  @override
+  String get fontSearchPlaceholder => '搜索字体...';
+
+  @override
+  String get noMatchingFonts => '没有匹配的字体。';
+
+  @override
+  String get fontPreviewText => '预览文本';
+
+  @override
+  String get fontPreviewLanguages => '测试语言';
 
   @override
   String get importPaletteTitle => '导入调色板';
@@ -3197,6 +3221,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get fontFamily => '字體系列';
+
+  @override
+  String get fontSearchPlaceholder => '搜尋字體...';
+
+  @override
+  String get noMatchingFonts => '沒有符合的字體。';
+
+  @override
+  String get fontPreviewText => '預覽文字';
+
+  @override
+  String get fontPreviewLanguages => '測試語言';
 
   @override
   String get importPaletteTitle => '匯入調色盤';

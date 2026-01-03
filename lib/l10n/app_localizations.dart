@@ -3230,6 +3230,30 @@ abstract class AppLocalizations {
   /// **'Font Family'**
   String get fontFamily;
 
+  /// No description provided for @fontSearchPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Search fonts...'**
+  String get fontSearchPlaceholder;
+
+  /// No description provided for @noMatchingFonts.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching fonts.'**
+  String get noMatchingFonts;
+
+  /// No description provided for @fontPreviewText.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview text'**
+  String get fontPreviewText;
+
+  /// No description provided for @fontPreviewLanguages.
+  ///
+  /// In en, this message translates to:
+  /// **'Test languages'**
+  String get fontPreviewLanguages;
+
   /// No description provided for @importPaletteTitle.
   ///
   /// In en, this message translates to:

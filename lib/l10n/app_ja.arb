@@ -801,6 +801,10 @@
   "maximizeRestore": "最大化/元に戻す",
 
   "fontFamily": "フォントファミリー",
+  "fontSearchPlaceholder": "フォントを検索...",
+  "noMatchingFonts": "一致するフォントがありません。",
+  "fontPreviewText": "プレビュー文",
+  "fontPreviewLanguages": "テスト言語",
   "importPaletteTitle": "パレットをインポート",
   "cannotReadFile": "ファイルを読み取れません",
   "paletteImported": "パレットをインポートしました: {name}",

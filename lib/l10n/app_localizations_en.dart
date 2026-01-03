@@ -1754,6 +1754,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fontFamily => 'Font Family';
 
   @override
+  String get fontSearchPlaceholder => 'Search fonts...';
+
+  @override
+  String get noMatchingFonts => 'No matching fonts.';
+
+  @override
+  String get fontPreviewText => 'Preview text';
+
+  @override
+  String get fontPreviewLanguages => 'Test languages';
+
+  @override
   String get importPaletteTitle => 'Import Palette';
 
   @override

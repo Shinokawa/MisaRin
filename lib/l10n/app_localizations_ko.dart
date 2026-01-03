@@ -1699,6 +1699,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get fontFamily => '글꼴';
 
   @override
+  String get fontSearchPlaceholder => '글꼴 검색...';
+
+  @override
+  String get noMatchingFonts => '일치하는 글꼴이 없습니다.';
+
+  @override
+  String get fontPreviewText => '미리보기 텍스트';
+
+  @override
+  String get fontPreviewLanguages => '테스트 언어';
+
+  @override
   String get importPaletteTitle => '팔레트 가져오기';
 
   @override

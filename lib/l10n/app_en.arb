@@ -800,6 +800,10 @@
   "minimize": "Minimize",
   "maximizeRestore": "Maximize/Restore",
   "fontFamily": "Font Family",
+  "fontSearchPlaceholder": "Search fonts...",
+  "noMatchingFonts": "No matching fonts.",
+  "fontPreviewText": "Preview text",
+  "fontPreviewLanguages": "Test languages",
 
   "importPaletteTitle": "Import Palette",
   "cannotReadFile": "Cannot read file",

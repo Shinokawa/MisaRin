@@ -1688,6 +1688,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get fontFamily => 'フォントファミリー';
 
   @override
+  String get fontSearchPlaceholder => 'フォントを検索...';
+
+  @override
+  String get noMatchingFonts => '一致するフォントがありません。';
+
+  @override
+  String get fontPreviewText => 'プレビュー文';
+
+  @override
+  String get fontPreviewLanguages => 'テスト言語';
+
+  @override
   String get importPaletteTitle => 'パレットをインポート';
 
   @override

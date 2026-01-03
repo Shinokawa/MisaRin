@@ -799,5 +799,9 @@
   "defaultProjectDirectory": "默认项目目录",
   "minimize": "最小化",
   "maximizeRestore": "最大化/还原",
-  "fontFamily": "字体"
+  "fontFamily": "字体",
+  "fontSearchPlaceholder": "搜索字体...",
+  "noMatchingFonts": "没有匹配的字体。",
+  "fontPreviewText": "预览文本",
+  "fontPreviewLanguages": "测试语言"
 }

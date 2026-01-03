@@ -242,6 +242,10 @@
   "menuInvertColors": "颜色反转",
 
   "fontFamily": "字体系列",
+  "fontSearchPlaceholder": "搜索字体...",
+  "noMatchingFonts": "没有匹配的字体。",
+  "fontPreviewText": "预览文本",
+  "fontPreviewLanguages": "测试语言",
   "importPaletteTitle": "导入调色板",
   "cannotReadFile": "无法读取文件",
   "paletteImported": "已导入调色板：{name}",
