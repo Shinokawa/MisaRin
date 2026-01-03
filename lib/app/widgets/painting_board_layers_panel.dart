@@ -345,7 +345,10 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       }
       return Row(
         children: [
-          SizedBox(width: 52, child: Text(context.l10n.blendMode, style: labelStyle)),
+          SizedBox(
+            width: 52,
+            child: Text(context.l10n.blendMode, style: labelStyle),
+          ),
           const SizedBox(width: 8),
           Expanded(child: dropdown),
         ],
@@ -604,19 +607,31 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                         layerTileDimStates[layer.id] ?? !layer.visible;
                     final double contentOpacity = tileDimmed ? 0.45 : 1.0;
                     final bool isTextLayer = layer.text != null;
+                    final bool isDark = theme.brightness.isDark;
+                    final Color accent = theme.accentColor.defaultBrushFor(
+                      theme.brightness,
+                    );
+                    final Color activeOverlay = isDark
+                        ? theme.resources.subtleFillColorSecondary
+                        : accent.withValues(alpha: accent.a * 0.12);
                     final Color background = isActive
-                        ? Color.alphaBlend(
-                            theme.resources.subtleFillColorSecondary,
-                            tileBaseColor,
-                          )
+                        ? Color.alphaBlend(activeOverlay, tileBaseColor)
                         : tileBaseColor;
                     final Color borderColor =
                         theme.resources.controlStrokeColorSecondary;
-                    final Color tileBorder = Color.lerp(
+                    final Color baseTileBorder = Color.lerp(
                       borderColor,
                       Colors.transparent,
                       0.6,
                     )!;
+                    final Color tileBorder = isActive
+                        ? Color.lerp(
+                                baseTileBorder,
+                                accent,
+                                isDark ? 0.45 : 0.75,
+                              ) ??
+                              baseTileBorder
+                        : baseTileBorder;
 
                     final bool layerLocked = layer.locked;
                     final bool canMergeDown = _canMergeLayerDown(layer);
@@ -625,7 +640,9 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                     final l10n = context.l10n;
                     _ensureLayerPreview(layer);
                     final ui.Image? layerPreview = _layerPreviewImage(layer.id);
-                    final String lockTooltip = layerLocked ? l10n.unlockLayer : l10n.lockLayer;
+                    final String lockTooltip = layerLocked
+                        ? l10n.unlockLayer
+                        : l10n.lockLayer;
                     final String lockDetail = layerLocked
                         ? l10n.unlockLayerDesc
                         : l10n.lockLayerDesc;
