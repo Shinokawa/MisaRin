@@ -1711,6 +1711,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get fontPreviewLanguages => '테스트 언어';
 
   @override
+  String get fontLanguageCategory => '언어 분류';
+
+  @override
+  String get fontLanguageAll => '전체';
+
+  @override
   String get importPaletteTitle => '팔레트 가져오기';
 
   @override

@@ -803,5 +803,7 @@
   "fontSearchPlaceholder": "搜索字体...",
   "noMatchingFonts": "没有匹配的字体。",
   "fontPreviewText": "预览文本",
-  "fontPreviewLanguages": "测试语言"
+  "fontPreviewLanguages": "测试语言",
+  "fontLanguageCategory": "语言分类",
+  "fontLanguageAll": "全部"
 }

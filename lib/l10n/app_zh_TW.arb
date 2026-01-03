@@ -254,6 +254,8 @@
   "noMatchingFonts": "沒有符合的字體。",
   "fontPreviewText": "預覽文字",
   "fontPreviewLanguages": "測試語言",
+  "fontLanguageCategory": "語言分類",
+  "fontLanguageAll": "全部",
   "importPaletteTitle": "匯入調色盤",
   "cannotReadFile": "無法讀取檔案",
   "paletteImported": "已匯入調色盤：{name}",

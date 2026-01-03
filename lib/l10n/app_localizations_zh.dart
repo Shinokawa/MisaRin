@@ -1685,6 +1685,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fontPreviewLanguages => '测试语言';
 
   @override
+  String get fontLanguageCategory => '语言分类';
+
+  @override
+  String get fontLanguageAll => '全部';
+
+  @override
   String get importPaletteTitle => 'Import Palette';
 
   @override
@@ -2432,6 +2438,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get fontPreviewLanguages => '测试语言';
+
+  @override
+  String get fontLanguageCategory => '语言分类';
+
+  @override
+  String get fontLanguageAll => '全部';
 
   @override
   String get importPaletteTitle => '导入调色板';
@@ -3233,6 +3245,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get fontPreviewLanguages => '測試語言';
+
+  @override
+  String get fontLanguageCategory => '語言分類';
+
+  @override
+  String get fontLanguageAll => '全部';
 
   @override
   String get importPaletteTitle => '匯入調色盤';

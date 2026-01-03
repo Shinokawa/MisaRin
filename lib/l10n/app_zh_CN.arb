@@ -246,6 +246,8 @@
   "noMatchingFonts": "没有匹配的字体。",
   "fontPreviewText": "预览文本",
   "fontPreviewLanguages": "测试语言",
+  "fontLanguageCategory": "语言分类",
+  "fontLanguageAll": "全部",
   "importPaletteTitle": "导入调色板",
   "cannotReadFile": "无法读取文件",
   "paletteImported": "已导入调色板：{name}",

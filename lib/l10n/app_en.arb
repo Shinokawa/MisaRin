@@ -804,6 +804,8 @@
   "noMatchingFonts": "No matching fonts.",
   "fontPreviewText": "Preview text",
   "fontPreviewLanguages": "Test languages",
+  "fontLanguageCategory": "Language category",
+  "fontLanguageAll": "All",
 
   "importPaletteTitle": "Import Palette",
   "cannotReadFile": "Cannot read file",

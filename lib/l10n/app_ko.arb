@@ -805,6 +805,8 @@
   "noMatchingFonts": "일치하는 글꼴이 없습니다.",
   "fontPreviewText": "미리보기 텍스트",
   "fontPreviewLanguages": "테스트 언어",
+  "fontLanguageCategory": "언어 분류",
+  "fontLanguageAll": "전체",
   "importPaletteTitle": "팔레트 가져오기",
   "cannotReadFile": "파일을 읽을 수 없습니다",
   "paletteImported": "팔레트를 가져왔습니다: {name}",

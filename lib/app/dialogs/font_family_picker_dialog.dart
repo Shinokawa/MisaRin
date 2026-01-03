@@ -4,6 +4,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../l10n/l10n.dart';
 
+enum _FontLanguageCategory { all, latin, zhHans, zhHant, ja, ko }
+
 Future<String?> showFontFamilyPickerDialog(
   BuildContext context, {
   required List<String> fontFamilies,
@@ -50,6 +52,34 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
   static const String _sampleJa = '日本語：こんにちは世界！';
   static const String _sampleKo = '한국어: 안녕하세요 세계!';
 
+  static const int _langZhHans = 1 << 0;
+  static const int _langZhHant = 1 << 1;
+  static const int _langJa = 1 << 2;
+  static const int _langKo = 1 << 3;
+  static const int _langCjk =
+      _langZhHans | _langZhHant | _langJa | _langKo;
+
+  static final RegExp _cjkNamePattern = RegExp(
+    r'(cjk|source\s*han|sourcehan|noto\s*sans\s*cjk|noto\s*serif\s*cjk|han\s*sans|han\s*serif)',
+    caseSensitive: false,
+  );
+  static final RegExp _zhHansNamePattern = RegExp(
+    r'(\bsc\b|\bchs\b|\bhans\b|\bsimplified\b|pingfang\s*sc|pingfangsc|yahei|simsun|simhei|heiti\s*sc|songti\s*sc|fangsong|kaiti)',
+    caseSensitive: false,
+  );
+  static final RegExp _zhHantNamePattern = RegExp(
+    r'(\btc\b|\bcht\b|\bhant\b|\btraditional\b|pingfang\s*tc|pingfangtc|pingfang\s*hk|pingfanghk|jhenghei|mingliu|pmingliu|heiti\s*tc|songti\s*tc)',
+    caseSensitive: false,
+  );
+  static final RegExp _jaNamePattern = RegExp(
+    r'(\bjp\b|\bjapanese\b|hiragino|meiryo|yu\s*gothic|yugothic|ms\s*gothic|ms\s*mincho)',
+    caseSensitive: false,
+  );
+  static final RegExp _koNamePattern = RegExp(
+    r'(\bkr\b|\bkorean\b|malgun|nanum|apple\s*sd\s*gothic|gulim|dotum|batang)',
+    caseSensitive: false,
+  );
+
   late final TextEditingController _searchController;
   late final TextEditingController _previewController;
   late final ScrollController _scrollController;
@@ -58,6 +88,7 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
   late List<_FontFamilyEntry> _filteredEntries;
   late String _selectedFamily;
   late double _previewSize;
+  _FontLanguageCategory _languageCategory = _FontLanguageCategory.all;
   bool _includeLatin = true;
   bool _includeZhHans = true;
   bool _includeZhHant = true;
@@ -81,6 +112,7 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
             family: family,
             display: display,
             displayLower: display.toLowerCase(),
+            languageTags: _detectLanguageTags(family),
           );
         })
         .toList(growable: false);
@@ -106,29 +138,78 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
 
   void _applySearch() {
     final String query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) {
-      setState(() => _filteredEntries = _entries);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        _scrollToSelected();
-      });
-      return;
-    }
-    setState(() {
-      _filteredEntries = _entries
-          .where((entry) => entry.displayLower.contains(query))
-          .toList(growable: false);
-    });
+    final Iterable<_FontFamilyEntry> candidates = _entries.where(
+      (entry) => _matchesLanguageCategory(entry, _languageCategory),
+    );
+    final List<_FontFamilyEntry> nextEntries = query.isEmpty
+        ? candidates.toList(growable: false)
+        : candidates
+            .where((entry) => entry.displayLower.contains(query))
+            .toList(growable: false);
+    setState(() => _filteredEntries = nextEntries);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
-      if (_scrollController.hasClients) {
+      if (query.isEmpty) {
+        _scrollToSelected();
+        return;
+      }
+      if (_scrollController.hasClients && _filteredEntries.isNotEmpty) {
         _scrollController.jumpTo(0);
       }
     });
+  }
+
+  bool _matchesLanguageCategory(
+    _FontFamilyEntry entry,
+    _FontLanguageCategory category,
+  ) {
+    if (entry.family == 'System Default') {
+      return true;
+    }
+    switch (category) {
+      case _FontLanguageCategory.all:
+        return true;
+      case _FontLanguageCategory.latin:
+        return entry.languageTags == 0;
+      case _FontLanguageCategory.zhHans:
+        return (entry.languageTags & _langZhHans) != 0;
+      case _FontLanguageCategory.zhHant:
+        return (entry.languageTags & _langZhHant) != 0;
+      case _FontLanguageCategory.ja:
+        return (entry.languageTags & _langJa) != 0;
+      case _FontLanguageCategory.ko:
+        return (entry.languageTags & _langKo) != 0;
+    }
+  }
+
+  int _detectLanguageTags(String family) {
+    if (family == 'System Default') {
+      return _langCjk;
+    }
+    final String normalized = family
+        .toLowerCase()
+        .replaceAll(RegExp(r'[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (_cjkNamePattern.hasMatch(normalized)) {
+      return _langCjk;
+    }
+    int tags = 0;
+    if (_zhHansNamePattern.hasMatch(normalized)) {
+      tags |= _langZhHans;
+    }
+    if (_zhHantNamePattern.hasMatch(normalized)) {
+      tags |= _langZhHant;
+    }
+    if (_jaNamePattern.hasMatch(normalized)) {
+      tags |= _langJa;
+    }
+    if (_koNamePattern.hasMatch(normalized)) {
+      tags |= _langKo;
+    }
+    return tags;
   }
 
   void _scrollToSelected() {
@@ -137,7 +218,11 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
     }
     final int index =
         _filteredEntries.indexWhere((entry) => entry.family == _selectedFamily);
-    if (index <= 0) {
+    if (index < 0) {
+      _scrollController.jumpTo(0);
+      return;
+    }
+    if (index == 0) {
       return;
     }
     final double target = math.max(0.0, (index - 3) * _listItemExtent);
@@ -281,6 +366,40 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
       controller: _searchController,
       autofocus: true,
       placeholder: l10n.fontSearchPlaceholder,
+    );
+
+    Widget buildCategoryToggle(
+      _FontLanguageCategory category,
+      String label,
+    ) {
+      final bool selected = _languageCategory == category;
+      return ToggleButton(
+        checked: selected,
+        onChanged: (value) {
+          if (!value) {
+            return;
+          }
+          setState(() => _languageCategory = category);
+          _applySearch();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text(label),
+        ),
+      );
+    }
+
+    final Widget languageCategorySelector = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        buildCategoryToggle(_FontLanguageCategory.all, l10n.fontLanguageAll),
+        buildCategoryToggle(_FontLanguageCategory.latin, 'EN+123'),
+        buildCategoryToggle(_FontLanguageCategory.zhHans, '简体'),
+        buildCategoryToggle(_FontLanguageCategory.zhHant, '繁體'),
+        buildCategoryToggle(_FontLanguageCategory.ja, '日本語'),
+        buildCategoryToggle(_FontLanguageCategory.ko, '한국어'),
+      ],
     );
 
     final Widget fontList = Container(
@@ -472,6 +591,16 @@ class _FontFamilyPickerDialogState extends State<FontFamilyPickerDialog> {
             child: Column(
               children: [
                 searchBox,
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    l10n.fontLanguageCategory,
+                    style: theme.typography.caption,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                languageCategorySelector,
                 const SizedBox(height: 12),
                 Expanded(child: fontList),
               ],
@@ -528,9 +657,11 @@ class _FontFamilyEntry {
     required this.family,
     required this.display,
     required this.displayLower,
+    required this.languageTags,
   });
 
   final String family;
   final String display;
   final String displayLower;
+  final int languageTags;
 }

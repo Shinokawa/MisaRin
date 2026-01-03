@@ -1700,6 +1700,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get fontPreviewLanguages => 'テスト言語';
 
   @override
+  String get fontLanguageCategory => '言語カテゴリ';
+
+  @override
+  String get fontLanguageAll => 'すべて';
+
+  @override
   String get importPaletteTitle => 'パレットをインポート';
 
   @override

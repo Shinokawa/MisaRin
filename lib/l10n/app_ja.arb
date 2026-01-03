@@ -805,6 +805,8 @@
   "noMatchingFonts": "一致するフォントがありません。",
   "fontPreviewText": "プレビュー文",
   "fontPreviewLanguages": "テスト言語",
+  "fontLanguageCategory": "言語カテゴリ",
+  "fontLanguageAll": "すべて",
   "importPaletteTitle": "パレットをインポート",
   "cannotReadFile": "ファイルを読み取れません",
   "paletteImported": "パレットをインポートしました: {name}",

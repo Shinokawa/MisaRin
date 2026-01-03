@@ -1766,6 +1766,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fontPreviewLanguages => 'Test languages';
 
   @override
+  String get fontLanguageCategory => 'Language category';
+
+  @override
+  String get fontLanguageAll => 'All';
+
+  @override
   String get importPaletteTitle => 'Import Palette';
 
   @override

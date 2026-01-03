@@ -3254,6 +3254,18 @@ abstract class AppLocalizations {
   /// **'Test languages'**
   String get fontPreviewLanguages;
 
+  /// No description provided for @fontLanguageCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Language category'**
+  String get fontLanguageCategory;
+
+  /// No description provided for @fontLanguageAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get fontLanguageAll;
+
   /// No description provided for @importPaletteTitle.
   ///
   /// In en, this message translates to:
