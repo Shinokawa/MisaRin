@@ -28,7 +28,12 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
 
   ui.Image? _referenceModelTexture;
   bool _referenceModelTextureLoading = false;
-  Timer? _referenceModelTextureDebounce;
+  bool _referenceModelTextureDirty = false;
+  bool _referenceModelTextureSyncScheduled = false;
+  int? _referenceModelTextureLastAppliedGeneration;
+
+  final List<ui.Image> _referenceModelTexturePendingDisposals = <ui.Image>[];
+  bool _referenceModelTextureDisposalScheduled = false;
 
   bool _referenceModelImportInProgress = false;
   bool _referenceModelBuiltinLoadInProgress = false;
@@ -302,20 +307,38 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     if (_referenceModelTexture != null) {
       return;
     }
-    await _refreshReferenceModelTexture(showSuccessToast: false);
+    await _refreshReferenceModelTexture(showSuccessToast: false, force: true);
   }
 
   Future<void> _refreshReferenceModelTexture({
     bool showSuccessToast = true,
+    bool force = false,
   }) async {
-    if (_referenceModelTextureLoading) {
-      AppNotifications.show(
-        context,
-        message: '正在更新模型贴图，请稍候…',
-        severity: InfoBarSeverity.info,
-      );
+    if (_referenceModelCards.isEmpty && !force) {
       return;
     }
+    if (_referenceModelTextureLoading) {
+      _referenceModelTextureDirty = true;
+      if (showSuccessToast) {
+        AppNotifications.show(
+          context,
+          message: '正在更新模型贴图，请稍候…',
+          severity: InfoBarSeverity.info,
+        );
+      }
+      return;
+    }
+    final int? generation = _controller.frame?.generation;
+    if (!force &&
+        generation != null &&
+        _referenceModelTexture != null &&
+        _referenceModelTextureLastAppliedGeneration == generation) {
+      _referenceModelTextureDirty = false;
+      return;
+    }
+    // Clear the dirty flag now; if another change arrives while we are doing
+    // work, the scheduler will mark it dirty again and re-run after completion.
+    _referenceModelTextureDirty = false;
     _referenceModelTextureLoading = true;
     try {
       final ui.Image image = await _controller.snapshotImage();
@@ -323,10 +346,15 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
         image.dispose();
         return;
       }
+      final ui.Image? previous = _referenceModelTexture;
       setState(() {
-        _referenceModelTexture?.dispose();
         _referenceModelTexture = image;
       });
+      _scheduleWorkspaceCardsOverlaySync();
+      if (previous != null && !previous.debugDisposed) {
+        _enqueueReferenceModelTextureDisposal(previous);
+      }
+      _referenceModelTextureLastAppliedGeneration = generation;
       if (showSuccessToast) {
         AppNotifications.show(
           context,
@@ -346,6 +374,9 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
       );
     } finally {
       _referenceModelTextureLoading = false;
+      if (_referenceModelTextureDirty) {
+        _scheduleReferenceModelTextureRefresh();
+      }
     }
   }
 
@@ -353,15 +384,40 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     if (_referenceModelCards.isEmpty) {
       return;
     }
-    if (_referenceModelTextureLoading) {
+    _referenceModelTextureDirty = true;
+    if (_referenceModelTextureSyncScheduled) {
       return;
     }
-    _referenceModelTextureDebounce?.cancel();
-    _referenceModelTextureDebounce = Timer(const Duration(milliseconds: 180), () {
+    _referenceModelTextureSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _referenceModelTextureSyncScheduled = false;
       if (!mounted || _referenceModelCards.isEmpty) {
         return;
       }
       unawaited(_refreshReferenceModelTexture(showSuccessToast: false));
+    });
+  }
+
+  void _enqueueReferenceModelTextureDisposal(ui.Image image) {
+    _referenceModelTexturePendingDisposals.add(image);
+    if (_referenceModelTextureDisposalScheduled) {
+      return;
+    }
+    _referenceModelTextureDisposalScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _referenceModelTextureDisposalScheduled = false;
+      if (_referenceModelTexturePendingDisposals.isEmpty) {
+        return;
+      }
+      final List<ui.Image> pending = List<ui.Image>.from(
+        _referenceModelTexturePendingDisposals,
+      );
+      _referenceModelTexturePendingDisposals.clear();
+      for (final ui.Image image in pending) {
+        if (!image.debugDisposed) {
+          image.dispose();
+        }
+      }
     });
   }
 
@@ -399,15 +455,17 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     if (index < 0) {
       return;
     }
+    final bool wasLast = _referenceModelCards.length == 1;
+    final ui.Image? texture = wasLast ? _referenceModelTexture : null;
     setState(() {
       _referenceModelCards.removeAt(index);
       if (_referenceModelCards.isEmpty) {
-        _referenceModelTextureDebounce?.cancel();
-        _referenceModelTextureDebounce = null;
-        _referenceModelTexture?.dispose();
         _referenceModelTexture = null;
       }
     });
+    if (texture != null && !texture.debugDisposed) {
+      _enqueueReferenceModelTextureDisposal(texture);
+    }
     _scheduleWorkspaceCardsOverlaySync();
   }
 
@@ -480,8 +538,16 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   }
 
   void _disposeReferenceModelCards() {
-    _referenceModelTextureDebounce?.cancel();
-    _referenceModelTextureDebounce = null;
+    for (final ui.Image image in _referenceModelTexturePendingDisposals) {
+      if (!image.debugDisposed) {
+        image.dispose();
+      }
+    }
+    _referenceModelTexturePendingDisposals.clear();
+    _referenceModelTextureDisposalScheduled = false;
+    _referenceModelTextureSyncScheduled = false;
+    _referenceModelTextureDirty = false;
+    _referenceModelTextureLastAppliedGeneration = null;
     _referenceModelTexture?.dispose();
     _referenceModelTexture = null;
     _referenceModelCards.clear();
@@ -673,12 +739,13 @@ class _BedrockModelPainter extends CustomPainter {
     }
 
     final ui.Image? tex = texture;
+    final bool hasTexture = tex != null && !tex.debugDisposed;
     final double uScale =
-        tex != null && modelTextureWidth > 0
+        hasTexture && modelTextureWidth > 0
             ? tex.width / modelTextureWidth
             : 1.0;
     final double vScale =
-        tex != null && modelTextureHeight > 0
+        hasTexture && modelTextureHeight > 0
             ? tex.height / modelTextureHeight
             : 1.0;
 
@@ -745,7 +812,7 @@ class _BedrockModelPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(Offset.zero & size);
 
-    if (tex == null) {
+    if (!hasTexture) {
       final Paint wire = Paint()
         ..color = const Color(0xFF4D4D4D)
         ..style = PaintingStyle.stroke
@@ -765,7 +832,7 @@ class _BedrockModelPainter extends CustomPainter {
     final Paint paint = Paint()
       ..filterQuality = FilterQuality.none
       ..shader = ui.ImageShader(
-        tex,
+        tex!,
         ui.TileMode.clamp,
         ui.TileMode.clamp,
         Matrix4.identity().storage,
