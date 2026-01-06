@@ -430,6 +430,48 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuImportReferenceModelEllipsis => '导入模型…';
 
   @override
+  String get referenceModelRefreshTexture => '刷新贴图';
+
+  @override
+  String get referenceModelRefreshTextureDesc => '从当前画布生成模型贴图';
+
+  @override
+  String get referenceModelResetView => '重置视角';
+
+  @override
+  String get referenceModelResetViewDesc => '恢复默认旋转与缩放';
+
+  @override
+  String get referenceModelSixView => '六视图';
+
+  @override
+  String get referenceModelSixViewDesc => '在视口内以 2×3 显示正/背/顶/底/左/右视图';
+
+  @override
+  String get referenceModelSingleView => '单视图';
+
+  @override
+  String get referenceModelSingleViewDesc => '返回可拖拽旋转的单视图';
+
+  @override
+  String get referenceModelViewFront => '正视图';
+
+  @override
+  String get referenceModelViewBack => '背视图';
+
+  @override
+  String get referenceModelViewTop => '顶视图';
+
+  @override
+  String get referenceModelViewBottom => '底视图';
+
+  @override
+  String get referenceModelViewLeft => '左视图';
+
+  @override
+  String get referenceModelViewRight => '右视图';
+
+  @override
   String get menuZoomIn => '放大';
 
   @override
@@ -2348,6 +2390,48 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get menuImportReferenceModelEllipsis => '导入模型…';
+
+  @override
+  String get referenceModelRefreshTexture => '刷新贴图';
+
+  @override
+  String get referenceModelRefreshTextureDesc => '从当前画布生成模型贴图';
+
+  @override
+  String get referenceModelResetView => '重置视角';
+
+  @override
+  String get referenceModelResetViewDesc => '恢复默认旋转与缩放';
+
+  @override
+  String get referenceModelSixView => '六视图';
+
+  @override
+  String get referenceModelSixViewDesc => '在视口内以 2×3 显示正/背/顶/底/左/右视图';
+
+  @override
+  String get referenceModelSingleView => '单视图';
+
+  @override
+  String get referenceModelSingleViewDesc => '返回可拖拽旋转的单视图';
+
+  @override
+  String get referenceModelViewFront => '正视图';
+
+  @override
+  String get referenceModelViewBack => '背视图';
+
+  @override
+  String get referenceModelViewTop => '顶视图';
+
+  @override
+  String get referenceModelViewBottom => '底视图';
+
+  @override
+  String get referenceModelViewLeft => '左视图';
+
+  @override
+  String get referenceModelViewRight => '右视图';
 
   @override
   String get menuZoomIn => '放大';

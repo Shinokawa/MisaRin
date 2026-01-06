@@ -878,6 +878,90 @@ abstract class AppLocalizations {
   /// **'Import Model…'**
   String get menuImportReferenceModelEllipsis;
 
+  /// No description provided for @referenceModelRefreshTexture.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Texture'**
+  String get referenceModelRefreshTexture;
+
+  /// No description provided for @referenceModelRefreshTextureDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate a model texture from the current canvas'**
+  String get referenceModelRefreshTextureDesc;
+
+  /// No description provided for @referenceModelResetView.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset View'**
+  String get referenceModelResetView;
+
+  /// No description provided for @referenceModelResetViewDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset rotation and zoom'**
+  String get referenceModelResetViewDesc;
+
+  /// No description provided for @referenceModelSixView.
+  ///
+  /// In en, this message translates to:
+  /// **'6 Views'**
+  String get referenceModelSixView;
+
+  /// No description provided for @referenceModelSixViewDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Split the viewport into a 2×3 grid (Front/Back/Top/Bottom/Left/Right)'**
+  String get referenceModelSixViewDesc;
+
+  /// No description provided for @referenceModelSingleView.
+  ///
+  /// In en, this message translates to:
+  /// **'Single View'**
+  String get referenceModelSingleView;
+
+  /// No description provided for @referenceModelSingleViewDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to single view (drag to rotate)'**
+  String get referenceModelSingleViewDesc;
+
+  /// No description provided for @referenceModelViewFront.
+  ///
+  /// In en, this message translates to:
+  /// **'Front View'**
+  String get referenceModelViewFront;
+
+  /// No description provided for @referenceModelViewBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back View'**
+  String get referenceModelViewBack;
+
+  /// No description provided for @referenceModelViewTop.
+  ///
+  /// In en, this message translates to:
+  /// **'Top View'**
+  String get referenceModelViewTop;
+
+  /// No description provided for @referenceModelViewBottom.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom View'**
+  String get referenceModelViewBottom;
+
+  /// No description provided for @referenceModelViewLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Left View'**
+  String get referenceModelViewLeft;
+
+  /// No description provided for @referenceModelViewRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Right View'**
+  String get referenceModelViewRight;
+
   /// No description provided for @menuZoomIn.
   ///
   /// In en, this message translates to:

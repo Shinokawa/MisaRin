@@ -623,6 +623,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
         ? const Color(0xFF101010)
         : const Color(0xFFF7F7F7);
     final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
+    final l10n = context.l10n;
 
     final Color gridLineColor = border.withValues(alpha: border.a * 0.55);
 
@@ -726,33 +727,49 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
         title: widget.title,
         width: _referenceModelCardWidth,
         headerActions: [
-          IconButton(
-            icon: const Icon(FluentIcons.refresh, size: 14),
-            iconButtonMode: IconButtonMode.small,
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+          HoverDetailTooltip(
+            message: l10n.referenceModelRefreshTexture,
+            detail: l10n.referenceModelRefreshTextureDesc,
+            child: IconButton(
+              icon: const Icon(FluentIcons.refresh, size: 14),
+              iconButtonMode: IconButtonMode.small,
+              style: ButtonStyle(
+                padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              ),
+              onPressed: widget.onRefreshTexture,
             ),
-            onPressed: widget.onRefreshTexture,
           ),
-          IconButton(
-            icon: const Icon(FluentIcons.reset, size: 14),
-            iconButtonMode: IconButtonMode.small,
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+          HoverDetailTooltip(
+            message: l10n.referenceModelResetView,
+            detail: l10n.referenceModelResetViewDesc,
+            child: IconButton(
+              icon: const Icon(FluentIcons.reset, size: 14),
+              iconButtonMode: IconButtonMode.small,
+              style: ButtonStyle(
+                padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              ),
+              onPressed: _resetView,
             ),
-            onPressed: _resetView,
           ),
-          IconButton(
-            icon: Icon(
-              FluentIcons.picture,
-              size: 14,
-              color: _multiViewEnabled ? accent : null,
+          HoverDetailTooltip(
+            message: _multiViewEnabled
+                ? l10n.referenceModelSingleView
+                : l10n.referenceModelSixView,
+            detail: _multiViewEnabled
+                ? l10n.referenceModelSingleViewDesc
+                : l10n.referenceModelSixViewDesc,
+            child: IconButton(
+              icon: Icon(
+                FluentIcons.picture,
+                size: 14,
+                color: _multiViewEnabled ? accent : null,
+              ),
+              iconButtonMode: IconButtonMode.small,
+              style: ButtonStyle(
+                padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              ),
+              onPressed: _toggleMultiView,
             ),
-            iconButtonMode: IconButtonMode.small,
-            style: ButtonStyle(
-              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-            ),
-            onPressed: _toggleMultiView,
           ),
         ],
         onClose: widget.onClose,
@@ -806,7 +823,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
                                   child: buildModelPaint(
                                     yaw: 0,
                                     pitch: 0,
-                                    label: '正视图',
+                                    label: l10n.referenceModelViewFront,
                                   ),
                                 ),
                               ),
@@ -821,7 +838,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
                                   child: buildModelPaint(
                                     yaw: math.pi,
                                     pitch: 0,
-                                    label: '背视图',
+                                    label: l10n.referenceModelViewBack,
                                   ),
                                 ),
                               ),
@@ -835,7 +852,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
                                   child: buildModelPaint(
                                     yaw: 0,
                                     pitch: -math.pi / 2,
-                                    label: '顶视图',
+                                    label: l10n.referenceModelViewTop,
                                   ),
                                 ),
                               ),
@@ -855,7 +872,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
                                   child: buildModelPaint(
                                     yaw: 0,
                                     pitch: math.pi / 2,
-                                    label: '底视图',
+                                    label: l10n.referenceModelViewBottom,
                                   ),
                                 ),
                               ),
@@ -869,7 +886,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
                                   child: buildModelPaint(
                                     yaw: -math.pi / 2,
                                     pitch: 0,
-                                    label: '左视图',
+                                    label: l10n.referenceModelViewLeft,
                                   ),
                                 ),
                               ),
@@ -877,7 +894,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
                                 child: buildModelPaint(
                                   yaw: math.pi / 2,
                                   pitch: 0,
-                                  label: '右视图',
+                                  label: l10n.referenceModelViewRight,
                                 ),
                               ),
                             ],

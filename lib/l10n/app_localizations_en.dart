@@ -442,6 +442,51 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuImportReferenceModelEllipsis => 'Import Model…';
 
   @override
+  String get referenceModelRefreshTexture => 'Refresh Texture';
+
+  @override
+  String get referenceModelRefreshTextureDesc =>
+      'Generate a model texture from the current canvas';
+
+  @override
+  String get referenceModelResetView => 'Reset View';
+
+  @override
+  String get referenceModelResetViewDesc => 'Reset rotation and zoom';
+
+  @override
+  String get referenceModelSixView => '6 Views';
+
+  @override
+  String get referenceModelSixViewDesc =>
+      'Split the viewport into a 2×3 grid (Front/Back/Top/Bottom/Left/Right)';
+
+  @override
+  String get referenceModelSingleView => 'Single View';
+
+  @override
+  String get referenceModelSingleViewDesc =>
+      'Back to single view (drag to rotate)';
+
+  @override
+  String get referenceModelViewFront => 'Front View';
+
+  @override
+  String get referenceModelViewBack => 'Back View';
+
+  @override
+  String get referenceModelViewTop => 'Top View';
+
+  @override
+  String get referenceModelViewBottom => 'Bottom View';
+
+  @override
+  String get referenceModelViewLeft => 'Left View';
+
+  @override
+  String get referenceModelViewRight => 'Right View';
+
+  @override
   String get menuZoomIn => 'Zoom In';
 
   @override

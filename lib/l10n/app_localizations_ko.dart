@@ -432,6 +432,48 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuImportReferenceModelEllipsis => '모델 가져오기…';
 
   @override
+  String get referenceModelRefreshTexture => '텍스처 새로고침';
+
+  @override
+  String get referenceModelRefreshTextureDesc => '현재 캔버스로부터 모델 텍스처 생성';
+
+  @override
+  String get referenceModelResetView => '시점 초기화';
+
+  @override
+  String get referenceModelResetViewDesc => '회전 및 확대/축소 초기화';
+
+  @override
+  String get referenceModelSixView => '6뷰';
+
+  @override
+  String get referenceModelSixViewDesc => '뷰포트를 2×3으로 분할(정/후/상/하/좌/우)';
+
+  @override
+  String get referenceModelSingleView => '단일 뷰';
+
+  @override
+  String get referenceModelSingleViewDesc => '단일 뷰로 돌아가기(드래그로 회전)';
+
+  @override
+  String get referenceModelViewFront => '정면';
+
+  @override
+  String get referenceModelViewBack => '후면';
+
+  @override
+  String get referenceModelViewTop => '상단';
+
+  @override
+  String get referenceModelViewBottom => '하단';
+
+  @override
+  String get referenceModelViewLeft => '좌측';
+
+  @override
+  String get referenceModelViewRight => '우측';
+
+  @override
   String get menuZoomIn => '확대';
 
   @override
