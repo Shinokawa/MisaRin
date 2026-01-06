@@ -419,6 +419,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuImportReferenceImageEllipsis => '参照画像をインポート…';
 
   @override
+  String get menuReferenceModel => '参照モデル';
+
+  @override
+  String get menuReferenceModelSteve => 'Steveモデル';
+
+  @override
+  String get menuReferenceModelAlex => 'Alexモデル';
+
+  @override
+  String get menuImportReferenceModelEllipsis => 'モデルをインポート…';
+
+  @override
   String get menuZoomIn => '拡大';
 
   @override

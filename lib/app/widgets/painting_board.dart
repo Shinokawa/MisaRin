@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
@@ -37,6 +38,7 @@ import 'package:flutter/services.dart'
         KeyUpEvent,
         LogicalKeyboardKey,
         LogicalKeySet,
+        rootBundle,
         TextInputFormatter,
         TextInputType,
         TextEditingValue,
@@ -67,12 +69,14 @@ import 'package:flutter/widgets.dart'
         WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
-import 'package:vector_math/vector_math_64.dart' show Matrix4;
+import 'package:path/path.dart' as p;
+import 'package:vector_math/vector_math_64.dart' show Matrix4, Vector3;
 import 'package:file_picker/file_picker.dart';
 
 import '../dialogs/misarin_dialog.dart';
 import '../l10n/l10n.dart';
 
+import '../../minecraft/bedrock_model.dart';
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/raster_frame.dart';
 import '../../bitmap_canvas/controller.dart';
@@ -139,6 +143,7 @@ part 'painting_board_widgets.dart';
 part 'painting_board_workspace_panel.dart';
 part 'painting_board_filters.dart';
 part 'painting_board_reference.dart';
+part 'painting_board_reference_model.dart';
 
 class _SyntheticStrokeSample {
   const _SyntheticStrokeSample({
@@ -435,6 +440,8 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
 
   bool _isInsideReferenceCardArea(Offset workspacePosition);
 
+  bool _isInsideReferenceModelCardArea(Offset workspacePosition);
+
   bool _isInsideAntialiasCardArea(Offset workspacePosition);
 
   bool _isInsideColorRangeCardArea(Offset workspacePosition);
@@ -442,6 +449,7 @@ abstract class _PaintingBoardBase extends State<PaintingBoard> {
   bool _isInsideWorkspacePanelArea(Offset workspacePosition) {
     return _isInsidePaletteCardArea(workspacePosition) ||
         _isInsideReferenceCardArea(workspacePosition) ||
+        _isInsideReferenceModelCardArea(workspacePosition) ||
         _isInsideAntialiasCardArea(workspacePosition) ||
         _isInsideColorRangeCardArea(workspacePosition);
   }
@@ -1911,6 +1919,7 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardColorMixin,
         _PaintingBoardPaletteMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardReferenceModelMixin,
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardSelectionMixin,
@@ -2002,6 +2011,7 @@ class PaintingBoardState extends _PaintingBoardBase
     disposeTextTool();
     _removeFilterOverlay(restoreOriginal: false);
     _disposeReferenceCards();
+    _disposeReferenceModelCards();
     disposeSelectionTicker();
     _controller.removeListener(_handleControllerChanged);
     unawaited(_controller.disposeController());
@@ -2422,6 +2432,7 @@ class PaintingBoardState extends _PaintingBoardBase
           _shapeVectorFillOverlayColor = null;
         });
       }
+      _scheduleReferenceModelTextureRefresh();
       return;
     }
     setState(() {
@@ -2432,6 +2443,7 @@ class PaintingBoardState extends _PaintingBoardBase
     });
     _syncRasterizeMenuAvailability();
     _notifyBoardReadyIfNeeded();
+    _scheduleReferenceModelTextureRefresh();
   }
 
   void _notifyBoardReadyIfNeeded() {

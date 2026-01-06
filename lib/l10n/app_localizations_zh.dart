@@ -418,6 +418,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuImportReferenceImageEllipsis => '导入参考图像…';
 
   @override
+  String get menuReferenceModel => '参考模型';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve模型';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex模型';
+
+  @override
+  String get menuImportReferenceModelEllipsis => '导入模型…';
+
+  @override
   String get menuZoomIn => '放大';
 
   @override
@@ -2326,6 +2338,18 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuImportReferenceImageEllipsis => '导入参考图像…';
 
   @override
+  String get menuReferenceModel => '参考模型';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve模型';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex模型';
+
+  @override
+  String get menuImportReferenceModelEllipsis => '导入模型…';
+
+  @override
   String get menuZoomIn => '放大';
 
   @override
@@ -3082,6 +3106,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuImportReferenceImageEllipsis => '匯入參考影像…';
+
+  @override
+  String get menuReferenceModel => '參考模型';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve模型';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex模型';
+
+  @override
+  String get menuImportReferenceModelEllipsis => '匯入模型…';
 
   @override
   String get menuZoomIn => '放大';

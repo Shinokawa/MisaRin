@@ -212,6 +212,11 @@
   "menuCreateReferenceImage": "\u5efa\u7acb\u53c3\u8003\u5f71\u50cf",
   "menuImportReferenceImageEllipsis": "\u532f\u5165\u53c3\u8003\u5f71\u50cf\u2026",
 
+  "menuReferenceModel": "\u53c3\u8003\u6a21\u578b",
+  "menuReferenceModelSteve": "Steve\u6a21\u578b",
+  "menuReferenceModelAlex": "Alex\u6a21\u578b",
+  "menuImportReferenceModelEllipsis": "\u532f\u5165\u6a21\u578b\u2026",
+
   "menuZoomIn": "\u653e\u5927",
   "menuZoomOut": "\u7e2e\u5c0f",
   "menuShowGrid": "\u986f\u793a\u7db2\u683c",

@@ -209,6 +209,11 @@
   "menuCreateReferenceImage": "参照画像を作成",
   "menuImportReferenceImageEllipsis": "参照画像をインポート\u2026",
 
+  "menuReferenceModel": "参照モデル",
+  "menuReferenceModelSteve": "Steveモデル",
+  "menuReferenceModelAlex": "Alexモデル",
+  "menuImportReferenceModelEllipsis": "モデルをインポート\u2026",
+
   "menuZoomIn": "拡大",
   "menuZoomOut": "縮小",
   "menuShowGrid": "グリッドを表示",

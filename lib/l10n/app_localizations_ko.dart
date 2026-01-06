@@ -420,6 +420,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuImportReferenceImageEllipsis => '참조 이미지 가져오기…';
 
   @override
+  String get menuReferenceModel => '참조 모델';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve 모델';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex 모델';
+
+  @override
+  String get menuImportReferenceModelEllipsis => '모델 가져오기…';
+
+  @override
   String get menuZoomIn => '확대';
 
   @override

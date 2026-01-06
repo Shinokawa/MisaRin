@@ -8,6 +8,7 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardPaletteMixin,
         _PaintingBoardColorMixin,
         _PaintingBoardReferenceMixin,
+        _PaintingBoardReferenceModelMixin,
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
@@ -18,7 +19,9 @@ mixin _PaintingBoardBuildMixin
     if (!widget.isActive) {
       return false;
     }
-    return _referenceCards.isNotEmpty || _paletteCards.isNotEmpty;
+    return _referenceCards.isNotEmpty ||
+        _referenceModelCards.isNotEmpty ||
+        _paletteCards.isNotEmpty;
   }
 
   @override
@@ -86,6 +89,7 @@ mixin _PaintingBoardBuildMixin
       clipBehavior: Clip.none,
       children: [
         ..._buildReferenceCards(),
+        ..._buildReferenceModelCards(),
         ..._buildPaletteCards(),
       ],
     );
@@ -1372,6 +1376,38 @@ mixin _PaintingBoardBuildMixin
               onResize: (edge, delta) =>
                   _resizeReferenceCard(entry.id, edge, delta),
               onResizeEnd: _endReferenceCardResize,
+            ),
+          );
+        })
+        .toList(growable: false);
+  }
+
+  List<Widget> _buildReferenceModelCards() {
+    if (_referenceModelCards.isEmpty) {
+      return const <Widget>[];
+    }
+    return _referenceModelCards
+        .map((entry) {
+          final Offset overlayOffset = _workspaceToOverlayOffset(
+            this,
+            entry.offset,
+          );
+          return Positioned(
+            left: overlayOffset.dx,
+            top: overlayOffset.dy,
+            child: _ReferenceModelCard(
+              key: ValueKey<int>(entry.id),
+              title: entry.title,
+              modelMesh: entry.modelMesh,
+              texture: _referenceModelTexture,
+              onClose: () => _closeReferenceModelCard(entry.id),
+              onDragStart: () => _focusReferenceModelCard(entry.id),
+              onDragUpdate: (delta) =>
+                  _updateReferenceModelCardOffset(entry.id, delta),
+              onDragEnd: () {},
+              onRefreshTexture: () => _refreshReferenceModelTexture(),
+              onSizeChanged: (size) =>
+                  _handleReferenceModelCardSizeChanged(entry.id, size),
             ),
           );
         })

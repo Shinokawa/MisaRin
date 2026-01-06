@@ -70,6 +70,9 @@ class MenuActionHandler {
     this.removeColorLeak,
     this.createReferenceImage,
     this.importReferenceImage,
+    this.showSteveReferenceModel,
+    this.showAlexReferenceModel,
+    this.importReferenceModel,
     this.workspaceLayoutPreference,
     this.switchWorkspaceLayout,
     this.resetWorkspaceLayout,
@@ -136,6 +139,9 @@ class MenuActionHandler {
       removeColorLeak = null,
       createReferenceImage = null,
       importReferenceImage = null,
+      showSteveReferenceModel = null,
+      showAlexReferenceModel = null,
+      importReferenceModel = null,
       paletteMenuEntries = const <MenuPaletteMenuEntry>[],
       workspaceLayoutPreference = null,
       switchWorkspaceLayout = null,
@@ -202,6 +208,9 @@ class MenuActionHandler {
   final MenuAsyncAction? removeColorLeak;
   final MenuAsyncAction? createReferenceImage;
   final MenuAsyncAction? importReferenceImage;
+  final MenuAsyncAction? showSteveReferenceModel;
+  final MenuAsyncAction? showAlexReferenceModel;
+  final MenuAsyncAction? importReferenceModel;
   final WorkspaceLayoutPreference? workspaceLayoutPreference;
   final MenuWorkspaceLayoutAction? switchWorkspaceLayout;
   final MenuAsyncAction? resetWorkspaceLayout;

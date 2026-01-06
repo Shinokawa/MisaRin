@@ -430,6 +430,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuImportReferenceImageEllipsis => 'Import Reference Image…';
 
   @override
+  String get menuReferenceModel => 'Reference Model';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve Model';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex Model';
+
+  @override
+  String get menuImportReferenceModelEllipsis => 'Import Model…';
+
+  @override
   String get menuZoomIn => 'Zoom In';
 
   @override

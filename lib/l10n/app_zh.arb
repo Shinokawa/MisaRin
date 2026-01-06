@@ -209,6 +209,11 @@
   "menuCreateReferenceImage": "创建参考图像",
   "menuImportReferenceImageEllipsis": "导入参考图像…",
 
+  "menuReferenceModel": "参考模型",
+  "menuReferenceModelSteve": "Steve模型",
+  "menuReferenceModelAlex": "Alex模型",
+  "menuImportReferenceModelEllipsis": "导入模型…",
+
   "menuZoomIn": "放大",
   "menuZoomOut": "缩小",
   "menuShowGrid": "显示网格",

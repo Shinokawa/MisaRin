@@ -209,6 +209,11 @@
   "menuCreateReferenceImage": "Create Reference Image",
   "menuImportReferenceImageEllipsis": "Import Reference Image\u2026",
 
+  "menuReferenceModel": "Reference Model",
+  "menuReferenceModelSteve": "Steve Model",
+  "menuReferenceModelAlex": "Alex Model",
+  "menuImportReferenceModelEllipsis": "Import Model\u2026",
+
   "menuZoomIn": "Zoom In",
   "menuZoomOut": "Zoom Out",
   "menuShowGrid": "Show Grid",

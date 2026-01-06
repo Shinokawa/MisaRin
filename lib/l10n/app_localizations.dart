@@ -854,6 +854,30 @@ abstract class AppLocalizations {
   /// **'Import Reference Image…'**
   String get menuImportReferenceImageEllipsis;
 
+  /// No description provided for @menuReferenceModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference Model'**
+  String get menuReferenceModel;
+
+  /// No description provided for @menuReferenceModelSteve.
+  ///
+  /// In en, this message translates to:
+  /// **'Steve Model'**
+  String get menuReferenceModelSteve;
+
+  /// No description provided for @menuReferenceModelAlex.
+  ///
+  /// In en, this message translates to:
+  /// **'Alex Model'**
+  String get menuReferenceModelAlex;
+
+  /// No description provided for @menuImportReferenceModelEllipsis.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Model…'**
+  String get menuImportReferenceModelEllipsis;
+
   /// No description provided for @menuZoomIn.
   ///
   /// In en, this message translates to:
