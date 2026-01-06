@@ -586,12 +586,19 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
   double _yaw = math.pi / 4;
   double _pitch = -math.pi / 12;
   double _zoom = 1.0;
+  bool _multiViewEnabled = false;
 
   void _resetView() {
     setState(() {
       _yaw = math.pi / 4;
       _pitch = -math.pi / 12;
       _zoom = 1.0;
+    });
+  }
+
+  void _toggleMultiView() {
+    setState(() {
+      _multiViewEnabled = !_multiViewEnabled;
     });
   }
 
@@ -615,6 +622,103 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
     final Color background = theme.brightness.isDark
         ? const Color(0xFF101010)
         : const Color(0xFFF7F7F7);
+    final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
+
+    final Color gridLineColor = border.withValues(alpha: border.a * 0.55);
+
+    Widget buildModelPaint({
+      required double yaw,
+      required double pitch,
+      String? label,
+    }) {
+      Widget painted = CustomPaint(
+        painter: _BedrockModelPainter(
+          mesh: widget.modelMesh.mesh,
+          modelTextureWidth: widget.modelMesh.model.textureWidth,
+          modelTextureHeight: widget.modelMesh.model.textureHeight,
+          texture: widget.texture,
+          yaw: yaw,
+          pitch: pitch,
+          zoom: _zoom,
+        ),
+      );
+
+      if (label != null && label.trim().isNotEmpty) {
+        final Color chipBackground = theme.brightness.isDark
+            ? const Color(0x99000000)
+            : const Color(0xCCFFFFFF);
+        final Color chipForeground = theme.brightness.isDark
+            ? const Color(0xFFE6E6E6)
+            : const Color(0xFF333333);
+        painted = Stack(
+          fit: StackFit.expand,
+          children: [
+            painted,
+            Positioned(
+              left: 8,
+              top: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: chipBackground,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: border.withValues(alpha: border.a * 0.6),
+                  ),
+                ),
+                child: Text(
+                  label,
+                  style: theme.typography.caption?.copyWith(
+                    color: chipForeground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+
+      return SizedBox.expand(child: painted);
+    }
+
+    Widget buildModelViewport({
+      required double height,
+      required double yaw,
+      required double pitch,
+      String? label,
+      bool interactive = false,
+    }) {
+      Widget painted = buildModelPaint(yaw: yaw, pitch: pitch, label: label);
+
+      if (interactive) {
+        painted = Listener(
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) {
+              _updateZoom(-event.scrollDelta.dy * 0.002);
+            }
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onDoubleTap: _resetView,
+            onPanUpdate: (details) => _updateRotation(details.delta),
+            child: painted,
+          ),
+        );
+      }
+
+      return Container(
+        height: height,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: painted,
+      );
+    }
 
     return MeasuredSize(
       onChanged: widget.onSizeChanged,
@@ -638,6 +742,18 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
             ),
             onPressed: _resetView,
           ),
+          IconButton(
+            icon: Icon(
+              FluentIcons.picture,
+              size: 14,
+              color: _multiViewEnabled ? accent : null,
+            ),
+            iconButtonMode: IconButtonMode.small,
+            style: ButtonStyle(
+              padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+            ),
+            onPressed: _toggleMultiView,
+          ),
         ],
         onClose: widget.onClose,
         onDragStart: widget.onDragStart,
@@ -648,39 +764,130 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              height: _referenceModelViewportHeight,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: border),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Listener(
-                onPointerSignal: (event) {
-                  if (event is PointerScrollEvent) {
-                    _updateZoom(-event.scrollDelta.dy * 0.002);
-                  }
-                },
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onDoubleTap: _resetView,
-                  onPanUpdate: (details) => _updateRotation(details.delta),
-                  child: CustomPaint(
-                    painter: _BedrockModelPainter(
-                      mesh: widget.modelMesh.mesh,
-                      modelTextureWidth: widget.modelMesh.model.textureWidth,
-                      modelTextureHeight: widget.modelMesh.model.textureHeight,
-                      texture: widget.texture,
-                      yaw: _yaw,
-                      pitch: _pitch,
-                      zoom: _zoom,
+            if (!_multiViewEnabled)
+              buildModelViewport(
+                height: _referenceModelViewportHeight,
+                yaw: _yaw,
+                pitch: _pitch,
+                interactive: true,
+              )
+            else
+              Container(
+                height: _referenceModelViewportHeight,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Listener(
+                  onPointerSignal: (event) {
+                    if (event is PointerScrollEvent) {
+                      _updateZoom(-event.scrollDelta.dy * 0.002);
+                    }
+                  },
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onDoubleTap: _resetView,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      right: BorderSide(color: gridLineColor),
+                                      bottom: BorderSide(color: gridLineColor),
+                                    ),
+                                  ),
+                                  child: buildModelPaint(
+                                    yaw: 0,
+                                    pitch: 0,
+                                    label: '正视图',
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      right: BorderSide(color: gridLineColor),
+                                      bottom: BorderSide(color: gridLineColor),
+                                    ),
+                                  ),
+                                  child: buildModelPaint(
+                                    yaw: math.pi,
+                                    pitch: 0,
+                                    label: '背视图',
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      right: BorderSide(color: gridLineColor),
+                                    ),
+                                  ),
+                                  child: buildModelPaint(
+                                    yaw: 0,
+                                    pitch: -math.pi / 2,
+                                    label: '顶视图',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(color: gridLineColor),
+                                    ),
+                                  ),
+                                  child: buildModelPaint(
+                                    yaw: 0,
+                                    pitch: math.pi / 2,
+                                    label: '底视图',
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(color: gridLineColor),
+                                    ),
+                                  ),
+                                  child: buildModelPaint(
+                                    yaw: -math.pi / 2,
+                                    pitch: 0,
+                                    label: '左视图',
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: buildModelPaint(
+                                  yaw: math.pi / 2,
+                                  pitch: 0,
+                                  label: '右视图',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ),
             const SizedBox(height: 8),
             Row(
               children: [
