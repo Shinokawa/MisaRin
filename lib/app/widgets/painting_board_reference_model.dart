@@ -597,8 +597,8 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
 
   void _updateRotation(Offset delta) {
     setState(() {
-      _yaw += delta.dx * 0.01;
-      _pitch = (_pitch + delta.dy * 0.01).clamp(-math.pi / 2, math.pi / 2);
+      _yaw -= delta.dx * 0.01;
+      _pitch = (_pitch - delta.dy * 0.01).clamp(-math.pi / 2, math.pi / 2);
     });
   }
 
