@@ -1400,6 +1400,7 @@ mixin _PaintingBoardBuildMixin
               title: entry.title,
               modelMesh: entry.modelMesh,
               texture: _referenceModelTexture,
+              dialogContext: context,
               onClose: () => _closeReferenceModelCard(entry.id),
               onDragStart: () => _focusReferenceModelCard(entry.id),
               onDragUpdate: (delta) =>

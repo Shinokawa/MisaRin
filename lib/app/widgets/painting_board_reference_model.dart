@@ -2,6 +2,8 @@ part of 'painting_board.dart';
 
 const String _kSteveReferenceModelAsset = 'assets/bedrock_models/armor_steve.json';
 const String _kAlexReferenceModelAsset = 'assets/bedrock_models/armor_alex.json';
+const String _kReferenceModelAnimationAsset =
+    'assets/bedrock_models/dfsteve_armor.animation.json';
 
 const double _referenceModelCardWidth = 420;
 const double _referenceModelViewportHeight = 320;
@@ -560,6 +562,7 @@ class _ReferenceModelCard extends StatefulWidget {
     required this.title,
     required this.modelMesh,
     required this.texture,
+    required this.dialogContext,
     required this.onClose,
     required this.onDragStart,
     required this.onDragUpdate,
@@ -571,6 +574,7 @@ class _ReferenceModelCard extends StatefulWidget {
   final String title;
   final BedrockModelMesh modelMesh;
   final ui.Image? texture;
+  final BuildContext dialogContext;
   final VoidCallback onClose;
   final VoidCallback onDragStart;
   final ValueChanged<Offset> onDragUpdate;
@@ -582,11 +586,31 @@ class _ReferenceModelCard extends StatefulWidget {
   State<_ReferenceModelCard> createState() => _ReferenceModelCardState();
 }
 
-class _ReferenceModelCardState extends State<_ReferenceModelCard> {
+class _ReferenceModelCardState extends State<_ReferenceModelCard>
+    with TickerProviderStateMixin {
+  static Future<BedrockAnimationLibrary?>? _animationLibraryFuture;
+
   double _yaw = math.pi / 4;
   double _pitch = -math.pi / 12;
   double _zoom = 1.0;
   bool _multiViewEnabled = false;
+
+  late final AnimationController _actionController;
+  BedrockAnimationLibrary? _animationLibrary;
+  String? _selectedAction;
+  BedrockAnimation? _selectedAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _actionController = AnimationController(vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _actionController.dispose();
+    super.dispose();
+  }
 
   void _resetView() {
     setState(() {
@@ -615,6 +639,144 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
     });
   }
 
+  Future<BedrockAnimationLibrary?> _ensureAnimationLibrary() async {
+    if (_animationLibrary != null) {
+      return _animationLibrary;
+    }
+    _animationLibraryFuture ??= () async {
+      final String text =
+          await rootBundle.loadString(_kReferenceModelAnimationAsset);
+      return BedrockAnimationLibrary.tryParseFromJsonText(text);
+    }();
+
+    final BedrockAnimationLibrary? library = await _animationLibraryFuture;
+    if (!mounted) {
+      return library;
+    }
+    setState(() {
+      _animationLibrary = library;
+      if (_selectedAnimation == null && _selectedAction != null) {
+        _selectedAnimation = library?.animations[_selectedAction!];
+      }
+    });
+    return library;
+  }
+
+  String _formatActionName(String name) {
+    const List<String> prefixes = <String>[
+      'animation.dfsteve_armor.',
+      'animation.armor.',
+    ];
+    for (final prefix in prefixes) {
+      if (name.startsWith(prefix)) {
+        return name.substring(prefix.length);
+      }
+    }
+    return name;
+  }
+
+  void _applySelectedAnimation() {
+    final BedrockAnimation? animation = _selectedAnimation;
+    _actionController.stop();
+    if (animation == null || animation.lengthSeconds <= 0) {
+      _actionController.value = 0;
+      return;
+    }
+    final int durationMs =
+        math.max(1, (animation.lengthSeconds * 1000).round());
+    _actionController.duration = Duration(milliseconds: durationMs);
+    if (animation.loop) {
+      _actionController.repeat();
+    } else {
+      _actionController.forward(from: 0);
+    }
+  }
+
+  Future<void> _showActionDialog() async {
+    final BedrockAnimationLibrary? library = await _ensureAnimationLibrary();
+    if (!mounted) {
+      return;
+    }
+    if (library == null || library.animations.isEmpty) {
+      AppNotifications.show(
+        context,
+        message: '无法加载预览动作动画。',
+        severity: InfoBarSeverity.error,
+      );
+      return;
+    }
+
+    final List<String> actions = library.animations.keys.toList()..sort();
+    String selection =
+        (_selectedAction != null &&
+                library.animations.containsKey(_selectedAction))
+            ? _selectedAction!
+            : actions.first;
+
+    final BuildContext dialogContext = widget.dialogContext;
+    final String? result = await showMisarinDialog<String>(
+      context: dialogContext,
+      title: const Text('预览动作'),
+      contentWidth: 520,
+      content: StatefulBuilder(
+        builder: (BuildContext context, StateSetter setDialogState) {
+          final FluentThemeData theme = FluentTheme.of(context);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '选择一个动作用于预览模型动画：',
+                style: theme.typography.bodyStrong,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 420,
+                child: ListView.builder(
+                  itemCount: actions.length,
+                  itemBuilder: (BuildContext context, int index) {
+                    final String action = actions[index];
+                    return RadioButton(
+                      checked: selection == action,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selection = action;
+                        });
+                      },
+                      content: Text(_formatActionName(action)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        Button(
+          child: Text(dialogContext.l10n.cancel),
+          onPressed: () =>
+              Navigator.of(dialogContext, rootNavigator: true).pop(),
+        ),
+        FilledButton(
+          child: Text(dialogContext.l10n.confirm),
+          onPressed: () =>
+              Navigator.of(dialogContext, rootNavigator: true).pop(selection),
+        ),
+      ],
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedAction = result;
+      _selectedAnimation = library.animations[result];
+    });
+    _applySelectedAnimation();
+  }
+
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
@@ -634,13 +796,15 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
     }) {
       Widget painted = CustomPaint(
         painter: _BedrockModelPainter(
-          mesh: widget.modelMesh.mesh,
+          baseModel: widget.modelMesh,
           modelTextureWidth: widget.modelMesh.model.textureWidth,
           modelTextureHeight: widget.modelMesh.model.textureHeight,
           texture: widget.texture,
           yaw: yaw,
           pitch: pitch,
           zoom: _zoom,
+          animation: _selectedAnimation,
+          animationController: _actionController,
         ),
       );
 
@@ -727,6 +891,20 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
         title: widget.title,
         width: _referenceModelCardWidth,
         headerActions: [
+          HoverDetailTooltip(
+            message: '动作',
+            detail: _selectedAction == null
+                ? '切换预览动作'
+                : '当前：${_formatActionName(_selectedAction!)}',
+            child: IconButton(
+              icon: const Icon(FluentIcons.running, size: 14),
+              iconButtonMode: IconButtonMode.small,
+              style: ButtonStyle(
+                padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              ),
+              onPressed: _showActionDialog,
+            ),
+          ),
           HoverDetailTooltip(
             message: l10n.referenceModelRefreshTexture,
             detail: l10n.referenceModelRefreshTextureDesc,
@@ -929,31 +1107,36 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard> {
 
 class _BedrockModelPainter extends CustomPainter {
   _BedrockModelPainter({
-    required this.mesh,
+    required this.baseModel,
     required this.modelTextureWidth,
     required this.modelTextureHeight,
     required this.texture,
     required this.yaw,
     required this.pitch,
     required this.zoom,
-  });
+    this.animation,
+    this.animationController,
+  }) : super(repaint: animationController);
 
-  final BedrockMesh mesh;
+  final BedrockModelMesh baseModel;
   final int modelTextureWidth;
   final int modelTextureHeight;
   final ui.Image? texture;
   final double yaw;
   final double pitch;
   final double zoom;
+  final BedrockAnimation? animation;
+  final AnimationController? animationController;
 
   static final Vector3 _lightDirection = Vector3(0.35, 0.7, -1)..normalize();
 
   @override
   void paint(Canvas canvas, Size size) {
+    final BedrockMesh mesh = _buildMeshForFrame();
     if (mesh.triangles.isEmpty || size.isEmpty) {
       return;
     }
-    final Vector3 meshSize = mesh.size;
+    final Vector3 meshSize = baseModel.mesh.size;
     final double extent = math.max(
       meshSize.x.abs(),
       math.max(meshSize.y.abs(), meshSize.z.abs()),
@@ -1081,15 +1264,43 @@ class _BedrockModelPainter extends CustomPainter {
     canvas.restore();
   }
 
+  BedrockMesh _buildMeshForFrame() {
+    final BedrockAnimation? animation = this.animation;
+    final AnimationController? controller = animationController;
+    if (animation == null || controller == null) {
+      return baseModel.mesh;
+    }
+
+    final Duration? elapsed = controller.lastElapsedDuration;
+    final double lifeTimeSeconds =
+        elapsed == null ? 0 : elapsed.inMicroseconds / 1000000.0;
+    final double timeSeconds = animation.lengthSeconds <= 0
+        ? 0
+        : controller.value * animation.lengthSeconds;
+
+    final Map<String, BedrockBonePose> pose = animation.samplePose(
+      baseModel.model,
+      timeSeconds: timeSeconds,
+      lifeTimeSeconds: lifeTimeSeconds,
+    );
+
+    return buildBedrockMeshForPose(
+      baseModel.model,
+      center: baseModel.center,
+      pose: pose,
+    );
+  }
+
   @override
   bool shouldRepaint(covariant _BedrockModelPainter oldDelegate) {
-    return oldDelegate.mesh != mesh ||
+    return oldDelegate.baseModel != baseModel ||
         oldDelegate.texture != texture ||
         oldDelegate.yaw != yaw ||
         oldDelegate.pitch != pitch ||
         oldDelegate.zoom != zoom ||
         oldDelegate.modelTextureWidth != modelTextureWidth ||
-        oldDelegate.modelTextureHeight != modelTextureHeight;
+        oldDelegate.modelTextureHeight != modelTextureHeight ||
+        oldDelegate.animation != animation;
   }
 }
 

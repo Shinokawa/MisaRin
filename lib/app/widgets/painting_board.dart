@@ -77,6 +77,7 @@ import '../dialogs/misarin_dialog.dart';
 import '../l10n/l10n.dart';
 
 import '../../minecraft/bedrock_model.dart';
+import '../../minecraft/bedrock_animation.dart';
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/raster_frame.dart';
 import '../../bitmap_canvas/controller.dart';

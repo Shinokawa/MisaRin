@@ -241,13 +241,119 @@ class BedrockMesh {
 }
 
 class BedrockModelMesh {
-  const BedrockModelMesh({required this.model, required this.mesh});
+  const BedrockModelMesh({
+    required this.model,
+    required this.mesh,
+    required this.center,
+  });
 
   final BedrockGeometryModel model;
   final BedrockMesh mesh;
+  final Vector3 center;
 }
 
 BedrockModelMesh buildBedrockModelMesh(BedrockGeometryModel model) {
+  final ({
+    List<BedrockMeshTriangle> triangles,
+    Vector3? boundsMin,
+    Vector3? boundsMax,
+  }) built = _buildBedrockMeshTriangles(model);
+
+  if (built.triangles.isEmpty || built.boundsMin == null || built.boundsMax == null) {
+    return BedrockModelMesh(
+      model: model,
+      mesh: BedrockMesh(
+        triangles: const <BedrockMeshTriangle>[],
+        boundsMin: Vector3.zero(),
+        boundsMax: Vector3.zero(),
+      ),
+      center: Vector3.zero(),
+    );
+  }
+
+  final Vector3 center = (built.boundsMin! + built.boundsMax!) * 0.5;
+  final List<BedrockMeshTriangle> centered = built.triangles
+      .map(
+        (tri) => BedrockMeshTriangle(
+          p0: tri.p0 - center,
+          p1: tri.p1 - center,
+          p2: tri.p2 - center,
+          uv0: tri.uv0,
+          uv1: tri.uv1,
+          uv2: tri.uv2,
+          normal: tri.normal,
+        ),
+      )
+      .toList(growable: false);
+  final Vector3 centeredMin = built.boundsMin! - center;
+  final Vector3 centeredMax = built.boundsMax! - center;
+
+  return BedrockModelMesh(
+    model: model,
+    mesh: BedrockMesh(
+      triangles: centered,
+      boundsMin: centeredMin,
+      boundsMax: centeredMax,
+    ),
+    center: center,
+  );
+}
+
+class BedrockBonePose {
+  const BedrockBonePose({this.rotation, this.position});
+
+  final Vector3? rotation;
+  final Vector3? position;
+}
+
+BedrockMesh buildBedrockMeshForPose(
+  BedrockGeometryModel model, {
+  required Vector3 center,
+  Map<String, BedrockBonePose> pose = const <String, BedrockBonePose>{},
+}) {
+  final ({
+    List<BedrockMeshTriangle> triangles,
+    Vector3? boundsMin,
+    Vector3? boundsMax,
+  }) built = _buildBedrockMeshTriangles(model, pose: pose);
+
+  if (built.triangles.isEmpty || built.boundsMin == null || built.boundsMax == null) {
+    return BedrockMesh(
+      triangles: const <BedrockMeshTriangle>[],
+      boundsMin: Vector3.zero(),
+      boundsMax: Vector3.zero(),
+    );
+  }
+
+  final List<BedrockMeshTriangle> centered = built.triangles
+      .map(
+        (tri) => BedrockMeshTriangle(
+          p0: tri.p0 - center,
+          p1: tri.p1 - center,
+          p2: tri.p2 - center,
+          uv0: tri.uv0,
+          uv1: tri.uv1,
+          uv2: tri.uv2,
+          normal: tri.normal,
+        ),
+      )
+      .toList(growable: false);
+
+  return BedrockMesh(
+    triangles: centered,
+    boundsMin: built.boundsMin! - center,
+    boundsMax: built.boundsMax! - center,
+  );
+}
+
+({
+  List<BedrockMeshTriangle> triangles,
+  Vector3? boundsMin,
+  Vector3? boundsMax,
+}) _buildBedrockMeshTriangles(
+  BedrockGeometryModel model, {
+  Map<String, BedrockBonePose> pose = const <String, BedrockBonePose>{},
+}) {
   final Map<String, BedrockBone> bonesByName = <String, BedrockBone>{
     for (final bone in model.bones) bone.name: bone,
   };
@@ -265,11 +371,23 @@ BedrockModelMesh buildBedrockModelMesh(BedrockGeometryModel model) {
       parentTransform = Matrix4.identity();
     }
 
+    final BedrockBonePose? bonePose = pose[bone.name];
+    final Vector3? baseRotation = bone.rotation;
+    final Vector3? deltaRotation = bonePose?.rotation;
+    final Vector3 rotation = Vector3(
+      (baseRotation?.x ?? 0) + (deltaRotation?.x ?? 0),
+      (baseRotation?.y ?? 0) + (deltaRotation?.y ?? 0),
+      (baseRotation?.z ?? 0) + (deltaRotation?.z ?? 0),
+    );
+    final Vector3 position = bonePose?.position ?? Vector3.zero();
+
     final Matrix4 local = Matrix4.identity();
     final Vector3 pivot = bone.pivot;
+    if (position != Vector3.zero()) {
+      local.translate(position.x, position.y, position.z);
+    }
     local.translate(pivot.x, pivot.y, pivot.z);
-    final Vector3? rotation = bone.rotation;
-    if (rotation != null) {
+    if (rotation != Vector3.zero()) {
       final double rx = _degToRad(rotation.x);
       final double ry = _degToRad(rotation.y);
       final double rz = _degToRad(rotation.z);
@@ -431,42 +549,7 @@ BedrockModelMesh buildBedrockModelMesh(BedrockGeometryModel model) {
     }
   }
 
-  if (triangles.isEmpty || boundsMin == null || boundsMax == null) {
-    return BedrockModelMesh(
-      model: model,
-      mesh: BedrockMesh(
-        triangles: const <BedrockMeshTriangle>[],
-        boundsMin: Vector3.zero(),
-        boundsMax: Vector3.zero(),
-      ),
-    );
-  }
-
-  final Vector3 center = (boundsMin! + boundsMax!) * 0.5;
-  final List<BedrockMeshTriangle> centered = triangles
-      .map(
-        (tri) => BedrockMeshTriangle(
-          p0: tri.p0 - center,
-          p1: tri.p1 - center,
-          p2: tri.p2 - center,
-          uv0: tri.uv0,
-          uv1: tri.uv1,
-          uv2: tri.uv2,
-          normal: tri.normal,
-        ),
-      )
-      .toList(growable: false);
-  final Vector3 centeredMin = boundsMin! - center;
-  final Vector3 centeredMax = boundsMax! - center;
-
-  return BedrockModelMesh(
-    model: model,
-    mesh: BedrockMesh(
-      triangles: centered,
-      boundsMin: centeredMin,
-      boundsMax: centeredMax,
-    ),
-  );
+  return (triangles: triangles, boundsMin: boundsMin, boundsMax: boundsMax);
 }
 
 double _degToRad(double degrees) => degrees * (math.pi / 180.0);
