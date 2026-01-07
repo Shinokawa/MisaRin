@@ -35,8 +35,8 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
   static Future<BedrockAnimationLibrary?>? _animationLibraryFuture;
   static Future<_ReferenceModelActionCatalog?>? _actionCatalogFuture;
 
-  double _yaw = math.pi / 4;
-  double _pitch = -math.pi / 12;
+  double _yaw = 0;
+  double _pitch = 0;
   double _zoom = 1.0;
   double _zoomScaleStart = 1.0;
   bool _multiViewEnabled = false;
@@ -63,8 +63,8 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
 
   void _resetView() {
     setState(() {
-      _yaw = math.pi / 4;
-      _pitch = -math.pi / 12;
+      _yaw = 0;
+      _pitch = 0;
       _zoom = 1.0;
     });
   }
