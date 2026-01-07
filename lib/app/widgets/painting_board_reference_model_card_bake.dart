@@ -118,8 +118,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       await Future<void>.delayed(const Duration(milliseconds: 16));
       await WidgetsBinding.instance.endOfFrame;
 
-      final RenderObject? renderObject =
-          previewKey.currentContext?.findRenderObject();
+      final RenderObject? renderObject = previewKey.currentContext
+          ?.findRenderObject();
       if (renderObject is! RenderRepaintBoundary) {
         throw StateError('无法获取预览区域渲染对象');
       }
@@ -133,13 +133,15 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       final double devicePixelRatio = MediaQuery.devicePixelRatioOf(
         dialogContext,
       );
-      final double pixelRatio =
-          devicePixelRatio <= 0 ? 2.0 : devicePixelRatio.clamp(1.0, 2.0);
+      final double pixelRatio = devicePixelRatio <= 0
+          ? 2.0
+          : devicePixelRatio.clamp(1.0, 2.0);
 
       final ui.Image image = await renderObject.toImage(pixelRatio: pixelRatio);
       try {
-        final ByteData? encoded =
-            await image.toByteData(format: ui.ImageByteFormat.png);
+        final ByteData? encoded = await image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
         if (encoded == null) {
           throw StateError('无法编码烘焙结果');
         }
@@ -266,9 +268,11 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
               child: StatefulBuilder(
                 builder: (BuildContext context, StateSetter setDialogState) {
                   final FluentThemeData theme = FluentTheme.of(context);
-                  final Color border = theme.resources.controlStrokeColorDefault;
-                  final Color accent =
-                      theme.accentColor.defaultBrushFor(theme.brightness);
+                  final Color border =
+                      theme.resources.controlStrokeColorDefault;
+                  final Color accent = theme.accentColor.defaultBrushFor(
+                    theme.brightness,
+                  );
                   final Color normalBackground = theme.brightness.isDark
                       ? const Color(0xFF101010)
                       : const Color(0xFFF7F7F7);
@@ -284,6 +288,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                       lighting?.background ?? normalBackground;
 
                   Widget buildModelPreview() {
+                    final double groundY = widget.modelMesh.mesh.boundsMin.y;
                     final Widget model = bakedRenderingEnabled
                         ? _BedrockModelZBufferView(
                             baseModel: widget.modelMesh,
@@ -309,8 +314,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                             toneMap: true,
                             lightFollowsCamera: false,
                             showGround: true,
-                            groundY: 0.0,
-                            alignModelToGround: true,
+                            groundY: groundY,
+                            alignModelToGround: false,
                             groundColor: Colors.white,
                             showGroundShadow: true,
                             groundShadowStrength: lighting.shadowStrength,
@@ -371,7 +376,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                             }
                             previewYaw -= details.focalPointDelta.dx * 0.01;
                             previewPitch =
-                                (previewPitch - details.focalPointDelta.dy * 0.01)
+                                (previewPitch -
+                                        details.focalPointDelta.dy * 0.01)
                                     .clamp(-math.pi / 2, math.pi / 2);
                           });
                         },
@@ -379,7 +385,10 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                       ),
                     );
 
-                    return IgnorePointer(ignoring: isBaking, child: interactive);
+                    return IgnorePointer(
+                      ignoring: isBaking,
+                      child: interactive,
+                    );
                   }
 
                   Widget buildPreviewArea() {
@@ -399,6 +408,97 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                               child: AspectRatio(
                                 aspectRatio: 16 / 9,
                                 child: buildModelPreview(),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 12,
+                            bottom: 12,
+                            child: HoverDetailTooltip(
+                              message: '渲染模式',
+                              detail: bakedRenderingEnabled
+                                  ? '当前：带烘焙渲染（更耗性能）'
+                                  : '当前：普通渲染（更省性能）',
+                              child: Button(
+                                onPressed: isBaking
+                                    ? null
+                                    : () {
+                                        setDialogState(() {
+                                          bakedRenderingEnabled =
+                                              !bakedRenderingEnabled;
+                                          markPreviewDirty();
+                                        });
+                                      },
+                                style: ButtonStyle(
+                                  padding: WidgetStateProperty.all(
+                                    const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                  backgroundColor:
+                                      WidgetStateProperty.resolveWith((states) {
+                                        final Color base = bakedRenderingEnabled
+                                            ? accent.withValues(
+                                                alpha: theme.brightness.isDark
+                                                    ? 0.32
+                                                    : 0.2,
+                                              )
+                                            : (theme.brightness.isDark
+                                                  ? const Color(0x99000000)
+                                                  : const Color(0xCCFFFFFF));
+                                        if (states.contains(
+                                          WidgetState.pressed,
+                                        )) {
+                                          return Color.lerp(
+                                                base,
+                                                accent.withValues(alpha: 0.6),
+                                                0.35,
+                                              ) ??
+                                              base;
+                                        }
+                                        if (states.contains(
+                                          WidgetState.hovered,
+                                        )) {
+                                          return Color.lerp(
+                                                base,
+                                                accent.withValues(alpha: 0.6),
+                                                0.2,
+                                              ) ??
+                                              base;
+                                        }
+                                        return base;
+                                      }),
+                                  shape: WidgetStateProperty.all(
+                                    RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      side: BorderSide(
+                                        color: bakedRenderingEnabled
+                                            ? accent
+                                            : border.withValues(
+                                                alpha: border.a * 0.6,
+                                              ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      FluentIcons.auto_enhance_on,
+                                      size: 16,
+                                      color: bakedRenderingEnabled
+                                          ? accent
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      bakedRenderingEnabled ? '烘焙渲染' : '普通渲染',
+                                      style: theme.typography.bodyStrong,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -429,40 +529,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                   }
 
                   return MisarinDialog(
-                    title: Row(
-                      children: [
-                        const Text('烘焙'),
-                        const Spacer(),
-                        HoverDetailTooltip(
-                          message: '渲染模式',
-                          detail: bakedRenderingEnabled
-                              ? '当前：带烘焙渲染（更耗性能）'
-                              : '当前：普通渲染（更省性能）',
-                          child: IconButton(
-                            icon: Icon(
-                              FluentIcons.auto_enhance_on,
-                              size: 14,
-                              color: bakedRenderingEnabled ? accent : null,
-                            ),
-                            iconButtonMode: IconButtonMode.small,
-                            style: ButtonStyle(
-                              padding: WidgetStateProperty.all(
-                                const EdgeInsets.all(4),
-                              ),
-                            ),
-                            onPressed: isBaking
-                                ? null
-                                : () {
-                                    setDialogState(() {
-                                      bakedRenderingEnabled =
-                                          !bakedRenderingEnabled;
-                                      markPreviewDirty();
-                                    });
-                                  },
-                          ),
-                        ),
-                      ],
-                    ),
+                    title: Row(children: [const Text('烘焙')]),
                     contentWidth: null,
                     maxWidth: 920,
                     content: Column(
@@ -556,12 +623,15 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     final Color sunWarm = const Color(0xFFFFA36D);
     final Color sunNeutral = const Color(0xFFFFFFFF);
     final double sunTintT = math.sqrt(daylight);
-    final Color sunColor = Color.lerp(sunWarm, sunNeutral, sunTintT) ?? sunNeutral;
+    final Color sunColor =
+        Color.lerp(sunWarm, sunNeutral, sunTintT) ?? sunNeutral;
 
-    final Color daySky =
-        isDark ? const Color(0xFF2D4461) : const Color(0xFFBFD9FF);
-    final Color nightSky =
-        isDark ? const Color(0xFF0A1222) : const Color(0xFF121826);
+    final Color daySky = isDark
+        ? const Color(0xFF2D4461)
+        : const Color(0xFFBFD9FF);
+    final Color nightSky = isDark
+        ? const Color(0xFF0A1222)
+        : const Color(0xFF121826);
     final Color skyColor = Color.lerp(nightSky, daySky, daylight) ?? daySky;
 
     const Color groundBounceColor = Color(0xFFFFFFFF);
@@ -577,10 +647,12 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         ? 0
         : (2 + (1.0 - daylight) * 3).round().clamp(1, 6);
 
-    final Color dayBackground =
-        isDark ? const Color(0xFF101010) : const Color(0xFFF7F7F7);
-    final Color nightBackground =
-        isDark ? const Color(0xFF050505) : const Color(0xFFE7E7E7);
+    final Color dayBackground = isDark
+        ? const Color(0xFF101010)
+        : const Color(0xFFF7F7F7);
+    final Color nightBackground = isDark
+        ? const Color(0xFF050505)
+        : const Color(0xFFE7E7E7);
     final Color background =
         Color.lerp(nightBackground, dayBackground, daylight) ?? dayBackground;
 
