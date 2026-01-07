@@ -81,9 +81,6 @@ flutter:
     - assets/bedrock_models/armor_steve.json
     - assets/bedrock_models/armor_alex.json
     - assets/bedrock_models/dfsteve_armor.animation.json
-    - assets/bedrock_models/dfsteve_armor.animation_controllers.json
-    - assets/bedrock_models/dfsteve_armor.entity_armor_steve.json
-    - assets/bedrock_models/dfsteve_armor.zh_CN.lang
 
   shaders:
     - shaders/antialias_alpha.frag

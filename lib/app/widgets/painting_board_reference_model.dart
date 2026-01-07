@@ -4,12 +4,6 @@ const String _kSteveReferenceModelAsset = 'assets/bedrock_models/armor_steve.jso
 const String _kAlexReferenceModelAsset = 'assets/bedrock_models/armor_alex.json';
 const String _kReferenceModelAnimationAsset =
     'assets/bedrock_models/dfsteve_armor.animation.json';
-const String _kReferenceModelAnimationControllerAsset =
-    'assets/bedrock_models/dfsteve_armor.animation_controllers.json';
-const String _kReferenceModelEntityAsset =
-    'assets/bedrock_models/dfsteve_armor.entity_armor_steve.json';
-const String _kReferenceModelLangZhCnAsset =
-    'assets/bedrock_models/dfsteve_armor.zh_CN.lang';
 
 const double _referenceModelCardWidth = 420;
 const double _referenceModelViewportHeight = 320;
@@ -17,6 +11,276 @@ const double _referenceModelViewportHeight = 320;
 const String _kReferenceModelActionNone = '__none__';
 
 enum _ReferenceModelActionType { none, pose, animation }
+
+class _ReferenceModelActionSeed {
+  const _ReferenceModelActionSeed({
+    required this.id,
+    required this.label,
+    required this.type,
+    required this.order,
+  });
+
+  final String id;
+  final String label;
+  final _ReferenceModelActionType type;
+  final int order;
+}
+
+const List<_ReferenceModelActionSeed> _kReferenceModelActionSeeds =
+    <_ReferenceModelActionSeed>[
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.default_pose',
+    label: '站立',
+    type: _ReferenceModelActionType.pose,
+    order: 0,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.kawaii',
+    label: '坐',
+    type: _ReferenceModelActionType.pose,
+    order: 1,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.solemn_pose',
+    label: '肃立',
+    type: _ReferenceModelActionType.pose,
+    order: 2,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.brandish_pose',
+    label: '挥舞',
+    type: _ReferenceModelActionType.pose,
+    order: 3,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.honor_pose',
+    label: '荣耀',
+    type: _ReferenceModelActionType.pose,
+    order: 4,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.entertain_pose',
+    label: '拥抱',
+    type: _ReferenceModelActionType.pose,
+    order: 5,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.salute_pose',
+    label: '欢迎',
+    type: _ReferenceModelActionType.pose,
+    order: 6,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.zombie_pose',
+    label: '僵尸',
+    type: _ReferenceModelActionType.pose,
+    order: 7,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.cancan_a_pose',
+    label: '康康舞a',
+    type: _ReferenceModelActionType.pose,
+    order: 8,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.cancan_b_pose',
+    label: '康康舞b',
+    type: _ReferenceModelActionType.pose,
+    order: 9,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.hero_pose',
+    label: '英雄',
+    type: _ReferenceModelActionType.pose,
+    order: 10,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.athena_pose',
+    label: '雅典娜',
+    type: _ReferenceModelActionType.pose,
+    order: 11,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.wiggle',
+    label: '立正',
+    type: _ReferenceModelActionType.pose,
+    order: 12,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.riposte_pose',
+    label: '耍酷',
+    type: _ReferenceModelActionType.pose,
+    order: 13,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.qitao_pose',
+    label: '卖萌',
+    type: _ReferenceModelActionType.pose,
+    order: 14,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.hello_pose',
+    label: '打招呼',
+    type: _ReferenceModelActionType.pose,
+    order: 15,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.jojo_pose',
+    label: 'JOJO立',
+    type: _ReferenceModelActionType.pose,
+    order: 16,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.dontstop_pose',
+    label: '不要停下来',
+    type: _ReferenceModelActionType.pose,
+    order: 17,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.bata_pose',
+    label: '异议！！',
+    type: _ReferenceModelActionType.pose,
+    order: 18,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.sneak_pose',
+    label: '潜行',
+    type: _ReferenceModelActionType.pose,
+    order: 19,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.sleep_pose',
+    label: '睡觉',
+    type: _ReferenceModelActionType.pose,
+    order: 20,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.sleep2_pose',
+    label: '侧躺',
+    type: _ReferenceModelActionType.pose,
+    order: 21,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.houbunjump_pose',
+    label: '芳文跳',
+    type: _ReferenceModelActionType.pose,
+    order: 22,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.yee_pose',
+    label: '四脚着地',
+    type: _ReferenceModelActionType.pose,
+    order: 23,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.run_pose',
+    label: '奔跑',
+    type: _ReferenceModelActionType.pose,
+    order: 24,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.saber_pose',
+    label: '拔剑',
+    type: _ReferenceModelActionType.pose,
+    order: 25,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.dame',
+    label: '拦截',
+    type: _ReferenceModelActionType.pose,
+    order: 26,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.down',
+    label: '后仰撑地',
+    type: _ReferenceModelActionType.pose,
+    order: 27,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.move',
+    label: '奔跑',
+    type: _ReferenceModelActionType.animation,
+    order: 100,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.stop',
+    label: '立正',
+    type: _ReferenceModelActionType.animation,
+    order: 101,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.armor.swim',
+    label: '游泳',
+    type: _ReferenceModelActionType.animation,
+    order: 102,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.armor.shoot',
+    label: '射击',
+    type: _ReferenceModelActionType.animation,
+    order: 103,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_sneak',
+    label: '潜行',
+    type: _ReferenceModelActionType.animation,
+    order: 104,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_eat',
+    label: '吃东西',
+    type: _ReferenceModelActionType.animation,
+    order: 105,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_omedetou',
+    label: '鼓掌',
+    type: _ReferenceModelActionType.animation,
+    order: 106,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_agree',
+    label: '点头',
+    type: _ReferenceModelActionType.animation,
+    order: 107,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_disagree',
+    label: '摇头',
+    type: _ReferenceModelActionType.animation,
+    order: 108,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_loop',
+    label: '大风车',
+    type: _ReferenceModelActionType.animation,
+    order: 109,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_hunbunjump',
+    label: '芳文跳',
+    type: _ReferenceModelActionType.animation,
+    order: 110,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_nani',
+    label: '上下转',
+    type: _ReferenceModelActionType.animation,
+    order: 111,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_nani2',
+    label: '左右转',
+    type: _ReferenceModelActionType.animation,
+    order: 112,
+  ),
+  _ReferenceModelActionSeed(
+    id: 'animation.dfsteve_armor.anime_head',
+    label: '分头行动',
+    type: _ReferenceModelActionType.animation,
+    order: 113,
+  ),
+];
 
 class _ReferenceModelActionItem {
   const _ReferenceModelActionItem({
@@ -866,6 +1130,8 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
                           leading:
                               const Icon(FluentIcons.contact, size: 16),
                           title: Text(item.label),
+                          trailing:
+                              item.isAnimated ? _buildActionTag(context, '动画') : null,
                           onPressed: () => setDialogState(() {
                             selection = item.id;
                           }),
@@ -887,7 +1153,8 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
                           selected: selection == item.id,
                           leading: const Icon(FluentIcons.play, size: 16),
                           title: Text(item.label),
-                          trailing: _buildActionTag(context, '动画'),
+                          trailing:
+                              item.isAnimated ? _buildActionTag(context, '动画') : null,
                           onPressed: () => setDialogState(() {
                             selection = item.id;
                           }),
@@ -977,126 +1244,28 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
     BedrockAnimationLibrary library,
   ) async {
     try {
-      final String langText =
-          await rootBundle.loadString(_kReferenceModelLangZhCnAsset);
-      final Map<String, String> lang = _parseLangFile(langText);
-
-      final String entityText =
-          await rootBundle.loadString(_kReferenceModelEntityAsset);
-      final Map<String, String> animationIdByKey =
-          _parseEntityAnimations(entityText);
-
-      final String controllerText = await rootBundle.loadString(
-        _kReferenceModelAnimationControllerAsset,
-      );
-      final Map<String, Object?> controllerRoot =
-          (jsonDecode(controllerText) as Map).cast<String, Object?>();
-      final Map<String, Object?> controllers =
-          (controllerRoot['animation_controllers'] as Map?)?.cast<String, Object?>() ??
-              const <String, Object?>{};
-
-      final Map<int, String> poseVariantToAnimationKey =
-          _parsePoseVariantToAnimationKey(controllers);
-      final Map<String, String> animeToAnimationKey =
-          _parseAnimeToAnimationKey(controllers);
-
-      final List<({int variant, String label})> poseLabels = [];
-      final List<({String key, String label})> animeLabels = [];
-
-      for (final MapEntry<String, String> entry in lang.entries) {
-        final String key = entry.key;
-        final String value = entry.value;
-        final RegExpMatch? poseMatch = RegExp(
-          r'^item\\.dfsteve:armor_action(\\d+)\\.name$',
-        ).firstMatch(key);
-        if (poseMatch != null) {
-          final int? variant = int.tryParse(poseMatch.group(1)!);
-          if (variant == null) {
-            continue;
-          }
-          poseLabels.add((
-            variant: variant,
-            label: _stripLangPrefix(value, const ['姿势：', '姿势:']),
-          ));
-          continue;
-        }
-
-        final RegExpMatch? animeMatch =
-            RegExp(r'^item\\.dfsteve:anime_([a-zA-Z0-9_]+)\\.name$')
-                .firstMatch(key);
-        if (animeMatch != null) {
-          animeLabels.add((
-            key: animeMatch.group(1)!,
-            label: _stripLangPrefix(value, const ['动画播放器：', '动画播放器:']),
-          ));
-        }
-      }
-
       final Map<String, _ReferenceModelActionItem> byId =
           <String, _ReferenceModelActionItem>{};
-      final List<_ReferenceModelActionItem> items = <_ReferenceModelActionItem>[
-        const _ReferenceModelActionItem(
-          id: _kReferenceModelActionNone,
-          label: '无',
-          type: _ReferenceModelActionType.none,
-          isAnimated: false,
-          order: -100,
-        ),
-      ];
+      final List<_ReferenceModelActionItem> items =
+          <_ReferenceModelActionItem>[];
 
-      void addItem({
-        required String id,
-        required String label,
-        required int order,
-      }) {
-        final BedrockAnimation? animation = library.animations[id];
-        if (animation == null) {
-          return;
+      for (final _ReferenceModelActionSeed seed in _kReferenceModelActionSeeds) {
+        if (byId.containsKey(seed.id)) {
+          continue;
         }
-        final bool animated = animation.isDynamic;
-        final _ReferenceModelActionType type =
-            animated ? _ReferenceModelActionType.animation : _ReferenceModelActionType.pose;
+        final BedrockAnimation? animation = library.animations[seed.id];
+        if (animation == null) {
+          continue;
+        }
         final _ReferenceModelActionItem item = _ReferenceModelActionItem(
-          id: id,
-          label: label,
-          type: type,
-          isAnimated: animated,
-          order: order,
+          id: seed.id,
+          label: seed.label,
+          type: seed.type,
+          isAnimated: animation.isDynamic,
+          order: seed.order,
         );
         items.add(item);
-        byId[id] = item;
-      }
-
-      int orderCounter = 0;
-      for (final entry in poseLabels) {
-        final String? animationKey = poseVariantToAnimationKey[entry.variant];
-        final String? animationId =
-            animationKey == null ? null : animationIdByKey[animationKey];
-        if (animationId == null) {
-          continue;
-        }
-        addItem(id: animationId, label: entry.label, order: orderCounter++);
-      }
-
-      for (final entry in animeLabels) {
-        final String resolvedKey = switch (entry.key) {
-          'houbunjump' => 'hunbunjump',
-          _ => entry.key,
-        };
-        final String? animationKey = animeToAnimationKey[resolvedKey];
-        final String? animationId =
-            animationKey == null ? null : animationIdByKey[animationKey];
-        if (animationId == null) {
-          continue;
-        }
-        addItem(id: animationId, label: entry.label, order: orderCounter++);
-      }
-
-      for (final String id in library.animations.keys) {
-        if (id == _kReferenceModelActionNone || byId.containsKey(id)) {
-          continue;
-        }
-        addItem(id: id, label: _formatActionIdFallback(id), order: orderCounter++);
+        byId[seed.id] = item;
       }
 
       return _ReferenceModelActionCatalog(
@@ -1107,210 +1276,6 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
       debugPrint('Failed to load reference model action catalog: $error\n$stackTrace');
       return null;
     }
-  }
-
-  static Map<String, String> _parseLangFile(String text) {
-    final Map<String, String> result = <String, String>{};
-    final List<String> lines = text.split(RegExp(r'\r?\n'));
-    for (final line in lines) {
-      final String trimmed = line.trim();
-      if (trimmed.isEmpty || trimmed.startsWith('#')) {
-        continue;
-      }
-      final int index = trimmed.indexOf('=');
-      if (index <= 0) {
-        continue;
-      }
-      final String key = trimmed.substring(0, index).trim();
-      final String value = trimmed.substring(index + 1).trim();
-      if (key.isEmpty) {
-        continue;
-      }
-      result[key] = _stripMinecraftFormatting(value);
-    }
-    return result;
-  }
-
-  static Map<String, String> _parseEntityAnimations(String text) {
-    final Object? decoded = jsonDecode(text);
-    if (decoded is! Map) {
-      return const <String, String>{};
-    }
-    final Map<String, Object?> root = decoded.cast<String, Object?>();
-    final Map<String, Object?>? clientEntity =
-        (root['minecraft:client_entity'] as Map?)?.cast<String, Object?>();
-    final Map<String, Object?>? description =
-        (clientEntity?['description'] as Map?)?.cast<String, Object?>();
-    final Map<String, Object?>? animations =
-        (description?['animations'] as Map?)?.cast<String, Object?>();
-    if (animations == null) {
-      return const <String, String>{};
-    }
-
-    final Map<String, String> result = <String, String>{};
-    for (final MapEntry<String, Object?> entry in animations.entries) {
-      final Object? value = entry.value;
-      if (value is String) {
-        result[entry.key] = value;
-      }
-    }
-    return result;
-  }
-
-  static Map<int, String> _parsePoseVariantToAnimationKey(
-    Map<String, Object?> controllers,
-  ) {
-    final Map<String, Object?>? controller =
-        (controllers['controller.animation.dfsteve_armor.pose'] as Map?)
-            ?.cast<String, Object?>();
-    final Map<String, Object?>? states =
-        (controller?['states'] as Map?)?.cast<String, Object?>();
-    if (states == null) {
-      return const <int, String>{};
-    }
-
-    final Map<String, String> stateToAnimation = <String, String>{};
-    for (final MapEntry<String, Object?> entry in states.entries) {
-      final Object? raw = entry.value;
-      if (raw is! Map) continue;
-      final Map<String, Object?> state = raw.cast<String, Object?>();
-      final String? animation = _firstAnimationKey(state['animations']);
-      if (animation != null) {
-        stateToAnimation[entry.key] = animation;
-      }
-    }
-
-    final RegExp variantPattern =
-        RegExp(r'query\\.mark_variant\\s*==\\s*(\\d+)');
-    final Map<int, String> variantToState = <int, String>{};
-    for (final Object? raw in states.values) {
-      if (raw is! Map) continue;
-      final Map<String, Object?> state = raw.cast<String, Object?>();
-      final Object? transitionsRaw = state['transitions'];
-      if (transitionsRaw is! List) {
-        continue;
-      }
-      for (final Object? transitionRaw in transitionsRaw) {
-        if (transitionRaw is! Map) continue;
-        final Map<Object?, Object?> transition = transitionRaw;
-        for (final MapEntry<Object?, Object?> entry in transition.entries) {
-          final Object? stateName = entry.key;
-          final Object? condition = entry.value;
-          if (stateName is! String || condition is! String) {
-            continue;
-          }
-          final RegExpMatch? match = variantPattern.firstMatch(condition);
-          if (match == null) {
-            continue;
-          }
-          final int? variant = int.tryParse(match.group(1)!);
-          if (variant == null) {
-            continue;
-          }
-          variantToState.putIfAbsent(variant, () => stateName);
-        }
-      }
-    }
-
-    final Map<int, String> result = <int, String>{};
-    for (final MapEntry<int, String> entry in variantToState.entries) {
-      final String? animationKey = stateToAnimation[entry.value];
-      if (animationKey != null) {
-        result[entry.key] = animationKey;
-      }
-    }
-    return result;
-  }
-
-  static Map<String, String> _parseAnimeToAnimationKey(
-    Map<String, Object?> controllers,
-  ) {
-    final Map<String, String> result = <String, String>{};
-    for (final MapEntry<String, Object?> entry in controllers.entries) {
-      final String controllerName = entry.key;
-      if (!controllerName.startsWith(
-        'controller.animation.dfsteve_armor.anime_',
-      )) {
-        continue;
-      }
-      final String leaf = controllerName.split('.').last;
-      if (!leaf.startsWith('anime_')) {
-        continue;
-      }
-      final String animeKey = leaf.substring('anime_'.length);
-      final Object? rawController = entry.value;
-      if (rawController is! Map) continue;
-      final Map<String, Object?> controller =
-          rawController.cast<String, Object?>();
-      final Map<String, Object?>? states =
-          (controller['states'] as Map?)?.cast<String, Object?>();
-      if (states == null || states.isEmpty) {
-        continue;
-      }
-
-      String? animationKey;
-      for (final Object? rawState in states.values) {
-        if (rawState is! Map) continue;
-        final Map<String, Object?> state = rawState.cast<String, Object?>();
-        animationKey = _firstAnimationKey(state['animations']);
-        if (animationKey != null) {
-          break;
-        }
-      }
-      if (animationKey != null && animationKey.isNotEmpty) {
-        result[animeKey] = animationKey;
-      }
-    }
-    return result;
-  }
-
-  static String _stripLangPrefix(String value, List<String> prefixes) {
-    String text = _stripMinecraftFormatting(value).trim();
-    for (final prefix in prefixes) {
-      if (text.startsWith(prefix)) {
-        text = text.substring(prefix.length).trim();
-        break;
-      }
-    }
-    return text;
-  }
-
-  static String _stripMinecraftFormatting(String value) {
-    return value.replaceAll(RegExp(r'§.'), '');
-  }
-
-  static String? _firstAnimationKey(Object? raw) {
-    if (raw is String && raw.trim().isNotEmpty) {
-      return raw.trim();
-    }
-    if (raw is! List || raw.isEmpty) {
-      return null;
-    }
-    final Object? first = raw.first;
-    if (first is String && first.trim().isNotEmpty) {
-      return first.trim();
-    }
-    if (first is Map) {
-      for (final Object? key in first.keys) {
-        if (key is String && key.trim().isNotEmpty) {
-          return key.trim();
-        }
-      }
-    }
-    return null;
-  }
-
-  static String _formatActionIdFallback(String id) {
-    const List<String> prefixes = <String>[
-      'animation.dfsteve_armor.',
-      'animation.armor.',
-    ];
-    for (final prefix in prefixes) {
-      if (id.startsWith(prefix)) {
-        return id.substring(prefix.length);
-      }
-    }
-    return id;
   }
 
   @override
