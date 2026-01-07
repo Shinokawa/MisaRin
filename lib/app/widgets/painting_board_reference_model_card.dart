@@ -190,6 +190,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
   }
 
   Future<void> _showActionDialog() => _showActionDialogImpl();
+  Future<void> _showBakeDialog() => _showBakeDialogImpl();
 
   @override
   Widget build(BuildContext context) {
@@ -350,6 +351,18 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
                 padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
               ),
               onPressed: _resetView,
+            ),
+          ),
+          HoverDetailTooltip(
+            message: '烘焙',
+            detail: '按时间烘焙光照并导出图片',
+            child: IconButton(
+              icon: const Icon(FluentIcons.auto_enhance_on, size: 14),
+              iconButtonMode: IconButtonMode.small,
+              style: ButtonStyle(
+                padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+              ),
+              onPressed: _showBakeDialog,
             ),
           ),
           HoverDetailTooltip(

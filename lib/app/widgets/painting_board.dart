@@ -46,6 +46,8 @@ import 'package:flutter/services.dart'
 import 'package:flutter/rendering.dart'
     show
         RenderBox,
+        RenderObject,
+        RenderRepaintBoundary,
         RenderProxyBox,
         RenderProxyBoxWithHitTestBehavior,
         TextPainter;
@@ -147,6 +149,7 @@ part 'painting_board_reference.dart';
 part 'painting_board_reference_model.dart';
 part 'painting_board_reference_model_card.dart';
 part 'painting_board_reference_model_card_actions.dart';
+part 'painting_board_reference_model_card_bake.dart';
 part 'painting_board_reference_model_zbuffer.dart';
 
 class _SyntheticStrokeSample {
