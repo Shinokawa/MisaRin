@@ -145,6 +145,9 @@ part 'painting_board_workspace_panel.dart';
 part 'painting_board_filters.dart';
 part 'painting_board_reference.dart';
 part 'painting_board_reference_model.dart';
+part 'painting_board_reference_model_card.dart';
+part 'painting_board_reference_model_card_actions.dart';
+part 'painting_board_reference_model_zbuffer.dart';
 
 class _SyntheticStrokeSample {
   const _SyntheticStrokeSample({
