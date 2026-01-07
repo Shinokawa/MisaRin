@@ -1061,13 +1061,18 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
     String query = '';
 
     final BuildContext dialogContext = widget.dialogContext;
+    final ScrollController scrollController = ScrollController();
     final String? result = await showMisarinDialog<String>(
       context: dialogContext,
       title: const Text('切换动作'),
-      contentWidth: 560,
+      contentWidth: null,
+      maxWidth: 920,
       content: StatefulBuilder(
         builder: (BuildContext context, StateSetter setDialogState) {
           final FluentThemeData theme = FluentTheme.of(context);
+          final Color border = theme.resources.controlStrokeColorDefault;
+          final double contentHeight =
+              math.min(700, MediaQuery.of(context).size.height * 0.78);
           final String trimmedQuery = query.trim();
           final List<_ReferenceModelActionItem> visible = catalog.items
               .where((item) {
@@ -1091,101 +1096,272 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
 
           final _ReferenceModelActionItem? selectedItem =
               catalog.byId[selection];
+          final BedrockAnimation? selectedAnimation =
+              selection == _kReferenceModelActionNone
+                  ? null
+                  : library.animations[selection];
+          final bool selectedIsDynamic =
+              selectedItem?.isAnimated ?? selectedAnimation?.isDynamic ?? false;
 
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextBox(
-                placeholder: '搜索动作…',
-                prefix: const Icon(FluentIcons.search, size: 14),
-                onChanged: (value) => setDialogState(() => query = value),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 420,
-                child: ListView(
+          Widget buildActionToggle(
+            _ReferenceModelActionItem item, {
+            required IconData icon,
+          }) {
+            final bool checked = selection == item.id;
+            return ToggleButton(
+              checked: checked,
+              onChanged: (value) {
+                if (!value) {
+                  return;
+                }
+                setDialogState(() => selection = item.id);
+              },
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    ListTile.selectable(
-                      selected: selection == _kReferenceModelActionNone,
-                      leading: const Icon(FluentIcons.clear, size: 16),
-                      title: const Text('无'),
-                      onPressed: () => setDialogState(() {
-                        selection = _kReferenceModelActionNone;
-                      }),
-                    ),
-                    const SizedBox(height: 8),
-                    if (poses.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(
-                          '姿势',
-                          style: theme.typography.bodyStrong,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      ...poses.map((item) {
-                        return ListTile.selectable(
-                          selected: selection == item.id,
-                          leading:
-                              const Icon(FluentIcons.contact, size: 16),
-                          title: Text(item.label),
-                          trailing:
-                              item.isAnimated ? _buildActionTag(context, '动画') : null,
-                          onPressed: () => setDialogState(() {
-                            selection = item.id;
-                          }),
-                        );
-                      }),
-                      const SizedBox(height: 12),
-                    ],
-                    if (animations.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(
-                          '动画',
-                          style: theme.typography.bodyStrong,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      ...animations.map((item) {
-                        return ListTile.selectable(
-                          selected: selection == item.id,
-                          leading: const Icon(FluentIcons.play, size: 16),
-                          title: Text(item.label),
-                          trailing:
-                              item.isAnimated ? _buildActionTag(context, '动画') : null,
-                          onPressed: () => setDialogState(() {
-                            selection = item.id;
-                          }),
-                        );
-                      }),
-                      const SizedBox(height: 12),
-                    ],
-                    if (poses.isEmpty && animations.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(
-                          '没有匹配的动作。',
-                          style: theme.typography.caption,
-                        ),
-                      ),
-                    if (selectedItem != null &&
-                        selection != _kReferenceModelActionNone) ...[
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(
-                          '已选：${selectedItem.label}',
-                          style: theme.typography.caption,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                    Icon(icon, size: 14),
+                    const SizedBox(width: 6),
+                    Text(item.label, overflow: TextOverflow.ellipsis),
+                    if (item.isAnimated) ...[
+                      const SizedBox(width: 6),
+                      _buildActionTag(context, '动画'),
                     ],
                   ],
                 ),
               ),
-            ],
+            );
+          }
+
+          Widget buildSection(
+            String title,
+            List<_ReferenceModelActionItem> items, {
+            required IconData icon,
+          }) {
+            if (items.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 14),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$title（${items.length}）',
+                      style: theme.typography.bodyStrong,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final item in items)
+                      buildActionToggle(item, icon: icon),
+                  ],
+                ),
+              ],
+            );
+          }
+
+          String formatSeconds(double seconds) {
+            if (seconds <= 0) {
+              return '静态';
+            }
+            final String text = seconds >= 10
+                ? seconds.toStringAsFixed(1)
+                : seconds.toStringAsFixed(2);
+            return '${text}s';
+          }
+
+          Widget buildDetailPanel() {
+            if (selection == _kReferenceModelActionNone ||
+                selectedItem == null ||
+                selectedAnimation == null) {
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: border),
+                ),
+                child: Text(
+                  '选择一个动作以查看详情。',
+                  style: theme.typography.caption,
+                ),
+              );
+            }
+
+            final String typeLabel = switch (selectedItem.type) {
+              _ReferenceModelActionType.pose => '姿势',
+              _ReferenceModelActionType.animation => '动画',
+              _ReferenceModelActionType.none => '无',
+            };
+
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selectedItem.label,
+                    style: theme.typography.subtitle,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildActionTag(context, typeLabel),
+                      if (selectedIsDynamic) _buildActionTag(context, '动画'),
+                      if (selectedAnimation.loop) _buildActionTag(context, '循环'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  InfoLabel(
+                    label: '时长',
+                    child: Text(
+                      formatSeconds(selectedAnimation.lengthSeconds),
+                      style: theme.typography.bodyStrong,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  InfoLabel(
+                    label: '内部ID',
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: SelectableText(
+                            selection,
+                            style: theme.typography.caption,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(FluentIcons.copy, size: 14),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: selection));
+                            AppNotifications.show(
+                              dialogContext,
+                              message: '已复制动作ID。',
+                              severity: InfoBarSeverity.success,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return SizedBox(
+            height: contentHeight,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextBox(
+                  placeholder: '搜索动作…',
+                  prefix: const Icon(FluentIcons.search, size: 14),
+                  onChanged: (value) => setDialogState(() => query = value),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Scrollbar(
+                          controller: scrollController,
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            controller: scrollController,
+                            physics: const ClampingScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    ToggleButton(
+                                      checked:
+                                          selection == _kReferenceModelActionNone,
+                                      onChanged: (value) {
+                                        if (!value) {
+                                          return;
+                                        }
+                                        setDialogState(() {
+                                          selection = _kReferenceModelActionNone;
+                                        });
+                                      },
+                                      child: const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(FluentIcons.clear, size: 14),
+                                            SizedBox(width: 6),
+                                            Text('无'),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                if (poses.isEmpty && animations.isEmpty)
+                                  Text(
+                                    '没有匹配的动作。',
+                                    style: theme.typography.caption,
+                                  )
+                                else ...[
+                                  buildSection(
+                                    '姿势',
+                                    poses,
+                                    icon: FluentIcons.contact,
+                                  ),
+                                  if (animations.isNotEmpty) ...[
+                                    const SizedBox(height: 16),
+                                    buildSection(
+                                      '动画',
+                                      animations,
+                                      icon: FluentIcons.play,
+                                    ),
+                                  ],
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 280,
+                        child: buildDetailPanel(),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -1202,6 +1378,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
         ),
       ],
     );
+    scrollController.dispose();
 
     if (!mounted || result == null) {
       return;
