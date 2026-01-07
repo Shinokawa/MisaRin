@@ -282,25 +282,18 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
                                           ),
                                         )
                                       : SizedBox.expand(
-                                          child: CustomPaint(
-                                            painter: _BedrockModelPainter(
-                                              baseModel: widget.modelMesh,
-                                              modelTextureWidth: widget
-                                                  .modelMesh
-                                                  .model
-                                                  .textureWidth,
-                                              modelTextureHeight: widget
-                                                  .modelMesh
-                                                  .model
-                                                  .textureHeight,
-                                              texture: widget.texture,
-                                              yaw: math.pi / 4,
-                                              pitch: -math.pi / 12,
-                                              zoom: 1.0,
-                                              animation: selectedAnimation,
-                                              animationController:
-                                                  previewController,
-                                            ),
+                                          child: _BedrockModelZBufferView(
+                                            baseModel: widget.modelMesh,
+                                            modelTextureWidth:
+                                                widget.modelMesh.model.textureWidth,
+                                            modelTextureHeight:
+                                                widget.modelMesh.model.textureHeight,
+                                            texture: widget.texture,
+                                            yaw: math.pi / 4,
+                                            pitch: -math.pi / 12,
+                                            zoom: 1.0,
+                                            animation: selectedAnimation,
+                                            animationController: previewController,
                                           ),
                                         ),
                                 ),

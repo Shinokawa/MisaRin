@@ -521,6 +521,9 @@ BedrockMesh buildBedrockMeshForPose(
         if (uvs == null || uvs.length != 4) {
           continue;
         }
+        final List<Offset> faceUvs = cube.uv is BedrockBoxUv && face == 'north'
+            ? <Offset>[uvs[1], uvs[0], uvs[3], uvs[2]]
+            : uvs;
         final int base = faceIndex * 4;
         final Vector3 v0 = world.transform3(faceVertices[base + 0]);
         final Vector3 v1 = world.transform3(faceVertices[base + 1]);
@@ -532,18 +535,18 @@ BedrockMesh buildBedrockMeshForPose(
           a: v0,
           b: v2,
           c: v1,
-          ua: uvs[0],
-          ub: uvs[2],
-          uc: uvs[1],
+          ua: faceUvs[0],
+          ub: faceUvs[2],
+          uc: faceUvs[1],
         );
         // Tri 2: 2,3,1
         addTriangle(
           a: v2,
           b: v3,
           c: v1,
-          ua: uvs[2],
-          ub: uvs[3],
-          uc: uvs[1],
+          ua: faceUvs[2],
+          ub: faceUvs[3],
+          uc: faceUvs[1],
         );
       }
     }
