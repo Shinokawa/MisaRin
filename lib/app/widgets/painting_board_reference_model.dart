@@ -4,9 +4,45 @@ const String _kSteveReferenceModelAsset = 'assets/bedrock_models/armor_steve.jso
 const String _kAlexReferenceModelAsset = 'assets/bedrock_models/armor_alex.json';
 const String _kReferenceModelAnimationAsset =
     'assets/bedrock_models/dfsteve_armor.animation.json';
+const String _kReferenceModelAnimationControllerAsset =
+    'assets/bedrock_models/dfsteve_armor.animation_controllers.json';
+const String _kReferenceModelEntityAsset =
+    'assets/bedrock_models/dfsteve_armor.entity_armor_steve.json';
+const String _kReferenceModelLangZhCnAsset =
+    'assets/bedrock_models/dfsteve_armor.zh_CN.lang';
 
 const double _referenceModelCardWidth = 420;
 const double _referenceModelViewportHeight = 320;
+
+const String _kReferenceModelActionNone = '__none__';
+
+enum _ReferenceModelActionType { none, pose, animation }
+
+class _ReferenceModelActionItem {
+  const _ReferenceModelActionItem({
+    required this.id,
+    required this.label,
+    required this.type,
+    required this.isAnimated,
+    required this.order,
+  });
+
+  final String id;
+  final String label;
+  final _ReferenceModelActionType type;
+  final bool isAnimated;
+  final int order;
+}
+
+class _ReferenceModelActionCatalog {
+  const _ReferenceModelActionCatalog({
+    required this.items,
+    required this.byId,
+  });
+
+  final List<_ReferenceModelActionItem> items;
+  final Map<String, _ReferenceModelActionItem> byId;
+}
 
 class _ReferenceModelCardEntry {
   _ReferenceModelCardEntry({
@@ -589,6 +625,7 @@ class _ReferenceModelCard extends StatefulWidget {
 class _ReferenceModelCardState extends State<_ReferenceModelCard>
     with TickerProviderStateMixin {
   static Future<BedrockAnimationLibrary?>? _animationLibraryFuture;
+  static Future<_ReferenceModelActionCatalog?>? _actionCatalogFuture;
 
   double _yaw = math.pi / 4;
   double _pitch = -math.pi / 12;
@@ -597,13 +634,16 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
 
   late final AnimationController _actionController;
   BedrockAnimationLibrary? _animationLibrary;
-  String? _selectedAction;
+  _ReferenceModelActionCatalog? _actionCatalog;
+  String _selectedAction = _kReferenceModelActionNone;
+  _ReferenceModelActionItem? _selectedActionItem;
   BedrockAnimation? _selectedAnimation;
 
   @override
   void initState() {
     super.initState();
     _actionController = AnimationController(vsync: this);
+    unawaited(_ensureActionCatalog());
   }
 
   @override
@@ -655,8 +695,8 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
     }
     setState(() {
       _animationLibrary = library;
-      if (_selectedAnimation == null && _selectedAction != null) {
-        _selectedAnimation = library?.animations[_selectedAction!];
+      if (_selectedAnimation == null && _selectedAction != _kReferenceModelActionNone) {
+        _selectedAnimation = library?.animations[_selectedAction];
       }
     });
     return library;
@@ -675,10 +715,54 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
     return name;
   }
 
+  Future<_ReferenceModelActionCatalog?> _ensureActionCatalog() async {
+    final BedrockAnimationLibrary? library = await _ensureAnimationLibrary();
+    if (library == null) {
+      return null;
+    }
+    _actionCatalogFuture ??= _loadReferenceModelActionCatalog(library);
+    final _ReferenceModelActionCatalog? catalog = await _actionCatalogFuture;
+    if (!mounted) {
+      return catalog;
+    }
+    setState(() {
+      _actionCatalog = catalog;
+      _selectedActionItem = catalog?.byId[_selectedAction];
+      if (_selectedAction == _kReferenceModelActionNone) {
+        _selectedAnimation = null;
+      } else {
+        _selectedAnimation ??= library.animations[_selectedAction];
+      }
+    });
+    return catalog;
+  }
+
+  String _displayNameForActionId(String actionId) {
+    if (actionId == _kReferenceModelActionNone) {
+      return '无';
+    }
+    final _ReferenceModelActionItem? item = _actionCatalog?.byId[actionId];
+    if (item != null) {
+      return item.label;
+    }
+    return _formatActionName(actionId);
+  }
+
   void _applySelectedAnimation() {
-    final BedrockAnimation? animation = _selectedAnimation;
     _actionController.stop();
-    if (animation == null || animation.lengthSeconds <= 0) {
+    if (_selectedAction == _kReferenceModelActionNone) {
+      _actionController.value = 0;
+      return;
+    }
+
+    final BedrockAnimation? animation = _selectedAnimation;
+    if (animation == null) {
+      _actionController.value = 0;
+      return;
+    }
+    final bool shouldAnimate =
+        _selectedActionItem?.isAnimated ?? animation.isDynamic;
+    if (!shouldAnimate || animation.lengthSeconds <= 0) {
       _actionController.value = 0;
       return;
     }
@@ -694,10 +778,11 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
 
   Future<void> _showActionDialog() async {
     final BedrockAnimationLibrary? library = await _ensureAnimationLibrary();
+    final _ReferenceModelActionCatalog? catalog = await _ensureActionCatalog();
     if (!mounted) {
       return;
     }
-    if (library == null || library.animations.isEmpty) {
+    if (library == null || library.animations.isEmpty || catalog == null) {
       AppNotifications.show(
         context,
         message: '无法加载预览动作动画。',
@@ -706,46 +791,131 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
       return;
     }
 
-    final List<String> actions = library.animations.keys.toList()..sort();
-    String selection =
-        (_selectedAction != null &&
-                library.animations.containsKey(_selectedAction))
-            ? _selectedAction!
-            : actions.first;
+    String selection = catalog.byId.containsKey(_selectedAction)
+        ? _selectedAction
+        : _kReferenceModelActionNone;
+    String query = '';
 
     final BuildContext dialogContext = widget.dialogContext;
     final String? result = await showMisarinDialog<String>(
       context: dialogContext,
-      title: const Text('预览动作'),
-      contentWidth: 520,
+      title: const Text('切换动作'),
+      contentWidth: 560,
       content: StatefulBuilder(
         builder: (BuildContext context, StateSetter setDialogState) {
           final FluentThemeData theme = FluentTheme.of(context);
+          final String trimmedQuery = query.trim();
+          final List<_ReferenceModelActionItem> visible = catalog.items
+              .where((item) {
+                if (trimmedQuery.isEmpty) {
+                  return true;
+                }
+                final String haystack =
+                    '${item.label}\n${item.id}'.toLowerCase();
+                return haystack.contains(trimmedQuery.toLowerCase());
+              })
+              .toList(growable: false);
+
+          final List<_ReferenceModelActionItem> poses = visible
+              .where((item) => item.type == _ReferenceModelActionType.pose)
+              .toList()
+            ..sort((a, b) => a.order.compareTo(b.order));
+          final List<_ReferenceModelActionItem> animations = visible
+              .where((item) => item.type == _ReferenceModelActionType.animation)
+              .toList()
+            ..sort((a, b) => a.order.compareTo(b.order));
+
+          final _ReferenceModelActionItem? selectedItem =
+              catalog.byId[selection];
+
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '选择一个动作用于预览模型动画：',
-                style: theme.typography.bodyStrong,
+              TextBox(
+                placeholder: '搜索动作…',
+                prefix: const Icon(FluentIcons.search, size: 14),
+                onChanged: (value) => setDialogState(() => query = value),
               ),
               const SizedBox(height: 12),
               SizedBox(
                 height: 420,
-                child: ListView.builder(
-                  itemCount: actions.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final String action = actions[index];
-                    return RadioButton(
-                      checked: selection == action,
-                      onChanged: (value) {
-                        setDialogState(() {
-                          selection = action;
-                        });
-                      },
-                      content: Text(_formatActionName(action)),
-                    );
-                  },
+                child: ListView(
+                  children: [
+                    ListTile.selectable(
+                      selected: selection == _kReferenceModelActionNone,
+                      leading: const Icon(FluentIcons.clear, size: 16),
+                      title: const Text('无'),
+                      onPressed: () => setDialogState(() {
+                        selection = _kReferenceModelActionNone;
+                      }),
+                    ),
+                    const SizedBox(height: 8),
+                    if (poses.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          '姿势',
+                          style: theme.typography.bodyStrong,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ...poses.map((item) {
+                        return ListTile.selectable(
+                          selected: selection == item.id,
+                          leading:
+                              const Icon(FluentIcons.contact, size: 16),
+                          title: Text(item.label),
+                          onPressed: () => setDialogState(() {
+                            selection = item.id;
+                          }),
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                    ],
+                    if (animations.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          '动画',
+                          style: theme.typography.bodyStrong,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ...animations.map((item) {
+                        return ListTile.selectable(
+                          selected: selection == item.id,
+                          leading: const Icon(FluentIcons.play, size: 16),
+                          title: Text(item.label),
+                          trailing: _buildActionTag(context, '动画'),
+                          onPressed: () => setDialogState(() {
+                            selection = item.id;
+                          }),
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                    ],
+                    if (poses.isEmpty && animations.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          '没有匹配的动作。',
+                          style: theme.typography.caption,
+                        ),
+                      ),
+                    if (selectedItem != null &&
+                        selection != _kReferenceModelActionNone) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          '已选：${selectedItem.label}',
+                          style: theme.typography.caption,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
@@ -772,9 +942,375 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
 
     setState(() {
       _selectedAction = result;
-      _selectedAnimation = library.animations[result];
+      _selectedActionItem = catalog.byId[result];
+      _selectedAnimation =
+          result == _kReferenceModelActionNone ? null : library.animations[result];
     });
     _applySelectedAnimation();
+  }
+
+  static Widget _buildActionTag(BuildContext context, String text) {
+    final FluentThemeData theme = FluentTheme.of(context);
+    final Color border = theme.resources.controlStrokeColorDefault.withValues(
+      alpha: theme.resources.controlStrokeColorDefault.a * 0.7,
+    );
+    final Color background = theme.accentColor.lightest.withValues(alpha: 0.12);
+    final Color foreground = theme.accentColor.darkest;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        text,
+        style: theme.typography.caption?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  static Future<_ReferenceModelActionCatalog?> _loadReferenceModelActionCatalog(
+    BedrockAnimationLibrary library,
+  ) async {
+    try {
+      final String langText =
+          await rootBundle.loadString(_kReferenceModelLangZhCnAsset);
+      final Map<String, String> lang = _parseLangFile(langText);
+
+      final String entityText =
+          await rootBundle.loadString(_kReferenceModelEntityAsset);
+      final Map<String, String> animationIdByKey =
+          _parseEntityAnimations(entityText);
+
+      final String controllerText = await rootBundle.loadString(
+        _kReferenceModelAnimationControllerAsset,
+      );
+      final Map<String, Object?> controllerRoot =
+          (jsonDecode(controllerText) as Map).cast<String, Object?>();
+      final Map<String, Object?> controllers =
+          (controllerRoot['animation_controllers'] as Map?)?.cast<String, Object?>() ??
+              const <String, Object?>{};
+
+      final Map<int, String> poseVariantToAnimationKey =
+          _parsePoseVariantToAnimationKey(controllers);
+      final Map<String, String> animeToAnimationKey =
+          _parseAnimeToAnimationKey(controllers);
+
+      final List<({int variant, String label})> poseLabels = [];
+      final List<({String key, String label})> animeLabels = [];
+
+      for (final MapEntry<String, String> entry in lang.entries) {
+        final String key = entry.key;
+        final String value = entry.value;
+        final RegExpMatch? poseMatch = RegExp(
+          r'^item\\.dfsteve:armor_action(\\d+)\\.name$',
+        ).firstMatch(key);
+        if (poseMatch != null) {
+          final int? variant = int.tryParse(poseMatch.group(1)!);
+          if (variant == null) {
+            continue;
+          }
+          poseLabels.add((
+            variant: variant,
+            label: _stripLangPrefix(value, const ['姿势：', '姿势:']),
+          ));
+          continue;
+        }
+
+        final RegExpMatch? animeMatch =
+            RegExp(r'^item\\.dfsteve:anime_([a-zA-Z0-9_]+)\\.name$')
+                .firstMatch(key);
+        if (animeMatch != null) {
+          animeLabels.add((
+            key: animeMatch.group(1)!,
+            label: _stripLangPrefix(value, const ['动画播放器：', '动画播放器:']),
+          ));
+        }
+      }
+
+      final Map<String, _ReferenceModelActionItem> byId =
+          <String, _ReferenceModelActionItem>{};
+      final List<_ReferenceModelActionItem> items = <_ReferenceModelActionItem>[
+        const _ReferenceModelActionItem(
+          id: _kReferenceModelActionNone,
+          label: '无',
+          type: _ReferenceModelActionType.none,
+          isAnimated: false,
+          order: -100,
+        ),
+      ];
+
+      void addItem({
+        required String id,
+        required String label,
+        required int order,
+      }) {
+        final BedrockAnimation? animation = library.animations[id];
+        if (animation == null) {
+          return;
+        }
+        final bool animated = animation.isDynamic;
+        final _ReferenceModelActionType type =
+            animated ? _ReferenceModelActionType.animation : _ReferenceModelActionType.pose;
+        final _ReferenceModelActionItem item = _ReferenceModelActionItem(
+          id: id,
+          label: label,
+          type: type,
+          isAnimated: animated,
+          order: order,
+        );
+        items.add(item);
+        byId[id] = item;
+      }
+
+      int orderCounter = 0;
+      for (final entry in poseLabels) {
+        final String? animationKey = poseVariantToAnimationKey[entry.variant];
+        final String? animationId =
+            animationKey == null ? null : animationIdByKey[animationKey];
+        if (animationId == null) {
+          continue;
+        }
+        addItem(id: animationId, label: entry.label, order: orderCounter++);
+      }
+
+      for (final entry in animeLabels) {
+        final String resolvedKey = switch (entry.key) {
+          'houbunjump' => 'hunbunjump',
+          _ => entry.key,
+        };
+        final String? animationKey = animeToAnimationKey[resolvedKey];
+        final String? animationId =
+            animationKey == null ? null : animationIdByKey[animationKey];
+        if (animationId == null) {
+          continue;
+        }
+        addItem(id: animationId, label: entry.label, order: orderCounter++);
+      }
+
+      for (final String id in library.animations.keys) {
+        if (id == _kReferenceModelActionNone || byId.containsKey(id)) {
+          continue;
+        }
+        addItem(id: id, label: _formatActionIdFallback(id), order: orderCounter++);
+      }
+
+      return _ReferenceModelActionCatalog(
+        items: List<_ReferenceModelActionItem>.unmodifiable(items),
+        byId: Map<String, _ReferenceModelActionItem>.unmodifiable(byId),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to load reference model action catalog: $error\n$stackTrace');
+      return null;
+    }
+  }
+
+  static Map<String, String> _parseLangFile(String text) {
+    final Map<String, String> result = <String, String>{};
+    final List<String> lines = text.split(RegExp(r'\r?\n'));
+    for (final line in lines) {
+      final String trimmed = line.trim();
+      if (trimmed.isEmpty || trimmed.startsWith('#')) {
+        continue;
+      }
+      final int index = trimmed.indexOf('=');
+      if (index <= 0) {
+        continue;
+      }
+      final String key = trimmed.substring(0, index).trim();
+      final String value = trimmed.substring(index + 1).trim();
+      if (key.isEmpty) {
+        continue;
+      }
+      result[key] = _stripMinecraftFormatting(value);
+    }
+    return result;
+  }
+
+  static Map<String, String> _parseEntityAnimations(String text) {
+    final Object? decoded = jsonDecode(text);
+    if (decoded is! Map) {
+      return const <String, String>{};
+    }
+    final Map<String, Object?> root = decoded.cast<String, Object?>();
+    final Map<String, Object?>? clientEntity =
+        (root['minecraft:client_entity'] as Map?)?.cast<String, Object?>();
+    final Map<String, Object?>? description =
+        (clientEntity?['description'] as Map?)?.cast<String, Object?>();
+    final Map<String, Object?>? animations =
+        (description?['animations'] as Map?)?.cast<String, Object?>();
+    if (animations == null) {
+      return const <String, String>{};
+    }
+
+    final Map<String, String> result = <String, String>{};
+    for (final MapEntry<String, Object?> entry in animations.entries) {
+      final Object? value = entry.value;
+      if (value is String) {
+        result[entry.key] = value;
+      }
+    }
+    return result;
+  }
+
+  static Map<int, String> _parsePoseVariantToAnimationKey(
+    Map<String, Object?> controllers,
+  ) {
+    final Map<String, Object?>? controller =
+        (controllers['controller.animation.dfsteve_armor.pose'] as Map?)
+            ?.cast<String, Object?>();
+    final Map<String, Object?>? states =
+        (controller?['states'] as Map?)?.cast<String, Object?>();
+    if (states == null) {
+      return const <int, String>{};
+    }
+
+    final Map<String, String> stateToAnimation = <String, String>{};
+    for (final MapEntry<String, Object?> entry in states.entries) {
+      final Object? raw = entry.value;
+      if (raw is! Map) continue;
+      final Map<String, Object?> state = raw.cast<String, Object?>();
+      final String? animation = _firstAnimationKey(state['animations']);
+      if (animation != null) {
+        stateToAnimation[entry.key] = animation;
+      }
+    }
+
+    final RegExp variantPattern =
+        RegExp(r'query\\.mark_variant\\s*==\\s*(\\d+)');
+    final Map<int, String> variantToState = <int, String>{};
+    for (final Object? raw in states.values) {
+      if (raw is! Map) continue;
+      final Map<String, Object?> state = raw.cast<String, Object?>();
+      final Object? transitionsRaw = state['transitions'];
+      if (transitionsRaw is! List) {
+        continue;
+      }
+      for (final Object? transitionRaw in transitionsRaw) {
+        if (transitionRaw is! Map) continue;
+        final Map<Object?, Object?> transition = transitionRaw;
+        for (final MapEntry<Object?, Object?> entry in transition.entries) {
+          final Object? stateName = entry.key;
+          final Object? condition = entry.value;
+          if (stateName is! String || condition is! String) {
+            continue;
+          }
+          final RegExpMatch? match = variantPattern.firstMatch(condition);
+          if (match == null) {
+            continue;
+          }
+          final int? variant = int.tryParse(match.group(1)!);
+          if (variant == null) {
+            continue;
+          }
+          variantToState.putIfAbsent(variant, () => stateName);
+        }
+      }
+    }
+
+    final Map<int, String> result = <int, String>{};
+    for (final MapEntry<int, String> entry in variantToState.entries) {
+      final String? animationKey = stateToAnimation[entry.value];
+      if (animationKey != null) {
+        result[entry.key] = animationKey;
+      }
+    }
+    return result;
+  }
+
+  static Map<String, String> _parseAnimeToAnimationKey(
+    Map<String, Object?> controllers,
+  ) {
+    final Map<String, String> result = <String, String>{};
+    for (final MapEntry<String, Object?> entry in controllers.entries) {
+      final String controllerName = entry.key;
+      if (!controllerName.startsWith(
+        'controller.animation.dfsteve_armor.anime_',
+      )) {
+        continue;
+      }
+      final String leaf = controllerName.split('.').last;
+      if (!leaf.startsWith('anime_')) {
+        continue;
+      }
+      final String animeKey = leaf.substring('anime_'.length);
+      final Object? rawController = entry.value;
+      if (rawController is! Map) continue;
+      final Map<String, Object?> controller =
+          rawController.cast<String, Object?>();
+      final Map<String, Object?>? states =
+          (controller['states'] as Map?)?.cast<String, Object?>();
+      if (states == null || states.isEmpty) {
+        continue;
+      }
+
+      String? animationKey;
+      for (final Object? rawState in states.values) {
+        if (rawState is! Map) continue;
+        final Map<String, Object?> state = rawState.cast<String, Object?>();
+        animationKey = _firstAnimationKey(state['animations']);
+        if (animationKey != null) {
+          break;
+        }
+      }
+      if (animationKey != null && animationKey.isNotEmpty) {
+        result[animeKey] = animationKey;
+      }
+    }
+    return result;
+  }
+
+  static String _stripLangPrefix(String value, List<String> prefixes) {
+    String text = _stripMinecraftFormatting(value).trim();
+    for (final prefix in prefixes) {
+      if (text.startsWith(prefix)) {
+        text = text.substring(prefix.length).trim();
+        break;
+      }
+    }
+    return text;
+  }
+
+  static String _stripMinecraftFormatting(String value) {
+    return value.replaceAll(RegExp(r'§.'), '');
+  }
+
+  static String? _firstAnimationKey(Object? raw) {
+    if (raw is String && raw.trim().isNotEmpty) {
+      return raw.trim();
+    }
+    if (raw is! List || raw.isEmpty) {
+      return null;
+    }
+    final Object? first = raw.first;
+    if (first is String && first.trim().isNotEmpty) {
+      return first.trim();
+    }
+    if (first is Map) {
+      for (final Object? key in first.keys) {
+        if (key is String && key.trim().isNotEmpty) {
+          return key.trim();
+        }
+      }
+    }
+    return null;
+  }
+
+  static String _formatActionIdFallback(String id) {
+    const List<String> prefixes = <String>[
+      'animation.dfsteve_armor.',
+      'animation.armor.',
+    ];
+    for (final prefix in prefixes) {
+      if (id.startsWith(prefix)) {
+        return id.substring(prefix.length);
+      }
+    }
+    return id;
   }
 
   @override
@@ -893,9 +1429,10 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
         headerActions: [
           HoverDetailTooltip(
             message: '动作',
-            detail: _selectedAction == null
+            detail: _selectedAction == _kReferenceModelActionNone
                 ? '切换预览动作'
-                : '当前：${_formatActionName(_selectedAction!)}',
+                : '当前：${_displayNameForActionId(_selectedAction)}'
+                    '${_selectedActionItem?.isAnimated == true ? '（动画）' : ''}',
             child: IconButton(
               icon: const Icon(FluentIcons.running, size: 14),
               iconButtonMode: IconButtonMode.small,

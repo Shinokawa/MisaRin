@@ -1,0 +1,2989 @@
+{
+	"format_version" : "1.10.0",
+	"animation_controllers" : {
+		"controller.animation.dfsteve_armor.anime_run" : {
+			"initial_state" : "default",
+			"states" : {
+				"anime_run" : {
+					"blend_transition" : 0.2,
+					"animations" : [{
+						"move" : "query.mark_variant ==1000"
+					}]
+				}
+			}
+		},
+				"controller.animation.dfsteve_armor.anime_stop" : {
+					"initial_state" : "default",
+					"states" : {
+				"anime_stop" : {
+					"blend_transition" : 0.2,
+					"animations" : [{
+						"stop" : "query.mark_variant ==1001"
+					}]
+				}
+			}
+		},
+				"controller.animation.dfsteve_armor.anime_swim" : {
+					"initial_state" : "default",
+					"states" : {
+				"anime_swim" : {
+					"blend_transition" : 0.2,
+					"animations" : [{
+						"swim" : "query.mark_variant ==1002"
+					}]
+				}
+			}
+		},
+				"controller.animation.dfsteve_armor.anime_shoot" : {
+					"initial_state" : "default",
+					"states" : {
+				"anime_shoot" : {
+					"blend_transition" : 0.2,
+					"animations" : [{
+						"shoot" : "query.mark_variant ==1003"
+					}]
+				}
+			}
+		},
+		"controller.animation.dfsteve_armor.anime_sneak" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_sneak" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_sneak" : "query.mark_variant ==1004"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_eat" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_eat" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_eat" : "query.mark_variant ==1005"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_omedetou" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_omedetou" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_omedetou" : "query.mark_variant ==1006"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_agree" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_agree" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_agree" : "query.mark_variant ==1007"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_disagree" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_disagree" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_disagree" : "query.mark_variant ==1008"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_loop" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_loop" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_loop" : "query.mark_variant ==1009"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_hunbunjump" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_hunbunjump" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_hunbunjump" : "query.mark_variant ==1010"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_nani" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_nani" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_nani" : "query.mark_variant ==1011"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_nani2" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_nani2" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_nani2" : "query.mark_variant ==1012"
+			}]
+		}
+	    }    
+        },
+		"controller.animation.dfsteve_armor.anime_head" : {
+			"initial_state" : "default",
+			"states" : {
+		"anime_head" : {
+			"blend_transition" : 0.2,
+			"animations" : [{
+				"anime_head" : "query.mark_variant ==1013"
+			}]
+		}
+	    }    
+        },
+
+		"controller.animation.dfsteve_armor.move" : {
+			"initial_state" : "default",
+			"states" : {
+				"move" : {
+					"blend_transition" : 0.2,
+					"animations" : [{
+						"move" : "query.mark_variant ==1&&query.modified_move_speed >0.1&&!query.is_swimming"
+					}],
+					"transitions" : [
+						{
+							"stop" : "query.mark_variant ==1&&query.modified_move_speed <=0.1&&!query.is_swimming"
+						},
+						{
+							"swim" : "query.mark_variant ==1&&query.is_swimming&&query.modified_move_speed >0.0"
+						}
+					]
+				},
+				"stop" : {
+					"blend_transition" : 0.2,
+					"animations" : [ {
+						"stop" : "query.mark_variant ==1&&query.modified_move_speed <=0.1&&!query.is_swimming"
+					} ],
+					"transitions" : [
+						{
+							"move" : "query.mark_variant ==1&&query.modified_move_speed >0.1&&!query.is_swimming"
+						},
+						{
+							"swim" : "query.mark_variant ==1&&query.is_swimming&&query.modified_move_speed >0"
+						} 
+					]
+				},
+				"swim" : {
+					"blend_transition" : 0.2,
+					"animations" : [ {
+						"swim" : "query.mark_variant ==1&&query.is_swimming&&query.modified_move_speed >0"
+					} ],
+					"transitions" : [
+						{
+							"move" : "query.mark_variant ==1&&query.modified_move_speed >0.1&&!query.is_swimming"
+						},
+						{
+							"stop" : "query.mark_variant ==1&&query.modified_move_speed <=0.1&&!query.is_swimming"
+						}
+					]
+				}
+			}
+		},
+		"controller.animation.dfsteve_armor.shoot" : {
+			"initial_state" : "default",
+			"states" : {
+				"move" : {
+					"blend_transition" : 0.2,
+					"animations" : [{
+						"move" : "query.mark_variant ==114514&&query.modified_move_speed >0.1&&!query.is_swimming&&!query.has_target"
+					}],
+					"transitions" : [
+						{
+							"stop" : "query.mark_variant ==114514&&query.modified_move_speed <=0.1&&!query.is_swimming&&!query.has_target"
+						},
+						{
+							"swim" : "query.mark_variant ==114514&&query.is_swimming&&query.modified_move_speed >0.0&&!query.has_target"
+						},
+						{
+							"shoot" : "query.mark_variant ==114514&&!query.is_swimming&&query.has_target"
+						}
+					]
+				},
+				"stop" : {
+					"blend_transition" : 0.2,
+					"animations" : [ {
+						"stop" : "query.mark_variant ==114514&&query.modified_move_speed <=0.1&&!query.is_swimming&&!query.has_target"
+					} ],
+					"transitions" : [
+						{
+							"move" : "query.mark_variant ==114514&&query.modified_move_speed >0.1&&!query.is_swimming&&!query.has_target"
+						},
+						{
+							"swim" : "query.mark_variant ==114514&&query.is_swimming&&query.modified_move_speed >0&&!query.has_target"
+						} ,
+						{
+							"shoot" : "query.mark_variant ==114514&&!query.is_swimming&&query.has_target"
+						}
+					]
+				},
+				"swim" : {
+					"blend_transition" : 0.2,
+					"animations" : [ {
+						"swim" : "query.mark_variant ==114514&&query.is_swimming&&query.modified_move_speed >0&&!query.has_target"
+					} ],
+					"transitions" : [
+						{
+							"move" : "query.mark_variant ==114514&&query.modified_move_speed >0.1&&!query.is_swimming&&!query.has_target"
+						},
+						{
+							"stop" : "query.mark_variant ==114514&&query.modified_move_speed <=0.1&&!query.is_swimming&&!query.has_target"
+						},
+						{
+							"shoot" : "query.mark_variant ==114514&&!query.is_swimming&&query.has_target"
+						}
+					]
+				},
+				"shoot" : {
+					"blend_transition" : 0.2,
+					"animations" : [ {
+						"shoot" : "query.mark_variant ==114514&&!query.is_swimming&&query.has_target&&query.modified_move_speed <=0.1"
+					} ],
+					"transitions" : [
+						{
+							"move" : "query.mark_variant ==114514&&query.modified_move_speed >0.1&&!query.is_swimming&&!query.has_target"
+						},
+						{
+							"stop" : "query.mark_variant ==114514&&query.modified_move_speed <=0.1&&!query.is_swimming&&!query.has_target"
+						},
+						{
+							"swim" : "query.mark_variant ==114514&&query.is_swimming&&query.modified_move_speed >0&&!query.has_target"
+						}
+					]
+				}
+			}
+		},
+		"controller.animation.theworld" : {
+			"initial_state" : "default",
+			"states" : {
+				"default" : {
+					"animations" : [
+						{
+							"armor_theworld" : "query.mark_variant ==2"
+						}
+					]
+				}
+			}
+		},
+		"controller.animation.dfsteve_armor.pose" : {
+			"initial_state" : "default",
+			"states" : {
+				"default" : {
+						"blend_transition" : 0.1,
+					"blend_via_shortest_path" : true,
+					"animations" : [ "default_pose" ],
+					"transitions" : [
+						{
+							"kawaii" : "query.mark_variant ==3 "
+						},
+						{
+							"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+						},
+						{
+							"solemn" : "query.mark_variant ==4 "
+						},
+						{
+							"athena" : "query.mark_variant ==14 "
+						},
+						{
+							"brandish" : "query.mark_variant ==5 "
+						},
+						{
+							"honor" : "query.mark_variant ==6 "
+						},
+						{
+							"houbunjump" : "query.mark_variant ==25 "
+						},
+						{
+							"entertain" : "query.mark_variant ==7 "
+						},
+						{
+							"salute" : "query.mark_variant ==8 "
+						},
+						{
+							"riposte" : "query.mark_variant ==9 "
+						},
+						{
+							"zombie" : "query.mark_variant ==10 "
+						},
+					{
+							"cancan_a" : "query.mark_variant ==11 "
+						},
+								{
+							"bata" : "query.mark_variant ==21"
+						},
+						{
+							"sneak" : "query.mark_variant ==22 "
+						},
+						{
+							"sleep" : "query.mark_variant ==23 "
+						},
+						{
+							"sleep2" : "query.mark_variant ==24 "
+						},
+						{
+							"yee" : "query.mark_variant ==26 "
+						},
+						{
+							"run" : "query.mark_variant ==27 "
+						},
+								{
+							"qitao" : "query.mark_variant ==17 "
+						},
+						{
+							"hello" : "query.mark_variant ==18 "
+						},
+						{
+							"jojo" : "query.mark_variant ==19 "
+						},
+						{
+							"dontstop" : "query.mark_variant ==20 "
+						},
+						{
+							"cancan_b" : "query.mark_variant ==12 "
+						},
+ 
+					 	{
+							"hero" : "query.mark_variant ==13 "
+							},
+				    	{
+							"riposte" : "query.mark_variant ==16 "
+						},				  
+						  	{
+							"wiggle" : "query.mark_variant ==15 "
+						}
+					]
+				},
+				"kawaii" : {
+					"blend_transition" : 0.1,
+				"blend_via_shortest_path" : true,
+				"animations" : [ "kawaii" ],
+		"transitions" : [
+			{
+				"default" : "query.mark_variant ==0 "
+			},
+			{
+				"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+			},
+			{
+				"yee" : "query.mark_variant ==26 "
+			},
+			{
+				"run" : "query.mark_variant ==27 "
+			},
+			{
+				"solemn" : "query.mark_variant ==4 "
+			},
+			{
+				"athena" : "query.mark_variant ==14 "
+			},
+			{
+				"brandish" : "query.mark_variant ==5 "
+			},
+			{
+				"honor" : "query.mark_variant ==6 "
+			},
+			{
+				"houbunjump" : "query.mark_variant ==25 "
+			},
+			{
+				"entertain" : "query.mark_variant ==7 "
+			},
+			{
+				"salute" : "query.mark_variant ==8 "
+			},
+			{
+				"riposte" : "query.mark_variant ==9 "
+			},
+			{
+				"zombie" : "query.mark_variant ==10 "
+			},
+		{
+							"cancan_a" : "query.mark_variant ==11 "
+						},
+								{
+							"bata" : "query.mark_variant ==21"
+						},
+						{
+							"sneak" : "query.mark_variant ==22 "
+						},
+						{
+							"sleep" : "query.mark_variant ==23 "
+						},
+						{
+							"sleep2" : "query.mark_variant ==24 "
+						},
+					{
+				"qitao" : "query.mark_variant ==17 "
+			},
+			{
+				"hello" : "query.mark_variant ==18 "
+			},
+			{
+				"jojo" : "query.mark_variant ==19 "
+			},
+			{
+				"dontstop" : "query.mark_variant ==20 "
+			},
+			{
+				"cancan_b" : "query.mark_variant ==12 "
+			},
+
+			 {
+				"hero" : "query.mark_variant ==13 "
+				},
+			{
+				"riposte2" : "query.mark_variant ==16 "
+			},				  
+				  {
+				"wiggle" : "query.mark_variant ==15 "
+			}
+		]
+	},
+			"solemn" : {
+				"blend_transition" : 0.1,
+			"blend_via_shortest_path" : true,
+			"animations" : [ "solemn_pose" ],
+			"transitions" : [		
+				{
+					"default" : "query.mark_variant ==0 "
+				},
+				{
+					"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+				},
+				{
+					"yee" : "query.mark_variant ==26 "
+				},
+				{
+					"run" : "query.mark_variant ==27 "
+				},
+				{
+					"kawaii" : "query.mark_variant ==3 "
+				},
+				{
+					"athena" : "query.mark_variant ==14 "
+				},
+				{
+					"brandish" : "query.mark_variant ==5 "
+				},
+				{
+					"honor" : "query.mark_variant ==6 "
+				},
+				{
+					"houbunjump" : "query.mark_variant ==25 "
+				},
+				{
+					"entertain" : "query.mark_variant ==7 "
+				},
+				{
+					"salute" : "query.mark_variant ==8 "
+				},
+				{
+					"riposte" : "query.mark_variant ==9 "
+				},
+				{
+					"zombie" : "query.mark_variant ==10 "
+				},
+			{
+							"cancan_a" : "query.mark_variant ==11 "
+						},
+								{
+							"bata" : "query.mark_variant ==21"
+						},
+						{
+							"sneak" : "query.mark_variant ==22 "
+						},
+						{
+							"sleep" : "query.mark_variant ==23 "
+						},
+						{
+							"sleep2" : "query.mark_variant ==24 "
+						},
+						{
+					"qitao" : "query.mark_variant ==17 "
+				},
+				{
+					"hello" : "query.mark_variant ==18 "
+				},
+				{
+					"jojo" : "query.mark_variant ==19 "
+				},
+				{
+					"dontstop" : "query.mark_variant ==20 "
+				},
+				{
+					"cancan_b" : "query.mark_variant ==12 "
+				},
+
+				 {
+					"hero" : "query.mark_variant ==13 "
+					},
+				{
+					"riposte2" : "query.mark_variant ==16 "
+				},				  
+					  {
+					"wiggle" : "query.mark_variant ==15 "
+				}
+			]
+		},
+		"brandish" : {
+			"blend_transition" : 0.1,
+		"blend_via_shortest_path" : true,
+		"animations" : [ "brandish_pose" ],
+		"transitions" : [	
+			{
+				"default" : "query.mark_variant ==0 "
+			},
+			{
+				"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+			},
+			{
+				"yee" : "query.mark_variant ==26 "
+			},
+			{
+				"run" : "query.mark_variant ==27 "
+			},
+			{
+				"kawaii" : "query.mark_variant ==3 "
+			},
+			{
+				"solemn" : "query.mark_variant ==4 "
+			},
+			{
+				"athena" : "query.mark_variant ==14 "
+			},
+			{
+				"honor" : "query.mark_variant ==6 "
+			},
+			{
+				"houbunjump" : "query.mark_variant ==25 "
+			},
+			{
+				"entertain" : "query.mark_variant ==7 "
+			},
+			{
+				"salute" : "query.mark_variant ==8 "
+			},
+			{
+				"riposte" : "query.mark_variant ==9 "
+			},
+			{
+				"zombie" : "query.mark_variant ==10 "
+			},
+		{
+							"cancan_a" : "query.mark_variant ==11 "
+						},
+								{
+							"bata" : "query.mark_variant ==21"
+						},
+						{
+							"sneak" : "query.mark_variant ==22 "
+						},
+						{
+							"sleep" : "query.mark_variant ==23 "
+						},
+						{
+							"sleep2" : "query.mark_variant ==24 "
+						},
+					{
+				"qitao" : "query.mark_variant ==17 "
+			},
+			{
+				"hello" : "query.mark_variant ==18 "
+			},
+			{
+				"jojo" : "query.mark_variant ==19 "
+			},
+			{
+				"dontstop" : "query.mark_variant ==20 "
+			},
+			{
+				"cancan_b" : "query.mark_variant ==12 "
+			},
+
+			 {
+				"hero" : "query.mark_variant ==13 "
+				},
+			{
+				"riposte" : "query.mark_variant ==16 "
+			},				  
+				  {
+				"wiggle" : "query.mark_variant ==15 "
+			}
+		]
+	},
+	"honor" : {
+		"blend_transition" : 0.1,
+	"blend_via_shortest_path" : true,
+	"animations" : [ "honor_pose" ],
+	"transitions" : [	
+		{
+			"default" : "query.mark_variant ==0 "
+		},
+		{
+			"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+		},
+		{
+			"yee" : "query.mark_variant ==26 "
+		},
+		{
+			"run" : "query.mark_variant ==27 "
+		},
+		{
+			"kawaii" : "query.mark_variant ==3 "
+		},
+		{
+			"solemn" : "query.mark_variant ==4 "
+		},
+		{
+			"athena" : "query.mark_variant ==14 "
+		},
+		{
+			"brandish" : "query.mark_variant ==5 "
+		},
+		{
+			"entertain" : "query.mark_variant ==7 "
+		},
+		{
+			"salute" : "query.mark_variant ==8 "
+		},
+		{
+			"riposte" : "query.mark_variant ==9 "
+		},
+		{
+			"houbunjump" : "query.mark_variant ==25 "
+		},
+		{
+			"riposte2" : "query.mark_variant ==16 "
+		},
+		{
+			"zombie" : "query.mark_variant ==10 "
+		},
+		{
+							"cancan_a" : "query.mark_variant ==11 "
+						},
+								{
+							"bata" : "query.mark_variant ==21"
+						},
+						{
+							"sneak" : "query.mark_variant ==22 "
+						},
+						{
+							"sleep" : "query.mark_variant ==23 "
+						},
+						{
+							"sleep2" : "query.mark_variant ==24 "
+						},
+				{
+			"qitao" : "query.mark_variant ==17 "
+		},
+		{
+			"hello" : "query.mark_variant ==18 "
+		},
+		{
+			"jojo" : "query.mark_variant ==19 "
+		},
+		{
+			"dontstop" : "query.mark_variant ==20 "
+		},
+		{
+			"cancan_b" : "query.mark_variant ==12 "
+		},
+
+		 {
+			"hero" : "query.mark_variant ==13 "
+		},
+		{
+			"wiggle" : "query.mark_variant ==15 "
+		}
+	]
+},
+"entertain" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "entertain_pose" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		},
+	{
+		"riposte" : "query.mark_variant ==16 "
+	},				  
+		  {
+		"wiggle" : "query.mark_variant ==15 "
+	}
+]
+},
+"salute" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "salute_pose" ],
+"transitions" : [
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		},
+	{
+		"riposte2" : "query.mark_variant ==16 "
+	},				  
+		  {
+		"wiggle" : "query.mark_variant ==15 "
+	}
+]
+},
+"riposte" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "riposte_pose" ],
+"transitions" : [
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		},
+	{
+		"riposte2" : "query.mark_variant ==16 "
+	},				  
+		  {
+		"wiggle" : "query.mark_variant ==15 "
+	}
+]
+},
+"zombie" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "zombie_pose" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		},
+	{
+		"riposte2" : "query.mark_variant ==16 "
+	},				  
+		  {
+		"wiggle" : "query.mark_variant ==15 "
+	}
+]
+},
+"cancan_a" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "cancan_a_pose" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+			{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		},
+	{
+		"riposte" : "query.mark_variant ==16 "
+	},				  
+		  {
+		"wiggle" : "query.mark_variant ==15 "
+	}
+]
+},
+"cancan_b" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "cancan_b_pose" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	 {
+		"hero" : "query.mark_variant ==13 "
+		},
+	{
+		"riposte" : "query.mark_variant ==16 "
+	},				  
+		  {
+		"wiggle" : "query.mark_variant ==15 "
+	}
+]
+},
+"hero" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "hero_pose" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==2"
+	}
+]
+},
+"athena" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "athena_pose" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+			{
+		"qitao_pose" : "query.mark_variant ==17 "
+	},
+	{
+		"hello_pose" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo_pose" : "query.mark_variant ==19 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+	 {
+		"hero" : "query.mark_variant ==13 "
+		},
+	{
+		"riposte" : "query.mark_variant ==16 "
+	},				  
+		  {
+		"wiggle" : "query.mark_variant ==15 "
+	}
+]
+},
+"wiggle" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "wiggle" ],
+"transitions" : [
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"riposte2" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "riposte_pose" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"qitao" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "qitao" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"hello" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "hello" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"dontstop" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "dontstop" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"jojo" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "jojo" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+							"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+						},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"bata" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "bata" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"sneak" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "sneak" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"sleep" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "sleep" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"sleep2" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "sleep2" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"yee" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "yee" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"run" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "run" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"saber" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "saber" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"down" : "query.mark_variant ==30 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"dame" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "dame" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+	},
+	{
+		"down" : "query.mark_variant ==30 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"down" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "down" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"houbunjump" : "query.mark_variant ==25 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+},
+"houbunjump" : {
+	"blend_transition" : 0.1,
+"blend_via_shortest_path" : true,
+"animations" : [ "houbunjump" ],
+"transitions" : [	
+	{
+		"default" : "query.mark_variant ==0 "
+	},
+	{
+		"saber" : "query.mark_variant ==28 "
+			},
+			{
+				"down" : "query.mark_variant ==30 "
+			},
+			{
+				"dame" : "query.mark_variant ==29 "
+	},
+	{
+		"yee" : "query.mark_variant ==26 "
+	},
+	{
+		"run" : "query.mark_variant ==27 "
+	},
+	{
+		"kawaii" : "query.mark_variant ==3 "
+	},
+	{
+		"athena" : "query.mark_variant ==14 "
+	},
+	{
+		"brandish" : "query.mark_variant ==5 "
+	},
+	{
+		"honor" : "query.mark_variant ==6 "
+	},
+	{
+		"sleep" : "query.mark_variant ==23 "
+	},
+	{
+		"entertain" : "query.mark_variant ==7 "
+	},
+	{
+		"salute" : "query.mark_variant ==8 "
+	},
+	{
+		"solemn" : "query.mark_variant ==4 "
+	},
+	{
+		"riposte" : "query.mark_variant ==9 "
+	},
+	{
+		"wiggle" : "query.mark_variant ==15 "
+	},
+	{
+		"zombie" : "query.mark_variant ==10 "
+	},
+	{
+		"dontstop" : "query.mark_variant ==20 "
+	},
+	{
+		"cancan_a" : "query.mark_variant ==11 "
+	},
+	{
+		"bata" : "query.mark_variant ==21"
+	},
+	{
+		"sneak" : "query.mark_variant ==22 "
+	},
+	{
+		"jojo" : "query.mark_variant ==19 "
+	},
+	{
+		"sleep2" : "query.mark_variant ==24 "
+	},
+			{
+		"riposte2" : "query.mark_variant ==16 "
+	},
+	{
+		"qitao" : "query.mark_variant ==17 "
+	},
+	{
+		"hello" : "query.mark_variant ==18 "
+	},
+	{
+		"cancan_b" : "query.mark_variant ==12 "
+	},
+
+	 {
+		"hero" : "query.mark_variant ==13 "
+		}
+]
+}
+			}
+		},
+	
+		"controller.animation.dfsteve_armor.wiggle" : {
+			"initial_state" : "default",
+			"states" : {
+				"default" : {
+					"transitions" : [
+						{
+							"wiggling" : "(variable.armor_stand.hurt_time - query.frame_alpha) > 0&&query.mark_variant ==0 "
+						}
+					]
+				},
+				"wiggling" : {
+					"animations" : [ "wiggle" ],
+					"transitions" : [
+						{
+							"default" : "(variable.armor_stand.hurt_time - query.frame_alpha) <= 0&&query.mark_variant ==0 "
+						}
+					]
+				}
+			}
+		}
+	}
+}

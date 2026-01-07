@@ -83,6 +83,18 @@ class BedrockAnimation {
     );
   }
 
+  bool get isDynamic {
+    if (lengthSeconds <= 0) {
+      return false;
+    }
+    for (final BedrockBoneAnimation bone in bones.values) {
+      if (bone.rotation?.isDynamic == true || bone.position?.isDynamic == true) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Map<String, BedrockBonePose> samplePose(
     BedrockGeometryModel model, {
     required double timeSeconds,
@@ -100,12 +112,19 @@ class BedrockAnimation {
     final Map<String, BedrockBone> bonesByName = <String, BedrockBone>{
       for (final bone in model.bones) bone.name: bone,
     };
+    final Map<String, String> boneNamesLowercase = <String, String>{
+      for (final bone in model.bones) bone.name.toLowerCase(): bone.name,
+    };
 
     final Map<String, BedrockBonePose> pose = <String, BedrockBonePose>{};
     for (final MapEntry<String, BedrockBoneAnimation> entry in bones.entries) {
       final String boneName = entry.key;
+      final String resolvedBoneName =
+          bonesByName.containsKey(boneName)
+              ? boneName
+              : (boneNamesLowercase[boneName.toLowerCase()] ?? boneName);
       final BedrockBoneAnimation animation = entry.value;
-      final BedrockBone? base = bonesByName[boneName];
+      final BedrockBone? base = bonesByName[resolvedBoneName];
 
       final Vector3 baseRotationBedrock = _boneRotationToBedrock(base?.rotation);
       final Vector3 rotationDeltaBedrock = animation.rotation?.sample(
@@ -125,7 +144,10 @@ class BedrockAnimation {
       final Vector3 position = _bedrockPositionToLocal(positionDeltaBedrock);
 
       if (rotation != Vector3.zero() || position != Vector3.zero()) {
-        pose[boneName] = BedrockBonePose(rotation: rotation, position: position);
+        pose[resolvedBoneName] = BedrockBonePose(
+          rotation: rotation,
+          position: position,
+        );
       }
     }
     return pose;
@@ -164,6 +186,21 @@ class BedrockAnimatedVec3 {
 
   final _MolangVec3Expr? constant;
   final List<_KeyframeVec3>? keyframes;
+
+  bool get isDynamic {
+    final _MolangVec3Expr? constant = this.constant;
+    if (constant != null) {
+      return constant.isDynamic;
+    }
+    final List<_KeyframeVec3>? keyframes = this.keyframes;
+    if (keyframes == null || keyframes.isEmpty) {
+      return false;
+    }
+    if (keyframes.length > 1) {
+      return true;
+    }
+    return keyframes.single.value.isDynamic;
+  }
 
   static BedrockAnimatedVec3? tryParse(Object? raw) {
     final _MolangVec3Expr? constant = _MolangVec3Expr.tryParse(raw);
@@ -290,6 +327,8 @@ class _MolangVec3Expr {
   final _MolangExpr y;
   final _MolangExpr z;
 
+  bool get isDynamic => x.isDynamic || y.isDynamic || z.isDynamic;
+
   static _MolangVec3Expr? tryParse(Object? raw) {
     if (raw is Map) {
       final Map<String, Object?> map = raw.cast<String, Object?>();
@@ -350,6 +389,8 @@ abstract class _MolangExpr {
     return const _MolangNumber(0);
   }
 
+  bool get isDynamic;
+
   double evaluate(BedrockMolangContext context, {required double thisValue});
 }
 
@@ -357,6 +398,9 @@ class _MolangNumber extends _MolangExpr {
   const _MolangNumber(this.value);
 
   final double value;
+
+  @override
+  bool get isDynamic => false;
 
   @override
   double evaluate(BedrockMolangContext context, {required double thisValue}) {
@@ -368,6 +412,17 @@ class _MolangVariable extends _MolangExpr {
   const _MolangVariable(this.name);
 
   final String name;
+
+  @override
+  bool get isDynamic {
+    if (name == 'this') {
+      return false;
+    }
+    if (name == 'math.pi' || name == 'pi') {
+      return false;
+    }
+    return true;
+  }
 
   @override
   double evaluate(BedrockMolangContext context, {required double thisValue}) {
@@ -383,6 +438,9 @@ class _MolangUnary extends _MolangExpr {
 
   final String op;
   final _MolangExpr expr;
+
+  @override
+  bool get isDynamic => expr.isDynamic;
 
   @override
   double evaluate(BedrockMolangContext context, {required double thisValue}) {
@@ -403,6 +461,9 @@ class _MolangBinary extends _MolangExpr {
   final String op;
   final _MolangExpr left;
   final _MolangExpr right;
+
+  @override
+  bool get isDynamic => left.isDynamic || right.isDynamic;
 
   @override
   double evaluate(BedrockMolangContext context, {required double thisValue}) {
@@ -428,6 +489,9 @@ class _MolangCall extends _MolangExpr {
 
   final String name;
   final List<_MolangExpr> args;
+
+  @override
+  bool get isDynamic => args.any((arg) => arg.isDynamic);
 
   @override
   double evaluate(BedrockMolangContext context, {required double thisValue}) {
