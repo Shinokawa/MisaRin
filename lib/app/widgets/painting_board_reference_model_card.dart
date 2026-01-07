@@ -38,6 +38,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
   double _yaw = math.pi / 4;
   double _pitch = -math.pi / 12;
   double _zoom = 1.0;
+  double _zoomScaleStart = 1.0;
   bool _multiViewEnabled = false;
 
   late final AnimationController _actionController;
@@ -277,7 +278,17 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onDoubleTap: _resetView,
-            onPanUpdate: (details) => _updateRotation(details.delta),
+            onScaleStart: (_) => _zoomScaleStart = _zoom,
+            onScaleUpdate: (details) {
+              final double scaleDelta = details.scale - 1.0;
+              if (scaleDelta.abs() > 0.001) {
+                setState(() {
+                  _zoom = (_zoomScaleStart * details.scale).clamp(0.35, 6.0);
+                });
+                return;
+              }
+              _updateRotation(details.focalPointDelta);
+            },
             child: painted,
           ),
         );
@@ -397,6 +408,19 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onDoubleTap: _resetView,
+                    onScaleStart: (_) => _zoomScaleStart = _zoom,
+                    onScaleUpdate: (details) {
+                      final double scaleDelta = details.scale - 1.0;
+                      if (scaleDelta.abs() <= 0.001) {
+                        return;
+                      }
+                      setState(() {
+                        _zoom = (_zoomScaleStart * details.scale).clamp(
+                          0.35,
+                          6.0,
+                        );
+                      });
+                    },
                     child: Row(
                       children: [
                         Expanded(

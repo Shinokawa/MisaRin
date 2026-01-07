@@ -21,6 +21,11 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
         : _kReferenceModelActionNone;
     String query = '';
 
+    double previewYaw = 0;
+    double previewPitch = 0;
+    double previewZoom = 1.0;
+    double previewZoomScaleStart = 1.0;
+
     final BuildContext dialogContext = widget.dialogContext;
     final ScrollController scrollController = ScrollController();
     final AnimationController previewController = AnimationController(
@@ -282,18 +287,68 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
                                           ),
                                         )
                                       : SizedBox.expand(
-                                          child: _BedrockModelZBufferView(
-                                            baseModel: widget.modelMesh,
-                                            modelTextureWidth:
-                                                widget.modelMesh.model.textureWidth,
-                                            modelTextureHeight:
-                                                widget.modelMesh.model.textureHeight,
-                                            texture: widget.texture,
-                                            yaw: math.pi / 4,
-                                            pitch: -math.pi / 12,
-                                            zoom: 1.0,
-                                            animation: selectedAnimation,
-                                            animationController: previewController,
+                                          child: Listener(
+                                            onPointerSignal: (event) {
+                                              if (event is PointerScrollEvent) {
+                                                setDialogState(() {
+                                                  previewZoom = (previewZoom -
+                                                          event.scrollDelta.dy * 0.002)
+                                                      .clamp(0.35, 6.0);
+                                                });
+                                              }
+                                            },
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onDoubleTap: () {
+                                                setDialogState(() {
+                                                  previewYaw = 0;
+                                                  previewPitch = 0;
+                                                  previewZoom = 1.0;
+                                                });
+                                              },
+                                              onScaleStart: (_) =>
+                                                  previewZoomScaleStart = previewZoom,
+                                              onScaleUpdate: (details) {
+                                                setDialogState(() {
+                                                  final double scaleDelta =
+                                                      details.scale - 1.0;
+                                                  if (scaleDelta.abs() > 0.001) {
+                                                    previewZoom =
+                                                        (previewZoomScaleStart *
+                                                                details.scale)
+                                                            .clamp(0.35, 6.0);
+                                                    return;
+                                                  }
+
+                                                  previewYaw -=
+                                                      details.focalPointDelta.dx *
+                                                      0.01;
+                                                  previewPitch =
+                                                      (previewPitch -
+                                                              details
+                                                                      .focalPointDelta
+                                                                      .dy *
+                                                                  0.01)
+                                                          .clamp(
+                                                            -math.pi / 2,
+                                                            math.pi / 2,
+                                                          );
+                                                });
+                                              },
+                                              child: _BedrockModelZBufferView(
+                                                baseModel: widget.modelMesh,
+                                                modelTextureWidth:
+                                                    widget.modelMesh.model.textureWidth,
+                                                modelTextureHeight:
+                                                    widget.modelMesh.model.textureHeight,
+                                                texture: widget.texture,
+                                                yaw: previewYaw,
+                                                pitch: previewPitch,
+                                                zoom: previewZoom,
+                                                animation: selectedAnimation,
+                                                animationController: previewController,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                 ),
