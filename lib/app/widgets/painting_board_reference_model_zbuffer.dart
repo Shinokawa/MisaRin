@@ -20,6 +20,7 @@ class _BedrockModelZBufferView extends StatefulWidget {
     this.specularStrength = 0.25,
     this.roughness = 0.55,
     this.exposure = 1.0,
+    this.toneMap = false,
     this.lightFollowsCamera = true,
     this.showGround = false,
     this.groundY = 0.0,
@@ -28,6 +29,8 @@ class _BedrockModelZBufferView extends StatefulWidget {
     this.showGroundShadow = false,
     this.groundShadowStrength = 0.55,
     this.groundShadowBlurRadius = 2,
+    this.renderKey = 0,
+    this.onRendered,
   });
 
   final BedrockModelMesh baseModel;
@@ -48,6 +51,7 @@ class _BedrockModelZBufferView extends StatefulWidget {
   final double specularStrength;
   final double roughness;
   final double exposure;
+  final bool toneMap;
   final bool lightFollowsCamera;
   final bool showGround;
   final double groundY;
@@ -56,6 +60,8 @@ class _BedrockModelZBufferView extends StatefulWidget {
   final bool showGroundShadow;
   final double groundShadowStrength;
   final int groundShadowBlurRadius;
+  final int renderKey;
+  final ValueChanged<int>? onRendered;
 
   @override
   State<_BedrockModelZBufferView> createState() => _BedrockModelZBufferViewState();
@@ -158,6 +164,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         oldWidget.specularStrength != widget.specularStrength ||
         oldWidget.roughness != widget.roughness ||
         oldWidget.exposure != widget.exposure ||
+        oldWidget.toneMap != widget.toneMap ||
         oldWidget.lightFollowsCamera != widget.lightFollowsCamera ||
         oldWidget.showGround != widget.showGround ||
         oldWidget.groundY != widget.groundY ||
@@ -165,7 +172,8 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         oldWidget.groundColor != widget.groundColor ||
         oldWidget.showGroundShadow != widget.showGroundShadow ||
         oldWidget.groundShadowStrength != widget.groundShadowStrength ||
-        oldWidget.groundShadowBlurRadius != widget.groundShadowBlurRadius;
+        oldWidget.groundShadowBlurRadius != widget.groundShadowBlurRadius ||
+        oldWidget.renderKey != widget.renderKey;
     if (propsChanged) {
       _markDirty();
     }
@@ -298,6 +306,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
   }
 
   Future<void> _renderFrame(int generation) async {
+    final int renderKey = widget.renderKey;
     try {
       await _ensureTextureBytes(generation);
       if (!mounted || generation != _renderGeneration) {
@@ -358,16 +367,16 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
           pitch: widget.pitch,
           zoom: widget.zoom,
           lightDirection: lightDir,
-          ambient: 1.0,
-          diffuse: 0.0,
+          ambient: widget.ambient,
+          diffuse: widget.diffuse,
           sunColor: widget.sunColor,
           skyColor: widget.skyColor,
           groundBounceColor: widget.groundBounceColor,
           specularStrength: widget.specularStrength,
           roughness: widget.roughness,
           exposure: widget.exposure,
+          toneMap: widget.toneMap,
           lightFollowsCamera: widget.lightFollowsCamera,
-          unlit: true,
           textureRgba: null,
           textureWidth: 0,
           textureHeight: 0,
@@ -435,6 +444,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         specularStrength: widget.specularStrength,
         roughness: widget.roughness,
         exposure: widget.exposure,
+        toneMap: widget.toneMap,
         lightFollowsCamera: widget.lightFollowsCamera,
         textureRgba: _textureRgba,
         textureWidth: _textureWidth,
@@ -461,6 +471,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
       if (previous != null && !previous.debugDisposed) {
         previous.dispose();
       }
+      widget.onRendered?.call(renderKey);
     } catch (error, stackTrace) {
       debugPrint('Failed to render reference model: $error\n$stackTrace');
     } finally {
@@ -512,6 +523,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     double specularStrength = 0.25,
     double roughness = 0.55,
     double exposure = 1.0,
+    required bool toneMap,
     required bool lightFollowsCamera,
     bool unlit = false,
     required Uint8List? textureRgba,
@@ -775,9 +787,9 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
               final double bLin =
                   (srgbToLinear[tb] * triLightB + triSpecB) *
                   exposureClamped;
-              final double rMapped = rLin / (1.0 + rLin);
-              final double gMapped = gLin / (1.0 + gLin);
-              final double bMapped = bLin / (1.0 + bLin);
+              final double rMapped = toneMap ? (rLin / (1.0 + rLin)) : rLin;
+              final double gMapped = toneMap ? (gLin / (1.0 + gLin)) : gLin;
+              final double bMapped = toneMap ? (bLin / (1.0 + bLin)) : bLin;
               rOut =
                   linearToSrgb[(rMapped.clamp(0.0, 1.0).toDouble() * linearMaxIndex).round()];
               gOut =
@@ -799,9 +811,9 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
                   (untexturedGLin * triLightG + triSpecG) * exposureClamped;
               final double bLin =
                   (untexturedBLin * triLightB + triSpecB) * exposureClamped;
-              final double rMapped = rLin / (1.0 + rLin);
-              final double gMapped = gLin / (1.0 + gLin);
-              final double bMapped = bLin / (1.0 + bLin);
+              final double rMapped = toneMap ? (rLin / (1.0 + rLin)) : rLin;
+              final double gMapped = toneMap ? (gLin / (1.0 + gLin)) : gLin;
+              final double bMapped = toneMap ? (bLin / (1.0 + bLin)) : bLin;
               rOut =
                   linearToSrgb[(rMapped.clamp(0.0, 1.0).toDouble() * linearMaxIndex).round()];
               gOut =
@@ -1838,7 +1850,23 @@ class _BedrockModelPainter extends CustomPainter {
         ..lineTo(corners[3].dx, corners[3].dy)
         ..close();
 
-	      canvas.drawPath(floorPath, Paint()..color = groundColor);
+      Vector3 groundNormalModel = Vector3(0, 1, 0);
+      Vector3 groundNormalView = rotation.transform3(groundNormalModel.clone());
+      if (groundNormalView.z >= 0) {
+        groundNormalModel = Vector3(0, -1, 0);
+        groundNormalView = -groundNormalView;
+      }
+      final double groundLight = lightFollowsCamera
+          ? math.max(0.0, groundNormalView.dot(lightDir))
+          : math.max(0.0, groundNormalModel.dot(lightDir));
+      final double groundBrightness =
+          (ambientClamped + diffuseClamped * groundLight).clamp(0.0, 1.0).toDouble();
+      final Color litGroundColor = groundColor.withValues(
+        red: (groundColor.r * groundBrightness).clamp(0.0, 1.0),
+        green: (groundColor.g * groundBrightness).clamp(0.0, 1.0),
+        blue: (groundColor.b * groundBrightness).clamp(0.0, 1.0),
+      );
+      canvas.drawPath(floorPath, Paint()..color = litGroundColor);
 
 	      if (showGroundShadow && groundShadowStrength > 0) {
 	        final Vector3 lightDirModel = lightFollowsCamera
