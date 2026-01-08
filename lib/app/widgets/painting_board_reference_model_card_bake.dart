@@ -387,7 +387,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     dialogCompleter = completer;
     dialogEntry = OverlayEntry(
       builder: (BuildContext overlayContext) {
-        return Navigator(
+        return HeroControllerScope.none(
+          child: Navigator(
           onGenerateRoute: (settings) => PageRouteBuilder<void>(
             settings: settings,
             transitionDuration: Duration.zero,
@@ -819,6 +820,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
           ],
         );
             },
+          ),
           ),
         );
       },

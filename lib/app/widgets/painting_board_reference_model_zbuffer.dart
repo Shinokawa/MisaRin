@@ -806,6 +806,19 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
       }
 	    }
 
+    if (widget.toneMap && widget.showGround && extentScalar > 0) {
+      final double groundHalfSize = math.max(extentScalar * 128, 256);
+      _applyGroundDistanceFade(
+        colorBuffer: colorBuffer,
+        colorBuffer32: colorBuffer32,
+        depthBuffer: depthBuffer,
+        width: width,
+        height: height,
+        cameraDistance: extentScalar * 2.4,
+        groundHalfSize: groundHalfSize,
+      );
+    }
+
     final _BedrockSelfShadowMap? selfShadowMap =
         widget.enableSelfShadow && widget.selfShadowStrength > 0
             ? _buildSelfShadowMap(
@@ -2628,6 +2641,79 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
           (colorBuffer[byteIndex + 1] * factor).round().clamp(0, 255);
       colorBuffer[byteIndex + 2] =
           (colorBuffer[byteIndex + 2] * factor).round().clamp(0, 255);
+    }
+  }
+
+  static void _applyGroundDistanceFade({
+    required Uint8List colorBuffer,
+    required Uint32List? colorBuffer32,
+    required Float32List depthBuffer,
+    required int width,
+    required int height,
+    required double cameraDistance,
+    required double groundHalfSize,
+  }) {
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    final int pixelCount = width * height;
+    if (depthBuffer.length < pixelCount || colorBuffer.length < pixelCount * 4) {
+      return;
+    }
+    if (!cameraDistance.isFinite || !groundHalfSize.isFinite) {
+      return;
+    }
+    if (cameraDistance <= 0 || groundHalfSize <= 0) {
+      return;
+    }
+
+    final double start = cameraDistance + groundHalfSize * 0.35;
+    final double end = cameraDistance + groundHalfSize * 0.85;
+    if (!start.isFinite || !end.isFinite || end <= start) {
+      return;
+    }
+    final double invRange = 1.0 / (end - start);
+
+    double smoothstep(double x) {
+      final double t = x.clamp(0.0, 1.0);
+      return t * t * (3.0 - 2.0 * t);
+    }
+
+    if (colorBuffer32 != null && colorBuffer32.length >= pixelCount) {
+      for (int i = 0; i < pixelCount; i++) {
+        final double invZ = depthBuffer[i];
+        if (invZ <= 0) {
+          continue;
+        }
+        final double z = 1.0 / invZ;
+        final double t = smoothstep((z - start) * invRange);
+        final int fadeAlpha = (255.0 * (1.0 - t)).round().clamp(0, 255);
+        if (fadeAlpha >= 255) {
+          continue;
+        }
+        final int color = colorBuffer32[i];
+        final int a = (color >> 24) & 0xFF;
+        final int outA = a < fadeAlpha ? a : fadeAlpha;
+        colorBuffer32[i] = (color & 0x00FFFFFF) | (outA << 24);
+      }
+      return;
+    }
+
+    for (int i = 0; i < pixelCount; i++) {
+      final double invZ = depthBuffer[i];
+      if (invZ <= 0) {
+        continue;
+      }
+      final double z = 1.0 / invZ;
+      final double t = smoothstep((z - start) * invRange);
+      final int fadeAlpha = (255.0 * (1.0 - t)).round().clamp(0, 255);
+      if (fadeAlpha >= 255) {
+        continue;
+      }
+      final int byteIndex = i * 4;
+      final int a = colorBuffer[byteIndex + 3];
+      final int outA = a < fadeAlpha ? a : fadeAlpha;
+      colorBuffer[byteIndex + 3] = outA;
     }
   }
 
