@@ -76,10 +76,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     }
 
     final BuildContext dialogContext = widget.dialogContext;
-    final NavigatorState? navigator =
-        Navigator.maybeOf(dialogContext, rootNavigator: true);
-    final OverlayState? overlay =
-        navigator?.overlay ?? Overlay.maybeOf(dialogContext);
+    final OverlayState? overlay = Overlay.maybeOf(dialogContext, rootOverlay: true);
     if (overlay == null) {
       return;
     }
@@ -155,19 +152,23 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       dialogCompleter = null;
     }
 
-    Future<void> exportBakeResult(
-      BuildContext context,
-      StateSetter setDialogState,
-    ) async {
-      final int? targetWidth = int.tryParse(widthController.text.trim());
-      final int? targetHeight = int.tryParse(heightController.text.trim());
-      if (targetWidth == null || targetHeight == null || targetWidth <= 0 || targetHeight <= 0) {
+    ({int width, int height})? parseAndValidateResolution(
+      BuildContext context, {
+      required String widthText,
+      required String heightText,
+    }) {
+      final int? targetWidth = int.tryParse(widthText.trim());
+      final int? targetHeight = int.tryParse(heightText.trim());
+      if (targetWidth == null ||
+          targetHeight == null ||
+          targetWidth <= 0 ||
+          targetHeight <= 0) {
         AppNotifications.show(
           context,
           message: '分辨率无效：请输入合法的宽高像素值',
           severity: InfoBarSeverity.error,
         );
-        return;
+        return null;
       }
       if (targetWidth > 8192 || targetHeight > 8192) {
         AppNotifications.show(
@@ -175,7 +176,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
           message: '分辨率过大：单边最大支持 8192px',
           severity: InfoBarSeverity.error,
         );
-        return;
+        return null;
       }
       if (targetWidth * targetHeight > 16000000) {
         AppNotifications.show(
@@ -183,6 +184,100 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
           message: '分辨率过大：总像素建议不超过 1600 万（例如 4K）',
           severity: InfoBarSeverity.error,
         );
+        return null;
+      }
+      return (width: targetWidth, height: targetHeight);
+    }
+
+    Future<bool> editCustomResolution(BuildContext context) async {
+      final TextEditingController customWidthController = TextEditingController(
+        text: widthController.text.trim(),
+      );
+      final TextEditingController customHeightController = TextEditingController(
+        text: heightController.text.trim(),
+      );
+
+      try {
+        final ({int width, int height})? result =
+            await showMisarinDialog<({int width, int height})>(
+          context: context,
+          title: const Text('自定义分辨率'),
+          contentWidth: 360,
+          maxWidth: 420,
+          barrierDismissible: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InfoLabel(
+                label: '宽度 (px)',
+                child: TextFormBox(
+                  controller: customWidthController,
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              InfoLabel(
+                label: '高度 (px)',
+                child: TextFormBox(
+                  controller: customHeightController,
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '提示：单边最大 8192px，总像素建议不超过 1600 万。',
+              ),
+            ],
+          ),
+          actions: [
+            Button(
+              child: Text(context.l10n.cancel),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            Button(
+              child: const Text('确定'),
+              onPressed: () {
+                final ({int width, int height})? resolution =
+                    parseAndValidateResolution(
+                  context,
+                  widthText: customWidthController.text,
+                  heightText: customHeightController.text,
+                );
+                if (resolution == null) {
+                  return;
+                }
+                Navigator.of(context).pop(resolution);
+              },
+            ),
+          ],
+        );
+
+        if (result == null) {
+          return false;
+        }
+        widthController.text = result.width.toString();
+        heightController.text = result.height.toString();
+        return true;
+      } finally {
+        customWidthController.dispose();
+        customHeightController.dispose();
+      }
+    }
+
+    Future<void> exportBakeResult(
+      BuildContext context,
+      StateSetter setDialogState,
+    ) async {
+      final ({int width, int height})? resolution = parseAndValidateResolution(
+        context,
+        widthText: widthController.text,
+        heightText: heightController.text,
+      );
+      if (resolution == null) {
         return;
       }
 
@@ -226,6 +321,9 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 
         await Future<void>.delayed(const Duration(milliseconds: 16));
         await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || !context.mounted) {
+          return;
+        }
 
         final _BedrockModelZBufferViewState? rendererState =
             previewModelKey.currentState;
@@ -244,8 +342,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         final Color exportBackground = lighting?.background ?? normalBackground;
 
         final Uint8List bytes = await rendererState.renderPngBytes(
-          width: targetWidth,
-          height: targetHeight,
+          width: resolution.width,
+          height: resolution.height,
           background: exportBackground,
         );
         if (kIsWeb) {
@@ -259,7 +357,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
           await file.writeAsBytes(bytes, flush: true);
         }
 
-        if (!mounted) {
+        if (!mounted || !context.mounted) {
           return;
         }
         AppNotifications.show(
@@ -268,7 +366,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
           severity: InfoBarSeverity.success,
         );
       } catch (error) {
-        if (!mounted) {
+        if (!mounted || !context.mounted) {
           return;
         }
         AppNotifications.show(
@@ -314,9 +412,6 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                   final FluentThemeData theme = FluentTheme.of(context);
                   final Color border =
                       theme.resources.controlStrokeColorDefault;
-                  final Color accent = theme.accentColor.defaultBrushFor(
-                    theme.brightness,
-                  );
                   final Color normalBackground = theme.brightness.isDark
                       ? const Color(0xFF101010)
                       : const Color(0xFFF7F7F7);
@@ -568,72 +663,101 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                               Expanded(
                                 child: InfoLabel(
                                   label: '分辨率预设',
-                                  child: ComboBox<_ReferenceModelBakeResolutionPreset?>(
-                                    isExpanded: true,
-                                    value: resolutionPreset,
-                                    items: [
-                                      const ComboBoxItem<_ReferenceModelBakeResolutionPreset?>(
-                                        value: null,
-                                        child: Text('自定义'),
-                                      ),
-                                      ..._kReferenceModelBakeResolutionPresets.map(
-                                        (preset) => ComboBoxItem<
-                                          _ReferenceModelBakeResolutionPreset?
-                                        >(
-                                          value: preset,
-                                          child: Text(preset.label),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: ComboBox<
+                                            _ReferenceModelBakeResolutionPreset?>(
+                                          isExpanded: true,
+                                          value: resolutionPreset,
+                                          items: [
+                                            ComboBoxItem<
+                                                _ReferenceModelBakeResolutionPreset?>(
+                                              value: null,
+                                              child: Text(
+                                                '自定义 (${widthController.text} × ${heightController.text})',
+                                              ),
+                                            ),
+                                            ..._kReferenceModelBakeResolutionPresets
+                                                .map(
+                                              (preset) => ComboBoxItem<
+                                                  _ReferenceModelBakeResolutionPreset?>(
+                                                value: preset,
+                                                child: Text(preset.label),
+                                              ),
+                                            ),
+                                          ],
+                                          onChanged: isBaking
+                                              ? null
+                                              : (value) async {
+                                                  if (value != null) {
+                                                    setDialogState(() {
+                                                      resolutionPreset = value;
+                                                      widthController.text =
+                                                          value.width.toString();
+                                                      heightController.text =
+                                                          value.height.toString();
+                                                    });
+                                                    return;
+                                                  }
+
+                                                  final _ReferenceModelBakeResolutionPreset?
+                                                      previousPreset =
+                                                      resolutionPreset;
+                                                  final String previousWidth =
+                                                      widthController.text;
+                                                  final String previousHeight =
+                                                      heightController.text;
+
+                                                  final bool updated =
+                                                      await editCustomResolution(
+                                                    context,
+                                                  );
+                                                  if (!mounted) {
+                                                    return;
+                                                  }
+
+                                                  setDialogState(() {
+                                                    if (updated) {
+                                                      resolutionPreset = null;
+                                                    } else {
+                                                      resolutionPreset =
+                                                          previousPreset;
+                                                      widthController.text =
+                                                          previousWidth;
+                                                      heightController.text =
+                                                          previousHeight;
+                                                    }
+                                                  });
+                                                },
                                         ),
                                       ),
+                                      if (resolutionPreset == null) ...[
+                                        const SizedBox(width: 8),
+                                        Button(
+                                          onPressed: isBaking
+                                              ? null
+                                              : () async {
+                                                  final bool updated =
+                                                      await editCustomResolution(
+                                                    context,
+                                                  );
+                                                  if (!mounted) {
+                                                    return;
+                                                  }
+                                                  if (!updated) {
+                                                    return;
+                                                  }
+                                                  setDialogState(() {});
+                                                },
+                                          child: const Text('设置…'),
+                                        ),
+                                      ],
                                     ],
-                                    onChanged: isBaking
-                                        ? null
-                                        : (value) {
-                                            setDialogState(() {
-                                              resolutionPreset = value;
-                                              if (value != null) {
-                                                widthController.text =
-                                                    value.width.toString();
-                                                heightController.text =
-                                                    value.height.toString();
-                                              }
-                                            });
-                                          },
                                   ),
                                 ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 12),
-                          InfoLabel(
-                            label: '输出分辨率 (px)',
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormBox(
-                                    controller: widthController,
-                                    enabled: !isBaking,
-                                    placeholder: '宽',
-                                    inputFormatters: <TextInputFormatter>[
-                                      FilteringTextInputFormatter.digitsOnly,
-                                    ],
-                                  ),
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 8),
-                                  child: Text('×'),
-                                ),
-                                Expanded(
-                                  child: TextFormBox(
-                                    controller: heightController,
-                                    enabled: !isBaking,
-                                    placeholder: '高',
-                                    inputFormatters: <TextInputFormatter>[
-                                      FilteringTextInputFormatter.digitsOnly,
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                           const SizedBox(height: 12),
                           Row(
