@@ -457,8 +457,19 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                     final bool enableContactShadow = usesBakedLighting;
                     final double contactShadowStrength =
                         isCinematic ? 0.22 : 0.14;
-                    final int contactShadowBlurRadius = isCycles ? 4 : 2;
+                    final int contactShadowBlurRadius = isCinematic
+                        ? 0
+                        : (isCycles ? 4 : 2);
                     const double contactShadowDepthEpsilon = 0.012;
+                    final int groundShadowBlurRadius = usesBakedLighting
+                        ? (isCinematic
+                              ? 0
+                              : (isCycles
+                                    ? (bakedLighting!.shadowBlurRadius + 2)
+                                        .clamp(0, 10)
+                                        .toInt()
+                                    : bakedLighting!.shadowBlurRadius))
+                        : 0;
                     final Widget model = _BedrockModelZBufferView(
                       key: previewModelKey,
                       baseModel: widget.modelMesh,
@@ -506,9 +517,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                       groundShadowStrength: usesBakedLighting
                           ? bakedLighting!.shadowStrength
                           : 0.0,
-                      groundShadowBlurRadius: usesBakedLighting
-                          ? bakedLighting!.shadowBlurRadius
-                          : 0,
+                      groundShadowBlurRadius: groundShadowBlurRadius,
                       renderKey: previewRenderKey,
                     );
 

@@ -764,21 +764,27 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         final Uint8List? scratch = shadowMaskScratch;
         if (mask != null && scratch != null) {
           mask.fillRange(0, mask.length, 0);
-          _rasterizePlanarShadowMask(
-            mesh: mesh,
-            mask: mask,
-            depthBuffer: depthBuffer,
-            width: width,
-            height: height,
-            modelExtent: modelSize,
-            yaw: widget.yaw,
-            pitch: widget.pitch,
-            zoom: widget.zoom,
-            lightDirection: lightDir,
-            lightFollowsCamera: widget.lightFollowsCamera,
-            groundY: groundYLocal,
-            translateY: modelYOffset,
-          );
+	          _rasterizePlanarShadowMask(
+	            mesh: mesh,
+	            mask: mask,
+	            depthBuffer: depthBuffer,
+	            width: width,
+	            height: height,
+	            modelExtent: modelSize,
+	            yaw: widget.yaw,
+	            pitch: widget.pitch,
+	            zoom: widget.zoom,
+	            lightDirection: lightDir,
+	            lightFollowsCamera: widget.lightFollowsCamera,
+	            groundY: groundYLocal,
+	            translateY: modelYOffset,
+              textureRgba: textureRgba,
+              textureWidth: textureWidth,
+              textureHeight: textureHeight,
+              modelTextureWidth: widget.modelTextureWidth,
+              modelTextureHeight: widget.modelTextureHeight,
+              alphaCutoff: 1,
+	          );
           final int blurRadius = widget.groundShadowBlurRadius;
           if (blurRadius > 0) {
             _blurMask(
@@ -2316,21 +2322,27 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     );
   }
 
-  void _rasterizePlanarShadowMask({
-    required BedrockMesh mesh,
-    required Uint8List mask,
-    required Float32List depthBuffer,
-    required int width,
-    required int height,
-    required Vector3 modelExtent,
-    required double yaw,
-    required double pitch,
-    required double zoom,
-    required Vector3 lightDirection,
-    required bool lightFollowsCamera,
-    required double groundY,
-    double translateY = 0.0,
-  }) {
+	  void _rasterizePlanarShadowMask({
+	    required BedrockMesh mesh,
+	    required Uint8List mask,
+	    required Float32List depthBuffer,
+	    required int width,
+	    required int height,
+	    required Vector3 modelExtent,
+	    required double yaw,
+	    required double pitch,
+	    required double zoom,
+	    required Vector3 lightDirection,
+	    required bool lightFollowsCamera,
+	    required double groundY,
+	    double translateY = 0.0,
+      Uint8List? textureRgba,
+      int textureWidth = 0,
+      int textureHeight = 0,
+      int modelTextureWidth = 0,
+      int modelTextureHeight = 0,
+      int alphaCutoff = 1,
+	  }) {
     if (mesh.triangles.isEmpty || width <= 0 || height <= 0) {
       return;
     }
@@ -2375,12 +2387,23 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     final double baseScale =
         (math.min(width.toDouble(), height.toDouble()) / extent) * 0.9;
     final double scale = baseScale * zoom;
-    final double cameraDistance = extent * 2.4;
+	    final double cameraDistance = extent * 2.4;
 
-    double edge(
-      double ax,
-      double ay,
-      double bx,
+      final int alphaCutoffClamped = alphaCutoff.clamp(1, 255);
+      final bool alphaTest = textureRgba != null &&
+          textureWidth > 0 &&
+          textureHeight > 0 &&
+          modelTextureWidth > 0 &&
+          modelTextureHeight > 0;
+      final double texUScale =
+          alphaTest ? textureWidth / modelTextureWidth : 1.0;
+      final double texVScale =
+          alphaTest ? textureHeight / modelTextureHeight : 1.0;
+
+	    double edge(
+	      double ax,
+	      double ay,
+	      double bx,
       double by,
       double cx,
       double cy,
@@ -2404,10 +2427,17 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
       );
     }
 
-    for (final BedrockMeshTriangle tri in mesh.triangles) {
-      final Vector3 a = project(tri.p0);
-      final Vector3 b = project(tri.p1);
-      final Vector3 c = project(tri.p2);
+	    for (final BedrockMeshTriangle tri in mesh.triangles) {
+        final double tu0 = alphaTest ? tri.uv0.dx * texUScale : 0.0;
+        final double tv0 = alphaTest ? tri.uv0.dy * texVScale : 0.0;
+        final double tu1 = alphaTest ? tri.uv1.dx * texUScale : 0.0;
+        final double tv1 = alphaTest ? tri.uv1.dy * texVScale : 0.0;
+        final double tu2 = alphaTest ? tri.uv2.dx * texUScale : 0.0;
+        final double tv2 = alphaTest ? tri.uv2.dy * texVScale : 0.0;
+
+	      final Vector3 a = project(tri.p0);
+	      final Vector3 b = project(tri.p1);
+	      final Vector3 c = project(tri.p2);
 
       final double axw = transformX(a.x, a.y, a.z);
       final double ayw = transformY(a.x, a.y, a.z);
@@ -2470,19 +2500,31 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
             }
           }
 
-          final double alpha = w0 * invArea;
-          final double beta = w1 * invArea;
-          final double gamma = w2 * invArea;
-          final double z = alpha * za + beta * zb + gamma * zc;
-          if (z <= 0) {
-            continue;
-          }
+	          final double alpha = w0 * invArea;
+	          final double beta = w1 * invArea;
+	          final double gamma = w2 * invArea;
+	          final double z = alpha * za + beta * zb + gamma * zc;
+	          if (z <= 0) {
+	            continue;
+	          }
 
-          final int index = row + x;
-          if (depthBuffer[index] <= 0) {
-            continue;
-          }
-          mask[index] = 255;
+            if (alphaTest) {
+              final double uTex = alpha * tu0 + beta * tu1 + gamma * tu2;
+              final double vTex = alpha * tv0 + beta * tv1 + gamma * tv2;
+              final int uSample = clampInt(uTex.floor(), 0, textureWidth - 1);
+              final int vSample = clampInt(vTex.floor(), 0, textureHeight - 1);
+              final int texIndex = (vSample * textureWidth + uSample) * 4;
+              final int a8 = textureRgba![texIndex + 3];
+              if (a8 < alphaCutoffClamped) {
+                continue;
+              }
+            }
+
+	          final int index = row + x;
+	          if (depthBuffer[index] <= 0) {
+	            continue;
+	          }
+	          mask[index] = 255;
         }
       }
     }
