@@ -2,6 +2,7 @@ part of 'painting_board.dart';
 
 class _BedrockModelZBufferView extends StatefulWidget {
   const _BedrockModelZBufferView({
+    super.key,
     required this.baseModel,
     required this.modelTextureWidth,
     required this.modelTextureHeight,
@@ -21,6 +22,16 @@ class _BedrockModelZBufferView extends StatefulWidget {
     this.roughness = 0.55,
     this.exposure = 1.0,
     this.toneMap = false,
+    this.enableSelfShadow = false,
+    this.selfShadowStrength = 1.0,
+    this.selfShadowMapSize = 512,
+    this.selfShadowBias = 0.02,
+    this.selfShadowSlopeBias = 0.03,
+    this.selfShadowPcfRadius = 1,
+    this.enableContactShadow = false,
+    this.contactShadowStrength = 0.18,
+    this.contactShadowBlurRadius = 3,
+    this.contactShadowDepthEpsilon = 0.01,
     this.lightFollowsCamera = true,
     this.showGround = false,
     this.groundY = 0.0,
@@ -52,6 +63,16 @@ class _BedrockModelZBufferView extends StatefulWidget {
   final double roughness;
   final double exposure;
   final bool toneMap;
+  final bool enableSelfShadow;
+  final double selfShadowStrength;
+  final int selfShadowMapSize;
+  final double selfShadowBias;
+  final double selfShadowSlopeBias;
+  final int selfShadowPcfRadius;
+  final bool enableContactShadow;
+  final double contactShadowStrength;
+  final int contactShadowBlurRadius;
+  final double contactShadowDepthEpsilon;
   final bool lightFollowsCamera;
   final bool showGround;
   final double groundY;
@@ -67,6 +88,42 @@ class _BedrockModelZBufferView extends StatefulWidget {
   State<_BedrockModelZBufferView> createState() => _BedrockModelZBufferViewState();
 }
 
+class _BedrockSelfShadowMap {
+  _BedrockSelfShadowMap({
+    required this.depth,
+    required this.size,
+    required this.lightDir,
+    required this.right,
+    required this.up,
+    required this.uMin,
+    required this.vMin,
+    required this.uScale,
+    required this.vScale,
+  });
+
+  final Float32List depth;
+  final int size;
+  final Vector3 lightDir;
+  final Vector3 right;
+  final Vector3 up;
+  final double uMin;
+  final double vMin;
+  final double uScale;
+  final double vScale;
+}
+
+class _BedrockTextureBytes {
+  const _BedrockTextureBytes({
+    required this.rgba,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint8List rgba;
+  final int width;
+  final int height;
+}
+
 class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
   static const double _kMaxRenderScale = 2.0;
   static const double _kShadowDirectionEpsilon = 1e-6;
@@ -74,6 +131,9 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
 
   static final Float32List _srgbToLinearTable = _buildSrgbToLinearTable();
   static final Uint8List _linearToSrgbTable = _buildLinearToSrgbTable();
+
+  static final Expando<Future<_BedrockTextureBytes?>> _textureBytesCache =
+      Expando<Future<_BedrockTextureBytes?>>('_BedrockModelTextureBytes');
 
   ui.Image? _rendered;
   int _renderWidth = 0;
@@ -85,6 +145,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
   Float32List? _depthBuffer;
   Uint8List? _shadowMask;
   Uint8List? _shadowMaskScratch;
+  Float32List? _selfShadowDepth;
 
   ui.Image? _textureSource;
   Uint8List? _textureRgba;
@@ -165,6 +226,16 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         oldWidget.roughness != widget.roughness ||
         oldWidget.exposure != widget.exposure ||
         oldWidget.toneMap != widget.toneMap ||
+        oldWidget.enableSelfShadow != widget.enableSelfShadow ||
+        oldWidget.selfShadowStrength != widget.selfShadowStrength ||
+        oldWidget.selfShadowMapSize != widget.selfShadowMapSize ||
+        oldWidget.selfShadowBias != widget.selfShadowBias ||
+        oldWidget.selfShadowSlopeBias != widget.selfShadowSlopeBias ||
+        oldWidget.selfShadowPcfRadius != widget.selfShadowPcfRadius ||
+        oldWidget.enableContactShadow != widget.enableContactShadow ||
+        oldWidget.contactShadowStrength != widget.contactShadowStrength ||
+        oldWidget.contactShadowBlurRadius != widget.contactShadowBlurRadius ||
+        oldWidget.contactShadowDepthEpsilon != widget.contactShadowDepthEpsilon ||
         oldWidget.lightFollowsCamera != widget.lightFollowsCamera ||
         oldWidget.showGround != widget.showGround ||
         oldWidget.groundY != widget.groundY ||
@@ -241,6 +312,699 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     }
   }
 
+  static void _compositeOpaqueBackground({
+    required Uint8List rgba,
+    required int width,
+    required int height,
+    required Color background,
+  }) {
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    final int pixelCount = width * height;
+    final int bgR = (background.r * 255).round().clamp(0, 255);
+    final int bgG = (background.g * 255).round().clamp(0, 255);
+    final int bgB = (background.b * 255).round().clamp(0, 255);
+
+    for (int i = 0; i < pixelCount; i++) {
+      final int byteIndex = i * 4;
+      final int a = rgba[byteIndex + 3];
+      if (a == 255) {
+        continue;
+      }
+      if (a == 0) {
+        rgba[byteIndex] = bgR;
+        rgba[byteIndex + 1] = bgG;
+        rgba[byteIndex + 2] = bgB;
+        rgba[byteIndex + 3] = 255;
+        continue;
+      }
+      final int invA = 255 - a;
+      rgba[byteIndex] =
+          ((rgba[byteIndex] * a + bgR * invA) / 255).round().clamp(0, 255);
+      rgba[byteIndex + 1] =
+          ((rgba[byteIndex + 1] * a + bgG * invA) / 255).round().clamp(0, 255);
+      rgba[byteIndex + 2] =
+          ((rgba[byteIndex + 2] * a + bgB * invA) / 255).round().clamp(0, 255);
+      rgba[byteIndex + 3] = 255;
+    }
+  }
+
+  Float32List _ensureSelfShadowDepth(int size) {
+    final int clamped = size.clamp(64, 2048).toInt();
+    final int requiredLength = clamped * clamped;
+    if (_selfShadowDepth == null || _selfShadowDepth!.length != requiredLength) {
+      _selfShadowDepth = Float32List(requiredLength);
+    }
+    return _selfShadowDepth!;
+  }
+
+  _BedrockSelfShadowMap? _buildSelfShadowMap({
+    required BedrockMesh mesh,
+    required Vector3 modelExtent,
+    required double yaw,
+    required double pitch,
+    required double translateY,
+    required Vector3 lightDirection,
+    required bool lightFollowsCamera,
+    required int mapSize,
+    Float32List? depthBuffer,
+  }) {
+    if (mesh.triangles.isEmpty) {
+      return null;
+    }
+    final int size = mapSize.clamp(64, 2048).toInt();
+
+    final double extent = math.max(
+      modelExtent.x.abs(),
+      math.max(modelExtent.y.abs(), modelExtent.z.abs()),
+    );
+    if (extent <= 0) {
+      return null;
+    }
+
+    final Matrix4 rotation = Matrix4.identity()
+      ..rotateY(yaw)
+      ..rotateX(pitch);
+    final Float64List r = rotation.storage;
+
+    double transformX(double x, double y, double z) =>
+        r[0] * x + r[4] * y + r[8] * z;
+    double transformY(double x, double y, double z) =>
+        r[1] * x + r[5] * y + r[9] * z;
+    double transformZ(double x, double y, double z) =>
+        r[2] * x + r[6] * y + r[10] * z;
+
+    final Vector3 lightDir = lightDirection.clone();
+    if (lightDir.length2 <= 0) {
+      return null;
+    }
+    lightDir.normalize();
+
+    final Vector3 lightDirView = lightFollowsCamera
+        ? lightDir
+        : Vector3(
+          transformX(lightDir.x, lightDir.y, lightDir.z),
+          transformY(lightDir.x, lightDir.y, lightDir.z),
+          transformZ(lightDir.x, lightDir.y, lightDir.z),
+        )..normalize();
+
+    Vector3 upRef = Vector3(0, 1, 0);
+    if (lightDirView.dot(upRef).abs() > 0.92) {
+      upRef = Vector3(1, 0, 0);
+    }
+    final Vector3 right = upRef.cross(lightDirView)..normalize();
+    final Vector3 up = lightDirView.cross(right)..normalize();
+
+    final double rx = right.x;
+    final double ry = right.y;
+    final double rz = right.z;
+    final double ux = up.x;
+    final double uy = up.y;
+    final double uz = up.z;
+
+    double uMin = double.infinity;
+    double uMax = double.negativeInfinity;
+    double vMin = double.infinity;
+    double vMax = double.negativeInfinity;
+
+    for (final BedrockMeshTriangle tri in mesh.triangles) {
+      final Vector3 p0 = tri.p0;
+      final Vector3 p1 = tri.p1;
+      final Vector3 p2 = tri.p2;
+
+      final double y0 = p0.y + translateY;
+      final double y1 = p1.y + translateY;
+      final double y2 = p2.y + translateY;
+
+      final double x0w = transformX(p0.x, y0, p0.z);
+      final double y0w = transformY(p0.x, y0, p0.z);
+      final double z0w = transformZ(p0.x, y0, p0.z);
+      final double x1w = transformX(p1.x, y1, p1.z);
+      final double y1w = transformY(p1.x, y1, p1.z);
+      final double z1w = transformZ(p1.x, y1, p1.z);
+      final double x2w = transformX(p2.x, y2, p2.z);
+      final double y2w = transformY(p2.x, y2, p2.z);
+      final double z2w = transformZ(p2.x, y2, p2.z);
+
+      final double u0 = x0w * rx + y0w * ry + z0w * rz;
+      final double v0 = x0w * ux + y0w * uy + z0w * uz;
+      final double u1 = x1w * rx + y1w * ry + z1w * rz;
+      final double v1 = x1w * ux + y1w * uy + z1w * uz;
+      final double u2 = x2w * rx + y2w * ry + z2w * rz;
+      final double v2 = x2w * ux + y2w * uy + z2w * uz;
+
+      uMin = math.min(uMin, math.min(u0, math.min(u1, u2)));
+      uMax = math.max(uMax, math.max(u0, math.max(u1, u2)));
+      vMin = math.min(vMin, math.min(v0, math.min(v1, v2)));
+      vMax = math.max(vMax, math.max(v0, math.max(v1, v2)));
+    }
+
+    final double uSpan = uMax - uMin;
+    final double vSpan = vMax - vMin;
+    if (!uSpan.isFinite || !vSpan.isFinite || uSpan <= 1e-9 || vSpan <= 1e-9) {
+      return null;
+    }
+
+    final double padU = uSpan * 0.06 + 1e-3;
+    final double padV = vSpan * 0.06 + 1e-3;
+    uMin -= padU;
+    uMax += padU;
+    vMin -= padV;
+    vMax += padV;
+
+    final double invUSpan = 1.0 / (uMax - uMin);
+    final double invVSpan = 1.0 / (vMax - vMin);
+    final double uScale = (size - 1) * invUSpan;
+    final double vScale = (size - 1) * invVSpan;
+
+    final int requiredLength = size * size;
+    final Float32List depth =
+        depthBuffer != null && depthBuffer.length == requiredLength
+            ? depthBuffer
+            : _ensureSelfShadowDepth(size);
+    depth.fillRange(0, depth.length, -double.infinity);
+
+    double edge(
+      double ax,
+      double ay,
+      double bx,
+      double by,
+      double cx,
+      double cy,
+    ) {
+      return (cx - ax) * (by - ay) - (cy - ay) * (bx - ax);
+    }
+
+    int clampInt(int value, int min, int max) {
+      if (value < min) return min;
+      if (value > max) return max;
+      return value;
+    }
+
+    final double ldx = lightDirView.x;
+    final double ldy = lightDirView.y;
+    final double ldz = lightDirView.z;
+
+    for (final BedrockMeshTriangle tri in mesh.triangles) {
+      final Vector3 p0 = tri.p0;
+      final Vector3 p1 = tri.p1;
+      final Vector3 p2 = tri.p2;
+
+      final double y0 = p0.y + translateY;
+      final double y1 = p1.y + translateY;
+      final double y2 = p2.y + translateY;
+
+      final double x0w = transformX(p0.x, y0, p0.z);
+      final double y0w = transformY(p0.x, y0, p0.z);
+      final double z0w = transformZ(p0.x, y0, p0.z);
+      final double x1w = transformX(p1.x, y1, p1.z);
+      final double y1w = transformY(p1.x, y1, p1.z);
+      final double z1w = transformZ(p1.x, y1, p1.z);
+      final double x2w = transformX(p2.x, y2, p2.z);
+      final double y2w = transformY(p2.x, y2, p2.z);
+      final double z2w = transformZ(p2.x, y2, p2.z);
+
+      final double u0 = (x0w * rx + y0w * ry + z0w * rz - uMin) * uScale;
+      final double v0 = (x0w * ux + y0w * uy + z0w * uz - vMin) * vScale;
+      final double u1 = (x1w * rx + y1w * ry + z1w * rz - uMin) * uScale;
+      final double v1 = (x1w * ux + y1w * uy + z1w * uz - vMin) * vScale;
+      final double u2 = (x2w * rx + y2w * ry + z2w * rz - uMin) * uScale;
+      final double v2 = (x2w * ux + y2w * uy + z2w * uz - vMin) * vScale;
+
+      final double d0 = x0w * ldx + y0w * ldy + z0w * ldz;
+      final double d1 = x1w * ldx + y1w * ldy + z1w * ldz;
+      final double d2 = x2w * ldx + y2w * ldy + z2w * ldz;
+
+      final double area = edge(u0, v0, u1, v1, u2, v2);
+      if (area == 0) {
+        continue;
+      }
+      final double invArea = 1.0 / area;
+
+      final double minX = math.min(u0, math.min(u1, u2));
+      final double maxX = math.max(u0, math.max(u1, u2));
+      final double minY = math.min(v0, math.min(v1, v2));
+      final double maxY = math.max(v0, math.max(v1, v2));
+
+      final int xStart = clampInt(minX.floor(), 0, size - 1);
+      final int xEnd = clampInt(maxX.ceil(), 0, size - 1);
+      final int yStart = clampInt(minY.floor(), 0, size - 1);
+      final int yEnd = clampInt(maxY.ceil(), 0, size - 1);
+
+      for (int y = yStart; y <= yEnd; y++) {
+        final double py = y + 0.5;
+        final int row = y * size;
+        for (int x = xStart; x <= xEnd; x++) {
+          final double px = x + 0.5;
+          final double w0 = edge(u1, v1, u2, v2, px, py);
+          final double w1 = edge(u2, v2, u0, v0, px, py);
+          final double w2 = edge(u0, v0, u1, v1, px, py);
+          if (area > 0) {
+            if (w0 < 0 || w1 < 0 || w2 < 0) {
+              continue;
+            }
+          } else {
+            if (w0 > 0 || w1 > 0 || w2 > 0) {
+              continue;
+            }
+          }
+
+          final double a = w0 * invArea;
+          final double b = w1 * invArea;
+          final double c = w2 * invArea;
+          final double depthValue = a * d0 + b * d1 + c * d2;
+
+          final int index = row + x;
+          if (depthValue > depth[index]) {
+            depth[index] = depthValue.toDouble();
+          }
+        }
+      }
+    }
+
+    return _BedrockSelfShadowMap(
+      depth: depth,
+      size: size,
+      lightDir: lightDirView,
+      right: right,
+      up: up,
+      uMin: uMin,
+      vMin: vMin,
+      uScale: uScale,
+      vScale: vScale,
+    );
+  }
+
+  void _rasterizeContactShadowMask({
+    required Float32List depthBuffer,
+    required Uint8List mask,
+    required int width,
+    required int height,
+    required double depthEpsilon,
+  }) {
+    final double eps = depthEpsilon.isFinite
+        ? depthEpsilon.clamp(0.0, 0.25).toDouble()
+        : 0.01;
+    if (eps <= 0) {
+      mask.fillRange(0, mask.length, 0);
+      return;
+    }
+    final double invScale = 1.0 / (1.0 - eps);
+    mask.fillRange(0, mask.length, 0);
+
+    for (int y = 0; y < height; y++) {
+      final int row = y * width;
+      for (int x = 0; x < width; x++) {
+        final int index = row + x;
+        final double invZ = depthBuffer[index];
+        if (invZ <= 0) {
+          continue;
+        }
+        final double threshold = invZ * invScale;
+
+        bool occluded = false;
+        for (int oy = -1; oy <= 1 && !occluded; oy++) {
+          final int ny = y + oy;
+          if (ny < 0 || ny >= height) {
+            continue;
+          }
+          final int nRow = ny * width;
+          for (int ox = -1; ox <= 1; ox++) {
+            if (ox == 0 && oy == 0) {
+              continue;
+            }
+            final int nx = x + ox;
+            if (nx < 0 || nx >= width) {
+              continue;
+            }
+            final double nInvZ = depthBuffer[nRow + nx];
+            if (nInvZ > threshold) {
+              occluded = true;
+              break;
+            }
+          }
+        }
+
+        if (occluded) {
+          mask[index] = 255;
+        }
+      }
+    }
+  }
+
+  void _renderSceneToBuffers({
+    required BedrockMesh mesh,
+    required Uint8List colorBuffer,
+    required Uint32List? colorBuffer32,
+    required Float32List depthBuffer,
+    required int width,
+    required int height,
+    required Uint8List? textureRgba,
+    required int textureWidth,
+    required int textureHeight,
+    Uint8List? shadowMask,
+    Uint8List? shadowMaskScratch,
+    Float32List? selfShadowDepthBuffer,
+  }) {
+    final Vector3 modelSize = widget.baseModel.mesh.size;
+    final double extentScalar = math.max(
+      modelSize.x.abs(),
+      math.max(modelSize.y.abs(), modelSize.z.abs()),
+    );
+    final double modelYOffset = widget.showGround && widget.alignModelToGround
+        ? widget.groundY - widget.baseModel.mesh.boundsMin.y
+        : 0.0;
+    final double groundYLocal = widget.groundY;
+
+    final Vector3 lightDir =
+        (widget.lightDirection ?? _defaultLightDirection).clone();
+    if (lightDir.length2 <= 0) {
+      lightDir.setFrom(_defaultLightDirection);
+    } else {
+      lightDir.normalize();
+    }
+
+	    if (widget.showGround && extentScalar > 0) {
+      final double groundHalfSize = math.max(extentScalar * 128, 256);
+      final BedrockMesh ground = _buildGroundMesh(
+        groundY: groundYLocal,
+        halfSize: groundHalfSize,
+        doubleSided: true,
+      );
+      _rasterizeMesh(
+        mesh: ground,
+        colorBuffer: colorBuffer,
+        colorBuffer32: colorBuffer32,
+        depthBuffer: depthBuffer,
+        width: width,
+        height: height,
+        modelExtent: modelSize,
+        yaw: widget.yaw,
+        pitch: widget.pitch,
+        zoom: widget.zoom,
+        lightDirection: lightDir,
+        ambient: widget.ambient,
+        diffuse: widget.diffuse,
+        sunColor: widget.sunColor,
+        skyColor: widget.skyColor,
+        groundBounceColor: widget.groundBounceColor,
+        specularStrength: widget.specularStrength,
+        roughness: widget.roughness,
+        exposure: widget.exposure,
+        toneMap: widget.toneMap,
+        lightFollowsCamera: widget.lightFollowsCamera,
+        textureRgba: null,
+        textureWidth: 0,
+        textureHeight: 0,
+        modelTextureWidth: 0,
+        modelTextureHeight: 0,
+        untexturedBaseColor: widget.groundColor,
+      );
+
+      if (widget.showGroundShadow) {
+        final Uint8List? mask = shadowMask;
+        final Uint8List? scratch = shadowMaskScratch;
+        if (mask != null && scratch != null) {
+          mask.fillRange(0, mask.length, 0);
+          _rasterizePlanarShadowMask(
+            mesh: mesh,
+            mask: mask,
+            depthBuffer: depthBuffer,
+            width: width,
+            height: height,
+            modelExtent: modelSize,
+            yaw: widget.yaw,
+            pitch: widget.pitch,
+            zoom: widget.zoom,
+            lightDirection: lightDir,
+            lightFollowsCamera: widget.lightFollowsCamera,
+            groundY: groundYLocal,
+            translateY: modelYOffset,
+          );
+          final int blurRadius = widget.groundShadowBlurRadius;
+          if (blurRadius > 0) {
+            _blurMask(
+              mask: mask,
+              scratch: scratch,
+              width: width,
+              height: height,
+              radius: blurRadius,
+            );
+          }
+          _applyShadowMask(
+            colorBuffer: colorBuffer,
+            colorBuffer32: colorBuffer32,
+            depthBuffer: depthBuffer,
+            mask: mask,
+            strength: widget.groundShadowStrength,
+          );
+        }
+      }
+	    }
+
+    final _BedrockSelfShadowMap? selfShadowMap =
+        widget.enableSelfShadow && widget.selfShadowStrength > 0
+            ? _buildSelfShadowMap(
+              mesh: mesh,
+              modelExtent: modelSize,
+              yaw: widget.yaw,
+              pitch: widget.pitch,
+              translateY: modelYOffset,
+              lightDirection: lightDir,
+              lightFollowsCamera: widget.lightFollowsCamera,
+              mapSize: widget.selfShadowMapSize,
+              depthBuffer: selfShadowDepthBuffer,
+            )
+            : null;
+
+	    _rasterizeMesh(
+	      mesh: mesh,
+	      colorBuffer: colorBuffer,
+	      colorBuffer32: colorBuffer32,
+      depthBuffer: depthBuffer,
+      width: width,
+      height: height,
+      modelExtent: modelSize,
+      yaw: widget.yaw,
+      pitch: widget.pitch,
+      zoom: widget.zoom,
+      translateY: modelYOffset,
+      lightDirection: lightDir,
+      ambient: widget.ambient,
+      diffuse: widget.diffuse,
+      sunColor: widget.sunColor,
+      skyColor: widget.skyColor,
+      groundBounceColor: widget.groundBounceColor,
+      specularStrength: widget.specularStrength,
+      roughness: widget.roughness,
+      exposure: widget.exposure,
+      toneMap: widget.toneMap,
+      lightFollowsCamera: widget.lightFollowsCamera,
+      textureRgba: textureRgba,
+	      textureWidth: textureWidth,
+	      textureHeight: textureHeight,
+	      modelTextureWidth: widget.modelTextureWidth,
+	      modelTextureHeight: widget.modelTextureHeight,
+        selfShadowMap: selfShadowMap,
+        selfShadowStrength: widget.selfShadowStrength,
+        selfShadowBias: widget.selfShadowBias,
+        selfShadowSlopeBias: widget.selfShadowSlopeBias,
+        selfShadowPcfRadius: widget.selfShadowPcfRadius,
+	    );
+
+    if (widget.enableContactShadow && widget.contactShadowStrength > 0) {
+      final Uint8List? mask = shadowMask;
+      final Uint8List? scratch = shadowMaskScratch;
+      if (mask != null && scratch != null) {
+        _rasterizeContactShadowMask(
+          depthBuffer: depthBuffer,
+          mask: mask,
+          width: width,
+          height: height,
+          depthEpsilon: widget.contactShadowDepthEpsilon,
+        );
+        final int blurRadius = widget.contactShadowBlurRadius;
+        if (blurRadius > 0) {
+          _blurMask(
+            mask: mask,
+            scratch: scratch,
+            width: width,
+            height: height,
+            radius: blurRadius,
+          );
+        }
+        _applyShadowMask(
+          colorBuffer: colorBuffer,
+          colorBuffer32: colorBuffer32,
+          depthBuffer: depthBuffer,
+          mask: mask,
+          strength: widget.contactShadowStrength,
+        );
+      }
+    }
+	  }
+
+  Future<Uint8List> renderPngBytes({
+    required int width,
+    required int height,
+    required Color background,
+  }) async {
+    if (width <= 0 || height <= 0) {
+      throw ArgumentError('Invalid render size: ${width}x$height');
+    }
+
+    final int pixelCount = width * height;
+    final Uint8List colorBuffer = Uint8List(pixelCount * 4);
+    final Uint32List? color32 = Endian.host == Endian.little
+        ? colorBuffer.buffer.asUint32List(0, pixelCount)
+        : null;
+    final Float32List depthBuffer = Float32List(pixelCount);
+    final Uint8List shadowMask = Uint8List(pixelCount);
+    final Uint8List shadowMaskScratch = Uint8List(pixelCount);
+
+	    Uint8List? textureRgba;
+	    int textureWidth = 0;
+	    int textureHeight = 0;
+	    final ui.Image? texture = widget.texture;
+	    if (texture != null && !texture.debugDisposed) {
+	      if (identical(_textureSource, texture) && _textureRgba != null) {
+	        textureRgba = _textureRgba;
+	        textureWidth = _textureWidth;
+	        textureHeight = _textureHeight;
+	      } else {
+	        try {
+	          final _BedrockTextureBytes? bytes = await _loadTextureBytes(texture);
+	          if (bytes != null) {
+	            textureRgba = bytes.rgba;
+	            textureWidth = bytes.width;
+	            textureHeight = bytes.height;
+	          }
+	        } catch (error, stackTrace) {
+	          debugPrint(
+	            'Failed to read reference model texture for export: $error\n$stackTrace',
+	          );
+	        }
+	      }
+	    }
+
+    final BedrockMesh mesh = _buildMeshForFrame();
+    if (mesh.triangles.isEmpty) {
+      _compositeOpaqueBackground(
+        rgba: colorBuffer,
+        width: width,
+        height: height,
+        background: background,
+      );
+      final ui.Image image = await _decodeRgbaImage(colorBuffer, width, height);
+      try {
+        final ByteData? encoded =
+            await image.toByteData(format: ui.ImageByteFormat.png);
+        if (encoded == null) {
+          throw StateError('无法编码导出结果');
+        }
+        return Uint8List.fromList(
+          encoded.buffer.asUint8List(
+            encoded.offsetInBytes,
+            encoded.lengthInBytes,
+          ),
+        );
+      } finally {
+        if (!image.debugDisposed) {
+          image.dispose();
+        }
+      }
+    }
+
+	    if (color32 != null) {
+	      color32.fillRange(0, color32.length, 0);
+	    } else {
+	      colorBuffer.fillRange(0, colorBuffer.length, 0);
+	    }
+	    depthBuffer.fillRange(0, depthBuffer.length, 0);
+
+    Float32List? exportSelfShadowDepth;
+    if (widget.enableSelfShadow && widget.selfShadowStrength > 0) {
+      final int size = widget.selfShadowMapSize.clamp(64, 2048).toInt();
+      exportSelfShadowDepth = Float32List(size * size);
+    }
+
+	    _renderSceneToBuffers(
+	      mesh: mesh,
+	      colorBuffer: colorBuffer,
+	      colorBuffer32: color32,
+      depthBuffer: depthBuffer,
+      width: width,
+      height: height,
+      textureRgba: textureRgba,
+	      textureWidth: textureWidth,
+	      textureHeight: textureHeight,
+	      shadowMask: shadowMask,
+	      shadowMaskScratch: shadowMaskScratch,
+        selfShadowDepthBuffer: exportSelfShadowDepth,
+	    );
+
+    _compositeOpaqueBackground(
+      rgba: colorBuffer,
+      width: width,
+      height: height,
+      background: background,
+    );
+
+    final ui.Image image = await _decodeRgbaImage(colorBuffer, width, height);
+    try {
+      final ByteData? encoded =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      if (encoded == null) {
+        throw StateError('无法编码导出结果');
+      }
+      return Uint8List.fromList(
+        encoded.buffer.asUint8List(
+          encoded.offsetInBytes,
+          encoded.lengthInBytes,
+        ),
+      );
+    } finally {
+      if (!image.debugDisposed) {
+        image.dispose();
+      }
+    }
+  }
+
+  static Future<_BedrockTextureBytes?> _loadTextureBytes(ui.Image image) {
+    final Future<_BedrockTextureBytes?>? cached = _textureBytesCache[image];
+    if (cached != null) {
+      return cached;
+    }
+
+    final Future<_BedrockTextureBytes?> future = () async {
+      try {
+        final ByteData? data =
+            await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        if (data == null) {
+          return null;
+        }
+        return _BedrockTextureBytes(
+          rgba: data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+          width: image.width,
+          height: image.height,
+        );
+      } catch (_) {
+        return null;
+      }
+    }();
+
+    _textureBytesCache[image] = future;
+    unawaited(
+      future.then((value) {
+        if (value == null) {
+          _textureBytesCache[image] = null;
+        }
+      }),
+    );
+    return future;
+  }
+
   Future<void> _ensureTextureBytes(int generation) async {
     final ui.Image? image = widget.texture;
     if (image == null || image.debugDisposed) {
@@ -258,24 +1022,17 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     _textureWidth = image.width;
     _textureHeight = image.height;
 
-    try {
-      final ByteData? data =
-          await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (!mounted || generation != _renderGeneration) {
-        return;
-      }
-      if (data == null) {
-        _textureRgba = null;
-        return;
-      }
-      _textureRgba = data.buffer.asUint8List(
-        data.offsetInBytes,
-        data.lengthInBytes,
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Failed to read reference model texture: $error\n$stackTrace');
-      _textureRgba = null;
+    final _BedrockTextureBytes? bytes = await _loadTextureBytes(image);
+    if (!mounted || generation != _renderGeneration) {
+      return;
     }
+    if (bytes == null) {
+      _textureRgba = null;
+      return;
+    }
+    _textureRgba = bytes.rgba;
+    _textureWidth = bytes.width;
+    _textureHeight = bytes.height;
   }
 
   BedrockMesh _buildMeshForFrame() {
@@ -329,128 +1086,18 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
       depthBuffer.fillRange(0, depthBuffer.length, 0);
 
       final BedrockMesh mesh = _buildMeshForFrame();
-
-      final Vector3 modelSize = widget.baseModel.mesh.size;
-      final double extentScalar = math.max(
-        modelSize.x.abs(),
-        math.max(modelSize.y.abs(), modelSize.z.abs()),
-      );
-      final double modelYOffset = widget.showGround && widget.alignModelToGround
-          ? widget.groundY - widget.baseModel.mesh.boundsMin.y
-          : 0.0;
-      final double groundYLocal = widget.groundY;
-
-      final Vector3 lightDir =
-          (widget.lightDirection ?? _defaultLightDirection).clone();
-      if (lightDir.length2 <= 0) {
-        lightDir.setFrom(_defaultLightDirection);
-      } else {
-        lightDir.normalize();
-      }
-
-      if (widget.showGround && extentScalar > 0) {
-        final double groundHalfSize = math.max(extentScalar * 128, 256);
-        final BedrockMesh ground = _buildGroundMesh(
-          groundY: groundYLocal,
-          halfSize: groundHalfSize,
-          doubleSided: true,
-        );
-        _rasterizeMesh(
-          mesh: ground,
-          colorBuffer: colorBuffer,
-          colorBuffer32: color32,
-          depthBuffer: depthBuffer,
-          width: _renderWidth,
-          height: _renderHeight,
-          modelExtent: modelSize,
-          yaw: widget.yaw,
-          pitch: widget.pitch,
-          zoom: widget.zoom,
-          lightDirection: lightDir,
-          ambient: widget.ambient,
-          diffuse: widget.diffuse,
-          sunColor: widget.sunColor,
-          skyColor: widget.skyColor,
-          groundBounceColor: widget.groundBounceColor,
-          specularStrength: widget.specularStrength,
-          roughness: widget.roughness,
-          exposure: widget.exposure,
-          toneMap: widget.toneMap,
-          lightFollowsCamera: widget.lightFollowsCamera,
-          textureRgba: null,
-          textureWidth: 0,
-          textureHeight: 0,
-          modelTextureWidth: 0,
-          modelTextureHeight: 0,
-          untexturedBaseColor: widget.groundColor,
-        );
-
-        if (widget.showGroundShadow) {
-          final Uint8List mask = _shadowMask!;
-          mask.fillRange(0, mask.length, 0);
-          _rasterizePlanarShadowMask(
-            mesh: mesh,
-            mask: mask,
-            depthBuffer: depthBuffer,
-            width: _renderWidth,
-            height: _renderHeight,
-            modelExtent: modelSize,
-            yaw: widget.yaw,
-            pitch: widget.pitch,
-            zoom: widget.zoom,
-            lightDirection: lightDir,
-            lightFollowsCamera: widget.lightFollowsCamera,
-            groundY: groundYLocal,
-            translateY: modelYOffset,
-          );
-          final int blurRadius = widget.groundShadowBlurRadius;
-          if (blurRadius > 0) {
-            _blurMask(
-              mask: mask,
-              scratch: _shadowMaskScratch!,
-              width: _renderWidth,
-              height: _renderHeight,
-              radius: blurRadius,
-            );
-          }
-          _applyShadowMask(
-            colorBuffer: colorBuffer,
-            colorBuffer32: color32,
-            depthBuffer: depthBuffer,
-            mask: mask,
-            strength: widget.groundShadowStrength,
-          );
-        }
-      }
-
-      _rasterizeMesh(
+      _renderSceneToBuffers(
         mesh: mesh,
         colorBuffer: colorBuffer,
         colorBuffer32: color32,
         depthBuffer: depthBuffer,
         width: _renderWidth,
         height: _renderHeight,
-        modelExtent: modelSize,
-        yaw: widget.yaw,
-        pitch: widget.pitch,
-        zoom: widget.zoom,
-        translateY: modelYOffset,
-        lightDirection: lightDir,
-        ambient: widget.ambient,
-        diffuse: widget.diffuse,
-        sunColor: widget.sunColor,
-        skyColor: widget.skyColor,
-        groundBounceColor: widget.groundBounceColor,
-        specularStrength: widget.specularStrength,
-        roughness: widget.roughness,
-        exposure: widget.exposure,
-        toneMap: widget.toneMap,
-        lightFollowsCamera: widget.lightFollowsCamera,
         textureRgba: _textureRgba,
         textureWidth: _textureWidth,
         textureHeight: _textureHeight,
-        modelTextureWidth: widget.modelTextureWidth,
-        modelTextureHeight: widget.modelTextureHeight,
+        shadowMask: _shadowMask,
+        shadowMaskScratch: _shadowMaskScratch,
       );
 
       final ui.Image image = await _decodeRgbaImage(
@@ -502,37 +1149,42 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     return completer.future;
   }
 
-  void _rasterizeMesh({
-    required BedrockMesh mesh,
-    required Uint8List colorBuffer,
-    required Uint32List? colorBuffer32,
-    required Float32List depthBuffer,
-    required int width,
-    required int height,
-    required Vector3 modelExtent,
-    required double yaw,
-    required double pitch,
-    required double zoom,
-    double translateY = 0.0,
-    required Vector3 lightDirection,
-    required double ambient,
-    required double diffuse,
-    Color sunColor = const Color(0xFFFFFFFF),
-    Color skyColor = const Color(0xFFBFD9FF),
-    Color groundBounceColor = const Color(0xFFFFFFFF),
-    double specularStrength = 0.25,
-    double roughness = 0.55,
-    double exposure = 1.0,
-    required bool toneMap,
-    required bool lightFollowsCamera,
-    bool unlit = false,
-    required Uint8List? textureRgba,
-    required int textureWidth,
-    required int textureHeight,
-    required int modelTextureWidth,
-    required int modelTextureHeight,
-    Color untexturedBaseColor = const Color(0xFFFFFFFF),
-  }) {
+	  void _rasterizeMesh({
+	    required BedrockMesh mesh,
+	    required Uint8List colorBuffer,
+	    required Uint32List? colorBuffer32,
+	    required Float32List depthBuffer,
+	    required int width,
+	    required int height,
+	    required Vector3 modelExtent,
+	    required double yaw,
+	    required double pitch,
+	    required double zoom,
+	    double translateY = 0.0,
+	    required Vector3 lightDirection,
+	    required double ambient,
+	    required double diffuse,
+	    Color sunColor = const Color(0xFFFFFFFF),
+	    Color skyColor = const Color(0xFFBFD9FF),
+	    Color groundBounceColor = const Color(0xFFFFFFFF),
+	    double specularStrength = 0.25,
+	    double roughness = 0.55,
+	    double exposure = 1.0,
+	    required bool toneMap,
+	    required bool lightFollowsCamera,
+	    bool unlit = false,
+	    required Uint8List? textureRgba,
+	    required int textureWidth,
+	    required int textureHeight,
+	    required int modelTextureWidth,
+	    required int modelTextureHeight,
+	    Color untexturedBaseColor = const Color(0xFFFFFFFF),
+      _BedrockSelfShadowMap? selfShadowMap,
+      double selfShadowStrength = 1.0,
+      double selfShadowBias = 0.02,
+      double selfShadowSlopeBias = 0.03,
+      int selfShadowPcfRadius = 1,
+	  }) {
     if (mesh.triangles.isEmpty || width <= 0 || height <= 0) {
       return;
     }
@@ -567,9 +1219,40 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     final bool meshUnlit = unlit;
     final double exposureClamped =
         exposure.isFinite ? exposure.clamp(0.0, 4.0).toDouble() : 1.0;
-    final double specularStrengthClamped =
-        specularStrength.clamp(0.0, 1.0).toDouble();
-    final double roughnessClamped = roughness.clamp(0.0, 1.0).toDouble();
+	    final double specularStrengthClamped =
+	        specularStrength.clamp(0.0, 1.0).toDouble();
+	    final double roughnessClamped = roughness.clamp(0.0, 1.0).toDouble();
+
+    final _BedrockSelfShadowMap? shadowMap = selfShadowMap;
+    final double selfShadowStrengthClamped =
+        selfShadowStrength.clamp(0.0, 1.0).toDouble();
+    final double selfShadowBiasClamped = selfShadowBias.isFinite
+        ? selfShadowBias.clamp(0.0, 1.0).toDouble()
+        : 0.02;
+    final double selfShadowSlopeBiasClamped = selfShadowSlopeBias.isFinite
+        ? selfShadowSlopeBias.clamp(0.0, 1.0).toDouble()
+        : 0.03;
+    final int selfShadowRadiusClamped = selfShadowPcfRadius
+        .clamp(0, 4)
+        .toInt();
+    final bool enableSelfShadow =
+        shadowMap != null && selfShadowStrengthClamped > 0.0 && diffuseClamped > 0.0;
+
+    final Float32List? shadowDepth = enableSelfShadow ? shadowMap!.depth : null;
+    final int shadowSize = enableSelfShadow ? shadowMap!.size : 0;
+    final double shadowUMin = enableSelfShadow ? shadowMap!.uMin : 0.0;
+    final double shadowVMin = enableSelfShadow ? shadowMap!.vMin : 0.0;
+    final double shadowUScale = enableSelfShadow ? shadowMap!.uScale : 0.0;
+    final double shadowVScale = enableSelfShadow ? shadowMap!.vScale : 0.0;
+    final double shadowDirX = enableSelfShadow ? shadowMap!.lightDir.x : 0.0;
+    final double shadowDirY = enableSelfShadow ? shadowMap!.lightDir.y : 0.0;
+    final double shadowDirZ = enableSelfShadow ? shadowMap!.lightDir.z : 0.0;
+    final double shadowRightX = enableSelfShadow ? shadowMap!.right.x : 0.0;
+    final double shadowRightY = enableSelfShadow ? shadowMap!.right.y : 0.0;
+    final double shadowRightZ = enableSelfShadow ? shadowMap!.right.z : 0.0;
+    final double shadowUpX = enableSelfShadow ? shadowMap!.up.x : 0.0;
+    final double shadowUpY = enableSelfShadow ? shadowMap!.up.y : 0.0;
+    final double shadowUpZ = enableSelfShadow ? shadowMap!.up.z : 0.0;
 
     final Float32List srgbToLinear = _srgbToLinearTable;
     final Uint8List linearToSrgb = _linearToSrgbTable;
@@ -611,16 +1294,21 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
 
     final double centerX = width * 0.5;
     final double centerY = height * 0.5;
-    final double baseScale = (math.min(width.toDouble(), height.toDouble()) / extent) * 0.9;
-    final double scale = baseScale * zoom;
-    final double cameraDistance = extent * 2.4;
-    final double nearPlane = math.max(1e-3, cameraDistance * 0.01);
-    double triLightR = 1.0;
-    double triLightG = 1.0;
-    double triLightB = 1.0;
-    double triSpecR = 0.0;
-    double triSpecG = 0.0;
-    double triSpecB = 0.0;
+	    final double baseScale = (math.min(width.toDouble(), height.toDouble()) / extent) * 0.9;
+	    final double scale = baseScale * zoom;
+	    final double cameraDistance = extent * 2.4;
+	    final double nearPlane = math.max(1e-3, cameraDistance * 0.01);
+	    double triAmbR = 1.0;
+	    double triAmbG = 1.0;
+	    double triAmbB = 1.0;
+      double triSunR = 0.0;
+      double triSunG = 0.0;
+      double triSunB = 0.0;
+	    double triSpecR = 0.0;
+	    double triSpecG = 0.0;
+	    double triSpecB = 0.0;
+      double triShadowBias = 0.0;
+      bool triUseSelfShadow = false;
 
 	    ({double x, double y, double z, double u, double v}) intersectNearPlane({
 	      required double ax,
@@ -665,23 +1353,32 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
 	      return value;
 	    }
 
-	    void rasterizeTriangle({
-	      required double x0w,
-	      required double y0w,
-	      required double z0,
-      required double u0,
-      required double v0,
-      required double x1w,
-      required double y1w,
-      required double z1,
-      required double u1,
-      required double v1,
-      required double x2w,
-      required double y2w,
-      required double z2,
-      required double u2,
-      required double v2,
-    }) {
+		    void rasterizeTriangle({
+		      required double x0w,
+		      required double y0w,
+		      required double z0,
+	      required double u0,
+	      required double v0,
+        double su0 = 0.0,
+        double sv0 = 0.0,
+        double sd0 = 0.0,
+	      required double x1w,
+	      required double y1w,
+	      required double z1,
+	      required double u1,
+	      required double v1,
+        double su1 = 0.0,
+        double sv1 = 0.0,
+        double sd1 = 0.0,
+	      required double x2w,
+	      required double y2w,
+	      required double z2,
+	      required double u2,
+	      required double v2,
+        double su2 = 0.0,
+        double sv2 = 0.0,
+        double sd2 = 0.0,
+	    }) {
       if (z0 <= 0 || z1 <= 0 || z2 <= 0) {
         return;
       }
@@ -716,12 +1413,23 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
       int yStart = clampInt(minY.floor(), 0, height - 1);
       int yEnd = clampInt(maxY.ceil(), 0, height - 1);
 
-      final double u0OverZ = u0 * invZ0;
-      final double v0OverZ = v0 * invZ0;
-      final double u1OverZ = u1 * invZ1;
-      final double v1OverZ = v1 * invZ1;
-      final double u2OverZ = u2 * invZ2;
-      final double v2OverZ = v2 * invZ2;
+	      final double u0OverZ = u0 * invZ0;
+	      final double v0OverZ = v0 * invZ0;
+	      final double u1OverZ = u1 * invZ1;
+	      final double v1OverZ = v1 * invZ1;
+	      final double u2OverZ = u2 * invZ2;
+	      final double v2OverZ = v2 * invZ2;
+
+        final bool useSelfShadow = enableSelfShadow && triUseSelfShadow;
+        final double su0OverZ = useSelfShadow ? su0 * invZ0 : 0.0;
+        final double sv0OverZ = useSelfShadow ? sv0 * invZ0 : 0.0;
+        final double sd0OverZ = useSelfShadow ? sd0 * invZ0 : 0.0;
+        final double su1OverZ = useSelfShadow ? su1 * invZ1 : 0.0;
+        final double sv1OverZ = useSelfShadow ? sv1 * invZ1 : 0.0;
+        final double sd1OverZ = useSelfShadow ? sd1 * invZ1 : 0.0;
+        final double su2OverZ = useSelfShadow ? su2 * invZ2 : 0.0;
+        final double sv2OverZ = useSelfShadow ? sv2 * invZ2 : 0.0;
+        final double sd2OverZ = useSelfShadow ? sd2 * invZ2 : 0.0;
 
       for (int y = yStart; y <= yEnd; y++) {
         final double py = y + 0.5;
@@ -760,9 +1468,9 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
           int bOut;
           int aOut;
 
-          if (hasTexture) {
-            final double u = (a * u0OverZ + b * u1OverZ + c * u2OverZ) / invZ;
-            final double v = (a * v0OverZ + b * v1OverZ + c * v2OverZ) / invZ;
+	          if (hasTexture) {
+	            final double u = (a * u0OverZ + b * u1OverZ + c * u2OverZ) / invZ;
+	            final double v = (a * v0OverZ + b * v1OverZ + c * v2OverZ) / invZ;
             final int tu = clampInt(u.floor(), 0, textureWidth - 1);
             final int tv = clampInt(v.floor(), 0, textureHeight - 1);
             final int texIndex = (tv * textureWidth + tu) * 4;
@@ -773,23 +1481,86 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
             if (ta == 0) {
               continue;
             }
-            if (meshUnlit) {
-              rOut = tr;
-              gOut = tg;
-              bOut = tb;
-            } else {
-              final double rLin =
-                  (srgbToLinear[tr] * triLightR + triSpecR) *
-                  exposureClamped;
-              final double gLin =
-                  (srgbToLinear[tg] * triLightG + triSpecG) *
-                  exposureClamped;
-              final double bLin =
-                  (srgbToLinear[tb] * triLightB + triSpecB) *
-                  exposureClamped;
-              final double rMapped = toneMap ? (rLin / (1.0 + rLin)) : rLin;
-              final double gMapped = toneMap ? (gLin / (1.0 + gLin)) : gLin;
-              final double bMapped = toneMap ? (bLin / (1.0 + bLin)) : bLin;
+	            if (meshUnlit) {
+	              rOut = tr;
+	              gOut = tg;
+	              bOut = tb;
+	            } else {
+                double shadow = 1.0;
+                if (useSelfShadow && shadowDepth != null && shadowSize > 0) {
+                  final double suLin =
+                      (a * su0OverZ + b * su1OverZ + c * su2OverZ) / invZ;
+                  final double svLin =
+                      (a * sv0OverZ + b * sv1OverZ + c * sv2OverZ) / invZ;
+                  final double sdLin =
+                      (a * sd0OverZ + b * sd1OverZ + c * sd2OverZ) / invZ;
+
+	                  final double sx = (suLin - shadowUMin) * shadowUScale;
+	                  final double sy = (svLin - shadowVMin) * shadowVScale;
+                    if (sx.isFinite && sy.isFinite) {
+	                      final int baseX = sx.floor();
+	                      final int baseY = sy.floor();
+	                      if (baseX >= 0 &&
+	                          baseY >= 0 &&
+	                          baseX < shadowSize &&
+	                          baseY < shadowSize) {
+	                    int lit = 0;
+	                    int total = 0;
+                    for (int oy = -selfShadowRadiusClamped;
+                        oy <= selfShadowRadiusClamped;
+                        oy++) {
+                      final int py = baseY + oy;
+                      if (py < 0 || py >= shadowSize) {
+                        continue;
+                      }
+                      final int row2 = py * shadowSize;
+                      for (int ox = -selfShadowRadiusClamped;
+                          ox <= selfShadowRadiusClamped;
+                          ox++) {
+                        final int px2 = baseX + ox;
+                        if (px2 < 0 || px2 >= shadowSize) {
+                          continue;
+                        }
+                        total += 1;
+                        final double mapDepth = shadowDepth[row2 + px2];
+                        if (mapDepth.isInfinite && mapDepth.isNegative) {
+                          lit += 1;
+                          continue;
+                        }
+                        if (sdLin >= mapDepth - triShadowBias) {
+                          lit += 1;
+                        }
+                      }
+                    }
+	                    if (total > 0) {
+	                      final double visibility = lit / total;
+	                      shadow = 1.0 -
+	                          selfShadowStrengthClamped * (1.0 - visibility);
+	                      shadow = shadow.clamp(0.0, 1.0).toDouble();
+	                    }
+	                  }
+                    }
+	                }
+
+                final double lightR = triAmbR + triSunR * shadow;
+                final double lightG = triAmbG + triSunG * shadow;
+                final double lightB = triAmbB + triSunB * shadow;
+                final double specR = triSpecR * shadow;
+                final double specG = triSpecG * shadow;
+                final double specB = triSpecB * shadow;
+
+	              final double rLin =
+	                  (srgbToLinear[tr] * lightR + specR) *
+	                  exposureClamped;
+	              final double gLin =
+	                  (srgbToLinear[tg] * lightG + specG) *
+	                  exposureClamped;
+	              final double bLin =
+	                  (srgbToLinear[tb] * lightB + specB) *
+	                  exposureClamped;
+	              final double rMapped = toneMap ? (rLin / (1.0 + rLin)) : rLin;
+	              final double gMapped = toneMap ? (gLin / (1.0 + gLin)) : gLin;
+	              final double bMapped = toneMap ? (bLin / (1.0 + bLin)) : bLin;
               rOut =
                   linearToSrgb[(rMapped.clamp(0.0, 1.0).toDouble() * linearMaxIndex).round()];
               gOut =
@@ -799,21 +1570,84 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
             }
             aOut = ta;
           } else {
-            if (meshUnlit) {
-              rOut = untexturedR8;
-              gOut = untexturedG8;
-              bOut = untexturedB8;
-              aOut = untexturedA8;
-            } else {
-              final double rLin =
-                  (untexturedRLin * triLightR + triSpecR) * exposureClamped;
-              final double gLin =
-                  (untexturedGLin * triLightG + triSpecG) * exposureClamped;
-              final double bLin =
-                  (untexturedBLin * triLightB + triSpecB) * exposureClamped;
-              final double rMapped = toneMap ? (rLin / (1.0 + rLin)) : rLin;
-              final double gMapped = toneMap ? (gLin / (1.0 + gLin)) : gLin;
-              final double bMapped = toneMap ? (bLin / (1.0 + bLin)) : bLin;
+	            if (meshUnlit) {
+	              rOut = untexturedR8;
+	              gOut = untexturedG8;
+	              bOut = untexturedB8;
+	              aOut = untexturedA8;
+	            } else {
+                double shadow = 1.0;
+                if (useSelfShadow && shadowDepth != null && shadowSize > 0) {
+                  final double suLin =
+                      (a * su0OverZ + b * su1OverZ + c * su2OverZ) / invZ;
+                  final double svLin =
+                      (a * sv0OverZ + b * sv1OverZ + c * sv2OverZ) / invZ;
+                  final double sdLin =
+                      (a * sd0OverZ + b * sd1OverZ + c * sd2OverZ) / invZ;
+
+                  final double sx = (suLin - shadowUMin) * shadowUScale;
+                  final double sy = (svLin - shadowVMin) * shadowVScale;
+                  if (sx.isFinite && sy.isFinite) {
+                    final int baseX = sx.floor();
+                    final int baseY = sy.floor();
+                    if (baseX >= 0 &&
+                        baseY >= 0 &&
+                        baseX < shadowSize &&
+                        baseY < shadowSize) {
+                    int lit = 0;
+                    int total = 0;
+                    for (int oy = -selfShadowRadiusClamped;
+                        oy <= selfShadowRadiusClamped;
+                        oy++) {
+                      final int py = baseY + oy;
+                      if (py < 0 || py >= shadowSize) {
+                        continue;
+                      }
+                      final int row2 = py * shadowSize;
+                      for (int ox = -selfShadowRadiusClamped;
+                          ox <= selfShadowRadiusClamped;
+                          ox++) {
+                        final int px2 = baseX + ox;
+                        if (px2 < 0 || px2 >= shadowSize) {
+                          continue;
+                        }
+                        total += 1;
+                        final double mapDepth = shadowDepth[row2 + px2];
+                        if (mapDepth.isInfinite && mapDepth.isNegative) {
+                          lit += 1;
+                          continue;
+                        }
+                        if (sdLin >= mapDepth - triShadowBias) {
+                          lit += 1;
+                        }
+                      }
+                    }
+                    if (total > 0) {
+                      final double visibility = lit / total;
+                      shadow = 1.0 -
+                          selfShadowStrengthClamped * (1.0 - visibility);
+                      shadow = shadow.clamp(0.0, 1.0).toDouble();
+                    }
+                  }
+                  }
+                }
+
+                final double lightR = triAmbR + triSunR * shadow;
+                final double lightG = triAmbG + triSunG * shadow;
+                final double lightB = triAmbB + triSunB * shadow;
+                final double specR = triSpecR * shadow;
+                final double specG = triSpecG * shadow;
+                final double specB = triSpecB * shadow;
+
+	              final double rLin =
+	                  (untexturedRLin * lightR + specR) * exposureClamped;
+	              final double gLin =
+	                  (untexturedGLin * lightG + specG) * exposureClamped;
+	              final double bLin =
+	                  (untexturedBLin * lightB + specB) * exposureClamped;
+	              final double rMapped = toneMap ? (rLin / (1.0 + rLin)) : rLin;
+	              final double gMapped = toneMap ? (gLin / (1.0 + gLin)) : gLin;
+	              final double bMapped = toneMap ? (bLin / (1.0 + bLin)) : bLin;
               rOut =
                   linearToSrgb[(rMapped.clamp(0.0, 1.0).toDouble() * linearMaxIndex).round()];
               gOut =
@@ -866,19 +1700,24 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
       final double y2w = transformY(p2.x, y2, p2.z);
       final double z2w = transformZ(p2.x, y2, p2.z);
 
-      if (!meshUnlit) {
-        final double nLen = math.sqrt(nx * nx + ny * ny + nz * nz);
-        if (nLen <= 0) {
-          triLightR = ambientClamped;
-          triLightG = ambientClamped;
-          triLightB = ambientClamped;
-          triSpecR = 0.0;
-          triSpecG = 0.0;
-          triSpecB = 0.0;
-        } else {
-          final double nvx = nx / nLen;
-          final double nvy = ny / nLen;
-          final double nvz = nz / nLen;
+	      if (!meshUnlit) {
+	        final double nLen = math.sqrt(nx * nx + ny * ny + nz * nz);
+	        if (nLen <= 0) {
+	          triAmbR = ambientClamped;
+	          triAmbG = ambientClamped;
+	          triAmbB = ambientClamped;
+            triSunR = 0.0;
+            triSunG = 0.0;
+            triSunB = 0.0;
+	          triSpecR = 0.0;
+	          triSpecG = 0.0;
+	          triSpecB = 0.0;
+            triUseSelfShadow = false;
+            triShadowBias = 0.0;
+	        } else {
+	          final double nvx = nx / nLen;
+	          final double nvy = ny / nLen;
+	          final double nvz = nz / nLen;
 
           double lvx = lightDir.x;
           double lvy = lightDir.y;
@@ -911,13 +1750,21 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
           final double ambB =
               (groundBLin * invHemi + skyBLin * hemi) * ambientClamped;
 
-          triLightR = ambR + sunRLin * sunIntensity;
-          triLightG = ambG + sunGLin * sunIntensity;
-          triLightB = ambB + sunBLin * sunIntensity;
+	          triAmbR = ambR;
+	          triAmbG = ambG;
+	          triAmbB = ambB;
+            triSunR = sunRLin * sunIntensity;
+            triSunG = sunGLin * sunIntensity;
+            triSunB = sunBLin * sunIntensity;
 
-          triSpecR = 0.0;
-          triSpecG = 0.0;
-          triSpecB = 0.0;
+	          triSpecR = 0.0;
+	          triSpecG = 0.0;
+	          triSpecB = 0.0;
+            triUseSelfShadow = enableSelfShadow && sunIntensity > 0.0;
+            triShadowBias = triUseSelfShadow
+                ? (selfShadowBiasClamped +
+                    selfShadowSlopeBiasClamped * (1.0 - ndotl))
+                : 0.0;
 
           if (specularStrengthClamped > 0.0 && sunIntensity > 0.0) {
             final double cx = (x0w + x1w + x2w) / 3.0;
@@ -965,14 +1812,19 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
             triSpecB = sunBLin * specIntensity;
           }
         }
-      } else {
-        triLightR = 1.0;
-        triLightG = 1.0;
-        triLightB = 1.0;
-        triSpecR = 0.0;
-        triSpecG = 0.0;
-        triSpecB = 0.0;
-      }
+	      } else {
+	        triAmbR = 1.0;
+	        triAmbG = 1.0;
+	        triAmbB = 1.0;
+          triSunR = 0.0;
+          triSunG = 0.0;
+          triSunB = 0.0;
+	        triSpecR = 0.0;
+	        triSpecG = 0.0;
+	        triSpecB = 0.0;
+          triUseSelfShadow = false;
+          triShadowBias = 0.0;
+	      }
 
       final Offset uv0 = tri.uv0;
       final Offset uv1 = tri.uv1;
@@ -984,9 +1836,32 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
       final double u2 = uv2.dx * uScale;
       final double v2 = uv2.dy * vScale;
 
-      final double z0 = z0w + cameraDistance;
-      final double z1 = z1w + cameraDistance;
-      final double z2 = z2w + cameraDistance;
+	      final double z0 = z0w + cameraDistance;
+	      final double z1 = z1w + cameraDistance;
+	      final double z2 = z2w + cameraDistance;
+
+        double su0 = 0.0;
+        double sv0 = 0.0;
+        double sd0 = 0.0;
+        double su1 = 0.0;
+        double sv1 = 0.0;
+        double sd1 = 0.0;
+        double su2 = 0.0;
+        double sv2 = 0.0;
+        double sd2 = 0.0;
+        if (enableSelfShadow) {
+          su0 = x0w * shadowRightX + y0w * shadowRightY + z0w * shadowRightZ;
+          sv0 = x0w * shadowUpX + y0w * shadowUpY + z0w * shadowUpZ;
+          sd0 = x0w * shadowDirX + y0w * shadowDirY + z0w * shadowDirZ;
+
+          su1 = x1w * shadowRightX + y1w * shadowRightY + z1w * shadowRightZ;
+          sv1 = x1w * shadowUpX + y1w * shadowUpY + z1w * shadowUpZ;
+          sd1 = x1w * shadowDirX + y1w * shadowDirY + z1w * shadowDirZ;
+
+          su2 = x2w * shadowRightX + y2w * shadowRightY + z2w * shadowRightZ;
+          sv2 = x2w * shadowUpX + y2w * shadowUpY + z2w * shadowUpZ;
+          sd2 = x2w * shadowDirX + y2w * shadowDirY + z2w * shadowDirZ;
+        }
 
       final bool in0 = z0 > nearPlane;
       final bool in1 = z1 > nearPlane;
@@ -996,26 +1871,35 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         continue;
       }
 
-      if (insideCount == 3) {
-        rasterizeTriangle(
-          x0w: x0w,
-          y0w: y0w,
-          z0: z0,
-          u0: u0,
-          v0: v0,
-          x1w: x1w,
-          y1w: y1w,
-          z1: z1,
-          u1: u1,
-          v1: v1,
-          x2w: x2w,
-          y2w: y2w,
-          z2: z2,
-          u2: u2,
-          v2: v2,
-        );
-        continue;
-      }
+	      if (insideCount == 3) {
+	        rasterizeTriangle(
+	          x0w: x0w,
+	          y0w: y0w,
+	          z0: z0,
+	          u0: u0,
+	          v0: v0,
+            su0: su0,
+            sv0: sv0,
+            sd0: sd0,
+	          x1w: x1w,
+	          y1w: y1w,
+	          z1: z1,
+	          u1: u1,
+	          v1: v1,
+            su1: su1,
+            sv1: sv1,
+            sd1: sd1,
+	          x2w: x2w,
+	          y2w: y2w,
+	          z2: z2,
+	          u2: u2,
+	          v2: v2,
+            su2: su2,
+            sv2: sv2,
+            sd2: sd2,
+	        );
+	        continue;
+	      }
 
       if (insideCount == 1) {
         if (in0) {

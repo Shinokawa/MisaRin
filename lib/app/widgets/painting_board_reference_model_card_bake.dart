@@ -1,5 +1,44 @@
 part of 'painting_board.dart';
 
+enum _ReferenceModelBakeRendererPreset {
+  normal,
+  cinematic,
+  cycles,
+}
+
+extension _ReferenceModelBakeRendererPresetLabel
+    on _ReferenceModelBakeRendererPreset {
+  String get label {
+    return switch (this) {
+      _ReferenceModelBakeRendererPreset.normal => '普通（快速）',
+      _ReferenceModelBakeRendererPreset.cinematic => '电影（宣传片）',
+      _ReferenceModelBakeRendererPreset.cycles => '写实（Cycles）',
+    };
+  }
+
+  bool get usesBakedLighting => this != _ReferenceModelBakeRendererPreset.normal;
+}
+
+class _ReferenceModelBakeResolutionPreset {
+  const _ReferenceModelBakeResolutionPreset({
+    required this.label,
+    required this.width,
+    required this.height,
+  });
+
+  final String label;
+  final int width;
+  final int height;
+}
+
+const List<_ReferenceModelBakeResolutionPreset>
+_kReferenceModelBakeResolutionPresets = <_ReferenceModelBakeResolutionPreset>[
+  _ReferenceModelBakeResolutionPreset(label: '1280 × 720 (HD)', width: 1280, height: 720),
+  _ReferenceModelBakeResolutionPreset(label: '1920 × 1080 (Full HD)', width: 1920, height: 1080),
+  _ReferenceModelBakeResolutionPreset(label: '2560 × 1440 (QHD)', width: 2560, height: 1440),
+  _ReferenceModelBakeResolutionPreset(label: '3840 × 2160 (4K)', width: 3840, height: 2160),
+];
+
 class _ReferenceModelBakeLighting {
   const _ReferenceModelBakeLighting({
     required this.lightDirection,
@@ -37,12 +76,46 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     }
 
     final BuildContext dialogContext = widget.dialogContext;
-    final OverlayState? overlay = Overlay.of(dialogContext, rootOverlay: true);
+    final NavigatorState? navigator =
+        Navigator.maybeOf(dialogContext, rootNavigator: true);
+    final OverlayState? overlay =
+        navigator?.overlay ?? Overlay.maybeOf(dialogContext);
     if (overlay == null) {
       return;
     }
 
+    ui.Image? bakeTexture;
+    final ui.Image? sourceTexture = widget.texture;
+    if (sourceTexture != null && !sourceTexture.debugDisposed) {
+      final _BedrockTextureBytes? bytes =
+          await _BedrockModelZBufferViewState._loadTextureBytes(sourceTexture);
+      if (!mounted) {
+        return;
+      }
+      if (bytes != null) {
+        final Completer<ui.Image> textureCompleter = Completer<ui.Image>();
+        ui.decodeImageFromPixels(
+          bytes.rgba,
+          bytes.width,
+          bytes.height,
+          ui.PixelFormat.rgba8888,
+          textureCompleter.complete,
+        );
+        bakeTexture = await textureCompleter.future;
+        if (!mounted) {
+          if (!bakeTexture.debugDisposed) {
+            bakeTexture.dispose();
+          }
+          return;
+        }
+        _BedrockModelZBufferViewState._textureBytesCache[bakeTexture] =
+            Future<_BedrockTextureBytes?>.value(bytes);
+      }
+    }
+
     final GlobalKey previewKey = GlobalKey();
+    final GlobalKey<_BedrockModelZBufferViewState> previewModelKey =
+        GlobalKey<_BedrockModelZBufferViewState>();
 
     double previewYaw = _yaw;
     double previewPitch = _pitch;
@@ -51,54 +124,22 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 
     double timeHours = 12.0;
     bool isBaking = false;
-    bool bakedRenderingEnabled = false;
+    _ReferenceModelBakeRendererPreset rendererPreset =
+        _ReferenceModelBakeRendererPreset.cinematic;
 
-    bool previewDirty = true;
+    _ReferenceModelBakeResolutionPreset? resolutionPreset =
+        _kReferenceModelBakeResolutionPresets[1];
+    final TextEditingController widthController = TextEditingController(
+      text: resolutionPreset.width.toString(),
+    );
+    final TextEditingController heightController = TextEditingController(
+      text: resolutionPreset.height.toString(),
+    );
+
     int previewRenderKey = 0;
-    int renderedPreviewKey = -1;
-    int? previewRenderTargetKey;
-    Completer<void>? previewRenderCompleter;
 
     void markPreviewDirty() {
-      previewDirty = true;
       previewRenderKey += 1;
-    }
-
-    void notifyPreviewRendered(int key) {
-      renderedPreviewKey = key;
-      if (key == previewRenderKey) {
-        previewDirty = false;
-      }
-      if (previewRenderTargetKey != null &&
-          key == previewRenderTargetKey &&
-          previewRenderCompleter != null &&
-          !previewRenderCompleter!.isCompleted) {
-        previewRenderCompleter!.complete();
-        previewRenderCompleter = null;
-        previewRenderTargetKey = null;
-      }
-    }
-
-    Future<void> waitForPreviewRender({
-      Duration timeout = const Duration(milliseconds: 2000),
-    }) async {
-      if (!previewDirty) {
-        return;
-      }
-      final int targetKey = previewRenderKey;
-      if (renderedPreviewKey == targetKey) {
-        previewDirty = false;
-        return;
-      }
-      previewRenderTargetKey = targetKey;
-      final Completer<void> completer = Completer<void>();
-      previewRenderCompleter = completer;
-      try {
-        await completer.future.timeout(timeout);
-      } catch (_) {
-        previewRenderTargetKey = null;
-        previewRenderCompleter = null;
-      }
     }
 
     OverlayEntry? dialogEntry;
@@ -114,53 +155,37 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       dialogCompleter = null;
     }
 
-    Future<Uint8List> capturePreviewPngBytes() async {
-      await Future<void>.delayed(const Duration(milliseconds: 16));
-      await WidgetsBinding.instance.endOfFrame;
-
-      final RenderObject? renderObject = previewKey.currentContext
-          ?.findRenderObject();
-      if (renderObject is! RenderRepaintBoundary) {
-        throw StateError('无法获取预览区域渲染对象');
-      }
-
-      int retries = 0;
-      while (renderObject.debugNeedsPaint && retries < 3) {
-        retries += 1;
-        await WidgetsBinding.instance.endOfFrame;
-      }
-
-      final double devicePixelRatio = MediaQuery.devicePixelRatioOf(
-        dialogContext,
-      );
-      final double pixelRatio = devicePixelRatio <= 0
-          ? 2.0
-          : devicePixelRatio.clamp(1.0, 2.0);
-
-      final ui.Image image = await renderObject.toImage(pixelRatio: pixelRatio);
-      try {
-        final ByteData? encoded = await image.toByteData(
-          format: ui.ImageByteFormat.png,
-        );
-        if (encoded == null) {
-          throw StateError('无法编码烘焙结果');
-        }
-        final Uint8List pngBytes = encoded.buffer.asUint8List(
-          encoded.offsetInBytes,
-          encoded.lengthInBytes,
-        );
-        return Uint8List.fromList(pngBytes);
-      } finally {
-        if (!image.debugDisposed) {
-          image.dispose();
-        }
-      }
-    }
-
     Future<void> exportBakeResult(
       BuildContext context,
       StateSetter setDialogState,
     ) async {
+      final int? targetWidth = int.tryParse(widthController.text.trim());
+      final int? targetHeight = int.tryParse(heightController.text.trim());
+      if (targetWidth == null || targetHeight == null || targetWidth <= 0 || targetHeight <= 0) {
+        AppNotifications.show(
+          context,
+          message: '分辨率无效：请输入合法的宽高像素值',
+          severity: InfoBarSeverity.error,
+        );
+        return;
+      }
+      if (targetWidth > 8192 || targetHeight > 8192) {
+        AppNotifications.show(
+          context,
+          message: '分辨率过大：单边最大支持 8192px',
+          severity: InfoBarSeverity.error,
+        );
+        return;
+      }
+      if (targetWidth * targetHeight > 16000000) {
+        AppNotifications.show(
+          context,
+          message: '分辨率过大：总像素建议不超过 1600 万（例如 4K）',
+          severity: InfoBarSeverity.error,
+        );
+        return;
+      }
+
       final String suggestedName = _sanitizeFileName(
         'bake_${_formatTimeForFileName(timeHours)}.png',
       );
@@ -193,20 +218,36 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         normalizedPath = _ensurePngExtension(outputPath);
       }
 
-      final bool previousBakePreview = bakedRenderingEnabled;
-
       try {
         setDialogState(() {
           isBaking = true;
-          if (!bakedRenderingEnabled) {
-            bakedRenderingEnabled = true;
-            markPreviewDirty();
-          }
+          markPreviewDirty();
         });
 
-        await waitForPreviewRender();
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+        await WidgetsBinding.instance.endOfFrame;
 
-        final Uint8List bytes = await capturePreviewPngBytes();
+        final _BedrockModelZBufferViewState? rendererState =
+            previewModelKey.currentState;
+        if (rendererState == null) {
+          throw StateError('无法获取模型渲染器');
+        }
+
+        final FluentThemeData theme = FluentTheme.of(context);
+        final Color normalBackground = theme.brightness.isDark
+            ? const Color(0xFF101010)
+            : const Color(0xFFF7F7F7);
+        final _ReferenceModelBakeLighting? lighting =
+            rendererPreset.usesBakedLighting
+                ? _lightingForTime(timeHours, isDark: theme.brightness.isDark)
+                : null;
+        final Color exportBackground = lighting?.background ?? normalBackground;
+
+        final Uint8List bytes = await rendererState.renderPngBytes(
+          width: targetWidth,
+          height: targetHeight,
+          background: exportBackground,
+        );
         if (kIsWeb) {
           await WebFileSaver.saveBytes(
             fileName: downloadName!,
@@ -239,9 +280,6 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         if (mounted) {
           setDialogState(() {
             isBaking = false;
-            if (!previousBakePreview) {
-              bakedRenderingEnabled = false;
-            }
           });
         }
       }
@@ -251,8 +289,14 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     dialogCompleter = completer;
     dialogEntry = OverlayEntry(
       builder: (BuildContext overlayContext) {
-        final Color barrierColor = Colors.black.withValues(alpha: 0.35);
-        return Stack(
+        return Navigator(
+          onGenerateRoute: (settings) => PageRouteBuilder<void>(
+            settings: settings,
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+            pageBuilder: (context, animation, secondaryAnimation) {
+              final Color barrierColor = Colors.black.withValues(alpha: 0.35);
+              return Stack(
           fit: StackFit.expand,
           children: [
             GestureDetector(
@@ -278,7 +322,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                       : const Color(0xFFF7F7F7);
 
                   final _ReferenceModelBakeLighting? lighting =
-                      bakedRenderingEnabled
+                      rendererPreset.usesBakedLighting
                       ? _lightingForTime(
                           timeHours,
                           isDark: theme.brightness.isDark,
@@ -289,55 +333,89 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 
                   Widget buildModelPreview() {
                     final double groundY = widget.modelMesh.mesh.boundsMin.y;
-                    final Widget model = bakedRenderingEnabled
-                        ? _BedrockModelZBufferView(
-                            baseModel: widget.modelMesh,
-                            modelTextureWidth:
-                                widget.modelMesh.model.textureWidth,
-                            modelTextureHeight:
-                                widget.modelMesh.model.textureHeight,
-                            texture: widget.texture,
-                            yaw: previewYaw,
-                            pitch: previewPitch,
-                            zoom: previewZoom,
-                            animation: _selectedAnimation,
-                            animationController: _actionController,
-                            lightDirection: lighting!.lightDirection,
-                            ambient: lighting.ambient,
-                            diffuse: lighting.diffuse,
-                            sunColor: lighting.sunColor,
-                            skyColor: lighting.skyColor,
-                            groundBounceColor: lighting.groundBounceColor,
-                            specularStrength: lighting.specularStrength,
-                            roughness: lighting.roughness,
-                            exposure: lighting.exposure,
-                            toneMap: true,
-                            lightFollowsCamera: false,
-                            showGround: true,
-                            groundY: groundY,
-                            alignModelToGround: false,
-                            groundColor: Colors.white,
-                            showGroundShadow: true,
-                            groundShadowStrength: lighting.shadowStrength,
-                            groundShadowBlurRadius: lighting.shadowBlurRadius,
-                            renderKey: previewRenderKey,
-                            onRendered: notifyPreviewRendered,
-                          )
-                        : _BedrockModelZBufferView(
-                            baseModel: widget.modelMesh,
-                            modelTextureWidth:
-                                widget.modelMesh.model.textureWidth,
-                            modelTextureHeight:
-                                widget.modelMesh.model.textureHeight,
-                            texture: widget.texture,
-                            yaw: previewYaw,
-                            pitch: previewPitch,
-                            zoom: previewZoom,
-                            animation: _selectedAnimation,
-                            animationController: _actionController,
-                            renderKey: previewRenderKey,
-                            onRendered: notifyPreviewRendered,
-                          );
+                    final bool usesBakedLighting =
+                        rendererPreset.usesBakedLighting;
+                    final _ReferenceModelBakeLighting? bakedLighting = lighting;
+                    final bool isCinematic = rendererPreset ==
+                        _ReferenceModelBakeRendererPreset.cinematic;
+                    final bool isCycles =
+                        rendererPreset == _ReferenceModelBakeRendererPreset.cycles;
+
+                    final double specularStrength = usesBakedLighting
+                        ? (isCycles
+                              ? bakedLighting!.specularStrength * 0.65
+                              : bakedLighting!.specularStrength)
+                        : 0.25;
+                    final double roughness = usesBakedLighting
+                        ? (isCycles ? 0.68 : bakedLighting!.roughness)
+                        : 0.55;
+                    final double exposure = usesBakedLighting
+                        ? (isCinematic
+                              ? bakedLighting!.exposure * 1.05
+                              : bakedLighting!.exposure)
+                        : 1.0;
+
+                    final bool enableSelfShadow = usesBakedLighting;
+                    final int shadowMapSize = 1024;
+                    final int shadowPcfRadius = isCycles ? 1 : 2;
+
+                    final bool enableContactShadow = usesBakedLighting;
+                    final double contactShadowStrength =
+                        isCinematic ? 0.22 : 0.14;
+                    final int contactShadowBlurRadius = isCinematic ? 4 : 2;
+                    const double contactShadowDepthEpsilon = 0.012;
+                    final Widget model = _BedrockModelZBufferView(
+                      key: previewModelKey,
+                      baseModel: widget.modelMesh,
+                      modelTextureWidth: widget.modelMesh.model.textureWidth,
+                      modelTextureHeight: widget.modelMesh.model.textureHeight,
+                      texture: bakeTexture ?? widget.texture,
+                      yaw: previewYaw,
+                      pitch: previewPitch,
+                      zoom: previewZoom,
+                      animation: _selectedAnimation,
+                      animationController: _actionController,
+                      lightDirection:
+                          usesBakedLighting ? bakedLighting!.lightDirection : null,
+                      ambient: usesBakedLighting ? bakedLighting!.ambient : 0.55,
+                      diffuse: usesBakedLighting ? bakedLighting!.diffuse : 0.45,
+                      sunColor: usesBakedLighting
+                          ? bakedLighting!.sunColor
+                          : const Color(0xFFFFFFFF),
+                      skyColor: usesBakedLighting
+                          ? bakedLighting!.skyColor
+                          : const Color(0xFFBFD9FF),
+                      groundBounceColor: usesBakedLighting
+                          ? bakedLighting!.groundBounceColor
+                          : const Color(0xFFFFFFFF),
+                      specularStrength: specularStrength,
+                      roughness: roughness,
+                      exposure: exposure,
+                      toneMap: usesBakedLighting,
+                      enableSelfShadow: enableSelfShadow,
+                      selfShadowStrength: 1.0,
+                      selfShadowMapSize: shadowMapSize,
+                      selfShadowBias: isCycles ? 0.03 : 0.02,
+                      selfShadowSlopeBias: isCycles ? 0.05 : 0.04,
+                      selfShadowPcfRadius: shadowPcfRadius,
+                      enableContactShadow: enableContactShadow,
+                      contactShadowStrength: contactShadowStrength,
+                      contactShadowBlurRadius: contactShadowBlurRadius,
+                      contactShadowDepthEpsilon: contactShadowDepthEpsilon,
+                      lightFollowsCamera: !usesBakedLighting,
+                      showGround: usesBakedLighting,
+                      groundY: groundY,
+                      alignModelToGround: false,
+                      groundColor: Colors.white,
+                      showGroundShadow: usesBakedLighting,
+                      groundShadowStrength: usesBakedLighting
+                          ? bakedLighting!.shadowStrength
+                          : 0.0,
+                      groundShadowBlurRadius: usesBakedLighting
+                          ? bakedLighting!.shadowBlurRadius
+                          : 0,
+                      renderKey: previewRenderKey,
+                    );
 
                     Widget interactive = Listener(
                       onPointerSignal: (event) {
@@ -415,91 +493,9 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                             left: 12,
                             bottom: 12,
                             child: HoverDetailTooltip(
-                              message: '渲染模式',
-                              detail: bakedRenderingEnabled
-                                  ? '当前：带烘焙渲染（更耗性能）'
-                                  : '当前：普通渲染（更省性能）',
-                              child: Button(
-                                onPressed: isBaking
-                                    ? null
-                                    : () {
-                                        setDialogState(() {
-                                          bakedRenderingEnabled =
-                                              !bakedRenderingEnabled;
-                                          markPreviewDirty();
-                                        });
-                                      },
-                                style: ButtonStyle(
-                                  padding: WidgetStateProperty.all(
-                                    const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 8,
-                                    ),
-                                  ),
-                                  backgroundColor:
-                                      WidgetStateProperty.resolveWith((states) {
-                                        final Color base = bakedRenderingEnabled
-                                            ? accent.withValues(
-                                                alpha: theme.brightness.isDark
-                                                    ? 0.32
-                                                    : 0.2,
-                                              )
-                                            : (theme.brightness.isDark
-                                                  ? const Color(0x99000000)
-                                                  : const Color(0xCCFFFFFF));
-                                        if (states.contains(
-                                          WidgetState.pressed,
-                                        )) {
-                                          return Color.lerp(
-                                                base,
-                                                accent.withValues(alpha: 0.6),
-                                                0.35,
-                                              ) ??
-                                              base;
-                                        }
-                                        if (states.contains(
-                                          WidgetState.hovered,
-                                        )) {
-                                          return Color.lerp(
-                                                base,
-                                                accent.withValues(alpha: 0.6),
-                                                0.2,
-                                              ) ??
-                                              base;
-                                        }
-                                        return base;
-                                      }),
-                                  shape: WidgetStateProperty.all(
-                                    RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      side: BorderSide(
-                                        color: bakedRenderingEnabled
-                                            ? accent
-                                            : border.withValues(
-                                                alpha: border.a * 0.6,
-                                              ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      FluentIcons.auto_enhance_on,
-                                      size: 16,
-                                      color: bakedRenderingEnabled
-                                          ? accent
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      bakedRenderingEnabled ? '烘焙渲染' : '普通渲染',
-                                      style: theme.typography.bodyStrong,
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              message: '渲染器',
+                              detail: rendererPreset.label,
+                              child: const SizedBox.shrink(),
                             ),
                           ),
                           if (isBaking)
@@ -532,41 +528,144 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                     title: Row(children: [const Text('烘焙')]),
                     contentWidth: null,
                     maxWidth: 920,
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        buildPreviewArea(),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            const Text('时间'),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Slider(
-                                value: timeHours.clamp(0, 24),
-                                min: 0,
-                                max: 24,
-                                divisions: 96,
-                                onChanged: isBaking
-                                    ? null
-                                    : (value) {
-                                        setDialogState(() {
-                                          timeHours = value;
-                                          if (bakedRenderingEnabled) {
-                                            markPreviewDirty();
-                                          }
-                                        });
-                                      },
+                    content: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          buildPreviewArea(),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: InfoLabel(
+                                  label: '渲染器',
+                                  child: ComboBox<_ReferenceModelBakeRendererPreset>(
+                                    isExpanded: true,
+                                    value: rendererPreset,
+                                    items: _ReferenceModelBakeRendererPreset.values
+                                        .map(
+                                          (preset) => ComboBoxItem(
+                                            value: preset,
+                                            child: Text(preset.label),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: isBaking
+                                        ? null
+                                        : (value) {
+                                            if (value == null) {
+                                              return;
+                                            }
+                                            setDialogState(() {
+                                              rendererPreset = value;
+                                              markPreviewDirty();
+                                            });
+                                          },
+                                  ),
+                                ),
                               ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: InfoLabel(
+                                  label: '分辨率预设',
+                                  child: ComboBox<_ReferenceModelBakeResolutionPreset?>(
+                                    isExpanded: true,
+                                    value: resolutionPreset,
+                                    items: [
+                                      const ComboBoxItem<_ReferenceModelBakeResolutionPreset?>(
+                                        value: null,
+                                        child: Text('自定义'),
+                                      ),
+                                      ..._kReferenceModelBakeResolutionPresets.map(
+                                        (preset) => ComboBoxItem<
+                                          _ReferenceModelBakeResolutionPreset?
+                                        >(
+                                          value: preset,
+                                          child: Text(preset.label),
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: isBaking
+                                        ? null
+                                        : (value) {
+                                            setDialogState(() {
+                                              resolutionPreset = value;
+                                              if (value != null) {
+                                                widthController.text =
+                                                    value.width.toString();
+                                                heightController.text =
+                                                    value.height.toString();
+                                              }
+                                            });
+                                          },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          InfoLabel(
+                            label: '输出分辨率 (px)',
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormBox(
+                                    controller: widthController,
+                                    enabled: !isBaking,
+                                    placeholder: '宽',
+                                    inputFormatters: <TextInputFormatter>[
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                  ),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 8),
+                                  child: Text('×'),
+                                ),
+                                Expanded(
+                                  child: TextFormBox(
+                                    controller: heightController,
+                                    enabled: !isBaking,
+                                    placeholder: '高',
+                                    inputFormatters: <TextInputFormatter>[
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Text(
-                              _formatTimeForDisplay(timeHours),
-                              style: theme.typography.bodyStrong,
-                            ),
-                          ],
-                        ),
-                      ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Text('时间'),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Slider(
+                                  value: timeHours.clamp(0, 24),
+                                  min: 0,
+                                  max: 24,
+                                  divisions: 96,
+                                  onChanged: isBaking ||
+                                          !rendererPreset.usesBakedLighting
+                                      ? null
+                                      : (value) {
+                                          setDialogState(() {
+                                            timeHours = value;
+                                            markPreviewDirty();
+                                          });
+                                        },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                _formatTimeForDisplay(timeHours),
+                                style: theme.typography.bodyStrong,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     actions: [
                       Button(
@@ -586,6 +685,9 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
             ),
           ],
         );
+            },
+          ),
+        );
       },
     );
 
@@ -594,6 +696,11 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       await completer.future;
     } finally {
       closeDialog();
+      widthController.dispose();
+      heightController.dispose();
+      if (bakeTexture != null && !bakeTexture.debugDisposed) {
+        bakeTexture.dispose();
+      }
     }
   }
 
