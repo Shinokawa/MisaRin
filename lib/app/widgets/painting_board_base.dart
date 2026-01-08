@@ -1,0 +1,869 @@
+part of 'painting_board.dart';
+
+abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
+  bool get canUndo => _undoStack.isNotEmpty;
+  bool get canRedo => _redoStack.isNotEmpty;
+  SelectionShape get selectionShape;
+  ShapeToolVariant get shapeToolVariant;
+  Path? get selectionPath;
+  Path? get selectionPreviewPath;
+  Path? get shapePreviewPath;
+  Path? get shapeVectorFillOverlayPath;
+  Color? get shapeVectorFillOverlayColor;
+  Path? get magicWandPreviewPath;
+  double get selectionDashPhase;
+  bool isPointInsideSelection(Offset position);
+
+  Uint8List? get selectionMaskSnapshot;
+  Path? get selectionPathSnapshot;
+
+  void setSelectionState({SelectionShape? shape, Path? path, Uint8List? mask});
+
+  void clearSelectionArtifacts();
+  void resetSelectionUndoFlag();
+
+  UnmodifiableListView<BitmapLayerState> get _layers => _controller.layers;
+  String? get _activeLayerId => _controller.activeLayerId;
+  Color get _backgroundPreviewColor;
+
+  List<CanvasLayerData> _buildInitialLayers();
+
+  Future<void> _pickColor({
+    required String title,
+    required Color initialColor,
+    required ValueChanged<Color> onSelected,
+    VoidCallback? onCleared,
+  });
+
+  void _rememberColor(Color color);
+  void _setPrimaryColor(Color color, {bool remember = true});
+  Future<void> _applyPaintBucket(Offset position);
+
+  void _setActiveTool(CanvasTool tool);
+  void _convertMagicWandPreviewToSelection();
+  void _convertSelectionToMagicWandPreview();
+  void _clearMagicWandPreview();
+  void _resetSelectionPreview();
+  void _resetPolygonState();
+  void _handleMagicWandPointerDown(Offset position);
+  void _handleSelectionPointerDown(Offset position, Duration timestamp);
+  void _handleSelectionPointerMove(Offset position);
+  void _handleSelectionPointerUp();
+  void _handleSelectionPointerCancel();
+  void _handleSelectionPenPointerDown(Offset position);
+  void _handleSelectionPenPointerMove(Offset position);
+  void _handleSelectionPenPointerUp();
+  void _handleSelectionPenPointerCancel();
+  void _handleSelectionHover(Offset position);
+  void _clearSelectionHover();
+  void _clearSelection();
+  void _updateSelectionShape(SelectionShape shape);
+  void _updateShapeToolVariant(ShapeToolVariant variant);
+  void initializeSelectionTicker(TickerProvider provider);
+  void disposeSelectionTicker();
+  void _updateSelectionAnimation();
+
+  void _handlePointerDown(PointerDownEvent event);
+  void _handlePointerMove(PointerMoveEvent event);
+  void _handlePointerUp(PointerUpEvent event);
+  void _handlePointerCancel(PointerCancelEvent event);
+  void _handlePointerHover(PointerHoverEvent event);
+  void _handleWorkspacePointerExit();
+  void _handlePointerSignal(PointerSignalEvent event);
+  KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event);
+
+  void _updatePenPressureSimulation(bool value);
+  void _updatePenPressureProfile(StrokePressureProfile profile);
+  void _updatePenAntialiasLevel(int value);
+  void _updateAutoSharpPeakEnabled(bool value);
+
+  void _handleScaleStart(ScaleStartDetails details);
+  void _handleScaleUpdate(ScaleUpdateDetails details);
+  void _handleScaleEnd(ScaleEndDetails details);
+
+  void _handleUndo();
+  void _handleRedo();
+  Future<bool> cut();
+  Future<bool> copy();
+  Future<bool> paste();
+
+  void _updatePenStrokeWidth(double value);
+  void _updateSprayStrokeWidth(double value);
+  void _updateBucketSampleAllLayers(bool value);
+  void _updateBucketContiguous(bool value);
+
+  void _handleAddLayer();
+  void _handleRemoveLayer(String id);
+
+  Widget _buildLayerPanelContent(FluentThemeData theme);
+  Widget _buildColorPanelContent(FluentThemeData theme);
+  Widget? _buildColorPanelTrailing(FluentThemeData theme);
+  Widget _buildColorIndicator(FluentThemeData theme);
+
+  List<CanvasLayerData> snapshotLayers() => _controller.snapshotLayers();
+
+  CanvasRotationResult? rotateCanvas(CanvasRotation rotation) {
+    final int width = _controller.width;
+    final int height = _controller.height;
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    _controller.commitActiveLayerTranslation();
+    final List<CanvasLayerData> original = snapshotLayers();
+    if (original.isEmpty) {
+      return CanvasRotationResult(
+        layers: const <CanvasLayerData>[],
+        width: width,
+        height: height,
+      );
+    }
+    final List<CanvasLayerData> rotated = <CanvasLayerData>[
+      for (final CanvasLayerData layer in original)
+        _rotateLayerData(layer, rotation),
+    ];
+    setSelectionState(path: null, mask: null);
+    clearSelectionArtifacts();
+    resetSelectionUndoFlag();
+    final bool swaps = _rotationSwapsDimensions(rotation);
+    if (!swaps) {
+      _controller.loadLayers(rotated, _controller.backgroundColor);
+      _resetHistory();
+      setState(() {});
+    }
+    return CanvasRotationResult(
+      layers: rotated,
+      width: swaps ? height : width,
+      height: swaps ? width : height,
+    );
+  }
+
+  void markSaved() {
+    if (!_isDirty) {
+      return;
+    }
+    _isDirty = false;
+    widget.onDirtyChanged?.call(false);
+  }
+
+  CanvasLayerData _rotateLayerData(
+    CanvasLayerData layer,
+    CanvasRotation rotation,
+  ) {
+    final Uint8List? bitmap = layer.bitmap;
+    final int? bitmapWidth = layer.bitmapWidth;
+    final int? bitmapHeight = layer.bitmapHeight;
+    if (bitmap != null && bitmapWidth != null && bitmapHeight != null) {
+      final bool swaps = _rotationSwapsDimensions(rotation);
+      final int targetWidth = swaps ? bitmapHeight : bitmapWidth;
+      final int targetHeight = swaps ? bitmapWidth : bitmapHeight;
+      final Uint8List rotated = _rotateBitmapRgba(
+        bitmap,
+        bitmapWidth,
+        bitmapHeight,
+        rotation,
+      );
+      return CanvasLayerData(
+        id: layer.id,
+        name: layer.name,
+        visible: layer.visible,
+        opacity: layer.opacity,
+        locked: layer.locked,
+        clippingMask: layer.clippingMask,
+        blendMode: layer.blendMode,
+        bitmap: rotated,
+        bitmapWidth: targetWidth,
+        bitmapHeight: targetHeight,
+        fillColor: layer.fillColor,
+      );
+    }
+
+    return CanvasLayerData(
+      id: layer.id,
+      name: layer.name,
+      visible: layer.visible,
+      opacity: layer.opacity,
+      locked: layer.locked,
+      clippingMask: layer.clippingMask,
+      blendMode: layer.blendMode,
+      fillColor: layer.fillColor,
+    );
+  }
+
+  static bool _rotationSwapsDimensions(CanvasRotation rotation) {
+    return rotation == CanvasRotation.clockwise90 ||
+        rotation == CanvasRotation.counterClockwise90;
+  }
+
+  static Uint8List _rotateBitmapRgba(
+    Uint8List source,
+    int width,
+    int height,
+    CanvasRotation rotation,
+  ) {
+    if (source.length != width * height * 4) {
+      return Uint8List.fromList(source);
+    }
+    final bool swaps = _rotationSwapsDimensions(rotation);
+    final int targetWidth = swaps ? height : width;
+    final int targetHeight = swaps ? width : height;
+    final Uint8List output = Uint8List(targetWidth * targetHeight * 4);
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final int srcIndex = (y * width + x) * 4;
+        late int destX;
+        late int destY;
+        switch (rotation) {
+          case CanvasRotation.clockwise90:
+            destX = height - 1 - y;
+            destY = x;
+            break;
+          case CanvasRotation.counterClockwise90:
+            destX = y;
+            destY = width - 1 - x;
+            break;
+          case CanvasRotation.clockwise180:
+          case CanvasRotation.counterClockwise180:
+            destX = width - 1 - x;
+            destY = height - 1 - y;
+            break;
+        }
+        final int destIndex = (destY * targetWidth + destX) * 4;
+        output[destIndex] = source[srcIndex];
+        output[destIndex + 1] = source[srcIndex + 1];
+        output[destIndex + 2] = source[srcIndex + 2];
+        output[destIndex + 3] = source[srcIndex + 3];
+      }
+    }
+    return output;
+  }
+
+  CanvasLayerData _scaleLayerData(
+    CanvasLayerData layer,
+    int sourceCanvasWidth,
+    int sourceCanvasHeight,
+    int targetWidth,
+    int targetHeight,
+    ImageResizeSampling sampling,
+  ) {
+    final Uint8List? bitmap = layer.bitmap;
+    final int? bitmapWidth = layer.bitmapWidth;
+    final int? bitmapHeight = layer.bitmapHeight;
+    if (bitmap == null || bitmapWidth == null || bitmapHeight == null) {
+      return layer;
+    }
+    final double scaleX = targetWidth / sourceCanvasWidth;
+    final double scaleY = targetHeight / sourceCanvasHeight;
+    final int scaledWidth = math.max(1, (bitmapWidth * scaleX).round());
+    final int scaledHeight = math.max(1, (bitmapHeight * scaleY).round());
+    final int scaledLeft = (scaleX == 0)
+        ? 0
+        : ((layer.bitmapLeft ?? 0) * scaleX).round();
+    final int scaledTop = (scaleY == 0)
+        ? 0
+        : ((layer.bitmapTop ?? 0) * scaleY).round();
+    final Uint8List scaledBitmap = _scaleBitmapRgba(
+      bitmap,
+      bitmapWidth,
+      bitmapHeight,
+      scaledWidth,
+      scaledHeight,
+      sampling,
+    );
+    if (!_hasVisiblePixels(scaledBitmap)) {
+      return layer.copyWith(clearBitmap: true);
+    }
+    return layer.copyWith(
+      bitmap: scaledBitmap,
+      bitmapWidth: scaledWidth,
+      bitmapHeight: scaledHeight,
+      bitmapLeft: scaledLeft,
+      bitmapTop: scaledTop,
+    );
+  }
+
+  CanvasLayerData _reframeLayerData(
+    CanvasLayerData layer,
+    int sourceCanvasWidth,
+    int sourceCanvasHeight,
+    int targetWidth,
+    int targetHeight,
+    CanvasResizeAnchor anchor,
+  ) {
+    final Uint8List? bitmap = layer.bitmap;
+    final int? bitmapWidth = layer.bitmapWidth;
+    final int? bitmapHeight = layer.bitmapHeight;
+    final int offsetX = _anchorOffsetValue(
+      sourceCanvasWidth,
+      targetWidth,
+      _horizontalAnchorFactor(anchor),
+    );
+    final int offsetY = _anchorOffsetValue(
+      sourceCanvasHeight,
+      targetHeight,
+      _verticalAnchorFactor(anchor),
+    );
+    if (bitmap == null || bitmapWidth == null || bitmapHeight == null) {
+      if (layer.bitmapLeft == null && layer.bitmapTop == null) {
+        return layer;
+      }
+      return layer.copyWith(
+        bitmapLeft: layer.bitmapLeft == null
+            ? null
+            : layer.bitmapLeft! + offsetX,
+        bitmapTop: layer.bitmapTop == null ? null : layer.bitmapTop! + offsetY,
+      );
+    }
+    int newLeft = (layer.bitmapLeft ?? 0) + offsetX;
+    int newTop = (layer.bitmapTop ?? 0) + offsetY;
+    int visibleWidth = bitmapWidth;
+    int visibleHeight = bitmapHeight;
+    int cropLeft = 0;
+    int cropTop = 0;
+    if (newLeft < 0) {
+      cropLeft = -newLeft;
+      visibleWidth -= cropLeft;
+      newLeft = 0;
+    }
+    if (newTop < 0) {
+      cropTop = -newTop;
+      visibleHeight -= cropTop;
+      newTop = 0;
+    }
+    final int rightOverflow = newLeft + visibleWidth - targetWidth;
+    if (rightOverflow > 0) {
+      visibleWidth -= rightOverflow;
+    }
+    final int bottomOverflow = newTop + visibleHeight - targetHeight;
+    if (bottomOverflow > 0) {
+      visibleHeight -= bottomOverflow;
+    }
+    if (visibleWidth <= 0 || visibleHeight <= 0) {
+      return layer.copyWith(clearBitmap: true);
+    }
+    Uint8List nextBitmap = bitmap;
+    if (cropLeft != 0 ||
+        cropTop != 0 ||
+        visibleWidth != bitmapWidth ||
+        visibleHeight != bitmapHeight) {
+      nextBitmap = _cropBitmapRgba(
+        bitmap,
+        bitmapWidth,
+        bitmapHeight,
+        cropLeft,
+        cropTop,
+        visibleWidth,
+        visibleHeight,
+      );
+    }
+    if (!_hasVisiblePixels(nextBitmap)) {
+      return layer.copyWith(clearBitmap: true);
+    }
+    return layer.copyWith(
+      bitmap: nextBitmap,
+      bitmapWidth: visibleWidth,
+      bitmapHeight: visibleHeight,
+      bitmapLeft: newLeft,
+      bitmapTop: newTop,
+    );
+  }
+
+  int _anchorOffsetValue(int sourceSize, int targetSize, double factor) {
+    final double delta = (targetSize - sourceSize) * factor;
+    return delta.round();
+  }
+
+  double _horizontalAnchorFactor(CanvasResizeAnchor anchor) {
+    switch (anchor) {
+      case CanvasResizeAnchor.topLeft:
+      case CanvasResizeAnchor.centerLeft:
+      case CanvasResizeAnchor.bottomLeft:
+        return 0;
+      case CanvasResizeAnchor.topCenter:
+      case CanvasResizeAnchor.center:
+      case CanvasResizeAnchor.bottomCenter:
+        return 0.5;
+      case CanvasResizeAnchor.topRight:
+      case CanvasResizeAnchor.centerRight:
+      case CanvasResizeAnchor.bottomRight:
+        return 1.0;
+    }
+  }
+
+  double _verticalAnchorFactor(CanvasResizeAnchor anchor) {
+    switch (anchor) {
+      case CanvasResizeAnchor.topLeft:
+      case CanvasResizeAnchor.topCenter:
+      case CanvasResizeAnchor.topRight:
+        return 0;
+      case CanvasResizeAnchor.centerLeft:
+      case CanvasResizeAnchor.center:
+      case CanvasResizeAnchor.centerRight:
+        return 0.5;
+      case CanvasResizeAnchor.bottomLeft:
+      case CanvasResizeAnchor.bottomCenter:
+      case CanvasResizeAnchor.bottomRight:
+        return 1.0;
+    }
+  }
+
+  Uint8List _scaleBitmapRgba(
+    Uint8List source,
+    int sourceWidth,
+    int sourceHeight,
+    int targetWidth,
+    int targetHeight,
+    ImageResizeSampling sampling,
+  ) {
+    if (sourceWidth <= 0 ||
+        sourceHeight <= 0 ||
+        targetWidth <= 0 ||
+        targetHeight <= 0) {
+      return Uint8List(0);
+    }
+    switch (sampling) {
+      case ImageResizeSampling.nearest:
+        return _scaleBitmapNearest(
+          source,
+          sourceWidth,
+          sourceHeight,
+          targetWidth,
+          targetHeight,
+        );
+      case ImageResizeSampling.bilinear:
+        return _scaleBitmapBilinear(
+          source,
+          sourceWidth,
+          sourceHeight,
+          targetWidth,
+          targetHeight,
+        );
+    }
+  }
+
+  Uint8List _scaleBitmapNearest(
+    Uint8List source,
+    int sourceWidth,
+    int sourceHeight,
+    int targetWidth,
+    int targetHeight,
+  ) {
+    final Uint8List output = Uint8List(targetWidth * targetHeight * 4);
+    final double scaleX = sourceWidth / targetWidth;
+    final double scaleY = sourceHeight / targetHeight;
+    int destIndex = 0;
+    for (int y = 0; y < targetHeight; y++) {
+      final int srcY = math.min(sourceHeight - 1, (y * scaleY).floor());
+      for (int x = 0; x < targetWidth; x++) {
+        final int srcX = math.min(sourceWidth - 1, (x * scaleX).floor());
+        final int srcIndex = (srcY * sourceWidth + srcX) * 4;
+        output[destIndex] = source[srcIndex];
+        output[destIndex + 1] = source[srcIndex + 1];
+        output[destIndex + 2] = source[srcIndex + 2];
+        output[destIndex + 3] = source[srcIndex + 3];
+        destIndex += 4;
+      }
+    }
+    return output;
+  }
+
+  Uint8List _scaleBitmapBilinear(
+    Uint8List source,
+    int sourceWidth,
+    int sourceHeight,
+    int targetWidth,
+    int targetHeight,
+  ) {
+    final Uint8List output = Uint8List(targetWidth * targetHeight * 4);
+    final double scaleX = sourceWidth / targetWidth;
+    final double scaleY = sourceHeight / targetHeight;
+    int destIndex = 0;
+    for (int y = 0; y < targetHeight; y++) {
+      final double rawY = (y + 0.5) * scaleY - 0.5;
+      double clampedY = rawY;
+      if (clampedY < 0) {
+        clampedY = 0;
+      } else if (clampedY > sourceHeight - 1) {
+        clampedY = (sourceHeight - 1).toDouble();
+      }
+      final int y0 = clampedY.floor();
+      final int y1 = math.min(y0 + 1, sourceHeight - 1);
+      final double wy = clampedY - y0;
+      final double wy0 = 1 - wy;
+      final double wy1 = wy;
+      for (int x = 0; x < targetWidth; x++) {
+        final double rawX = (x + 0.5) * scaleX - 0.5;
+        double clampedX = rawX;
+        if (clampedX < 0) {
+          clampedX = 0;
+        } else if (clampedX > sourceWidth - 1) {
+          clampedX = (sourceWidth - 1).toDouble();
+        }
+        final int x0 = clampedX.floor();
+        final int x1 = math.min(x0 + 1, sourceWidth - 1);
+        final double wx = clampedX - x0;
+        final double wx0 = 1 - wx;
+        final double wx1 = wx;
+        final double w00 = wx0 * wy0;
+        final double w01 = wx1 * wy0;
+        final double w10 = wx0 * wy1;
+        final double w11 = wx1 * wy1;
+        final int index00 = (y0 * sourceWidth + x0) * 4;
+        final int index01 = (y0 * sourceWidth + x1) * 4;
+        final int index10 = (y1 * sourceWidth + x0) * 4;
+        final int index11 = (y1 * sourceWidth + x1) * 4;
+        final double red =
+            source[index00] * w00 +
+            source[index01] * w01 +
+            source[index10] * w10 +
+            source[index11] * w11;
+        final double green =
+            source[index00 + 1] * w00 +
+            source[index01 + 1] * w01 +
+            source[index10 + 1] * w10 +
+            source[index11 + 1] * w11;
+        final double blue =
+            source[index00 + 2] * w00 +
+            source[index01 + 2] * w01 +
+            source[index10 + 2] * w10 +
+            source[index11 + 2] * w11;
+        final double alpha =
+            source[index00 + 3] * w00 +
+            source[index01 + 3] * w01 +
+            source[index10 + 3] * w10 +
+            source[index11 + 3] * w11;
+        output[destIndex] = _clampChannel(red);
+        output[destIndex + 1] = _clampChannel(green);
+        output[destIndex + 2] = _clampChannel(blue);
+        output[destIndex + 3] = _clampChannel(alpha);
+        destIndex += 4;
+      }
+    }
+    return output;
+  }
+
+  int _clampChannel(double value) {
+    if (value <= 0) {
+      return 0;
+    }
+    if (value >= 255) {
+      return 255;
+    }
+    return value.round();
+  }
+
+  Uint8List _cropBitmapRgba(
+    Uint8List source,
+    int sourceWidth,
+    int sourceHeight,
+    int left,
+    int top,
+    int width,
+    int height,
+  ) {
+    if (width <= 0 || height <= 0) {
+      return Uint8List(0);
+    }
+    final Uint8List output = Uint8List(width * height * 4);
+    for (int row = 0; row < height; row++) {
+      final int srcY = top + row;
+      if (srcY < 0 || srcY >= sourceHeight) {
+        continue;
+      }
+      final int srcStart = ((srcY * sourceWidth) + left) * 4;
+      final int destStart = row * width * 4;
+      output.setRange(destStart, destStart + width * 4, source, srcStart);
+    }
+    return output;
+  }
+
+  bool _hasVisiblePixels(Uint8List bitmap) {
+    for (int i = 3; i < bitmap.length; i += 4) {
+      if (bitmap[i] != 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _markDirty() {
+    if (_isDirty) {
+      return;
+    }
+    _isDirty = true;
+    widget.onDirtyChanged?.call(true);
+  }
+
+  void _emitClean() {
+    if (!_isDirty) {
+      return;
+    }
+    _isDirty = false;
+    widget.onDirtyChanged?.call(false);
+  }
+
+  void _resetHistory() {
+    _undoStack.clear();
+    _redoStack.clear();
+    _historyLocked = false;
+    _historyLimit = AppPreferences.instance.historyLimit;
+  }
+
+  Future<void> _pushUndoSnapshot({_CanvasHistoryEntry? entry}) async {
+    _refreshHistoryLimit();
+    if (_historyLocked) {
+      return;
+    }
+    final _CanvasHistoryEntry snapshot = entry ?? await _createHistoryEntry();
+    _undoStack.add(snapshot);
+    _trimHistoryStacks();
+    _redoStack.clear();
+  }
+
+  Future<_CanvasHistoryEntry> _createHistoryEntry() async {
+    await _controller.waitForPendingWorkerTasks();
+    return _CanvasHistoryEntry(
+      layers: _controller.snapshotLayers(),
+      backgroundColor: _controller.backgroundColor,
+      activeLayerId: _controller.activeLayerId,
+      selectionShape: selectionShape,
+      selectionMask: selectionMaskSnapshot != null
+          ? Uint8List.fromList(selectionMaskSnapshot!)
+          : null,
+      selectionPath: selectionPathSnapshot != null
+          ? (Path()..addPath(selectionPathSnapshot!, Offset.zero))
+          : null,
+    );
+  }
+
+  Future<void> _applyHistoryEntry(_CanvasHistoryEntry entry) async {
+    await _controller.waitForPendingWorkerTasks();
+    _historyLocked = true;
+    try {
+      _controller.loadLayers(entry.layers, entry.backgroundColor);
+      final String? activeId = entry.activeLayerId;
+      if (activeId != null) {
+        _controller.setActiveLayer(activeId);
+      }
+      setSelectionState(
+        shape: entry.selectionShape,
+        path: entry.selectionPath != null
+            ? (Path()..addPath(entry.selectionPath!, Offset.zero))
+            : null,
+        mask: entry.selectionMask != null
+            ? Uint8List.fromList(entry.selectionMask!)
+            : null,
+      );
+      clearSelectionArtifacts();
+    } finally {
+      _historyLocked = false;
+    }
+    setState(() {});
+    _focusNode.requestFocus();
+    _markDirty();
+    resetSelectionUndoFlag();
+    _updateSelectionAnimation();
+  }
+
+  void _refreshHistoryLimit() {
+    final int nextLimit = AppPreferences.instance.historyLimit;
+    if (_historyLimit == nextLimit) {
+      return;
+    }
+    _historyLimit = nextLimit;
+    _trimHistoryStacks();
+  }
+
+  void _trimHistoryStacks() {
+    while (_undoStack.length > _historyLimit) {
+      _undoStack.removeAt(0);
+    }
+    while (_redoStack.length > _historyLimit) {
+      _redoStack.removeAt(0);
+    }
+  }
+
+  void _handleFloatingColorPanelMeasured(double height) {
+    if (!height.isFinite || height <= 0) {
+      return;
+    }
+    final double? current = _floatingColorPanelMeasuredHeight;
+    if (current != null && (current - height).abs() < 0.5) {
+      return;
+    }
+    setState(() => _floatingColorPanelMeasuredHeight = height);
+  }
+
+  void _handleSai2ColorPanelMeasured(double height) {
+    if (!height.isFinite || height <= 0) {
+      return;
+    }
+    final double? current = _sai2ColorPanelMeasuredHeight;
+    if (current != null && (current - height).abs() < 0.5) {
+      return;
+    }
+    setState(() => _sai2ColorPanelMeasuredHeight = height);
+  }
+
+  void _setFloatingColorPanelHeight(double? value) {
+    double? sanitized = value;
+    if (sanitized != null && (!sanitized.isFinite || sanitized <= 0)) {
+      sanitized = null;
+    }
+    if (_floatingColorPanelHeight == sanitized) {
+      return;
+    }
+    setState(() => _floatingColorPanelHeight = sanitized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.floatingColorPanelHeight = sanitized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2ColorPanelHeight(double? value) {
+    double? sanitized = value;
+    if (sanitized != null && (!sanitized.isFinite || sanitized <= 0)) {
+      sanitized = null;
+    }
+    if (_sai2ColorPanelHeight == sanitized) {
+      return;
+    }
+    setState(() => _sai2ColorPanelHeight = sanitized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2ColorPanelHeight = sanitized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2ToolSectionRatio(double value) {
+    final double normalized = value.clamp(0.0, 1.0);
+    if ((_sai2ToolSectionRatio - normalized).abs() < 0.0001) {
+      return;
+    }
+    setState(() => _sai2ToolSectionRatio = normalized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2ToolPanelSplit = normalized;
+    unawaited(AppPreferences.save());
+  }
+
+  void _setSai2LayerPanelWidthRatio(double value) {
+    final double normalized = value.clamp(0.0, 1.0);
+    if ((_sai2LayerPanelWidthRatio - normalized).abs() < 0.0001) {
+      return;
+    }
+    setState(() => _sai2LayerPanelWidthRatio = normalized);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sai2LayerPanelWidthSplit = normalized;
+    unawaited(AppPreferences.save());
+  }
+
+  void resetWorkspaceLayout() {
+    final AppPreferences prefs = AppPreferences.instance;
+    setState(() {
+      _floatingColorPanelHeight = null;
+      _sai2ColorPanelHeight = null;
+      _sai2ToolSectionRatio = AppPreferences.defaultSai2ToolPanelSplit;
+      _sai2LayerPanelWidthRatio = AppPreferences.defaultSai2LayerPanelSplit;
+    });
+    prefs.floatingColorPanelHeight = null;
+    prefs.sai2ColorPanelHeight = null;
+    prefs.sai2ToolPanelSplit = AppPreferences.defaultSai2ToolPanelSplit;
+    prefs.sai2LayerPanelWidthSplit = AppPreferences.defaultSai2LayerPanelSplit;
+    unawaited(AppPreferences.save());
+  }
+
+  void _initializeViewportIfNeeded() {
+    if (_viewportInitialized) {
+      return;
+    }
+
+    final Size workspaceSize = _workspaceSize;
+    if (workspaceSize.width <= 0 ||
+        workspaceSize.height <= 0 ||
+        !workspaceSize.width.isFinite ||
+        !workspaceSize.height.isFinite) {
+      return;
+    }
+
+    final Size canvasSize = _canvasSize;
+    if (canvasSize.width <= 0 ||
+        canvasSize.height <= 0 ||
+        !canvasSize.width.isFinite ||
+        !canvasSize.height.isFinite) {
+      _viewportInitialized = true;
+      return;
+    }
+
+    final double widthScale = workspaceSize.width / canvasSize.width;
+    final double heightScale = workspaceSize.height / canvasSize.height;
+    final double baseScale = widthScale < heightScale
+        ? widthScale
+        : heightScale;
+
+    double targetScale = baseScale * _initialViewportScaleFactor;
+    if (!targetScale.isFinite || targetScale <= 0) {
+      targetScale = baseScale.isFinite && baseScale > 0 ? baseScale : 1.0;
+    }
+
+    if (targetScale > baseScale && baseScale.isFinite && baseScale > 0) {
+      targetScale = baseScale;
+    }
+
+    _viewport.setScale(targetScale);
+    _viewport.setOffset(Offset.zero);
+    _viewportInitialized = true;
+    _notifyViewInfoChanged();
+  }
+
+  bool get isPixelGridVisible => _pixelGridVisible;
+  bool get isViewBlackWhiteEnabled => _viewBlackWhiteOverlay;
+  bool get isViewMirrorEnabled => _viewMirrorOverlay;
+  bool get isPerspectiveGuideEnabled => _perspectiveEnabled;
+  bool get isPerspectiveGuideVisible => _perspectiveVisible;
+  PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
+
+  bool get isBoardReady => _controller.frame != null;
+
+  void _handlePixelGridPreferenceChanged() {
+    if (!mounted) {
+      return;
+    }
+    final bool visible = AppPreferences.pixelGridVisibleNotifier.value;
+    if (visible == _pixelGridVisible) {
+      return;
+    }
+    setState(() {
+      _pixelGridVisible = visible;
+    });
+    _notifyViewInfoChanged();
+  }
+
+  void togglePixelGridVisibility() {
+    final AppPreferences prefs = AppPreferences.instance;
+    final bool nextVisible = !prefs.pixelGridVisible;
+    prefs.updatePixelGridVisible(nextVisible);
+    unawaited(AppPreferences.save());
+  }
+
+  void toggleViewBlackWhiteOverlay() {
+    setState(() {
+      _viewBlackWhiteOverlay = !_viewBlackWhiteOverlay;
+    });
+    _notifyViewInfoChanged();
+  }
+
+  void toggleViewMirrorOverlay() {
+    setState(() {
+      _viewMirrorOverlay = !_viewMirrorOverlay;
+    });
+    _notifyViewInfoChanged();
+  }
+
+  void togglePerspectiveGuideVisibility() {
+    togglePerspectiveGuide();
+  }
+
+  void setPerspectiveGuideMode(PerspectiveGuideMode mode) {
+    setPerspectiveMode(mode);
+  }
+
+  @protected
+  void _scheduleWorkspaceCardsOverlaySync() {}
+}
