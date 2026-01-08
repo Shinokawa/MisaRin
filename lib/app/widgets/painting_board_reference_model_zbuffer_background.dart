@@ -44,12 +44,12 @@ void _compositeOpaqueBackground({
       continue;
     }
     final int invA = 255 - a;
-    rgba[byteIndex] =
-        ((rgba[byteIndex] * a + bgR * invA) / 255).round().clamp(0, 255);
+    rgba[byteIndex] = (rgba[byteIndex] + ((bgR * invA + 127) ~/ 255))
+        .clamp(0, 255);
     rgba[byteIndex + 1] =
-        ((rgba[byteIndex + 1] * a + bgG * invA) / 255).round().clamp(0, 255);
+        (rgba[byteIndex + 1] + ((bgG * invA + 127) ~/ 255)).clamp(0, 255);
     rgba[byteIndex + 2] =
-        ((rgba[byteIndex + 2] * a + bgB * invA) / 255).round().clamp(0, 255);
+        (rgba[byteIndex + 2] + ((bgB * invA + 127) ~/ 255)).clamp(0, 255);
     rgba[byteIndex + 3] = 255;
   }
 }
@@ -259,15 +259,12 @@ void _compositeSkyboxBackground({
 
       final int invA = 255 - a;
       rgba[byteIndex] =
-          ((rgba[byteIndex] * a + bgR * invA) / 255).round().clamp(0, 255);
-      rgba[byteIndex + 1] = ((rgba[byteIndex + 1] * a + bgG * invA) / 255)
-          .round()
-          .clamp(0, 255);
-      rgba[byteIndex + 2] = ((rgba[byteIndex + 2] * a + bgB * invA) / 255)
-          .round()
-          .clamp(0, 255);
+          (rgba[byteIndex] + ((bgR * invA + 127) ~/ 255)).clamp(0, 255);
+      rgba[byteIndex + 1] =
+          (rgba[byteIndex + 1] + ((bgG * invA + 127) ~/ 255)).clamp(0, 255);
+      rgba[byteIndex + 2] =
+          (rgba[byteIndex + 2] + ((bgB * invA + 127) ~/ 255)).clamp(0, 255);
       rgba[byteIndex + 3] = 255;
     }
   }
 }
-

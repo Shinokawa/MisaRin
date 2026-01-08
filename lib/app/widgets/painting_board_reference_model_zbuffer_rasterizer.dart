@@ -458,18 +458,15 @@ part of 'painting_board.dart';
 	      }
 	    }
 
-	    for (final BedrockMeshTriangle tri in mesh.triangles) {
-	      final Vector3 normal = tri.normal;
-	      final double nx = transformX(normal.x, normal.y, normal.z);
-	      final double ny = transformY(normal.x, normal.y, normal.z);
-      final double nz = transformZ(normal.x, normal.y, normal.z);
-      if (nz >= 0) {
-        continue;
-      }
+		    for (final BedrockMeshTriangle tri in mesh.triangles) {
+		      final Vector3 normal = tri.normal;
+		      final double nx = transformX(normal.x, normal.y, normal.z);
+		      final double ny = transformY(normal.x, normal.y, normal.z);
+	      final double nz = transformZ(normal.x, normal.y, normal.z);
 
-      final Vector3 p0 = tri.p0;
-      final Vector3 p1 = tri.p1;
-      final Vector3 p2 = tri.p2;
+	      final Vector3 p0 = tri.p0;
+	      final Vector3 p1 = tri.p1;
+	      final Vector3 p2 = tri.p2;
 
       final double y0 = p0.y + translateY;
       final double y1 = p1.y + translateY;
@@ -481,14 +478,22 @@ part of 'painting_board.dart';
       final double x1w = transformX(p1.x, y1, p1.z);
       final double y1w = transformY(p1.x, y1, p1.z);
       final double z1w = transformZ(p1.x, y1, p1.z);
-      final double x2w = transformX(p2.x, y2, p2.z);
-      final double y2w = transformY(p2.x, y2, p2.z);
-      final double z2w = transformZ(p2.x, y2, p2.z);
+	      final double x2w = transformX(p2.x, y2, p2.z);
+	      final double y2w = transformY(p2.x, y2, p2.z);
+	      final double z2w = transformZ(p2.x, y2, p2.z);
 
-	      if (!meshUnlit) {
-	        final double nLen = math.sqrt(nx * nx + ny * ny + nz * nz);
-	        if (nLen <= 0) {
-	          triAmbR = ambientClamped;
+        final double cx = (x0w + x1w + x2w) / 3.0;
+        final double cy = (y0w + y1w + y2w) / 3.0;
+        final double cz = (z0w + z1w + z2w) / 3.0 + cameraDistance;
+        final double facing = nx * -cx + ny * -cy + nz * -cz;
+        if (facing < 0) {
+          continue;
+        }
+
+		      if (!meshUnlit) {
+		        final double nLen = math.sqrt(nx * nx + ny * ny + nz * nz);
+		        if (nLen <= 0) {
+		          triAmbR = ambientClamped;
 	          triAmbG = ambientClamped;
 	          triAmbB = ambientClamped;
             triSunR = 0.0;
