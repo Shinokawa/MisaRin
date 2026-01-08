@@ -995,5 +995,13 @@
   "fileNameCannotBeEmpty": "ファイル名は空にできません。",
   "blackPoint": "黒点",
   "whitePoint": "白点",
-  "midTone": "中間色"
+  "midTone": "中間色",
+
+  "rendererLabel": "レンダラー",
+  "rendererNormal": "通常",
+  "rendererNormalDesc": "リアルタイム、最速、プレビューに最適。",
+  "rendererCinematic": "トレーラー",
+  "rendererCinematicDesc": "Minecraft公式トレーラー風のスタイルを再現。ソフトな影と高コントラストな照明。",
+  "rendererCycles": "リアル",
+  "rendererCyclesDesc": "パストレーシング風のスタイルをシミュレート。極めてリアルな照明効果。"
 }

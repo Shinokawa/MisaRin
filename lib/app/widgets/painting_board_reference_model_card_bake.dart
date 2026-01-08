@@ -566,137 +566,296 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                         children: [
                           buildPreviewArea(),
                           const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: InfoLabel(
-                                  label: '渲染器',
-                                  child: ComboBox<_ReferenceModelBakeRendererPreset>(
-                                    isExpanded: true,
-                                    value: rendererPreset,
-                                    items: _ReferenceModelBakeRendererPreset.values
-                                        .map(
-                                          (preset) => ComboBoxItem(
-                                            value: preset,
-                                            child: Text(preset.label),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: isBaking
-                                        ? null
-                                        : (value) {
-                                            if (value == null) {
-                                              return;
-                                            }
-                                            setDialogState(() {
-                                              rendererPreset = value;
-                                              markPreviewDirty();
-                                            });
-                                          },
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: InfoLabel(
-                                  label: '分辨率预设',
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: ComboBox<
-                                            _ReferenceModelBakeResolutionPreset?>(
-                                          isExpanded: true,
-                                          value: resolutionPreset,
-                                          items: [
-                                            ComboBoxItem<
-                                                _ReferenceModelBakeResolutionPreset?>(
-                                              value: null,
-                                              child: Text(
-                                                '自定义 (${widthController.text} × ${heightController.text})',
-                                              ),
-                                            ),
-                                            ..._kReferenceModelBakeResolutionPresets
-                                                .map(
-                                              (preset) => ComboBoxItem<
-                                                  _ReferenceModelBakeResolutionPreset?>(
-                                                value: preset,
-                                                child: Text(preset.label),
-                                              ),
-                                            ),
-                                          ],
-                                          onChanged: isBaking
-                                              ? null
-                                              : (value) async {
-                                                  if (value != null) {
-                                                    setDialogState(() {
-                                                      resolutionPreset = value;
-                                                      widthController.text =
-                                                          value.width.toString();
-                                                      heightController.text =
-                                                          value.height.toString();
-                                                    });
-                                                    return;
-                                                  }
-
-                                                  final _ReferenceModelBakeResolutionPreset?
-                                                      previousPreset =
-                                                      resolutionPreset;
-                                                  final String previousWidth =
-                                                      widthController.text;
-                                                  final String previousHeight =
-                                                      heightController.text;
-
-                                                  final bool updated =
-                                                      await editCustomResolution(
-                                                    context,
-                                                  );
-                                                  if (!mounted) {
-                                                    return;
-                                                  }
-
-                                                  setDialogState(() {
-                                                    if (updated) {
-                                                      resolutionPreset = null;
-                                                    } else {
-                                                      resolutionPreset =
-                                                          previousPreset;
-                                                      widthController.text =
-                                                          previousWidth;
-                                                      heightController.text =
-                                                          previousHeight;
-                                                    }
-                                                  });
-                                                },
-                                        ),
-                                      ),
-                                      if (resolutionPreset == null) ...[
-                                        const SizedBox(width: 8),
-                                        Button(
-                                          onPressed: isBaking
-                                              ? null
-                                              : () async {
-                                                  final bool updated =
-                                                      await editCustomResolution(
-                                                    context,
-                                                  );
-                                                  if (!mounted) {
-                                                    return;
-                                                  }
-                                                  if (!updated) {
-                                                    return;
-                                                  }
-                                                  setDialogState(() {});
-                                                },
-                                          child: const Text('设置…'),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
+                                                    Row(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        InfoLabel(
+                                                          label: context.l10n.rendererLabel,
+                                                          child: Container(
+                                                            height: 32,
+                                                            decoration: BoxDecoration(
+                                                              border: Border.all(color: border),
+                                                              borderRadius: BorderRadius.circular(4),
+                                                              color: theme.resources.controlFillColorDefault,
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                for (int i = 0;
+                                                                    i <
+                                                                        _ReferenceModelBakeRendererPreset
+                                                                            .values.length;
+                                                                    i++) ...[
+                                                                  if (i > 0)
+                                                                    Container(
+                                                                      width: 1,
+                                                                      color: border,
+                                                                    ),
+                                                                  (() {
+                                                                    final preset =
+                                                                        _ReferenceModelBakeRendererPreset
+                                                                            .values[i];
+                                                                    final bool isSelected =
+                                                                        rendererPreset == preset;
+                                                                    IconData icon;
+                                                                    String title;
+                                                                    String detail;
+                                                                    
+                                                                    switch (preset) {
+                                                                      case _ReferenceModelBakeRendererPreset
+                                                                            .normal:
+                                                                        icon = FluentIcons.running;
+                                                                        title = context.l10n.rendererNormal;
+                                                                        detail = context.l10n.rendererNormalDesc;
+                                                                        break;
+                                                                      case _ReferenceModelBakeRendererPreset
+                                                                            .cinematic:
+                                                                        icon = FluentIcons.video;
+                                                                        title = context.l10n.rendererCinematic;
+                                                                        detail = context.l10n.rendererCinematicDesc;
+                                                                        break;
+                                                                      case _ReferenceModelBakeRendererPreset
+                                                                            .cycles:
+                                                                        icon = FluentIcons.camera;
+                                                                        title = context.l10n.rendererCycles;
+                                                                        detail = context.l10n.rendererCyclesDesc;
+                                                                        break;
+                                                                    }
+                          
+                                                                                                                                                                return HoverDetailTooltip(
+                          
+                                                                                                                                                                  message: title,
+                          
+                                                                                                                                                                  detail: detail,
+                          
+                                                                                                                                                                  child: SizedBox(
+                          
+                                                                                                                                                                    width: 32,
+                          
+                                                                                                                                                                    height: 32,
+                          
+                                                                                                                                                                    child: Button(
+                          
+                                                                                                                                                                      style: ButtonStyle(
+                          
+                                                                                                                                                                        padding: ButtonState.all(EdgeInsets.zero),
+                          
+                                                                                                                                                                        backgroundColor:
+                          
+                                                                                                                                                                            ButtonState.resolveWith(
+                          
+                                                                                                                                                                                (states) {
+                          
+                                                                                                                                                                          if (isSelected) {
+                          
+                                                                                                                                                                            return theme
+                          
+                                                                                                                                                                                .accentColor.normal;
+                          
+                                                                                                                                                                          }
+                          
+                                                                                                                                                                          if (states.isHovering && !isBaking) {
+                          
+                                                                                                                                                                            return theme.resources.controlFillColorSecondary;
+                          
+                                                                                                                                                                          }
+                          
+                                                                                                                                                                          return Colors.transparent;
+                          
+                                                                                                                                                                        }),
+                          
+                                                                                                                                                                        foregroundColor:
+                          
+                                                                                                                                                                            ButtonState.resolveWith(
+                          
+                                                                                                                                                                                (states) {
+                          
+                                                                                                                                                                          if (isSelected) {
+                          
+                                                                                                                                                                            return Colors.white;
+                          
+                                                                                                                                                                          }
+                          
+                                                                                                                                                                          if (isBaking) {
+                          
+                                                                                                                                                                            return theme.resources.textFillColorDisabled;
+                          
+                                                                                                                                                                          }
+                          
+                                                                                                                                                                          return theme.typography
+                          
+                                                                                                                                                                              .body?.color;
+                          
+                                                                                                                                                                        }),
+                          
+                                                                                                                                                                        shape: ButtonState.all(
+                          
+                                                                                                                                                                          const RoundedRectangleBorder(
+                          
+                                                                                                                                                                            side: BorderSide.none,
+                          
+                                                                                                                                                                            borderRadius:
+                          
+                                                                                                                                                                                BorderRadius.zero,
+                          
+                                                                                                                                                                          ),
+                          
+                                                                                                                                                                        ),
+                          
+                                                                                                                                                                      ),
+                          
+                                                                                                                                                                                                                          onPressed: () {
+                          
+                                                                                                                                                                                                                            if (isBaking) return;
+                          
+                                                                                                                                                                                                                            setDialogState(() {
+                          
+                                                                                                                                                                                                                              rendererPreset = preset;
+                          
+                                                                                                                                                                                                                              markPreviewDirty();
+                          
+                                                                                                                                                                                                                            });
+                          
+                                                                                                                                                                                                                          },
+                          
+                                                                                                                                                                                                                          child: IconTheme(
+                          
+                                                                                                                                                                                                                            data: IconThemeData(
+                          
+                                                                                                                                                                                                                              color: isSelected
+                          
+                                                                                                                                                                                                                                  ? theme.resources
+                          
+                                                                                                                                                                                                                                      .textOnAccentFillColorPrimary
+                          
+                                                                                                                                                                                                                                  : (isBaking
+                          
+                                                                                                                                                                                                                                      ? theme.resources
+                          
+                                                                                                                                                                                                                                          .textFillColorDisabled
+                          
+                                                                                                                                                                                                                                      : theme.typography
+                          
+                                                                                                                                                                                                                                          .body?.color),
+                          
+                                                                                                                                                                                                                              size: 16,
+                          
+                                                                                                                                                                                                                            ),
+                          
+                                                                                                                                                                                                                            child: Icon(icon),
+                          
+                                                                                                                                                                                                                          ),
+                          
+                                                                                                                                                                                                                        ),
+                          
+                                                                                                                                                                                                                      ),
+                          
+                                                                                                                                                                                                                    );                                                                      }()),
+                                                                    ],
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            ),
+                                                            const SizedBox(width: 24),
+                                                            InfoLabel(
+                                                              label: context.l10n.resolutionPreset,
+                                                              child: Row(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  SizedBox(
+                                                                    width: 240,
+                                                                    child: ComboBox<
+                                                                        _ReferenceModelBakeResolutionPreset?>(
+                                                                      isExpanded: true,
+                                                                      value: resolutionPreset,
+                                                                      items: [
+                                                                        ComboBoxItem<
+                                                                            _ReferenceModelBakeResolutionPreset?>(
+                                                                          value: null,
+                                                                          child: Text(
+                                                                            '${context.l10n.custom} (${widthController.text} × ${heightController.text})',
+                                                                          ),
+                                                                        ),
+                                                                        ..._kReferenceModelBakeResolutionPresets
+                                                                            .map(
+                                                                          (preset) => ComboBoxItem<
+                                                                              _ReferenceModelBakeResolutionPreset?>(
+                                                                            value: preset,
+                                                                            child: Text(preset.label),
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                      onChanged: isBaking
+                                                                          ? null
+                                                                          : (value) async {
+                                                                              if (value != null) {
+                                                                                setDialogState(() {
+                                                                                  resolutionPreset = value;
+                                                                                  widthController.text =
+                                                                                      value.width.toString();
+                                                                                  heightController.text =
+                                                                                      value.height.toString();
+                                                                                });
+                                                                                return;
+                                                                              }
+                          
+                                                                              final _ReferenceModelBakeResolutionPreset?
+                                                                                  previousPreset =
+                                                                                  resolutionPreset;
+                                                                              final String previousWidth =
+                                                                                  widthController.text;
+                                                                              final String previousHeight =
+                                                                                  heightController.text;
+                          
+                                                                              final bool updated =
+                                                                                  await editCustomResolution(
+                                                                                context,
+                                                                              );
+                                                                              if (!mounted) {
+                                                                                return;
+                                                                              }
+                          
+                                                                              setDialogState(() {
+                                                                                if (updated) {
+                                                                                  resolutionPreset = null;
+                                                                                } else {
+                                                                                  resolutionPreset =
+                                                                                      previousPreset;
+                                                                                  widthController.text =
+                                                                                      previousWidth;
+                                                                                  heightController.text =
+                                                                                      previousHeight;
+                                                                                }
+                                                                              });
+                                                                            },
+                                                                    ),
+                                                                  ),
+                                                                  if (resolutionPreset == null) ...[
+                                                                    const SizedBox(width: 8),
+                                                                    Button(
+                                                                      onPressed: isBaking
+                                                                          ? null
+                                                                          : () async {
+                                                                              final bool updated =
+                                                                                  await editCustomResolution(
+                                                                                context,
+                                                                              );
+                                                                              if (!mounted) {
+                                                                                return;
+                                                                              }
+                                                                              if (!updated) {
+                                                                                return;
+                                                                              }
+                                                                              setDialogState(() {});
+                                                                            },
+                                                                      child: Text(context.l10n.settingsTitle),
+                                                                    ),
+                                                                  ],
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),                          const SizedBox(height: 12),
                           Row(
                             children: [
                               const Text('时间'),

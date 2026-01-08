@@ -1964,6 +1964,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get midTone => 'Mid Tone';
+
+  @override
+  String get rendererLabel => '渲染器';
+
+  @override
+  String get rendererNormal => '普通';
+
+  @override
+  String get rendererNormalDesc => '实时渲染，速度最快，适合预览。';
+
+  @override
+  String get rendererCinematic => '宣传片';
+
+  @override
+  String get rendererCinematicDesc => '还原 Minecraft 官方宣传片风格，包含柔和阴影与高对比度光效。';
+
+  @override
+  String get rendererCycles => '写实';
+
+  @override
+  String get rendererCyclesDesc => '模拟路径追踪风格，极其逼真的光照效果。';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -2776,6 +2797,27 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get midTone => '中间调';
+
+  @override
+  String get rendererLabel => '渲染器';
+
+  @override
+  String get rendererNormal => '普通';
+
+  @override
+  String get rendererNormalDesc => '实时渲染，速度最快，适合预览。';
+
+  @override
+  String get rendererCinematic => '宣传片';
+
+  @override
+  String get rendererCinematicDesc => '还原 Minecraft 官方宣传片风格，包含柔和阴影与高对比度光效。';
+
+  @override
+  String get rendererCycles => '写实';
+
+  @override
+  String get rendererCyclesDesc => '模拟路径追踪风格，极其逼真的光照效果。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -3601,4 +3643,25 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get midTone => '中間調';
+
+  @override
+  String get rendererLabel => '渲染器';
+
+  @override
+  String get rendererNormal => '普通';
+
+  @override
+  String get rendererNormalDesc => '即時渲染，速度最快，適合預覽。';
+
+  @override
+  String get rendererCinematic => '宣傳片';
+
+  @override
+  String get rendererCinematicDesc => '還原 Minecraft 官方宣傳片風格，包含柔和陰影與高對比度光效。';
+
+  @override
+  String get rendererCycles => '寫實';
+
+  @override
+  String get rendererCyclesDesc => '模擬路徑追蹤風格，極其逼真的光照效果。';
 }

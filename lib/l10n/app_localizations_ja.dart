@@ -1976,4 +1976,26 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get midTone => '中間色';
+
+  @override
+  String get rendererLabel => 'レンダラー';
+
+  @override
+  String get rendererNormal => '通常';
+
+  @override
+  String get rendererNormalDesc => 'リアルタイム、最速、プレビューに最適。';
+
+  @override
+  String get rendererCinematic => 'トレーラー';
+
+  @override
+  String get rendererCinematicDesc =>
+      'Minecraft公式トレーラー風のスタイルを再現。ソフトな影と高コントラストな照明。';
+
+  @override
+  String get rendererCycles => 'リアル';
+
+  @override
+  String get rendererCyclesDesc => 'パストレーシング風のスタイルをシミュレート。極めてリアルな照明効果。';
 }

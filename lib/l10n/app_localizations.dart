@@ -3721,6 +3721,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Mid Tone'**
   String get midTone;
+
+  /// No description provided for @rendererLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Renderer'**
+  String get rendererLabel;
+
+  /// No description provided for @rendererNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get rendererNormal;
+
+  /// No description provided for @rendererNormalDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Real-time rendering, fastest speed, suitable for preview.'**
+  String get rendererNormalDesc;
+
+  /// No description provided for @rendererCinematic.
+  ///
+  /// In en, this message translates to:
+  /// **'Trailer'**
+  String get rendererCinematic;
+
+  /// No description provided for @rendererCinematicDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Recreates the official Minecraft trailer style with soft shadows and high-contrast lighting.'**
+  String get rendererCinematicDesc;
+
+  /// No description provided for @rendererCycles.
+  ///
+  /// In en, this message translates to:
+  /// **'Realistic'**
+  String get rendererCycles;
+
+  /// No description provided for @rendererCyclesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Simulates path tracing style, extremely realistic lighting effects.'**
+  String get rendererCyclesDesc;
 }
 
 class _AppLocalizationsDelegate

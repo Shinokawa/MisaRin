@@ -995,5 +995,13 @@
   "fileNameCannotBeEmpty": "File name cannot be empty.",
   "blackPoint": "Black Point",
   "whitePoint": "White Point",
-  "midTone": "Mid Tone"
+  "midTone": "Mid Tone",
+
+  "rendererLabel": "Renderer",
+  "rendererNormal": "Normal",
+  "rendererNormalDesc": "Real-time rendering, fastest speed, suitable for preview.",
+  "rendererCinematic": "Trailer",
+  "rendererCinematicDesc": "Recreates the official Minecraft trailer style with soft shadows and high-contrast lighting.",
+  "rendererCycles": "Realistic",
+  "rendererCyclesDesc": "Simulates path tracing style, extremely realistic lighting effects."
 }

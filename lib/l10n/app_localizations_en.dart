@@ -2048,4 +2048,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get midTone => 'Mid Tone';
+
+  @override
+  String get rendererLabel => 'Renderer';
+
+  @override
+  String get rendererNormal => 'Normal';
+
+  @override
+  String get rendererNormalDesc =>
+      'Real-time rendering, fastest speed, suitable for preview.';
+
+  @override
+  String get rendererCinematic => 'Trailer';
+
+  @override
+  String get rendererCinematicDesc =>
+      'Recreates the official Minecraft trailer style with soft shadows and high-contrast lighting.';
+
+  @override
+  String get rendererCycles => 'Realistic';
+
+  @override
+  String get rendererCyclesDesc =>
+      'Simulates path tracing style, extremely realistic lighting effects.';
 }

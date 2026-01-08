@@ -995,5 +995,13 @@
   "fileNameCannotBeEmpty": "파일 이름은 비워둘 수 없습니다.",
   "blackPoint": "블랙 포인트",
   "whitePoint": "화이트 포인트",
-  "midTone": "미드톤"
+  "midTone": "미드톤",
+
+  "rendererLabel": "렌더러",
+  "rendererNormal": "일반",
+  "rendererNormalDesc": "실시간 렌더링, 가장 빠름, 미리보기에 적합.",
+  "rendererCinematic": "트레일러",
+  "rendererCinematicDesc": "Minecraft 공식 트레일러 스타일 재현. 부드러운 그림자와 고대비 조명.",
+  "rendererCycles": "사실적",
+  "rendererCyclesDesc": "패스 트레이싱 스타일 시뮬레이션. 매우 사실적인 조명 효과."
 }

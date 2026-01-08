@@ -1987,4 +1987,26 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get midTone => '미드톤';
+
+  @override
+  String get rendererLabel => '렌더러';
+
+  @override
+  String get rendererNormal => '일반';
+
+  @override
+  String get rendererNormalDesc => '실시간 렌더링, 가장 빠름, 미리보기에 적합.';
+
+  @override
+  String get rendererCinematic => '트레일러';
+
+  @override
+  String get rendererCinematicDesc =>
+      'Minecraft 공식 트레일러 스타일 재현. 부드러운 그림자와 고대비 조명.';
+
+  @override
+  String get rendererCycles => '사실적';
+
+  @override
+  String get rendererCyclesDesc => '패스 트레이싱 스타일 시뮬레이션. 매우 사실적인 조명 효과.';
 }
