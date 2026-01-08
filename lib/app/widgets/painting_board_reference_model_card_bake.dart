@@ -451,13 +451,13 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                         : 1.0;
 
                     final bool enableSelfShadow = usesBakedLighting;
-                    final int shadowMapSize = 1024;
-                    final int shadowPcfRadius = isCycles ? 1 : 2;
+                    final int shadowMapSize = isCinematic ? 2048 : 1024;
+                    final int shadowPcfRadius = isCycles ? 3 : 0;
 
                     final bool enableContactShadow = usesBakedLighting;
                     final double contactShadowStrength =
                         isCinematic ? 0.22 : 0.14;
-                    final int contactShadowBlurRadius = isCinematic ? 4 : 2;
+                    final int contactShadowBlurRadius = isCycles ? 4 : 2;
                     const double contactShadowDepthEpsilon = 0.012;
                     final Widget model = _BedrockModelZBufferView(
                       key: previewModelKey,
@@ -838,18 +838,79 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 
     final double azimuth = (normalized / 24.0) * math.pi * 2.0;
     final double dayPhase = ((normalized - 6.0) / 12.0) * math.pi;
-    final double sunHeight = math.sin(dayPhase);
-    final double daylight = sunHeight.clamp(0.0, 1.0);
+    final double sunHeight = math.sin(dayPhase).clamp(-1.0, 1.0).toDouble();
+    final double daylight = sunHeight.clamp(0.0, 1.0).toDouble();
+    final double night = (-sunHeight).clamp(0.0, 1.0).toDouble();
 
-    final double altitude = 0.15 + 0.85 * daylight;
-    final Vector3 light = Vector3(
+    double pow01(double value, double power) {
+      if (value <= 0) {
+        return 0.0;
+      }
+      if (value >= 1) {
+        return 1.0;
+      }
+      return math.pow(value, power).toDouble();
+    }
+
+    double smoothstep(double edge0, double edge1, double x) {
+      final double t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+      return t * t * (3.0 - 2.0 * t);
+    }
+
+    double lerpDouble(double a, double b, double t) {
+      return a + (b - a) * t;
+    }
+
+    final double dayBlend = smoothstep(-0.35, 0.15, sunHeight);
+
+    final double sunStrength = pow01(daylight, 1.25);
+    final double sunContrast = pow01(daylight, 2.0);
+    final double moonStrength = pow01(night, 1.10);
+    final double moonContrast = pow01(night, 1.60);
+
+    final Vector3 sunDir = Vector3(
       math.cos(azimuth),
-      altitude,
+      0.08 + 0.92 * daylight,
       -math.sin(azimuth),
     )..normalize();
+    final double moonAzimuth = azimuth + math.pi;
+    final Vector3 moonDir = Vector3(
+      math.cos(moonAzimuth),
+      0.10 + 0.90 * night,
+      -math.sin(moonAzimuth),
+    )..normalize();
 
-    final double ambient = (0.08 + 0.22 * daylight).clamp(0.05, 0.35);
-    final double diffuse = (0.95 * daylight).clamp(0.0, 0.95);
+    final Vector3 light = Vector3(
+      moonDir.x + (sunDir.x - moonDir.x) * dayBlend,
+      moonDir.y + (sunDir.y - moonDir.y) * dayBlend,
+      moonDir.z + (sunDir.z - moonDir.z) * dayBlend,
+    );
+    if (light.length2 > 1e-9) {
+      light.normalize();
+    } else {
+      light.setFrom(sunDir);
+    }
+
+    final double ambientDay = lerpDouble(
+      isDark ? 0.32 : 0.28,
+      isDark ? 0.14 : 0.10,
+      sunContrast,
+    ).clamp(0.08, 0.36);
+    final double diffuseDay =
+        lerpDouble(0.08, 0.95, sunStrength).clamp(0.0, 0.95);
+
+    final double ambientNight = lerpDouble(
+      isDark ? 0.18 : 0.16,
+      isDark ? 0.26 : 0.20,
+      moonContrast,
+    ).clamp(0.08, 0.36);
+    final double diffuseNight =
+        lerpDouble(0.03, 0.08, moonStrength).clamp(0.0, 0.25);
+
+    final double ambient =
+        lerpDouble(ambientNight, ambientDay, dayBlend).clamp(0.0, 1.0);
+    final double diffuse =
+        lerpDouble(diffuseNight, diffuseDay, dayBlend).clamp(0.0, 1.0);
 
     final Color sunWarm = const Color(0xFFFFA36D);
     final Color sunNeutral = const Color(0xFFFFFFFF);
@@ -857,41 +918,94 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     final Color sunColor =
         Color.lerp(sunWarm, sunNeutral, sunTintT) ?? sunNeutral;
 
+    final Color moonColor = const Color(0xFFB8CFFF);
+    final Color directionalColor =
+        Color.lerp(moonColor, sunColor, dayBlend) ?? sunColor;
+
     final Color daySky = isDark
         ? const Color(0xFF2D4461)
         : const Color(0xFFBFD9FF);
-    final Color nightSky = isDark
+    final Color starSky = isDark
         ? const Color(0xFF0A1222)
         : const Color(0xFF121826);
-    final Color skyColor = Color.lerp(nightSky, daySky, daylight) ?? daySky;
+    final Color moonSky = isDark
+        ? const Color(0xFF22344F)
+        : const Color(0xFF324A6B);
+    final Color nightSky = Color.lerp(starSky, moonSky, moonStrength) ?? moonSky;
+    final Color skyColor =
+        Color.lerp(nightSky, daySky, dayBlend) ?? daySky;
 
-    const Color groundBounceColor = Color(0xFFFFFFFF);
+    const Color dayBounce = Color(0xFFD8D8D8);
+    final Color nightBounceBase = isDark
+        ? const Color(0xFF111A2A)
+        : const Color(0xFF151C2A);
+    final Color nightBounceMoon = isDark
+        ? const Color(0xFF263651)
+        : const Color(0xFF2E405E);
+    final Color nightBounce =
+        Color.lerp(nightBounceBase, nightBounceMoon, moonStrength) ??
+            nightBounceMoon;
+    final Color groundBounceColor =
+        Color.lerp(nightBounce, dayBounce, dayBlend) ?? dayBounce;
 
-    final double specularStrength = (0.15 + 0.35 * daylight).clamp(0.0, 0.6);
-    const double roughness = 0.55;
-    final double exposure = (1.1 + (1.0 - daylight) * 0.5).clamp(0.9, 1.7);
+    final double specDay =
+        (0.12 + (0.58 - 0.12) * sunStrength).clamp(0.0, 0.7);
+    final double specNight =
+        (0.05 + (0.18 - 0.05) * moonStrength).clamp(0.0, 0.4);
+    final double specularStrength =
+        (specNight + (specDay - specNight) * dayBlend).clamp(0.0, 1.0);
 
-    final double shadowStrength = daylight <= 0
-        ? 0.0
-        : (0.18 + 0.62 * daylight).clamp(0.0, 0.85);
-    final int shadowBlurRadius = daylight <= 0
-        ? 0
-        : (2 + (1.0 - daylight) * 3).round().clamp(1, 6);
+    final double roughnessDay = 0.55;
+    final double roughnessNight = 0.60;
+    final double roughness = (roughnessNight +
+            (roughnessDay - roughnessNight) * dayBlend)
+        .clamp(0.0, 1.0);
+
+    final double exposureDay =
+        (1.05 + (0.95 - 1.05) * sunStrength).clamp(0.85, 1.25);
+    final double exposureNight =
+        (1.18 + (1.12 - 1.18) * moonStrength).clamp(0.85, 1.40);
+    final double exposure =
+        (exposureNight + (exposureDay - exposureNight) * dayBlend)
+            .clamp(0.75, 1.70);
+
+    final double shadowStrengthDay =
+        (0.25 + (0.85 - 0.25) * sunStrength).clamp(0.0, 0.9);
+    final double shadowStrengthNight =
+        (0.08 + (0.32 - 0.08) * moonStrength).clamp(0.0, 0.6);
+    final double shadowStrength =
+        (shadowStrengthNight + (shadowStrengthDay - shadowStrengthNight) * dayBlend)
+            .clamp(0.0, 0.85);
+
+    int lerpInt(int a, int b, double t) {
+      return (a + (b - a) * t).round();
+    }
+
+    final int shadowBlurDay = lerpInt(6, 2, sunStrength).clamp(1, 6);
+    final int shadowBlurNight = lerpInt(7, 3, moonStrength).clamp(1, 6);
+    final int shadowBlurRadius =
+        lerpInt(shadowBlurNight, shadowBlurDay, dayBlend).clamp(1, 6);
 
     final Color dayBackground = isDark
         ? const Color(0xFF101010)
         : const Color(0xFFF7F7F7);
-    final Color nightBackground = isDark
+    final Color starBackground = isDark
         ? const Color(0xFF050505)
         : const Color(0xFFE7E7E7);
+    final Color moonBackground = isDark
+        ? const Color(0xFF070A12)
+        : const Color(0xFFE7E7E7);
+    final Color nightBackground =
+        Color.lerp(starBackground, moonBackground, moonStrength) ??
+            moonBackground;
     final Color background =
-        Color.lerp(nightBackground, dayBackground, daylight) ?? dayBackground;
+        Color.lerp(nightBackground, dayBackground, dayBlend) ?? dayBackground;
 
     return _ReferenceModelBakeLighting(
       lightDirection: light,
       ambient: ambient,
       diffuse: diffuse,
-      sunColor: sunColor,
+      sunColor: directionalColor,
       skyColor: skyColor,
       groundBounceColor: groundBounceColor,
       specularStrength: specularStrength,

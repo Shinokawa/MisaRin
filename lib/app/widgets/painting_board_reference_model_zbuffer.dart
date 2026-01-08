@@ -369,6 +369,12 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     required bool lightFollowsCamera,
     required int mapSize,
     Float32List? depthBuffer,
+    Uint8List? textureRgba,
+    int textureWidth = 0,
+    int textureHeight = 0,
+    int modelTextureWidth = 0,
+    int modelTextureHeight = 0,
+    int alphaCutoff = 1,
   }) {
     if (mesh.triangles.isEmpty) {
       return null;
@@ -506,6 +512,17 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
     final double ldy = lightDirView.y;
     final double ldz = lightDirView.z;
 
+    final int alphaCutoffClamped = alphaCutoff.clamp(1, 255);
+    final bool alphaTest = textureRgba != null &&
+        textureWidth > 0 &&
+        textureHeight > 0 &&
+        modelTextureWidth > 0 &&
+        modelTextureHeight > 0;
+    final double texUScale =
+        alphaTest ? textureWidth / modelTextureWidth : 1.0;
+    final double texVScale =
+        alphaTest ? textureHeight / modelTextureHeight : 1.0;
+
     for (final BedrockMeshTriangle tri in mesh.triangles) {
       final Vector3 p0 = tri.p0;
       final Vector3 p1 = tri.p1;
@@ -535,6 +552,13 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
       final double d0 = x0w * ldx + y0w * ldy + z0w * ldz;
       final double d1 = x1w * ldx + y1w * ldy + z1w * ldz;
       final double d2 = x2w * ldx + y2w * ldy + z2w * ldz;
+
+      final double tu0 = alphaTest ? tri.uv0.dx * texUScale : 0.0;
+      final double tv0 = alphaTest ? tri.uv0.dy * texVScale : 0.0;
+      final double tu1 = alphaTest ? tri.uv1.dx * texUScale : 0.0;
+      final double tv1 = alphaTest ? tri.uv1.dy * texVScale : 0.0;
+      final double tu2 = alphaTest ? tri.uv2.dx * texUScale : 0.0;
+      final double tv2 = alphaTest ? tri.uv2.dy * texVScale : 0.0;
 
       final double area = edge(u0, v0, u1, v1, u2, v2);
       if (area == 0) {
@@ -573,6 +597,19 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
           final double a = w0 * invArea;
           final double b = w1 * invArea;
           final double c = w2 * invArea;
+
+          if (alphaTest) {
+            final double uTex = a * tu0 + b * tu1 + c * tu2;
+            final double vTex = a * tv0 + b * tv1 + c * tv2;
+            final int uSample = clampInt(uTex.floor(), 0, textureWidth - 1);
+            final int vSample = clampInt(vTex.floor(), 0, textureHeight - 1);
+            final int texIndex = (vSample * textureWidth + uSample) * 4;
+            final int alpha = textureRgba![texIndex + 3];
+            if (alpha < alphaCutoffClamped) {
+              continue;
+            }
+          }
+
           final double depthValue = a * d0 + b * d1 + c * d2;
 
           final int index = row + x;
@@ -775,6 +812,12 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
               lightFollowsCamera: widget.lightFollowsCamera,
               mapSize: widget.selfShadowMapSize,
               depthBuffer: selfShadowDepthBuffer,
+              textureRgba: textureRgba,
+              textureWidth: textureWidth,
+              textureHeight: textureHeight,
+              modelTextureWidth: widget.modelTextureWidth,
+              modelTextureHeight: widget.modelTextureHeight,
+              alphaCutoff: 1,
             )
             : null;
 
@@ -2797,9 +2840,18 @@ class _BedrockModelPainter extends CustomPainter {
           ? math.max(0, n.dot(lightDir))
           : math.max(0, tri.normal.dot(lightDir));
       final double brightness =
-          (ambientClamped + diffuseClamped * light).clamp(0.0, 1.0);
-      final int shade = (brightness * 255).round().clamp(0, 255);
-      final Color color = Color.fromARGB(255, shade, shade, shade);
+          (ambientClamped + diffuseClamped * light).clamp(0.0, 2.0);
+      final double baseBrightness = brightness <= 1.0 ? brightness : 1.0;
+      final double extraBrightness = brightness > 1.0
+          ? (brightness - 1.0).clamp(0.0, 1.0).toDouble()
+          : 0.0;
+      final int baseShade = (baseBrightness * 255).round().clamp(0, 255);
+      final int extraShade = (extraBrightness * 255).round().clamp(0, 255);
+      final Color baseColor =
+          Color.fromARGB(255, baseShade, baseShade, baseShade);
+      final Color extraColor = extraShade == 0
+          ? const Color.fromARGB(0, 0, 0, 0)
+          : Color.fromARGB(255, extraShade, extraShade, extraShade);
 
       final Vector3 p0 = rotation.transform3(tri.p0.clone()..y += modelYOffset);
       final Vector3 p1 = rotation.transform3(tri.p1.clone()..y += modelYOffset);
@@ -2829,7 +2881,8 @@ class _BedrockModelPainter extends CustomPainter {
           uv0: Offset(tri.uv0.dx * uScale, tri.uv0.dy * vScale),
           uv1: Offset(tri.uv1.dx * uScale, tri.uv1.dy * vScale),
           uv2: Offset(tri.uv2.dx * uScale, tri.uv2.dy * vScale),
-          color: color,
+          baseColor: baseColor,
+          extraColor: extraColor,
         ),
       );
     }
@@ -2871,20 +2924,40 @@ class _BedrockModelPainter extends CustomPainter {
 
     final List<Offset> positions = <Offset>[];
     final List<Offset> texCoords = <Offset>[];
-    final List<Color> colors = <Color>[];
+    final List<Color> baseColors = <Color>[];
+    final List<Color> extraColors = <Color>[];
+    bool hasExtraLight = false;
     for (final tri in projected) {
       positions.addAll([tri.p0, tri.p1, tri.p2]);
       texCoords.addAll([tri.uv0, tri.uv1, tri.uv2]);
-      colors.addAll([tri.color, tri.color, tri.color]);
+      baseColors.addAll([tri.baseColor, tri.baseColor, tri.baseColor]);
+      extraColors.addAll([tri.extraColor, tri.extraColor, tri.extraColor]);
+      hasExtraLight = hasExtraLight || tri.extraColor.alpha != 0;
     }
 
     final ui.Vertices vertices = ui.Vertices(
       ui.VertexMode.triangles,
       positions,
       textureCoordinates: texCoords,
-      colors: colors,
+      colors: baseColors,
     );
     canvas.drawVertices(vertices, ui.BlendMode.modulate, paint);
+    if (hasExtraLight) {
+      final ui.Vertices extraVertices = ui.Vertices(
+        ui.VertexMode.triangles,
+        positions,
+        textureCoordinates: texCoords,
+        colors: extraColors,
+      );
+      canvas.drawVertices(
+        extraVertices,
+        ui.BlendMode.modulate,
+        Paint()
+          ..filterQuality = FilterQuality.none
+          ..blendMode = BlendMode.plus
+          ..shader = paint.shader,
+      );
+    }
     canvas.restore();
   }
 
@@ -2948,7 +3021,8 @@ class _ProjectedTriangle {
     required this.uv0,
     required this.uv1,
     required this.uv2,
-    required this.color,
+    required this.baseColor,
+    required this.extraColor,
   });
 
   final double depth;
@@ -2958,5 +3032,6 @@ class _ProjectedTriangle {
   final Offset uv0;
   final Offset uv1;
   final Offset uv2;
-  final Color color;
+  final Color baseColor;
+  final Color extraColor;
 }
