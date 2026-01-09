@@ -27,6 +27,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     double previewZoomScaleStart = previewZoom;
 
     double timeHours = 12.0;
+    double renderBrightness = 1.0;
+    double renderContrast = 1.0;
     bool isBaking = false;
     _ReferenceModelBakeRendererPreset rendererPreset =
         _ReferenceModelBakeRendererPreset.cinematic;
@@ -366,6 +368,34 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                               ? bakedLighting!.exposure * 1.05
                               : bakedLighting!.exposure)
                         : 1.0;
+                    final double baseAmbient =
+                        usesBakedLighting ? bakedLighting!.ambient : 0.55;
+                    final double baseDiffuse =
+                        usesBakedLighting ? bakedLighting!.diffuse : 0.45;
+                    double adjustedAmbient = baseAmbient;
+                    double adjustedDiffuse = baseDiffuse;
+                    final double contrastFactor = renderContrast.isFinite
+                        ? renderContrast.clamp(0.0, 2.0).toDouble()
+                        : 1.0;
+                    if (contrastFactor != 1.0) {
+                      final double sum = baseAmbient + baseDiffuse;
+                      if (sum > 0) {
+                        adjustedDiffuse =
+                            (baseDiffuse * contrastFactor).clamp(0.0, sum);
+                        adjustedAmbient =
+                            (sum - adjustedDiffuse).clamp(0.0, sum);
+                      }
+                    }
+                    adjustedAmbient =
+                        adjustedAmbient.clamp(0.0, 1.0).toDouble();
+                    adjustedDiffuse =
+                        adjustedDiffuse.clamp(0.0, 1.0).toDouble();
+                    final double adjustedExposure = (exposure *
+                            (renderBrightness.isFinite
+                                ? renderBrightness.clamp(0.5, 2.0).toDouble()
+                                : 1.0))
+                        .clamp(0.0, 4.0)
+                        .toDouble();
 
                     final bool enableSelfShadow = usesBakedLighting;
                     final int shadowMapSize = isCinematic ? 2048 : 1024;
@@ -401,8 +431,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                           widget.supportsActions ? _actionController : null,
                       lightDirection:
                           usesBakedLighting ? bakedLighting!.lightDirection : null,
-                      ambient: usesBakedLighting ? bakedLighting!.ambient : 0.55,
-                      diffuse: usesBakedLighting ? bakedLighting!.diffuse : 0.45,
+                      ambient: adjustedAmbient,
+                      diffuse: adjustedDiffuse,
                       sunColor: usesBakedLighting
                           ? bakedLighting!.sunColor
                           : const Color(0xFFFFFFFF),
@@ -414,7 +444,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                           : const Color(0xFFFFFFFF),
                       specularStrength: specularStrength,
                       roughness: roughness,
-                      exposure: exposure,
+                      exposure: adjustedExposure,
                       toneMap: usesBakedLighting,
                       enableSelfShadow: enableSelfShadow,
                       selfShadowStrength: 1.0,
@@ -857,6 +887,70 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                                             ),
                                                           ],
                                                         ),                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Text(context.l10n.brightness),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Slider(
+                                  value: renderBrightness.clamp(0.5, 2.0),
+                                  min: 0.5,
+                                  max: 2.0,
+                                  divisions: 150,
+                                  onChanged: isBaking
+                                      ? null
+                                      : (value) {
+                                          setDialogState(() {
+                                            renderBrightness = value;
+                                            markPreviewDirty();
+                                          });
+                                        },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 52,
+                                child: Text(
+                                  renderBrightness.toStringAsFixed(2),
+                                  textAlign: TextAlign.end,
+                                  style: theme.typography.bodyStrong,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Text(context.l10n.contrast),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Slider(
+                                  value: renderContrast.clamp(0.0, 2.0),
+                                  min: 0.0,
+                                  max: 2.0,
+                                  divisions: 200,
+                                  onChanged: isBaking
+                                      ? null
+                                      : (value) {
+                                          setDialogState(() {
+                                            renderContrast = value;
+                                            markPreviewDirty();
+                                          });
+                                        },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 52,
+                                child: Text(
+                                  renderContrast.toStringAsFixed(2),
+                                  textAlign: TextAlign.end,
+                                  style: theme.typography.bodyStrong,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
                               const Text('时间'),

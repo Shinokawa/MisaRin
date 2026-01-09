@@ -15,6 +15,26 @@ void _rasterizeContactShadowMask({
     return;
   }
   final double invScale = 1.0 / (1.0 - eps);
+  final double relFactor = invScale - 1.0;
+
+  final int pixelCount = width * height;
+  double maxInvZ = 0.0;
+  for (int i = 0; i < pixelCount && i < depthBuffer.length; i++) {
+    final double v = depthBuffer[i];
+    if (v > maxInvZ) {
+      maxInvZ = v;
+    }
+  }
+  if (maxInvZ <= 0 || relFactor <= 0) {
+    mask.fillRange(0, mask.length, 0);
+    return;
+  }
+
+  final int minDim = math.min(width, height);
+  final double minDeltaScale = minDim <= 0
+      ? 0.25
+      : math.max(0.25, 1.0 / (relFactor * minDim));
+  final double minDelta = maxInvZ * relFactor * minDeltaScale;
   mask.fillRange(0, mask.length, 0);
 
   for (int y = 0; y < height; y++) {
@@ -25,7 +45,7 @@ void _rasterizeContactShadowMask({
       if (invZ <= 0) {
         continue;
       }
-      final double threshold = invZ * invScale;
+      final double threshold = invZ + math.max(invZ * relFactor, minDelta);
 
       bool occluded = false;
       for (int oy = -1; oy <= 1 && !occluded; oy++) {
