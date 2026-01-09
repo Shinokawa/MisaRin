@@ -443,16 +443,27 @@ void _applyGroundDistanceFade({
     return;
   }
 
-  final double start = cameraDistance + groundHalfSize * 0.35;
-  final double end = cameraDistance + groundHalfSize * 0.85;
+  final double start = cameraDistance + groundHalfSize * 0.85;
+  final double end = cameraDistance + groundHalfSize * 1.45;
   if (!start.isFinite || !end.isFinite || end <= start) {
     return;
   }
-  final double invRange = 1.0 / (end - start);
 
-  double smoothstep(double x) {
+  final double invStart = 1.0 / start;
+  final double invEnd = 1.0 / end;
+  if (!invStart.isFinite || !invEnd.isFinite || invStart <= invEnd) {
+    return;
+  }
+  final double invRange = 1.0 / (invStart - invEnd);
+
+  double smoothstep01(double x) {
     final double t = x.clamp(0.0, 1.0);
     return t * t * (3.0 - 2.0 * t);
+  }
+
+  int dither8(int i) {
+    final int n = i * 1103515245 + 12345;
+    return (n >> 16) & 0xFF;
   }
 
   if (colorBuffer32 != null && colorBuffer32.length >= pixelCount) {
@@ -461,16 +472,49 @@ void _applyGroundDistanceFade({
       if (invZ <= 0) {
         continue;
       }
-      final double z = 1.0 / invZ;
-      final double t = smoothstep((z - start) * invRange);
-      final int fadeAlpha = (255.0 * (1.0 - t)).round().clamp(0, 255);
+
+      final double fadeT = smoothstep01((invStart - invZ) * invRange);
+      if (fadeT <= 0) {
+        continue;
+      }
+      final double fadeAlphaFloat = 255.0 * (1.0 - fadeT);
+      int fadeAlpha = fadeAlphaFloat.floor();
+      int frac = ((fadeAlphaFloat - fadeAlpha) * 256.0).floor();
+      if (frac < 0) {
+        frac = 0;
+      } else if (frac > 255) {
+        frac = 255;
+      }
+      if (frac > dither8(i)) {
+        fadeAlpha += 1;
+      }
+      if (fadeAlpha < 0) {
+        fadeAlpha = 0;
+      } else if (fadeAlpha > 255) {
+        fadeAlpha = 255;
+      }
       if (fadeAlpha >= 255) {
         continue;
       }
+
       final int color = colorBuffer32[i];
       final int a = (color >> 24) & 0xFF;
-      final int outA = a < fadeAlpha ? a : fadeAlpha;
-      colorBuffer32[i] = (color & 0x00FFFFFF) | (outA << 24);
+      if (a == 0 || a <= fadeAlpha) {
+        continue;
+      }
+      if (fadeAlpha <= 0) {
+        colorBuffer32[i] = 0;
+        continue;
+      }
+
+      final int halfA = a >> 1;
+      final int r = color & 0xFF;
+      final int g = (color >> 8) & 0xFF;
+      final int b = (color >> 16) & 0xFF;
+      final int r2 = ((r * fadeAlpha) + halfA) ~/ a;
+      final int g2 = ((g * fadeAlpha) + halfA) ~/ a;
+      final int b2 = ((b * fadeAlpha) + halfA) ~/ a;
+      colorBuffer32[i] = r2 | (g2 << 8) | (b2 << 16) | (fadeAlpha << 24);
     }
     return;
   }
@@ -480,16 +524,51 @@ void _applyGroundDistanceFade({
     if (invZ <= 0) {
       continue;
     }
-    final double z = 1.0 / invZ;
-    final double t = smoothstep((z - start) * invRange);
-    final int fadeAlpha = (255.0 * (1.0 - t)).round().clamp(0, 255);
+
+    final double fadeT = smoothstep01((invStart - invZ) * invRange);
+    if (fadeT <= 0) {
+      continue;
+    }
+    final double fadeAlphaFloat = 255.0 * (1.0 - fadeT);
+    int fadeAlpha = fadeAlphaFloat.floor();
+    int frac = ((fadeAlphaFloat - fadeAlpha) * 256.0).floor();
+    if (frac < 0) {
+      frac = 0;
+    } else if (frac > 255) {
+      frac = 255;
+    }
+    if (frac > dither8(i)) {
+      fadeAlpha += 1;
+    }
+    if (fadeAlpha < 0) {
+      fadeAlpha = 0;
+    } else if (fadeAlpha > 255) {
+      fadeAlpha = 255;
+    }
     if (fadeAlpha >= 255) {
       continue;
     }
+
     final int byteIndex = i * 4;
     final int a = colorBuffer[byteIndex + 3];
-    final int outA = a < fadeAlpha ? a : fadeAlpha;
-    colorBuffer[byteIndex + 3] = outA;
+    if (a == 0 || a <= fadeAlpha) {
+      continue;
+    }
+    if (fadeAlpha <= 0) {
+      colorBuffer[byteIndex] = 0;
+      colorBuffer[byteIndex + 1] = 0;
+      colorBuffer[byteIndex + 2] = 0;
+      colorBuffer[byteIndex + 3] = 0;
+      continue;
+    }
+
+    final int halfA = a >> 1;
+    final int r = colorBuffer[byteIndex];
+    final int g = colorBuffer[byteIndex + 1];
+    final int b = colorBuffer[byteIndex + 2];
+    colorBuffer[byteIndex] = ((r * fadeAlpha) + halfA) ~/ a;
+    colorBuffer[byteIndex + 1] = ((g * fadeAlpha) + halfA) ~/ a;
+    colorBuffer[byteIndex + 2] = ((b * fadeAlpha) + halfA) ~/ a;
+    colorBuffer[byteIndex + 3] = fadeAlpha;
   }
 }
-
