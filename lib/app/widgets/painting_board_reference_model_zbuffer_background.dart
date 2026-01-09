@@ -6,6 +6,7 @@ class _BedrockSkyboxBackground {
     required this.isDark,
     required this.skyColor,
     required this.sunColor,
+    required this.lightDirection,
     this.seed = 1337,
   });
 
@@ -13,6 +14,7 @@ class _BedrockSkyboxBackground {
   final bool isDark;
   final Color skyColor;
   final Color sunColor;
+  final Vector3 lightDirection;
   final int seed;
 }
 
@@ -76,103 +78,30 @@ double _rand2d(int x, int y, int seed) {
   return (h & 0xffff) / 65535.0;
 }
 
-double _smooth01(double t) => t * t * (3.0 - 2.0 * t);
-
-double _valueNoise(double x, double y, int seed) {
-  final int xi = x.floor();
-  final int yi = y.floor();
-  final double xf = x - xi;
-  final double yf = y - yi;
-
-  final double v00 = _rand2d(xi, yi, seed);
-  final double v10 = _rand2d(xi + 1, yi, seed);
-  final double v01 = _rand2d(xi, yi + 1, seed);
-  final double v11 = _rand2d(xi + 1, yi + 1, seed);
-
-  final double u = _smooth01(xf);
-  final double v = _smooth01(yf);
-
-  final double x1 = v00 + (v10 - v00) * u;
-  final double x2 = v01 + (v11 - v01) * u;
-  return x1 + (x2 - x1) * v;
-}
-
-double _fbm(double x, double y, int seed) {
-  double sum = 0.0;
-  double amp = 0.5;
-  double freq = 1.0;
-  double norm = 0.0;
-  for (int i = 0; i < 4; i++) {
-    sum += amp * _valueNoise(x * freq, y * freq, seed + i * 1013);
-    norm += amp;
-    freq *= 2.0;
-    amp *= 0.5;
-  }
-  return norm > 0 ? sum / norm : 0.0;
-}
-
-Uint8List _buildCloudMask({
-  required int width,
-  required int height,
-  required int seed,
-}) {
-  final Uint8List mask = Uint8List(width * height);
-  if (width <= 0 || height <= 0) {
-    return mask;
-  }
-
-  const double scale = 6.5;
-  final double invW = 1.0 / width;
-  final double invH = 1.0 / height;
-
-  for (int y = 0; y < height; y++) {
-    final double ny = y * invH * scale;
-    final int row = y * width;
-    for (int x = 0; x < width; x++) {
-      final double nx = x * invW * scale;
-      double n = _fbm(nx, ny, seed);
-      n = n * n;
-      mask[row + x] = (n * 255).round().clamp(0, 255);
-    }
-  }
-  return mask;
-}
-
 void _compositeSkyboxBackground({
   required Uint8List rgba,
   required int width,
   required int height,
   required _BedrockSkyboxBackground skybox,
+  required double cameraYaw,
+  required double cameraPitch,
+  required double cameraZoom,
 }) {
   if (width <= 0 || height <= 0) {
     return;
   }
 
-  final double normalized = skybox.timeHours.isFinite
-      ? (skybox.timeHours % 24 + 24) % 24
-      : 12.0;
-  final double dayPhase = ((normalized - 6.0) / 12.0) * math.pi;
-  final double sunHeight = math.sin(dayPhase).clamp(-1.0, 1.0).toDouble();
-  final double dayBlend = _smoothstep(-0.35, 0.15, sunHeight);
-
-  final Color zenith = skybox.skyColor;
-  final Color horizonTint =
-      Color.lerp(zenith, skybox.sunColor, 0.16 + 0.18 * dayBlend) ?? zenith;
-  final double whiteMix = skybox.isDark
-      ? (0.05 + 0.18 * dayBlend).clamp(0.0, 0.28)
-      : (0.18 + 0.52 * dayBlend).clamp(0.0, 0.82);
-  final Color horizon =
-      Color.lerp(horizonTint, const Color(0xFFFFFFFF), whiteMix) ?? horizonTint;
-
-  final Color cloudBase = Color.lerp(
-        zenith,
-        const Color(0xFFFFFFFF),
-        skybox.isDark ? 0.18 : 0.55,
-      ) ??
-      const Color(0xFFFFFFFF);
-  final Color cloudColor =
-      Color.lerp(cloudBase, skybox.sunColor, 0.06 + 0.18 * dayBlend) ??
-          cloudBase;
+  final _BakeSkyboxPalette palette = _computeBakeSkyboxPalette(
+    timeHours: skybox.timeHours,
+    isDark: skybox.isDark,
+    skyColor: skybox.skyColor,
+    sunColor: skybox.sunColor,
+  );
+  final Color zenith = palette.zenith;
+  final Color horizon = palette.horizon;
+  final Color cloudColor = palette.cloudColor;
+  final Color highlightColor = palette.highlightColor;
+  final Color shadowColor = palette.shadowColor;
 
   int to8(double v) => (v * 255).round().clamp(0, 255);
 
@@ -187,22 +116,116 @@ void _compositeSkyboxBackground({
   final int cloudG = to8(cloudColor.g);
   final int cloudB = to8(cloudColor.b);
 
-  final double coverage =
-      (skybox.isDark ? 0.60 : 0.55) + (0.04 * (1.0 - dayBlend));
-  final int threshold = (coverage.clamp(0.0, 0.92) * 255).round().clamp(0, 254);
-  final int denom = 255 - threshold;
-  final int cloudStrength =
-      ((0.25 + 0.60 * dayBlend) * (skybox.isDark ? 0.65 : 1.0) * 255)
-          .round()
-          .clamp(0, 255);
+  final int highlightR = to8(highlightColor.r);
+  final int highlightG = to8(highlightColor.g);
+  final int highlightB = to8(highlightColor.b);
 
-  final int maskW = math.min(512, math.max(128, width ~/ 4));
-  final int maskH = math.max(64, (maskW * height / width).round());
-  final Uint8List cloudMask = _buildCloudMask(
-    width: maskW,
-    height: maskH,
-    seed: skybox.seed,
+  final int shadowR = to8(shadowColor.r);
+  final int shadowG = to8(shadowColor.g);
+  final int shadowB = to8(shadowColor.b);
+
+  final int cloudOpacity8 = (palette.cloudOpacity * 255).round().clamp(0, 255);
+  final int shadowOpacity8 = (palette.shadowOpacity * 255).round().clamp(0, 255);
+  final int highlightOpacity8 =
+      (palette.highlightOpacity * 255).round().clamp(0, 255);
+
+  int lerp8(int a, int b, int t) {
+    return a + (((b - a) * t + 128) >> 8);
+  }
+
+  int rand8(int x, int y, int seedOffset) {
+    final int h = _hash2d(x, y, seedOffset);
+    return (h >> 16) & 0xff;
+  }
+
+  int sampleNoise(double x, double y, int seedOffset) {
+    final int xi = x.floor();
+    final int yi = y.floor();
+    final int fx = ((x - xi) * 256).floor().clamp(0, 255);
+    final int fy = ((y - yi) * 256).floor().clamp(0, 255);
+
+    final int a00 = rand8(xi, yi, seedOffset);
+    final int a10 = rand8(xi + 1, yi, seedOffset);
+    final int a01 = rand8(xi, yi + 1, seedOffset);
+    final int a11 = rand8(xi + 1, yi + 1, seedOffset);
+
+    final int a0 = lerp8(a00, a10, fx);
+    final int a1 = lerp8(a01, a11, fx);
+    return lerp8(a0, a1, fy);
+  }
+
+  int fbm8(double x, double y, int seedOffset) {
+    double sum = 0.0;
+    double amp = 0.52;
+    double norm = 0.0;
+    double freq = 1.0;
+    for (int i = 0; i < 5; i++) {
+      sum += (sampleNoise(x * freq, y * freq, seedOffset) / 255.0) * amp;
+      norm += amp;
+      amp *= 0.5;
+      freq *= 2.0;
+    }
+    if (norm <= 1e-6) {
+      return 0;
+    }
+    return ((sum / norm) * 255).round().clamp(0, 255);
+  }
+
+  int blendOver(int dst, int src, int alpha) {
+    if (alpha <= 0) {
+      return dst;
+    }
+    if (alpha >= 255) {
+      return src;
+    }
+    return (dst * (255 - alpha) + src * alpha + 127) ~/ 255;
+  }
+
+  int blendScreen(int dst, int src, int alpha) {
+    if (alpha <= 0) {
+      return dst;
+    }
+    final int screen = 255 - (((255 - dst) * (255 - src) + 127) ~/ 255);
+    if (alpha >= 255) {
+      return screen;
+    }
+    return dst + ((screen - dst) * alpha + 127) ~/ 255;
+  }
+
+  final double zoomFactor = cameraZoom.isFinite
+      ? cameraZoom.clamp(0.8, 2.5).toDouble()
+      : 1.0;
+  final double tileSize = math.max(
+    128.0,
+    math.min(width.toDouble(), height.toDouble()) * 1.60 * zoomFactor,
   );
+  final double scale = 8.0 / tileSize;
+  final double seedScrollX = _rand2d(17, 31, skybox.seed) * 900.0;
+  final double seedScrollY = _rand2d(43, 59, skybox.seed) * 900.0;
+  final double timeDrift = skybox.timeHours.isFinite ? skybox.timeHours : 0.0;
+  final double camYaw = cameraYaw.isFinite ? cameraYaw : 0.0;
+  final double camPitch = cameraPitch.isFinite ? cameraPitch : 0.0;
+  final double scrollX =
+      seedScrollX + timeDrift * 0.38 + camYaw / (math.pi * 2) * 120.0;
+  final double scrollY =
+      seedScrollY + timeDrift * 0.16 - camPitch / math.pi * 80.0;
+
+  double lightDx = skybox.lightDirection.x;
+  double lightDy = -skybox.lightDirection.z;
+  final double lightLen =
+      math.sqrt(lightDx * lightDx + lightDy * lightDy).toDouble();
+  if (lightLen > 1e-6) {
+    lightDx /= lightLen;
+    lightDy /= lightLen;
+  } else {
+    lightDx = 1.0;
+    lightDy = 0.0;
+  }
+  final double offsetPx =
+      (math.min(width.toDouble(), height.toDouble()) * 0.018)
+          .clamp(2.0, 12.0);
+  final double shiftX = lightDx * offsetPx * scale;
+  final double shiftY = lightDy * offsetPx * scale;
 
   final int maxY = math.max(1, height - 1);
   for (int y = 0; y < height; y++) {
@@ -216,10 +239,8 @@ void _compositeSkyboxBackground({
 
     final double fade = 1.0 - _smoothstep(0.55, 0.98, v);
     final int fade8 = (fade * 255).round().clamp(0, 255);
-
-    final int maskY = (y * maskH) ~/ height;
-    final int maskRow = maskY * maskW;
     final int rowStart = y * width;
+    final double my = scrollY + y * scale;
 
     for (int x = 0; x < width; x++) {
       final int pixelIndex = rowStart + x;
@@ -229,25 +250,53 @@ void _compositeSkyboxBackground({
         continue;
       }
 
-      final int maskX = (x * maskW) ~/ width;
-      final int m = cloudMask[maskRow + maskX];
+      int bgR = baseR;
+      int bgG = baseG;
+      int bgB = baseB;
 
-      int cloudA = 0;
-      if (fade8 > 0 && cloudStrength > 0 && m > threshold) {
-        final int base = ((m - threshold) * 255) ~/ denom;
-        final int faded = (base * fade8) ~/ 255;
-        cloudA = (faded * cloudStrength) ~/ 255;
+      if (fade8 > 0 && cloudOpacity8 > 0) {
+        final double sx = scrollX + x * scale;
+        final int n0 = fbm8(sx, my, skybox.seed);
+        final int nF = fbm8(sx + shiftX, my + shiftY, skybox.seed);
+        final int nB = fbm8(sx - shiftX, my - shiftY, skybox.seed);
+
+        final double cloudiness = cloudOpacity8 / 255.0;
+        final double threshold = 0.64 - 0.14 * cloudiness;
+        final int m0 = ((n0 / 255.0 - threshold) / 0.22 * 255)
+            .round()
+            .clamp(0, 255);
+        final int mF = ((nF / 255.0 - threshold) / 0.22 * 255)
+            .round()
+            .clamp(0, 255);
+        final int mB = ((nB / 255.0 - threshold) / 0.22 * 255)
+            .round()
+            .clamp(0, 255);
+
+        if (m0 > 0 || mF > 0 || mB > 0) {
+          final int cloudA = ((m0 * cloudOpacity8) ~/ 255 * fade8) ~/ 255;
+          final int shadowA = ((mB * shadowOpacity8) ~/ 255 * fade8) ~/ 255;
+          final int highlightA =
+              ((mF * highlightOpacity8) ~/ 255 * fade8) ~/ 255;
+
+          if (shadowA > 0) {
+            bgR = blendOver(bgR, shadowR, shadowA);
+            bgG = blendOver(bgG, shadowG, shadowA);
+            bgB = blendOver(bgB, shadowB, shadowA);
+          }
+
+          if (cloudA > 0) {
+            bgR = blendOver(bgR, cloudR, cloudA);
+            bgG = blendOver(bgG, cloudG, cloudA);
+            bgB = blendOver(bgB, cloudB, cloudA);
+          }
+
+          if (highlightA > 0) {
+            bgR = blendScreen(bgR, highlightR, highlightA);
+            bgG = blendScreen(bgG, highlightG, highlightA);
+            bgB = blendScreen(bgB, highlightB, highlightA);
+          }
+        }
       }
-
-      final int bgR = cloudA == 0
-          ? baseR
-          : (baseR * (255 - cloudA) + cloudR * cloudA) ~/ 255;
-      final int bgG = cloudA == 0
-          ? baseG
-          : (baseG * (255 - cloudA) + cloudG * cloudA) ~/ 255;
-      final int bgB = cloudA == 0
-          ? baseB
-          : (baseB * (255 - cloudA) + cloudB * cloudA) ~/ 255;
 
       if (a == 0) {
         rgba[byteIndex] = bgR;

@@ -246,15 +246,17 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
             : const Color(0xFFF7F7F7);
         final bool usesBakedLighting = rendererPreset.usesBakedLighting;
         final _ReferenceModelBakeLighting? lighting = usesBakedLighting
-            ? _lightingForTime(timeHours, isDark: theme.brightness.isDark)
+            ? _lightingForTime(timeHours, isDark: false)
             : null;
         final Color exportBackground = lighting?.background ?? normalBackground;
         final _BedrockSkyboxBackground? skybox = usesBakedLighting && lighting != null
             ? _BedrockSkyboxBackground(
                 timeHours: timeHours,
-                isDark: theme.brightness.isDark,
+                isDark: false,
                 skyColor: lighting.skyColor,
                 sunColor: lighting.sunColor,
+                lightDirection: lighting.lightDirection,
+                seed: 1337,
               )
             : null;
 
@@ -339,7 +341,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                       rendererPreset.usesBakedLighting
                       ? _lightingForTime(
                           timeHours,
-                          isDark: theme.brightness.isDark,
+                          isDark: false,
                         )
                       : null;
                   final Color previewBackground =
@@ -543,7 +545,10 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                     _ReferenceModelBakeSkyboxBackground(
                                       timeHours: timeHours,
                                       lighting: lighting,
-                                      isDark: theme.brightness.isDark,
+                                      isDark: false,
+                                      cameraYaw: previewYaw,
+                                      cameraPitch: previewPitch,
+                                      cameraZoom: previewZoom,
                                     )
                                   else
                                     ColoredBox(color: previewBackground),

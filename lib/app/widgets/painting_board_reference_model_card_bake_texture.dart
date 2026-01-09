@@ -33,4 +33,3 @@ extension _ReferenceModelCardBakeDialogTexture on _ReferenceModelCardState {
     return bakeTexture;
   }
 }
-

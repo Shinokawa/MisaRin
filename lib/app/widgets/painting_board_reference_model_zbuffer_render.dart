@@ -132,22 +132,22 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
       );
     }
 
-    final _BedrockSelfShadowMap? selfShadowMap =
-        widget.enableSelfShadow && widget.selfShadowStrength > 0
-        ? _buildSelfShadowMap(
-            mesh: mesh,
-            modelExtent: modelSize,
-            yaw: widget.yaw,
-            pitch: widget.pitch,
-            translateY: modelYOffset,
-            lightDirection: lightDir,
-            lightFollowsCamera: widget.lightFollowsCamera,
-            mapSize: widget.selfShadowMapSize,
-            ensureDepthBuffer: (size) => this._ensureSelfShadowDepth(size),
-            depthBuffer: selfShadowDepthBuffer,
-            textureRgba: textureRgba,
-            textureWidth: textureWidth,
-            textureHeight: textureHeight,
+	    final _BedrockSelfShadowMap? selfShadowMap =
+	        widget.enableSelfShadow && widget.selfShadowStrength > 0
+	        ? _buildSelfShadowMap(
+	            mesh: mesh,
+	            modelExtent: modelSize,
+	            yaw: widget.yaw,
+	            pitch: widget.pitch,
+	            translateY: modelYOffset,
+	            lightDirection: lightDir,
+	            lightFollowsCamera: widget.lightFollowsCamera,
+	            mapSize: widget.selfShadowMapSize,
+	            ensureDepthBuffer: (size) => _ensureSelfShadowDepth(size),
+	            depthBuffer: selfShadowDepthBuffer,
+	            textureRgba: textureRgba,
+	            textureWidth: textureWidth,
+	            textureHeight: textureHeight,
             modelTextureWidth: widget.modelTextureWidth,
             modelTextureHeight: widget.modelTextureHeight,
             alphaCutoff: 1,
@@ -268,12 +268,92 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
 
     final BedrockMesh mesh = _buildMeshForFrame();
     if (mesh.triangles.isEmpty) {
+      final _BedrockSkyboxBackground? s = skybox;
+      if (s != null) {
+        try {
+          final ui.FragmentProgram program = await _BakeCloudPrograms.program;
+          final _BakeSkyboxPalette palette = _computeBakeSkyboxPalette(
+            timeHours: s.timeHours,
+            isDark: s.isDark,
+            skyColor: s.skyColor,
+            sunColor: s.sunColor,
+          );
+          final Color zenith = palette.zenith;
+          final Color horizon = palette.horizon;
+          final Color cloudColor = palette.cloudColor;
+          final double cloudOpacity = palette.cloudOpacity;
+          final double shadowStrength = palette.shaderShadowStrength;
+
+          final ui.FragmentShader shader = program.fragmentShader()
+            ..setFloat(0, width.toDouble())
+            ..setFloat(1, height.toDouble())
+            ..setFloat(2, s.timeHours.isFinite ? s.timeHours : 0.0)
+            ..setFloat(3, s.seed.toDouble())
+            ..setFloat(4, widget.yaw)
+            ..setFloat(5, widget.pitch)
+            ..setFloat(6, widget.zoom)
+            ..setFloat(7, s.lightDirection.x)
+            ..setFloat(8, s.lightDirection.y)
+            ..setFloat(9, s.lightDirection.z)
+            ..setFloat(10, s.sunColor.r)
+            ..setFloat(11, s.sunColor.g)
+            ..setFloat(12, s.sunColor.b)
+            ..setFloat(13, zenith.r)
+            ..setFloat(14, zenith.g)
+            ..setFloat(15, zenith.b)
+            ..setFloat(16, horizon.r)
+            ..setFloat(17, horizon.g)
+            ..setFloat(18, horizon.b)
+            ..setFloat(19, cloudColor.r)
+            ..setFloat(20, cloudColor.g)
+            ..setFloat(21, cloudColor.b)
+            ..setFloat(22, 60.0)
+            ..setFloat(23, 260.0)
+            ..setFloat(24, 24.0)
+            ..setFloat(25, cloudOpacity.clamp(0.0, 1.0).toDouble())
+            ..setFloat(26, shadowStrength.clamp(0.0, 1.0).toDouble());
+
+          final ui.PictureRecorder recorder = ui.PictureRecorder();
+          final Canvas canvas = Canvas(recorder);
+          canvas.drawRect(
+            Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+            Paint()..shader = shader,
+          );
+          final ui.Picture picture = recorder.endRecording();
+          final ui.Image image = await picture.toImage(width, height);
+          picture.dispose();
+          try {
+            final ByteData? encoded = await image.toByteData(
+              format: ui.ImageByteFormat.png,
+            );
+            if (encoded == null) {
+              throw StateError('无法编码导出结果');
+            }
+            return Uint8List.fromList(
+              encoded.buffer.asUint8List(
+                encoded.offsetInBytes,
+                encoded.lengthInBytes,
+              ),
+            );
+          } finally {
+            if (!image.debugDisposed) {
+              image.dispose();
+            }
+          }
+        } catch (error, stackTrace) {
+          debugPrint('Failed to render procedural skybox: $error\n$stackTrace');
+        }
+      }
+
       if (skybox != null) {
         _compositeSkyboxBackground(
           rgba: colorBuffer,
           width: width,
           height: height,
           skybox: skybox,
+          cameraYaw: widget.yaw,
+          cameraPitch: widget.pitch,
+          cameraZoom: widget.zoom,
         );
       } else {
         _compositeOpaqueBackground(
@@ -333,11 +413,99 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
     );
 
     if (skybox != null) {
+      final ui.Image modelImage = await _decodeRgbaImage(colorBuffer, width, height);
+      ui.Image? finalImage;
+      ui.Picture? picture;
+      try {
+        final ui.FragmentProgram program = await _BakeCloudPrograms.program;
+        final _BedrockSkyboxBackground s = skybox;
+        final _BakeSkyboxPalette palette = _computeBakeSkyboxPalette(
+          timeHours: s.timeHours,
+          isDark: s.isDark,
+          skyColor: s.skyColor,
+          sunColor: s.sunColor,
+        );
+        final Color zenith = palette.zenith;
+        final Color horizon = palette.horizon;
+        final Color cloudColor = palette.cloudColor;
+        final double cloudOpacity = palette.cloudOpacity;
+        final double shadowStrength = palette.shaderShadowStrength;
+
+        final ui.FragmentShader shader = program.fragmentShader()
+          ..setFloat(0, width.toDouble())
+          ..setFloat(1, height.toDouble())
+          ..setFloat(2, s.timeHours.isFinite ? s.timeHours : 0.0)
+          ..setFloat(3, s.seed.toDouble())
+          ..setFloat(4, widget.yaw)
+          ..setFloat(5, widget.pitch)
+          ..setFloat(6, widget.zoom)
+          ..setFloat(7, s.lightDirection.x)
+          ..setFloat(8, s.lightDirection.y)
+          ..setFloat(9, s.lightDirection.z)
+          ..setFloat(10, s.sunColor.r)
+          ..setFloat(11, s.sunColor.g)
+          ..setFloat(12, s.sunColor.b)
+          ..setFloat(13, zenith.r)
+          ..setFloat(14, zenith.g)
+          ..setFloat(15, zenith.b)
+          ..setFloat(16, horizon.r)
+          ..setFloat(17, horizon.g)
+          ..setFloat(18, horizon.b)
+          ..setFloat(19, cloudColor.r)
+          ..setFloat(20, cloudColor.g)
+          ..setFloat(21, cloudColor.b)
+          ..setFloat(22, 60.0)
+          ..setFloat(23, 260.0)
+          ..setFloat(24, 24.0)
+          ..setFloat(25, cloudOpacity.clamp(0.0, 1.0).toDouble())
+          ..setFloat(26, shadowStrength.clamp(0.0, 1.0).toDouble());
+
+        final ui.PictureRecorder recorder = ui.PictureRecorder();
+        final Canvas canvas = Canvas(recorder);
+        canvas.drawRect(
+          Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+          Paint()..shader = shader,
+	        );
+	        canvas.drawImage(modelImage, Offset.zero, Paint());
+	        final ui.Picture recorded = recorder.endRecording();
+	        picture = recorded;
+	        finalImage = await recorded.toImage(width, height);
+	        final ByteData? encoded = await finalImage.toByteData(
+	          format: ui.ImageByteFormat.png,
+	        );
+        if (encoded == null) {
+          throw StateError('无法编码导出结果');
+        }
+        return Uint8List.fromList(
+          encoded.buffer.asUint8List(
+            encoded.offsetInBytes,
+            encoded.lengthInBytes,
+          ),
+        );
+      } catch (error, stackTrace) {
+        debugPrint(
+          'Failed to render procedural skybox overlay: $error\n$stackTrace',
+        );
+      } finally {
+        if (!modelImage.debugDisposed) {
+          modelImage.dispose();
+        }
+        picture?.dispose();
+        if (finalImage != null && !finalImage.debugDisposed) {
+          finalImage.dispose();
+        }
+      }
+    }
+
+    if (skybox != null) {
       _compositeSkyboxBackground(
         rgba: colorBuffer,
         width: width,
         height: height,
         skybox: skybox,
+        cameraYaw: widget.yaw,
+        cameraPitch: widget.pitch,
+        cameraZoom: widget.zoom,
       );
     } else {
       _compositeOpaqueBackground(
