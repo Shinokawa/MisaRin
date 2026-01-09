@@ -428,6 +428,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuReferenceModelAlex => 'Alexモデル';
 
   @override
+  String get menuReferenceModelCube => 'キューブモデル';
+
+  @override
   String get menuImportReferenceModelEllipsis => 'モデルをインポート…';
 
   @override

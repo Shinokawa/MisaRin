@@ -429,6 +429,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuReferenceModelAlex => 'Alex 모델';
 
   @override
+  String get menuReferenceModelCube => '큐브 모델';
+
+  @override
   String get menuImportReferenceModelEllipsis => '모델 가져오기…';
 
   @override

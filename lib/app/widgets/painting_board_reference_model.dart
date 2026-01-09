@@ -4,6 +4,7 @@ const String _kSteveReferenceModelAsset =
     'assets/bedrock_models/armor_steve.json';
 const String _kAlexReferenceModelAsset =
     'assets/bedrock_models/armor_alex.json';
+const String _kCubeReferenceModelAsset = 'assets/bedrock_models/cube.json';
 const String _kReferenceModelAnimationAsset =
     'assets/bedrock_models/dfsteve_armor.animation.json';
 
@@ -313,11 +314,15 @@ class _ReferenceModelCardEntry {
     required this.title,
     required this.modelMesh,
     required this.offset,
+    required this.supportsActions,
+    required this.supportsMultiView,
   });
 
   final int id;
   final String title;
   final BedrockModelMesh modelMesh;
+  final bool supportsActions;
+  final bool supportsMultiView;
   Offset offset;
   Size? size;
 }
@@ -350,6 +355,15 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     await _openReferenceModelFromAsset(
       _kAlexReferenceModelAsset,
       title: 'Alex模型',
+    );
+  }
+
+  Future<void> showCubeReferenceModelCard() async {
+    await _openReferenceModelFromAsset(
+      _kCubeReferenceModelAsset,
+      title: '方块模型',
+      supportsActions: false,
+      supportsMultiView: false,
     );
   }
 
@@ -416,6 +430,8 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   Future<void> _openReferenceModelFromAsset(
     String asset, {
     required String title,
+    bool supportsActions = true,
+    bool supportsMultiView = true,
   }) async {
     if (_referenceModelBuiltinLoadInProgress) {
       AppNotifications.show(
@@ -442,7 +458,12 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
       final BedrockModelMesh modelMesh = buildBedrockModelMesh(geometry);
       await _ensureReferenceModelTexture();
       if (!mounted) return;
-      _insertReferenceModelCard(title: title, modelMesh: modelMesh);
+      _insertReferenceModelCard(
+        title: title,
+        modelMesh: modelMesh,
+        supportsActions: supportsActions,
+        supportsMultiView: supportsMultiView,
+      );
     } catch (error, stackTrace) {
       debugPrint(
         'Failed to load built-in reference model: $error\n$stackTrace',
@@ -464,6 +485,8 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     Uint8List jsonBytes, {
     required String title,
     String? sourcePath,
+    bool supportsActions = true,
+    bool supportsMultiView = true,
   }) async {
     final BedrockModelMesh modelMesh = await _loadBedrockModelMeshFromAnyJson(
       jsonBytes,
@@ -473,7 +496,12 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     if (!mounted) {
       return;
     }
-    _insertReferenceModelCard(title: title, modelMesh: modelMesh);
+    _insertReferenceModelCard(
+      title: title,
+      modelMesh: modelMesh,
+      supportsActions: supportsActions,
+      supportsMultiView: supportsMultiView,
+    );
   }
 
   Future<BedrockModelMesh> _loadBedrockModelMeshFromAnyJson(
@@ -733,6 +761,8 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   void _insertReferenceModelCard({
     required String title,
     required BedrockModelMesh modelMesh,
+    bool supportsActions = true,
+    bool supportsMultiView = true,
   }) {
     final int id = ++_referenceModelCardSerial;
     final Offset offset = _initialReferenceModelCardOffset();
@@ -743,6 +773,8 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
           title: title,
           modelMesh: modelMesh,
           offset: offset,
+          supportsActions: supportsActions,
+          supportsMultiView: supportsMultiView,
         ),
       );
     });
@@ -863,4 +895,3 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     _referenceModelCards.clear();
   }
 }
-

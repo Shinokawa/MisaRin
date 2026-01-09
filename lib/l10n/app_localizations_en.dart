@@ -439,6 +439,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuReferenceModelAlex => 'Alex Model';
 
   @override
+  String get menuReferenceModelCube => 'Cube Model';
+
+  @override
   String get menuImportReferenceModelEllipsis => 'Import Model…';
 
   @override

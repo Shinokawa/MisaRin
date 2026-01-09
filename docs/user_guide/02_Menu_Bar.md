@@ -93,6 +93,7 @@
 - 参考模型（Reference Model）
   - Steve 模型：打开内置 Steve 参考模型卡片。
   - Alex 模型：打开内置 Alex 参考模型卡片。
+  - 方块模型：打开内置方块参考模型卡片。
   - 导入模型…：导入 Bedrock 格式（`.json`）模型作为参考模型卡片。
 
 ## View（视图）

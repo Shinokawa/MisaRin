@@ -212,6 +212,7 @@
   "menuReferenceModel": "参照モデル",
   "menuReferenceModelSteve": "Steveモデル",
   "menuReferenceModelAlex": "Alexモデル",
+  "menuReferenceModelCube": "キューブモデル",
   "menuImportReferenceModelEllipsis": "モデルをインポート\u2026",
   "referenceModelRefreshTexture": "テクスチャを更新",
   "referenceModelRefreshTextureDesc": "現在のキャンバスからモデル用テクスチャを生成",

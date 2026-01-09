@@ -872,6 +872,12 @@ abstract class AppLocalizations {
   /// **'Alex Model'**
   String get menuReferenceModelAlex;
 
+  /// No description provided for @menuReferenceModelCube.
+  ///
+  /// In en, this message translates to:
+  /// **'Cube Model'**
+  String get menuReferenceModelCube;
+
   /// No description provided for @menuImportReferenceModelEllipsis.
   ///
   /// In en, this message translates to:

@@ -212,6 +212,7 @@
   "menuReferenceModel": "\ucc38\uc870 \ubaa8\ub378",
   "menuReferenceModelSteve": "Steve \ubaa8\ub378",
   "menuReferenceModelAlex": "Alex \ubaa8\ub378",
+  "menuReferenceModelCube": "\ud050\ube0c \ubaa8\ub378",
   "menuImportReferenceModelEllipsis": "\ubaa8\ub378 \uac00\uc838\uc624\uae30\u2026",
   "referenceModelRefreshTexture": "텍스처 새로고침",
   "referenceModelRefreshTextureDesc": "현재 캔버스로부터 모델 텍스처 생성",

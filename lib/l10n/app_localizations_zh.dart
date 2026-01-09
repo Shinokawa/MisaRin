@@ -427,6 +427,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuReferenceModelAlex => 'Alex模型';
 
   @override
+  String get menuReferenceModelCube => '方块模型';
+
+  @override
   String get menuImportReferenceModelEllipsis => '导入模型…';
 
   @override
@@ -2410,6 +2413,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuReferenceModelAlex => 'Alex模型';
 
   @override
+  String get menuReferenceModelCube => '方块模型';
+
+  @override
   String get menuImportReferenceModelEllipsis => '导入模型…';
 
   @override
@@ -3241,6 +3247,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuReferenceModelAlex => 'Alex模型';
+
+  @override
+  String get menuReferenceModelCube => '方塊模型';
 
   @override
   String get menuImportReferenceModelEllipsis => '匯入模型…';

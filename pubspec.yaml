@@ -80,6 +80,7 @@ flutter:
     - icons/spray.svg
     - assets/bedrock_models/armor_steve.json
     - assets/bedrock_models/armor_alex.json
+    - assets/bedrock_models/cube.json
     - assets/bedrock_models/dfsteve_armor.animation.json
 
   shaders:

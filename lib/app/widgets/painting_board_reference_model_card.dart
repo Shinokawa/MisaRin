@@ -6,6 +6,8 @@ class _ReferenceModelCard extends StatefulWidget {
     required this.title,
     required this.modelMesh,
     required this.texture,
+    this.supportsActions = true,
+    this.supportsMultiView = true,
     required this.dialogContext,
     required this.onClose,
     required this.onDragStart,
@@ -18,6 +20,8 @@ class _ReferenceModelCard extends StatefulWidget {
   final String title;
   final BedrockModelMesh modelMesh;
   final ui.Image? texture;
+  final bool supportsActions;
+  final bool supportsMultiView;
   final BuildContext dialogContext;
   final VoidCallback onClose;
   final VoidCallback onDragStart;
@@ -52,7 +56,9 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
   void initState() {
     super.initState();
     _actionController = AnimationController(vsync: this);
-    unawaited(_ensureActionCatalog());
+    if (widget.supportsActions) {
+      unawaited(_ensureActionCatalog());
+    }
   }
 
   @override
@@ -70,6 +76,9 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
   }
 
   void _toggleMultiView() {
+    if (!widget.supportsMultiView) {
+      return;
+    }
     setState(() {
       _multiViewEnabled = !_multiViewEnabled;
     });
@@ -89,6 +98,9 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
   }
 
   Future<BedrockAnimationLibrary?> _ensureAnimationLibrary() async {
+    if (!widget.supportsActions) {
+      return null;
+    }
     if (_animationLibrary != null) {
       return _animationLibrary;
     }
@@ -127,6 +139,9 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
   }
 
   Future<_ReferenceModelActionCatalog?> _ensureActionCatalog() async {
+    if (!widget.supportsActions) {
+      return null;
+    }
     final BedrockAnimationLibrary? library = await _ensureAnimationLibrary();
     if (library == null) {
       return null;
@@ -161,6 +176,10 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
 
   void _applySelectedAnimation() {
     _actionController.stop();
+    if (!widget.supportsActions) {
+      _actionController.value = 0;
+      return;
+    }
     if (_selectedAction == _kReferenceModelActionNone) {
       _actionController.value = 0;
       return;
@@ -203,6 +222,8 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
     final l10n = context.l10n;
 
     final Color gridLineColor = border.withValues(alpha: border.a * 0.55);
+    final bool multiViewEnabled =
+        widget.supportsMultiView && _multiViewEnabled;
 
     Widget buildModelPaint({
       required double yaw,
@@ -217,8 +238,8 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
         yaw: yaw,
         pitch: pitch,
         zoom: _zoom,
-        animation: _selectedAnimation,
-        animationController: _actionController,
+        animation: widget.supportsActions ? _selectedAnimation : null,
+        animationController: widget.supportsActions ? _actionController : null,
       );
 
       if (label != null && label.trim().isNotEmpty) {
@@ -314,21 +335,22 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
         title: widget.title,
         width: _referenceModelCardWidth,
         headerActions: [
-          HoverDetailTooltip(
-            message: '动作',
-            detail: _selectedAction == _kReferenceModelActionNone
-                ? '切换预览动作'
-                : '当前：${_displayNameForActionId(_selectedAction)}'
-                      '${_selectedActionItem?.isAnimated == true ? '（动画）' : ''}',
-            child: IconButton(
-              icon: const Icon(FluentIcons.running, size: 14),
-              iconButtonMode: IconButtonMode.small,
-              style: ButtonStyle(
-                padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+          if (widget.supportsActions)
+            HoverDetailTooltip(
+              message: '动作',
+              detail: _selectedAction == _kReferenceModelActionNone
+                  ? '切换预览动作'
+                  : '当前：${_displayNameForActionId(_selectedAction)}'
+                        '${_selectedActionItem?.isAnimated == true ? '（动画）' : ''}',
+              child: IconButton(
+                icon: const Icon(FluentIcons.running, size: 14),
+                iconButtonMode: IconButtonMode.small,
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+                ),
+                onPressed: _showActionDialog,
               ),
-              onPressed: _showActionDialog,
             ),
-          ),
           HoverDetailTooltip(
             message: l10n.referenceModelRefreshTexture,
             detail: l10n.referenceModelRefreshTextureDesc,
@@ -365,26 +387,27 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
               onPressed: _showBakeDialog,
             ),
           ),
-          HoverDetailTooltip(
-            message: _multiViewEnabled
-                ? l10n.referenceModelSingleView
-                : l10n.referenceModelSixView,
-            detail: _multiViewEnabled
-                ? l10n.referenceModelSingleViewDesc
-                : l10n.referenceModelSixViewDesc,
-            child: IconButton(
-              icon: Icon(
-                FluentIcons.picture,
-                size: 14,
-                color: _multiViewEnabled ? accent : null,
+          if (widget.supportsMultiView)
+            HoverDetailTooltip(
+              message: multiViewEnabled
+                  ? l10n.referenceModelSingleView
+                  : l10n.referenceModelSixView,
+              detail: multiViewEnabled
+                  ? l10n.referenceModelSingleViewDesc
+                  : l10n.referenceModelSixViewDesc,
+              child: IconButton(
+                icon: Icon(
+                  FluentIcons.picture,
+                  size: 14,
+                  color: multiViewEnabled ? accent : null,
+                ),
+                iconButtonMode: IconButtonMode.small,
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+                ),
+                onPressed: _toggleMultiView,
               ),
-              iconButtonMode: IconButtonMode.small,
-              style: ButtonStyle(
-                padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
-              ),
-              onPressed: _toggleMultiView,
             ),
-          ),
         ],
         onClose: widget.onClose,
         onDragStart: widget.onDragStart,
@@ -395,7 +418,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!_multiViewEnabled)
+            if (!multiViewEnabled)
               buildModelViewport(
                 height: _referenceModelViewportHeight,
                 yaw: _yaw,

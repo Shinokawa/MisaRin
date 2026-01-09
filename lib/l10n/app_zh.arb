@@ -212,6 +212,7 @@
   "menuReferenceModel": "参考模型",
   "menuReferenceModelSteve": "Steve模型",
   "menuReferenceModelAlex": "Alex模型",
+  "menuReferenceModelCube": "方块模型",
   "menuImportReferenceModelEllipsis": "导入模型…",
   "referenceModelRefreshTexture": "刷新贴图",
   "referenceModelRefreshTextureDesc": "从当前画布生成模型贴图",

@@ -212,6 +212,7 @@
   "menuReferenceModel": "Reference Model",
   "menuReferenceModelSteve": "Steve Model",
   "menuReferenceModelAlex": "Alex Model",
+  "menuReferenceModelCube": "Cube Model",
   "menuImportReferenceModelEllipsis": "Import Model\u2026",
   "referenceModelRefreshTexture": "Refresh Texture",
   "referenceModelRefreshTextureDesc": "Generate a model texture from the current canvas",

@@ -497,6 +497,11 @@ class MenuDefinitionBuilder {
           label: l10n.menuReferenceModelAlex,
           action: handler.showAlexReferenceModel,
         ),
+      if (handler.showCubeReferenceModel != null)
+        MenuActionEntry(
+          label: l10n.menuReferenceModelCube,
+          action: handler.showCubeReferenceModel,
+        ),
       if (handler.importReferenceModel != null)
         MenuActionEntry(
           label: l10n.menuImportReferenceModelEllipsis,

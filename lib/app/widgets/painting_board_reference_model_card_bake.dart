@@ -396,8 +396,9 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                       yaw: previewYaw,
                       pitch: previewPitch,
                       zoom: previewZoom,
-                      animation: _selectedAnimation,
-                      animationController: _actionController,
+                      animation: widget.supportsActions ? _selectedAnimation : null,
+                      animationController:
+                          widget.supportsActions ? _actionController : null,
                       lightDirection:
                           usesBakedLighting ? bakedLighting!.lightDirection : null,
                       ambient: usesBakedLighting ? bakedLighting!.ambient : 0.55,

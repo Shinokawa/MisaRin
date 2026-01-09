@@ -208,6 +208,8 @@ mixin _PaintingBoardBuildMixin
               title: entry.title,
               modelMesh: entry.modelMesh,
               texture: _referenceModelTexture,
+              supportsActions: entry.supportsActions,
+              supportsMultiView: entry.supportsMultiView,
               dialogContext: context,
               onClose: () => _closeReferenceModelCard(entry.id),
               onDragStart: () => _focusReferenceModelCard(entry.id),

@@ -1808,6 +1808,10 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         unawaited(board?.showAlexReferenceModelCard());
       },
+      showCubeReferenceModel: () {
+        final board = _activeBoard;
+        unawaited(board?.showCubeReferenceModelCard());
+      },
       importReferenceModel: () {
         final board = _activeBoard;
         unawaited(board?.importReferenceModelCard());
