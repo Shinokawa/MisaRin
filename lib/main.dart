@@ -11,10 +11,19 @@ import 'app/app.dart';
 import 'app/l10n/l10n.dart';
 import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
+import 'src/rust/frb_generated.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   TabletInputBridge.instance.ensureInitialized();
+
+  if (!kIsWeb) {
+    try {
+      await RustLib.init();
+    } catch (error, stackTrace) {
+      debugPrint('RustLib.init failed: $error\n$stackTrace');
+    }
+  }
 
   final Future<void> preloadFuture = _preloadCoreServices();
 

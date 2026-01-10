@@ -7,7 +7,21 @@ import 'dart:ui'; // Keep dart:ui for Color, but DO NOT use Canvas/PictureRecord
 import '../bitmap_canvas/bitmap_canvas.dart';
 import '../canvas/canvas_tools.dart';
 import '../canvas/brush_shape_geometry.dart';
+import '../src/rust/api/bucket_fill.dart' as rust_bucket;
+import '../src/rust/frb_generated.dart';
 // Removed vector_stroke_painter import as we don't draw vectors in worker anymore.
+
+Future<void>? _rustInitFuture;
+
+Future<void> _ensureRustInitialized() async {
+  try {
+    _rustInitFuture ??= RustLib.init();
+    await _rustInitFuture;
+  } catch (_) {
+    _rustInitFuture = null;
+    rethrow;
+  }
+}
 
 enum PaintingDrawCommandType {
   brushStamp,
@@ -1240,27 +1254,89 @@ Object? _paintingWorkerHandleFloodFill(
   if (surface == null) {
     return _paintingWorkerEmptyPatch(0, 0, 0, 0);
   }
-  final _FloodFillResult result = _paintingWorkerFloodFillSurface(
-    surface: surface,
-    startX: payload['startX'] as int? ?? 0,
-    startY: payload['startY'] as int? ?? 0,
-    colorValue: payload['color'] as int? ?? 0,
-    targetColorValue: payload['targetColor'] as int?,
-    contiguous: payload['contiguous'] as bool? ?? true,
-    mask: state.selectionMask,
-    tolerance: payload['tolerance'] as int? ?? 0,
-    fillGap: payload['fillGap'] as int? ?? 0,
-  );
-  if (!result.changed) {
-    return _paintingWorkerEmptyPatch(0, 0, 0, 0);
+
+  // Prefer Rust implementation for performance; fall back to Dart on failure.
+  return _paintingWorkerHandleFloodFillWithRustFallback(state, payload, surface);
+}
+
+Future<Object?> _paintingWorkerHandleFloodFillWithRustFallback(
+  _PaintingWorkerState state,
+  Map<String, Object?> payload,
+  BitmapSurface surface,
+) async {
+  final int startX = payload['startX'] as int? ?? 0;
+  final int startY = payload['startY'] as int? ?? 0;
+  final int colorValue = payload['color'] as int? ?? 0;
+  final int? targetColorValue = payload['targetColor'] as int?;
+  final bool contiguous = payload['contiguous'] as bool? ?? true;
+  final int tolerance = payload['tolerance'] as int? ?? 0;
+  final int fillGap = payload['fillGap'] as int? ?? 0;
+
+  try {
+    await _ensureRustInitialized();
+    final rust_bucket.FloodFillPatch patch = await rust_bucket.floodFillPatch(
+      width: surface.width,
+      height: surface.height,
+      pixels: surface.pixels,
+      startX: startX,
+      startY: startY,
+      colorValue: colorValue,
+      targetColorValue: targetColorValue,
+      contiguous: contiguous,
+      tolerance: tolerance,
+      fillGap: fillGap,
+      selectionMask: state.selectionMask,
+    );
+
+    if (patch.width <= 0 || patch.height <= 0 || patch.pixels.isEmpty) {
+      return _paintingWorkerEmptyPatch(0, 0, 0, 0);
+    }
+
+    _paintingWorkerBlitPatch(
+      surface: surface,
+      left: patch.left,
+      top: patch.top,
+      width: patch.width,
+      height: patch.height,
+      pixels: patch.pixels,
+    );
+
+    final Uint8List patchBytes = patch.pixels.buffer.asUint8List(
+      patch.pixels.offsetInBytes,
+      patch.pixels.lengthInBytes,
+    );
+    return <String, Object?>{
+      'left': patch.left,
+      'top': patch.top,
+      'width': patch.width,
+      'height': patch.height,
+      'pixels': TransferableTypedData.fromList(<Uint8List>[
+        patchBytes,
+      ]),
+    };
+  } catch (_) {
+    final _FloodFillResult result = _paintingWorkerFloodFillSurface(
+      surface: surface,
+      startX: startX,
+      startY: startY,
+      colorValue: colorValue,
+      targetColorValue: targetColorValue,
+      contiguous: contiguous,
+      mask: state.selectionMask,
+      tolerance: tolerance,
+      fillGap: fillGap,
+    );
+    if (!result.changed) {
+      return _paintingWorkerEmptyPatch(0, 0, 0, 0);
+    }
+    return _paintingWorkerExportPatch(
+      surface: surface,
+      left: result.left,
+      top: result.top,
+      width: result.width,
+      height: result.height,
+    );
   }
-  return _paintingWorkerExportPatch(
-    surface: surface,
-    left: result.left,
-    top: result.top,
-    width: result.width,
-    height: result.height,
-  );
 }
 
 Map<String, Object?> _paintingWorkerHandleLegacyFloodFill(
