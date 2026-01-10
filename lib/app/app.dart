@@ -37,6 +37,7 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
   late ThemeMode _themeMode;
   late Locale? _locale;
   bool _windowListenerAttached = false;
+  bool _closeRequestInProgress = false;
 
   @override
   void initState() {
@@ -91,22 +92,30 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     if (!_windowListenerAttached) {
       return;
     }
+    if (_closeRequestInProgress) {
+      return;
+    }
     unawaited(_handleWindowCloseRequest());
   }
 
   Future<void> _handleWindowCloseRequest() async {
-    if (!mounted) {
-      await windowManager.destroy();
+    if (_closeRequestInProgress) {
       return;
     }
-    final bool isPreventClose = await windowManager.isPreventClose();
-    if (!isPreventClose) {
-      await windowManager.destroy();
-      return;
-    }
-    final bool canClose = await _confirmDiscardUnsavedProjects();
-    if (canClose) {
-      await windowManager.destroy();
+    _closeRequestInProgress = true;
+    try {
+      final bool isPreventClose = await windowManager.isPreventClose();
+      if (!isPreventClose) {
+        return;
+      }
+      final bool canClose = mounted ? await _confirmDiscardUnsavedProjects() : true;
+      if (!canClose) {
+        return;
+      }
+      await windowManager.setPreventClose(false);
+      await windowManager.close();
+    } finally {
+      _closeRequestInProgress = false;
     }
   }
 
