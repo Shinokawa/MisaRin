@@ -78,21 +78,6 @@ void _fillFloodFill(
             tolerance: clampedTolerance,
             fillGap: clampedFillGap,
           ),
-          onError: () {
-            controller._activeSurface.floodFill(
-              start: Offset(x.toDouble(), y.toDouble()),
-              color: color,
-              targetColor: baseColor,
-              contiguous: contiguous,
-              mask: controller._selectionMask,
-              fillGap: clampedFillGap,
-            );
-            controller._resetWorkerSurfaceSync();
-            controller._markDirty(
-              layerId: controller._activeLayer.id,
-              pixelsDirty: true,
-            );
-          },
         );
       } else {
         controller._activeSurface.floodFill(
