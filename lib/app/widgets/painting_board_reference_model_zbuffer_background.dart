@@ -103,6 +103,14 @@ void _compositeSkyboxBackground({
   final Color highlightColor = palette.highlightColor;
   final Color shadowColor = palette.shadowColor;
 
+  final double normalizedTime = skybox.timeHours.isFinite
+      ? (skybox.timeHours % 24 + 24) % 24
+      : 12.0;
+  final double dayPhase = ((normalizedTime - 6.0) / 12.0) * math.pi;
+  final double sunHeight = math.sin(dayPhase).clamp(-1.0, 1.0).toDouble();
+  final double dayBlend = palette.dayBlend.clamp(0.0, 1.0).toDouble();
+  final double nightBlend = (1.0 - dayBlend).clamp(0.0, 1.0).toDouble();
+
   int to8(double v) => (v * 255).round().clamp(0, 255);
 
   final int zenithR = to8(zenith.r);
@@ -123,6 +131,22 @@ void _compositeSkyboxBackground({
   final int shadowR = to8(shadowColor.r);
   final int shadowG = to8(shadowColor.g);
   final int shadowB = to8(shadowColor.b);
+
+  final Color sunDiscBase = Color.lerp(
+        const Color(0xFFFFA36D),
+        skybox.sunColor,
+        0.65,
+      ) ??
+      skybox.sunColor;
+  final Color moonDiscBase =
+      Color.lerp(const Color(0xFF8FA5CC), skybox.sunColor, 0.85) ??
+          skybox.sunColor;
+  final int sunDiscR = to8(sunDiscBase.r);
+  final int sunDiscG = to8(sunDiscBase.g);
+  final int sunDiscB = to8(sunDiscBase.b);
+  final int moonDiscR = to8(moonDiscBase.r);
+  final int moonDiscG = to8(moonDiscBase.g);
+  final int moonDiscB = to8(moonDiscBase.b);
 
   final int cloudOpacity8 = (palette.cloudOpacity * 255).round().clamp(0, 255);
   final int shadowOpacity8 = (palette.shadowOpacity * 255).round().clamp(0, 255);
@@ -195,6 +219,13 @@ void _compositeSkyboxBackground({
   final double zoomFactor = cameraZoom.isFinite
       ? cameraZoom.clamp(0.8, 2.5).toDouble()
       : 1.0;
+  final double fov = 1.1 / zoomFactor;
+  final double aspect = width / math.max(height, 1);
+  final double cosYaw = math.cos(cameraYaw.isFinite ? cameraYaw : 0.0);
+  final double sinYaw = math.sin(cameraYaw.isFinite ? cameraYaw : 0.0);
+  final double cosPitch = math.cos(cameraPitch.isFinite ? cameraPitch : 0.0);
+  final double sinPitch = math.sin(cameraPitch.isFinite ? cameraPitch : 0.0);
+
   final double tileSize = math.max(
     128.0,
     math.min(width.toDouble(), height.toDouble()) * 1.60 * zoomFactor,
@@ -209,6 +240,62 @@ void _compositeSkyboxBackground({
       seedScrollX + timeDrift * 0.38 + camYaw / (math.pi * 2) * 120.0;
   final double scrollY =
       seedScrollY + timeDrift * 0.16 - camPitch / math.pi * 80.0;
+
+  ({double x, double y})? projectDir(double x, double y, double z) {
+    final double x1 = cosYaw * x + sinYaw * z;
+    final double y1 = y;
+    final double z1 = -sinYaw * x + cosYaw * z;
+    final double x2 = x1;
+    final double y2 = cosPitch * y1 - sinPitch * z1;
+    final double z2 = sinPitch * y1 + cosPitch * z1;
+    if (z2 <= 1e-3) {
+      return null;
+    }
+    final double px = x2 * fov / z2;
+    final double py = y2 * fov / z2;
+    final double u = px / (2.0 * aspect) + 0.5;
+    final double v = 0.5 - py / 2.0;
+    if (u.isNaN || v.isNaN) {
+      return null;
+    }
+    return (x: u * width, y: v * height);
+  }
+
+  final double azimuth = (normalizedTime / 24.0) * math.pi * 2.0;
+  final Vector3 sunDir = Vector3(math.cos(azimuth), sunHeight, -math.sin(azimuth));
+  if (sunDir.length2 > 1e-6) {
+    sunDir.normalize();
+  }
+  final Vector3 moonDir =
+      Vector3(math.cos(azimuth + math.pi), -sunHeight, -math.sin(azimuth + math.pi));
+  if (moonDir.length2 > 1e-6) {
+    moonDir.normalize();
+  }
+
+  final double sunVis =
+      (_smoothstep(-0.12, 0.05, sunHeight) * dayBlend).clamp(0.0, 1.0);
+  final double moonVis =
+      (_smoothstep(-0.10, 0.06, -sunHeight) * nightBlend).clamp(0.0, 1.0);
+
+  final ({double x, double y})? sunCenter =
+      sunVis > 1e-6 ? projectDir(sunDir.x, sunDir.y, sunDir.z) : null;
+  final ({double x, double y})? moonCenter =
+      moonVis > 1e-6 ? projectDir(moonDir.x, moonDir.y, moonDir.z) : null;
+
+  final double sunCoreRadius = math.tan(0.040) / fov * (height / 2.0);
+  final double sunGlowRadius = math.tan(0.130) / fov * (height / 2.0);
+  final double moonCoreRadius = math.tan(0.034) / fov * (height / 2.0);
+  final double moonGlowRadius = math.tan(0.090) / fov * (height / 2.0);
+
+  final double sunGlowR2 = sunGlowRadius * sunGlowRadius;
+  final double sunCoreR2 = sunCoreRadius * sunCoreRadius;
+  final double moonGlowR2 = moonGlowRadius * moonGlowRadius;
+  final double moonCoreR2 = moonCoreRadius * moonCoreRadius;
+
+  final double starStrength = math.pow(nightBlend, 1.8).clamp(0.0, 1.0).toDouble();
+  final int starSeed = skybox.seed ^ 0x5bd1e995;
+  final int starShiftX = ((camYaw / (math.pi * 2)) * 2048).round();
+  final int starShiftY = ((-camPitch / math.pi) * 1024).round();
 
   double lightDx = skybox.lightDirection.x;
   double lightDy = -skybox.lightDirection.z;
@@ -239,6 +326,8 @@ void _compositeSkyboxBackground({
 
     final double fade = 1.0 - _smoothstep(0.55, 0.98, v);
     final int fade8 = (fade * 255).round().clamp(0, 255);
+    final double starFade = 1.0 - _smoothstep(0.40, 0.98, v);
+    final int starRow8 = (starStrength * starFade * 255).round().clamp(0, 255);
     final int rowStart = y * width;
     final double my = scrollY + y * scale;
 
@@ -253,6 +342,79 @@ void _compositeSkyboxBackground({
       int bgR = baseR;
       int bgG = baseG;
       int bgB = baseB;
+
+      if (starRow8 > 0) {
+        final int qx = (x + starShiftX) >> 1;
+        final int qy = (y + starShiftY) >> 1;
+        final int h = _hash2d(qx, qy, starSeed);
+        final int r8 = (h >> 16) & 0xff;
+        if (r8 >= 252) {
+          final int strength =
+              (((r8 - 252) * 85).clamp(0, 255) * starRow8) ~/ 255;
+          final int temp = (h >> 8) & 0xff;
+          final int sR = (220 + (temp & 0x1f)).clamp(0, 255);
+          final int sG = (232 + ((temp >> 2) & 0x1f)).clamp(0, 255);
+          const int sB = 255;
+          bgR = blendScreen(bgR, sR, strength);
+          bgG = blendScreen(bgG, sG, strength);
+          bgB = blendScreen(bgB, sB, strength);
+        }
+      }
+
+      if (sunCenter != null) {
+        final double dx = x - sunCenter.x;
+        final double dy = y - sunCenter.y;
+        final double d2 = dx * dx + dy * dy;
+        if (d2 <= sunGlowR2) {
+          final double w =
+              ((1.0 - d2 / sunGlowR2).clamp(0.0, 1.0).toDouble());
+          final int alpha =
+              (sunVis * 255.0 * math.pow(w, 2.4)).round().clamp(0, 255);
+          if (alpha > 0) {
+            bgR = blendScreen(bgR, sunDiscR, (alpha * 115) ~/ 255);
+            bgG = blendScreen(bgG, sunDiscG, (alpha * 115) ~/ 255);
+            bgB = blendScreen(bgB, sunDiscB, (alpha * 115) ~/ 255);
+          }
+        }
+        if (d2 <= sunCoreR2) {
+          final double w = (1.0 - d2 / sunCoreR2).clamp(0.0, 1.0).toDouble();
+          final int alpha =
+              (sunVis * 255.0 * math.pow(w, 1.8)).round().clamp(0, 255);
+          if (alpha > 0) {
+            bgR = blendScreen(bgR, sunDiscR, (alpha * 230) ~/ 255);
+            bgG = blendScreen(bgG, sunDiscG, (alpha * 230) ~/ 255);
+            bgB = blendScreen(bgB, sunDiscB, (alpha * 230) ~/ 255);
+          }
+        }
+      }
+
+      if (moonCenter != null) {
+        final double dx = x - moonCenter.x;
+        final double dy = y - moonCenter.y;
+        final double d2 = dx * dx + dy * dy;
+        if (d2 <= moonGlowR2) {
+          final double w =
+              ((1.0 - d2 / moonGlowR2).clamp(0.0, 1.0).toDouble());
+          final int alpha =
+              (moonVis * 255.0 * math.pow(w, 2.0)).round().clamp(0, 255);
+          if (alpha > 0) {
+            bgR = blendScreen(bgR, moonDiscR, (alpha * 70) ~/ 255);
+            bgG = blendScreen(bgG, moonDiscG, (alpha * 70) ~/ 255);
+            bgB = blendScreen(bgB, moonDiscB, (alpha * 70) ~/ 255);
+          }
+        }
+        if (d2 <= moonCoreR2) {
+          final double w =
+              (1.0 - d2 / moonCoreR2).clamp(0.0, 1.0).toDouble();
+          final int alpha =
+              (moonVis * 255.0 * math.pow(w, 1.6)).round().clamp(0, 255);
+          if (alpha > 0) {
+            bgR = blendScreen(bgR, moonDiscR, (alpha * 160) ~/ 255);
+            bgG = blendScreen(bgG, moonDiscG, (alpha * 160) ~/ 255);
+            bgB = blendScreen(bgB, moonDiscB, (alpha * 160) ~/ 255);
+          }
+        }
+      }
 
       if (fade8 > 0 && cloudOpacity8 > 0) {
         final double sx = scrollX + x * scale;

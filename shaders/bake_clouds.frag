@@ -21,6 +21,9 @@ uniform float uShadowStrength;
 
 out vec4 fragColor;
 
+const float PI = 3.1415926535897932384626433832795;
+const float TAU = 6.2831853071795864769252867665590;
+
 vec3 _rotateY(vec3 v, float a) {
   float s = sin(a);
   float c = cos(a);
@@ -158,6 +161,15 @@ void main() {
   vec2 coord = FlutterFragCoord().xy;
   vec2 uv = coord / uResolution;
 
+  float normalizedTime = mod(uTime, 24.0);
+  if (normalizedTime < 0.0) {
+    normalizedTime += 24.0;
+  }
+  float dayPhase = ((normalizedTime - 6.0) / 12.0) * PI;
+  float sunHeight = clamp(sin(dayPhase), -1.0, 1.0);
+  float dayBlend = smoothstep(-0.35, 0.15, sunHeight);
+  float nightBlend = 1.0 - dayBlend;
+
   float aspect = uResolution.x / max(uResolution.y, 1.0);
   vec2 p = vec2((uv.x - 0.5) * 2.0 * aspect, (0.5 - uv.y) * 2.0);
   float zoom = clamp(uCameraZoom, 0.8, 2.5);
@@ -169,6 +181,69 @@ void main() {
   vec3 sunDir = normalize(uSunDir);
   float skyT = clamp(1.0 - rayDir.y, 0.0, 1.0);
   vec3 sky = mix(uZenithColor, uHorizonColor, skyT);
+
+  // Stars + sun/moon: all composited behind clouds.
+  float starsStrength = pow(_saturate(nightBlend), 1.8);
+  starsStrength *= smoothstep(0.02, 0.38, rayDir.y);
+  if (starsStrength > 0.001) {
+    vec2 skyUv = vec2(
+      atan(rayDir.x, rayDir.z) / TAU + 0.5,
+      asin(clamp(rayDir.y, -1.0, 1.0)) / PI + 0.5
+    );
+    vec2 starCoord = skyUv * vec2(520.0, 260.0);
+    vec2 baseCell = floor(starCoord);
+
+    vec3 stars = vec3(0.0);
+    for (int oy = -1; oy <= 1; oy++) {
+      for (int ox = -1; ox <= 1; ox++) {
+        vec2 cell = baseCell + vec2(float(ox), float(oy));
+        float rnd = _hash12(cell + uSeed * 0.031 + 12.34);
+        if (rnd > 0.985) {
+          vec2 jitter = vec2(
+            _hash12(cell + vec2(3.1, 5.7)),
+            _hash12(cell + vec2(7.3, 1.9))
+          );
+          vec2 starPos = cell + jitter;
+          vec2 d = starCoord - starPos;
+          float dist2 = dot(d, d);
+
+          float size = mix(0.03, 0.11, _hash12(cell + vec2(2.2, 9.4)));
+          float size2 = max(1e-4, size * size);
+          float core = smoothstep(size2, 0.0, dist2);
+          float sparkle = smoothstep(0.985, 0.9995, rnd);
+          float twinkle = 0.75 + 0.25 * sin((uTime * 0.18 + rnd * 17.0) * TAU);
+          float intensity = core * sparkle * twinkle;
+
+          vec3 starColor = mix(
+            vec3(0.65, 0.72, 1.0),
+            vec3(1.0),
+            _hash12(cell + vec2(5.9, 2.6))
+          );
+          stars += starColor * intensity;
+        }
+      }
+    }
+    sky += stars * starsStrength * 0.95;
+  }
+
+  float azimuth = normalizedTime / 24.0 * TAU;
+  vec3 sunDiscDir = normalize(vec3(cos(azimuth), sunHeight, -sin(azimuth)));
+  vec3 moonDiscDir = normalize(vec3(cos(azimuth + PI), -sunHeight, -sin(azimuth + PI)));
+
+  float sunDot = clamp(dot(rayDir, sunDiscDir), -1.0, 1.0);
+  float moonDot = clamp(dot(rayDir, moonDiscDir), -1.0, 1.0);
+
+  float sunCore = smoothstep(cos(0.040), 1.0, sunDot);
+  float sunGlow = pow(smoothstep(cos(0.130), 1.0, sunDot), 2.4);
+  float sunVis = smoothstep(-0.12, 0.05, sunHeight) * dayBlend;
+  vec3 sunCol = mix(vec3(1.0, 0.66, 0.34), uSunColor, 0.65);
+  sky += sunCol * sunVis * (sunGlow * 0.45 + sunCore * 1.35);
+
+  float moonCore = smoothstep(cos(0.034), 1.0, moonDot);
+  float moonGlow = pow(smoothstep(cos(0.090), 1.0, moonDot), 2.0);
+  float moonVis = smoothstep(-0.10, 0.06, -sunHeight) * nightBlend;
+  vec3 moonCol = mix(vec3(0.55, 0.62, 0.85), uSunColor, 0.85);
+  sky += moonCol * moonVis * (moonGlow * 0.22 + moonCore * 0.62);
 
   if (rayDir.y <= 0.001) {
     fragColor = vec4(sky, 1.0);

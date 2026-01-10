@@ -48,12 +48,44 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       previewRenderKey += 1;
     }
 
+    bool isTimePlaying = false;
+    const double timePlaySpeedHoursPerSecond = 0.25;
+    StateSetter? dialogSetState;
+    Duration? lastTickElapsed;
+    final Ticker timeTicker = createTicker((Duration elapsed) {
+      final StateSetter? setState = dialogSetState;
+      if (setState == null) {
+        lastTickElapsed = elapsed;
+        return;
+      }
+      if (!isTimePlaying || isBaking || !rendererPreset.usesBakedLighting) {
+        lastTickElapsed = elapsed;
+        return;
+      }
+      final Duration previous = lastTickElapsed ?? elapsed;
+      final double dtSeconds =
+          (elapsed - previous).inMicroseconds.toDouble() / 1000000.0;
+      lastTickElapsed = elapsed;
+      if (dtSeconds <= 0) {
+        return;
+      }
+      setState(() {
+        timeHours = (timeHours + dtSeconds * timePlaySpeedHoursPerSecond) % 24.0;
+        markPreviewDirty();
+      });
+    });
+
     OverlayEntry? dialogEntry;
     Completer<void>? dialogCompleter;
 
     void closeDialog() {
       if (isBaking) {
         return;
+      }
+      if (isTimePlaying) {
+        isTimePlaying = false;
+        timeTicker.stop();
+        lastTickElapsed = null;
       }
       dialogEntry?.remove();
       dialogEntry = null;
@@ -225,6 +257,11 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       try {
         setDialogState(() {
           isBaking = true;
+          if (isTimePlaying) {
+            isTimePlaying = false;
+            timeTicker.stop();
+            lastTickElapsed = null;
+          }
           markPreviewDirty();
         });
 
@@ -330,6 +367,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
             Center(
               child: StatefulBuilder(
                 builder: (BuildContext context, StateSetter setDialogState) {
+                  dialogSetState = setDialogState;
                   final FluentThemeData theme = FluentTheme.of(context);
                   final Color border =
                       theme.resources.controlStrokeColorDefault;
@@ -747,6 +785,11 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                                                                                                                                                                                                             setDialogState(() {
                           
                                                                                                                                                                                                                               rendererPreset = preset;
+                                                                                                                                                                                                                              if (!preset.usesBakedLighting && isTimePlaying) {
+                                                                                                                                                                                                                                isTimePlaying = false;
+                                                                                                                                                                                                                                timeTicker.stop();
+                                                                                                                                                                                                                                lastTickElapsed = null;
+                                                                                                                                                                                                                              }
                           
                                                                                                                                                                                                                               markPreviewDirty();
                           
@@ -971,6 +1014,11 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                       ? null
                                       : (value) {
                                           setDialogState(() {
+                                            if (isTimePlaying) {
+                                              isTimePlaying = false;
+                                              timeTicker.stop();
+                                              lastTickElapsed = null;
+                                            }
                                             timeHours = value;
                                             markPreviewDirty();
                                           });
@@ -981,6 +1029,40 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                               Text(
                                 _formatTimeForDisplay(timeHours),
                                 style: theme.typography.bodyStrong,
+                              ),
+                              const SizedBox(width: 8),
+                              HoverDetailTooltip(
+                                message: isTimePlaying ? '暂停' : '播放',
+                                detail: '让天空随时间自动变化',
+                                child: IconButton(
+                                  icon: Icon(
+                                    isTimePlaying
+                                        ? FluentIcons.pause
+                                        : FluentIcons.play,
+                                    size: 14,
+                                  ),
+                                  iconButtonMode: IconButtonMode.small,
+                                  style: ButtonStyle(
+                                    padding: WidgetStateProperty.all(
+                                      const EdgeInsets.all(4),
+                                    ),
+                                  ),
+                                  onPressed: isBaking ||
+                                          !rendererPreset.usesBakedLighting
+                                      ? null
+                                      : () {
+                                          setDialogState(() {
+                                            isTimePlaying = !isTimePlaying;
+                                          });
+                                          if (isTimePlaying) {
+                                            lastTickElapsed = null;
+                                            timeTicker.start();
+                                          } else {
+                                            timeTicker.stop();
+                                            lastTickElapsed = null;
+                                          }
+                                        },
+                                ),
                               ),
                             ],
                           ),
@@ -1015,14 +1097,15 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     overlay.insert(dialogEntry!);
     try {
       await completer.future;
-    } finally {
-      closeDialog();
-      widthController.dispose();
-      heightController.dispose();
-      if (bakeTexture != null && !bakeTexture.debugDisposed) {
-        bakeTexture.dispose();
-      }
-    }
+	    } finally {
+	      closeDialog();
+	      timeTicker.dispose();
+	      widthController.dispose();
+	      heightController.dispose();
+	      if (bakeTexture != null && !bakeTexture.debugDisposed) {
+	        bakeTexture.dispose();
+	      }
+	    }
   }
 
   static _ReferenceModelBakeLighting _lightingForTime(

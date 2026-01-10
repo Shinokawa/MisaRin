@@ -218,21 +218,36 @@ class _ReferenceModelBakeSkyboxBackground extends StatelessWidget {
         builder: (BuildContext context, AsyncSnapshot<ui.FragmentProgram> snapshot) {
           final ui.FragmentProgram? program = snapshot.data;
           if (program == null) {
-            return CustomPaint(
-              painter: _ReferenceModelBakeCloudPainter(
-                seed: 1337,
-                timeHours: timeHours,
-                cameraYaw: cameraYaw,
-                cameraPitch: cameraPitch,
-                cameraZoom: cameraZoom,
-                lightDirection: lighting.lightDirection,
-                baseColor: palette.cloudColor,
-                baseOpacity: palette.cloudOpacity,
-                shadowColor: palette.shadowColor,
-                shadowOpacity: palette.shadowOpacity,
-                highlightColor: palette.highlightColor,
-                highlightOpacity: palette.highlightOpacity,
-              ),
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                CustomPaint(
+                  painter: _ReferenceModelBakeCelestialPainter(
+                    seed: 1337,
+                    timeHours: timeHours,
+                    cameraYaw: cameraYaw,
+                    cameraPitch: cameraPitch,
+                    cameraZoom: cameraZoom,
+                    sunColor: lighting.sunColor,
+                  ),
+                ),
+                CustomPaint(
+                  painter: _ReferenceModelBakeCloudPainter(
+                    seed: 1337,
+                    timeHours: timeHours,
+                    cameraYaw: cameraYaw,
+                    cameraPitch: cameraPitch,
+                    cameraZoom: cameraZoom,
+                    lightDirection: lighting.lightDirection,
+                    baseColor: palette.cloudColor,
+                    baseOpacity: palette.cloudOpacity,
+                    shadowColor: palette.shadowColor,
+                    shadowOpacity: palette.shadowOpacity,
+                    highlightColor: palette.highlightColor,
+                    highlightOpacity: palette.highlightOpacity,
+                  ),
+                ),
+              ],
             );
           }
 
@@ -273,6 +288,237 @@ class _ReferenceModelBakeSkyboxBackground extends StatelessWidget {
       ],
     );
   }
+}
+
+class _ReferenceModelBakeCelestialPainter extends CustomPainter {
+  _ReferenceModelBakeCelestialPainter({
+    required this.seed,
+    required this.timeHours,
+    required this.cameraYaw,
+    required this.cameraPitch,
+    required this.cameraZoom,
+    required this.sunColor,
+  }) : _stars = _generateStars(seed, count: 240);
+
+  final int seed;
+  final double timeHours;
+  final double cameraYaw;
+  final double cameraPitch;
+  final double cameraZoom;
+  final Color sunColor;
+  final List<_BakeStar> _stars;
+
+  static List<_BakeStar> _generateStars(int seed, {required int count}) {
+    final math.Random random = math.Random(seed ^ 0x6d2b79f5);
+    final List<_BakeStar> stars = <_BakeStar>[];
+    for (int i = 0; i < count; i++) {
+      final double phi = random.nextDouble() * math.pi * 2.0;
+      final double yRaw = math.pow(random.nextDouble(), 0.55).toDouble();
+      final double y = (0.12 + 0.88 * yRaw).clamp(0.0, 1.0).toDouble();
+      final double r = math.sqrt((1.0 - y * y).clamp(0.0, 1.0)).toDouble();
+      final double x = r * math.cos(phi);
+      final double z = r * math.sin(phi);
+
+      final double brightness =
+          math.pow(random.nextDouble().clamp(0.0, 1.0), 2.8).toDouble();
+      final double radius =
+          0.55 + 1.55 * math.pow(random.nextDouble(), 2.2).toDouble();
+      final double tint = random.nextDouble();
+      final Color color = Color.lerp(
+            const Color(0xFFA8C7FF),
+            const Color(0xFFFFFFFF),
+            tint,
+          ) ??
+          const Color(0xFFFFFFFF);
+
+      stars.add(_BakeStar(
+        x: x,
+        y: y,
+        z: z,
+        radius: radius,
+        brightness: brightness,
+        color: color,
+      ));
+    }
+    return stars;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) {
+      return;
+    }
+
+    final double normalized = timeHours.isFinite
+        ? (timeHours % 24 + 24) % 24
+        : 12.0;
+    final double dayPhase = ((normalized - 6.0) / 12.0) * math.pi;
+    final double sunHeight = math.sin(dayPhase).clamp(-1.0, 1.0).toDouble();
+    final double dayBlend = _smoothstep(-0.35, 0.15, sunHeight);
+    final double nightBlend = (1.0 - dayBlend).clamp(0.0, 1.0).toDouble();
+
+    final double zoom = cameraZoom.isFinite
+        ? cameraZoom.clamp(0.8, 2.5).toDouble()
+        : 1.0;
+    final double fov = 1.1 / zoom;
+    final double aspect = size.width / math.max(size.height, 1.0);
+
+    final double cy = math.cos(cameraYaw.isFinite ? cameraYaw : 0.0);
+    final double sy = math.sin(cameraYaw.isFinite ? cameraYaw : 0.0);
+    final double cx = math.cos(cameraPitch.isFinite ? cameraPitch : 0.0);
+    final double sx = math.sin(cameraPitch.isFinite ? cameraPitch : 0.0);
+
+    Vector3 toCamera(double x, double y, double z) {
+      final double x1 = cy * x + sy * z;
+      final double y1 = y;
+      final double z1 = -sy * x + cy * z;
+      final double x2 = x1;
+      final double y2 = cx * y1 - sx * z1;
+      final double z2 = sx * y1 + cx * z1;
+      return Vector3(x2, y2, z2);
+    }
+
+    Offset? project(Vector3 dir) {
+      if (dir.z <= 1e-3) {
+        return null;
+      }
+      final double px = dir.x * fov / dir.z;
+      final double py = dir.y * fov / dir.z;
+      final double u = px / (2.0 * aspect) + 0.5;
+      final double v = 0.5 - py / 2.0;
+      if (u < -0.15 || u > 1.15 || v < -0.15 || v > 1.15) {
+        return null;
+      }
+      return Offset(u * size.width, v * size.height);
+    }
+
+    final double starStrength =
+        math.pow(nightBlend, 1.8).clamp(0.0, 1.0).toDouble();
+    if (starStrength > 0.001) {
+      final Paint starPaint = Paint()..blendMode = ui.BlendMode.plus;
+      for (final _BakeStar s in _stars) {
+        final Vector3 camDir = toCamera(s.x, s.y, s.z);
+        final Offset? pos = project(camDir);
+        if (pos == null) {
+          continue;
+        }
+        final double alpha =
+            (0.85 * starStrength * s.brightness).clamp(0.0, 0.85).toDouble();
+        if (alpha <= 0.002) {
+          continue;
+        }
+        starPaint.color = s.color.withValues(alpha: alpha);
+        canvas.drawCircle(pos, s.radius, starPaint);
+      }
+    }
+
+    final double azimuth = (normalized / 24.0) * math.pi * 2.0;
+    final Vector3 sunDir = Vector3(
+      math.cos(azimuth),
+      sunHeight,
+      -math.sin(azimuth),
+    );
+    if (sunDir.length2 > 1e-6) {
+      sunDir.normalize();
+    }
+    final Vector3 moonDir = Vector3(
+      math.cos(azimuth + math.pi),
+      -sunHeight,
+      -math.sin(azimuth + math.pi),
+    );
+    if (moonDir.length2 > 1e-6) {
+      moonDir.normalize();
+    }
+
+    final double sunVis =
+        (_smoothstep(-0.12, 0.05, sunHeight) * dayBlend).clamp(0.0, 1.0);
+    final double moonVis =
+        (_smoothstep(-0.10, 0.06, -sunHeight) * nightBlend).clamp(0.0, 1.0);
+
+    if (sunVis > 0.001) {
+      final Offset? center = project(toCamera(sunDir.x, sunDir.y, sunDir.z));
+      if (center != null) {
+        final double coreRadius =
+            math.tan(0.040) / fov * (size.height / 2.0);
+        final double glowRadius =
+            math.tan(0.130) / fov * (size.height / 2.0);
+        final Color coreColor = Color.lerp(
+              const Color(0xFFFFA36D),
+              sunColor,
+              0.65,
+            ) ??
+            sunColor;
+        final Paint glowPaint = Paint()
+          ..blendMode = ui.BlendMode.plus
+          ..maskFilter = ui.MaskFilter.blur(
+            ui.BlurStyle.normal,
+            (glowRadius * 0.28).clamp(2.0, 28.0).toDouble(),
+          )
+          ..color = coreColor.withValues(alpha: (0.26 * sunVis).clamp(0.0, 0.35));
+        canvas.drawCircle(center, glowRadius, glowPaint);
+
+        final Paint corePaint = Paint()
+          ..blendMode = ui.BlendMode.plus
+          ..color = coreColor.withValues(alpha: (0.85 * sunVis).clamp(0.0, 0.90));
+        canvas.drawCircle(center, coreRadius, corePaint);
+      }
+    }
+
+    if (moonVis > 0.001) {
+      final Offset? center = project(toCamera(moonDir.x, moonDir.y, moonDir.z));
+      if (center != null) {
+        final double coreRadius =
+            math.tan(0.034) / fov * (size.height / 2.0);
+        final double glowRadius =
+            math.tan(0.090) / fov * (size.height / 2.0);
+        final Color moonBase =
+            Color.lerp(const Color(0xFF8FA5CC), sunColor, 0.85) ?? sunColor;
+        final Paint glowPaint = Paint()
+          ..blendMode = ui.BlendMode.plus
+          ..maskFilter = ui.MaskFilter.blur(
+            ui.BlurStyle.normal,
+            (glowRadius * 0.26).clamp(2.0, 22.0).toDouble(),
+          )
+          ..color =
+              moonBase.withValues(alpha: (0.16 * moonVis).clamp(0.0, 0.22));
+        canvas.drawCircle(center, glowRadius, glowPaint);
+
+        final Paint corePaint = Paint()
+          ..blendMode = ui.BlendMode.plus
+          ..color =
+              moonBase.withValues(alpha: (0.55 * moonVis).clamp(0.0, 0.65));
+        canvas.drawCircle(center, coreRadius, corePaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReferenceModelBakeCelestialPainter oldDelegate) {
+    return seed != oldDelegate.seed ||
+        timeHours != oldDelegate.timeHours ||
+        cameraYaw != oldDelegate.cameraYaw ||
+        cameraPitch != oldDelegate.cameraPitch ||
+        cameraZoom != oldDelegate.cameraZoom ||
+        sunColor != oldDelegate.sunColor;
+  }
+}
+
+class _BakeStar {
+  const _BakeStar({
+    required this.x,
+    required this.y,
+    required this.z,
+    required this.radius,
+    required this.brightness,
+    required this.color,
+  });
+
+  final double x;
+  final double y;
+  final double z;
+  final double radius;
+  final double brightness;
+  final Color color;
 }
 
 class _ReferenceModelBakeCloudShaderPainter extends CustomPainter {
