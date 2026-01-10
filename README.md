@@ -39,7 +39,7 @@ Misa Rin 是一款聚焦桌面端的现代化数字绘画与像素创作软件�
     - **空心描边/空心笔刷**：支持空心比例与“吃掉重叠部分”，快速画出干净的描边与线稿效果。
     - **透视辅助**：支持 1/2/3 点透视线与透视笔，绘制时可按透视方向吸附。
 - **选区与编辑**：提供“选区笔”，像画笔一样涂抹创建选区，可与现有选区叠加。
-- **强大的文本工具**：支持 **横排/竖排** 文本输入，可自由调节字体、字号、行距、字间距，并支持 **文字描边 (Stroke)**，完美适应漫画嵌字与海报设计。
+- **强大的文本工具**：支持 **横排/竖排** 文本输入，可自由调节字体（支持预览与收藏）、字号、行距、字间距，并支持 **文字描边 (Stroke)**，完美适应漫画嵌字与海报设计。
 - **专注画布**：自研分块渲染 (Chunk-based Rendering) 引擎，支持无限尺寸画布、无限撤销/重做与多文档标签页管理。
 
 ## Retas 风格二值化工作流 (Industrial Workflow)
@@ -66,6 +66,7 @@ Misa Rin 致敬并重现了日本动画工业（PaintMan/Retas）的高效二值
 - **专注辅助**：像素网格、镜像预览、黑白预览。
 - **画布变换**：支持画布旋转 90°/180°、图像大小与画布大小调整、图层自由变换（持续优化缩放锚点与画布大小锚点可读性）。
 - **交互细节**：优化图层重命名交互与文本选择样式等细节体验。
+- **3D 参考模型**：内置 Steve/Alex 模型查看器，支持导入自定义 Bedrock 模型；支持多角度观察、实时贴图烘焙（Bake）与 Z-Buffer 阴影预览，辅助皮肤绘制与光影参考。
 
 ## 导入与导出
 
@@ -141,7 +142,7 @@ Misa Rin 是一款聚焦桌面端的現代化數位繪畫與像素創作軟體�
     - **空心描邊/空心筆刷**：支援空心比例與「吃掉重疊部分」，快速畫出乾淨的描邊與線稿效果。
     - **透視輔助**：支援 1/2/3 點透視線與透視筆，繪製時可按透視方向吸附。
 - **選區與編輯**：提供「選區筆」，像畫筆一樣塗抹建立選區，可與現有選區疊加。
-- **強大的文字工具**：支援 **橫排/直排** 文字輸入，可自由調整字體、字號、行距、字間距，並支援 **文字描邊 (Stroke)**，完美適應漫畫嵌字與海報設計。
+- **強大的文字工具**：支援 **橫排/直排** 文字輸入，可自由調整字體（支援預覽與收藏）、字號、行距、字間距，並支援 **文字描邊 (Stroke)**，完美適應漫畫嵌字與海報設計。
 - **專注畫布**：自研分塊渲染 (Chunk-based Rendering) 引擎，支援無限尺寸畫布、無限撤銷/重做與多文件分頁管理。
 
 ## Retas 風格二值化工作流 (Industrial Workflow)
@@ -168,6 +169,7 @@ Misa Rin 致敬並重現了日本動畫工業（PaintMan/Retas）的高效二值
 - **專注輔助**：像素網格、鏡像預覽、黑白預覽。
 - **畫布變換**：支援畫布旋轉 90°/180°、影像大小與畫布大小調整、圖層自由變換（持續優化縮放錨點與畫布大小錨點可讀性）。
 - **互動細節**：優化圖層重命名互動與文字選取樣式等細節體驗。
+- **3D 參考模型**：內建 Steve/Alex 模型檢視器，支援匯入自訂 Bedrock 模型；支援多角度觀察、即時貼圖烘焙（Bake）與 Z-Buffer 陰影預覽，輔助皮膚繪製與光影參考。
 
 ## 匯入與匯出
 
@@ -243,7 +245,7 @@ Whether you're doing quick sketches, pixel drafts, UI design, or industrial-grad
     - **Hollow stroke / hollow brush**: adjustable hollow ratio and “eat overlaps” for clean outlines and lineart.
     - **Perspective helpers**: 1/2/3-point perspective lines and a perspective brush with directional snapping.
 - **Selection & editing**: “Selection Brush” lets you paint selections like a brush and add to existing selections.
-- **Powerful text tool**: horizontal/vertical text, font/size/leading/tracking controls, plus text stroke support.
+- **Powerful text tool**: horizontal/vertical text, font (with preview & favorites)/size/leading/tracking controls, plus text stroke support.
 - **Focused canvas**: Chunk-based Rendering engine with infinite canvas, unlimited undo/redo, and multi-document tabs.
 
 ## Retas-style Binary Workflow (Industrial Workflow)
@@ -270,6 +272,7 @@ A lightweight image processing pipeline is built in, so you can adjust without e
 - **Focus aids**: pixel grid, mirror preview, B/W preview.
 - **Canvas transforms**: rotate 90°/180°, image/canvas resize, layer free transform (with ongoing polish for scaling anchors and canvas-size anchors).
 - **Interaction polish**: improved layer renaming, text selection styling, and other UX details.
+- **3D Reference Model**: Built-in Steve/Alex model viewer with custom Bedrock model import; supports multi-angle viewing, real-time texture baking, and Z-Buffer shadow preview to assist with skin texturing and lighting.
 
 ## Import & Export
 
@@ -345,7 +348,7 @@ Misa Rin은 데스크톱에 초점을 둔 현대적인 디지털 드로잉·픽�
     - **홀로우(윤곽) 스트로크/브러시**: 홀로우 비율과 “겹침 부분 제거”로 깔끔한 라인아트를 빠르게.
     - **원근 보조**: 1/2/3점 원근선 및 원근 브러시, 방향 스냅.
 - **선택 영역 & 편집**: “선택 영역 브러시”로 브러시처럼 칠해서 선택 영역을 만들고 기존 선택에 더할 수 있습니다.
-- **강력한 텍스트 도구**: 가로/세로 텍스트, 폰트/크기/행간/자간 조절, 텍스트 스트로크(Stroke) 지원.
+- **강력한 텍스트 도구**: 가로/세로 텍스트, 폰트(미리보기 및 즐겨찾기 포함)/크기/행간/자간 조절, 텍스트 스트로크(Stroke) 지원.
 - **집중 캔버스**: Chunk-based Rendering 엔진, 무한 캔버스, 무제한 실행 취소/다시 실행, 다중 문서 탭.
 
 ## Retas 스타일 이진화 워크플로 (Industrial Workflow)
@@ -372,6 +375,7 @@ Misa Rin은 일본 애니메이션 제작 파이프라인(PaintMan/Retas)의 효
 - **집중 보조**: 픽셀 그리드, 미러 프리뷰, 흑백 프리뷰.
 - **캔버스 변환**: 90°/180° 회전, 이미지/캔버스 크기 조정, 레이어 자유 변환(스케일 앵커/캔버스 크기 앵커 가독성 지속 개선).
 - **UX 디테일**: 레이어 이름 변경, 텍스트 선택 스타일 등 상호작용 디테일 개선.
+- **3D 참조 모델**: Steve/Alex 모델 뷰어 내장 및 사용자 정의 Bedrock 모델 가져오기 지원; 다각도 보기, 실시간 텍스처 베이킹(Bake) 및 Z-Buffer 그림자 미리보기를 지원하여 스킨 텍스처링과 조명 참고를 돕습니다.
 
 ## 가져오기 & 내보내기
 
@@ -447,7 +451,7 @@ Misa Rin はデスクトップ向けにフォーカスしたモダンなデジ�
     - **中抜きストローク/中抜きブラシ**：中抜き率と「重なりを食べる」でクリーンなアウトラインを素早く作成。
     - **パース補助**：1/2/3 点透視線とパースブラシ。方向にスナップ可能。
 - **選択範囲 & 編集**：「選択範囲ブラシ」でブラシのように塗って選択範囲を作成し、既存選択に加算できます。
-- **強力なテキストツール**：横書き/縦書き、フォント/サイズ/行間/字間、文字フチ（Stroke）に対応。
+- **強力なテキストツール**：横書き/縦書き、フォント（プレビュー・お気に入り対応）/サイズ/行間/字間、文字フチ（Stroke）に対応。
 - **集中キャンバス**：Chunk-based Rendering エンジンにより無限キャンバス、無制限の Undo/Redo、複数ドキュメントのタブ管理。
 
 ## Retas 風二値化ワークフロー (Industrial Workflow)
@@ -474,6 +478,7 @@ Misa Rin は日本アニメ制作（PaintMan/Retas）の効率的な二値化生
 - **集中補助**：ピクセルグリッド、ミラープレビュー、白黒プレビュー。
 - **キャンバス変換**：90°/180° 回転、画像/キャンバスサイズ変更、レイヤー自由変形（スケールアンカーやキャンバスサイズアンカーの可読性を継続改善）。
 - **操作の磨き込み**：レイヤー名変更やテキスト選択の見た目など、細部 UX を改善。
+- **3D 参照モデル**: Steve/Alex モデルビューワーを内蔵し、カスタム Bedrock モデルのインポートに対応。多角的な観察、リアルタイムテクスチャ焼き込み（Bake）、Z-Buffer 陰影プレビューにより、スキン制作やライティングの参考に最適。
 
 ## インポート & エクスポート
 
