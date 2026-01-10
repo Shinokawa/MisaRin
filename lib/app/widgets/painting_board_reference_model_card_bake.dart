@@ -228,8 +228,9 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         return;
       }
 
+      final DateTime now = DateTime.now();
       final String suggestedName = _sanitizeFileName(
-        'bake_${_formatTimeForFileName(timeHours)}.png',
+        'bake_${_formatTimestampForFileName(now)}_${_formatTimeForFileName(timeHours)}.png',
       );
 
       String? normalizedPath;
@@ -1413,6 +1414,18 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 
   static String _formatTimeForFileName(double timeHours) {
     return _formatTimeForDisplay(timeHours).replaceAll(':', '-');
+  }
+
+  static String _formatTimestampForFileName(DateTime timestamp) {
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+    String threeDigits(int value) => value.toString().padLeft(3, '0');
+    return '${timestamp.year}'
+        '${twoDigits(timestamp.month)}'
+        '${twoDigits(timestamp.day)}_'
+        '${twoDigits(timestamp.hour)}'
+        '${twoDigits(timestamp.minute)}'
+        '${twoDigits(timestamp.second)}_'
+        '${threeDigits(timestamp.millisecond)}';
   }
 
   static String _ensurePngExtension(String path) {
