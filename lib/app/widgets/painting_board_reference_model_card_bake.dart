@@ -31,7 +31,10 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     double renderContrast = 1.0;
     bool isBaking = false;
     _ReferenceModelBakeRendererPreset rendererPreset =
-        _ReferenceModelBakeRendererPreset.cinematic;
+        _ReferenceModelBakeRendererPreset.normal;
+    const Color normalSkyColor = Color(0xFFBFD9FF);
+    bool showSky = true;
+    bool showGround = true;
 
     _ReferenceModelBakeResolutionPreset? resolutionPreset =
         _kReferenceModelBakeResolutionPresets[1];
@@ -285,8 +288,11 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         final _ReferenceModelBakeLighting? lighting = usesBakedLighting
             ? _lightingForTime(timeHours, isDark: false)
             : null;
-        final Color exportBackground = lighting?.background ?? normalBackground;
-        final _BedrockSkyboxBackground? skybox = usesBakedLighting && lighting != null
+        final Color exportBackground = showSky && !usesBakedLighting
+            ? normalSkyColor
+            : (lighting?.background ?? normalBackground);
+        final _BedrockSkyboxBackground? skybox =
+            showSky && usesBakedLighting && lighting != null
             ? _BedrockSkyboxBackground(
                 timeHours: timeHours,
                 isDark: false,
@@ -444,16 +450,19 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                     final bool enableContactShadow = usesBakedLighting;
                     final double contactShadowStrength =
                         isCinematic ? 0.22 : 0.14;
-                    final int contactShadowBlurRadius = isCinematic
-                        ? 0
-                        : (isCycles ? 4 : 2);
-                    const double contactShadowDepthEpsilon = 0.012;
-                    final int groundShadowBlurRadius = usesBakedLighting
-                        ? (isCinematic
-                              ? 0
-                              : (isCycles
-                                    ? (bakedLighting!.shadowBlurRadius + 2)
-                                        .clamp(0, 10)
+	                    final int contactShadowBlurRadius = isCinematic
+	                        ? 0
+	                        : (isCycles ? 4 : 2);
+	                    const double contactShadowDepthEpsilon = 0.012;
+	                    final bool showGroundPlane = showGround;
+	                    final bool showGroundShadow =
+	                        showGroundPlane && usesBakedLighting;
+	                    final int groundShadowBlurRadius = showGroundShadow
+	                        ? (isCinematic
+	                              ? 0
+	                              : (isCycles
+	                                    ? (bakedLighting!.shadowBlurRadius + 2)
+	                                        .clamp(0, 10)
                                         .toInt()
                                     : bakedLighting!.shadowBlurRadius))
                         : 0;
@@ -494,20 +503,20 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                       selfShadowPcfRadius: shadowPcfRadius,
                       enableContactShadow: enableContactShadow,
                       contactShadowStrength: contactShadowStrength,
-                      contactShadowBlurRadius: contactShadowBlurRadius,
-                      contactShadowDepthEpsilon: contactShadowDepthEpsilon,
-                      lightFollowsCamera: !usesBakedLighting,
-                      showGround: usesBakedLighting,
-                      groundY: groundY,
-                      alignModelToGround: false,
-                      groundColor: Colors.white,
-                      showGroundShadow: usesBakedLighting,
-                      groundShadowStrength: usesBakedLighting
-                          ? bakedLighting!.shadowStrength
-                          : 0.0,
-                      groundShadowBlurRadius: groundShadowBlurRadius,
-                      renderKey: previewRenderKey,
-                    );
+	                      contactShadowBlurRadius: contactShadowBlurRadius,
+	                      contactShadowDepthEpsilon: contactShadowDepthEpsilon,
+	                      lightFollowsCamera: !usesBakedLighting,
+	                      showGround: showGroundPlane,
+	                      groundY: groundY,
+	                      alignModelToGround: false,
+	                      groundColor: Colors.white,
+	                      showGroundShadow: showGroundShadow,
+	                      groundShadowStrength: showGroundShadow
+	                          ? bakedLighting!.shadowStrength
+	                          : 0.0,
+	                      groundShadowBlurRadius: groundShadowBlurRadius,
+	                      renderKey: previewRenderKey,
+	                    );
 
                     Widget interactive = Listener(
                       onPointerSignal: (event) {
@@ -578,7 +587,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  if (rendererPreset.usesBakedLighting &&
+                                  if (showSky &&
+                                      rendererPreset.usesBakedLighting &&
                                       lighting != null)
                                     _ReferenceModelBakeSkyboxBackground(
                                       timeHours: timeHours,
@@ -588,6 +598,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                       cameraPitch: previewPitch,
                                       cameraZoom: previewZoom,
                                     )
+                                  else if (showSky)
+                                    const ColoredBox(color: normalSkyColor)
                                   else
                                     ColoredBox(color: previewBackground),
                                   buildModelPreview(),
@@ -930,6 +942,50 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                                                       child: Text(context.l10n.settingsTitle),
                                                                     ),
                                                                   ],
+                                                                  const SizedBox(width: 12),
+                                                                  Row(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      Text(
+                                                                        '天空',
+                                                                        style: theme.typography.bodyStrong,
+                                                                      ),
+                                                                      const SizedBox(width: 8),
+                                                                      ToggleSwitch(
+                                                                        checked: showSky,
+                                                                        onChanged: isBaking
+                                                                            ? null
+                                                                            : (value) {
+                                                                                setDialogState(() {
+                                                                                  showSky = value;
+                                                                                  markPreviewDirty();
+                                                                                });
+                                                                              },
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                  const SizedBox(width: 12),
+                                                                  Row(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      Text(
+                                                                        '地面',
+                                                                        style: theme.typography.bodyStrong,
+                                                                      ),
+                                                                      const SizedBox(width: 8),
+                                                                      ToggleSwitch(
+                                                                        checked: showGround,
+                                                                        onChanged: isBaking
+                                                                            ? null
+                                                                            : (value) {
+                                                                                setDialogState(() {
+                                                                                  showGround = value;
+                                                                                  markPreviewDirty();
+                                                                                });
+                                                                              },
+                                                                      ),
+                                                                    ],
+                                                                  ),
                                                                 ],
                                                               ),
                                                             ),
