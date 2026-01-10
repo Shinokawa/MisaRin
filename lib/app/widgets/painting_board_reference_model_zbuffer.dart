@@ -40,6 +40,7 @@ class _BedrockModelZBufferView extends StatefulWidget {
     this.showGroundShadow = false,
     this.groundShadowStrength = 0.55,
     this.groundShadowBlurRadius = 2,
+    this.groundShadowIntoAlpha = false,
     this.renderKey = 0,
     this.onRendered,
   });
@@ -81,6 +82,7 @@ class _BedrockModelZBufferView extends StatefulWidget {
   final bool showGroundShadow;
   final double groundShadowStrength;
   final int groundShadowBlurRadius;
+  final bool groundShadowIntoAlpha;
   final int renderKey;
   final ValueChanged<int>? onRendered;
 
@@ -257,6 +259,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         oldWidget.showGroundShadow != widget.showGroundShadow ||
         oldWidget.groundShadowStrength != widget.groundShadowStrength ||
         oldWidget.groundShadowBlurRadius != widget.groundShadowBlurRadius ||
+        oldWidget.groundShadowIntoAlpha != widget.groundShadowIntoAlpha ||
         oldWidget.renderKey != widget.renderKey;
     if (propsChanged) {
       _markDirty();

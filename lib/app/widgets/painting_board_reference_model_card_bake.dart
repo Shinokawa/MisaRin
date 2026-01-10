@@ -30,11 +30,14 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     double renderBrightness = 1.0;
     double renderContrast = 1.0;
     bool isBaking = false;
-    _ReferenceModelBakeRendererPreset rendererPreset =
-        _ReferenceModelBakeRendererPreset.normal;
-    const Color normalSkyColor = Color(0xFFBFD9FF);
-    bool showSky = true;
-    bool showGround = true;
+	    _ReferenceModelBakeRendererPreset rendererPreset =
+	        _ReferenceModelBakeRendererPreset.normal;
+	    const Color normalSkyColor = Color(0xFFBFD9FF);
+	    bool showSky = true;
+	    bool showGround = true;
+	    bool transparentBackground = false;
+	    bool? showSkyBeforeTransparent;
+	    bool? showGroundBeforeTransparent;
 
     _ReferenceModelBakeResolutionPreset? resolutionPreset =
         _kReferenceModelBakeResolutionPresets[1];
@@ -308,6 +311,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
           height: resolution.height,
           background: exportBackground,
           skybox: skybox,
+          transparentBackground: transparentBackground,
         );
         if (kIsWeb) {
           await WebFileSaver.saveBytes(
@@ -454,7 +458,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 	                        ? 0
 	                        : (isCycles ? 4 : 2);
 	                    const double contactShadowDepthEpsilon = 0.012;
-	                    final bool showGroundPlane = showGround;
+	                    final bool showGroundPlane =
+	                        transparentBackground ? usesBakedLighting : showGround;
 	                    final bool showGroundShadow =
 	                        showGroundPlane && usesBakedLighting;
 	                    final int groundShadowBlurRadius = showGroundShadow
@@ -509,12 +514,14 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 	                      showGround: showGroundPlane,
 	                      groundY: groundY,
 	                      alignModelToGround: false,
-	                      groundColor: Colors.white,
+	                      groundColor:
+	                          transparentBackground ? Colors.transparent : Colors.white,
 	                      showGroundShadow: showGroundShadow,
 	                      groundShadowStrength: showGroundShadow
 	                          ? bakedLighting!.shadowStrength
 	                          : 0.0,
 	                      groundShadowBlurRadius: groundShadowBlurRadius,
+	                      groundShadowIntoAlpha: transparentBackground,
 	                      renderKey: previewRenderKey,
 	                    );
 
@@ -587,7 +594,9 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  if (showSky &&
+                                  if (transparentBackground)
+                                    const _CheckboardBackground()
+                                  else if (showSky &&
                                       rendererPreset.usesBakedLighting &&
                                       lighting != null)
                                     _ReferenceModelBakeSkyboxBackground(
@@ -947,13 +956,48 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                                                     mainAxisSize: MainAxisSize.min,
                                                                     children: [
                                                                       Text(
+                                                                        '透明背景',
+                                                                        style: theme.typography.bodyStrong,
+                                                                      ),
+                                                                      const SizedBox(width: 8),
+                                                                      ToggleSwitch(
+                                                                        checked: transparentBackground,
+                                                                        onChanged: isBaking
+                                                                            ? null
+                                                                            : (value) {
+                                                                                setDialogState(() {
+                                                                                  transparentBackground = value;
+                                                                                  if (transparentBackground) {
+                                                                                    showSkyBeforeTransparent ??= showSky;
+                                                                                    showGroundBeforeTransparent ??= showGround;
+                                                                                    showSky = false;
+                                                                                    showGround = false;
+                                                                                  } else {
+                                                                                    showSky =
+                                                                                        showSkyBeforeTransparent ?? showSky;
+                                                                                    showGround =
+                                                                                        showGroundBeforeTransparent ?? showGround;
+                                                                                    showSkyBeforeTransparent = null;
+                                                                                    showGroundBeforeTransparent = null;
+                                                                                  }
+                                                                                  markPreviewDirty();
+                                                                                });
+                                                                              },
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                  const SizedBox(width: 12),
+                                                                  Row(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      Text(
                                                                         '天空',
                                                                         style: theme.typography.bodyStrong,
                                                                       ),
                                                                       const SizedBox(width: 8),
                                                                       ToggleSwitch(
                                                                         checked: showSky,
-                                                                        onChanged: isBaking
+                                                                        onChanged: isBaking || transparentBackground
                                                                             ? null
                                                                             : (value) {
                                                                                 setDialogState(() {
@@ -975,7 +1019,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                                                       const SizedBox(width: 8),
                                                                       ToggleSwitch(
                                                                         checked: showGround,
-                                                                        onChanged: isBaking
+                                                                        onChanged: isBaking || transparentBackground
                                                                             ? null
                                                                             : (value) {
                                                                                 setDialogState(() {

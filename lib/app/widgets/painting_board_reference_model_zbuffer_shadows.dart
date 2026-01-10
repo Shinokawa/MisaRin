@@ -440,6 +440,66 @@ void _applyShadowMask({
   }
 }
 
+void _applyShadowMaskToAlpha({
+  required Uint8List colorBuffer,
+  required Uint32List? colorBuffer32,
+  required Float32List depthBuffer,
+  required Uint8List mask,
+  required double strength,
+}) {
+  final double s = strength.clamp(0.0, 1.0).toDouble();
+  if (s <= 0) {
+    return;
+  }
+  final int strength8 = (s * 255).round().clamp(0, 255);
+  if (strength8 <= 0) {
+    return;
+  }
+
+  int mul8(int a, int b) => (a * b + 127) ~/ 255;
+
+  final int pixelCount = mask.length;
+
+  if (colorBuffer32 != null) {
+    for (int i = 0; i < pixelCount; i++) {
+      final int a = mask[i];
+      if (a == 0 || depthBuffer[i] <= 0) {
+        continue;
+      }
+      final int shadowAlpha = mul8(a, strength8);
+      if (shadowAlpha <= 0) {
+        continue;
+      }
+      final int existingAlpha = (colorBuffer32[i] >> 24) & 0xFF;
+      if (shadowAlpha <= existingAlpha) {
+        continue;
+      }
+      colorBuffer32[i] = shadowAlpha << 24;
+    }
+    return;
+  }
+
+  for (int i = 0; i < pixelCount; i++) {
+    final int a = mask[i];
+    if (a == 0 || depthBuffer[i] <= 0) {
+      continue;
+    }
+    final int shadowAlpha = mul8(a, strength8);
+    if (shadowAlpha <= 0) {
+      continue;
+    }
+    final int byteIndex = i * 4;
+    final int existingAlpha = colorBuffer[byteIndex + 3];
+    if (shadowAlpha <= existingAlpha) {
+      continue;
+    }
+    colorBuffer[byteIndex] = 0;
+    colorBuffer[byteIndex + 1] = 0;
+    colorBuffer[byteIndex + 2] = 0;
+    colorBuffer[byteIndex + 3] = shadowAlpha;
+  }
+}
+
 void _applyGroundDistanceFade({
   required Uint8List colorBuffer,
   required Uint32List? colorBuffer32,

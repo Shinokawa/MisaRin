@@ -108,13 +108,25 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
               radius: blurRadius,
             );
           }
-          _applyShadowMask(
-            colorBuffer: colorBuffer,
-            colorBuffer32: colorBuffer32,
-            depthBuffer: depthBuffer,
-            mask: mask,
-            strength: widget.groundShadowStrength,
-          );
+          final bool shadowIntoAlpha =
+              widget.groundShadowIntoAlpha && widget.groundColor.a <= 0.0;
+          if (shadowIntoAlpha) {
+            _applyShadowMaskToAlpha(
+              colorBuffer: colorBuffer,
+              colorBuffer32: colorBuffer32,
+              depthBuffer: depthBuffer,
+              mask: mask,
+              strength: widget.groundShadowStrength,
+            );
+          } else {
+            _applyShadowMask(
+              colorBuffer: colorBuffer,
+              colorBuffer32: colorBuffer32,
+              depthBuffer: depthBuffer,
+              mask: mask,
+              strength: widget.groundShadowStrength,
+            );
+          }
         }
       }
     }
@@ -226,10 +238,14 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
     required int height,
     required Color background,
     _BedrockSkyboxBackground? skybox,
+    bool transparentBackground = false,
   }) async {
     if (width <= 0 || height <= 0) {
       throw ArgumentError('Invalid render size: ${width}x$height');
     }
+
+    final _BedrockSkyboxBackground? effectiveSkybox =
+        transparentBackground ? null : skybox;
 
     final int pixelCount = width * height;
     final Uint8List colorBuffer = Uint8List(pixelCount * 4);
@@ -268,7 +284,7 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
 
     final BedrockMesh mesh = _buildMeshForFrame();
     if (mesh.triangles.isEmpty) {
-      final _BedrockSkyboxBackground? s = skybox;
+      final _BedrockSkyboxBackground? s = effectiveSkybox;
       if (s != null) {
         try {
           final ui.FragmentProgram program = await _BakeCloudPrograms.program;
@@ -345,23 +361,25 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
         }
       }
 
-      if (skybox != null) {
-        _compositeSkyboxBackground(
-          rgba: colorBuffer,
-          width: width,
-          height: height,
-          skybox: skybox,
-          cameraYaw: widget.yaw,
-          cameraPitch: widget.pitch,
-          cameraZoom: widget.zoom,
-        );
-      } else {
-        _compositeOpaqueBackground(
-          rgba: colorBuffer,
-          width: width,
-          height: height,
-          background: background,
-        );
+      if (!transparentBackground) {
+        if (s != null) {
+          _compositeSkyboxBackground(
+            rgba: colorBuffer,
+            width: width,
+            height: height,
+            skybox: s,
+            cameraYaw: widget.yaw,
+            cameraPitch: widget.pitch,
+            cameraZoom: widget.zoom,
+          );
+        } else {
+          _compositeOpaqueBackground(
+            rgba: colorBuffer,
+            width: width,
+            height: height,
+            background: background,
+          );
+        }
       }
       final ui.Image image = await _decodeRgbaImage(colorBuffer, width, height);
       try {
@@ -412,13 +430,13 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
       selfShadowDepthBuffer: exportSelfShadowDepth,
     );
 
-    if (skybox != null) {
+    if (!transparentBackground && effectiveSkybox != null) {
       final ui.Image modelImage = await _decodeRgbaImage(colorBuffer, width, height);
       ui.Image? finalImage;
       ui.Picture? picture;
       try {
         final ui.FragmentProgram program = await _BakeCloudPrograms.program;
-        final _BedrockSkyboxBackground s = skybox;
+        final _BedrockSkyboxBackground s = effectiveSkybox;
         final _BakeSkyboxPalette palette = _computeBakeSkyboxPalette(
           timeHours: s.timeHours,
           isDark: s.isDark,
@@ -497,23 +515,26 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
       }
     }
 
-    if (skybox != null) {
-      _compositeSkyboxBackground(
-        rgba: colorBuffer,
-        width: width,
-        height: height,
-        skybox: skybox,
-        cameraYaw: widget.yaw,
-        cameraPitch: widget.pitch,
-        cameraZoom: widget.zoom,
-      );
-    } else {
-      _compositeOpaqueBackground(
-        rgba: colorBuffer,
-        width: width,
-        height: height,
-        background: background,
-      );
+    if (!transparentBackground) {
+      final _BedrockSkyboxBackground? s = effectiveSkybox;
+      if (s != null) {
+        _compositeSkyboxBackground(
+          rgba: colorBuffer,
+          width: width,
+          height: height,
+          skybox: s,
+          cameraYaw: widget.yaw,
+          cameraPitch: widget.pitch,
+          cameraZoom: widget.zoom,
+        );
+      } else {
+        _compositeOpaqueBackground(
+          rgba: colorBuffer,
+          width: width,
+          height: height,
+          background: background,
+        );
+      }
     }
 
     final ui.Image image = await _decodeRgbaImage(colorBuffer, width, height);
