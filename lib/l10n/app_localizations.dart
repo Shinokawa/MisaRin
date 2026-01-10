@@ -854,6 +854,120 @@ abstract class AppLocalizations {
   /// **'Import Reference Image…'**
   String get menuImportReferenceImageEllipsis;
 
+  /// No description provided for @menuReferenceModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference Model'**
+  String get menuReferenceModel;
+
+  /// No description provided for @menuReferenceModelSteve.
+  ///
+  /// In en, this message translates to:
+  /// **'Steve Model'**
+  String get menuReferenceModelSteve;
+
+  /// No description provided for @menuReferenceModelAlex.
+  ///
+  /// In en, this message translates to:
+  /// **'Alex Model'**
+  String get menuReferenceModelAlex;
+
+  /// No description provided for @menuReferenceModelCube.
+  ///
+  /// In en, this message translates to:
+  /// **'Cube Model'**
+  String get menuReferenceModelCube;
+
+  /// No description provided for @menuImportReferenceModelEllipsis.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Model…'**
+  String get menuImportReferenceModelEllipsis;
+
+  /// No description provided for @referenceModelRefreshTexture.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Texture'**
+  String get referenceModelRefreshTexture;
+
+  /// No description provided for @referenceModelRefreshTextureDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate a model texture from the current canvas'**
+  String get referenceModelRefreshTextureDesc;
+
+  /// No description provided for @referenceModelResetView.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset View'**
+  String get referenceModelResetView;
+
+  /// No description provided for @referenceModelResetViewDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset rotation and zoom'**
+  String get referenceModelResetViewDesc;
+
+  /// No description provided for @referenceModelSixView.
+  ///
+  /// In en, this message translates to:
+  /// **'6 Views'**
+  String get referenceModelSixView;
+
+  /// No description provided for @referenceModelSixViewDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Split the viewport into a 2×3 grid (Front/Back/Top/Bottom/Left/Right)'**
+  String get referenceModelSixViewDesc;
+
+  /// No description provided for @referenceModelSingleView.
+  ///
+  /// In en, this message translates to:
+  /// **'Single View'**
+  String get referenceModelSingleView;
+
+  /// No description provided for @referenceModelSingleViewDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to single view (drag to rotate)'**
+  String get referenceModelSingleViewDesc;
+
+  /// No description provided for @referenceModelViewFront.
+  ///
+  /// In en, this message translates to:
+  /// **'Front View'**
+  String get referenceModelViewFront;
+
+  /// No description provided for @referenceModelViewBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back View'**
+  String get referenceModelViewBack;
+
+  /// No description provided for @referenceModelViewTop.
+  ///
+  /// In en, this message translates to:
+  /// **'Top View'**
+  String get referenceModelViewTop;
+
+  /// No description provided for @referenceModelViewBottom.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom View'**
+  String get referenceModelViewBottom;
+
+  /// No description provided for @referenceModelViewLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Left View'**
+  String get referenceModelViewLeft;
+
+  /// No description provided for @referenceModelViewRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Right View'**
+  String get referenceModelViewRight;
+
   /// No description provided for @menuZoomIn.
   ///
   /// In en, this message translates to:
@@ -3613,6 +3727,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Mid Tone'**
   String get midTone;
+
+  /// No description provided for @rendererLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Renderer'**
+  String get rendererLabel;
+
+  /// No description provided for @rendererNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get rendererNormal;
+
+  /// No description provided for @rendererNormalDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Real-time rendering, fastest speed, suitable for preview.'**
+  String get rendererNormalDesc;
+
+  /// No description provided for @rendererCinematic.
+  ///
+  /// In en, this message translates to:
+  /// **'Trailer'**
+  String get rendererCinematic;
+
+  /// No description provided for @rendererCinematicDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Recreates the official Minecraft trailer style with soft shadows and high-contrast lighting.'**
+  String get rendererCinematicDesc;
+
+  /// No description provided for @rendererCycles.
+  ///
+  /// In en, this message translates to:
+  /// **'Realistic'**
+  String get rendererCycles;
+
+  /// No description provided for @rendererCyclesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Simulates path tracing style, extremely realistic lighting effects.'**
+  String get rendererCyclesDesc;
 }
 
 class _AppLocalizationsDelegate

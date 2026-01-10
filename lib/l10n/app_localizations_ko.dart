@@ -420,6 +420,63 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuImportReferenceImageEllipsis => '참조 이미지 가져오기…';
 
   @override
+  String get menuReferenceModel => '참조 모델';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve 모델';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex 모델';
+
+  @override
+  String get menuReferenceModelCube => '큐브 모델';
+
+  @override
+  String get menuImportReferenceModelEllipsis => '모델 가져오기…';
+
+  @override
+  String get referenceModelRefreshTexture => '텍스처 새로고침';
+
+  @override
+  String get referenceModelRefreshTextureDesc => '현재 캔버스로부터 모델 텍스처 생성';
+
+  @override
+  String get referenceModelResetView => '시점 초기화';
+
+  @override
+  String get referenceModelResetViewDesc => '회전 및 확대/축소 초기화';
+
+  @override
+  String get referenceModelSixView => '6뷰';
+
+  @override
+  String get referenceModelSixViewDesc => '뷰포트를 2×3으로 분할(정/후/상/하/좌/우)';
+
+  @override
+  String get referenceModelSingleView => '단일 뷰';
+
+  @override
+  String get referenceModelSingleViewDesc => '단일 뷰로 돌아가기(드래그로 회전)';
+
+  @override
+  String get referenceModelViewFront => '정면';
+
+  @override
+  String get referenceModelViewBack => '후면';
+
+  @override
+  String get referenceModelViewTop => '상단';
+
+  @override
+  String get referenceModelViewBottom => '하단';
+
+  @override
+  String get referenceModelViewLeft => '좌측';
+
+  @override
+  String get referenceModelViewRight => '우측';
+
+  @override
   String get menuZoomIn => '확대';
 
   @override
@@ -1933,4 +1990,26 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get midTone => '미드톤';
+
+  @override
+  String get rendererLabel => '렌더러';
+
+  @override
+  String get rendererNormal => '일반';
+
+  @override
+  String get rendererNormalDesc => '실시간 렌더링, 가장 빠름, 미리보기에 적합.';
+
+  @override
+  String get rendererCinematic => '트레일러';
+
+  @override
+  String get rendererCinematicDesc =>
+      'Minecraft 공식 트레일러 스타일 재현. 부드러운 그림자와 고대비 조명.';
+
+  @override
+  String get rendererCycles => '사실적';
+
+  @override
+  String get rendererCyclesDesc => '패스 트레이싱 스타일 시뮬레이션. 매우 사실적인 조명 효과.';
 }

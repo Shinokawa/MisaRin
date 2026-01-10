@@ -209,6 +209,26 @@
   "menuCreateReferenceImage": "创建参考图像",
   "menuImportReferenceImageEllipsis": "导入参考图像…",
 
+  "menuReferenceModel": "参考模型",
+  "menuReferenceModelSteve": "Steve模型",
+  "menuReferenceModelAlex": "Alex模型",
+  "menuReferenceModelCube": "方块模型",
+  "menuImportReferenceModelEllipsis": "导入模型…",
+  "referenceModelRefreshTexture": "刷新贴图",
+  "referenceModelRefreshTextureDesc": "从当前画布生成模型贴图",
+  "referenceModelResetView": "重置视角",
+  "referenceModelResetViewDesc": "恢复默认旋转与缩放",
+  "referenceModelSixView": "六视图",
+  "referenceModelSixViewDesc": "在视口内以 2×3 显示正/背/顶/底/左/右视图",
+  "referenceModelSingleView": "单视图",
+  "referenceModelSingleViewDesc": "返回可拖拽旋转的单视图",
+  "referenceModelViewFront": "正视图",
+  "referenceModelViewBack": "背视图",
+  "referenceModelViewTop": "顶视图",
+  "referenceModelViewBottom": "底视图",
+  "referenceModelViewLeft": "左视图",
+  "referenceModelViewRight": "右视图",
+
   "menuZoomIn": "放大",
   "menuZoomOut": "缩小",
   "menuShowGrid": "显示网格",
@@ -423,5 +443,13 @@
   "hollowStrokeRatio": "空心比例",
   "hollowStrokeRatioDesc": "调整空心内圈大小，数值越高描边越细。",
   "eraseOccludedParts": "擦除被遮挡部分",
-  "eraseOccludedPartsDesc": "开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。"
+  "eraseOccludedPartsDesc": "开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。",
+
+  "rendererLabel": "渲染器",
+  "rendererNormal": "普通",
+  "rendererNormalDesc": "实时渲染，速度最快，适合预览。",
+  "rendererCinematic": "宣传片",
+  "rendererCinematicDesc": "还原 Minecraft 官方宣传片风格，包含柔和阴影与高对比度光效。",
+  "rendererCycles": "写实",
+  "rendererCyclesDesc": "模拟路径追踪风格，极其逼真的光照效果。"
 }

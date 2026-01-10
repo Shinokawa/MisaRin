@@ -418,6 +418,63 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuImportReferenceImageEllipsis => '导入参考图像…';
 
   @override
+  String get menuReferenceModel => '参考模型';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve模型';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex模型';
+
+  @override
+  String get menuReferenceModelCube => '方块模型';
+
+  @override
+  String get menuImportReferenceModelEllipsis => '导入模型…';
+
+  @override
+  String get referenceModelRefreshTexture => '刷新贴图';
+
+  @override
+  String get referenceModelRefreshTextureDesc => '从当前画布生成模型贴图';
+
+  @override
+  String get referenceModelResetView => '重置视角';
+
+  @override
+  String get referenceModelResetViewDesc => '恢复默认旋转与缩放';
+
+  @override
+  String get referenceModelSixView => '六视图';
+
+  @override
+  String get referenceModelSixViewDesc => '在视口内以 2×3 显示正/背/顶/底/左/右视图';
+
+  @override
+  String get referenceModelSingleView => '单视图';
+
+  @override
+  String get referenceModelSingleViewDesc => '返回可拖拽旋转的单视图';
+
+  @override
+  String get referenceModelViewFront => '正视图';
+
+  @override
+  String get referenceModelViewBack => '背视图';
+
+  @override
+  String get referenceModelViewTop => '顶视图';
+
+  @override
+  String get referenceModelViewBottom => '底视图';
+
+  @override
+  String get referenceModelViewLeft => '左视图';
+
+  @override
+  String get referenceModelViewRight => '右视图';
+
+  @override
   String get menuZoomIn => '放大';
 
   @override
@@ -1910,6 +1967,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get midTone => 'Mid Tone';
+
+  @override
+  String get rendererLabel => '渲染器';
+
+  @override
+  String get rendererNormal => '普通';
+
+  @override
+  String get rendererNormalDesc => '实时渲染，速度最快，适合预览。';
+
+  @override
+  String get rendererCinematic => '宣传片';
+
+  @override
+  String get rendererCinematicDesc => '还原 Minecraft 官方宣传片风格，包含柔和阴影与高对比度光效。';
+
+  @override
+  String get rendererCycles => '写实';
+
+  @override
+  String get rendererCyclesDesc => '模拟路径追踪风格，极其逼真的光照效果。';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -2326,6 +2404,63 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuImportReferenceImageEllipsis => '导入参考图像…';
 
   @override
+  String get menuReferenceModel => '参考模型';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve模型';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex模型';
+
+  @override
+  String get menuReferenceModelCube => '方块模型';
+
+  @override
+  String get menuImportReferenceModelEllipsis => '导入模型…';
+
+  @override
+  String get referenceModelRefreshTexture => '刷新贴图';
+
+  @override
+  String get referenceModelRefreshTextureDesc => '从当前画布生成模型贴图';
+
+  @override
+  String get referenceModelResetView => '重置视角';
+
+  @override
+  String get referenceModelResetViewDesc => '恢复默认旋转与缩放';
+
+  @override
+  String get referenceModelSixView => '六视图';
+
+  @override
+  String get referenceModelSixViewDesc => '在视口内以 2×3 显示正/背/顶/底/左/右视图';
+
+  @override
+  String get referenceModelSingleView => '单视图';
+
+  @override
+  String get referenceModelSingleViewDesc => '返回可拖拽旋转的单视图';
+
+  @override
+  String get referenceModelViewFront => '正视图';
+
+  @override
+  String get referenceModelViewBack => '背视图';
+
+  @override
+  String get referenceModelViewTop => '顶视图';
+
+  @override
+  String get referenceModelViewBottom => '底视图';
+
+  @override
+  String get referenceModelViewLeft => '左视图';
+
+  @override
+  String get referenceModelViewRight => '右视图';
+
+  @override
   String get menuZoomIn => '放大';
 
   @override
@@ -2668,6 +2803,27 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get midTone => '中间调';
+
+  @override
+  String get rendererLabel => '渲染器';
+
+  @override
+  String get rendererNormal => '普通';
+
+  @override
+  String get rendererNormalDesc => '实时渲染，速度最快，适合预览。';
+
+  @override
+  String get rendererCinematic => '宣传片';
+
+  @override
+  String get rendererCinematicDesc => '还原 Minecraft 官方宣传片风格，包含柔和阴影与高对比度光效。';
+
+  @override
+  String get rendererCycles => '写实';
+
+  @override
+  String get rendererCyclesDesc => '模拟路径追踪风格，极其逼真的光照效果。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -3084,6 +3240,21 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuImportReferenceImageEllipsis => '匯入參考影像…';
 
   @override
+  String get menuReferenceModel => '參考模型';
+
+  @override
+  String get menuReferenceModelSteve => 'Steve模型';
+
+  @override
+  String get menuReferenceModelAlex => 'Alex模型';
+
+  @override
+  String get menuReferenceModelCube => '方塊模型';
+
+  @override
+  String get menuImportReferenceModelEllipsis => '匯入模型…';
+
+  @override
   String get menuZoomIn => '放大';
 
   @override
@@ -3481,4 +3652,25 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get midTone => '中間調';
+
+  @override
+  String get rendererLabel => '渲染器';
+
+  @override
+  String get rendererNormal => '普通';
+
+  @override
+  String get rendererNormalDesc => '即時渲染，速度最快，適合預覽。';
+
+  @override
+  String get rendererCinematic => '宣傳片';
+
+  @override
+  String get rendererCinematicDesc => '還原 Minecraft 官方宣傳片風格，包含柔和陰影與高對比度光效。';
+
+  @override
+  String get rendererCycles => '寫實';
+
+  @override
+  String get rendererCyclesDesc => '模擬路徑追蹤風格，極其逼真的光照效果。';
 }

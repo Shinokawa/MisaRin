@@ -209,6 +209,26 @@
   "menuCreateReferenceImage": "参照画像を作成",
   "menuImportReferenceImageEllipsis": "参照画像をインポート\u2026",
 
+  "menuReferenceModel": "参照モデル",
+  "menuReferenceModelSteve": "Steveモデル",
+  "menuReferenceModelAlex": "Alexモデル",
+  "menuReferenceModelCube": "キューブモデル",
+  "menuImportReferenceModelEllipsis": "モデルをインポート\u2026",
+  "referenceModelRefreshTexture": "テクスチャを更新",
+  "referenceModelRefreshTextureDesc": "現在のキャンバスからモデル用テクスチャを生成",
+  "referenceModelResetView": "表示をリセット",
+  "referenceModelResetViewDesc": "回転とズームを初期化",
+  "referenceModelSixView": "6視点",
+  "referenceModelSixViewDesc": "表示を2×3に分割（正/背/上/下/左/右）",
+  "referenceModelSingleView": "単一表示",
+  "referenceModelSingleViewDesc": "単一表示に戻す（ドラッグで回転）",
+  "referenceModelViewFront": "正面",
+  "referenceModelViewBack": "背面",
+  "referenceModelViewTop": "上面",
+  "referenceModelViewBottom": "下面",
+  "referenceModelViewLeft": "左面",
+  "referenceModelViewRight": "右面",
+
   "menuZoomIn": "拡大",
   "menuZoomOut": "縮小",
   "menuShowGrid": "グリッドを表示",
@@ -976,5 +996,13 @@
   "fileNameCannotBeEmpty": "ファイル名は空にできません。",
   "blackPoint": "黒点",
   "whitePoint": "白点",
-  "midTone": "中間色"
+  "midTone": "中間色",
+
+  "rendererLabel": "レンダラー",
+  "rendererNormal": "通常",
+  "rendererNormalDesc": "リアルタイム、最速、プレビューに最適。",
+  "rendererCinematic": "トレーラー",
+  "rendererCinematicDesc": "Minecraft公式トレーラー風のスタイルを再現。ソフトな影と高コントラストな照明。",
+  "rendererCycles": "リアル",
+  "rendererCyclesDesc": "パストレーシング風のスタイルをシミュレート。極めてリアルな照明効果。"
 }

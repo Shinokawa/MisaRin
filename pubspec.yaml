@@ -78,10 +78,15 @@ flutter:
     - icons/line.svg
     - icons/line2.svg
     - icons/spray.svg
+    - assets/bedrock_models/armor_steve.json
+    - assets/bedrock_models/armor_alex.json
+    - assets/bedrock_models/cube.json
+    - assets/bedrock_models/dfsteve_armor.animation.json
 
   shaders:
     - shaders/antialias_alpha.frag
     - shaders/antialias_edge.frag
+    - shaders/bake_clouds.frag
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -486,6 +486,36 @@ class MenuDefinitionBuilder {
         ),
       );
     }
+    final List<MenuEntry> referenceModelEntries = <MenuEntry>[
+      if (handler.showSteveReferenceModel != null)
+        MenuActionEntry(
+          label: l10n.menuReferenceModelSteve,
+          action: handler.showSteveReferenceModel,
+        ),
+      if (handler.showAlexReferenceModel != null)
+        MenuActionEntry(
+          label: l10n.menuReferenceModelAlex,
+          action: handler.showAlexReferenceModel,
+        ),
+      if (handler.showCubeReferenceModel != null)
+        MenuActionEntry(
+          label: l10n.menuReferenceModelCube,
+          action: handler.showCubeReferenceModel,
+        ),
+      if (handler.importReferenceModel != null)
+        MenuActionEntry(
+          label: l10n.menuImportReferenceModelEllipsis,
+          action: handler.importReferenceModel,
+        ),
+    ];
+    if (referenceModelEntries.isNotEmpty) {
+      entries.add(
+        MenuSubmenuEntry(
+          label: l10n.menuReferenceModel,
+          entries: referenceModelEntries,
+        ),
+      );
+    }
     if (entries.isEmpty) {
       return null;
     }

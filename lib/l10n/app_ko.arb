@@ -209,6 +209,26 @@
   "menuCreateReferenceImage": "\ucc38\uc870 \uc774\ubbf8\uc9c0 \ub9cc\ub4e4\uae30",
   "menuImportReferenceImageEllipsis": "\ucc38\uc870 \uc774\ubbf8\uc9c0 \uac00\uc838\uc624\uae30\u2026",
 
+  "menuReferenceModel": "\ucc38\uc870 \ubaa8\ub378",
+  "menuReferenceModelSteve": "Steve \ubaa8\ub378",
+  "menuReferenceModelAlex": "Alex \ubaa8\ub378",
+  "menuReferenceModelCube": "\ud050\ube0c \ubaa8\ub378",
+  "menuImportReferenceModelEllipsis": "\ubaa8\ub378 \uac00\uc838\uc624\uae30\u2026",
+  "referenceModelRefreshTexture": "텍스처 새로고침",
+  "referenceModelRefreshTextureDesc": "현재 캔버스로부터 모델 텍스처 생성",
+  "referenceModelResetView": "시점 초기화",
+  "referenceModelResetViewDesc": "회전 및 확대/축소 초기화",
+  "referenceModelSixView": "6뷰",
+  "referenceModelSixViewDesc": "뷰포트를 2×3으로 분할(정/후/상/하/좌/우)",
+  "referenceModelSingleView": "단일 뷰",
+  "referenceModelSingleViewDesc": "단일 뷰로 돌아가기(드래그로 회전)",
+  "referenceModelViewFront": "정면",
+  "referenceModelViewBack": "후면",
+  "referenceModelViewTop": "상단",
+  "referenceModelViewBottom": "하단",
+  "referenceModelViewLeft": "좌측",
+  "referenceModelViewRight": "우측",
+
   "menuZoomIn": "\ud655\ub300",
   "menuZoomOut": "\ucd95\uc18c",
   "menuShowGrid": "\uadf8\ub9ac\ub4dc \ud45c\uc2dc",
@@ -976,5 +996,13 @@
   "fileNameCannotBeEmpty": "파일 이름은 비워둘 수 없습니다.",
   "blackPoint": "블랙 포인트",
   "whitePoint": "화이트 포인트",
-  "midTone": "미드톤"
+  "midTone": "미드톤",
+
+  "rendererLabel": "렌더러",
+  "rendererNormal": "일반",
+  "rendererNormalDesc": "실시간 렌더링, 가장 빠름, 미리보기에 적합.",
+  "rendererCinematic": "트레일러",
+  "rendererCinematicDesc": "Minecraft 공식 트레일러 스타일 재현. 부드러운 그림자와 고대비 조명.",
+  "rendererCycles": "사실적",
+  "rendererCyclesDesc": "패스 트레이싱 스타일 시뮬레이션. 매우 사실적인 조명 효과."
 }

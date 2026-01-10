@@ -419,6 +419,63 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuImportReferenceImageEllipsis => '参照画像をインポート…';
 
   @override
+  String get menuReferenceModel => '参照モデル';
+
+  @override
+  String get menuReferenceModelSteve => 'Steveモデル';
+
+  @override
+  String get menuReferenceModelAlex => 'Alexモデル';
+
+  @override
+  String get menuReferenceModelCube => 'キューブモデル';
+
+  @override
+  String get menuImportReferenceModelEllipsis => 'モデルをインポート…';
+
+  @override
+  String get referenceModelRefreshTexture => 'テクスチャを更新';
+
+  @override
+  String get referenceModelRefreshTextureDesc => '現在のキャンバスからモデル用テクスチャを生成';
+
+  @override
+  String get referenceModelResetView => '表示をリセット';
+
+  @override
+  String get referenceModelResetViewDesc => '回転とズームを初期化';
+
+  @override
+  String get referenceModelSixView => '6視点';
+
+  @override
+  String get referenceModelSixViewDesc => '表示を2×3に分割（正/背/上/下/左/右）';
+
+  @override
+  String get referenceModelSingleView => '単一表示';
+
+  @override
+  String get referenceModelSingleViewDesc => '単一表示に戻す（ドラッグで回転）';
+
+  @override
+  String get referenceModelViewFront => '正面';
+
+  @override
+  String get referenceModelViewBack => '背面';
+
+  @override
+  String get referenceModelViewTop => '上面';
+
+  @override
+  String get referenceModelViewBottom => '下面';
+
+  @override
+  String get referenceModelViewLeft => '左面';
+
+  @override
+  String get referenceModelViewRight => '右面';
+
+  @override
   String get menuZoomIn => '拡大';
 
   @override
@@ -1922,4 +1979,26 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get midTone => '中間色';
+
+  @override
+  String get rendererLabel => 'レンダラー';
+
+  @override
+  String get rendererNormal => '通常';
+
+  @override
+  String get rendererNormalDesc => 'リアルタイム、最速、プレビューに最適。';
+
+  @override
+  String get rendererCinematic => 'トレーラー';
+
+  @override
+  String get rendererCinematicDesc =>
+      'Minecraft公式トレーラー風のスタイルを再現。ソフトな影と高コントラストな照明。';
+
+  @override
+  String get rendererCycles => 'リアル';
+
+  @override
+  String get rendererCyclesDesc => 'パストレーシング風のスタイルをシミュレート。極めてリアルな照明効果。';
 }

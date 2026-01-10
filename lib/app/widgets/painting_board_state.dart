@@ -1,0 +1,750 @@
+part of 'painting_board.dart';
+
+class PaintingBoardState extends _PaintingBoardBase
+    with
+        TickerProviderStateMixin,
+        _PaintingBoardLayerTransformMixin,
+        _PaintingBoardLayerMixin,
+        _PaintingBoardColorMixin,
+        _PaintingBoardPaletteMixin,
+        _PaintingBoardReferenceMixin,
+        _PaintingBoardReferenceModelMixin,
+        _PaintingBoardPerspectiveMixin,
+        _PaintingBoardTextMixin,
+        _PaintingBoardSelectionMixin,
+        _PaintingBoardShapeMixin,
+        _PaintingBoardClipboardMixin,
+        _PaintingBoardInteractionMixin,
+        _PaintingBoardFilterMixin,
+        _PaintingBoardBuildMixin {
+  @override
+  void initState() {
+    super.initState();
+    _viewInfoNotifier = ValueNotifier<CanvasViewInfo>(_buildViewInfo());
+    initializeTextTool();
+    initializeSelectionTicker(this);
+    initializeStreamlinePostProcessor(this);
+    _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
+    final AppPreferences prefs = AppPreferences.instance;
+    _pixelGridVisible = prefs.pixelGridVisible;
+    AppPreferences.pixelGridVisibleNotifier.addListener(
+      _handlePixelGridPreferenceChanged,
+    );
+    _bucketSampleAllLayers = prefs.bucketSampleAllLayers;
+    _bucketContiguous = prefs.bucketContiguous;
+    _bucketSwallowColorLine = prefs.bucketSwallowColorLine;
+    _bucketSwallowColorLineMode = prefs.bucketSwallowColorLineMode;
+    _bucketTolerance = prefs.bucketTolerance;
+    _bucketFillGap = prefs.bucketFillGap;
+    _magicWandTolerance = prefs.magicWandTolerance;
+    _brushToolsEraserMode = prefs.brushToolsEraserMode;
+    _shapeFillEnabled = prefs.shapeToolFillEnabled;
+    _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
+    _penStrokeSliderRange = prefs.penStrokeSliderRange;
+    _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
+    _sprayStrokeWidth = prefs.sprayStrokeWidth.clamp(
+      kSprayStrokeMin,
+      kSprayStrokeMax,
+    );
+    _sprayMode = prefs.sprayMode;
+    _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
+    _streamlineEnabled = prefs.streamlineEnabled;
+    _streamlineStrength = prefs.streamlineStrength;
+    _simulatePenPressure = prefs.simulatePenPressure;
+    _penPressureProfile = prefs.penPressureProfile;
+    _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
+    _bucketAntialiasLevel = prefs.bucketAntialiasLevel.clamp(0, 3);
+    _stylusPressureEnabled = prefs.stylusPressureEnabled;
+    _stylusCurve = prefs.stylusPressureCurve;
+    _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
+    _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
+    _brushShape = prefs.brushShape;
+    _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
+    _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+    _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
+    _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
+    _hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
+    _colorLineColor = prefs.colorLineColor;
+    _primaryColor = prefs.primaryColor;
+    _primaryHsv = HSVColor.fromColor(_primaryColor);
+    _floatingColorPanelHeight = prefs.floatingColorPanelHeight;
+    _sai2ColorPanelHeight = prefs.sai2ColorPanelHeight;
+    _sai2ToolSectionRatio = prefs.sai2ToolPanelSplit.clamp(0.0, 1.0);
+    _sai2LayerPanelWidthRatio = prefs.sai2LayerPanelWidthSplit.clamp(0.0, 1.0);
+    _rememberColor(widget.settings.backgroundColor);
+    _rememberColor(_primaryColor);
+    initializePerspectiveGuide(widget.initialPerspectiveGuide);
+    final List<CanvasLayerData> layers = _buildInitialLayers();
+    _controller = BitmapCanvasController(
+      width: widget.settings.width.round(),
+      height: widget.settings.height.round(),
+      backgroundColor: widget.settings.backgroundColor,
+      initialLayers: layers,
+      creationLogic: widget.settings.creationLogic,
+    );
+    _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
+    _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
+    _applyStylusSettingsToController();
+    _controller.addListener(_handleControllerChanged);
+    _boardReadyNotified = _controller.frame != null;
+    if (_boardReadyNotified) {
+      widget.onReadyChanged?.call(true);
+    }
+    _resetHistory();
+    _syncRasterizeMenuAvailability();
+    _notifyViewInfoChanged();
+  }
+
+  @override
+  void dispose() {
+    disposeTextTool();
+    _removeFilterOverlay(restoreOriginal: false);
+    _disposeReferenceCards();
+    _disposeReferenceModelCards();
+    disposeSelectionTicker();
+    _controller.removeListener(_handleControllerChanged);
+    unawaited(_controller.disposeController());
+    _layerOpacityPreviewReset(this);
+    _disposeLayerPreviewCache();
+    _layerScrollController.dispose();
+    _layerContextMenuController.dispose();
+    _blendModeFlyoutController.dispose();
+    _layerRenameFocusNode.removeListener(_handleLayerRenameFocusChange);
+    _layerRenameController.dispose();
+    _layerRenameFocusNode.dispose();
+    _pendingLayoutTask = null;
+    unawaited(_layoutWorker?.dispose());
+    _focusNode.dispose();
+    _sprayTicker?.dispose();
+    _viewInfoNotifier.dispose();
+    AppPreferences.pixelGridVisibleNotifier.removeListener(
+      _handlePixelGridPreferenceChanged,
+    );
+    super.dispose();
+  }
+
+  void addLayerAboveActiveLayer() {
+    _handleAddLayer();
+  }
+
+  @override
+  Future<bool> insertImageLayerFromBytes(
+    Uint8List bytes, {
+    String? name,
+  }) async {
+    if (!isBoardReady) {
+      return false;
+    }
+    try {
+      final _ImportedImageData decoded = await _decodeExternalImage(bytes);
+      final int canvasWidth = widget.settings.width.round();
+      final int canvasHeight = widget.settings.height.round();
+      final int offsetX = ((canvasWidth - decoded.width) / 2).floor();
+      final int offsetY = ((canvasHeight - decoded.height) / 2).floor();
+      final String resolvedName = _normalizeImportedLayerName(name);
+      final CanvasLayerData layerData = CanvasLayerData(
+        id: generateLayerId(),
+        name: resolvedName,
+        bitmap: decoded.bytes,
+        bitmapWidth: decoded.width,
+        bitmapHeight: decoded.height,
+        bitmapLeft: offsetX,
+        bitmapTop: offsetY,
+        cloneBitmap: false,
+      );
+      await _pushUndoSnapshot();
+      _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
+      _controller.setActiveLayer(layerData.id);
+      setState(() {});
+      _markDirty();
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Failed to insert image layer: $error\n$stackTrace');
+      return false;
+    }
+  }
+
+  String _normalizeImportedLayerName(String? raw) {
+    final String? trimmed = raw?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return '导入图层';
+    }
+    return trimmed;
+  }
+
+  Future<_ImportedImageData> _decodeExternalImage(Uint8List bytes) async {
+    final ui.Codec codec = await ui.instantiateImageCodec(bytes);
+    final ui.FrameInfo frame = await codec.getNextFrame();
+    final ui.Image image = frame.image;
+    final ByteData? pixelData = await image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+    codec.dispose();
+    if (pixelData == null) {
+      image.dispose();
+      throw StateError('无法读取位图像素数据');
+    }
+    final Uint8List rgba = Uint8List.fromList(
+      pixelData.buffer.asUint8List(
+        pixelData.offsetInBytes,
+        pixelData.lengthInBytes,
+      ),
+    );
+    unpremultiplyRgbaInPlace(rgba);
+    final _ImportedImageData result = _ImportedImageData(
+      width: image.width,
+      height: image.height,
+      bytes: rgba,
+    );
+    image.dispose();
+    return result;
+  }
+
+  void mergeActiveLayerDown() {
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      return;
+    }
+    _handleMergeLayerDown(layer);
+  }
+
+  Future<void> binarizeActiveLayer() async {
+    if (!isBoardReady) {
+      _showBinarizeMessage('画布尚未准备好，无法二值化。');
+      return;
+    }
+    final String? activeLayerId = _activeLayerId;
+    if (activeLayerId == null) {
+      _showBinarizeMessage('请先选择一个可编辑的图层。');
+      return;
+    }
+    final BitmapLayerState? layer = _layerById(activeLayerId);
+    if (layer == null) {
+      _showBinarizeMessage('无法定位当前图层。');
+      return;
+    }
+    if (layer.locked) {
+      _showBinarizeMessage('当前图层已锁定，无法二值化。');
+      return;
+    }
+    if (layer.text != null) {
+      _showBinarizeMessage('当前图层是文字图层，请先栅格化或切换其他图层。');
+      return;
+    }
+
+    await _controller.waitForPendingWorkerTasks();
+    final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
+    final int index = snapshot.indexWhere((item) => item.id == activeLayerId);
+    if (index < 0) {
+      _showBinarizeMessage('无法定位当前图层。');
+      return;
+    }
+    final CanvasLayerData data = snapshot[index];
+    Uint8List? bitmap = data.bitmap != null
+        ? Uint8List.fromList(data.bitmap!)
+        : null;
+    Color? fillColor = data.fillColor;
+    if (bitmap == null && fillColor == null) {
+      _showBinarizeMessage('当前图层为空，无法二值化。');
+      return;
+    }
+
+    const int alphaThreshold = 128;
+    bool bitmapModified = false;
+    bool bitmapHasCoverage = false;
+    if (bitmap != null) {
+      for (int i = 0; i < bitmap.length; i += 4) {
+        final int alpha = bitmap[i + 3];
+        if (alpha == 0) {
+          continue;
+        }
+        if (alpha >= alphaThreshold) {
+          if (alpha != 255) {
+            bitmap[i + 3] = 255;
+            bitmapModified = true;
+          }
+          bitmapHasCoverage = true;
+          continue;
+        }
+        if (bitmap[i] != 0 || bitmap[i + 1] != 0 || bitmap[i + 2] != 0) {
+          bitmap[i] = 0;
+          bitmap[i + 1] = 0;
+          bitmap[i + 2] = 0;
+        }
+        if (alpha != 0) {
+          bitmap[i + 3] = 0;
+          bitmapModified = true;
+        }
+      }
+      if (!bitmapHasCoverage) {
+        bitmap = null;
+        if (data.bitmap != null) {
+          bitmapModified = true;
+        }
+      }
+    }
+
+    bool fillChanged = false;
+    if (fillColor != null) {
+      final int alpha = fillColor.alpha;
+      if (alpha > 0 && alpha < 255) {
+        final int nextAlpha = alpha >= alphaThreshold ? 255 : 0;
+        if (nextAlpha != alpha) {
+          fillColor = fillColor.withAlpha(nextAlpha);
+          fillChanged = true;
+        }
+      }
+    }
+
+    if (!bitmapModified && !fillChanged) {
+      _showBinarizeMessage('未检测到可处理的半透明像素。');
+      return;
+    }
+
+    await _pushUndoSnapshot();
+    final CanvasLayerData updated = CanvasLayerData(
+      id: data.id,
+      name: data.name,
+      visible: data.visible,
+      opacity: data.opacity,
+      locked: data.locked,
+      clippingMask: data.clippingMask,
+      blendMode: data.blendMode,
+      fillColor: fillColor,
+      bitmap: bitmap,
+      bitmapWidth: bitmap != null ? data.bitmapWidth : null,
+      bitmapHeight: bitmap != null ? data.bitmapHeight : null,
+      bitmapLeft: bitmap != null ? data.bitmapLeft : null,
+      bitmapTop: bitmap != null ? data.bitmapTop : null,
+      text: data.text,
+      cloneBitmap: false,
+    );
+    _controller.replaceLayer(activeLayerId, updated);
+    _controller.setActiveLayer(activeLayerId);
+    setState(() {});
+    _markDirty();
+  }
+
+  void _showBinarizeMessage(String message) {
+    AppNotifications.show(
+      context,
+      message: message,
+      severity: InfoBarSeverity.warning,
+    );
+  }
+
+  void selectEntireCanvas() async {
+    final int width = _controller.width;
+    final int height = _controller.height;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    final int length = width * height;
+    final Uint8List mask = Uint8List(length)..fillRange(0, length, 1);
+    final Path selectionPath = Path()
+      ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()));
+    await _prepareSelectionUndo();
+    setState(() {
+      clearSelectionArtifacts();
+      setSelectionState(path: selectionPath, mask: mask);
+    });
+    _updateSelectionAnimation();
+    _finishSelectionUndo();
+  }
+
+  void invertSelection() async {
+    final int width = _controller.width;
+    final int height = _controller.height;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    final int length = width * height;
+    final Uint8List? currentMask = _selectionMask;
+    final Uint8List inverted = Uint8List(length);
+    if (currentMask == null) {
+      inverted.fillRange(0, length, 1);
+    } else {
+      if (currentMask.length != length) {
+        return;
+      }
+      for (int i = 0; i < length; i++) {
+        inverted[i] = currentMask[i] == 0 ? 1 : 0;
+      }
+    }
+    if (!_maskHasCoverage(inverted)) {
+      await _prepareSelectionUndo();
+      setState(() {
+        clearSelectionArtifacts();
+        setSelectionState(path: null, mask: null);
+      });
+      _updateSelectionAnimation();
+      _finishSelectionUndo();
+      return;
+    }
+    final Path? path = currentMask == null
+        ? (Path()
+            ..addRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble())))
+        : _pathFromMask(inverted, width);
+    await _prepareSelectionUndo();
+    setState(() {
+      clearSelectionArtifacts();
+      setSelectionState(path: path, mask: inverted);
+    });
+    _updateSelectionAnimation();
+    _finishSelectionUndo();
+  }
+
+  Future<CanvasResizeResult?> resizeImage(
+    int width,
+    int height,
+    ImageResizeSampling sampling,
+  ) {
+    if (width <= 0 || height <= 0) {
+      return Future.value(null);
+    }
+    _controller.commitActiveLayerTranslation();
+    final int sourceWidth = _controller.width;
+    final int sourceHeight = _controller.height;
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return Future.value(null);
+    }
+    final List<CanvasLayerData> layers = _controller.snapshotLayers();
+    final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
+      for (final CanvasLayerData layer in layers)
+        _scaleLayerData(
+          layer,
+          sourceWidth,
+          sourceHeight,
+          width,
+          height,
+          sampling,
+        ),
+    ];
+    return Future.value(
+      CanvasResizeResult(layers: resizedLayers, width: width, height: height),
+    );
+  }
+
+  Future<CanvasResizeResult?> resizeCanvas(
+    int width,
+    int height,
+    CanvasResizeAnchor anchor,
+  ) {
+    if (width <= 0 || height <= 0) {
+      return Future.value(null);
+    }
+    _controller.commitActiveLayerTranslation();
+    final int sourceWidth = _controller.width;
+    final int sourceHeight = _controller.height;
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return Future.value(null);
+    }
+    final List<CanvasLayerData> layers = _controller.snapshotLayers();
+    final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
+      for (final CanvasLayerData layer in layers)
+        _reframeLayerData(
+          layer,
+          sourceWidth,
+          sourceHeight,
+          width,
+          height,
+          anchor,
+        ),
+    ];
+    return Future.value(
+      CanvasResizeResult(layers: resizedLayers, width: width, height: height),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant PaintingBoard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
+    final bool backgroundChanged =
+        widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
+    final bool logicChanged =
+        widget.settings.creationLogic != oldWidget.settings.creationLogic;
+    if (sizeChanged || backgroundChanged || logicChanged) {
+      _controller.removeListener(_handleControllerChanged);
+      unawaited(_controller.disposeController());
+      _controller = BitmapCanvasController(
+        width: widget.settings.width.round(),
+        height: widget.settings.height.round(),
+        backgroundColor: widget.settings.backgroundColor,
+        initialLayers: _buildInitialLayers(),
+        creationLogic: widget.settings.creationLogic,
+      );
+      _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
+      _applyStylusSettingsToController();
+      _controller.addListener(_handleControllerChanged);
+      _boardReadyNotified = _controller.frame != null;
+      if (_boardReadyNotified) {
+        widget.onReadyChanged?.call(true);
+      }
+      _resetHistory();
+      setState(() {
+        if (sizeChanged) {
+          _viewport.reset();
+          _workspaceSize = Size.zero;
+          _layoutBaseOffset = Offset.zero;
+          _viewportInitialized = false;
+        }
+      });
+      _notifyViewInfoChanged();
+    }
+  }
+
+  void _handleControllerChanged() {
+    final BitmapCanvasFrame? frame = _controller.frame;
+    final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
+    if (awaitedGeneration != null &&
+        frame != null &&
+        frame.generation != awaitedGeneration) {
+      if (_layerOpacityGestureActive) {
+        _layerOpacityPreviewAwaitedGeneration = null;
+      } else {
+        _layerOpacityPreviewDeactivate(this, notifyListeners: true);
+      }
+    }
+    _handleFilterApplyFrameProgress(frame);
+    final bool shouldClearVectorFillOverlay =
+        _shapeVectorFillOverlayPath != null &&
+        _controller.committingStrokes.isEmpty;
+    if (_maybeInitializeLayerTransformStateFromController()) {
+      if (shouldClearVectorFillOverlay) {
+        setState(() {
+          _shapeVectorFillOverlayPath = null;
+          _shapeVectorFillOverlayColor = null;
+        });
+      }
+      _scheduleReferenceModelTextureRefresh();
+      return;
+    }
+    setState(() {
+      if (shouldClearVectorFillOverlay) {
+        _shapeVectorFillOverlayPath = null;
+        _shapeVectorFillOverlayColor = null;
+      }
+    });
+    _syncRasterizeMenuAvailability();
+    _notifyBoardReadyIfNeeded();
+    _scheduleReferenceModelTextureRefresh();
+  }
+
+  void _notifyBoardReadyIfNeeded() {
+    if (_boardReadyNotified) {
+      return;
+    }
+    if (_controller.frame == null) {
+      return;
+    }
+    _boardReadyNotified = true;
+    widget.onReadyChanged?.call(true);
+  }
+
+  WorkspaceOverlaySnapshot buildWorkspaceOverlaySnapshot() {
+    return WorkspaceOverlaySnapshot(
+      paletteCards: buildPaletteSnapshots(),
+      referenceCards: buildReferenceSnapshots(),
+    );
+  }
+
+  Future<void> restoreWorkspaceOverlaySnapshot(
+    WorkspaceOverlaySnapshot snapshot,
+  ) async {
+    restorePaletteSnapshots(snapshot.paletteCards);
+    await restoreReferenceSnapshots(snapshot.referenceCards);
+  }
+
+  ToolSettingsSnapshot buildToolSettingsSnapshot() {
+    return ToolSettingsSnapshot(
+      activeTool: _activeTool,
+      primaryColor: _primaryColor.value,
+      recentColors: _recentColors
+          .map((color) => color.value)
+          .toList(growable: false),
+      colorLineColor: _colorLineColor.value,
+      penStrokeWidth: _penStrokeWidth,
+      sprayStrokeWidth: _sprayStrokeWidth,
+      sprayMode: _sprayMode,
+      penStrokeSliderRange: _penStrokeSliderRange,
+      brushShape: _brushShape,
+      hollowStrokeEnabled: _hollowStrokeEnabled,
+      hollowStrokeRatio: _hollowStrokeRatio,
+      hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
+      strokeStabilizerStrength: _strokeStabilizerStrength,
+      streamlineEnabled: _streamlineEnabled,
+      streamlineStrength: _streamlineStrength,
+      stylusPressureEnabled: _stylusPressureEnabled,
+      simulatePenPressure: _simulatePenPressure,
+      penPressureProfile: _penPressureProfile,
+      penAntialiasLevel: _penAntialiasLevel,
+      bucketAntialiasLevel: _bucketAntialiasLevel,
+      autoSharpPeakEnabled: _autoSharpPeakEnabled,
+      vectorDrawingEnabled: _vectorDrawingEnabled,
+      bucketSampleAllLayers: _bucketSampleAllLayers,
+      bucketContiguous: _bucketContiguous,
+      bucketSwallowColorLine: _bucketSwallowColorLine,
+      bucketSwallowColorLineMode: _bucketSwallowColorLineMode,
+      bucketTolerance: _bucketTolerance,
+      bucketFillGap: _bucketFillGap,
+      magicWandTolerance: _magicWandTolerance,
+      brushToolsEraserMode: _brushToolsEraserMode,
+      layerAdjustCropOutside: _layerAdjustCropOutside,
+      shapeFillEnabled: _shapeFillEnabled,
+      selectionShape: _selectionShape,
+      shapeToolVariant: _shapeToolVariant,
+      textFontSize: _textFontSize,
+      textLineHeight: _textLineHeight,
+      textLetterSpacing: _textLetterSpacing,
+      textFontFamily: _textFontFamily,
+      textAlign: _textAlign,
+      textOrientation: _textOrientation,
+      textAntialias: _textAntialias,
+      textStrokeEnabled: _textStrokeEnabled,
+      textStrokeWidth: _textStrokeWidth,
+    );
+  }
+
+  void applyToolSettingsSnapshot(ToolSettingsSnapshot snapshot) {
+    _setActiveTool(snapshot.activeTool);
+    _updateShapeToolVariant(snapshot.shapeToolVariant);
+    _updateShapeFillEnabled(snapshot.shapeFillEnabled);
+    _updateSelectionShape(snapshot.selectionShape);
+    _updateTextFontSize(snapshot.textFontSize);
+    _updateTextLineHeight(snapshot.textLineHeight);
+    _updateTextLetterSpacing(snapshot.textLetterSpacing);
+    _updateTextFontFamily(snapshot.textFontFamily);
+    _updateTextAlign(snapshot.textAlign);
+    _updateTextOrientation(snapshot.textOrientation);
+    _updateTextAntialias(snapshot.textAntialias);
+    _updateTextStrokeEnabled(snapshot.textStrokeEnabled);
+    _updateTextStrokeWidth(snapshot.textStrokeWidth);
+    _updatePenStrokeWidth(snapshot.penStrokeWidth);
+    _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
+    _updateSprayMode(snapshot.sprayMode);
+    if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
+      setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
+    }
+    _updateBrushShape(snapshot.brushShape);
+    _updateHollowStrokeEnabled(snapshot.hollowStrokeEnabled);
+    _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
+    _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
+    _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
+    _updateStreamlineEnabled(snapshot.streamlineEnabled);
+    _updateStreamlineStrength(snapshot.streamlineStrength);
+    _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
+    _updatePenPressureSimulation(snapshot.simulatePenPressure);
+    _updatePenPressureProfile(snapshot.penPressureProfile);
+    _updatePenAntialiasLevel(snapshot.penAntialiasLevel);
+    _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
+    _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
+    _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
+    _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
+    _updateBucketContiguous(snapshot.bucketContiguous);
+    _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);
+    _updateBucketSwallowColorLineMode(snapshot.bucketSwallowColorLineMode);
+    _updateBucketTolerance(snapshot.bucketTolerance);
+    _updateBucketFillGap(snapshot.bucketFillGap);
+    _updateMagicWandTolerance(snapshot.magicWandTolerance);
+    _updateBrushToolsEraserMode(snapshot.brushToolsEraserMode);
+    _updateLayerAdjustCropOutside(snapshot.layerAdjustCropOutside);
+    _setPrimaryColor(Color(snapshot.primaryColor), remember: false);
+    setState(() {
+      _recentColors
+        ..clear()
+        ..addAll(snapshot.recentColors.map((value) => Color(value)));
+    });
+    final Color targetColorLine = Color(snapshot.colorLineColor);
+    if (_colorLineColor.value != targetColorLine.value) {
+      setState(() => _colorLineColor = targetColorLine);
+    }
+  }
+}
+
+class _CanvasHistoryEntry {
+  const _CanvasHistoryEntry({
+    required this.layers,
+    required this.backgroundColor,
+    required this.activeLayerId,
+    required this.selectionShape,
+    this.selectionMask,
+    this.selectionPath,
+  });
+
+  final List<CanvasLayerData> layers;
+  final Color backgroundColor;
+  final String? activeLayerId;
+  final SelectionShape selectionShape;
+  final Uint8List? selectionMask;
+  final Path? selectionPath;
+}
+
+StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;
+
+void _layerOpacityPreviewReset(
+  _PaintingBoardBase board, {
+  bool notifyListeners = false,
+}) {
+  final bool hadPreview =
+      board._layerOpacityPreviewActive ||
+      board._layerOpacityPreviewLayerId != null ||
+      board._layerOpacityPreviewValue != null;
+  board._layerOpacityPreviewActive = false;
+  board._layerOpacityPreviewLayerId = null;
+  board._layerOpacityPreviewValue = null;
+  board._layerOpacityPreviewRequestId++;
+  board._layerOpacityPreviewAwaitedGeneration = null;
+  board._layerOpacityPreviewCapturedSignature = null;
+  board._layerOpacityPreviewHasVisibleLowerLayers = false;
+  _layerOpacityPreviewDisposeImages(board);
+  if (notifyListeners && hadPreview && board.mounted) {
+    board.setState(() {});
+  }
+}
+
+void _layerOpacityPreviewDeactivate(
+  _PaintingBoardBase board, {
+  bool notifyListeners = false,
+}) {
+  final bool hadPreview =
+      board._layerOpacityPreviewActive ||
+      board._layerOpacityPreviewValue != null ||
+      board._layerOpacityPreviewAwaitedGeneration != null;
+  board._layerOpacityPreviewActive = false;
+  board._layerOpacityPreviewValue = null;
+  board._layerOpacityPreviewAwaitedGeneration = null;
+  board._layerOpacityPreviewHasVisibleLowerLayers = false;
+  if (notifyListeners && hadPreview && board.mounted) {
+    board.setState(() {});
+  }
+}
+
+void _layerOpacityPreviewDisposeImages(_PaintingBoardBase board) {
+  board._layerOpacityPreviewBackground?.dispose();
+  board._layerOpacityPreviewBackground = null;
+  board._layerOpacityPreviewActiveLayerImage?.dispose();
+  board._layerOpacityPreviewActiveLayerImage = null;
+  board._layerOpacityPreviewForeground?.dispose();
+  board._layerOpacityPreviewForeground = null;
+}
+
+int _layerOpacityPreviewSignature(Iterable<BitmapLayerState> layers) {
+  int hash = layers.length;
+  int index = 1;
+  for (final BitmapLayerState layer in layers) {
+    hash = 37 * hash + layer.revision;
+    hash = 37 * hash + layer.id.hashCode;
+    hash = 37 * hash + index;
+    hash = 37 * hash + (layer.visible ? 1 : 0);
+    hash = 37 * hash + (layer.clippingMask ? 1 : 0);
+    hash = 37 * hash + layer.blendMode.index;
+    hash = 37 * hash + (layer.opacity * 1000).round();
+    index++;
+  }
+  return hash;
+}

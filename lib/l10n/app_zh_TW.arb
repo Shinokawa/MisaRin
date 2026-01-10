@@ -212,6 +212,12 @@
   "menuCreateReferenceImage": "\u5efa\u7acb\u53c3\u8003\u5f71\u50cf",
   "menuImportReferenceImageEllipsis": "\u532f\u5165\u53c3\u8003\u5f71\u50cf\u2026",
 
+  "menuReferenceModel": "\u53c3\u8003\u6a21\u578b",
+  "menuReferenceModelSteve": "Steve\u6a21\u578b",
+  "menuReferenceModelAlex": "Alex\u6a21\u578b",
+  "menuReferenceModelCube": "\u65b9\u584a\u6a21\u578b",
+  "menuImportReferenceModelEllipsis": "\u532f\u5165\u6a21\u578b\u2026",
+
   "menuZoomIn": "\u653e\u5927",
   "menuZoomOut": "\u7e2e\u5c0f",
   "menuShowGrid": "\u986f\u793a\u7db2\u683c",
@@ -445,5 +451,13 @@
   "randomRotation": "隨機旋轉",
   "randomRotationDesc": "開啟後，正方形/三角形/五角星筆刷會在筆觸的每個印章上隨機旋轉。",
   "star": "五角星",
-  "starTipDesc": "使用五角星筆尖繪製裝飾性筆觸。"
+  "starTipDesc": "使用五角星筆尖繪製裝飾性筆觸。",
+
+  "rendererLabel": "渲染器",
+  "rendererNormal": "普通",
+  "rendererNormalDesc": "即時渲染，速度最快，適合預覽。",
+  "rendererCinematic": "宣傳片",
+  "rendererCinematicDesc": "還原 Minecraft 官方宣傳片風格，包含柔和陰影與高對比度光效。",
+  "rendererCycles": "寫實",
+  "rendererCyclesDesc": "模擬路徑追蹤風格，極其逼真的光照效果。"
 }
