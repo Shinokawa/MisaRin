@@ -44,23 +44,35 @@ _BakeSkyboxPalette _computeBakeSkyboxPalette({
       : 12.0;
   final double dayPhase = ((normalized - 6.0) / 12.0) * math.pi;
   final double sunHeight = math.sin(dayPhase).clamp(-1.0, 1.0).toDouble();
+  final double daylight = sunHeight.clamp(0.0, 1.0).toDouble();
   final double dayBlend = _smoothstep(-0.35, 0.15, sunHeight);
+  final double twilight =
+      (1.0 - _smoothstep(0.18, 0.70, sunHeight.abs())).clamp(0.0, 1.0);
 
   // Sky: boost the midday blue so it doesn't look washed out / white.
   const Color dayZenithTarget = Color(0xFF2E6CFF);
   const Color dayHorizonTarget = Color(0xFFBDEBFF);
-  final double zenithBoost = ((isDark ? 0.10 : 0.76) * dayBlend).clamp(0.0, 1.0);
-  final Color zenith =
-      Color.lerp(skyColor, dayZenithTarget, zenithBoost) ?? skyColor;
+  final double zenithBoost =
+      ((isDark ? 0.10 : 0.76) * math.pow(daylight, 0.55).toDouble())
+          .clamp(0.0, 1.0);
+  Color zenith = Color.lerp(skyColor, dayZenithTarget, zenithBoost) ?? skyColor;
+  const Color duskZenithTarget = Color(0xFF3A2A66);
+  final double duskZenithT =
+      (twilight * (isDark ? 0.20 : 0.42)).clamp(0.0, 1.0);
+  zenith = Color.lerp(zenith, duskZenithTarget, duskZenithT) ?? zenith;
 
+  const Color warmSunTarget = Color(0xFFFFA36D);
+  final Color duskSunColor =
+      Color.lerp(sunColor, warmSunTarget, (twilight * 0.85).clamp(0.0, 0.85)) ??
+          sunColor;
   final double warmT =
-      (0.10 + 0.18 * dayBlend).clamp(0.0, isDark ? 0.24 : 0.34);
-  final Color horizonWarm = Color.lerp(zenith, sunColor, warmT) ?? zenith;
-  final double hazeT = ((isDark ? 0.10 : 0.34) +
-          (isDark ? 0.18 : 0.58) * dayBlend)
-      .clamp(0.0, 1.0);
-  final Color horizon =
-      Color.lerp(horizonWarm, dayHorizonTarget, hazeT) ?? horizonWarm;
+      (0.06 + 0.52 * twilight + 0.08 * dayBlend).clamp(0.0, isDark ? 0.50 : 0.80);
+  final Color horizonWarm = Color.lerp(zenith, duskSunColor, warmT) ?? zenith;
+  final double hazeScale =
+      (0.08 + 0.85 * math.pow(daylight, 0.65).toDouble()).clamp(0.0, 1.0);
+  final double hazeT = (hazeScale * dayBlend).clamp(0.0, 1.0);
+  final Color horizon = Color.lerp(horizonWarm, dayHorizonTarget, hazeT) ??
+      horizonWarm;
 
   // Clouds: aim for white cumulus with soft blue ambient and less harsh shadows.
   final Color cloudBase = Color.lerp(
