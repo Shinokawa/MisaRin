@@ -120,8 +120,7 @@ pub fn flood_fill_in_place(
         return FloodFillRect::empty();
     }
 
-    let pixels: &mut [u32] =
-        unsafe { std::slice::from_raw_parts_mut(ptr as *mut u32, len) };
+    let pixels: &mut [u32] = unsafe { std::slice::from_raw_parts_mut(ptr as *mut u32, len) };
 
     let Some((min_x, min_y, max_x, max_y)) = flood_fill_bounds(
         width_usize,

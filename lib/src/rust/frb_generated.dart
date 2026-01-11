@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/bucket_fill.dart';
+import 'api/gpu_composite.dart';
 import 'api/image_ops.dart';
 import 'api/memory.dart';
 import 'api/psd.dart';
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1860490389;
+  int get rustContentHash => 48872173;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -121,6 +122,16 @@ abstract class RustLibApi extends BaseApi {
   });
 
   void crateApiMemoryFreePixelBuffer({required BigInt ptr, required int size});
+
+  Future<Uint32List> crateApiGpuCompositeGpuCompositeLayers({
+    required List<GpuLayerData> layers,
+    required int width,
+    required int height,
+  });
+
+  void crateApiGpuCompositeGpuCompositorDispose();
+
+  void crateApiGpuCompositeGpuCompositorInit();
 
   String crateApiSimpleGreet({required String name});
 
@@ -402,13 +413,94 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<Uint32List> crateApiGpuCompositeGpuCompositeLayers({
+    required List<GpuLayerData> layers,
+    required int width,
+    required int height,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_gpu_layer_data(layers, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_32_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiGpuCompositeGpuCompositeLayersConstMeta,
+        argValues: [layers, width, height],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGpuCompositeGpuCompositeLayersConstMeta =>
+      const TaskConstMeta(
+        debugName: "gpu_composite_layers",
+        argNames: ["layers", "width", "height"],
+      );
+
+  @override
+  void crateApiGpuCompositeGpuCompositorDispose() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiGpuCompositeGpuCompositorDisposeConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGpuCompositeGpuCompositorDisposeConstMeta =>
+      const TaskConstMeta(debugName: "gpu_compositor_dispose", argNames: []);
+
+  @override
+  void crateApiGpuCompositeGpuCompositorInit() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiGpuCompositeGpuCompositorInitConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGpuCompositeGpuCompositorInitConstMeta =>
+      const TaskConstMeta(debugName: "gpu_compositor_init", argNames: []);
+
+  @override
   String crateApiSimpleGreet({required String name}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -434,7 +526,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 10,
             port: port_,
           );
         },
@@ -461,7 +553,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 11,
             port: port_,
           );
         },
@@ -487,7 +579,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_usize(ptr, serializer);
           sse_encode_i_32(index, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -516,7 +608,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(mask, serializer);
           sse_encode_i_32(width, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_u_32_strict,
@@ -555,6 +647,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double dco_decode_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
   FloodFillPatch dco_decode_flood_fill_patch(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -584,9 +682,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GpuLayerData dco_decode_gpu_layer_data(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return GpuLayerData(
+      pixels: dco_decode_list_prim_u_32_strict(arr[0]),
+      opacity: dco_decode_f_64(arr[1]),
+      blendModeIndex: dco_decode_u_32(arr[2]),
+      visible: dco_decode_bool(arr[3]),
+      clippingMask: dco_decode_bool(arr[4]),
+    );
+  }
+
+  @protected
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
+  }
+
+  @protected
+  List<GpuLayerData> dco_decode_list_gpu_layer_data(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_gpu_layer_data).toList();
   }
 
   @protected
@@ -714,6 +833,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double sse_decode_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getFloat64();
+  }
+
+  @protected
   FloodFillPatch sse_decode_flood_fill_patch(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_left = sse_decode_i_32(deserializer);
@@ -746,9 +871,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GpuLayerData sse_decode_gpu_layer_data(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_pixels = sse_decode_list_prim_u_32_strict(deserializer);
+    var var_opacity = sse_decode_f_64(deserializer);
+    var var_blendModeIndex = sse_decode_u_32(deserializer);
+    var var_visible = sse_decode_bool(deserializer);
+    var var_clippingMask = sse_decode_bool(deserializer);
+    return GpuLayerData(
+      pixels: var_pixels,
+      opacity: var_opacity,
+      blendModeIndex: var_blendModeIndex,
+      visible: var_visible,
+      clippingMask: var_clippingMask,
+    );
+  }
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  List<GpuLayerData> sse_decode_list_gpu_layer_data(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <GpuLayerData>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_gpu_layer_data(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -908,6 +1064,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_f_64(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putFloat64(self);
+  }
+
+  @protected
   void sse_encode_flood_fill_patch(
     FloodFillPatch self,
     SseSerializer serializer,
@@ -933,9 +1095,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_gpu_layer_data(GpuLayerData self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_prim_u_32_strict(self.pixels, serializer);
+    sse_encode_f_64(self.opacity, serializer);
+    sse_encode_u_32(self.blendModeIndex, serializer);
+    sse_encode_bool(self.visible, serializer);
+    sse_encode_bool(self.clippingMask, serializer);
+  }
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_list_gpu_layer_data(
+    List<GpuLayerData> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_gpu_layer_data(item, serializer);
+    }
   }
 
   @protected

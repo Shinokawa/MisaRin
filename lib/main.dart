@@ -11,6 +11,7 @@ import 'app/app.dart';
 import 'app/l10n/l10n.dart';
 import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
+import 'backend/canvas_raster_backend.dart';
 import 'src/rust/rust_init.dart';
 
 Future<void> main() async {
@@ -19,8 +20,12 @@ Future<void> main() async {
 
   try {
     await ensureRustInitialized();
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      await CanvasRasterBackend.initGpu();
+    }
   } catch (error, stackTrace) {
-    debugPrint('RustLib.init failed: $error\n$stackTrace');
+    debugPrint('GPU init failed: $error\n$stackTrace');
+    rethrow;
   }
 
   final Future<void> preloadFuture = _preloadCoreServices();

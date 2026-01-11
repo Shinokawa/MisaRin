@@ -25,7 +25,6 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
   final CanvasRasterBackend tempBackend = CanvasRasterBackend(
     width: width,
     height: height,
-    multithreaded: false,
   );
   ui.Image? background;
   ui.Image? active;

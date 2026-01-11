@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
@@ -6,7 +7,8 @@ import '../bitmap_canvas/bitmap_blend_utils.dart' as blend_utils;
 import '../bitmap_canvas/bitmap_canvas.dart';
 import '../bitmap_canvas/bitmap_layer_state.dart';
 import '../bitmap_canvas/raster_int_rect.dart';
-import 'canvas_composite_worker.dart';
+import '../src/rust/api/gpu_composite.dart' as rust_gpu;
+import '../src/rust/rust_init.dart';
 import 'rgba_utils.dart';
 
 class RasterCompositeWork {
@@ -38,16 +40,22 @@ class CanvasRasterBackend {
     required int width,
     required int height,
     this.tileSize = 256,
-    bool multithreaded = false,
   }) : _width = width,
-       _height = height,
-       _multithreaded = multithreaded;
+       _height = height {
+    _backendInstanceCount++;
+  }
+
+  static final Uint32List _emptyPixels = Uint32List(0);
+  static Future<void>? _gpuInitFuture;
+  static Future<void> _gpuCompositeSerial = Future<void>.value();
+  static int _gpuCompositeEpoch = 0;
+  static int _backendInstanceCount = 0;
 
   int _width;
   int _height;
   final int tileSize;
-  final bool _multithreaded;
-  CanvasCompositeWorker? _worker;
+
+  bool _disposed = false;
 
   bool _compositeDirty = true;
   bool _compositeInitialized = false;
@@ -56,37 +64,51 @@ class CanvasRasterBackend {
   final List<RasterIntRect> _pendingDirtyTiles = <RasterIntRect>[];
   final Set<int> _pendingDirtyTileKeys = <int>{};
 
-  // New state for tracking layer dirtiness
-  final Set<String> _pendingDirtyLayerIds = <String>{};
-  bool _pendingAllLayersDirty = false;
-  final Set<String> _workerKnownLayerIds = <String>{};
-
-  // Cache for worker-generated RGBA tiles to avoid main thread conversion
-  final Map<int, Uint8List> _precomputedTileRgba = <int, Uint8List>{};
-
   Uint32List? _compositePixels;
-  Uint8List? _clipMaskBuffer;
+
+  int _knownGpuCompositeEpoch = 0;
+  bool _gpuLayerCacheInitialized = false;
+  int _cachedLayerWidth = 0;
+  int _cachedLayerHeight = 0;
+  List<String>? _cachedLayerOrder;
+  final Map<String, int> _cachedLayerRevisions = <String, int>{};
 
   bool get isCompositeDirty => _compositeDirty;
   Uint32List? get compositePixels => _compositePixels;
   int get width => _width;
   int get height => _height;
 
+  static Future<void> initGpu() async {
+    try {
+      await _ensureGpuInitialized();
+    } catch (e) {
+      throw Exception('GPU初始化失败，无法运行: $e');
+    }
+  }
+
+  static Future<void> _ensureGpuInitialized() {
+    final Future<void>? existing = _gpuInitFuture;
+    if (existing != null) {
+      return existing;
+    }
+    final Future<void> future = () async {
+      await ensureRustInitialized();
+      rust_gpu.gpuCompositorInit();
+    }();
+    _gpuInitFuture = future;
+    return future.catchError((Object error, StackTrace stackTrace) {
+      _gpuInitFuture = null;
+      return Future<void>.error(error, stackTrace);
+    });
+  }
+
   void markDirty({Rect? region, String? layerId, bool pixelsDirty = true}) {
     _compositeDirty = true;
-    if (pixelsDirty) {
-      if (layerId != null) {
-        _pendingDirtyLayerIds.add(layerId);
-      } else {
-        _pendingAllLayersDirty = true;
-      }
-    }
 
     if (region == null || _pendingFullSurface) {
       _pendingDirtyBounds = null;
       _pendingDirtyTiles.clear();
       _pendingDirtyTileKeys.clear();
-      _precomputedTileRgba.clear(); // Invalidate all cached tiles
       _pendingFullSurface = true;
       return;
     }
@@ -98,19 +120,6 @@ class CanvasRasterBackend {
     ).intersect(region);
     if (clipped.isEmpty) {
       return;
-    }
-
-    // Invalidate cached tiles for the dirty region
-    final int leftTile = clipped.left ~/ tileSize;
-    final int rightTile = (clipped.right - 1) ~/ tileSize;
-    final int topTile = clipped.top ~/ tileSize;
-    final int bottomTile = (clipped.bottom - 1) ~/ tileSize;
-
-    for (int ty = topTile; ty <= bottomTile; ty++) {
-      for (int tx = leftTile; tx <= rightTile; tx++) {
-        final int key = (ty << 20) | tx;
-        _precomputedTileRgba.remove(key);
-      }
     }
 
     if (_pendingDirtyBounds == null) {
@@ -154,274 +163,138 @@ class CanvasRasterBackend {
     List<RasterIntRect>? regions,
     String? translatingLayerId,
   }) async {
-    if (_multithreaded) {
-      await _compositeWithWorker(
-        layers: layers,
-        requiresFullSurface: requiresFullSurface,
-        regions: regions,
-        translatingLayerId: translatingLayerId,
-      );
-      return;
-    }
     _ensureBuffers();
-    final List<RasterIntRect> areas;
-    if (requiresFullSurface) {
-      areas = <RasterIntRect>[RasterIntRect(0, 0, _width, _height)];
-    } else {
-      if (regions == null || regions.isEmpty) {
-        return;
-      }
-      areas = regions;
-    }
-    if (areas.isEmpty) {
+    if (!requiresFullSurface && (regions == null || regions.isEmpty)) {
       return;
     }
 
-    final Uint32List composite = _compositePixels!;
+    await initGpu();
 
-    BitmapLayerState? singleVisibleLayer;
-    for (final BitmapLayerState layer in layers) {
-      if (!layer.visible) {
-        continue;
-      }
-      if (translatingLayerId != null && layer.id == translatingLayerId) {
-        continue;
-      }
-      if (singleVisibleLayer != null) {
-        singleVisibleLayer = null;
-        break;
-      }
-      singleVisibleLayer = layer;
-    }
-
-    if (singleVisibleLayer != null &&
-        !singleVisibleLayer.clippingMask &&
-        _clampUnit(singleVisibleLayer.opacity) >= 1.0) {
-      final Uint32List source = singleVisibleLayer.surface.pixels;
-      if (source.length == composite.length) {
-        for (final RasterIntRect area in areas) {
-          if (area.isEmpty) {
-            continue;
-          }
-          final int copyWidth = area.width;
-          for (int y = area.top; y < area.bottom; y++) {
-            final int offset = y * _width + area.left;
-            composite.setRange(offset, offset + copyWidth, source, offset);
-          }
+    await _runGpuCompositeSerialized(() async {
+      final List<BitmapLayerState> effectiveLayers = <BitmapLayerState>[];
+      for (final BitmapLayerState layer in layers) {
+        if (translatingLayerId != null && layer.id == translatingLayerId) {
+          continue;
         }
-        if (requiresFullSurface) {
-          _compositeInitialized = true;
+        if (!layer.visible) {
+          continue;
         }
-        return;
+        effectiveLayers.add(layer);
       }
-    }
 
-    final Uint8List clipMask = _ensureClipMask();
-    clipMask.fillRange(0, clipMask.length, 0);
+      final List<String> layerOrder = effectiveLayers
+          .map((BitmapLayerState layer) => layer.id)
+          .toList(growable: false);
 
-    for (final RasterIntRect area in areas) {
-      if (area.isEmpty) {
-        continue;
+      final bool sameEpoch = _gpuLayerCacheInitialized &&
+          _knownGpuCompositeEpoch == _gpuCompositeEpoch;
+      final bool sameCanvasSize =
+          _cachedLayerWidth == _width && _cachedLayerHeight == _height;
+      final bool sameOrder = _listEquals(_cachedLayerOrder, layerOrder);
+
+      final bool allowIncrementalPixels = sameEpoch && sameCanvasSize && sameOrder;
+
+      Future<Uint32List> runComposite({required bool forceFullPixels}) {
+        final List<rust_gpu.GpuLayerData> gpuLayers = <rust_gpu.GpuLayerData>[];
+        for (final BitmapLayerState layer in effectiveLayers) {
+          final int? cachedRevision = _cachedLayerRevisions[layer.id];
+          final bool pixelsUnchanged =
+              cachedRevision != null && cachedRevision == layer.revision;
+          final Uint32List pixels = (!forceFullPixels &&
+                  allowIncrementalPixels &&
+                  pixelsUnchanged)
+              ? _emptyPixels
+              : layer.surface.pixels;
+
+          gpuLayers.add(
+            rust_gpu.GpuLayerData(
+              pixels: pixels,
+              opacity: layer.opacity,
+              blendModeIndex: layer.blendMode.index,
+              visible: true,
+              clippingMask: layer.clippingMask,
+            ),
+          );
+        }
+
+        return rust_gpu.gpuCompositeLayers(
+          layers: gpuLayers,
+          width: _width,
+          height: _height,
+        );
       }
-      for (int y = area.top; y < area.bottom; y++) {
-        final int rowOffset = y * _width;
-        for (int x = area.left; x < area.right; x++) {
-          final int index = rowOffset + x;
-          int color = 0;
-          bool initialized = false;
-          for (final BitmapLayerState layer in layers) {
-            if (!layer.visible) {
-              continue;
-            }
-            if (translatingLayerId != null && layer.id == translatingLayerId) {
-              continue;
-            }
-            final double layerOpacity = _clampUnit(layer.opacity);
-            if (layerOpacity <= 0) {
-              if (!layer.clippingMask) {
-                clipMask[index] = 0;
-              }
-              continue;
-            }
-            final int src = layer.surface.pixels[index];
-            final int srcA = (src >> 24) & 0xff;
-            if (srcA == 0) {
-              if (!layer.clippingMask) {
-                clipMask[index] = 0;
-              }
-              continue;
-            }
 
-            double totalOpacity = layerOpacity;
-            if (layer.clippingMask) {
-              final int maskAlpha = clipMask[index];
-              if (maskAlpha == 0) {
-                continue;
-              }
-              totalOpacity *= maskAlpha / 255.0;
-              if (totalOpacity <= 0) {
-                continue;
-              }
-            }
-
-            int effectiveA = (srcA * totalOpacity).round();
-            if (effectiveA <= 0) {
-              if (!layer.clippingMask) {
-                clipMask[index] = 0;
-              }
-              continue;
-            }
-            effectiveA = effectiveA.clamp(0, 255);
-
-            if (!layer.clippingMask) {
-              clipMask[index] = effectiveA;
-            }
-
-            final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
-            if (!initialized) {
-              color = effectiveColor;
-              initialized = true;
-            } else {
-              color = blend_utils.blendWithMode(
-                color,
-                effectiveColor,
-                layer.blendMode,
-                index,
-              );
-            }
-          }
-
-          if (!initialized) {
-            composite[index] = 0;
-            continue;
-          }
-
-          composite[index] = color;
+      Uint32List result;
+      try {
+        result = await runComposite(forceFullPixels: false);
+      } catch (e) {
+        if (_isGpuNeedsFullUploadError(e)) {
+          _invalidateGpuLayerCache();
+          result = await runComposite(forceFullPixels: true);
+        } else {
+          _invalidateGpuLayerCache();
+          _gpuCompositeEpoch++;
+          _knownGpuCompositeEpoch = _gpuCompositeEpoch;
+          rethrow;
         }
       }
-    }
 
-    if (requiresFullSurface) {
-      _compositeInitialized = true;
-    }
+      final Uint32List composite = _compositePixels!;
+      if (result.length != composite.length) {
+        _invalidateGpuLayerCache();
+        _gpuCompositeEpoch++;
+        _knownGpuCompositeEpoch = _gpuCompositeEpoch;
+        throw StateError(
+          'GPU composite size mismatch: got ${result.length}, expected ${composite.length}',
+        );
+      }
+      composite.setAll(0, result);
+
+      _gpuCompositeEpoch++;
+      _knownGpuCompositeEpoch = _gpuCompositeEpoch;
+      _gpuLayerCacheInitialized = true;
+      _cachedLayerWidth = _width;
+      _cachedLayerHeight = _height;
+      _cachedLayerOrder = layerOrder;
+      for (final BitmapLayerState layer in effectiveLayers) {
+        _cachedLayerRevisions[layer.id] = layer.revision;
+      }
+
+      if (requiresFullSurface) {
+        _compositeInitialized = true;
+      }
+    });
   }
 
   Future<void> dispose() async {
-    if (_worker != null) {
-      await _worker!.dispose();
-      _worker = null;
+    if (_disposed) {
+      return;
     }
-  }
+    _disposed = true;
 
-  Future<void> _compositeWithWorker({
-    required List<BitmapLayerState> layers,
-    required bool requiresFullSurface,
-    List<RasterIntRect>? regions,
-    String? translatingLayerId,
-  }) async {
-    final List<RasterIntRect> areas = requiresFullSurface
-        ? <RasterIntRect>[RasterIntRect(0, 0, _width, _height)]
-        : (regions ?? const <RasterIntRect>[]);
+    _invalidateGpuLayerCache();
+    _compositePixels = null;
 
-    _worker ??= CanvasCompositeWorker();
-
-    // 1. Sync layers to worker
-    for (final BitmapLayerState layer in layers) {
-      if (!_workerKnownLayerIds.contains(layer.id)) {
-        // New layer, sync full surface
-        final Uint32List? pixels = layer.surface.isClean
-            ? null
-            : layer.surface.pixels;
-        await _worker!.updateLayer(
-          id: layer.id,
-          width: _width,
-          height: _height,
-          pixels: pixels,
-        );
-        _workerKnownLayerIds.add(layer.id);
-      } else if (_pendingAllLayersDirty ||
-          _pendingDirtyLayerIds.contains(layer.id)) {
-        // Dirty layer, sync patches
-        if (areas.isNotEmpty) {
-          for (final RasterIntRect area in areas) {
-            await _worker!.updateLayer(
-              id: layer.id,
-              width: _width,
-              height: _height,
-              pixels: _copyLayerRegion(layer.surface, area),
-              rect: area,
-            );
-          }
-        }
-      }
+    if (_backendInstanceCount > 0) {
+      _backendInstanceCount--;
     }
-
-    // Reset dirtiness
-    _pendingDirtyLayerIds.clear();
-    _pendingAllLayersDirty = false;
-
-    if (areas.isEmpty) {
+    if (_backendInstanceCount != 0) {
       return;
     }
 
-    final List<CompositeRegionPayload> payloadRegions = _buildCompositeWork(
-      areas,
-      layers,
-    );
-
-    final List<CompositeRegionResult> results = await _worker!.composite(
-      CompositeWorkPayload(
-        width: _width,
-        height: _height,
-        regions: payloadRegions,
-        requiresFullSurface: requiresFullSurface,
-        translatingLayerId: translatingLayerId,
-      ),
-    );
-    if (results.isEmpty) {
+    final Future<void>? initFuture = _gpuInitFuture;
+    if (initFuture == null) {
       return;
     }
-    _ensureBuffers();
-    final Uint32List composite = _compositePixels!;
-    for (final CompositeRegionResult region in results) {
-      _writeRegion(region.rect, region.pixels, composite);
-
-      // Cache precomputed RGBA if available
-      if (region.rgbaBytes != null) {
-        final ByteBuffer buffer = region.rgbaBytes!.materialize();
-        final Uint8List rgba = buffer.asUint8List();
-        // We need to store this keyed by the tile rect.
-        // However, the region rect might not align perfectly with tiles if we supported partial updates.
-        // But currently _enqueueDirtyTiles aligns everything to tileSize.
-        // So we can assume region.rect is a tile.
-        final int key =
-            (region.rect.top ~/ tileSize << 20) |
-            (region.rect.left ~/ tileSize);
-        _precomputedTileRgba[key] = rgba;
-      }
-    }
-    if (requiresFullSurface) {
-      _compositeInitialized = true;
-    }
-  }
-
-  void _writeRegion(
-    RasterIntRect rect,
-    Uint32List pixels,
-    Uint32List destination,
-  ) {
-    final int regionWidth = rect.width;
-    final int regionHeight = rect.height;
-    for (int row = 0; row < regionHeight; row++) {
-      final int destOffset = (rect.top + row) * _width + rect.left;
-      final int srcOffset = row * regionWidth;
-      destination.setRange(
-        destOffset,
-        destOffset + regionWidth,
-        pixels,
-        srcOffset,
-      );
-    }
+    await _runGpuCompositeSerialized(() async {
+      try {
+        await initFuture;
+        rust_gpu.gpuCompositorDispose();
+      } catch (_) {}
+    });
+    _gpuInitFuture = null;
+    _gpuCompositeEpoch = 0;
+    _gpuCompositeSerial = Future<void>.value();
   }
 
   void completeCompositePass() {
@@ -437,59 +310,9 @@ class CanvasRasterBackend {
     return _compositePixels!;
   }
 
-  Uint8List _ensureClipMask() {
-    return _clipMaskBuffer ??= Uint8List(_width * _height);
-  }
-
-  void resetClipMask() {
-    _clipMaskBuffer = null;
-  }
-
-  List<CompositeRegionPayload> _buildCompositeWork(
-    List<RasterIntRect> areas,
-    List<BitmapLayerState> layers,
-  ) {
-    return <CompositeRegionPayload>[
-      for (final RasterIntRect area in areas)
-        CompositeRegionPayload(
-          rect: area,
-          layers: <CompositeRegionLayerRef>[
-            for (final BitmapLayerState layer in layers)
-              CompositeRegionLayerRef(
-                id: layer.id,
-                visible: layer.visible,
-                opacity: layer.opacity,
-                clippingMask: layer.clippingMask,
-                blendModeIndex: layer.blendMode.index,
-              ),
-          ],
-        ),
-    ];
-  }
-
-  Uint32List _copyLayerRegion(BitmapSurface surface, RasterIntRect rect) {
-    final int regionWidth = rect.width;
-    final int regionHeight = rect.height;
-    final Uint32List pixels = Uint32List(regionWidth * regionHeight);
-    final Uint32List source = surface.pixels;
-    for (int row = 0; row < regionHeight; row++) {
-      final int srcOffset = (rect.top + row) * _width + rect.left;
-      final int dstOffset = row * regionWidth;
-      pixels.setRange(dstOffset, dstOffset + regionWidth, source, srcOffset);
-    }
-    return pixels;
-  }
+  void resetClipMask() {}
 
   Uint8List copyTileRgba(RasterIntRect rect) {
-    // Check cache first
-    final int key = (rect.top ~/ tileSize << 20) | (rect.left ~/ tileSize);
-    final Uint8List? cached = _precomputedTileRgba[key];
-    final int expectedLength = rect.width * rect.height * 4;
-
-    if (cached != null && cached.length == expectedLength) {
-      return cached;
-    }
-
     final Uint32List pixels = ensureCompositePixels();
     final int tileWidth = rect.width;
     final int tileHeight = rect.height;
@@ -621,16 +444,48 @@ class CanvasRasterBackend {
     }
   }
 
-  static double _clampUnit(double value) {
-    if (value.isNaN) {
-      return 0.0;
+  static Future<T> _runGpuCompositeSerialized<T>(Future<T> Function() action) async {
+    final Future<void> prev = _gpuCompositeSerial;
+    final Future<void> prevOk = prev.catchError((_) {});
+    final Completer<void> gate = Completer<void>();
+    _gpuCompositeSerial = prevOk.whenComplete(() => gate.future);
+
+    await prevOk;
+    try {
+      return await action();
+    } finally {
+      gate.complete();
     }
-    if (value < 0) {
-      return 0.0;
+  }
+
+  static bool _isGpuNeedsFullUploadError(Object error) {
+    return error.toString().contains('GPU_COMPOSITOR_NEEDS_FULL_UPLOAD');
+  }
+
+  void _invalidateGpuLayerCache() {
+    _gpuLayerCacheInitialized = false;
+    _cachedLayerWidth = 0;
+    _cachedLayerHeight = 0;
+    _cachedLayerOrder = null;
+    _cachedLayerRevisions.clear();
+  }
+
+  static bool _listEquals(List<String>? a, List<String>? b) {
+    if (identical(a, b)) {
+      return true;
     }
-    if (value > 1) {
-      return 1.0;
+    if (a == null || b == null) {
+      return false;
     }
-    return value;
+    final int length = a.length;
+    if (b.length != length) {
+      return false;
+    }
+    for (int i = 0; i < length; i++) {
+      if (a[i] != b[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 }

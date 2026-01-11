@@ -63,9 +63,6 @@ class BitmapCanvasController extends ChangeNotifier {
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
-         multithreaded:
-             CanvasSettings.supportsMultithreadedCanvas &&
-             creationLogic == CanvasCreationLogic.multiThread,
        ) {
     if (creationLogic == CanvasCreationLogic.multiThread && !_isMultithreaded) {
       debugPrint('CanvasPaintingWorker 未启用：当前平台不支持多线程画布，已自动回退到单线程。');

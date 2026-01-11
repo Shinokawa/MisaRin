@@ -1,4 +1,5 @@
 pub mod bucket_fill;
+pub mod gpu_composite;
 pub mod image_ops;
 pub mod memory;
 pub mod psd;

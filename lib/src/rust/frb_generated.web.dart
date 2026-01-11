@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/bucket_fill.dart';
+import 'api/gpu_composite.dart';
 import 'api/image_ops.dart';
 import 'api/memory.dart';
 import 'api/psd.dart';
@@ -35,13 +36,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
   FloodFillPatch dco_decode_flood_fill_patch(dynamic raw);
 
   @protected
   FloodFillRect dco_decode_flood_fill_rect(dynamic raw);
 
   @protected
+  GpuLayerData dco_decode_gpu_layer_data(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
+
+  @protected
+  List<GpuLayerData> dco_decode_list_gpu_layer_data(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_32_loose(dynamic raw);
@@ -95,13 +105,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
   FloodFillPatch sse_decode_flood_fill_patch(SseDeserializer deserializer);
 
   @protected
   FloodFillRect sse_decode_flood_fill_rect(SseDeserializer deserializer);
 
   @protected
+  GpuLayerData sse_decode_gpu_layer_data(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  List<GpuLayerData> sse_decode_list_gpu_layer_data(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<int> sse_decode_list_prim_u_32_loose(SseDeserializer deserializer);
@@ -157,6 +178,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_flood_fill_patch(
     FloodFillPatch self,
     SseSerializer serializer,
@@ -166,7 +190,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_flood_fill_rect(FloodFillRect self, SseSerializer serializer);
 
   @protected
+  void sse_encode_gpu_layer_data(GpuLayerData self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_gpu_layer_data(
+    List<GpuLayerData> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_32_loose(
