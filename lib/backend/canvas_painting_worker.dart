@@ -8,20 +8,8 @@ import '../bitmap_canvas/bitmap_canvas.dart';
 import '../canvas/canvas_tools.dart';
 import '../canvas/brush_shape_geometry.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket;
-import '../src/rust/frb_generated.dart';
+import '../src/rust/rust_init.dart';
 // Removed vector_stroke_painter import as we don't draw vectors in worker anymore.
-
-Future<void>? _rustInitFuture;
-
-Future<void> _ensureRustInitialized() async {
-  try {
-    _rustInitFuture ??= RustLib.init();
-    await _rustInitFuture;
-  } catch (_) {
-    _rustInitFuture = null;
-    rethrow;
-  }
-}
 
 enum PaintingDrawCommandType {
   brushStamp,
@@ -1343,7 +1331,7 @@ Future<Object?> _paintingWorkerHandleFloodFillWithRust({
     }
   }
 
-  await _ensureRustInitialized();
+  await ensureRustInitialized();
   final rust_bucket.FloodFillPatch patch = await rust_bucket.floodFillPatch(
     width: width,
     height: height,

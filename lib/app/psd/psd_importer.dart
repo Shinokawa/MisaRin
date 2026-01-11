@@ -6,6 +6,7 @@ import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../src/rust/frb_generated.dart';
+import '../../src/rust/rust_init.dart';
 import '../project/project_document.dart';
 
 /// 使用 Rust `psd` crate 解析 PSD，并转换为 `ProjectDocument`。
@@ -27,7 +28,7 @@ class PsdImporter {
     String? displayName,
   }) async {
     final String resolvedName = displayName ?? 'PSD 项目';
-    await _ensureRustInitialized();
+    await ensureRustInitialized();
 
     try {
       // NOTE: 这里故意用 dynamic 调用，避免在你尚未运行
@@ -65,7 +66,9 @@ class PsdImporter {
     );
 
     final List<CanvasLayerData> canvasLayers = <CanvasLayerData>[];
-    for (final dynamic layer in layers) {
+    // Rust psd crate 返回的图层顺序是“自上而下”（顶层在前），而项目内部 layers
+    // 使用“自下而上”（底层在前，顶层在后）。这里需要反转以保证导入后叠放顺序一致。
+    for (final dynamic layer in layers.reversed) {
       final String name = layer.name as String;
       final bool visible = layer.visible as bool;
       final int opacity = layer.opacity as int;
@@ -169,17 +172,5 @@ class PsdImporter {
       return base;
     }
     return base.substring(0, index);
-  }
-}
-
-Future<void>? _rustInitFuture;
-
-Future<void> _ensureRustInitialized() async {
-  try {
-    _rustInitFuture ??= RustLib.init();
-    await _rustInitFuture;
-  } catch (_) {
-    _rustInitFuture = null;
-    rethrow;
   }
 }
