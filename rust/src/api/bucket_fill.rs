@@ -21,6 +21,25 @@ impl FloodFillPatch {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct FloodFillRect {
+    pub left: i32,
+    pub top: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl FloodFillRect {
+    fn empty() -> Self {
+        Self {
+            left: 0,
+            top: 0,
+            width: 0,
+            height: 0,
+        }
+    }
+}
+
 pub fn flood_fill_patch(
     width: i32,
     height: i32,
@@ -42,28 +61,137 @@ pub fn flood_fill_patch(
     }
     let width_usize = width as usize;
     let height_usize = height as usize;
-    let len = width_usize.saturating_mul(height_usize);
+    let len = match width_usize.checked_mul(height_usize) {
+        Some(v) => v,
+        None => return FloodFillPatch::empty(),
+    };
     if pixels.len() != len {
         return FloodFillPatch::empty();
     }
-    if start_x < 0 || start_y < 0 || start_x >= width || start_y >= height {
+
+    let Some((min_x, min_y, max_x, max_y)) = flood_fill_bounds(
+        width_usize,
+        height_usize,
+        pixels.as_mut_slice(),
+        sample_pixels,
+        start_x,
+        start_y,
+        color_value,
+        target_color_value,
+        contiguous,
+        tolerance,
+        fill_gap,
+        selection_mask,
+        swallow_colors,
+        antialias_level,
+    ) else {
         return FloodFillPatch::empty();
+    };
+
+    export_patch(width_usize, &pixels, min_x, min_y, max_x, max_y)
+}
+
+pub fn flood_fill_in_place(
+    ptr: usize,
+    width: i32,
+    height: i32,
+    sample_pixels: Option<Vec<u32>>,
+    start_x: i32,
+    start_y: i32,
+    color_value: u32,
+    target_color_value: Option<u32>,
+    contiguous: bool,
+    tolerance: i32,
+    fill_gap: i32,
+    selection_mask: Option<Vec<u8>>,
+    swallow_colors: Option<Vec<u32>>,
+    antialias_level: i32,
+) -> FloodFillRect {
+    if ptr == 0 || width <= 0 || height <= 0 {
+        return FloodFillRect::empty();
+    }
+    let width_usize = width as usize;
+    let height_usize = height as usize;
+    let len = match width_usize.checked_mul(height_usize) {
+        Some(v) => v,
+        None => return FloodFillRect::empty(),
+    };
+    if len == 0 || len > isize::MAX as usize {
+        return FloodFillRect::empty();
     }
 
-    let start_index = (start_y as usize) * width_usize + (start_x as usize);
+    let pixels: &mut [u32] =
+        unsafe { std::slice::from_raw_parts_mut(ptr as *mut u32, len) };
+
+    let Some((min_x, min_y, max_x, max_y)) = flood_fill_bounds(
+        width_usize,
+        height_usize,
+        pixels,
+        sample_pixels,
+        start_x,
+        start_y,
+        color_value,
+        target_color_value,
+        contiguous,
+        tolerance,
+        fill_gap,
+        selection_mask,
+        swallow_colors,
+        antialias_level,
+    ) else {
+        return FloodFillRect::empty();
+    };
+
+    FloodFillRect {
+        left: min_x,
+        top: min_y,
+        width: max_x.saturating_sub(min_x).saturating_add(1),
+        height: max_y.saturating_sub(min_y).saturating_add(1),
+    }
+}
+
+fn flood_fill_bounds(
+    width: usize,
+    height: usize,
+    pixels: &mut [u32],
+    sample_pixels: Option<Vec<u32>>,
+    start_x: i32,
+    start_y: i32,
+    color_value: u32,
+    target_color_value: Option<u32>,
+    contiguous: bool,
+    tolerance: i32,
+    fill_gap: i32,
+    selection_mask: Option<Vec<u8>>,
+    swallow_colors: Option<Vec<u32>>,
+    antialias_level: i32,
+) -> Option<(i32, i32, i32, i32)> {
+    if width == 0 || height == 0 {
+        return None;
+    }
+    let len: usize = width.checked_mul(height)?;
+    if pixels.len() != len {
+        return None;
+    }
+    if start_x < 0 || start_y < 0 {
+        return None;
+    }
+    if start_x as usize >= width || start_y as usize >= height {
+        return None;
+    }
+
+    let start_index = (start_y as usize) * width + (start_x as usize);
     let sample_pixels = sample_pixels.filter(|sample| sample.len() == len);
     let sample_base = sample_pixels
         .as_deref()
-        .unwrap_or(pixels.as_slice())
+        .unwrap_or(pixels)
         .get(start_index)
         .copied()
         .unwrap_or(0);
     let base_color = target_color_value.unwrap_or(sample_base);
     let replacement = color_value;
 
-    let selection_mask = selection_mask
-        .filter(|mask| mask.len() == len)
-        .map(|mask| mask);
+    let selection_mask = selection_mask.filter(|mask| mask.len() == len);
 
     let tol = tolerance.clamp(0, 255) as u8;
     let gap = fill_gap.clamp(0, 64) as u8;
@@ -74,14 +202,14 @@ pub fn flood_fill_patch(
         .filter(|&c| c != replacement)
         .collect::<Vec<u32>>();
 
-    let mut changed_min_x: i32 = width;
-    let mut changed_min_y: i32 = height;
+    let mut changed_min_x: i32 = width as i32;
+    let mut changed_min_y: i32 = height as i32;
     let mut changed_max_x: i32 = -1;
     let mut changed_max_y: i32 = -1;
 
-    if let Some(mask) = &selection_mask {
+    if let Some(mask) = selection_mask.as_deref() {
         if mask[start_index] == 0 {
-            return FloodFillPatch::empty();
+            return None;
         }
     }
 
@@ -90,15 +218,15 @@ pub fn flood_fill_patch(
         && swallow_colors.is_empty()
         && antialias_level == 0
     {
-        return FloodFillPatch::empty();
+        return None;
     }
 
-    let sample_slice: &[u32] = sample_pixels.as_deref().unwrap_or(pixels.as_slice());
+    let sample_slice: &[u32] = sample_pixels.as_deref().unwrap_or(pixels);
     let mut fill_mask: Vec<u8> = vec![0; len];
 
     if !contiguous {
         for i in 0..len {
-            if let Some(mask) = &selection_mask {
+            if let Some(mask) = selection_mask.as_deref() {
                 if mask[i] == 0 {
                     continue;
                 }
@@ -110,7 +238,7 @@ pub fn flood_fill_patch(
     } else if gap > 0 {
         let mut target_mask: Vec<u8> = vec![0; len];
         for i in 0..len {
-            if let Some(mask) = &selection_mask {
+            if let Some(mask) = selection_mask.as_deref() {
                 if mask[i] == 0 {
                     continue;
                 }
@@ -120,44 +248,38 @@ pub fn flood_fill_patch(
             }
         }
         if target_mask[start_index] == 0 {
-            return FloodFillPatch::empty();
+            return None;
         }
 
         // "Fill gap" should only prevent leaking through small openings.
         // We follow the existing Dart worker implementation:
         // 1) Open the target mask, 2) Find outside region in opened mask, 3) Reconstruct inside.
-        let opened_target = open_mask8(target_mask.clone(), width_usize, height_usize, gap);
+        let opened_target = open_mask8(target_mask.clone(), width, height, gap);
 
         let mut outside_seeds: Vec<usize> = Vec::new();
-        for x in 0..width_usize {
+        for x in 0..width {
             let top_index = x;
             if opened_target.get(top_index) == Some(&1) {
                 outside_seeds.push(top_index);
             }
-            let bottom_index = (height_usize - 1) * width_usize + x;
+            let bottom_index = (height - 1) * width + x;
             if opened_target.get(bottom_index) == Some(&1) {
                 outside_seeds.push(bottom_index);
             }
         }
-        for y in 1..height_usize.saturating_sub(1) {
-            let left_index = y * width_usize;
+        for y in 1..height.saturating_sub(1) {
+            let left_index = y * width;
             if opened_target.get(left_index) == Some(&1) {
                 outside_seeds.push(left_index);
             }
-            let right_index = y * width_usize + (width_usize - 1);
+            let right_index = y * width + (width - 1);
             if opened_target.get(right_index) == Some(&1) {
                 outside_seeds.push(right_index);
             }
         }
 
         if outside_seeds.is_empty() {
-            fill_from_target_mask(
-                &mut target_mask,
-                &mut fill_mask,
-                width_usize,
-                height_usize,
-                start_index,
-            );
+            fill_from_target_mask(&mut target_mask, &mut fill_mask, width, height, start_index);
         } else {
             let mut outside_open: Vec<u8> = vec![0; len];
             let mut outside_queue: Vec<usize> = outside_seeds.clone();
@@ -168,8 +290,8 @@ pub fn flood_fill_patch(
             while outside_head < outside_queue.len() {
                 let index = outside_queue[outside_head];
                 outside_head += 1;
-                let x = index % width_usize;
-                let y = index / width_usize;
+                let x = index % width;
+                let y = index / width;
                 if x > 0 {
                     let neighbor = index - 1;
                     if outside_open[neighbor] == 0 && opened_target[neighbor] == 1 {
@@ -177,7 +299,7 @@ pub fn flood_fill_patch(
                         outside_queue.push(neighbor);
                     }
                 }
-                if x + 1 < width_usize {
+                if x + 1 < width {
                     let neighbor = index + 1;
                     if outside_open[neighbor] == 0 && opened_target[neighbor] == 1 {
                         outside_open[neighbor] = 1;
@@ -185,14 +307,14 @@ pub fn flood_fill_patch(
                     }
                 }
                 if y > 0 {
-                    let neighbor = index - width_usize;
+                    let neighbor = index - width;
                     if outside_open[neighbor] == 0 && opened_target[neighbor] == 1 {
                         outside_open[neighbor] = 1;
                         outside_queue.push(neighbor);
                     }
                 }
-                if y + 1 < height_usize {
-                    let neighbor = index + width_usize;
+                if y + 1 < height {
+                    let neighbor = index + width;
                     if outside_open[neighbor] == 0 && opened_target[neighbor] == 1 {
                         outside_open[neighbor] = 1;
                         outside_queue.push(neighbor);
@@ -207,8 +329,8 @@ pub fn flood_fill_patch(
                     &opened_target,
                     sample_slice,
                     base_color,
-                    width_usize,
-                    height_usize,
+                    width,
+                    height,
                     tol,
                     selection_mask.as_deref(),
                     gap as usize + 1,
@@ -217,8 +339,8 @@ pub fn flood_fill_patch(
                     fill_from_target_mask(
                         &mut target_mask,
                         &mut fill_mask,
-                        width_usize,
-                        height_usize,
+                        width,
+                        height,
                         start_index,
                     );
                     effective_start = None;
@@ -240,8 +362,8 @@ pub fn flood_fill_patch(
                         touches_outside = true;
                         break;
                     }
-                    let x = index % width_usize;
-                    let y = index / width_usize;
+                    let x = index % width;
+                    let y = index / width;
                     if x > 0 {
                         let neighbor = index - 1;
                         if seed_visited[neighbor] == 0 && opened_target[neighbor] == 1 {
@@ -249,7 +371,7 @@ pub fn flood_fill_patch(
                             seed_queue.push(neighbor);
                         }
                     }
-                    if x + 1 < width_usize {
+                    if x + 1 < width {
                         let neighbor = index + 1;
                         if seed_visited[neighbor] == 0 && opened_target[neighbor] == 1 {
                             seed_visited[neighbor] = 1;
@@ -257,14 +379,14 @@ pub fn flood_fill_patch(
                         }
                     }
                     if y > 0 {
-                        let neighbor = index - width_usize;
+                        let neighbor = index - width;
                         if seed_visited[neighbor] == 0 && opened_target[neighbor] == 1 {
                             seed_visited[neighbor] = 1;
                             seed_queue.push(neighbor);
                         }
                     }
-                    if y + 1 < height_usize {
-                        let neighbor = index + width_usize;
+                    if y + 1 < height {
+                        let neighbor = index + width;
                         if seed_visited[neighbor] == 0 && opened_target[neighbor] == 1 {
                             seed_visited[neighbor] = 1;
                             seed_queue.push(neighbor);
@@ -276,8 +398,8 @@ pub fn flood_fill_patch(
                     fill_from_target_mask(
                         &mut target_mask,
                         &mut fill_mask,
-                        width_usize,
-                        height_usize,
+                        width,
+                        height,
                         start_index,
                     );
                 } else {
@@ -295,8 +417,8 @@ pub fn flood_fill_patch(
                     while head < queue.len() {
                         let index = queue[head];
                         head += 1;
-                        let x = index % width_usize;
-                        let y = index / width_usize;
+                        let x = index % width;
+                        let y = index / width;
                         if x > 0 {
                             let neighbor = index - 1;
                             if target_mask[neighbor] == 1 && outside_open[neighbor] == 0 {
@@ -305,7 +427,7 @@ pub fn flood_fill_patch(
                                 queue.push(neighbor);
                             }
                         }
-                        if x + 1 < width_usize {
+                        if x + 1 < width {
                             let neighbor = index + 1;
                             if target_mask[neighbor] == 1 && outside_open[neighbor] == 0 {
                                 target_mask[neighbor] = 0;
@@ -314,15 +436,15 @@ pub fn flood_fill_patch(
                             }
                         }
                         if y > 0 {
-                            let neighbor = index - width_usize;
+                            let neighbor = index - width;
                             if target_mask[neighbor] == 1 && outside_open[neighbor] == 0 {
                                 target_mask[neighbor] = 0;
                                 fill_mask[neighbor] = 1;
                                 queue.push(neighbor);
                             }
                         }
-                        if y + 1 < height_usize {
-                            let neighbor = index + width_usize;
+                        if y + 1 < height {
+                            let neighbor = index + width;
                             if target_mask[neighbor] == 1 && outside_open[neighbor] == 0 {
                                 target_mask[neighbor] = 0;
                                 fill_mask[neighbor] = 1;
@@ -342,43 +464,38 @@ pub fn flood_fill_patch(
             if !colors_within_tolerance(sample_slice[index], base_color, tol) {
                 continue;
             }
-            if let Some(mask) = &selection_mask {
+            if let Some(mask) = selection_mask.as_deref() {
                 if mask[index] == 0 {
                     continue;
                 }
             }
             fill_mask[index] = 1;
-            let x = index % width_usize;
-            let y = index / width_usize;
+            let x = index % width;
+            let y = index / width;
             if x > 0 {
                 stack.push(index - 1);
             }
-            if x + 1 < width_usize {
+            if x + 1 < width {
                 stack.push(index + 1);
             }
             if y > 0 {
-                stack.push(index - width_usize);
+                stack.push(index - width);
             }
-            if y + 1 < height_usize {
-                stack.push(index + width_usize);
+            if y + 1 < height {
+                stack.push(index + width);
             }
         }
 
         // Expand mask by 1 pixel (dilation) to cover AA edges when tolerance > 0.
         if tol > 0 {
-            expand_mask_by_one(
-                &mut fill_mask,
-                width_usize,
-                height_usize,
-                selection_mask.as_deref(),
-            );
+            expand_mask_by_one(&mut fill_mask, width, height, selection_mask.as_deref());
         }
     }
 
     // Apply fill and compute changed bounds.
-    for y in 0..height_usize {
-        let row_offset = y * width_usize;
-        for x in 0..width_usize {
+    for y in 0..height {
+        let row_offset = y * width;
+        for x in 0..width {
             let index = row_offset + x;
             if fill_mask[index] == 0 {
                 continue;
@@ -406,9 +523,9 @@ pub fn flood_fill_patch(
 
     if !swallow_colors.is_empty() {
         swallow_color_lines(
-            &mut pixels,
-            width_usize,
-            height_usize,
+            pixels,
+            width,
+            height,
             &fill_mask,
             selection_mask.as_deref(),
             &swallow_colors,
@@ -422,9 +539,9 @@ pub fn flood_fill_patch(
 
     if antialias_level > 0 {
         apply_antialias_to_mask(
-            &mut pixels,
-            width_usize,
-            height_usize,
+            pixels,
+            width,
+            height,
             &fill_mask,
             antialias_level,
             &mut changed_min_x,
@@ -434,14 +551,10 @@ pub fn flood_fill_patch(
         );
     }
 
-    export_patch(
-        width_usize,
-        &pixels,
-        changed_min_x,
-        changed_min_y,
-        changed_max_x,
-        changed_max_y,
-    )
+    if changed_max_x < changed_min_x || changed_max_y < changed_min_y {
+        return None;
+    }
+    Some((changed_min_x, changed_min_y, changed_max_x, changed_max_y))
 }
 
 fn export_patch(
@@ -960,7 +1073,7 @@ fn flood_color_line(
 }
 
 fn apply_antialias_to_mask(
-    pixels: &mut Vec<u32>,
+    pixels: &mut [u32],
     width: usize,
     height: usize,
     region_mask: &[u8],
@@ -997,7 +1110,7 @@ fn apply_antialias_to_mask(
         }
         let changed = if src_is_pixels {
             run_masked_antialias_pass(
-                pixels.as_slice(),
+                pixels,
                 temp.as_mut_slice(),
                 &expanded_mask,
                 width,
@@ -1012,7 +1125,7 @@ fn apply_antialias_to_mask(
         } else {
             run_masked_antialias_pass(
                 temp.as_slice(),
-                pixels.as_mut_slice(),
+                pixels,
                 &expanded_mask,
                 width,
                 height,

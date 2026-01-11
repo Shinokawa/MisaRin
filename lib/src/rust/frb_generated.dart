@@ -5,6 +5,7 @@
 
 import 'api/bucket_fill.dart';
 import 'api/image_ops.dart';
+import 'api/memory.dart';
 import 'api/psd.dart';
 import 'api/selection_path.dart';
 import 'api/simple.dart';
@@ -70,7 +71,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1971227741;
+  int get rustContentHash => -1860490389;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,7 +82,26 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  BigInt crateApiMemoryAllocatePixelBuffer({required int size});
+
   Uint8List crateApiImageOpsConvertPixelsToRgba({required List<int> pixels});
+
+  Future<FloodFillRect> crateApiBucketFillFloodFillInPlace({
+    required BigInt ptr,
+    required int width,
+    required int height,
+    Uint32List? samplePixels,
+    required int startX,
+    required int startY,
+    required int colorValue,
+    int? targetColorValue,
+    required bool contiguous,
+    required int tolerance,
+    required int fillGap,
+    Uint8List? selectionMask,
+    Uint32List? swallowColors,
+    required int antialiasLevel,
+  });
 
   Future<FloodFillPatch> crateApiBucketFillFloodFillPatch({
     required int width,
@@ -100,11 +120,15 @@ abstract class RustLibApi extends BaseApi {
     required int antialiasLevel,
   });
 
+  void crateApiMemoryFreePixelBuffer({required BigInt ptr, required int size});
+
   String crateApiSimpleGreet({required String name});
 
   Future<PsdDocument> crateApiPsdImportPsd({required List<int> bytes});
 
   Future<void> crateApiSimpleInitApp();
+
+  int crateApiMemoryReadPixelAt({required BigInt ptr, required int index});
 
   Uint32List crateApiSelectionPathSelectionPathVerticesFromMask({
     required List<int> mask,
@@ -121,13 +145,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  BigInt crateApiMemoryAllocatePixelBuffer({required int size}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_32(size, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_usize,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiMemoryAllocatePixelBufferConstMeta,
+        argValues: [size],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMemoryAllocatePixelBufferConstMeta =>
+      const TaskConstMeta(
+        debugName: "allocate_pixel_buffer",
+        argNames: ["size"],
+      );
+
+  @override
   Uint8List crateApiImageOpsConvertPixelsToRgba({required List<int> pixels}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_32_loose(pixels, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_u_8_strict,
@@ -144,6 +194,95 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "convert_pixels_to_rgba",
         argNames: ["pixels"],
+      );
+
+  @override
+  Future<FloodFillRect> crateApiBucketFillFloodFillInPlace({
+    required BigInt ptr,
+    required int width,
+    required int height,
+    Uint32List? samplePixels,
+    required int startX,
+    required int startY,
+    required int colorValue,
+    int? targetColorValue,
+    required bool contiguous,
+    required int tolerance,
+    required int fillGap,
+    Uint8List? selectionMask,
+    Uint32List? swallowColors,
+    required int antialiasLevel,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_usize(ptr, serializer);
+          sse_encode_i_32(width, serializer);
+          sse_encode_i_32(height, serializer);
+          sse_encode_opt_list_prim_u_32_strict(samplePixels, serializer);
+          sse_encode_i_32(startX, serializer);
+          sse_encode_i_32(startY, serializer);
+          sse_encode_u_32(colorValue, serializer);
+          sse_encode_opt_box_autoadd_u_32(targetColorValue, serializer);
+          sse_encode_bool(contiguous, serializer);
+          sse_encode_i_32(tolerance, serializer);
+          sse_encode_i_32(fillGap, serializer);
+          sse_encode_opt_list_prim_u_8_strict(selectionMask, serializer);
+          sse_encode_opt_list_prim_u_32_strict(swallowColors, serializer);
+          sse_encode_i_32(antialiasLevel, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_flood_fill_rect,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBucketFillFloodFillInPlaceConstMeta,
+        argValues: [
+          ptr,
+          width,
+          height,
+          samplePixels,
+          startX,
+          startY,
+          colorValue,
+          targetColorValue,
+          contiguous,
+          tolerance,
+          fillGap,
+          selectionMask,
+          swallowColors,
+          antialiasLevel,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBucketFillFloodFillInPlaceConstMeta =>
+      const TaskConstMeta(
+        debugName: "flood_fill_in_place",
+        argNames: [
+          "ptr",
+          "width",
+          "height",
+          "samplePixels",
+          "startX",
+          "startY",
+          "colorValue",
+          "targetColorValue",
+          "contiguous",
+          "tolerance",
+          "fillGap",
+          "selectionMask",
+          "swallowColors",
+          "antialiasLevel",
+        ],
       );
 
   @override
@@ -184,7 +323,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 4,
             port: port_,
           );
         },
@@ -236,13 +375,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  void crateApiMemoryFreePixelBuffer({required BigInt ptr, required int size}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_usize(ptr, serializer);
+          sse_encode_i_32(size, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiMemoryFreePixelBufferConstMeta,
+        argValues: [ptr, size],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMemoryFreePixelBufferConstMeta =>
+      const TaskConstMeta(
+        debugName: "free_pixel_buffer",
+        argNames: ["ptr", "size"],
+      );
+
+  @override
   String crateApiSimpleGreet({required String name}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -268,7 +434,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 7,
             port: port_,
           );
         },
@@ -295,7 +461,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 8,
             port: port_,
           );
         },
@@ -314,6 +480,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  int crateApiMemoryReadPixelAt({required BigInt ptr, required int index}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_usize(ptr, serializer);
+          sse_encode_i_32(index, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_32,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiMemoryReadPixelAtConstMeta,
+        argValues: [ptr, index],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMemoryReadPixelAtConstMeta => const TaskConstMeta(
+    debugName: "read_pixel_at",
+    argNames: ["ptr", "index"],
+  );
+
+  @override
   Uint32List crateApiSelectionPathSelectionPathVerticesFromMask({
     required List<int> mask,
     required int width,
@@ -324,7 +516,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(mask, serializer);
           sse_encode_i_32(width, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_u_32_strict,
@@ -374,6 +566,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       width: dco_decode_i_32(arr[2]),
       height: dco_decode_i_32(arr[3]),
       pixels: dco_decode_list_prim_u_32_strict(arr[4]),
+    );
+  }
+
+  @protected
+  FloodFillRect dco_decode_flood_fill_rect(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return FloodFillRect(
+      left: dco_decode_i_32(arr[0]),
+      top: dco_decode_i_32(arr[1]),
+      width: dco_decode_i_32(arr[2]),
+      height: dco_decode_i_32(arr[3]),
     );
   }
 
@@ -483,6 +689,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt dco_decode_usize(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -515,6 +727,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       width: var_width,
       height: var_height,
       pixels: var_pixels,
+    );
+  }
+
+  @protected
+  FloodFillRect sse_decode_flood_fill_rect(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_left = sse_decode_i_32(deserializer);
+    var var_top = sse_decode_i_32(deserializer);
+    var var_width = sse_decode_i_32(deserializer);
+    var var_height = sse_decode_i_32(deserializer);
+    return FloodFillRect(
+      left: var_left,
+      top: var_top,
+      width: var_width,
+      height: var_height,
     );
   }
 
@@ -657,6 +884,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt sse_decode_usize(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
+  }
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
@@ -685,6 +918,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.width, serializer);
     sse_encode_i_32(self.height, serializer);
     sse_encode_list_prim_u_32_strict(self.pixels, serializer);
+  }
+
+  @protected
+  void sse_encode_flood_fill_rect(
+    FloodFillRect self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.left, serializer);
+    sse_encode_i_32(self.top, serializer);
+    sse_encode_i_32(self.width, serializer);
+    sse_encode_i_32(self.height, serializer);
   }
 
   @protected
@@ -823,5 +1068,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  void sse_encode_usize(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
   }
 }
