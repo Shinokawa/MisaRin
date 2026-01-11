@@ -8,6 +8,72 @@ void _fillSetSelectionMask(BitmapCanvasController controller, Uint8List? mask) {
   controller._paintingWorkerSelectionDirty = true;
 }
 
+BitmapLayerState? _fillFindSingleVisibleLayerForComposite(
+  BitmapCanvasController controller,
+) {
+  final String? translatingLayerId = controller._translatingLayerIdForComposite;
+  BitmapLayerState? candidate;
+  for (final BitmapLayerState layer in controller._layers) {
+    if (!layer.visible) {
+      continue;
+    }
+    if (translatingLayerId != null && layer.id == translatingLayerId) {
+      continue;
+    }
+    if (candidate != null) {
+      return null;
+    }
+    candidate = layer;
+  }
+  return candidate;
+}
+
+Uint32List _fillBuildSingleLayerCompositePixels(BitmapLayerState layer) {
+  final Uint32List source = layer.surface.pixels;
+  final Uint32List composite = Uint32List(source.length);
+  if (composite.isEmpty) {
+    return composite;
+  }
+
+  if (layer.clippingMask) {
+    return composite;
+  }
+
+  final double opacity = BitmapCanvasController._clampUnit(layer.opacity);
+  if (opacity <= 0) {
+    return composite;
+  }
+  if (opacity >= 1.0) {
+    composite.setAll(0, source);
+    return composite;
+  }
+
+  for (int i = 0; i < source.length; i++) {
+    final int src = source[i];
+    final int srcA = (src >> 24) & 0xff;
+    if (srcA == 0) {
+      continue;
+    }
+    int effectiveA = (srcA * opacity).round();
+    if (effectiveA <= 0) {
+      continue;
+    }
+    effectiveA = effectiveA.clamp(0, 255);
+    composite[i] = (effectiveA << 24) | (src & 0x00FFFFFF);
+  }
+  return composite;
+}
+
+bool _fillAllPixelsMatchColor(Uint32List pixels, int color) {
+  final int length = pixels.length;
+  for (int i = 0; i < length; i++) {
+    if (pixels[i] != color) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void _fillFloodFill(
   BitmapCanvasController controller,
   Offset position, {
@@ -45,16 +111,36 @@ void _fillFloodFill(
       : null;
   Uint32List? samplePixels;
   if (sampleAllLayers) {
-    controller._updateComposite(requiresFullSurface: true, region: null);
-    final Uint32List? compositePixels = controller._compositePixels;
-    final Uint32List resolvedSamplePixels =
-        compositePixels != null && compositePixels.isNotEmpty
-        ? compositePixels
-        : _fillBuildCompositePixelsFallback(controller);
-    if (resolvedSamplePixels.isEmpty) {
-      return;
+    final BitmapLayerState? singleVisibleLayer =
+        _fillFindSingleVisibleLayerForComposite(controller);
+    if (singleVisibleLayer != null) {
+      final double layerOpacity = BitmapCanvasController._clampUnit(
+        singleVisibleLayer.opacity,
+      );
+      if (!singleVisibleLayer.clippingMask && layerOpacity >= 1.0) {
+        if (!identical(singleVisibleLayer, controller._activeLayer)) {
+          samplePixels = singleVisibleLayer.surface.pixels;
+        }
+      } else {
+        final Uint32List resolvedSamplePixels =
+            _fillBuildSingleLayerCompositePixels(singleVisibleLayer);
+        if (resolvedSamplePixels.isEmpty) {
+          return;
+        }
+        samplePixels = resolvedSamplePixels;
+      }
+    } else {
+      controller._updateComposite(requiresFullSurface: true, region: null);
+      final Uint32List? compositePixels = controller._compositePixels;
+      final Uint32List resolvedSamplePixels =
+          compositePixels != null && compositePixels.isNotEmpty
+          ? compositePixels
+          : _fillBuildCompositePixelsFallback(controller);
+      if (resolvedSamplePixels.isEmpty) {
+        return;
+      }
+      samplePixels = resolvedSamplePixels;
     }
-    samplePixels = resolvedSamplePixels;
   }
 
   final BitmapSurface surface = controller._activeSurface;
@@ -195,11 +281,7 @@ Color _fillSampleColor(
     return const Color(0x00000000);
   }
   if (sampleAllLayers) {
-    return _fillColorAtComposite(
-      controller,
-      position,
-      preferRealtime: true,
-    );
+    return _fillColorAtComposite(controller, position, preferRealtime: true);
   }
   return _fillColorAtSurface(controller, controller._activeSurface, x, y);
 }
@@ -255,8 +337,34 @@ Uint8List? _fillFloodFillAcrossLayers(
   }
   final int target = compositePixels[index];
   final int replacement = BitmapSurface.encodeColor(color);
-  final Uint32List surfacePixels = controller._activeSurface.pixels;
+  final BitmapSurface surface = controller._activeSurface;
+  final Uint32List surfacePixels = surface.pixels;
   final Uint8List? selectionMask = controller._selectionMask;
+
+  if (selectionMask == null &&
+      compositePixels.length == controller._width * controller._height &&
+      _fillAllPixelsMatchColor(compositePixels, target)) {
+    surfacePixels.fillRange(0, surfacePixels.length, replacement);
+    if (surface.isClean && (replacement & 0xff000000) != 0) {
+      surface.markDirty();
+    }
+    controller._markDirty(
+      region: Rect.fromLTWH(
+        0,
+        0,
+        controller._width.toDouble(),
+        controller._height.toDouble(),
+      ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
+    );
+    if (!collectMask) {
+      return null;
+    }
+    final Uint8List mask = Uint8List(controller._width * controller._height);
+    mask.fillRange(0, mask.length, 1);
+    return mask;
+  }
 
   if (!contiguous) {
     final Uint8List? swallowMask = collectMask
@@ -393,7 +501,9 @@ Uint8List? _fillFloodFillAcrossLayers(
   return collectMask ? finalMask : null;
 }
 
-Uint32List _fillBuildCompositePixelsFallback(BitmapCanvasController controller) {
+Uint32List _fillBuildCompositePixelsFallback(
+  BitmapCanvasController controller,
+) {
   final int width = controller._width;
   final int height = controller._height;
   final Uint32List composite = Uint32List(width * height);
@@ -565,12 +675,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
   // into line art now that the fill no longer keeps an inner safety margin.
   Uint8List finalMask = mask;
   if (tolerance > 0 && fillGap <= 0) {
-    finalMask = _fillExpandMask(
-      mask,
-      width,
-      height,
-      radius: 1,
-    );
+    finalMask = _fillExpandMask(mask, width, height, radius: 1);
   }
 
   int minX = width;
@@ -830,10 +935,7 @@ bool _fillRunMaskedAntialiasPass(
   return maskChanged;
 }
 
-Rect? _fillMaskBounds(
-  BitmapCanvasController controller,
-  Uint8List mask,
-) {
+Rect? _fillMaskBounds(BitmapCanvasController controller, Uint8List mask) {
   if (mask.isEmpty) {
     return null;
   }
@@ -1257,7 +1359,9 @@ bool _fillFloodFillMask(
     int head = 0;
     int processed = 0;
     for (final int index in queue) {
-      if (targetMask[index] == 1 && outsideOpen[index] == 0 && mask[index] == 0) {
+      if (targetMask[index] == 1 &&
+          outsideOpen[index] == 0 &&
+          mask[index] == 0) {
         mask[index] = 1;
         processed += 1;
       }
@@ -1489,7 +1593,11 @@ int? _fillFindNearestFillableStartIndex({
         if (selectionMask != null && selectionMask[neighbor] == 0) {
           return;
         }
-        if (!_fillColorsWithinTolerance(pixels[neighbor], targetColor, tolerance)) {
+        if (!_fillColorsWithinTolerance(
+          pixels[neighbor],
+          targetColor,
+          tolerance,
+        )) {
           return;
         }
         queue.add(neighbor);
