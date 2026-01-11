@@ -663,6 +663,7 @@ Future<Object?> _paintingWorkerHandlePayload(
   _PaintingWorkerState state,
   Map<String, Object?> payload,
 ) async {
+  await ensureRustInitialized();
   final String kind = payload['kind'] as String? ?? '';
   switch (kind) {
     case 'setSurface':
