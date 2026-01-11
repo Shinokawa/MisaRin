@@ -73,9 +73,6 @@ void _controllerFlushPendingPaintingCommands(BitmapCanvasController controller) 
 Future<void> _controllerWaitForPendingWorkerTasks(
   BitmapCanvasController controller,
 ) {
-  if (!controller._isMultithreaded) {
-    return Future<void>.value();
-  }
   _controllerFlushPendingPaintingCommands(controller);
   if (controller._paintingWorkerPendingTasks == 0) {
     return Future<void>.value();
@@ -109,9 +106,6 @@ void _controllerNotifyWorkerIdle(BitmapCanvasController controller) {
 }
 
 void _controllerCancelPendingWorkerTasks(BitmapCanvasController controller) {
-  if (!controller._isMultithreaded) {
-    return;
-  }
   controller._pendingWorkerDrawBatch = null;
   controller._pendingWorkerDrawScheduled = false;
   controller._pendingWorkerPatches.clear();

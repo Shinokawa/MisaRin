@@ -31,130 +31,84 @@ void _fillFloodFill(
     return;
   }
 
-  final bool shouldSwallow = swallowColors != null && swallowColors.isNotEmpty;
-  final List<int>? swallowArgb = shouldSwallow
-      ? swallowColors!
-            .map((color) => BitmapSurface.encodeColor(color))
-            .toList(growable: false)
-      : null;
   final int clampedTolerance = tolerance.clamp(0, 255);
   final int clampedFillGap = fillGap.clamp(0, 64);
   final int clampedAntialias = antialiasLevel.clamp(0, 3);
-  final bool hasAntialias = clampedAntialias > 0;
-  final Uint32List? swallowColorsU32 = shouldSwallow && swallowArgb != null
-      ? Uint32List.fromList(swallowArgb)
+  final Uint8List? selectionMask = controller._selectionMask;
+  final Uint32List? swallowColorsU32 =
+      swallowColors != null && swallowColors.isNotEmpty
+      ? Uint32List.fromList(
+          swallowColors
+              .map((it) => BitmapSurface.encodeColor(it))
+              .toList(growable: false),
+        )
       : null;
-
-  if (controller.isMultithreaded) {
-    Uint32List? samplePixels;
-    if (sampleAllLayers) {
-      controller._updateComposite(requiresFullSurface: true, region: null);
-      Uint32List? compositePixels = controller._compositePixels;
-      if (compositePixels == null || compositePixels.isEmpty) {
-        compositePixels = _fillBuildCompositePixelsFallback(controller);
-      }
-      if (compositePixels == null || compositePixels.isEmpty) {
-        return;
-      }
-      samplePixels = Uint32List.fromList(compositePixels);
+  Uint32List? samplePixels;
+  if (sampleAllLayers) {
+    controller._updateComposite(requiresFullSurface: true, region: null);
+    final Uint32List? compositePixels = controller._compositePixels;
+    final Uint32List resolvedSamplePixels =
+        compositePixels != null && compositePixels.isNotEmpty
+        ? compositePixels
+        : _fillBuildCompositePixelsFallback(controller);
+    if (resolvedSamplePixels.isEmpty) {
+      return;
     }
+    samplePixels = resolvedSamplePixels;
+  }
 
-    controller._enqueueWorkerPatchFuture(
-      controller._executeFloodFill(
-        start: Offset(x.toDouble(), y.toDouble()),
-        color: color,
-        targetColor: sampleAllLayers
-            ? null
-            : _fillColorAtSurface(controller, controller._activeSurface, x, y),
-        contiguous: contiguous,
-        tolerance: clampedTolerance,
-        fillGap: clampedFillGap,
-        samplePixels: samplePixels,
-        swallowColors: swallowColorsU32,
-        antialiasLevel: clampedAntialias,
-      ),
-    );
+  final BitmapSurface surface = controller._activeSurface;
+  final String layerId = controller._activeLayer.id;
+  final int ptrAddress = surface.pointerAddress;
+  final Pointer<Void> ptr = Pointer<Void>.fromAddress(ptrAddress);
+  if (ptr == nullptr) {
     return;
   }
-
-  // Tolerance is now supported by worker, so we don't need to force mask fill for it alone.
-  final bool requiresMaskFill = shouldSwallow || hasAntialias;
-  final bool needsRegionMask = shouldSwallow || hasAntialias;
-
-  Uint8List? regionMask;
-  if (sampleAllLayers) {
-    regionMask = _fillFloodFillAcrossLayers(
-      controller,
-      x,
-      y,
-      color,
-      contiguous,
-      tolerance: clampedTolerance,
-      fillGap: clampedFillGap,
-      collectMask: needsRegionMask,
-    );
-    if (needsRegionMask && regionMask == null) {
-      return;
-    }
-  } else {
-    final Color baseColor = _fillColorAtSurface(
-      controller,
-      controller._activeSurface,
-      x,
-      y,
-    );
-    if (!requiresMaskFill) {
-      if (controller.isMultithreaded) {
-        controller._enqueueWorkerPatchFuture(
-          controller._executeFloodFill(
-            start: Offset(x.toDouble(), y.toDouble()),
-            color: color,
-            targetColor: baseColor,
-            contiguous: contiguous,
-            tolerance: clampedTolerance,
-            fillGap: clampedFillGap,
-          ),
-        );
-      } else {
-        controller._activeSurface.floodFill(
-          start: Offset(x.toDouble(), y.toDouble()),
-          color: color,
-          targetColor: baseColor,
+  final int generation = controller._paintingWorkerGeneration;
+  final int colorValue = BitmapSurface.encodeColor(color);
+  final int width = controller._width;
+  final int height = controller._height;
+  controller._enqueueWorkerPatchFuture(
+    rust_bucket_fill
+        .floodFillInPlace(
+          ptr: BigInt.from(ptr.address),
+          width: width,
+          height: height,
+          samplePixels: samplePixels,
+          startX: x,
+          startY: y,
+          colorValue: colorValue,
+          targetColorValue: null,
           contiguous: contiguous,
-          mask: controller._selectionMask,
+          tolerance: clampedTolerance,
           fillGap: clampedFillGap,
-        );
-        controller._markDirty(
-          layerId: controller._activeLayer.id,
-          pixelsDirty: true,
-        );
-      }
-      return;
-    }
-    if (baseColor.value == color.value && !shouldSwallow) {
-      return;
-    }
-    regionMask = _fillFloodFillSingleLayerWithMask(
-      controller,
-      x,
-      y,
-      color,
-      baseColor,
-      contiguous,
-      tolerance: clampedTolerance,
-      fillGap: clampedFillGap,
-    );
-    if (regionMask == null) {
-      return;
-    }
-  }
-
-  if (shouldSwallow && regionMask != null && swallowArgb != null) {
-    _fillSwallowColorLines(controller, regionMask, swallowArgb, color);
-  }
-  if (hasAntialias && regionMask != null) {
-    _fillApplyAntialiasToMask(controller, regionMask, clampedAntialias);
-  }
+          selectionMask: selectionMask,
+          swallowColors: swallowColorsU32,
+          antialiasLevel: clampedAntialias,
+        )
+        .then<PaintingWorkerPatch?>((rect) {
+          if (generation != controller._paintingWorkerGeneration) {
+            return null;
+          }
+          if (rect.width <= 0 || rect.height <= 0) {
+            return null;
+          }
+          if (surface.isClean && (colorValue & 0xff000000) != 0) {
+            surface.markDirty();
+          }
+          controller._markDirty(
+            region: Rect.fromLTWH(
+              rect.left.toDouble(),
+              rect.top.toDouble(),
+              rect.width.toDouble(),
+              rect.height.toDouble(),
+            ),
+            layerId: layerId,
+            pixelsDirty: true,
+          );
+          return null;
+        }),
+  );
 }
 
 Future<Uint8List?> _fillComputeMagicWandMask(

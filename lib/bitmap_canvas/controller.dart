@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:ffi';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -8,6 +9,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+// ignore: unused_import
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 
 import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
@@ -17,6 +20,7 @@ import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
 import '../canvas/text_renderer.dart';
 import '../performance/stroke_latency_monitor.dart';
+import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
