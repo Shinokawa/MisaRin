@@ -744,7 +744,9 @@ class BitmapCanvasController extends ChangeNotifier {
     final BitmapLayerState layer = _layers[index];
     final BitmapSurface surface = layer.surface;
 
-    if (snapshot.bitmap == null ||
+    if ((snapshot.rawPixels == null &&
+            snapshot.bitmap == null &&
+            pixelCache == null) ||
         snapshot.bitmapWidth == null ||
         snapshot.bitmapHeight == null) {
       final Color fill = snapshot.fillColor ?? const Color(0x00000000);
@@ -772,7 +774,8 @@ class BitmapCanvasController extends ChangeNotifier {
     }
 
     final Uint32List srcPixels =
-        pixelCache ?? rgbaToPixels(snapshot.bitmap!, srcWidth, srcHeight);
+        snapshot.rawPixels ??
+        (pixelCache ?? rgbaToPixels(snapshot.bitmap!, srcWidth, srcHeight));
 
     final int startX = math.max(0, math.max(target.left.floor(), offsetX));
     final int startY = math.max(0, math.max(target.top.floor(), offsetY));

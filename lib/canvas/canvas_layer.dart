@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import 'text_renderer.dart';
 
 enum CanvasLayerBlendMode {
@@ -50,19 +51,26 @@ class CanvasLayerData {
     Color? fillColor,
     CanvasTextData? text,
     Uint8List? bitmap,
+    Uint32List? rawPixels,
     int? bitmapWidth,
     int? bitmapHeight,
     int? bitmapLeft,
     int? bitmapTop,
     bool cloneBitmap = true,
+    bool cloneRawPixels = true,
   }) : fillColor = fillColor,
-       bitmap = bitmap != null
+       _bitmap = bitmap != null
            ? (cloneBitmap ? Uint8List.fromList(bitmap) : bitmap)
            : null,
-       bitmapWidth = bitmap != null ? bitmapWidth : null,
-       bitmapHeight = bitmap != null ? bitmapHeight : null,
-       bitmapLeft = bitmap != null ? bitmapLeft ?? 0 : null,
-       bitmapTop = bitmap != null ? bitmapTop ?? 0 : null,
+       rawPixels = rawPixels != null
+           ? (cloneRawPixels ? Uint32List.fromList(rawPixels) : rawPixels)
+           : null,
+       bitmapWidth = (bitmap != null || rawPixels != null) ? bitmapWidth : null,
+       bitmapHeight =
+           (bitmap != null || rawPixels != null) ? bitmapHeight : null,
+       bitmapLeft =
+           (bitmap != null || rawPixels != null) ? bitmapLeft ?? 0 : null,
+       bitmapTop = (bitmap != null || rawPixels != null) ? bitmapTop ?? 0 : null,
        text = text;
 
   final String id;
@@ -73,16 +81,29 @@ class CanvasLayerData {
   final bool clippingMask;
   final CanvasLayerBlendMode blendMode;
   final Color? fillColor;
-  final Uint8List? bitmap;
+  final Uint32List? rawPixels;
+  final Uint8List? _bitmap;
   final int? bitmapWidth;
   final int? bitmapHeight;
   final int? bitmapLeft;
   final int? bitmapTop;
   final CanvasTextData? text;
 
+  Uint8List? get bitmap {
+    if (_bitmap != null) {
+      return _bitmap;
+    }
+    if (rawPixels != null) {
+      return rust_image_ops.convertPixelsToRgba(pixels: rawPixels!);
+    }
+    return null;
+  }
+
   bool get hasFill => fillColor != null;
   bool get hasBitmap =>
-      bitmap != null && bitmapWidth != null && bitmapHeight != null;
+      (_bitmap != null || rawPixels != null) &&
+      bitmapWidth != null &&
+      bitmapHeight != null;
 
   CanvasLayerData copyWith({
     String? id,
@@ -95,6 +116,7 @@ class CanvasLayerData {
     Color? fillColor,
     bool clearFill = false,
     Uint8List? bitmap,
+    Uint32List? rawPixels,
     int? bitmapWidth,
     int? bitmapHeight,
     int? bitmapLeft,
@@ -103,22 +125,35 @@ class CanvasLayerData {
     bool clearText = false,
     bool clearBitmap = false,
     bool cloneBitmap = true,
+    bool cloneRawPixels = true,
   }) {
     final Uint8List? resolvedBitmap;
+    final Uint32List? resolvedRawPixels;
     if (clearBitmap) {
       resolvedBitmap = null;
+      resolvedRawPixels = null;
+    } else if (rawPixels != null) {
+      resolvedBitmap = null;
+      resolvedRawPixels =
+          cloneRawPixels ? Uint32List.fromList(rawPixels) : rawPixels;
     } else if (bitmap != null) {
       resolvedBitmap = cloneBitmap ? Uint8List.fromList(bitmap) : bitmap;
+      resolvedRawPixels = null;
     } else {
-      resolvedBitmap = this.bitmap != null
-          ? (cloneBitmap ? Uint8List.fromList(this.bitmap!) : this.bitmap!)
+      resolvedBitmap = _bitmap != null
+          ? (cloneBitmap ? Uint8List.fromList(_bitmap!) : _bitmap!)
+          : null;
+      resolvedRawPixels = this.rawPixels != null
+          ? (cloneRawPixels
+              ? Uint32List.fromList(this.rawPixels!)
+              : this.rawPixels!)
           : null;
     }
     final int? resolvedWidth;
     final int? resolvedHeight;
     final int? resolvedLeft;
     final int? resolvedTop;
-    if (resolvedBitmap == null) {
+    if (resolvedBitmap == null && resolvedRawPixels == null) {
       resolvedWidth = null;
       resolvedHeight = null;
       resolvedLeft = null;
@@ -149,6 +184,7 @@ class CanvasLayerData {
       blendMode: blendMode ?? this.blendMode,
       fillColor: clearFill ? null : (fillColor ?? this.fillColor),
       bitmap: resolvedBitmap,
+      rawPixels: resolvedRawPixels,
       bitmapWidth: resolvedWidth,
       bitmapHeight: resolvedHeight,
       bitmapLeft: resolvedLeft,
@@ -158,6 +194,7 @@ class CanvasLayerData {
   }
 
   Map<String, dynamic> toJson() {
+    final Uint8List? resolvedBitmap = bitmap;
     return <String, dynamic>{
       'id': id,
       'name': name,
@@ -167,13 +204,13 @@ class CanvasLayerData {
       'clippingMask': clippingMask,
       'blendMode': blendMode.name,
       if (fillColor != null) 'fillColor': _encodeColor(fillColor!),
-      if (hasBitmap)
+      if (hasBitmap && resolvedBitmap != null)
         'bitmap': <String, dynamic>{
           if (bitmapLeft != null) 'left': bitmapLeft,
           if (bitmapTop != null) 'top': bitmapTop,
           'width': bitmapWidth,
           'height': bitmapHeight,
-          'pixels': base64Encode(bitmap!),
+          'pixels': base64Encode(resolvedBitmap),
         },
       if (text != null) 'text': text!.toJson(),
     };
@@ -222,6 +259,7 @@ class CanvasLayerData {
       blendMode: _parseBlendMode(json['blendMode'] as String?),
       fillColor: fill,
       bitmap: bitmap,
+      rawPixels: null,
       bitmapWidth: bitmapWidth,
       bitmapHeight: bitmapHeight,
       bitmapLeft: bitmapLeft,
