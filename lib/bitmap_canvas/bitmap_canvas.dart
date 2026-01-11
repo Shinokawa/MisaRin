@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:ffi';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
@@ -7,6 +8,7 @@ import '../canvas/brush_random_rotation.dart';
 import '../canvas/brush_shape_geometry.dart';
 import '../canvas/canvas_tools.dart';
 import 'brush_tip_cache.dart';
+import 'memory/native_memory_manager.dart';
 import 'soft_brush_profile.dart';
 
 const double _kSubpixelRadiusLimit = 0.6;
@@ -16,14 +18,17 @@ const double _kSupersampleFineDiameter = 1.0;
 const int _kMinIntegrationSlices = 6;
 const int _kMaxIntegrationSlices = 20;
 
-/// A lightweight bitmap surface that stores pixels in ARGB8888 format
-/// and exposes basic drawing primitives for future integration.
+/// A lightweight bitmap surface that stores pixels in ARGB8888 format.
+///
+/// Backed by a native pixel buffer; call [dispose] when no longer needed.
 class BitmapSurface {
-  BitmapSurface({required this.width, required this.height, Color? fillColor})
-    : pixels = Uint32List(width * height) {
+  BitmapSurface({required this.width, required this.height, Color? fillColor}) {
     if (width <= 0 || height <= 0) {
       throw ArgumentError('Surface dimensions must be positive');
     }
+
+    _nativeBuffer = NativeMemoryManager.allocate(width * height);
+    pixels = _nativeBuffer!.pixels;
     if (fillColor != null) {
       fill(fillColor);
     }
@@ -31,8 +36,18 @@ class BitmapSurface {
 
   final int width;
   final int height;
-  final Uint32List pixels;
+  late final Uint32List pixels;
+  PixelBufferHandle? _nativeBuffer;
   bool _isClean = true;
+
+  int get pointerAddress => _nativeBuffer?.address ?? 0;
+
+  Pointer<Uint32> get pointer => Pointer<Uint32>.fromAddress(pointerAddress);
+
+  void dispose() {
+    _nativeBuffer?.dispose();
+    _nativeBuffer = null;
+  }
 
   /// Returns true if the surface is guaranteed to be fully transparent (all zeros).
   bool get isClean => _isClean;
@@ -74,103 +89,106 @@ class BitmapSurface {
       return;
     }
     final double softnessClamped = softness.clamp(0.0, 1.0);
-    
+
     // Optimization: Use cached brush tip for soft brushes
     if (softnessClamped > 0.0 && mask == null) {
-        final BrushTip tip = BrushTipCache.getIfPresent(radius, softnessClamped);
-        final int tipWidth = tip.width;
-        final int tipHeight = tip.height;
-        final Uint8List tipAlpha = tip.alpha;
-        
-        final int minX = math.max(0, (center.dx - tip.extent).floor());
-        final int maxX = math.min(width - 1, (center.dx + tip.extent).ceil());
-        final int minY = math.max(0, (center.dy - tip.extent).floor());
-        final int maxY = math.min(height - 1, (center.dy + tip.extent).ceil());
+      final BrushTip tip = BrushTipCache.getIfPresent(radius, softnessClamped);
+      final int tipWidth = tip.width;
+      final int tipHeight = tip.height;
+      final Uint8List tipAlpha = tip.alpha;
 
-        final int baseColor = color.toARGB32();
-        final int baseAlpha = (baseColor >> 24) & 0xff;
-        final int baseRgb = baseColor & 0x00ffffff;
-        
-        final double tipOffsetX = tipWidth / 2.0 - center.dx;
-        final double tipOffsetY = tipHeight / 2.0 - center.dy;
-        
-        final int surfaceWidth = width; // hoisting
-        final Uint32List destPixels = pixels; // direct access
+      final int minX = math.max(0, (center.dx - tip.extent).floor());
+      final int maxX = math.min(width - 1, (center.dx + tip.extent).ceil());
+      final int minY = math.max(0, (center.dy - tip.extent).floor());
+      final int maxY = math.min(height - 1, (center.dy + tip.extent).ceil());
 
-        for (int y = minY; y <= maxY; y++) {
-            final int ty = (y + tipOffsetY).floor();
-            if (ty < 0 || ty >= tipHeight) continue;
-            
-            final int tipRowOffset = ty * tipWidth;
-            // Calculate starting index for this row
-            int destIndex = y * surfaceWidth + minX;
-            
-            for (int x = minX; x <= maxX; x++) {
-                final int tx = (x + tipOffsetX).floor();
-                if (tx >= 0 && tx < tipWidth) {
-                    final int coverageAlpha = tipAlpha[tipRowOffset + tx];
-                    if (coverageAlpha > 0) {
-                        // Inlined blending logic
-                        final int dst = destPixels[destIndex];
-                        final int dstA = (dst >> 24) & 0xff;
-                        
-                        if (erase) {
-                             if (dstA != 0) {
-                                 // srcA (coverageAlpha) acts as erase amount (0..255) where 255 is full erase
-                                 // But wait, coverageAlpha is just the brush shape alpha.
-                                 // We also need to consider baseAlpha (flow/opacity).
-                                 // Effective erase amount = (baseAlpha * coverageAlpha) / 255
-                                 final int effectiveErase = (baseAlpha * coverageAlpha * 257) >> 16;
-                                 final int invErase = 255 - effectiveErase;
-                                 final int remainingAlpha = (dstA * invErase * 257) >> 16;
-                                 
-                                 if (remainingAlpha == 0) {
-                                    destPixels[destIndex] = 0;
-                                    _isClean = false;
-                                 } else {
-                                     // Preserve RGB, reduce alpha
-                                     destPixels[destIndex] = (remainingAlpha << 24) | (dst & 0x00FFFFFF);
-                                     _isClean = false;
-                                 }
-                             }
-                        } else {
-                            // Normal Blend
-                            // effectiveSrcA = (baseAlpha * coverageAlpha) / 255
-                            final int srcA = (baseAlpha * coverageAlpha * 257) >> 16;
-                            
-                            if (srcA > 0) {
-                                final int dstR = (dst >> 16) & 0xff;
-                                final int dstG = (dst >> 8) & 0xff;
-                                final int dstB = dst & 0xff;
+      final int baseColor = color.toARGB32();
+      final int baseAlpha = (baseColor >> 24) & 0xff;
+      final int baseRgb = baseColor & 0x00ffffff;
 
-                                final int invSrcA = 255 - srcA;
-                                final int dstWeightedA = (dstA * invSrcA * 257) >> 16;
-                                final int outA = srcA + dstWeightedA;
+      final double tipOffsetX = tipWidth / 2.0 - center.dx;
+      final double tipOffsetY = tipHeight / 2.0 - center.dy;
 
-                                if (outA > 0) {
-                                    final int srcR = (baseRgb >> 16) & 0xff;
-                                    final int srcG = (baseRgb >> 8) & 0xff;
-                                    final int srcB = baseRgb & 0xff;
+      final int surfaceWidth = width; // hoisting
+      final Uint32List destPixels = pixels; // direct access
 
-                                    // outC = (srcC * srcA + dstC * dstWeightedA) / outA
-                                    final int outR = (srcR * srcA + dstR * dstWeightedA) ~/ outA;
-                                    final int outG = (srcG * srcA + dstG * dstWeightedA) ~/ outA;
-                                    final int outB = (srcB * srcA + dstB * dstWeightedA) ~/ outA;
+      for (int y = minY; y <= maxY; y++) {
+        final int ty = (y + tipOffsetY).floor();
+        if (ty < 0 || ty >= tipHeight) continue;
 
-                                    destPixels[destIndex] = (outA << 24) | 
-                                                        (outR << 16) | 
-                                                        (outG << 8) | 
-                                                        outB;
-                                    _isClean = false;
-                                }
-                            }
-                        }
-                    }
+        final int tipRowOffset = ty * tipWidth;
+        // Calculate starting index for this row
+        int destIndex = y * surfaceWidth + minX;
+
+        for (int x = minX; x <= maxX; x++) {
+          final int tx = (x + tipOffsetX).floor();
+          if (tx >= 0 && tx < tipWidth) {
+            final int coverageAlpha = tipAlpha[tipRowOffset + tx];
+            if (coverageAlpha > 0) {
+              // Inlined blending logic
+              final int dst = destPixels[destIndex];
+              final int dstA = (dst >> 24) & 0xff;
+
+              if (erase) {
+                if (dstA != 0) {
+                  // srcA (coverageAlpha) acts as erase amount (0..255) where 255 is full erase
+                  // But wait, coverageAlpha is just the brush shape alpha.
+                  // We also need to consider baseAlpha (flow/opacity).
+                  // Effective erase amount = (baseAlpha * coverageAlpha) / 255
+                  final int effectiveErase =
+                      (baseAlpha * coverageAlpha * 257) >> 16;
+                  final int invErase = 255 - effectiveErase;
+                  final int remainingAlpha = (dstA * invErase * 257) >> 16;
+
+                  if (remainingAlpha == 0) {
+                    destPixels[destIndex] = 0;
+                    _isClean = false;
+                  } else {
+                    // Preserve RGB, reduce alpha
+                    destPixels[destIndex] =
+                        (remainingAlpha << 24) | (dst & 0x00FFFFFF);
+                    _isClean = false;
+                  }
                 }
-                destIndex++;
+              } else {
+                // Normal Blend
+                // effectiveSrcA = (baseAlpha * coverageAlpha) / 255
+                final int srcA = (baseAlpha * coverageAlpha * 257) >> 16;
+
+                if (srcA > 0) {
+                  final int dstR = (dst >> 16) & 0xff;
+                  final int dstG = (dst >> 8) & 0xff;
+                  final int dstB = dst & 0xff;
+
+                  final int invSrcA = 255 - srcA;
+                  final int dstWeightedA = (dstA * invSrcA * 257) >> 16;
+                  final int outA = srcA + dstWeightedA;
+
+                  if (outA > 0) {
+                    final int srcR = (baseRgb >> 16) & 0xff;
+                    final int srcG = (baseRgb >> 8) & 0xff;
+                    final int srcB = baseRgb & 0xff;
+
+                    // outC = (srcC * srcA + dstC * dstWeightedA) / outA
+                    final int outR =
+                        (srcR * srcA + dstR * dstWeightedA) ~/ outA;
+                    final int outG =
+                        (srcG * srcA + dstG * dstWeightedA) ~/ outA;
+                    final int outB =
+                        (srcB * srcA + dstB * dstWeightedA) ~/ outA;
+
+                    destPixels[destIndex] =
+                        (outA << 24) | (outR << 16) | (outG << 8) | outB;
+                    _isClean = false;
+                  }
+                }
+              }
             }
+          }
+          destIndex++;
         }
-        return;
+      }
+      return;
     }
 
     final double softnessRadius = softnessClamped > 0
@@ -430,9 +448,12 @@ class BitmapSurface {
       if (vertex.dy < minY) minY = vertex.dy;
       if (vertex.dy > maxY) maxY = vertex.dy;
     }
-    final Rect bounds = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(
-      _featherForLevel(level) + 1.5,
-    );
+    final Rect bounds = Rect.fromLTRB(
+      minX,
+      minY,
+      maxX,
+      maxY,
+    ).inflate(_featherForLevel(level) + 1.5);
     _drawPolygonStamp(
       vertices: sanitized,
       bounds: bounds,
@@ -855,7 +876,11 @@ class BitmapSurface {
         final Uint8List buffer = Uint8List(mask.length);
         final List<int> queue = <int>[];
 
-        void dilateFromMaskValue(Uint8List source, Uint8List out, int seedValue) {
+        void dilateFromMaskValue(
+          Uint8List source,
+          Uint8List out,
+          int seedValue,
+        ) {
           queue.clear();
           out.fillRange(0, out.length, 0);
           for (int i = 0; i < source.length; i++) {
@@ -1356,14 +1381,13 @@ class BitmapSurface {
       return 0.0;
     }
     final double normalized =
-        ((distance - innerRadius) / (outerRadius - innerRadius))
-            .clamp(0.0, 1.0);
+        ((distance - innerRadius) / (outerRadius - innerRadius)).clamp(
+          0.0,
+          1.0,
+        );
     final double eased = 1.0 - normalized;
     return math
-        .pow(
-          eased,
-          softBrushFalloffExponent(clampedSoftness),
-        )
+        .pow(eased, softBrushFalloffExponent(clampedSoftness))
         .toDouble();
   }
 
@@ -1664,21 +1688,22 @@ class BitmapSurface {
       final int invSrcA = 255 - srcA;
       // Approximation: (a * b) / 255 ~= (a * b * 257) >> 16
       final int remainingAlpha = (dstA * invSrcA * 257) >> 16;
-      
+
       if (remainingAlpha == 0) {
         pixels[index] = 0;
         _isClean = false;
         return;
       }
-      
+
       // Preserve original behavior: scale RGB by the same factor as Alpha
       // Original: scale = remainingAlpha / dstAlpha = (dstA * invSrcA / 255) / dstA = invSrcA / 255
-      
+
       final int outR = (dstR * invSrcA * 257) >> 16;
       final int outG = (dstG * invSrcA * 257) >> 16;
       final int outB = (dstB * invSrcA * 257) >> 16;
 
-      pixels[index] = (remainingAlpha << 24) | (outR << 16) | (outG << 8) | outB;
+      pixels[index] =
+          (remainingAlpha << 24) | (outR << 16) | (outG << 8) | outB;
       _isClean = false;
       return;
     }
@@ -1700,10 +1725,11 @@ class BitmapSurface {
     final int outG = (srcG * srcA + dstG * dstWeightedA) ~/ outA;
     final int outB = (srcB * srcA + dstB * dstWeightedA) ~/ outA;
 
-    pixels[index] = (outA << 24) | 
-                    (outR.clamp(0, 255) << 16) | 
-                    (outG.clamp(0, 255) << 8) | 
-                    outB.clamp(0, 255);
+    pixels[index] =
+        (outA << 24) |
+        (outR.clamp(0, 255) << 16) |
+        (outG.clamp(0, 255) << 8) |
+        outB.clamp(0, 255);
     _isClean = false;
   }
 
