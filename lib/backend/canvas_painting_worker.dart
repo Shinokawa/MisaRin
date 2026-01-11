@@ -306,6 +306,7 @@ class PaintingFloodFillRequest {
     required this.width,
     required this.height,
     this.pixels,
+    this.samplePixels,
     required this.startX,
     required this.startY,
     required this.colorValue,
@@ -314,11 +315,14 @@ class PaintingFloodFillRequest {
     this.mask,
     this.tolerance = 0,
     this.fillGap = 0,
+    this.swallowColors,
+    this.antialiasLevel = 0,
   });
 
   final int width;
   final int height;
   final TransferableTypedData? pixels;
+  final TransferableTypedData? samplePixels;
   final int startX;
   final int startY;
   final int colorValue;
@@ -327,6 +331,8 @@ class PaintingFloodFillRequest {
   final TransferableTypedData? mask;
   final int tolerance;
   final int fillGap;
+  final TransferableTypedData? swallowColors;
+  final int antialiasLevel;
 }
 
 class PaintingSelectionMaskRequest {
@@ -481,6 +487,7 @@ class CanvasPaintingWorker {
       'width': request.width,
       'height': request.height,
       'pixels': request.pixels,
+      'samplePixels': request.samplePixels,
       'startX': request.startX,
       'startY': request.startY,
       'color': request.colorValue,
@@ -489,6 +496,8 @@ class CanvasPaintingWorker {
       'mask': request.mask,
       'tolerance': request.tolerance,
       'fillGap': request.fillGap,
+      'swallowColors': request.swallowColors,
+      'antialiasLevel': request.antialiasLevel,
     });
     return _parsePatchResponse(
       response,
@@ -1307,12 +1316,39 @@ Future<Object?> _paintingWorkerHandleFloodFillWithRust({
   final bool contiguous = payload['contiguous'] as bool? ?? true;
   final int tolerance = payload['tolerance'] as int? ?? 0;
   final int fillGap = payload['fillGap'] as int? ?? 0;
+  final int antialiasLevel = (payload['antialiasLevel'] as int? ?? 0).clamp(
+    0,
+    3,
+  );
+
+  Uint32List? samplePixels;
+  final TransferableTypedData? sampleData =
+      payload['samplePixels'] as TransferableTypedData?;
+  if (sampleData != null) {
+    final ByteBuffer sampleBuffer = sampleData.materialize();
+    final int expectedLength = width * height;
+    if (sampleBuffer.lengthInBytes >= expectedLength * Uint32List.bytesPerElement) {
+      samplePixels = Uint32List.view(sampleBuffer, 0, expectedLength);
+    }
+  }
+
+  Uint32List? swallowColors;
+  final TransferableTypedData? swallowData =
+      payload['swallowColors'] as TransferableTypedData?;
+  if (swallowData != null) {
+    final ByteBuffer swallowBuffer = swallowData.materialize();
+    final int count = swallowBuffer.lengthInBytes ~/ Uint32List.bytesPerElement;
+    if (count > 0) {
+      swallowColors = Uint32List.view(swallowBuffer, 0, count);
+    }
+  }
 
   await _ensureRustInitialized();
   final rust_bucket.FloodFillPatch patch = await rust_bucket.floodFillPatch(
     width: width,
     height: height,
     pixels: pixels,
+    samplePixels: samplePixels,
     startX: startX,
     startY: startY,
     colorValue: colorValue,
@@ -1321,6 +1357,8 @@ Future<Object?> _paintingWorkerHandleFloodFillWithRust({
     tolerance: tolerance,
     fillGap: fillGap,
     selectionMask: selectionMask,
+    swallowColors: swallowColors,
+    antialiasLevel: antialiasLevel,
   );
 
   if (patch.width <= 0 || patch.height <= 0 || patch.pixels.isEmpty) {

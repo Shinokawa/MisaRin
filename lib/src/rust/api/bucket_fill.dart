@@ -6,13 +6,14 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `colors_within_tolerance`, `empty`, `expand_mask_by_one`, `export_patch`, `fill_from_target_mask`, `find_nearest_fillable_start_index`, `open_mask8`
+// These functions are ignored because they are not marked as `pub`: `apply_antialias_to_mask`, `colors_within_tolerance`, `empty`, `expand_mask_by_one`, `expand_mask`, `export_patch`, `fill_from_target_mask`, `find_nearest_fillable_start_index`, `flood_color_line`, `open_mask8`, `run_masked_antialias_pass`, `swallow_color_lines`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
 Future<FloodFillPatch> floodFillPatch({
   required int width,
   required int height,
   required List<int> pixels,
+  Uint32List? samplePixels,
   required int startX,
   required int startY,
   required int colorValue,
@@ -21,10 +22,13 @@ Future<FloodFillPatch> floodFillPatch({
   required int tolerance,
   required int fillGap,
   Uint8List? selectionMask,
+  Uint32List? swallowColors,
+  required int antialiasLevel,
 }) => RustLib.instance.api.crateApiBucketFillFloodFillPatch(
   width: width,
   height: height,
   pixels: pixels,
+  samplePixels: samplePixels,
   startX: startX,
   startY: startY,
   colorValue: colorValue,
@@ -33,6 +37,8 @@ Future<FloodFillPatch> floodFillPatch({
   tolerance: tolerance,
   fillGap: fillGap,
   selectionMask: selectionMask,
+  swallowColors: swallowColors,
+  antialiasLevel: antialiasLevel,
 );
 
 class FloodFillPatch {

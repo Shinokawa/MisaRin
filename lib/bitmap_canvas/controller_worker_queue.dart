@@ -354,7 +354,30 @@ Future<PaintingWorkerPatch?> _controllerExecuteFloodFill(
   bool contiguous = true,
   int tolerance = 0,
   int fillGap = 0,
+  Uint32List? samplePixels,
+  Uint32List? swallowColors,
+  int antialiasLevel = 0,
 }) async {
+  TransferableTypedData? sampleData;
+  if (samplePixels != null && samplePixels.isNotEmpty) {
+    sampleData = TransferableTypedData.fromList(<Uint8List>[
+      Uint8List.view(
+        samplePixels.buffer,
+        samplePixels.offsetInBytes,
+        samplePixels.lengthInBytes,
+      ),
+    ]);
+  }
+  TransferableTypedData? swallowData;
+  if (swallowColors != null && swallowColors.isNotEmpty) {
+    swallowData = TransferableTypedData.fromList(<Uint8List>[
+      Uint8List.view(
+        swallowColors.buffer,
+        swallowColors.offsetInBytes,
+        swallowColors.lengthInBytes,
+      ),
+    ]);
+  }
   await controller._ensureWorkerSurfaceSynced();
   await controller._ensureWorkerSelectionMaskSynced();
   final PaintingWorkerPatch patch = await controller
@@ -364,6 +387,7 @@ Future<PaintingWorkerPatch?> _controllerExecuteFloodFill(
           width: controller._width,
           height: controller._height,
           pixels: null,
+          samplePixels: sampleData,
           startX: start.dx.floor(),
           startY: start.dy.floor(),
           colorValue: color.value,
@@ -372,6 +396,8 @@ Future<PaintingWorkerPatch?> _controllerExecuteFloodFill(
           mask: null,
           tolerance: tolerance,
           fillGap: fillGap,
+          swallowColors: swallowData,
+          antialiasLevel: antialiasLevel,
         ),
       );
   return patch;

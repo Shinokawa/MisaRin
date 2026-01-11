@@ -1069,6 +1069,9 @@ class BitmapCanvasController extends ChangeNotifier {
     bool contiguous = true,
     int tolerance = 0,
     int fillGap = 0,
+    Uint32List? samplePixels,
+    Uint32List? swallowColors,
+    int antialiasLevel = 0,
   }) => _controllerExecuteFloodFill(
     this,
     start: start,
@@ -1077,6 +1080,9 @@ class BitmapCanvasController extends ChangeNotifier {
     contiguous: contiguous,
     tolerance: tolerance,
     fillGap: fillGap,
+    samplePixels: samplePixels,
+    swallowColors: swallowColors,
+    antialiasLevel: antialiasLevel,
   );
 
   Future<Uint8List?> _executeSelectionMask({

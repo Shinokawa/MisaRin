@@ -41,6 +41,42 @@ void _fillFloodFill(
   final int clampedFillGap = fillGap.clamp(0, 64);
   final int clampedAntialias = antialiasLevel.clamp(0, 3);
   final bool hasAntialias = clampedAntialias > 0;
+  final Uint32List? swallowColorsU32 = shouldSwallow && swallowArgb != null
+      ? Uint32List.fromList(swallowArgb)
+      : null;
+
+  if (controller.isMultithreaded) {
+    Uint32List? samplePixels;
+    if (sampleAllLayers) {
+      controller._updateComposite(requiresFullSurface: true, region: null);
+      Uint32List? compositePixels = controller._compositePixels;
+      if (compositePixels == null || compositePixels.isEmpty) {
+        compositePixels = _fillBuildCompositePixelsFallback(controller);
+      }
+      if (compositePixels == null || compositePixels.isEmpty) {
+        return;
+      }
+      samplePixels = Uint32List.fromList(compositePixels);
+    }
+
+    controller._enqueueWorkerPatchFuture(
+      controller._executeFloodFill(
+        start: Offset(x.toDouble(), y.toDouble()),
+        color: color,
+        targetColor: sampleAllLayers
+            ? null
+            : _fillColorAtSurface(controller, controller._activeSurface, x, y),
+        contiguous: contiguous,
+        tolerance: clampedTolerance,
+        fillGap: clampedFillGap,
+        samplePixels: samplePixels,
+        swallowColors: swallowColorsU32,
+        antialiasLevel: clampedAntialias,
+      ),
+    );
+    return;
+  }
+
   // Tolerance is now supported by worker, so we don't need to force mask fill for it alone.
   final bool requiresMaskFill = shouldSwallow || hasAntialias;
   final bool needsRegionMask = shouldSwallow || hasAntialias;

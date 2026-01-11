@@ -4,177 +4,58 @@ Path? _selectionPathFromMask(Uint8List mask, int width) {
   if (mask.isEmpty) {
     return null;
   }
-  final int height = mask.length ~/ width;
-  final Map<int, Set<int>> adjacency = <int, Set<int>>{};
-  final Set<int> edges = <int>{};
-  bool hasCoverage = false;
-
-  void addEdge(int startX, int startY, int direction) {
-    final int vertex = _encodeVertex(startX, startY);
-    final Set<int> directions = adjacency.putIfAbsent(vertex, () => <int>{});
-    if (directions.add(direction)) {
-      edges.add(_encodeEdge(vertex, direction));
-    }
+  if (width <= 0) {
+    return null;
   }
 
-  for (int y = 0; y < height; y++) {
-    final int rowOffset = y * width;
-    for (int x = 0; x < width; x++) {
-      final int index = rowOffset + x;
-      if (mask[index] == 0) {
-        continue;
-      }
-      hasCoverage = true;
-      if (y == 0 || mask[index - width] == 0) {
-        addEdge(x, y, 0); // top edge, moving right
-      }
-      if (x == width - 1 || mask[index + 1] == 0) {
-        addEdge(x + 1, y, 1); // right edge, moving down
-      }
-      if (y == height - 1 || mask[index + width] == 0) {
-        addEdge(x + 1, y + 1, 2); // bottom edge, moving left
-      }
-      if (x == 0 || mask[index - 1] == 0) {
-        addEdge(x, y + 1, 3); // left edge, moving up
-      }
-    }
+  try {
+    final Uint32List vertices = rust_selection_path.selectionPathVerticesFromMask(
+      mask: mask,
+      width: width,
+    );
+    return _selectionPathFromVertices(vertices);
+  } catch (_) {
+    return null;
   }
+}
 
-  if (!hasCoverage || edges.isEmpty) {
+const int _kSelectionPathVertexSentinel = 0xFFFFFFFF;
+
+Path? _selectionPathFromVertices(Uint32List vertices) {
+  if (vertices.isEmpty) {
     return null;
   }
 
   final Path path = Path()..fillType = PathFillType.evenOdd;
-  bool aborted = false;
+  bool hasAnyContour = false;
+  bool hasOpenContour = false;
 
-  void consumeEdge(int encodedEdge) {
-    if (!edges.remove(encodedEdge)) {
-      return;
+  for (int i = 0; i + 1 < vertices.length; i += 2) {
+    final int x = vertices[i];
+    final int y = vertices[i + 1];
+
+    if (x == _kSelectionPathVertexSentinel && y == _kSelectionPathVertexSentinel) {
+      if (hasOpenContour) {
+        path.close();
+        hasOpenContour = false;
+      }
+      continue;
     }
-    final int vertex = _edgeVertex(encodedEdge);
-    final int direction = _edgeDirection(encodedEdge);
-    final Set<int>? options = adjacency[vertex];
-    if (options == null) {
-      return;
-    }
-    options.remove(direction);
-    if (options.isEmpty) {
-      adjacency.remove(vertex);
+
+    if (!hasOpenContour) {
+      path.moveTo(x.toDouble(), y.toDouble());
+      hasAnyContour = true;
+      hasOpenContour = true;
+    } else {
+      path.lineTo(x.toDouble(), y.toDouble());
     }
   }
 
-  while (edges.isNotEmpty) {
-    final int startEdge = edges.first;
-    final int startVertex = _edgeVertex(startEdge);
-    int currentDirection = _edgeDirection(startEdge);
-    consumeEdge(startEdge);
-
-    path.moveTo(
-      _vertexX(startVertex).toDouble(),
-      _vertexY(startVertex).toDouble(),
-    );
-
-    int currentVertex = startVertex;
-    int nextX = _vertexX(currentVertex) + _directionDx[currentDirection];
-    int nextY = _vertexY(currentVertex) + _directionDy[currentDirection];
-    path.lineTo(nextX.toDouble(), nextY.toDouble());
-    currentVertex = _encodeVertex(nextX, nextY);
-
-    while (currentVertex != startVertex) {
-      final int? nextDirection = _selectNextDirection(
-        currentVertex,
-        currentDirection,
-        adjacency,
-      );
-      if (nextDirection == null) {
-        aborted = true;
-        break;
-      }
-      currentDirection = nextDirection;
-      final int encodedEdge = _encodeEdge(currentVertex, currentDirection);
-      consumeEdge(encodedEdge);
-      nextX = _vertexX(currentVertex) + _directionDx[currentDirection];
-      nextY = _vertexY(currentVertex) + _directionDy[currentDirection];
-      path.lineTo(nextX.toDouble(), nextY.toDouble());
-      currentVertex = _encodeVertex(nextX, nextY);
-    }
-    if (aborted) {
-      break;
-    }
+  if (hasOpenContour) {
     path.close();
   }
 
-  if (aborted) {
-    return _pathFromMaskFallback(mask, width);
-  }
-
-  return path;
-}
-
-const List<int> _directionDx = <int>[1, 0, -1, 0];
-const List<int> _directionDy = <int>[0, 1, 0, -1];
-
-int _encodeVertex(int x, int y) => (y << 32) | (x & 0xFFFFFFFF);
-
-int _vertexX(int key) => key & 0xFFFFFFFF;
-
-int _vertexY(int key) => key >> 32;
-
-int _encodeEdge(int vertex, int direction) => (vertex << 2) | direction;
-
-int _edgeVertex(int edge) => edge >> 2;
-
-int _edgeDirection(int edge) => edge & 0x3;
-
-int? _selectNextDirection(
-  int vertex,
-  int previousDirection,
-  Map<int, Set<int>> adjacency,
-) {
-  final Set<int>? options = adjacency[vertex];
-  if (options == null || options.isEmpty) {
-    return null;
-  }
-  for (final int offset in const <int>[1, 0, 3, 2]) {
-    final int candidate = (previousDirection + offset) & 0x3;
-    if (options.contains(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-Path? _pathFromMaskFallback(Uint8List mask, int width) {
-  if (mask.isEmpty) {
-    return null;
-  }
-  final int height = mask.length ~/ width;
-  Path? result;
-  for (int y = 0; y < height; y++) {
-    final int rowOffset = y * width;
-    int x = 0;
-    while (x < width) {
-      if (mask[rowOffset + x] == 0) {
-        x += 1;
-        continue;
-      }
-      final int start = x;
-      while (x < width && mask[rowOffset + x] != 0) {
-        x += 1;
-      }
-      final Rect rect = Rect.fromLTWH(
-        start.toDouble(),
-        y.toDouble(),
-        (x - start).toDouble(),
-        1,
-      );
-      final Path segment = Path()..addRect(rect);
-      result = result == null
-          ? segment
-          : Path.combine(ui.PathOperation.union, result!, segment);
-    }
-  }
-  return result;
+  return hasAnyContour ? path : null;
 }
 
 class _SelectionOverlayPainter extends CustomPainter {
@@ -256,4 +137,3 @@ class _SelectionOverlayPainter extends CustomPainter {
         oldDelegate.fillSelectionPath != fillSelectionPath;
   }
 }
-

@@ -4,6 +4,8 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/bucket_fill.dart';
+import 'api/psd.dart';
+import 'api/selection_path.dart';
 import 'api/simple.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -67,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1529562690;
+  int get rustContentHash => -587453105;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -82,6 +84,7 @@ abstract class RustLibApi extends BaseApi {
     required int width,
     required int height,
     required List<int> pixels,
+    Uint32List? samplePixels,
     required int startX,
     required int startY,
     required int colorValue,
@@ -90,11 +93,20 @@ abstract class RustLibApi extends BaseApi {
     required int tolerance,
     required int fillGap,
     Uint8List? selectionMask,
+    Uint32List? swallowColors,
+    required int antialiasLevel,
   });
 
   String crateApiSimpleGreet({required String name});
 
+  Future<PsdDocument> crateApiPsdImportPsd({required List<int> bytes});
+
   Future<void> crateApiSimpleInitApp();
+
+  Uint32List crateApiSelectionPathSelectionPathVerticesFromMask({
+    required List<int> mask,
+    required int width,
+  });
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -110,6 +122,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required int width,
     required int height,
     required List<int> pixels,
+    Uint32List? samplePixels,
     required int startX,
     required int startY,
     required int colorValue,
@@ -118,6 +131,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required int tolerance,
     required int fillGap,
     Uint8List? selectionMask,
+    Uint32List? swallowColors,
+    required int antialiasLevel,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -126,6 +141,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_i_32(width, serializer);
           sse_encode_i_32(height, serializer);
           sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_opt_list_prim_u_32_strict(samplePixels, serializer);
           sse_encode_i_32(startX, serializer);
           sse_encode_i_32(startY, serializer);
           sse_encode_u_32(colorValue, serializer);
@@ -134,6 +150,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_i_32(tolerance, serializer);
           sse_encode_i_32(fillGap, serializer);
           sse_encode_opt_list_prim_u_8_strict(selectionMask, serializer);
+          sse_encode_opt_list_prim_u_32_strict(swallowColors, serializer);
+          sse_encode_i_32(antialiasLevel, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -150,6 +168,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           width,
           height,
           pixels,
+          samplePixels,
           startX,
           startY,
           colorValue,
@@ -158,6 +177,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           tolerance,
           fillGap,
           selectionMask,
+          swallowColors,
+          antialiasLevel,
         ],
         apiImpl: this,
       ),
@@ -171,6 +192,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "width",
           "height",
           "pixels",
+          "samplePixels",
           "startX",
           "startY",
           "colorValue",
@@ -179,6 +201,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "tolerance",
           "fillGap",
           "selectionMask",
+          "swallowColors",
+          "antialiasLevel",
         ],
       );
 
@@ -206,6 +230,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "greet", argNames: ["name"]);
 
   @override
+  Future<PsdDocument> crateApiPsdImportPsd({required List<int> bytes}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_8_loose(bytes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_psd_document,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiPsdImportPsdConstMeta,
+        argValues: [bytes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPsdImportPsdConstMeta =>
+      const TaskConstMeta(debugName: "import_psd", argNames: ["bytes"]);
+
+  @override
   Future<void> crateApiSimpleInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -214,7 +266,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -231,6 +283,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSimpleInitAppConstMeta =>
       const TaskConstMeta(debugName: "init_app", argNames: []);
+
+  @override
+  Uint32List crateApiSelectionPathSelectionPathVerticesFromMask({
+    required List<int> mask,
+    required int width,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_8_loose(mask, serializer);
+          sse_encode_i_32(width, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_32_strict,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSelectionPathSelectionPathVerticesFromMaskConstMeta,
+        argValues: [mask, width],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiSelectionPathSelectionPathVerticesFromMaskConstMeta =>
+      const TaskConstMeta(
+        debugName: "selection_path_vertices_from_mask",
+        argNames: ["mask", "width"],
+      );
 
   @protected
   String dco_decode_String(dynamic raw) {
@@ -284,9 +367,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as List<int>;
+  }
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  List<PsdLayer> dco_decode_list_psd_layer(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_psd_layer).toList();
   }
 
   @protected
@@ -296,9 +391,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Uint32List? dco_decode_opt_list_prim_u_32_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_prim_u_32_strict(raw);
+  }
+
+  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
+  }
+
+  @protected
+  PsdDocument dco_decode_psd_document(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return PsdDocument(
+      width: dco_decode_i_32(arr[0]),
+      height: dco_decode_i_32(arr[1]),
+      layers: dco_decode_list_psd_layer(arr[2]),
+    );
+  }
+
+  @protected
+  PsdLayer dco_decode_psd_layer(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return PsdLayer(
+      name: dco_decode_String(arr[0]),
+      visible: dco_decode_bool(arr[1]),
+      opacity: dco_decode_u_8(arr[2]),
+      clippingMask: dco_decode_bool(arr[3]),
+      blendModeKey: dco_decode_String(arr[4]),
+      bitmap: dco_decode_list_prim_u_8_strict(arr[5]),
+      bitmapWidth: dco_decode_i_32(arr[6]),
+      bitmapHeight: dco_decode_i_32(arr[7]),
+      bitmapLeft: dco_decode_i_32(arr[8]),
+      bitmapTop: dco_decode_i_32(arr[9]),
+    );
   }
 
   @protected
@@ -376,10 +510,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<PsdLayer> sse_decode_list_psd_layer(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PsdLayer>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_psd_layer(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -394,6 +547,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Uint32List? sse_decode_opt_list_prim_u_32_strict(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_prim_u_32_strict(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -402,6 +568,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     } else {
       return null;
     }
+  }
+
+  @protected
+  PsdDocument sse_decode_psd_document(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_width = sse_decode_i_32(deserializer);
+    var var_height = sse_decode_i_32(deserializer);
+    var var_layers = sse_decode_list_psd_layer(deserializer);
+    return PsdDocument(
+      width: var_width,
+      height: var_height,
+      layers: var_layers,
+    );
+  }
+
+  @protected
+  PsdLayer sse_decode_psd_layer(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_visible = sse_decode_bool(deserializer);
+    var var_opacity = sse_decode_u_8(deserializer);
+    var var_clippingMask = sse_decode_bool(deserializer);
+    var var_blendModeKey = sse_decode_String(deserializer);
+    var var_bitmap = sse_decode_list_prim_u_8_strict(deserializer);
+    var var_bitmapWidth = sse_decode_i_32(deserializer);
+    var var_bitmapHeight = sse_decode_i_32(deserializer);
+    var var_bitmapLeft = sse_decode_i_32(deserializer);
+    var var_bitmapTop = sse_decode_i_32(deserializer);
+    return PsdLayer(
+      name: var_name,
+      visible: var_visible,
+      opacity: var_opacity,
+      clippingMask: var_clippingMask,
+      blendModeKey: var_blendModeKey,
+      bitmap: var_bitmap,
+      bitmapWidth: var_bitmapWidth,
+      bitmapHeight: var_bitmapHeight,
+      bitmapLeft: var_bitmapLeft,
+      bitmapTop: var_bitmapTop,
+    );
   }
 
   @protected
@@ -481,6 +687,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_prim_u_8_loose(
+    List<int> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putUint8List(
+      self is Uint8List ? self : Uint8List.fromList(self),
+    );
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
@@ -491,12 +709,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_psd_layer(
+    List<PsdLayer> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_psd_layer(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_u_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_prim_u_32_strict(
+    Uint32List? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_prim_u_32_strict(self, serializer);
     }
   }
 
@@ -511,6 +754,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (self != null) {
       sse_encode_list_prim_u_8_strict(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_psd_document(PsdDocument self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.width, serializer);
+    sse_encode_i_32(self.height, serializer);
+    sse_encode_list_psd_layer(self.layers, serializer);
+  }
+
+  @protected
+  void sse_encode_psd_layer(PsdLayer self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_bool(self.visible, serializer);
+    sse_encode_u_8(self.opacity, serializer);
+    sse_encode_bool(self.clippingMask, serializer);
+    sse_encode_String(self.blendModeKey, serializer);
+    sse_encode_list_prim_u_8_strict(self.bitmap, serializer);
+    sse_encode_i_32(self.bitmapWidth, serializer);
+    sse_encode_i_32(self.bitmapHeight, serializer);
+    sse_encode_i_32(self.bitmapLeft, serializer);
+    sse_encode_i_32(self.bitmapTop, serializer);
   }
 
   @protected

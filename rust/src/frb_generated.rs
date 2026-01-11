@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1529562690;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -587453105;
 
 // Section: executor
 
@@ -70,6 +70,7 @@ fn wire__crate__api__bucket_fill__flood_fill_patch_impl(
             let api_width = <i32>::sse_decode(&mut deserializer);
             let api_height = <i32>::sse_decode(&mut deserializer);
             let api_pixels = <Vec<u32>>::sse_decode(&mut deserializer);
+            let api_sample_pixels = <Option<Vec<u32>>>::sse_decode(&mut deserializer);
             let api_start_x = <i32>::sse_decode(&mut deserializer);
             let api_start_y = <i32>::sse_decode(&mut deserializer);
             let api_color_value = <u32>::sse_decode(&mut deserializer);
@@ -78,6 +79,8 @@ fn wire__crate__api__bucket_fill__flood_fill_patch_impl(
             let api_tolerance = <i32>::sse_decode(&mut deserializer);
             let api_fill_gap = <i32>::sse_decode(&mut deserializer);
             let api_selection_mask = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
+            let api_swallow_colors = <Option<Vec<u32>>>::sse_decode(&mut deserializer);
+            let api_antialias_level = <i32>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
@@ -86,6 +89,7 @@ fn wire__crate__api__bucket_fill__flood_fill_patch_impl(
                             api_width,
                             api_height,
                             api_pixels,
+                            api_sample_pixels,
                             api_start_x,
                             api_start_y,
                             api_color_value,
@@ -94,6 +98,8 @@ fn wire__crate__api__bucket_fill__flood_fill_patch_impl(
                             api_tolerance,
                             api_fill_gap,
                             api_selection_mask,
+                            api_swallow_colors,
+                            api_antialias_level,
                         ))?;
                     Ok(output_ok)
                 })())
@@ -131,6 +137,39 @@ fn wire__crate__api__simple__greet_impl(
         },
     )
 }
+fn wire__crate__api__psd__import_psd_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "import_psd",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::psd::import_psd(api_bytes)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__simple__init_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -162,6 +201,41 @@ fn wire__crate__api__simple__init_app_impl(
                     Ok(output_ok)
                 })())
             }
+        },
+    )
+}
+fn wire__crate__api__selection_path__selection_path_vertices_from_mask_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "selection_path_vertices_from_mask",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_mask = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_width = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok(
+                    crate::api::selection_path::selection_path_vertices_from_mask(
+                        api_mask, api_width,
+                    ),
+                )?;
+                Ok(output_ok)
+            })())
         },
     )
 }
@@ -232,11 +306,34 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Vec<crate::api::psd::PsdLayer> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::psd::PsdLayer>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Option<u32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<u32>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<Vec<u32>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<u32>>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -251,6 +348,48 @@ impl SseDecode for Option<Vec<u8>> {
         } else {
             return None;
         }
+    }
+}
+
+impl SseDecode for crate::api::psd::PsdDocument {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_width = <i32>::sse_decode(deserializer);
+        let mut var_height = <i32>::sse_decode(deserializer);
+        let mut var_layers = <Vec<crate::api::psd::PsdLayer>>::sse_decode(deserializer);
+        return crate::api::psd::PsdDocument {
+            width: var_width,
+            height: var_height,
+            layers: var_layers,
+        };
+    }
+}
+
+impl SseDecode for crate::api::psd::PsdLayer {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_visible = <bool>::sse_decode(deserializer);
+        let mut var_opacity = <u8>::sse_decode(deserializer);
+        let mut var_clippingMask = <bool>::sse_decode(deserializer);
+        let mut var_blendModeKey = <String>::sse_decode(deserializer);
+        let mut var_bitmap = <Vec<u8>>::sse_decode(deserializer);
+        let mut var_bitmapWidth = <i32>::sse_decode(deserializer);
+        let mut var_bitmapHeight = <i32>::sse_decode(deserializer);
+        let mut var_bitmapLeft = <i32>::sse_decode(deserializer);
+        let mut var_bitmapTop = <i32>::sse_decode(deserializer);
+        return crate::api::psd::PsdLayer {
+            name: var_name,
+            visible: var_visible,
+            opacity: var_opacity,
+            clipping_mask: var_clippingMask,
+            blend_mode_key: var_blendModeKey,
+            bitmap: var_bitmap,
+            bitmap_width: var_bitmapWidth,
+            bitmap_height: var_bitmapHeight,
+            bitmap_left: var_bitmapLeft,
+            bitmap_top: var_bitmapTop,
+        };
     }
 }
 
@@ -285,7 +424,8 @@ fn pde_ffi_dispatcher_primary_impl(
         1 => {
             wire__crate__api__bucket_fill__flood_fill_patch_impl(port, ptr, rust_vec_len, data_len)
         }
-        3 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__psd__import_psd_impl(port, ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -299,6 +439,11 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         2 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__selection_path__selection_path_vertices_from_mask_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
         _ => unreachable!(),
     }
 }
@@ -326,6 +471,49 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::bucket_fill::FloodFillPatch>
     for crate::api::bucket_fill::FloodFillPatch
 {
     fn into_into_dart(self) -> crate::api::bucket_fill::FloodFillPatch {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::psd::PsdDocument {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.width.into_into_dart().into_dart(),
+            self.height.into_into_dart().into_dart(),
+            self.layers.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::psd::PsdDocument {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::psd::PsdDocument>
+    for crate::api::psd::PsdDocument
+{
+    fn into_into_dart(self) -> crate::api::psd::PsdDocument {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::psd::PsdLayer {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.name.into_into_dart().into_dart(),
+            self.visible.into_into_dart().into_dart(),
+            self.opacity.into_into_dart().into_dart(),
+            self.clipping_mask.into_into_dart().into_dart(),
+            self.blend_mode_key.into_into_dart().into_dart(),
+            self.bitmap.into_into_dart().into_dart(),
+            self.bitmap_width.into_into_dart().into_dart(),
+            self.bitmap_height.into_into_dart().into_dart(),
+            self.bitmap_left.into_into_dart().into_dart(),
+            self.bitmap_top.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::psd::PsdLayer {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::psd::PsdLayer> for crate::api::psd::PsdLayer {
+    fn into_into_dart(self) -> crate::api::psd::PsdLayer {
         self
     }
 }
@@ -382,12 +570,32 @@ impl SseEncode for Vec<u8> {
     }
 }
 
+impl SseEncode for Vec<crate::api::psd::PsdLayer> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::psd::PsdLayer>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<u32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <u32>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<Vec<u32>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<u32>>::sse_encode(value, serializer);
         }
     }
 }
@@ -399,6 +607,31 @@ impl SseEncode for Option<Vec<u8>> {
         if let Some(value) = self {
             <Vec<u8>>::sse_encode(value, serializer);
         }
+    }
+}
+
+impl SseEncode for crate::api::psd::PsdDocument {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.width, serializer);
+        <i32>::sse_encode(self.height, serializer);
+        <Vec<crate::api::psd::PsdLayer>>::sse_encode(self.layers, serializer);
+    }
+}
+
+impl SseEncode for crate::api::psd::PsdLayer {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.name, serializer);
+        <bool>::sse_encode(self.visible, serializer);
+        <u8>::sse_encode(self.opacity, serializer);
+        <bool>::sse_encode(self.clipping_mask, serializer);
+        <String>::sse_encode(self.blend_mode_key, serializer);
+        <Vec<u8>>::sse_encode(self.bitmap, serializer);
+        <i32>::sse_encode(self.bitmap_width, serializer);
+        <i32>::sse_encode(self.bitmap_height, serializer);
+        <i32>::sse_encode(self.bitmap_left, serializer);
+        <i32>::sse_encode(self.bitmap_top, serializer);
     }
 }
 

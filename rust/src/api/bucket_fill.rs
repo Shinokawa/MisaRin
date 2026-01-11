@@ -25,6 +25,7 @@ pub fn flood_fill_patch(
     width: i32,
     height: i32,
     mut pixels: Vec<u32>,
+    sample_pixels: Option<Vec<u32>>,
     start_x: i32,
     start_y: i32,
     color_value: u32,
@@ -33,6 +34,8 @@ pub fn flood_fill_patch(
     tolerance: i32,
     fill_gap: i32,
     selection_mask: Option<Vec<u8>>,
+    swallow_colors: Option<Vec<u32>>,
+    antialias_level: i32,
 ) -> FloodFillPatch {
     if width <= 0 || height <= 0 {
         return FloodFillPatch::empty();
@@ -48,11 +51,15 @@ pub fn flood_fill_patch(
     }
 
     let start_index = (start_y as usize) * width_usize + (start_x as usize);
-    let base_color = target_color_value.unwrap_or(pixels[start_index]);
+    let sample_pixels = sample_pixels.filter(|sample| sample.len() == len);
+    let sample_base = sample_pixels
+        .as_deref()
+        .unwrap_or(pixels.as_slice())
+        .get(start_index)
+        .copied()
+        .unwrap_or(0);
+    let base_color = target_color_value.unwrap_or(sample_base);
     let replacement = color_value;
-    if base_color == replacement {
-        return FloodFillPatch::empty();
-    }
 
     let selection_mask = selection_mask
         .filter(|mask| mask.len() == len)
@@ -60,51 +67,17 @@ pub fn flood_fill_patch(
 
     let tol = tolerance.clamp(0, 255) as u8;
     let gap = fill_gap.clamp(0, 64) as u8;
+    let antialias_level = antialias_level.clamp(0, 3) as u8;
+    let swallow_colors = swallow_colors
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|&c| c != replacement)
+        .collect::<Vec<u32>>();
 
     let mut changed_min_x: i32 = width;
     let mut changed_min_y: i32 = height;
     let mut changed_max_x: i32 = -1;
     let mut changed_max_y: i32 = -1;
-
-    if !contiguous {
-        for i in 0..len {
-            if !colors_within_tolerance(pixels[i], base_color, tol) {
-                continue;
-            }
-            if let Some(mask) = &selection_mask {
-                if mask[i] == 0 {
-                    continue;
-                }
-            }
-            if pixels[i] == replacement {
-                continue;
-            }
-            pixels[i] = replacement;
-            let x = (i % width_usize) as i32;
-            let y = (i / width_usize) as i32;
-            if x < changed_min_x {
-                changed_min_x = x;
-            }
-            if y < changed_min_y {
-                changed_min_y = y;
-            }
-            if x > changed_max_x {
-                changed_max_x = x;
-            }
-            if y > changed_max_y {
-                changed_max_y = y;
-            }
-        }
-
-        return export_patch(
-            width_usize,
-            &pixels,
-            changed_min_x,
-            changed_min_y,
-            changed_max_x,
-            changed_max_y,
-        );
-    }
 
     if let Some(mask) = &selection_mask {
         if mask[start_index] == 0 {
@@ -112,9 +85,29 @@ pub fn flood_fill_patch(
         }
     }
 
+    if base_color == replacement
+        && sample_pixels.is_none()
+        && swallow_colors.is_empty()
+        && antialias_level == 0
+    {
+        return FloodFillPatch::empty();
+    }
+
+    let sample_slice: &[u32] = sample_pixels.as_deref().unwrap_or(pixels.as_slice());
     let mut fill_mask: Vec<u8> = vec![0; len];
 
-    if gap > 0 {
+    if !contiguous {
+        for i in 0..len {
+            if let Some(mask) = &selection_mask {
+                if mask[i] == 0 {
+                    continue;
+                }
+            }
+            if colors_within_tolerance(sample_slice[i], base_color, tol) {
+                fill_mask[i] = 1;
+            }
+        }
+    } else if gap > 0 {
         let mut target_mask: Vec<u8> = vec![0; len];
         for i in 0..len {
             if let Some(mask) = &selection_mask {
@@ -122,7 +115,7 @@ pub fn flood_fill_patch(
                     continue;
                 }
             }
-            if colors_within_tolerance(pixels[i], base_color, tol) {
+            if colors_within_tolerance(sample_slice[i], base_color, tol) {
                 target_mask[i] = 1;
             }
         }
@@ -212,7 +205,7 @@ pub fn flood_fill_patch(
                 let snapped = find_nearest_fillable_start_index(
                     start_index,
                     &opened_target,
-                    &pixels,
+                    sample_slice,
                     base_color,
                     width_usize,
                     height_usize,
@@ -346,7 +339,7 @@ pub fn flood_fill_patch(
             if fill_mask[index] == 1 {
                 continue;
             }
-            if !colors_within_tolerance(pixels[index], base_color, tol) {
+            if !colors_within_tolerance(sample_slice[index], base_color, tol) {
                 continue;
             }
             if let Some(mask) = &selection_mask {
@@ -409,6 +402,36 @@ pub fn flood_fill_patch(
                 changed_max_y = yi;
             }
         }
+    }
+
+    if !swallow_colors.is_empty() {
+        swallow_color_lines(
+            &mut pixels,
+            width_usize,
+            height_usize,
+            &fill_mask,
+            selection_mask.as_deref(),
+            &swallow_colors,
+            replacement,
+            &mut changed_min_x,
+            &mut changed_min_y,
+            &mut changed_max_x,
+            &mut changed_max_y,
+        );
+    }
+
+    if antialias_level > 0 {
+        apply_antialias_to_mask(
+            &mut pixels,
+            width_usize,
+            height_usize,
+            &fill_mask,
+            antialias_level,
+            &mut changed_min_x,
+            &mut changed_min_y,
+            &mut changed_max_x,
+            &mut changed_max_y,
+        );
     }
 
     export_patch(
@@ -756,3 +779,423 @@ fn expand_mask_by_one(
     }
 }
 
+fn swallow_color_lines(
+    pixels: &mut [u32],
+    width: usize,
+    height: usize,
+    region_mask: &[u8],
+    selection_mask: Option<&[u8]>,
+    swallow_colors: &[u32],
+    fill_color: u32,
+    min_x: &mut i32,
+    min_y: &mut i32,
+    max_x: &mut i32,
+    max_y: &mut i32,
+) {
+    if region_mask.is_empty() || swallow_colors.is_empty() || pixels.is_empty() {
+        return;
+    }
+    let len = pixels.len().min(region_mask.len());
+    let mut visited: Vec<u8> = vec![0; len];
+
+    for index in 0..len {
+        if region_mask[index] == 0 {
+            continue;
+        }
+        let x = index % width;
+        let y = index / width;
+
+        let try_neighbor = |nx: isize, ny: isize| -> Option<usize> {
+            if nx < 0 || ny < 0 {
+                return None;
+            }
+            let nx = nx as usize;
+            let ny = ny as usize;
+            if nx >= width || ny >= height {
+                return None;
+            }
+            let neighbor_index = ny * width + nx;
+            if neighbor_index >= len {
+                return None;
+            }
+            Some(neighbor_index)
+        };
+
+        for (nx, ny) in [
+            (x as isize + 1, y as isize),
+            (x as isize - 1, y as isize),
+            (x as isize, y as isize + 1),
+            (x as isize, y as isize - 1),
+        ] {
+            let Some(neighbor_index) = try_neighbor(nx, ny) else {
+                continue;
+            };
+            if visited[neighbor_index] != 0 {
+                continue;
+            }
+            let neighbor_color = pixels[neighbor_index];
+            if neighbor_color == fill_color {
+                continue;
+            }
+            if !swallow_colors.iter().any(|&c| c == neighbor_color) {
+                continue;
+            }
+            flood_color_line(
+                pixels,
+                width,
+                height,
+                len,
+                neighbor_index,
+                neighbor_color,
+                fill_color,
+                selection_mask,
+                &mut visited,
+                min_x,
+                min_y,
+                max_x,
+                max_y,
+            );
+        }
+    }
+}
+
+fn flood_color_line(
+    pixels: &mut [u32],
+    width: usize,
+    height: usize,
+    len: usize,
+    start_index: usize,
+    target_color: u32,
+    fill_color: u32,
+    selection_mask: Option<&[u8]>,
+    visited: &mut [u8],
+    min_x: &mut i32,
+    min_y: &mut i32,
+    max_x: &mut i32,
+    max_y: &mut i32,
+) {
+    if start_index >= len {
+        return;
+    }
+    if visited[start_index] != 0 {
+        return;
+    }
+    let mut stack: Vec<usize> = vec![start_index];
+    visited[start_index] = 1;
+    while let Some(index) = stack.pop() {
+        if index >= len {
+            continue;
+        }
+        if pixels[index] != target_color {
+            continue;
+        }
+        if let Some(sel) = selection_mask {
+            if sel.get(index).copied().unwrap_or(0) == 0 {
+                continue;
+            }
+        }
+        if pixels[index] == fill_color {
+            continue;
+        }
+        pixels[index] = fill_color;
+
+        let x = (index % width) as i32;
+        let y = (index / width) as i32;
+        if x < *min_x {
+            *min_x = x;
+        }
+        if y < *min_y {
+            *min_y = y;
+        }
+        if x > *max_x {
+            *max_x = x;
+        }
+        if y > *max_y {
+            *max_y = y;
+        }
+
+        let ux = x as usize;
+        let uy = y as usize;
+        if ux > 0 {
+            let neighbor = index - 1;
+            if visited[neighbor] == 0
+                && selection_mask.map_or(true, |sel| sel[neighbor] != 0)
+                && pixels[neighbor] == target_color
+            {
+                visited[neighbor] = 1;
+                stack.push(neighbor);
+            }
+        }
+        if ux + 1 < width {
+            let neighbor = index + 1;
+            if visited[neighbor] == 0
+                && selection_mask.map_or(true, |sel| sel[neighbor] != 0)
+                && pixels[neighbor] == target_color
+            {
+                visited[neighbor] = 1;
+                stack.push(neighbor);
+            }
+        }
+        if uy > 0 {
+            let neighbor = index - width;
+            if visited[neighbor] == 0
+                && selection_mask.map_or(true, |sel| sel[neighbor] != 0)
+                && pixels[neighbor] == target_color
+            {
+                visited[neighbor] = 1;
+                stack.push(neighbor);
+            }
+        }
+        if uy + 1 < height {
+            let neighbor = index + width;
+            if visited[neighbor] == 0
+                && selection_mask.map_or(true, |sel| sel[neighbor] != 0)
+                && pixels[neighbor] == target_color
+            {
+                visited[neighbor] = 1;
+                stack.push(neighbor);
+            }
+        }
+    }
+}
+
+fn apply_antialias_to_mask(
+    pixels: &mut Vec<u32>,
+    width: usize,
+    height: usize,
+    region_mask: &[u8],
+    level: u8,
+    min_x: &mut i32,
+    min_y: &mut i32,
+    max_x: &mut i32,
+    max_y: &mut i32,
+) {
+    if pixels.is_empty() || region_mask.is_empty() || width == 0 || height == 0 || level == 0 {
+        return;
+    }
+
+    let profile: &[f32] = match level {
+        1 => &[0.35, 0.35],
+        2 => &[0.45, 0.5, 0.5],
+        3 => &[0.6, 0.65, 0.7, 0.75],
+        _ => &[],
+    };
+    if profile.is_empty() {
+        return;
+    }
+
+    let len = pixels.len().min(region_mask.len());
+    let expanded_mask = expand_mask(region_mask, width, height, 1);
+    let mut temp: Vec<u32> = vec![0; pixels.len()];
+
+    let mut src_is_pixels = true;
+    let mut any_change = false;
+
+    for &factor in profile {
+        if factor <= 0.0 {
+            continue;
+        }
+        let changed = if src_is_pixels {
+            run_masked_antialias_pass(
+                pixels.as_slice(),
+                temp.as_mut_slice(),
+                &expanded_mask,
+                width,
+                height,
+                factor,
+                len,
+                min_x,
+                min_y,
+                max_x,
+                max_y,
+            )
+        } else {
+            run_masked_antialias_pass(
+                temp.as_slice(),
+                pixels.as_mut_slice(),
+                &expanded_mask,
+                width,
+                height,
+                factor,
+                len,
+                min_x,
+                min_y,
+                max_x,
+                max_y,
+            )
+        };
+        if !changed {
+            continue;
+        }
+        any_change = true;
+        src_is_pixels = !src_is_pixels;
+    }
+
+    if !any_change {
+        return;
+    }
+    if !src_is_pixels {
+        pixels.copy_from_slice(temp.as_slice());
+    }
+}
+
+fn expand_mask(mask: &[u8], width: usize, height: usize, radius: usize) -> Vec<u8> {
+    if mask.is_empty() || width == 0 || height == 0 || radius == 0 {
+        return mask.to_vec();
+    }
+    let len = width.saturating_mul(height);
+    let mut expanded: Vec<u8> = vec![0; len];
+    let limit = len.min(mask.len());
+    for y in 0..height {
+        let row_offset = y * width;
+        for x in 0..width {
+            let index = row_offset + x;
+            if index >= limit || mask[index] == 0 {
+                continue;
+            }
+            let min_x = x.saturating_sub(radius);
+            let max_x = cmp::min(width - 1, x + radius);
+            let min_y = y.saturating_sub(radius);
+            let max_y = cmp::min(height - 1, y + radius);
+            for ny in min_y..=max_y {
+                let nrow = ny * width;
+                for nx in min_x..=max_x {
+                    let nindex = nrow + nx;
+                    if nindex < expanded.len() {
+                        expanded[nindex] = 1;
+                    }
+                }
+            }
+        }
+    }
+    expanded
+}
+
+fn run_masked_antialias_pass(
+    src: &[u32],
+    dest: &mut [u32],
+    mask: &[u8],
+    width: usize,
+    height: usize,
+    blend_factor: f32,
+    len: usize,
+    min_x: &mut i32,
+    min_y: &mut i32,
+    max_x: &mut i32,
+    max_y: &mut i32,
+) -> bool {
+    dest.copy_from_slice(src);
+    if blend_factor <= 0.0 {
+        return false;
+    }
+    let factor = blend_factor.clamp(0.0, 1.0);
+    let mut modified = false;
+
+    const CENTER_WEIGHT: i32 = 4;
+    const DX: [i32; 8] = [-1, 0, 1, -1, 1, -1, 0, 1];
+    const DY: [i32; 8] = [-1, -1, -1, 0, 0, 1, 1, 1];
+    const WEIGHTS: [i32; 8] = [1, 2, 1, 2, 2, 1, 2, 1];
+
+    for y in 0..height {
+        let row_offset = y * width;
+        for x in 0..width {
+            let index = row_offset + x;
+            if index >= len {
+                continue;
+            }
+            if mask.get(index).copied().unwrap_or(0) == 0 {
+                continue;
+            }
+
+            let center = src[index];
+            let alpha = ((center >> 24) & 0xff) as i32;
+            let center_r = ((center >> 16) & 0xff) as i32;
+            let center_g = ((center >> 8) & 0xff) as i32;
+            let center_b = (center & 0xff) as i32;
+
+            let mut total_weight: i32 = CENTER_WEIGHT;
+            let mut weighted_alpha: i32 = alpha * CENTER_WEIGHT;
+            let mut weighted_premul_r: i32 = center_r * alpha * CENTER_WEIGHT;
+            let mut weighted_premul_g: i32 = center_g * alpha * CENTER_WEIGHT;
+            let mut weighted_premul_b: i32 = center_b * alpha * CENTER_WEIGHT;
+
+            for i in 0..8 {
+                let nx = x as i32 + DX[i];
+                let ny = y as i32 + DY[i];
+                if nx < 0 || ny < 0 {
+                    continue;
+                }
+                let nx = nx as usize;
+                let ny = ny as usize;
+                if nx >= width || ny >= height {
+                    continue;
+                }
+                let nindex = ny * width + nx;
+                if nindex >= len {
+                    continue;
+                }
+                let neighbor = src[nindex];
+                let neighbor_alpha = ((neighbor >> 24) & 0xff) as i32;
+                let weight = WEIGHTS[i];
+                total_weight += weight;
+                if neighbor_alpha == 0 {
+                    continue;
+                }
+                weighted_alpha += neighbor_alpha * weight;
+                weighted_premul_r += (((neighbor >> 16) & 0xff) as i32) * neighbor_alpha * weight;
+                weighted_premul_g += (((neighbor >> 8) & 0xff) as i32) * neighbor_alpha * weight;
+                weighted_premul_b += ((neighbor & 0xff) as i32) * neighbor_alpha * weight;
+            }
+
+            if total_weight <= 0 {
+                continue;
+            }
+
+            let candidate_alpha: i32 = (weighted_alpha / total_weight).clamp(0, 255);
+            let delta_alpha: i32 = candidate_alpha - alpha;
+            if delta_alpha == 0 {
+                continue;
+            }
+            let new_alpha: i32 =
+                (alpha + ((delta_alpha as f32) * factor).round() as i32).clamp(0, 255);
+            if new_alpha == alpha {
+                continue;
+            }
+
+            let mut new_r = center_r;
+            let mut new_g = center_g;
+            let mut new_b = center_b;
+            if delta_alpha > 0 {
+                let bounded_weighted_alpha = cmp::max(weighted_alpha, 1);
+                new_r = (weighted_premul_r / bounded_weighted_alpha).clamp(0, 255);
+                new_g = (weighted_premul_g / bounded_weighted_alpha).clamp(0, 255);
+                new_b = (weighted_premul_b / bounded_weighted_alpha).clamp(0, 255);
+            }
+
+            let new_color: u32 = ((new_alpha as u32) << 24)
+                | ((new_r as u32) << 16)
+                | ((new_g as u32) << 8)
+                | (new_b as u32);
+            if new_color != center {
+                dest[index] = new_color;
+                modified = true;
+                let xi = x as i32;
+                let yi = y as i32;
+                if xi < *min_x {
+                    *min_x = xi;
+                }
+                if yi < *min_y {
+                    *min_y = yi;
+                }
+                if xi > *max_x {
+                    *max_x = xi;
+                }
+                if yi > *max_y {
+                    *max_y = yi;
+                }
+            }
+        }
+    }
+
+    modified
+}
