@@ -469,16 +469,7 @@ Uint32List _controllerRgbaToPixels(Uint8List rgba, int width, int height) {
 }
 
 Uint8List _controllerPixelsToRgba(Uint32List pixels) {
-  final Uint8List rgba = Uint8List(pixels.length * 4);
-  for (int i = 0; i < pixels.length; i++) {
-    final int argb = pixels[i];
-    final int offset = i * 4;
-    rgba[offset] = (argb >> 16) & 0xff;
-    rgba[offset + 1] = (argb >> 8) & 0xff;
-    rgba[offset + 2] = argb & 0xff;
-    rgba[offset + 3] = (argb >> 24) & 0xff;
-  }
-  return rgba;
+  return rust_image_ops.convertPixelsToRgba(pixels: pixels);
 }
 
 Rect _controllerUnionRects(Rect a, Rect b) {

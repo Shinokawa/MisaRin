@@ -17,6 +17,7 @@ import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
 import '../canvas/text_renderer.dart';
 import '../performance/stroke_latency_monitor.dart';
+import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';

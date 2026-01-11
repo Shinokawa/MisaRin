@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/bucket_fill.dart';
+import 'api/image_ops.dart';
 import 'api/psd.dart';
 import 'api/selection_path.dart';
 import 'api/simple.dart';
