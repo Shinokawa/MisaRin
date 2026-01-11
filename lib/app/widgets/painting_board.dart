@@ -91,7 +91,6 @@ import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
 import '../../canvas/brush_random_rotation.dart';
-import '../../canvas/vector_stroke_painter.dart';
 import '../../canvas/text_renderer.dart';
 import '../../canvas/perspective_guide.dart';
 import '../toolbars/widgets/canvas_toolbar.dart';

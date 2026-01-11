@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/bucket_fill.dart';
+import 'api/gpu_brush.dart';
 import 'api/gpu_composite.dart';
 import 'api/image_ops.dart';
 import 'api/memory.dart';
@@ -34,6 +35,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
+  double dco_decode_f_32(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -46,10 +50,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GpuLayerData dco_decode_gpu_layer_data(dynamic raw);
 
   @protected
+  GpuPoint2D dco_decode_gpu_point_2_d(dynamic raw);
+
+  @protected
+  GpuStrokeResult dco_decode_gpu_stroke_result(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
   List<GpuLayerData> dco_decode_list_gpu_layer_data(dynamic raw);
+
+  @protected
+  List<GpuPoint2D> dco_decode_list_gpu_point_2_d(dynamic raw);
+
+  @protected
+  List<double> dco_decode_list_prim_f_32_loose(dynamic raw);
+
+  @protected
+  Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_32_loose(dynamic raw);
@@ -103,6 +122,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  double sse_decode_f_32(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
@@ -115,12 +137,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GpuLayerData sse_decode_gpu_layer_data(SseDeserializer deserializer);
 
   @protected
+  GpuPoint2D sse_decode_gpu_point_2_d(SseDeserializer deserializer);
+
+  @protected
+  GpuStrokeResult sse_decode_gpu_stroke_result(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   List<GpuLayerData> sse_decode_list_gpu_layer_data(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<GpuPoint2D> sse_decode_list_gpu_point_2_d(SseDeserializer deserializer);
+
+  @protected
+  List<double> sse_decode_list_prim_f_32_loose(SseDeserializer deserializer);
+
+  @protected
+  Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
 
   @protected
   List<int> sse_decode_list_prim_u_32_loose(SseDeserializer deserializer);
@@ -176,6 +213,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_f_32(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -191,11 +231,38 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_gpu_layer_data(GpuLayerData self, SseSerializer serializer);
 
   @protected
+  void sse_encode_gpu_point_2_d(GpuPoint2D self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_gpu_stroke_result(
+    GpuStrokeResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_gpu_layer_data(
     List<GpuLayerData> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_gpu_point_2_d(
+    List<GpuPoint2D> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_f_32_loose(
+    List<double> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_f_32_strict(
+    Float32List self,
     SseSerializer serializer,
   );
 

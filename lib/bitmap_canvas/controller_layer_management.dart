@@ -153,6 +153,13 @@ void _layerManagerRemoveLayer(BitmapCanvasController controller, String id) {
   }
   controller._layers.removeAt(index);
   controller._layerOverflowStores.remove(id);
+  controller._gpuBrushSyncedRevisions.remove(id);
+  unawaited(() async {
+    try {
+      await ensureRustInitialized();
+      rust_gpu_brush.gpuRemoveLayer(layerId: id);
+    } catch (_) {}
+  }());
   if (controller._activeIndex >= controller._layers.length) {
     controller._activeIndex = controller._layers.length - 1;
   }

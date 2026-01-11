@@ -56,46 +56,23 @@ void _controllerFlushDeferredStrokeCommands(
   controller._currentStrokeRadii.clear();
   controller._deferredStrokeCommands.clear();
 
-  double minX = double.infinity;
-  double minY = double.infinity;
-  double maxX = double.negativeInfinity;
-  double maxY = double.negativeInfinity;
-  double maxRadius = 0.0;
-
-  for (int i = 0; i < points.length; i++) {
-    final Offset point = points[i];
-    final double radius = (i < radii.length) ? radii[i] : 1.0;
-    if (radius > maxRadius) {
-      maxRadius = radius;
-    }
-    if (point.dx < minX) minX = point.dx;
-    if (point.dx > maxX) maxX = point.dx;
-    if (point.dy < minY) minY = point.dy;
-    if (point.dy > maxY) maxY = point.dy;
-  }
-
-  final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY)
-      .inflate(maxRadius + 2.0);
-
-  controller
-      ._rasterizeVectorStroke(
-        points,
-        radii,
-        color,
-        shape,
-        dirtyRegion,
-        erase,
-        antialiasLevel,
-        hollow: hollow,
-        hollowRatio: hollowRatio,
-        eraseOccludedParts: eraseOccludedParts,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-      )
-      .then((_) {
-        controller._committingStrokes.remove(vectorCommand);
-        controller.notifyListeners();
-      });
+  _controllerDrawVectorStrokeOnGpu(
+    controller,
+    layerId: controller._activeLayer.id,
+    points: points,
+    radii: radii,
+    color: color,
+    brushShape: shape,
+    erase: erase,
+    antialiasLevel: antialiasLevel,
+    hollow: hollow && !erase,
+    hollowRatio: hollowRatio,
+  ).catchError((Object error, StackTrace stackTrace) {
+    debugPrint('GPU笔触绘制失败: $error\n$stackTrace');
+  }).whenComplete(() {
+    controller._committingStrokes.remove(vectorCommand);
+    controller.notifyListeners();
+  });
 }
 
 Future<void> _controllerCommitVectorStroke(
@@ -151,265 +128,103 @@ Future<void> _controllerCommitVectorStroke(
   controller._committingStrokes.add(vectorCommand);
   controller.notifyListeners();
 
-  double minX = double.infinity;
-  double minY = double.infinity;
-  double maxX = double.negativeInfinity;
-  double maxY = double.negativeInfinity;
-  double maxRadius = 0.0;
-
-  for (int i = 0; i < resolvedPoints.length; i++) {
-    final Offset point = resolvedPoints[i];
-    final double radius = _strokeRadiusAtIndex(resolvedRadii, i);
-    if (radius > maxRadius) {
-      maxRadius = radius;
-    }
-    if (point.dx < minX) minX = point.dx;
-    if (point.dx > maxX) maxX = point.dx;
-    if (point.dy < minY) minY = point.dy;
-    if (point.dy > maxY) maxY = point.dy;
+  try {
+    await _controllerDrawVectorStrokeOnGpu(
+      controller,
+      layerId: controller._activeLayer.id,
+      points: resolvedPoints,
+      radii: resolvedRadii,
+      color: color,
+      brushShape: brushShape,
+      erase: erase,
+      antialiasLevel: antialiasLevel.clamp(0, 3),
+      hollow: resolvedHollow,
+      hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
+    );
+  } catch (error, stackTrace) {
+    debugPrint('GPU笔触绘制失败: $error\n$stackTrace');
+  } finally {
+    controller._committingStrokes.remove(vectorCommand);
+    controller.notifyListeners();
   }
-
-  final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY)
-      .inflate(maxRadius + 2.0);
-
-  await controller._rasterizeVectorStroke(
-    resolvedPoints,
-    resolvedRadii,
-    color,
-    brushShape,
-    dirtyRegion,
-    erase,
-    antialiasLevel.clamp(0, 3),
-    hollow: resolvedHollow,
-    hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
-    eraseOccludedParts: resolvedHollow && eraseOccludedParts,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
-  );
-
-  controller._committingStrokes.remove(vectorCommand);
-  controller.notifyListeners();
 }
 
-Future<void> _controllerRasterizeVectorStroke(
-  BitmapCanvasController controller,
-  List<Offset> points,
-  List<double> radii,
-  Color color,
-  BrushShape shape,
-  Rect bounds,
-  bool erase,
-  int antialiasLevel,
-  {
+Future<void> _controllerDrawVectorStrokeOnGpu(
+  BitmapCanvasController controller, {
+  required String layerId,
+  required List<Offset> points,
+  required List<double> radii,
+  required Color color,
+  required BrushShape brushShape,
+  required bool erase,
+  required int antialiasLevel,
   bool hollow = false,
   double hollowRatio = 0.0,
-  bool eraseOccludedParts = false,
-  bool randomRotation = false,
-  int rotationSeed = 0,
-}
-) async {
-  final bool applyHollowCutoutErase =
-      eraseOccludedParts && hollow && !erase && hollowRatio > 0.0001;
-  final int width = bounds.width.ceil().clamp(1, controller._width);
-  final int height = bounds.height.ceil().clamp(1, controller._height);
-  final int left = bounds.left.floor().clamp(0, controller._width);
-  final int top = bounds.top.floor().clamp(0, controller._height);
-  final int safeWidth = math.min(width, controller._width - left);
-  final int safeHeight = math.min(height, controller._height - top);
+}) async {
+  if (points.isEmpty) {
+    return;
+  }
+  if (points.length != radii.length) {
+    throw StateError('GPU笔触 points/radii 长度不一致');
+  }
 
-  if (safeWidth <= 0 || safeHeight <= 0) {
+  await ensureRustInitialized();
+  rust_gpu_brush.gpuBrushInit();
+
+  final int layerIndex = controller._layers.indexWhere(
+    (BitmapLayerState layer) => layer.id == layerId,
+  );
+  if (layerIndex < 0) {
+    return;
+  }
+  final BitmapLayerState layer = controller._layers[layerIndex];
+  if (layer.locked) {
     return;
   }
 
-  final ui.PictureRecorder recorder = ui.PictureRecorder();
-  final ui.Canvas canvas = ui.Canvas(
-    recorder,
-    Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
-  );
-  canvas.translate(-left.toDouble(), -top.toDouble());
+  final int currentRevision = layer.revision;
+  final int? syncedRevision = controller._gpuBrushSyncedRevisions[layerId];
+  if (syncedRevision != currentRevision) {
+    await rust_gpu_brush.gpuUploadLayer(
+      layerId: layerId,
+      pixels: layer.surface.pixels,
+      width: controller._width,
+      height: controller._height,
+    );
+    controller._gpuBrushSyncedRevisions[layerId] = currentRevision;
+  }
 
-  VectorStrokePainter.paint(
-    canvas: canvas,
-    points: points,
+  final List<rust_gpu_brush.GpuPoint2D> gpuPoints = points
+      .map(
+        (Offset p) => rust_gpu_brush.GpuPoint2D(x: p.dx, y: p.dy),
+      )
+      .toList(growable: false);
+
+  final rust_gpu_brush.GpuStrokeResult result = await rust_gpu_brush.gpuDrawStroke(
+    layerId: layerId,
+    points: gpuPoints,
     radii: radii,
-    color: color,
-    shape: shape,
-    antialiasLevel: antialiasLevel,
-    hollow: hollow,
-    hollowRatio: hollowRatio,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
+    color: color.value,
+    brushShape: brushShape.index,
+    erase: erase,
+    antialiasLevel: antialiasLevel.clamp(0, 3),
   );
+  _controllerApplyGpuStrokeResult(controller, layerId: layerId, result: result);
 
-  final ui.Picture picture = recorder.endRecording();
-  final ui.Image image = await picture.toImage(safeWidth, safeHeight);
-  final ByteData? byteData =
-      await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-
-  if (byteData == null) {
-    image.dispose();
-    picture.dispose();
-    return;
-  }
-
-  final Uint8List pixels = byteData.buffer.asUint8List(
-    byteData.offsetInBytes,
-    byteData.lengthInBytes,
-  );
-  image.dispose();
-  picture.dispose();
-
-  if (controller._isMultithreaded) {
-    TransferableTypedData? cutoutMask;
-    if (applyHollowCutoutErase) {
-      final ui.PictureRecorder maskRecorder = ui.PictureRecorder();
-      final ui.Canvas maskCanvas = ui.Canvas(
-        maskRecorder,
-        Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
-      );
-      maskCanvas.translate(-left.toDouble(), -top.toDouble());
-
-      final List<double> scaledRadii = radii
-          .map((double radius) => radius * hollowRatio)
-          .toList(growable: false);
-      VectorStrokePainter.paint(
-        canvas: maskCanvas,
-        points: points,
-        radii: scaledRadii,
-        color: const Color(0xFFFFFFFF),
-        shape: shape,
-        antialiasLevel: antialiasLevel,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-      );
-
-      final ui.Picture maskPicture = maskRecorder.endRecording();
-      final ui.Image maskImage = await maskPicture.toImage(
-        safeWidth,
-        safeHeight,
-      );
-      final ByteData? maskData =
-          await maskImage.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (maskData != null) {
-        final Uint8List maskPixels = maskData.buffer.asUint8List(
-          maskData.offsetInBytes,
-          maskData.lengthInBytes,
-        );
-        cutoutMask = TransferableTypedData.fromList(<Uint8List>[maskPixels]);
-      }
-      maskImage.dispose();
-      maskPicture.dispose();
-    }
-
-    final TransferableTypedData transferablePixels =
-        TransferableTypedData.fromList(<Uint8List>[pixels]);
-    await controller._ensureWorkerSurfaceSynced();
-    await controller._ensureWorkerSelectionMaskSynced();
-    bool anyApplied = false;
-    if (cutoutMask != null) {
-      final PaintingWorkerPatch? cutoutPatch = await controller
-          ._ensurePaintingWorker()
-          .mergePatch(
-            PaintingMergePatchRequest(
-              left: left,
-              top: top,
-              width: safeWidth,
-              height: safeHeight,
-              pixels: cutoutMask,
-              erase: true,
-            ),
-          );
-      if (cutoutPatch != null) {
-        controller._applyWorkerPatch(cutoutPatch);
-        anyApplied = true;
-      }
-    }
-
-    final PaintingWorkerPatch? patch = await controller
-        ._ensurePaintingWorker()
-        .mergePatch(
-          PaintingMergePatchRequest(
-            left: left,
-            top: top,
-            width: safeWidth,
-            height: safeHeight,
-            pixels: transferablePixels,
-            erase: erase,
-            eraseOccludedParts: eraseOccludedParts,
-          ),
-        );
-    if (patch != null) {
-      controller._applyWorkerPatch(patch);
-      anyApplied = true;
-    }
-    if (anyApplied) {
-      await controller._waitForNextFrame();
-    }
-  } else {
-    bool anyApplied = false;
-    if (applyHollowCutoutErase) {
-      final ui.PictureRecorder maskRecorder = ui.PictureRecorder();
-      final ui.Canvas maskCanvas = ui.Canvas(
-        maskRecorder,
-        Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
-      );
-      maskCanvas.translate(-left.toDouble(), -top.toDouble());
-      final List<double> scaledRadii = radii
-          .map((double radius) => radius * hollowRatio)
-          .toList(growable: false);
-      VectorStrokePainter.paint(
-        canvas: maskCanvas,
-        points: points,
-        radii: scaledRadii,
-        color: const Color(0xFFFFFFFF),
-        shape: shape,
-        antialiasLevel: antialiasLevel,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-      );
-      final ui.Picture maskPicture = maskRecorder.endRecording();
-      final ui.Image maskImage = await maskPicture.toImage(
-        safeWidth,
-        safeHeight,
-      );
-      final ByteData? maskData =
-          await maskImage.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (maskData != null) {
-        final Uint8List maskPixels = maskData.buffer.asUint8List(
-          maskData.offsetInBytes,
-          maskData.lengthInBytes,
-        );
-        anyApplied =
-            controller._mergeVectorPatchOnMainThread(
-              rgbaPixels: maskPixels,
-              left: left,
-              top: top,
-              width: safeWidth,
-              height: safeHeight,
-              erase: true,
-              eraseOccludedParts: false,
-            ) ||
-            anyApplied;
-      }
-      maskImage.dispose();
-      maskPicture.dispose();
-    }
-
-    anyApplied =
-        controller._mergeVectorPatchOnMainThread(
-          rgbaPixels: pixels,
-          left: left,
-          top: top,
-          width: safeWidth,
-          height: safeHeight,
-          erase: erase,
-          eraseOccludedParts: eraseOccludedParts,
-        ) ||
-        anyApplied;
-
-    if (anyApplied) {
-      await controller._waitForNextFrame();
-    }
+  if (hollow && !erase && hollowRatio > 0.0001) {
+    final List<double> scaledRadii = radii
+        .map((double radius) => radius * hollowRatio)
+        .toList(growable: false);
+    final rust_gpu_brush.GpuStrokeResult cutout = await rust_gpu_brush.gpuDrawStroke(
+      layerId: layerId,
+      points: gpuPoints,
+      radii: scaledRadii,
+      color: const Color(0xFFFFFFFF).value,
+      brushShape: brushShape.index,
+      erase: true,
+      antialiasLevel: antialiasLevel.clamp(0, 3),
+    );
+    _controllerApplyGpuStrokeResult(controller, layerId: layerId, result: cutout);
   }
 }
 
@@ -570,6 +385,78 @@ Rect? _controllerDirtyRectForCommand(
       final double padding = 2.0 + command.antialiasLevel.clamp(0, 3) * 1.2;
       return Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
   }
+}
+
+void _controllerApplyGpuStrokeResult(
+  BitmapCanvasController controller, {
+  required String layerId,
+  required rust_gpu_brush.GpuStrokeResult result,
+}) {
+  final int width = result.dirtyWidth;
+  final int height = result.dirtyHeight;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  final int expectedLen = width * height;
+  if (result.pixels.length < expectedLen) {
+    return;
+  }
+
+  final int layerIndex = controller._layers.indexWhere(
+    (BitmapLayerState layer) => layer.id == layerId,
+  );
+  if (layerIndex < 0) {
+    return;
+  }
+  final BitmapLayerState layer = controller._layers[layerIndex];
+  final BitmapSurface surface = layer.surface;
+
+  final int effectiveLeft = math.max(0, math.min(result.dirtyLeft, controller._width));
+  final int effectiveTop = math.max(0, math.min(result.dirtyTop, controller._height));
+  final int maxRight = math.min(effectiveLeft + width, controller._width);
+  final int maxBottom = math.min(effectiveTop + height, controller._height);
+  if (maxRight <= effectiveLeft || maxBottom <= effectiveTop) {
+    return;
+  }
+
+  final Uint32List destination = surface.pixels;
+  final bool checkCoverage = surface.isClean;
+  bool wroteCoverage = false;
+  final int copyWidth = maxRight - effectiveLeft;
+  final int copyHeight = maxBottom - effectiveTop;
+  final int srcLeftOffset = effectiveLeft - result.dirtyLeft;
+  final int srcTopOffset = effectiveTop - result.dirtyTop;
+
+  for (int row = 0; row < copyHeight; row++) {
+    final int srcRow = srcTopOffset + row;
+    final int destY = effectiveTop + row;
+    final int srcOffset = srcRow * width + srcLeftOffset;
+    final int destOffset = destY * controller._width + effectiveLeft;
+    if (checkCoverage && !wroteCoverage) {
+      final int rowEnd = srcOffset + copyWidth;
+      for (int i = srcOffset; i < rowEnd; i++) {
+        if ((result.pixels[i] & 0xff000000) != 0) {
+          wroteCoverage = true;
+          break;
+        }
+      }
+    }
+    destination.setRange(destOffset, destOffset + copyWidth, result.pixels, srcOffset);
+  }
+
+  if (wroteCoverage) {
+    surface.markDirty();
+  }
+
+  controller._resetWorkerSurfaceSync();
+  final Rect dirtyRegion = Rect.fromLTWH(
+    effectiveLeft.toDouble(),
+    effectiveTop.toDouble(),
+    copyWidth.toDouble(),
+    copyHeight.toDouble(),
+  );
+  controller._markDirty(region: dirtyRegion, layerId: layerId, pixelsDirty: true);
+  controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
 }
 
 int _controllerUnpremultiplyChannel(int value, int alpha) {

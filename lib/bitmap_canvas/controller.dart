@@ -19,9 +19,10 @@ import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
 import '../canvas/text_renderer.dart';
-import '../performance/stroke_latency_monitor.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
+import '../src/rust/api/gpu_brush.dart' as rust_gpu_brush;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
+import '../src/rust/rust_init.dart';
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
@@ -31,8 +32,6 @@ import 'raster_int_rect.dart';
 import 'soft_brush_profile.dart';
 import 'stroke_dynamics.dart';
 import 'stroke_pressure_simulator.dart';
-import '../canvas/brush_shape_geometry.dart';
-import '../canvas/vector_stroke_painter.dart';
 
 export 'bitmap_layer_state.dart';
 
@@ -130,6 +129,7 @@ class BitmapCanvasController extends ChangeNotifier {
   String? _paintingWorkerSyncedLayerId;
   int _paintingWorkerSyncedRevision = -1;
   bool _paintingWorkerSelectionDirty = true;
+  final Map<String, int> _gpuBrushSyncedRevisions = <String, int>{};
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -244,35 +244,6 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void _flushDeferredStrokeCommands() =>
       _controllerFlushDeferredStrokeCommands(this);
-
-  Future<void> _rasterizeVectorStroke(
-    List<Offset> points,
-    List<double> radii,
-    Color color,
-    BrushShape shape,
-    Rect bounds,
-    bool erase,
-    int antialiasLevel, {
-    bool hollow = false,
-    double hollowRatio = 0.0,
-    bool eraseOccludedParts = false,
-    bool randomRotation = false,
-    int rotationSeed = 0,
-  }) => _controllerRasterizeVectorStroke(
-    this,
-    points,
-    radii,
-    color,
-    shape,
-    bounds,
-    erase,
-    antialiasLevel,
-    hollow: hollow,
-    hollowRatio: hollowRatio,
-    eraseOccludedParts: eraseOccludedParts,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
-  );
 
   void _flushRealtimeStrokeCommands() =>
       _controllerFlushRealtimeStrokeCommands(this);
