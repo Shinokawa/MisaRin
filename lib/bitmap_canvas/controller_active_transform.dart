@@ -21,7 +21,7 @@ void _translateActiveLayer(BitmapCanvasController controller, int dx, int dy) {
   controller._activeLayerTranslationDx = dx;
   controller._activeLayerTranslationDy = dy;
   _updateActiveLayerTransformDirtyRegion(controller);
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _commitActiveLayerTranslation(BitmapCanvasController controller) {

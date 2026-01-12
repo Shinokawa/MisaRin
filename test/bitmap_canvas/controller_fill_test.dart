@@ -22,6 +22,10 @@ void main() {
     pixels[0] = BitmapSurface.encodeColor(const Color(0xFFFF0000));
     pixels[1] = BitmapSurface.encodeColor(const Color(0xFF0000FF));
     pixels[2] = BitmapSurface.encodeColor(const Color(0xFFFF0000));
+    controller.markLayerRegionDirty(
+      backgroundLayer.id,
+      const Rect.fromLTWH(0, 0, 3, 1),
+    );
 
     controller.floodFill(
       const Offset(0, 0),

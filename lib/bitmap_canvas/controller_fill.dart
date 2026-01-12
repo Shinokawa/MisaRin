@@ -132,8 +132,11 @@ void _fillFloodFill(
     } else {
       controller._updateComposite(requiresFullSurface: true, region: null);
       final Uint32List? compositePixels = controller._compositePixels;
-      final Uint32List resolvedSamplePixels =
-          compositePixels != null && compositePixels.isNotEmpty
+      final bool compositeReady =
+          compositePixels != null &&
+          compositePixels.isNotEmpty &&
+          !controller._rasterBackend.isCompositeDirty;
+      final Uint32List resolvedSamplePixels = compositeReady
           ? compositePixels
           : _fillBuildCompositePixelsFallback(controller);
       if (resolvedSamplePixels.isEmpty) {

@@ -251,8 +251,13 @@ fn flood_fill_bounds(
         }
 
         // "Fill gap" should only prevent leaking through small openings.
-        // We follow the existing Dart worker implementation:
-        // 1) Open the target mask, 2) Find outside region in opened mask, 3) Reconstruct inside.
+        // Strategy:
+        // 1) Open the target mask (Chebyshev radius = fill_gap),
+        // 2) Identify the outside region in the opened mask,
+        // 3) Reconstruct the interior on the original target mask.
+        //
+        // Important: The outside region can be only a few pixels thick (e.g. tiny canvases),
+        // so we pad with 1s inside `open_mask8` to avoid eroding the boundary away entirely.
         let opened_target = open_mask8(target_mask.clone(), width, height, gap);
 
         let mut outside_seeds: Vec<usize> = Vec::new();
@@ -603,7 +608,51 @@ fn colors_within_tolerance(a: u32, b: u32, tolerance: u8) -> bool {
     (aa - ba).abs() <= t && (ar - br).abs() <= t && (ag - bg).abs() <= t && (ab - bb).abs() <= t
 }
 
-fn open_mask8(mut mask: Vec<u8>, width: usize, height: usize, radius: u8) -> Vec<u8> {
+fn open_mask8(mask: Vec<u8>, width: usize, height: usize, radius: u8) -> Vec<u8> {
+    if mask.is_empty() || width == 0 || height == 0 || radius == 0 {
+        return mask;
+    }
+
+    let pad = radius as usize;
+    let padded_width = match width.checked_add(pad.saturating_mul(2)) {
+        Some(v) => v,
+        None => return open_mask8_unpadded(mask, width, height, radius),
+    };
+    let padded_height = match height.checked_add(pad.saturating_mul(2)) {
+        Some(v) => v,
+        None => return open_mask8_unpadded(mask, width, height, radius),
+    };
+    let padded_len = match padded_width.checked_mul(padded_height) {
+        Some(v) => v,
+        None => return open_mask8_unpadded(mask, width, height, radius),
+    };
+    if padded_len == 0 || padded_len > isize::MAX as usize {
+        return open_mask8_unpadded(mask, width, height, radius);
+    }
+
+    // Pad with 1s so the outside region stays connected to the canvas boundary after opening.
+    let mut padded: Vec<u8> = vec![1u8; padded_len];
+    for y in 0..height {
+        let src_offset = y * width;
+        let dst_offset = (y + pad) * padded_width + pad;
+        padded[dst_offset..dst_offset + width]
+            .copy_from_slice(&mask[src_offset..src_offset + width]);
+    }
+
+    let opened = open_mask8_unpadded(padded, padded_width, padded_height, radius);
+
+    // Crop back to the original size.
+    let mut result: Vec<u8> = vec![0u8; mask.len()];
+    for y in 0..height {
+        let src_offset = (y + pad) * padded_width + pad;
+        let dst_offset = y * width;
+        result[dst_offset..dst_offset + width]
+            .copy_from_slice(&opened[src_offset..src_offset + width]);
+    }
+    result
+}
+
+fn open_mask8_unpadded(mut mask: Vec<u8>, width: usize, height: usize, radius: u8) -> Vec<u8> {
     if mask.is_empty() || width == 0 || height == 0 || radius == 0 {
         return mask;
     }

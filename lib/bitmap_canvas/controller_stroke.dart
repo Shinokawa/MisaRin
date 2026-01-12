@@ -243,9 +243,13 @@ void _strokeExtend(
     final double startRadius = restartCaps ? resolvedRadius : previousRadius;
     
     if (useCircularBrush) {
+      final Offset segmentStart =
+          controller._currentStrokePoints.length == 2
+          ? controller._currentStrokePoints.first
+          : last;
       controller._deferredStrokeCommands.add(
         PaintingDrawCommand.variableLine(
-          start: last,
+          start: segmentStart,
           end: position,
           startRadius: startRadius,
           endRadius: resolvedRadius,
@@ -306,6 +310,7 @@ void _strokeEnd(BitmapCanvasController controller) {
       controller._currentStrokeHasMoved &&
       controller._currentStrokePoints.length >= 2;
   final Offset tip = controller._currentStrokePoints.last;
+  final bool useCircularBrush = controller._currentBrushShape == BrushShape.circle;
 
   if (controller._strokePressureSimulator.isSimulatingStroke) {
     final Offset? previousPoint =
@@ -348,10 +353,54 @@ void _strokeEnd(BitmapCanvasController controller) {
         // Append tail segment to vector stroke data
         controller._currentStrokePoints.add(end);
         controller._currentStrokeRadii.add(endRadius);
+        if (useCircularBrush) {
+          controller._deferredStrokeCommands.add(
+            PaintingDrawCommand.variableLine(
+              start: lastPoint,
+              end: end,
+              startRadius: lastRadius,
+              endRadius: endRadius,
+              colorValue: controller._currentStrokeColor.value,
+              antialiasLevel: controller._currentStrokeAntialiasLevel,
+              includeStartCap: false,
+              erase: controller._currentStrokeEraseMode,
+            ),
+          );
+        } else {
+          controller._deferredStrokeCommands.add(
+            PaintingDrawCommand.stampSegment(
+              start: lastPoint,
+              end: end,
+              startRadius: lastRadius,
+              endRadius: endRadius,
+              colorValue: controller._currentStrokeColor.value,
+              shapeIndex: controller._currentBrushShape.index,
+              randomRotation: controller._currentStrokeRandomRotationEnabled,
+              rotationSeed: controller._currentStrokeRotationSeed,
+              antialiasLevel: controller._currentStrokeAntialiasLevel,
+              includeStart: false,
+              erase: controller._currentStrokeEraseMode,
+            ),
+          );
+        }
       } else if (tailInstruction.isPoint) {
         // Append tail point to vector stroke data
-        controller._currentStrokePoints.add(tailInstruction.point!);
-        controller._currentStrokeRadii.add(tailInstruction.pointRadius!);
+        final Offset tailPoint = tailInstruction.point!;
+        final double tailRadius = tailInstruction.pointRadius!;
+        controller._currentStrokePoints.add(tailPoint);
+        controller._currentStrokeRadii.add(tailRadius);
+        controller._deferredStrokeCommands.add(
+          PaintingDrawCommand.brushStamp(
+            center: tailPoint,
+            radius: tailRadius,
+            colorValue: controller._currentStrokeColor.value,
+            shapeIndex: controller._currentBrushShape.index,
+            randomRotation: controller._currentStrokeRandomRotationEnabled,
+            rotationSeed: controller._currentStrokeRotationSeed,
+            antialiasLevel: controller._currentStrokeAntialiasLevel,
+            erase: controller._currentStrokeEraseMode,
+          ),
+        );
       }
     }
   }

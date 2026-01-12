@@ -21,7 +21,7 @@ void _compositeScheduleRefresh(BitmapCanvasController controller) {
   controller._refreshScheduled = true;
   scheduleMicrotask(() => _compositeProcessScheduled(controller));
   SchedulerBinding.instance?.ensureVisualUpdate();
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _compositeProcessScheduled(BitmapCanvasController controller) {
@@ -75,7 +75,7 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
       _resetActiveLayerTranslationState(controller);
     }
     controller._rasterBackend.completeCompositePass();
-    controller.notifyListeners();
+    controller._notify();
   } finally {
     controller._compositeProcessing = false;
     if (controller._rasterBackend.isCompositeDirty &&

@@ -190,8 +190,7 @@ fn map_brush_shape(index: u32) -> Result<BrushShape, String> {
     // Some callers may have already migrated to a 2-value enum: circle=0, square=1.
     match index {
         0 => Ok(BrushShape::Circle),
-        1 | 2 => Ok(BrushShape::Square),
-        _ => Err(format!("unsupported brush_shape index: {index}")),
+        _ => Ok(BrushShape::Square),
     }
 }
 
@@ -246,16 +245,22 @@ fn create_wgpu_device() -> Result<(wgpu::Device, wgpu::Queue), String> {
     .ok_or_else(|| "wgpu: no compatible GPU adapter found".to_string())?;
 
     let adapter_limits = adapter.limits();
+    let adapter_features = adapter.features();
     let required_limits = wgpu::Limits {
         max_buffer_size: adapter_limits.max_buffer_size,
         max_storage_buffer_binding_size: adapter_limits.max_storage_buffer_binding_size,
         ..wgpu::Limits::default()
     };
 
+    let required_features = wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+    if !adapter_features.contains(required_features) {
+        return Err("wgpu: adapter does not support TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES".to_string());
+    }
+
     pollster::block_on(adapter.request_device(
         &wgpu::DeviceDescriptor {
             label: Some("misa-rin GpuBrush device"),
-            required_features: wgpu::Features::empty(),
+            required_features,
             required_limits,
         },
         None,

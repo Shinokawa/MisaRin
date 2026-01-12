@@ -346,6 +346,6 @@ bool _controllerApplyAntialiasToActiveLayerCpu(
   }
   layer.surface.markDirty();
   controller._markDirty(layerId: layer.id, pixelsDirty: true);
-  controller.notifyListeners();
+  controller._notify();
   return true;
 }

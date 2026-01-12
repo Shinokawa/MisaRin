@@ -102,7 +102,7 @@ Future<bool> _gpuApplyAntialiasToActiveLayer(
 
     layer.surface.markDirty();
     controller._markDirty(layerId: layer.id, pixelsDirty: true);
-    controller.notifyListeners();
+    controller._notify();
     return true;
   } on Object catch (error, stack) {
     debugPrint('GPU antialias failed, falling back to CPU: $error\n$stack');

@@ -7,7 +7,7 @@ void _layerManagerSetActiveLayer(BitmapCanvasController controller, String id) {
   }
   controller._activeIndex = index;
   controller._resetWorkerSurfaceSync();
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerUpdateVisibility(
@@ -45,7 +45,7 @@ void _layerManagerSetOpacity(
   }
   layer.opacity = clamped;
   controller._markDirty(pixelsDirty: false);
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerSetLocked(
@@ -62,7 +62,7 @@ void _layerManagerSetLocked(
     return;
   }
   layer.locked = locked;
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerSetClippingMask(
@@ -80,7 +80,7 @@ void _layerManagerSetClippingMask(
   }
   layer.clippingMask = clippingMask;
   controller._markDirty(pixelsDirty: false);
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerSetBlendMode(
@@ -98,7 +98,7 @@ void _layerManagerSetBlendMode(
   }
   layer.blendMode = mode;
   controller._markDirty(pixelsDirty: false);
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerRenameLayer(
@@ -111,7 +111,7 @@ void _layerManagerRenameLayer(
     return;
   }
   controller._layers[index].name = name;
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerAddLayer(

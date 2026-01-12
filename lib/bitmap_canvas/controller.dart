@@ -130,6 +130,7 @@ class BitmapCanvasController extends ChangeNotifier {
   int _paintingWorkerSyncedRevision = -1;
   bool _paintingWorkerSelectionDirty = true;
   final Map<String, int> _gpuBrushSyncedRevisions = <String, int>{};
+  Future<void> _gpuBrushQueue = Future<void>.value();
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -309,6 +310,14 @@ class BitmapCanvasController extends ChangeNotifier {
 
   bool get vectorDrawingEnabled => _vectorDrawingEnabled;
   bool get vectorStrokeSmoothingEnabled => _vectorStrokeSmoothingEnabled;
+
+  void _notify() => notifyListeners();
+
+  Future<T> _enqueueGpuBrushTask<T>(Future<T> Function() task) {
+    final Future<T> future = _gpuBrushQueue.then((_) => task());
+    _gpuBrushQueue = future.then((_) {}, onError: (_, __) {});
+    return future;
+  }
 
   void runSynchronousRasterization(VoidCallback action) {
     final bool previous = _synchronousRasterOverride;
@@ -679,7 +688,10 @@ class BitmapCanvasController extends ChangeNotifier {
   );
 
   List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
-  Future<void> waitForPendingWorkerTasks() => _waitForPendingWorkerTasks();
+  Future<void> waitForPendingWorkerTasks() async {
+    await _waitForPendingWorkerTasks();
+    await _gpuBrushQueue;
+  }
 
   CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) =>
       _layerManagerBuildClipboardLayer(this, id, mask: mask);

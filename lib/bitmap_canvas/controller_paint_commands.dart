@@ -1,78 +1,225 @@
 part of 'controller.dart';
 
+class _GpuStrokeDrawData {
+  const _GpuStrokeDrawData({
+    required this.points,
+    required this.radii,
+    required this.color,
+    required this.brushShape,
+    required this.erase,
+    required this.antialiasLevel,
+    required this.hollow,
+    required this.hollowRatio,
+    required this.eraseOccludedParts,
+  });
+
+  final List<Offset> points;
+  final List<double> radii;
+  final Color color;
+  final BrushShape brushShape;
+  final bool erase;
+  final int antialiasLevel;
+  final bool hollow;
+  final double hollowRatio;
+  final bool eraseOccludedParts;
+}
+
+_GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
+  PaintingDrawCommand command, {
+  required bool hollow,
+  required double hollowRatio,
+  required bool eraseOccludedParts,
+}) {
+  final bool erase = command.erase;
+  final int antialiasLevel = command.antialiasLevel.clamp(0, 3);
+
+  switch (command.type) {
+    case PaintingDrawCommandType.brushStamp: {
+      final Offset? center = command.center;
+      final double? radius = command.radius;
+      final int? shapeIndex = command.shapeIndex;
+      if (center == null || radius == null || shapeIndex == null) {
+        return null;
+      }
+      final int clamped = shapeIndex.clamp(0, BrushShape.values.length - 1);
+      return _GpuStrokeDrawData(
+        points: <Offset>[center],
+        radii: <double>[radius.abs()],
+        color: Color(command.color),
+        brushShape: BrushShape.values[clamped],
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow && !erase,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: hollow && !erase && eraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.line: {
+      final Offset? start = command.start;
+      final Offset? end = command.end;
+      final double? radius = command.radius;
+      if (start == null || end == null || radius == null) {
+        return null;
+      }
+      final double resolved = radius.abs();
+      return _GpuStrokeDrawData(
+        points: <Offset>[start, end],
+        radii: <double>[resolved, resolved],
+        color: Color(command.color),
+        brushShape: BrushShape.circle,
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow && !erase,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: hollow && !erase && eraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.variableLine: {
+      final Offset? start = command.start;
+      final Offset? end = command.end;
+      final double? startRadius = command.startRadius;
+      final double? endRadius = command.endRadius;
+      if (start == null || end == null || startRadius == null || endRadius == null) {
+        return null;
+      }
+      return _GpuStrokeDrawData(
+        points: <Offset>[start, end],
+        radii: <double>[startRadius.abs(), endRadius.abs()],
+        color: Color(command.color),
+        brushShape: BrushShape.circle,
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow && !erase,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: hollow && !erase && eraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.stampSegment: {
+      final Offset? start = command.start;
+      final Offset? end = command.end;
+      final double? startRadius = command.startRadius;
+      final double? endRadius = command.endRadius;
+      final int? shapeIndex = command.shapeIndex;
+      if (start == null ||
+          end == null ||
+          startRadius == null ||
+          endRadius == null ||
+          shapeIndex == null) {
+        return null;
+      }
+      final int clamped = shapeIndex.clamp(0, BrushShape.values.length - 1);
+      return _GpuStrokeDrawData(
+        points: <Offset>[start, end],
+        radii: <double>[startRadius.abs(), endRadius.abs()],
+        color: Color(command.color),
+        brushShape: BrushShape.values[clamped],
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow && !erase,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: hollow && !erase && eraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.vectorStroke: {
+      final List<Offset>? points = command.points;
+      final List<double>? radii = command.radii;
+      final int? shapeIndex = command.shapeIndex;
+      if (points == null || radii == null || shapeIndex == null) {
+        return null;
+      }
+      final int clamped = shapeIndex.clamp(0, BrushShape.values.length - 1);
+      final bool resolvedHollow = (command.hollow ?? false) && !erase;
+      final bool resolvedEraseOccludedParts =
+          resolvedHollow && (command.eraseOccludedParts ?? false);
+      return _GpuStrokeDrawData(
+        points: List<Offset>.from(points),
+        radii: List<double>.from(radii),
+        color: Color(command.color),
+        brushShape: BrushShape.values[clamped],
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: resolvedHollow,
+        hollowRatio: resolvedHollow ? (command.hollowRatio ?? 0.0) : 0.0,
+        eraseOccludedParts: resolvedEraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.filledPolygon:
+      return null;
+  }
+}
+
 void _controllerFlushDeferredStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  final bool usesVectorRasterization =
-      controller._vectorDrawingEnabled || controller._currentStrokeHollowEnabled;
-  if (!usesVectorRasterization) {
-    controller._commitDeferredStrokeCommandsAsRaster();
-    return;
-  }
-  if (controller._currentStrokePoints.isEmpty) {
-    controller._deferredStrokeCommands.clear();
-    return;
-  }
-
-  List<Offset> points =
-      List<Offset>.from(controller._currentStrokePoints);
-  List<double> radii =
-      List<double>.from(controller._currentStrokeRadii);
-  final Color color = controller._currentStrokeColor;
-  final BrushShape shape = controller._currentBrushShape;
-  final bool erase = controller._currentStrokeEraseMode;
-  final int antialiasLevel = controller._currentStrokeAntialiasLevel;
-  final bool hollow = controller._currentStrokeHollowEnabled;
-  final double hollowRatio = controller._currentStrokeHollowRatio;
-  final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
-  final bool randomRotation = controller._currentStrokeRandomRotationEnabled;
-  final int rotationSeed = controller._currentStrokeRotationSeed;
-
-  if (controller._vectorStrokeSmoothingEnabled && points.length >= 3) {
-    final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
-      points,
-      radii,
+  PaintingDrawCommand? committingOverlayCommand;
+  if (controller._currentStrokePoints.isNotEmpty &&
+      controller._currentStrokePoints.length ==
+          controller._currentStrokeRadii.length) {
+    final PaintingDrawCommand command = PaintingDrawCommand.vectorStroke(
+      points: List<Offset>.from(controller._currentStrokePoints),
+      radii: List<double>.from(controller._currentStrokeRadii),
+      colorValue: controller._currentStrokeColor.value,
+      shapeIndex: controller._currentBrushShape.index,
+      antialiasLevel: controller._currentStrokeAntialiasLevel,
+      erase: controller._currentStrokeEraseMode,
+      hollow: controller._currentStrokeHollowEnabled,
+      hollowRatio: controller._currentStrokeHollowRatio,
+      eraseOccludedParts: controller._currentStrokeEraseOccludedParts,
+      randomRotation: controller._currentStrokeRandomRotationEnabled,
+      rotationSeed: controller._currentStrokeRotationSeed,
     );
-    points = smoothed.points;
-    radii = smoothed.radii;
+    controller._committingStrokes.add(command);
+    controller._notify();
+    committingOverlayCommand = command;
   }
 
-  final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
-    points: points,
-    radii: radii,
-    colorValue: color.value,
-    shapeIndex: shape.index,
-    antialiasLevel: antialiasLevel,
-    erase: erase,
-    hollow: hollow,
-    hollowRatio: hollowRatio,
-    eraseOccludedParts: eraseOccludedParts,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
-  );
-  controller._committingStrokes.add(vectorCommand);
+  final PaintingDrawCommand? overlayCommand = committingOverlayCommand;
+  if (overlayCommand != null) {
+    final bool hollow = (overlayCommand.hollow ?? false) &&
+        !overlayCommand.erase &&
+        (overlayCommand.hollowRatio ?? 0.0) > 0.0001;
+    final bool eraseOccludedParts = overlayCommand.eraseOccludedParts ?? false;
 
-  controller._currentStrokePoints.clear();
-  controller._currentStrokeRadii.clear();
-  controller._deferredStrokeCommands.clear();
+    if (hollow && !eraseOccludedParts) {
+      controller._deferredStrokeCommands.clear();
+      controller._currentStrokePoints.clear();
+      controller._currentStrokeRadii.clear();
 
-  _controllerDrawVectorStrokeOnGpu(
-    controller,
-    layerId: controller._activeLayer.id,
-    points: points,
-    radii: radii,
-    color: color,
-    brushShape: shape,
-    erase: erase,
-    antialiasLevel: antialiasLevel,
-    hollow: hollow && !erase,
-    hollowRatio: hollowRatio,
-  ).catchError((Object error, StackTrace stackTrace) {
-    debugPrint('GPU笔触绘制失败: $error\n$stackTrace');
-  }).whenComplete(() {
-    controller._committingStrokes.remove(vectorCommand);
-    controller.notifyListeners();
-  });
+      unawaited(() async {
+        try {
+          await _controllerDrawStrokeOnGpu(
+            controller,
+            layerId: controller._activeLayer.id,
+            points: overlayCommand.points ?? const <Offset>[],
+            radii: overlayCommand.radii ?? const <double>[],
+            color: Color(overlayCommand.color),
+            brushShape: BrushShape.values[overlayCommand.shapeIndex ?? 0],
+            erase: overlayCommand.erase,
+            antialiasLevel: overlayCommand.antialiasLevel,
+            hollow: true,
+            hollowRatio: overlayCommand.hollowRatio ?? 0.0,
+            eraseOccludedParts: false,
+          );
+        } catch (error, stackTrace) {
+          debugPrint('GPU笔触绘制失败: $error\n$stackTrace');
+        } finally {
+          controller._committingStrokes.remove(overlayCommand);
+          controller._notify();
+        }
+      }());
+      return;
+    }
+  }
+
+  controller._commitDeferredStrokeCommandsAsRaster();
+  if (overlayCommand != null) {
+    unawaited(
+      controller._enqueueGpuBrushTask<void>(() async {}).whenComplete(() {
+        controller._committingStrokes.remove(overlayCommand);
+        controller._notify();
+      }),
+    );
+  }
 }
 
 Future<void> _controllerCommitVectorStroke(
@@ -111,6 +258,7 @@ Future<void> _controllerCommitVectorStroke(
   }
 
   final bool resolvedHollow = hollow && !erase;
+  final bool resolvedEraseOccludedParts = resolvedHollow && eraseOccludedParts;
   final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
     points: resolvedPoints,
     radii: resolvedRadii,
@@ -120,16 +268,16 @@ Future<void> _controllerCommitVectorStroke(
     erase: erase,
     hollow: resolvedHollow,
     hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
-    eraseOccludedParts: resolvedHollow && eraseOccludedParts,
+    eraseOccludedParts: resolvedEraseOccludedParts,
     randomRotation: randomRotation,
     rotationSeed: rotationSeed,
   );
 
   controller._committingStrokes.add(vectorCommand);
-  controller.notifyListeners();
+  controller._notify();
 
   try {
-    await _controllerDrawVectorStrokeOnGpu(
+    await _controllerDrawStrokeOnGpu(
       controller,
       layerId: controller._activeLayer.id,
       points: resolvedPoints,
@@ -140,16 +288,17 @@ Future<void> _controllerCommitVectorStroke(
       antialiasLevel: antialiasLevel.clamp(0, 3),
       hollow: resolvedHollow,
       hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
+      eraseOccludedParts: resolvedEraseOccludedParts,
     );
   } catch (error, stackTrace) {
     debugPrint('GPU笔触绘制失败: $error\n$stackTrace');
   } finally {
     controller._committingStrokes.remove(vectorCommand);
-    controller.notifyListeners();
+    controller._notify();
   }
 }
 
-Future<void> _controllerDrawVectorStrokeOnGpu(
+Future<void> _controllerDrawStrokeOnGpu(
   BitmapCanvasController controller, {
   required String layerId,
   required List<Offset> points,
@@ -158,6 +307,7 @@ Future<void> _controllerDrawVectorStrokeOnGpu(
   required BrushShape brushShape,
   required bool erase,
   required int antialiasLevel,
+  bool eraseOccludedParts = false,
   bool hollow = false,
   double hollowRatio = 0.0,
 }) async {
@@ -168,54 +318,145 @@ Future<void> _controllerDrawVectorStrokeOnGpu(
     throw StateError('GPU笔触 points/radii 长度不一致');
   }
 
-  await ensureRustInitialized();
-  rust_gpu_brush.gpuBrushInit();
+  await controller._enqueueGpuBrushTask<void>(() async {
+    await ensureRustInitialized();
+    rust_gpu_brush.gpuBrushInit();
 
-  final int layerIndex = controller._layers.indexWhere(
-    (BitmapLayerState layer) => layer.id == layerId,
-  );
-  if (layerIndex < 0) {
-    return;
-  }
-  final BitmapLayerState layer = controller._layers[layerIndex];
-  if (layer.locked) {
-    return;
-  }
-
-  final int currentRevision = layer.revision;
-  final int? syncedRevision = controller._gpuBrushSyncedRevisions[layerId];
-  if (syncedRevision != currentRevision) {
-    await rust_gpu_brush.gpuUploadLayer(
-      layerId: layerId,
-      pixels: layer.surface.pixels,
-      width: controller._width,
-      height: controller._height,
+    final int layerIndex = controller._layers.indexWhere(
+      (BitmapLayerState layer) => layer.id == layerId,
     );
-    controller._gpuBrushSyncedRevisions[layerId] = currentRevision;
-  }
+    if (layerIndex < 0) {
+      return;
+    }
+    final BitmapLayerState layer = controller._layers[layerIndex];
+    if (layer.locked) {
+      return;
+    }
 
-  final List<rust_gpu_brush.GpuPoint2D> gpuPoints = points
-      .map(
-        (Offset p) => rust_gpu_brush.GpuPoint2D(x: p.dx, y: p.dy),
-      )
-      .toList(growable: false);
+    final int currentRevision = layer.revision;
+    final int? syncedRevision = controller._gpuBrushSyncedRevisions[layerId];
+    if (syncedRevision != currentRevision) {
+      await rust_gpu_brush.gpuUploadLayer(
+        layerId: layerId,
+        pixels: layer.surface.pixels,
+        width: controller._width,
+        height: controller._height,
+      );
+      controller._gpuBrushSyncedRevisions[layerId] = currentRevision;
+    }
 
-  final rust_gpu_brush.GpuStrokeResult result = await rust_gpu_brush.gpuDrawStroke(
-    layerId: layerId,
-    points: gpuPoints,
-    radii: radii,
-    color: color.value,
-    brushShape: brushShape.index,
-    erase: erase,
-    antialiasLevel: antialiasLevel.clamp(0, 3),
-  );
-  _controllerApplyGpuStrokeResult(controller, layerId: layerId, result: result);
+    final List<rust_gpu_brush.GpuPoint2D> gpuPoints = points
+        .map(
+          (Offset p) => rust_gpu_brush.GpuPoint2D(x: p.dx, y: p.dy),
+        )
+        .toList(growable: false);
 
-  if (hollow && !erase && hollowRatio > 0.0001) {
+    if (kDebugMode) {
+      debugPrint(
+        '[GPU] drawStroke layer=$layerId points=${points.length} erase=$erase aa=${antialiasLevel.clamp(0, 3)} hollow=$hollow hollowErase=$eraseOccludedParts',
+      );
+    }
+
+    final rust_gpu_brush.GpuStrokeResult result =
+        await rust_gpu_brush.gpuDrawStroke(
+      layerId: layerId,
+      points: gpuPoints,
+      radii: radii,
+      color: color.value,
+      brushShape: brushShape.index,
+      erase: erase,
+      antialiasLevel: antialiasLevel.clamp(0, 3),
+    );
+
+    final bool resolvedHollow = hollow && !erase && hollowRatio > 0.0001;
+    if (!resolvedHollow) {
+      _controllerApplyGpuStrokeResult(
+        controller,
+        layerId: layerId,
+        result: result,
+      );
+      return;
+    }
+
+    // Hollow strokes have two modes:
+    // - `eraseOccludedParts == true`: cut out a hole through the whole layer.
+    // - `eraseOccludedParts == false`: cut out only the newly painted stroke,
+    //   preserving the underlying pixels.
+    if (eraseOccludedParts) {
+      _controllerApplyGpuStrokeResult(
+        controller,
+        layerId: layerId,
+        result: result,
+      );
+      final List<double> scaledRadii = radii
+          .map((double radius) => radius * hollowRatio)
+          .toList(growable: false);
+      final rust_gpu_brush.GpuStrokeResult cutout =
+          await rust_gpu_brush.gpuDrawStroke(
+        layerId: layerId,
+        points: gpuPoints,
+        radii: scaledRadii,
+        color: const Color(0xFFFFFFFF).value,
+        brushShape: brushShape.index,
+        erase: true,
+        antialiasLevel: antialiasLevel.clamp(0, 3),
+      );
+      _controllerApplyGpuStrokeResult(
+        controller,
+        layerId: layerId,
+        result: cutout,
+      );
+      return;
+    }
+
+    // Preserve-underlying hollow:
+    // 1) Snapshot pre-stroke pixels (CPU) for the dirty region.
+    // 2) Apply outer stroke (GPU result) to CPU.
+    // 3) Draw inner cutout on GPU to derive an erase mask.
+    // 4) Restore underlying pixels proportionally inside the cutout region.
+    // 5) Re-upload the full layer to keep GPU state in sync with CPU.
+    final int outerWidth = result.dirtyWidth;
+    final int outerHeight = result.dirtyHeight;
+    if (outerWidth <= 0 || outerHeight <= 0 || result.pixels.isEmpty) {
+      return;
+    }
+
+    final int canvasWidth = controller._width;
+    final int canvasHeight = controller._height;
+    final int outerLeft = result.dirtyLeft.clamp(0, canvasWidth);
+    final int outerTop = result.dirtyTop.clamp(0, canvasHeight);
+    final int outerRight = (outerLeft + outerWidth).clamp(0, canvasWidth);
+    final int outerBottom = (outerTop + outerHeight).clamp(0, canvasHeight);
+    final int copyW = outerRight - outerLeft;
+    final int copyH = outerBottom - outerTop;
+    if (copyW <= 0 || copyH <= 0) {
+      return;
+    }
+
+    final Uint32List destination = layer.surface.pixels;
+    final Uint32List before = Uint32List(copyW * copyH);
+    for (int row = 0; row < copyH; row++) {
+      final int srcOffset = (outerTop + row) * canvasWidth + outerLeft;
+      final int dstOffset = row * copyW;
+      before.setRange(
+        dstOffset,
+        dstOffset + copyW,
+        destination,
+        srcOffset,
+      );
+    }
+
+    _controllerApplyGpuStrokeResult(
+      controller,
+      layerId: layerId,
+      result: result,
+    );
+
     final List<double> scaledRadii = radii
         .map((double radius) => radius * hollowRatio)
         .toList(growable: false);
-    final rust_gpu_brush.GpuStrokeResult cutout = await rust_gpu_brush.gpuDrawStroke(
+    final rust_gpu_brush.GpuStrokeResult cutout =
+        await rust_gpu_brush.gpuDrawStroke(
       layerId: layerId,
       points: gpuPoints,
       radii: scaledRadii,
@@ -224,14 +465,111 @@ Future<void> _controllerDrawVectorStrokeOnGpu(
       erase: true,
       antialiasLevel: antialiasLevel.clamp(0, 3),
     );
-    _controllerApplyGpuStrokeResult(controller, layerId: layerId, result: cutout);
-  }
+
+    int lerpPremultiplied(int from, int to, double t) {
+      final double clamped = t.clamp(0.0, 1.0);
+      if (clamped <= 0.000001) {
+        return from;
+      }
+      if (clamped >= 0.999999) {
+        return to;
+      }
+
+      final int a0 = (from >> 24) & 0xff;
+      final int r0 = (from >> 16) & 0xff;
+      final int g0 = (from >> 8) & 0xff;
+      final int b0 = from & 0xff;
+      final int a1 = (to >> 24) & 0xff;
+      final int r1 = (to >> 16) & 0xff;
+      final int g1 = (to >> 8) & 0xff;
+      final int b1 = to & 0xff;
+
+      final double fa0 = a0 / 255.0;
+      final double fa1 = a1 / 255.0;
+      final double pr0 = (r0 / 255.0) * fa0;
+      final double pg0 = (g0 / 255.0) * fa0;
+      final double pb0 = (b0 / 255.0) * fa0;
+      final double pr1 = (r1 / 255.0) * fa1;
+      final double pg1 = (g1 / 255.0) * fa1;
+      final double pb1 = (b1 / 255.0) * fa1;
+
+      final double inv = 1.0 - clamped;
+      final double fa = fa0 * inv + fa1 * clamped;
+      final double pr = pr0 * inv + pr1 * clamped;
+      final double pg = pg0 * inv + pg1 * clamped;
+      final double pb = pb0 * inv + pb1 * clamped;
+
+      if (fa <= 0.000001) {
+        return 0;
+      }
+      final double invA = 1.0 / fa;
+      final int outA = (fa * 255.0).round().clamp(0, 255);
+      final int outR = ((pr * invA) * 255.0).round().clamp(0, 255);
+      final int outG = ((pg * invA) * 255.0).round().clamp(0, 255);
+      final int outB = ((pb * invA) * 255.0).round().clamp(0, 255);
+      return (outA << 24) | (outR << 16) | (outG << 8) | outB;
+    }
+
+    final int innerWidth = cutout.dirtyWidth;
+    final int innerHeight = cutout.dirtyHeight;
+    if (innerWidth > 0 && innerHeight > 0 && cutout.pixels.isNotEmpty) {
+      final int innerLeft = cutout.dirtyLeft.clamp(0, canvasWidth);
+      final int innerTop = cutout.dirtyTop.clamp(0, canvasHeight);
+      final int innerRight = (innerLeft + innerWidth).clamp(0, canvasWidth);
+      final int innerBottom = (innerTop + innerHeight).clamp(0, canvasHeight);
+
+      final int adjLeft = math.max(outerLeft, innerLeft);
+      final int adjTop = math.max(outerTop, innerTop);
+      final int adjRight = math.min(outerRight, innerRight);
+      final int adjBottom = math.min(outerBottom, innerBottom);
+
+      for (int y = adjTop; y < adjBottom; y++) {
+        final int outerRow = (y - outerTop) * copyW;
+        final int destRow = y * canvasWidth;
+        final int innerRow = (y - innerTop) * innerWidth;
+        for (int x = adjLeft; x < adjRight; x++) {
+          final int outerIndex = outerRow + (x - outerLeft);
+          final int destIndex = destRow + x;
+          final int innerIndex = innerRow + (x - innerLeft);
+
+          final int o = destination[destIndex];
+          final int oa = (o >> 24) & 0xff;
+          if (oa == 0) {
+            continue;
+          }
+          final int e = cutout.pixels[innerIndex];
+          final int ea = (e >> 24) & 0xff;
+          if (ea >= oa) {
+            continue;
+          }
+
+          final double coverage = (1.0 - (ea / oa)).clamp(0.0, 1.0);
+          if (coverage <= 0.000001) {
+            continue;
+          }
+          final int b = before[outerIndex];
+          destination[destIndex] = lerpPremultiplied(o, b, coverage);
+        }
+      }
+    }
+
+    // The GPU layer currently contains the erased-underlying cutout, but the CPU layer has been
+    // restored to preserve underlying pixels. Re-sync GPU with the CPU surface.
+    await rust_gpu_brush.gpuUploadLayer(
+      layerId: layerId,
+      pixels: layer.surface.pixels,
+      width: controller._width,
+      height: controller._height,
+    );
+    controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+  });
 }
 
 void _controllerFlushRealtimeStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  if (controller._vectorDrawingEnabled || controller._currentStrokeHollowEnabled) {
+  if (controller._currentStrokeHollowEnabled &&
+      !controller._currentStrokeEraseOccludedParts) {
     return;
   }
   controller._commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
@@ -252,36 +590,53 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
     controller._deferredStrokeCommands,
   );
   controller._deferredStrokeCommands.clear();
-  if (controller._useWorkerForRaster) {
-    for (final PaintingDrawCommand command in commands) {
+  final bool hollow = controller._currentStrokeHollowEnabled;
+  final double hollowRatio = controller._currentStrokeHollowRatio;
+  final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
+
+  for (final PaintingDrawCommand command in commands) {
+    final _GpuStrokeDrawData? stroke = _controllerGpuStrokeFromCommand(
+      command,
+      hollow: hollow,
+      hollowRatio: hollowRatio,
+      eraseOccludedParts: eraseOccludedParts,
+    );
+    if (stroke == null) {
       final Rect? bounds = controller._dirtyRectForCommand(command);
       if (bounds == null || bounds.isEmpty) {
         continue;
       }
-      controller._enqueuePaintingWorkerCommand(
-        region: bounds,
-        command: command,
+      controller._applyPaintingCommandsSynchronously(
+        bounds,
+        <PaintingDrawCommand>[command],
       );
+      continue;
     }
-  } else {
-    Rect? region;
-    for (final PaintingDrawCommand command in commands) {
-      final Rect? bounds = controller._dirtyRectForCommand(command);
-      if (bounds == null || bounds.isEmpty) {
-        continue;
-      }
-      region = region == null
-          ? bounds
-          : Rect.fromLTRB(
-              math.min(region.left, bounds.left),
-              math.min(region.top, bounds.top),
-              math.max(region.right, bounds.right),
-              math.max(region.bottom, bounds.bottom),
-            );
-    }
-    if (region != null) {
-      controller._applyPaintingCommandsSynchronously(region, commands);
-    }
+    unawaited(
+      _controllerDrawStrokeOnGpu(
+        controller,
+        layerId: controller._activeLayer.id,
+        points: stroke.points,
+        radii: stroke.radii,
+        color: stroke.color,
+        brushShape: stroke.brushShape,
+        erase: stroke.erase,
+        antialiasLevel: stroke.antialiasLevel,
+        hollow: stroke.hollow,
+        hollowRatio: stroke.hollowRatio,
+        eraseOccludedParts: stroke.eraseOccludedParts,
+      ).catchError((Object error, StackTrace stackTrace) {
+        debugPrint('GPU笔触绘制失败(回退CPU): $error\n$stackTrace');
+        final Rect? bounds = controller._dirtyRectForCommand(command);
+        if (bounds == null || bounds.isEmpty) {
+          return;
+        }
+        controller._applyPaintingCommandsSynchronously(
+          bounds,
+          <PaintingDrawCommand>[command],
+        );
+      }),
+    );
   }
   if (!keepStrokeState) {
     controller._currentStrokePoints.clear();
@@ -297,13 +652,39 @@ void _controllerDispatchDirectPaintCommand(
   if (bounds == null || bounds.isEmpty) {
     return;
   }
-  if (controller._useWorkerForRaster) {
-    controller._enqueuePaintingWorkerCommand(region: bounds, command: command);
+  final _GpuStrokeDrawData? stroke = _controllerGpuStrokeFromCommand(
+    command,
+    hollow: false,
+    hollowRatio: 0.0,
+    eraseOccludedParts: false,
+  );
+  if (stroke == null) {
+    controller._applyPaintingCommandsSynchronously(
+      bounds,
+      <PaintingDrawCommand>[command],
+    );
     return;
   }
-  controller._applyPaintingCommandsSynchronously(
-    bounds,
-    <PaintingDrawCommand>[command],
+  unawaited(
+    _controllerDrawStrokeOnGpu(
+      controller,
+      layerId: controller._activeLayer.id,
+      points: stroke.points,
+      radii: stroke.radii,
+      color: stroke.color,
+      brushShape: stroke.brushShape,
+      erase: stroke.erase,
+      antialiasLevel: stroke.antialiasLevel,
+      eraseOccludedParts: stroke.eraseOccludedParts,
+      hollow: false,
+      hollowRatio: 0.0,
+    ).catchError((Object error, StackTrace stackTrace) {
+      debugPrint('GPU绘制失败(回退CPU): $error\n$stackTrace');
+      controller._applyPaintingCommandsSynchronously(
+        bounds,
+        <PaintingDrawCommand>[command],
+      );
+    }),
   );
 }
 
