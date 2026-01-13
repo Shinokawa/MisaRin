@@ -421,6 +421,7 @@ impl PresentRenderer {
 struct StrokeResampler {
     last_emitted: Option<Point2D>,
     last_pressure: f32,
+    last_tick_dirty: Option<(i32, i32, i32, i32)>,
 }
 
 #[cfg(target_os = "macos")]
@@ -429,6 +430,7 @@ impl StrokeResampler {
         Self {
             last_emitted: None,
             last_pressure: 1.0,
+            last_tick_dirty: None,
         }
     }
 
@@ -442,9 +444,9 @@ impl StrokeResampler {
     ) -> bool {
         const FLAG_DOWN: u32 = 1;
         const FLAG_UP: u32 = 4;
-        const MAX_POINTS_PER_DISPATCH: usize = 64;
 
         if points.is_empty() {
+            self.last_tick_dirty = None;
             return false;
         }
 
@@ -515,29 +517,23 @@ impl StrokeResampler {
         }
 
         if emitted.is_empty() {
+            self.last_tick_dirty = None;
             return false;
         }
 
         brush.set_canvas_size(canvas_width, canvas_height);
 
+        let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
         let mut drew_any = false;
-        let mut cursor = 0usize;
-        while cursor < emitted.len() {
-            let end = (cursor + MAX_POINTS_PER_DISPATCH).min(emitted.len());
-            let slice = &emitted[cursor..end];
 
-            let mut pts: Vec<Point2D> = Vec::with_capacity(slice.len());
-            let mut radii: Vec<f32> = Vec::with_capacity(slice.len());
-            for (pt, pres) in slice {
-                pts.push(*pt);
-                radii.push(brush_radius_from_pressure(*pres));
-            }
-
+        if emitted.len() == 1 {
+            let (p0, pres0) = emitted[0];
+            let r0 = brush_radius_from_pressure(pres0);
             if brush
                 .draw_stroke(
                     layer0,
-                    &pts,
-                    &radii,
+                    &[p0],
+                    &[r0],
                     Color { argb: 0xFFFFFFFF },
                     BrushShape::Circle,
                     false,
@@ -546,14 +542,41 @@ impl StrokeResampler {
                 .is_ok()
             {
                 drew_any = true;
+                dirty_union = union_dirty_rect_i32(
+                    dirty_union,
+                    compute_dirty_rect_i32(&[p0], &[r0], canvas_width, canvas_height),
+                );
             }
-
-            if end == emitted.len() {
-                break;
+        } else {
+            for i in 0..emitted.len().saturating_sub(1) {
+                let (p0, pres0) = emitted[i];
+                let (p1, pres1) = emitted[i + 1];
+                let r0 = brush_radius_from_pressure(pres0);
+                let r1 = brush_radius_from_pressure(pres1);
+                let pts = [p0, p1];
+                let radii = [r0, r1];
+                if brush
+                    .draw_stroke(
+                        layer0,
+                        &pts,
+                        &radii,
+                        Color { argb: 0xFFFFFFFF },
+                        BrushShape::Circle,
+                        false,
+                        1,
+                    )
+                    .is_ok()
+                {
+                    drew_any = true;
+                    dirty_union = union_dirty_rect_i32(
+                        dirty_union,
+                        compute_dirty_rect_i32(&pts, &radii, canvas_width, canvas_height),
+                    );
+                }
             }
-            cursor = end.saturating_sub(1);
         }
 
+        self.last_tick_dirty = dirty_union;
         drew_any
     }
 }
@@ -572,6 +595,86 @@ fn brush_radius_from_pressure(pressure: f32) -> f32 {
 fn resample_step_from_radius(radius: f32) -> f32 {
     let r = if radius.is_finite() { radius.max(0.0) } else { 0.0 };
     (r * 0.1).clamp(0.25, 0.5)
+}
+
+#[cfg(target_os = "macos")]
+fn compute_dirty_rect_i32(
+    points: &[Point2D],
+    radii: &[f32],
+    canvas_width: u32,
+    canvas_height: u32,
+) -> (i32, i32, i32, i32) {
+    if canvas_width == 0 || canvas_height == 0 || points.is_empty() || points.len() != radii.len()
+    {
+        return (0, 0, 0, 0);
+    }
+
+    let mut min_x: f32 = f32::INFINITY;
+    let mut min_y: f32 = f32::INFINITY;
+    let mut max_x: f32 = f32::NEG_INFINITY;
+    let mut max_y: f32 = f32::NEG_INFINITY;
+    let mut max_r: f32 = 0.0;
+
+    for (p, &r) in points.iter().zip(radii.iter()) {
+        let x = if p.x.is_finite() { p.x } else { 0.0 };
+        let y = if p.y.is_finite() { p.y } else { 0.0 };
+        let radius = if r.is_finite() { r.max(0.0) } else { 0.0 };
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+        max_r = max_r.max(radius);
+    }
+
+    if !min_x.is_finite() || !min_y.is_finite() || !max_x.is_finite() || !max_y.is_finite() {
+        return (0, 0, 0, 0);
+    }
+
+    let pad = max_r + 2.0;
+    let left = ((min_x - pad).floor() as i64).clamp(0, canvas_width as i64);
+    let top = ((min_y - pad).floor() as i64).clamp(0, canvas_height as i64);
+    let right = ((max_x + pad).ceil() as i64).clamp(0, canvas_width as i64);
+    let bottom = ((max_y + pad).ceil() as i64).clamp(0, canvas_height as i64);
+
+    let width = (right - left).max(0) as i32;
+    let height = (bottom - top).max(0) as i32;
+    (left as i32, top as i32, width, height)
+}
+
+#[cfg(target_os = "macos")]
+fn union_dirty_rect_i32(
+    existing: Option<(i32, i32, i32, i32)>,
+    candidate: (i32, i32, i32, i32),
+) -> Option<(i32, i32, i32, i32)> {
+    let (cl, ct, cw, ch) = candidate;
+    if cw <= 0 || ch <= 0 {
+        return existing;
+    }
+    let Some((el, et, ew, eh)) = existing else {
+        return Some(candidate);
+    };
+    if ew <= 0 || eh <= 0 {
+        return Some(candidate);
+    }
+
+    let el64 = el as i64;
+    let et64 = et as i64;
+    let er64 = el64 + ew as i64;
+    let eb64 = et64 + eh as i64;
+
+    let cl64 = cl as i64;
+    let ct64 = ct as i64;
+    let cr64 = cl64 + cw as i64;
+    let cb64 = ct64 + ch as i64;
+
+    let left = el64.min(cl64);
+    let top = et64.min(ct64);
+    let right = er64.max(cr64);
+    let bottom = eb64.max(cb64);
+
+    let width = (right - left).max(0) as i32;
+    let height = (bottom - top).max(0) as i32;
+    Some((left as i32, top as i32, width, height))
 }
 
 #[cfg(target_os = "macos")]

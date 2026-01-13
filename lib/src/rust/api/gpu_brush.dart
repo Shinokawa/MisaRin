@@ -73,14 +73,14 @@ class GpuStrokeResult {
   final int dirtyTop;
   final int dirtyWidth;
   final int dirtyHeight;
-  final Uint32List pixels;
+  final int drawCalls;
 
   const GpuStrokeResult({
     required this.dirtyLeft,
     required this.dirtyTop,
     required this.dirtyWidth,
     required this.dirtyHeight,
-    required this.pixels,
+    required this.drawCalls,
   });
 
   @override
@@ -89,7 +89,7 @@ class GpuStrokeResult {
       dirtyTop.hashCode ^
       dirtyWidth.hashCode ^
       dirtyHeight.hashCode ^
-      pixels.hashCode;
+      drawCalls.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -100,5 +100,5 @@ class GpuStrokeResult {
           dirtyTop == other.dirtyTop &&
           dirtyWidth == other.dirtyWidth &&
           dirtyHeight == other.dirtyHeight &&
-          pixels == other.pixels;
+          drawCalls == other.drawCalls;
 }

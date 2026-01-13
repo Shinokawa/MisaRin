@@ -320,9 +320,6 @@ Future<void> _controllerDrawStrokeOnGpu(
   }
 
   await controller._enqueueGpuBrushTask<void>(() async {
-    await ensureRustInitialized();
-    rust_gpu_brush.gpuBrushInit();
-
     final int layerIndex = controller._layers.indexWhere(
       (BitmapLayerState layer) => layer.id == layerId,
     );
@@ -334,131 +331,163 @@ Future<void> _controllerDrawStrokeOnGpu(
       return;
     }
 
-    final int currentRevision = layer.revision;
-    final int? syncedRevision = controller._gpuBrushSyncedRevisions[layerId];
-    if (syncedRevision != currentRevision) {
-      await rust_gpu_brush.gpuUploadLayer(
-        layerId: layerId,
-        pixels: layer.surface.pixels,
-        width: controller._width,
-        height: controller._height,
-      );
-      controller._gpuBrushSyncedRevisions[layerId] = currentRevision;
-    }
-
-    final List<rust_gpu_brush.GpuPoint2D> gpuPoints = points
-        .map(
-          (Offset p) => rust_gpu_brush.GpuPoint2D(x: p.dx, y: p.dy),
-        )
-        .toList(growable: false);
-    final rust_gpu_brush.GpuStrokeResult result =
-        await rust_gpu_brush.gpuDrawStroke(
-      layerId: layerId,
-      points: gpuPoints,
-      radii: radii,
-      color: color.value,
-      brushShape: brushShape.index,
-      erase: erase,
-      antialiasLevel: antialiasLevel.clamp(0, 3),
-    );
-
-    final bool resolvedHollow = hollow && !erase && hollowRatio > 0.0001;
-    if (!resolvedHollow) {
-      _controllerApplyGpuStrokeResult(
-        controller,
-        layerId: layerId,
-        result: result,
-      );
-      return;
-    }
-
-    // Hollow strokes have two modes:
-    // - `eraseOccludedParts == true`: cut out a hole through the whole layer.
-    // - `eraseOccludedParts == false`: cut out only the newly painted stroke,
-    //   preserving the underlying pixels.
-    if (eraseOccludedParts) {
-      _controllerApplyGpuStrokeResult(
-        controller,
-        layerId: layerId,
-        result: result,
-      );
-      final List<double> scaledRadii = radii
-          .map((double radius) => radius * hollowRatio)
-          .toList(growable: false);
-      final rust_gpu_brush.GpuStrokeResult cutout =
-          await rust_gpu_brush.gpuDrawStroke(
-        layerId: layerId,
-        points: gpuPoints,
-        radii: scaledRadii,
-        color: const Color(0xFFFFFFFF).value,
-        brushShape: brushShape.index,
-        erase: true,
-        antialiasLevel: antialiasLevel.clamp(0, 3),
-      );
-      _controllerApplyGpuStrokeResult(
-        controller,
-        layerId: layerId,
-        result: cutout,
-      );
-      return;
-    }
-
-    // Preserve-underlying hollow:
-    // 1) Snapshot pre-stroke pixels (CPU) for the dirty region.
-    // 2) Apply outer stroke (GPU result) to CPU.
-    // 3) Draw inner cutout on GPU to derive an erase mask.
-    // 4) Restore underlying pixels proportionally inside the cutout region.
-    // 5) Re-upload the full layer to keep GPU state in sync with CPU.
-    final int outerWidth = result.dirtyWidth;
-    final int outerHeight = result.dirtyHeight;
-    if (outerWidth <= 0 || outerHeight <= 0 || result.pixels.isEmpty) {
-      return;
-    }
-
     final int canvasWidth = controller._width;
     final int canvasHeight = controller._height;
-    final int outerLeft = result.dirtyLeft.clamp(0, canvasWidth);
-    final int outerTop = result.dirtyTop.clamp(0, canvasHeight);
-    final int outerRight = (outerLeft + outerWidth).clamp(0, canvasWidth);
-    final int outerBottom = (outerTop + outerHeight).clamp(0, canvasHeight);
+    final int aa = antialiasLevel.clamp(0, 3);
+    final Uint8List? mask = controller._selectionMask;
+
+    Rect computeDirtyRect() {
+      if (points.isEmpty) {
+        return Rect.zero;
+      }
+      if (points.length == 1) {
+        return _strokeDirtyRectForCircle(points[0], radii[0]);
+      }
+      Rect dirty = _strokeDirtyRectForVariableLine(
+        points[0],
+        points[1],
+        radii[0],
+        radii[1],
+      );
+      for (int i = 1; i < points.length - 1; i++) {
+        dirty = BitmapCanvasController._unionRects(
+          dirty,
+          _strokeDirtyRectForVariableLine(
+            points[i],
+            points[i + 1],
+            radii[i],
+            radii[i + 1],
+          ),
+        );
+      }
+      return dirty;
+    }
+
+    final Rect dirty = computeDirtyRect();
+    if (dirty.isEmpty) {
+      return;
+    }
+    final Rect canvasRect = Rect.fromLTWH(
+      0,
+      0,
+      canvasWidth.toDouble(),
+      canvasHeight.toDouble(),
+    );
+    final Rect clipped = dirty.intersect(canvasRect);
+    if (clipped.isEmpty) {
+      return;
+    }
+
+    final int outerLeft = clipped.left.floor().clamp(0, canvasWidth);
+    final int outerTop = clipped.top.floor().clamp(0, canvasHeight);
+    final int outerRight = clipped.right.ceil().clamp(0, canvasWidth);
+    final int outerBottom = clipped.bottom.ceil().clamp(0, canvasHeight);
     final int copyW = outerRight - outerLeft;
     final int copyH = outerBottom - outerTop;
     if (copyW <= 0 || copyH <= 0) {
       return;
     }
 
-    final Uint32List destination = layer.surface.pixels;
-    final Uint32List before = Uint32List(copyW * copyH);
-    for (int row = 0; row < copyH; row++) {
-      final int srcOffset = (outerTop + row) * canvasWidth + outerLeft;
-      final int dstOffset = row * copyW;
-      before.setRange(
-        dstOffset,
-        dstOffset + copyW,
-        destination,
-        srcOffset,
-      );
+    final BitmapSurface surface = layer.surface;
+    final Uint32List destination = surface.pixels;
+
+    void drawStrokeOnCpu({
+      required Color strokeColor,
+      required List<double> strokeRadii,
+      required bool eraseMode,
+    }) {
+      if (points.length == 1) {
+        surface.drawBrushStamp(
+          center: points[0],
+          radius: strokeRadii[0],
+          color: strokeColor,
+          shape: brushShape,
+          mask: mask,
+          antialiasLevel: aa,
+          erase: eraseMode,
+        );
+        return;
+      }
+
+      for (int i = 0; i < points.length - 1; i++) {
+        _controllerApplyStampSegmentFallback(
+          surface: surface,
+          start: points[i],
+          end: points[i + 1],
+          startRadius: strokeRadii[i],
+          endRadius: strokeRadii[i + 1],
+          includeStart: i == 0,
+          shape: brushShape,
+          color: strokeColor,
+          mask: mask,
+          antialias: aa,
+          erase: eraseMode,
+        );
+      }
     }
 
-    _controllerApplyGpuStrokeResult(
-      controller,
-      layerId: layerId,
-      result: result,
+    final bool resolvedHollow = hollow && !erase && hollowRatio > 0.0001;
+    final bool resolvedEraseOccludedParts =
+        resolvedHollow && eraseOccludedParts;
+
+    Uint32List? before;
+    if (resolvedHollow && !resolvedEraseOccludedParts) {
+      before = Uint32List(copyW * copyH);
+      for (int row = 0; row < copyH; row++) {
+        final int srcOffset = (outerTop + row) * canvasWidth + outerLeft;
+        final int dstOffset = row * copyW;
+        before.setRange(dstOffset, dstOffset + copyW, destination, srcOffset);
+      }
+    }
+
+    drawStrokeOnCpu(
+      strokeColor: color,
+      strokeRadii: radii,
+      eraseMode: erase,
     );
 
+    if (!resolvedHollow) {
+      surface.markDirty();
+      controller._resetWorkerSurfaceSync();
+      controller._markDirty(
+        region: Rect.fromLTRB(
+          outerLeft.toDouble(),
+          outerTop.toDouble(),
+          outerRight.toDouble(),
+          outerBottom.toDouble(),
+        ),
+        layerId: layerId,
+        pixelsDirty: true,
+      );
+      controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+      return;
+    }
+
     final List<double> scaledRadii = radii
-        .map((double radius) => radius * hollowRatio)
+        .map((double radius) => radius * hollowRatio.clamp(0.0, 1.0))
         .toList(growable: false);
-    final rust_gpu_brush.GpuStrokeResult cutout =
-        await rust_gpu_brush.gpuDrawStroke(
-      layerId: layerId,
-      points: gpuPoints,
-      radii: scaledRadii,
-      color: const Color(0xFFFFFFFF).value,
-      brushShape: brushShape.index,
-      erase: true,
-      antialiasLevel: antialiasLevel.clamp(0, 3),
-    );
+
+    if (resolvedEraseOccludedParts) {
+      drawStrokeOnCpu(
+        strokeColor: const Color(0xFFFFFFFF),
+        strokeRadii: scaledRadii,
+        eraseMode: true,
+      );
+      surface.markDirty();
+      controller._resetWorkerSurfaceSync();
+      controller._markDirty(
+        region: Rect.fromLTRB(
+          outerLeft.toDouble(),
+          outerTop.toDouble(),
+          outerRight.toDouble(),
+          outerBottom.toDouble(),
+        ),
+        layerId: layerId,
+        pixelsDirty: true,
+      );
+      controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+      return;
+    }
 
     int lerpPremultiplied(int from, int to, double t) {
       final double clamped = t.clamp(0.0, 1.0);
@@ -504,56 +533,58 @@ Future<void> _controllerDrawStrokeOnGpu(
       return (outA << 24) | (outR << 16) | (outG << 8) | outB;
     }
 
-    final int innerWidth = cutout.dirtyWidth;
-    final int innerHeight = cutout.dirtyHeight;
-    if (innerWidth > 0 && innerHeight > 0 && cutout.pixels.isNotEmpty) {
-      final int innerLeft = cutout.dirtyLeft.clamp(0, canvasWidth);
-      final int innerTop = cutout.dirtyTop.clamp(0, canvasHeight);
-      final int innerRight = (innerLeft + innerWidth).clamp(0, canvasWidth);
-      final int innerBottom = (innerTop + innerHeight).clamp(0, canvasHeight);
+    final Uint32List outerAfter = Uint32List(copyW * copyH);
+    for (int row = 0; row < copyH; row++) {
+      final int srcOffset = (outerTop + row) * canvasWidth + outerLeft;
+      final int dstOffset = row * copyW;
+      outerAfter.setRange(dstOffset, dstOffset + copyW, destination, srcOffset);
+    }
 
-      final int adjLeft = math.max(outerLeft, innerLeft);
-      final int adjTop = math.max(outerTop, innerTop);
-      final int adjRight = math.min(outerRight, innerRight);
-      final int adjBottom = math.min(outerBottom, innerBottom);
+    drawStrokeOnCpu(
+      strokeColor: const Color(0xFFFFFFFF),
+      strokeRadii: scaledRadii,
+      eraseMode: true,
+    );
 
-      for (int y = adjTop; y < adjBottom; y++) {
-        final int outerRow = (y - outerTop) * copyW;
-        final int destRow = y * canvasWidth;
-        final int innerRow = (y - innerTop) * innerWidth;
-        for (int x = adjLeft; x < adjRight; x++) {
-          final int outerIndex = outerRow + (x - outerLeft);
-          final int destIndex = destRow + x;
-          final int innerIndex = innerRow + (x - innerLeft);
+    final Uint32List beforeResolved = before ?? Uint32List(0);
+    for (int y = outerTop; y < outerBottom; y++) {
+      final int outerRow = (y - outerTop) * copyW;
+      final int destRow = y * canvasWidth;
+      for (int x = outerLeft; x < outerRight; x++) {
+        final int outerIndex = outerRow + (x - outerLeft);
+        final int destIndex = destRow + x;
 
-          final int o = destination[destIndex];
-          final int oa = (o >> 24) & 0xff;
-          if (oa == 0) {
-            continue;
-          }
-          final int e = cutout.pixels[innerIndex];
-          final int ea = (e >> 24) & 0xff;
-          if (ea >= oa) {
-            continue;
-          }
-
-          final double coverage = (1.0 - (ea / oa)).clamp(0.0, 1.0);
-          if (coverage <= 0.000001) {
-            continue;
-          }
-          final int b = before[outerIndex];
-          destination[destIndex] = lerpPremultiplied(o, b, coverage);
+        final int o = outerAfter[outerIndex];
+        final int oa = (o >> 24) & 0xff;
+        if (oa == 0) {
+          continue;
         }
+        final int e = destination[destIndex];
+        final int ea = (e >> 24) & 0xff;
+        if (ea >= oa) {
+          continue;
+        }
+
+        final double coverage = (1.0 - (ea / oa)).clamp(0.0, 1.0);
+        if (coverage <= 0.000001) {
+          continue;
+        }
+        final int b = beforeResolved[outerIndex];
+        destination[destIndex] = lerpPremultiplied(o, b, coverage);
       }
     }
 
-    // The GPU layer currently contains the erased-underlying cutout, but the CPU layer has been
-    // restored to preserve underlying pixels. Re-sync GPU with the CPU surface.
-    await rust_gpu_brush.gpuUploadLayer(
+    surface.markDirty();
+    controller._resetWorkerSurfaceSync();
+    controller._markDirty(
+      region: Rect.fromLTRB(
+        outerLeft.toDouble(),
+        outerTop.toDouble(),
+        outerRight.toDouble(),
+        outerBottom.toDouble(),
+      ),
       layerId: layerId,
-      pixels: layer.surface.pixels,
-      width: controller._width,
-      height: controller._height,
+      pixelsDirty: true,
     );
     controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
   });
@@ -751,85 +782,10 @@ void _controllerApplyGpuStrokeResult(
   required String layerId,
   required rust_gpu_brush.GpuStrokeResult result,
 }) {
-  final int width = result.dirtyWidth;
-  final int height = result.dirtyHeight;
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-  final int expectedLen = width * height;
-  if (result.pixels.length < expectedLen) {
-    return;
-  }
-
-  final int layerIndex = controller._layers.indexWhere(
-    (BitmapLayerState layer) => layer.id == layerId,
-  );
-  if (layerIndex < 0) {
-    return;
-  }
-  final BitmapLayerState layer = controller._layers[layerIndex];
-  final BitmapSurface surface = layer.surface;
-
-  final int effectiveLeft = math.max(0, math.min(result.dirtyLeft, controller._width));
-  final int effectiveTop = math.max(0, math.min(result.dirtyTop, controller._height));
-  final int maxRight = math.min(effectiveLeft + width, controller._width);
-  final int maxBottom = math.min(effectiveTop + height, controller._height);
-  if (maxRight <= effectiveLeft || maxBottom <= effectiveTop) {
-    return;
-  }
-
-  final Uint32List destination = surface.pixels;
-  final bool checkCoverage = surface.isClean;
-  bool wroteCoverage = false;
-  final int copyWidth = maxRight - effectiveLeft;
-  final int copyHeight = maxBottom - effectiveTop;
-  final int srcLeftOffset = effectiveLeft - result.dirtyLeft;
-  final int srcTopOffset = effectiveTop - result.dirtyTop;
-
-  if (kDebugMode && _kDebugGpuBrushTiles) {
-    final int tileSize = controller._rasterBackend.tileSize;
-    final int tileLeft = effectiveLeft ~/ tileSize;
-    final int tileRight = (maxRight - 1) ~/ tileSize;
-    final int tileTop = effectiveTop ~/ tileSize;
-    final int tileBottom = (maxBottom - 1) ~/ tileSize;
-    debugPrint(
-      '[gpu-brush] layer=$layerId dirty=(${result.dirtyLeft},${result.dirtyTop}) '
-      '${result.dirtyWidth}x${result.dirtyHeight} effective=($effectiveLeft,$effectiveTop) '
-      '${copyWidth}x${copyHeight} tiles=[$tileLeft..$tileRight]x[$tileTop..$tileBottom] '
-      'pixelsLen=${result.pixels.length}',
-    );
-  }
-
-  for (int row = 0; row < copyHeight; row++) {
-    final int srcRow = srcTopOffset + row;
-    final int destY = effectiveTop + row;
-    final int srcOffset = srcRow * width + srcLeftOffset;
-    final int destOffset = destY * controller._width + effectiveLeft;
-    if (checkCoverage && !wroteCoverage) {
-      final int rowEnd = srcOffset + copyWidth;
-      for (int i = srcOffset; i < rowEnd; i++) {
-        if ((result.pixels[i] & 0xff000000) != 0) {
-          wroteCoverage = true;
-          break;
-        }
-      }
-    }
-    destination.setRange(destOffset, destOffset + copyWidth, result.pixels, srcOffset);
-  }
-
-  if (wroteCoverage) {
-    surface.markDirty();
-  }
-
-  controller._resetWorkerSurfaceSync();
-  final Rect dirtyRegion = Rect.fromLTWH(
-    effectiveLeft.toDouble(),
-    effectiveTop.toDouble(),
-    copyWidth.toDouble(),
-    copyHeight.toDouble(),
-  );
-  controller._markDirty(region: dirtyRegion, layerId: layerId, pixelsDirty: true);
-  controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+  // Deprecated: GPU brush no longer returns pixel patches (Flow 5 hard ban).
+  // Keep the symbol to avoid large refactors; call sites have been removed.
+  // ignore: unused_local_variable
+  final _ = result;
 }
 
 int _controllerUnpremultiplyChannel(int value, int alpha) {

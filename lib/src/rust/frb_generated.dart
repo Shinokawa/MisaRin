@@ -950,7 +950,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       dirtyTop: dco_decode_i_32(arr[1]),
       dirtyWidth: dco_decode_i_32(arr[2]),
       dirtyHeight: dco_decode_i_32(arr[3]),
-      pixels: dco_decode_list_prim_u_32_strict(arr[4]),
+      drawCalls: dco_decode_u_32(arr[4]),
     );
   }
 
@@ -1184,13 +1184,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_dirtyTop = sse_decode_i_32(deserializer);
     var var_dirtyWidth = sse_decode_i_32(deserializer);
     var var_dirtyHeight = sse_decode_i_32(deserializer);
-    var var_pixels = sse_decode_list_prim_u_32_strict(deserializer);
+    var var_drawCalls = sse_decode_u_32(deserializer);
     return GpuStrokeResult(
       dirtyLeft: var_dirtyLeft,
       dirtyTop: var_dirtyTop,
       dirtyWidth: var_dirtyWidth,
       dirtyHeight: var_dirtyHeight,
-      pixels: var_pixels,
+      drawCalls: var_drawCalls,
     );
   }
 
@@ -1460,7 +1460,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.dirtyTop, serializer);
     sse_encode_i_32(self.dirtyWidth, serializer);
     sse_encode_i_32(self.dirtyHeight, serializer);
-    sse_encode_list_prim_u_32_strict(self.pixels, serializer);
+    sse_encode_u_32(self.drawCalls, serializer);
   }
 
   @protected

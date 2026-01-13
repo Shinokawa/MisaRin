@@ -838,13 +838,13 @@ impl SseDecode for crate::api::gpu_brush::GpuStrokeResult {
         let mut var_dirtyTop = <i32>::sse_decode(deserializer);
         let mut var_dirtyWidth = <i32>::sse_decode(deserializer);
         let mut var_dirtyHeight = <i32>::sse_decode(deserializer);
-        let mut var_pixels = <Vec<u32>>::sse_decode(deserializer);
+        let mut var_drawCalls = <u32>::sse_decode(deserializer);
         return crate::api::gpu_brush::GpuStrokeResult {
             dirty_left: var_dirtyLeft,
             dirty_top: var_dirtyTop,
             dirty_width: var_dirtyWidth,
             dirty_height: var_dirtyHeight,
-            pixels: var_pixels,
+            draw_calls: var_drawCalls,
         };
     }
 }
@@ -1203,7 +1203,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::gpu_brush::GpuStrokeResult {
             self.dirty_top.into_into_dart().into_dart(),
             self.dirty_width.into_into_dart().into_dart(),
             self.dirty_height.into_into_dart().into_dart(),
-            self.pixels.into_into_dart().into_dart(),
+            self.draw_calls.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1338,7 +1338,7 @@ impl SseEncode for crate::api::gpu_brush::GpuStrokeResult {
         <i32>::sse_encode(self.dirty_top, serializer);
         <i32>::sse_encode(self.dirty_width, serializer);
         <i32>::sse_encode(self.dirty_height, serializer);
-        <Vec<u32>>::sse_encode(self.pixels, serializer);
+        <u32>::sse_encode(self.draw_calls, serializer);
     }
 }
 

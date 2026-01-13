@@ -35,11 +35,11 @@ pub struct GpuPoint2D {
 
 #[flutter_rust_bridge::frb]
 pub struct GpuStrokeResult {
-  pub dirty_left: i32,
-  pub dirty_top: i32,
-  pub dirty_width: i32,
-  pub dirty_height: i32,
-  pub pixels: Vec<u32>,
+    pub dirty_left: i32,
+    pub dirty_top: i32,
+    pub dirty_width: i32,
+    pub dirty_height: i32,
+    pub draw_calls: u32,
 }
 
 #[flutter_rust_bridge::frb(sync)]
@@ -169,7 +169,7 @@ pub fn gpu_draw_stroke(
             dirty_top: 0,
             dirty_width: 0,
             dirty_height: 0,
-            pixels: Vec::new(),
+            draw_calls: 0,
         });
     }
     if points.len() != radii.len() {
@@ -282,88 +282,66 @@ pub fn gpu_draw_stroke(
         }
     }
 
+    // Flow 5 hard constraint: drawing must not perform any GPU→CPU readback.
+    // Therefore this API returns only stats + dirty rect (no pixels).
     let draw_t0 = Instant::now();
-    engine.brush.draw_stroke(
-        layer_texture,
-        &converted_points,
-        &radii,
-        Color { argb: color },
-        shape,
-        erase,
-        antialias_level,
-    )?;
+    let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
+    let mut draw_calls: u32 = 0;
+
+    if converted_points.len() == 1 {
+        let p0 = converted_points[0];
+        let r0 = radii[0];
+        engine.brush.draw_stroke(
+            layer_texture,
+            &[p0],
+            &[r0],
+            Color { argb: color },
+            shape,
+            erase,
+            antialias_level,
+        )?;
+        draw_calls = 1;
+        dirty_union = union_dirty_rect_i32(
+            dirty_union,
+            compute_dirty_rect_i32(&[p0], &[r0], width, height),
+        );
+    } else {
+        for i in 0..converted_points.len().saturating_sub(1) {
+            let pts = [converted_points[i], converted_points[i + 1]];
+            let rs = [radii[i], radii[i + 1]];
+            engine.brush.draw_stroke(
+                layer_texture,
+                &pts,
+                &rs,
+                Color { argb: color },
+                shape,
+                erase,
+                antialias_level,
+            )?;
+            draw_calls = draw_calls.saturating_add(1);
+            dirty_union = union_dirty_rect_i32(
+                dirty_union,
+                compute_dirty_rect_i32(&pts, &rs, width, height),
+            );
+        }
+    }
+
     debug::log(
         LogLevel::Verbose,
-        format_args!("#{seq} brush.draw_stroke ok in {:?}.", draw_t0.elapsed()),
+        format_args!(
+            "#{seq} brush.draw_stroke ok calls={draw_calls} in {:?}.",
+            draw_t0.elapsed()
+        ),
     );
 
-    let dirty = compute_dirty_rect_i32(&converted_points, &radii, width, height);
-    let (dirty_left, dirty_top, dirty_width, dirty_height) = dirty;
+    let (dirty_left, dirty_top, dirty_width, dirty_height) =
+        dirty_union.unwrap_or((0, 0, 0, 0));
     debug::log(
         LogLevel::Info,
         format_args!(
-            "#{seq} dirty=({dirty_left},{dirty_top}) {dirty_width}x{dirty_height}"
+            "#{seq} dirty=({dirty_left},{dirty_top}) {dirty_width}x{dirty_height} calls={draw_calls}"
         ),
     );
-
-    let dl_t0 = Instant::now();
-    let pixels = if dirty_width > 0 && dirty_height > 0 {
-        engine.textures.download_layer_region(
-            &layer_id,
-            dirty_left.max(0) as u32,
-            dirty_top.max(0) as u32,
-            dirty_width as u32,
-            dirty_height as u32,
-        )?
-    } else {
-        Vec::new()
-    };
-    debug::log(
-        LogLevel::Verbose,
-        format_args!(
-            "#{seq} download_layer_region len={} in {:?}.",
-            pixels.len(),
-            dl_t0.elapsed()
-        ),
-    );
-
-    if dirty_width > 0 && dirty_height > 0 {
-        let expected_len = (dirty_width as usize).saturating_mul(dirty_height as usize);
-        if expected_len != pixels.len() {
-            debug::log(
-                LogLevel::Warn,
-                format_args!(
-                    "#{seq} region pixel len mismatch: got={} expected={expected_len} (dirty={dirty_left},{dirty_top} {dirty_width}x{dirty_height})",
-                    pixels.len()
-                ),
-            );
-        }
-        if debug::level() >= LogLevel::Verbose && expected_len > 0 && pixels.len() >= expected_len
-        {
-            let summary = summarize_argb_region(&pixels[..expected_len], dirty_width as usize);
-            debug::log(
-                LogLevel::Verbose,
-                format_args!(
-                    "#{seq} region_coverage nonzero={} max_a={} bbox=({},{})-({},{}) hash=0x{:016X}",
-                    summary.nonzero,
-                    summary.max_alpha,
-                    dirty_left + summary.min_x,
-                    dirty_top + summary.min_y,
-                    dirty_left + summary.max_x,
-                    dirty_top + summary.max_y,
-                    summary.hash
-                ),
-            );
-            if summary.nonzero == 0 {
-                debug::log(
-                    LogLevel::Warn,
-                    format_args!(
-                        "#{seq} region has zero coverage (dirty={dirty_left},{dirty_top} {dirty_width}x{dirty_height})"
-                    ),
-                );
-            }
-        }
-    }
 
     // Update last endpoint tracking for continuity diagnostics.
     if let Some(last_point) = converted_points.last().copied() {
@@ -388,7 +366,7 @@ pub fn gpu_draw_stroke(
         dirty_top,
         dirty_width,
         dirty_height,
-        pixels,
+        draw_calls,
     })
 }
 
@@ -438,93 +416,39 @@ fn compute_dirty_rect_i32(points: &[Point2D], radii: &[f32], width: u32, height:
     (left as i32, top as i32, dirty_w, dirty_h)
 }
 
-#[derive(Clone, Copy, Debug)]
-struct RegionCoverageSummary {
-    nonzero: usize,
-    min_x: i32,
-    min_y: i32,
-    max_x: i32,
-    max_y: i32,
-    max_alpha: u8,
-    hash: u64,
-}
-
-fn summarize_argb_region(pixels: &[u32], width: usize) -> RegionCoverageSummary {
-    if width == 0 || pixels.is_empty() {
-        return RegionCoverageSummary {
-            nonzero: 0,
-            min_x: 0,
-            min_y: 0,
-            max_x: 0,
-            max_y: 0,
-            max_alpha: 0,
-            hash: 0,
-        };
+fn union_dirty_rect_i32(
+    existing: Option<(i32, i32, i32, i32)>,
+    candidate: (i32, i32, i32, i32),
+) -> Option<(i32, i32, i32, i32)> {
+    let (cl, ct, cw, ch) = candidate;
+    if cw <= 0 || ch <= 0 {
+        return existing;
     }
-    let height = pixels.len() / width;
-    if height == 0 {
-        return RegionCoverageSummary {
-            nonzero: 0,
-            min_x: 0,
-            min_y: 0,
-            max_x: 0,
-            max_y: 0,
-            max_alpha: 0,
-            hash: 0,
-        };
+    let Some((el, et, ew, eh)) = existing else {
+        return Some(candidate);
+    };
+    if ew <= 0 || eh <= 0 {
+        return Some(candidate);
     }
 
-    let mut nonzero: usize = 0;
-    let mut min_x: i32 = width as i32;
-    let mut min_y: i32 = height as i32;
-    let mut max_x: i32 = -1;
-    let mut max_y: i32 = -1;
-    let mut max_alpha: u8 = 0;
+    let el64 = el as i64;
+    let et64 = et as i64;
+    let er64 = el64 + ew as i64;
+    let eb64 = et64 + eh as i64;
 
-    let mut hash: u64 = 14695981039346656037u64; // FNV-1a 64-bit offset basis
-    let sample_stride: usize = (pixels.len() / 8192).max(1);
+    let cl64 = cl as i64;
+    let ct64 = ct as i64;
+    let cr64 = cl64 + cw as i64;
+    let cb64 = ct64 + ch as i64;
 
-    for (i, &argb) in pixels.iter().enumerate() {
-        if i % sample_stride == 0 {
-            hash ^= argb as u64;
-            hash = hash.wrapping_mul(1099511628211u64);
-        }
+    let left = el64.min(cl64);
+    let top = et64.min(ct64);
+    let right = er64.max(cr64);
+    let bottom = eb64.max(cb64);
 
-        let a: u8 = (argb >> 24) as u8;
-        if a == 0 {
-            continue;
-        }
-        max_alpha = max_alpha.max(a);
-        nonzero += 1;
-        let x = (i % width) as i32;
-        let y = (i / width) as i32;
-        min_x = min_x.min(x);
-        min_y = min_y.min(y);
-        max_x = max_x.max(x);
-        max_y = max_y.max(y);
-    }
-
-    if nonzero == 0 {
-        return RegionCoverageSummary {
-            nonzero,
-            min_x: 0,
-            min_y: 0,
-            max_x: 0,
-            max_y: 0,
-            max_alpha,
-            hash,
-        };
-    }
-
-    RegionCoverageSummary {
-        nonzero,
-        min_x,
-        min_y,
-        max_x,
-        max_y,
-        max_alpha,
-        hash,
-    }
+    let width = (right - left).max(0) as i32;
+    let height = (bottom - top).max(0) as i32;
+    Some((left as i32, top as i32, width, height))
 }
 
 fn create_wgpu_device() -> Result<(wgpu::Device, wgpu::Queue), String> {
