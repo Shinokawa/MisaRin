@@ -1760,6 +1760,21 @@ pub extern "C" fn engine_set_layer_visible(_handle: u64, _layer_index: u32, _vis
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
+pub extern "C" fn engine_clear_layer(handle: u64, layer_index: u32) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::ClearLayer { layer_index });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_clear_layer(_handle: u64, _layer_index: u32) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
 pub extern "C" fn engine_undo(handle: u64) {
     let Some(entry) = lookup_engine(handle) else {
         return;

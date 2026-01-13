@@ -55,6 +55,10 @@ typedef _EngineSetLayerVisibleNative =
 typedef _EngineSetLayerVisibleDart =
     void Function(int handle, int layerIndex, int visible);
 
+typedef _EngineClearLayerNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex);
+typedef _EngineClearLayerDart = void Function(int handle, int layerIndex);
+
 typedef _EngineUndoNative = ffi.Void Function(ffi.Uint64 handle);
 typedef _EngineUndoDart = void Function(int handle);
 
@@ -96,6 +100,13 @@ class CanvasEngineFfi {
       } catch (_) {
         _setLayerVisible = null;
       }
+      try {
+        _clearLayer = _lib.lookupFunction<_EngineClearLayerNative, _EngineClearLayerDart>(
+          'engine_clear_layer',
+        );
+      } catch (_) {
+        _clearLayer = null;
+      }
 
       // Optional undo/redo (Flow 7).
       try {
@@ -122,6 +133,7 @@ class CanvasEngineFfi {
   late final _EngineSetActiveLayerDart? _setActiveLayer;
   late final _EngineSetLayerOpacityDart? _setLayerOpacity;
   late final _EngineSetLayerVisibleDart? _setLayerVisible;
+  late final _EngineClearLayerDart? _clearLayer;
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
 
@@ -185,6 +197,14 @@ class CanvasEngineFfi {
       return;
     }
     fn(handle, layerIndex, visible ? 1 : 0);
+  }
+
+  void clearLayer({required int handle, required int layerIndex}) {
+    final fn = _clearLayer;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle, layerIndex);
   }
 
   void undo({required int handle}) {

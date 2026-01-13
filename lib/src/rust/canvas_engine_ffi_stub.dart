@@ -29,6 +29,8 @@ class CanvasEngineFfi {
     required bool visible,
   }) {}
 
+  void clearLayer({required int handle, required int layerIndex}) {}
+
   void undo({required int handle}) {}
 
   void redo({required int handle}) {}

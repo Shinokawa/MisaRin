@@ -19,6 +19,7 @@ const int _kPointStrideBytes = 32;
 const int _kPointFlagDown = 1;
 const int _kPointFlagMove = 2;
 const int _kPointFlagUp = 4;
+const int _kMvpLayerCount = 4;
 
 final class _PackedPointBuffer {
   _PackedPointBuffer({int initialCapacityPoints = 256})
@@ -95,6 +96,12 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   int? _activeDrawingPointer;
   Size _viewSize = Size.zero;
 
+  int _activeLayerIndex = 0;
+  final List<bool> _layerVisible =
+      List<bool>.filled(_kMvpLayerCount, false)..[0] = true;
+  final List<double> _layerOpacity =
+      List<double>.filled(_kMvpLayerCount, 1.0);
+
   double _scale = 1.0;
   Offset _pan = Offset.zero;
 
@@ -125,6 +132,10 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
                 ? StateError('textureId/engineHandle == null: $info')
                 : null;
       });
+      final int? handle = _engineHandle;
+      if (handle != null) {
+        _applyLayerDefaults(handle);
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -215,6 +226,25 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     _activeDrawingPointer = null;
   }
 
+  void _applyLayerDefaults(int handle) {
+    if (!CanvasEngineFfi.instance.isSupported) {
+      return;
+    }
+    CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: _activeLayerIndex);
+    for (int i = 0; i < _kMvpLayerCount; i++) {
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: handle,
+        layerIndex: i,
+        visible: _layerVisible[i],
+      );
+      CanvasEngineFfi.instance.setLayerOpacity(
+        handle: handle,
+        layerIndex: i,
+        opacity: _layerOpacity[i],
+      );
+    }
+  }
+
   void _enqueuePoint(PointerEvent event, int flags) {
     final int? handle = _engineHandle;
     if (handle == null) {
@@ -269,6 +299,112 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       pointCount: count,
     );
     _points.clear();
+  }
+
+  void _handleSelectLayer(int layerIndex) {
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    if (layerIndex < 0 || layerIndex >= _kMvpLayerCount) {
+      return;
+    }
+    setState(() => _activeLayerIndex = layerIndex);
+    CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: layerIndex);
+  }
+
+  void _handleToggleLayerVisible(int layerIndex) {
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    if (layerIndex < 0 || layerIndex >= _kMvpLayerCount) {
+      return;
+    }
+    final bool next = !_layerVisible[layerIndex];
+    setState(() => _layerVisible[layerIndex] = next);
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: handle,
+      layerIndex: layerIndex,
+      visible: next,
+    );
+  }
+
+  void _handleSetActiveLayerOpacity(double opacity) {
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    final int layerIndex = _activeLayerIndex;
+    final double next = opacity.clamp(0.0, 1.0);
+    setState(() => _layerOpacity[layerIndex] = next);
+    CanvasEngineFfi.instance.setLayerOpacity(
+      handle: handle,
+      layerIndex: layerIndex,
+      opacity: next,
+    );
+  }
+
+  void _handleAddLayer() {
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    final int topVisible = _layerVisible.lastIndexWhere((v) => v);
+    final int nextIndex = topVisible == -1 ? 0 : (topVisible + 1);
+    if (nextIndex < 0 || nextIndex >= _kMvpLayerCount) {
+      return;
+    }
+    setState(() {
+      _layerVisible[nextIndex] = true;
+      _layerOpacity[nextIndex] = 1.0;
+      _activeLayerIndex = nextIndex;
+    });
+    CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: nextIndex);
+    CanvasEngineFfi.instance.setLayerVisible(handle: handle, layerIndex: nextIndex, visible: true);
+    CanvasEngineFfi.instance.setLayerOpacity(handle: handle, layerIndex: nextIndex, opacity: 1.0);
+    CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: nextIndex);
+  }
+
+  void _handleDeleteLayer() {
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    final int layerIndex = _activeLayerIndex;
+    final int visibleCount = _layerVisible.where((v) => v).length;
+    if (visibleCount <= 1) {
+      CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: layerIndex);
+      return;
+    }
+
+    int? nextActive;
+    for (int i = layerIndex - 1; i >= 0; i--) {
+      if (_layerVisible[i]) {
+        nextActive = i;
+        break;
+      }
+    }
+    if (nextActive == null) {
+      for (int i = layerIndex + 1; i < _kMvpLayerCount; i++) {
+        if (_layerVisible[i]) {
+          nextActive = i;
+          break;
+        }
+      }
+    }
+
+    setState(() {
+      _layerVisible[layerIndex] = false;
+      if (nextActive != null && nextActive >= 0) {
+        _activeLayerIndex = nextActive;
+      }
+    });
+    CanvasEngineFfi.instance.setLayerVisible(handle: handle, layerIndex: layerIndex, visible: false);
+    CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: layerIndex);
+    if (nextActive != null && nextActive >= 0) {
+      CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: nextActive);
+    }
   }
 
   Offset _toCanvasSpace(Offset localPos, Size viewSize) {
@@ -382,6 +518,20 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
                 ),
                 Positioned(
                   top: 12,
+                  left: 12,
+                  child: _LayerOverlayPanel(
+                    activeLayerIndex: _activeLayerIndex,
+                    layerVisible: _layerVisible,
+                    layerOpacity: _layerOpacity,
+                    onAddLayer: _handleAddLayer,
+                    onDeleteLayer: _handleDeleteLayer,
+                    onSelectLayer: _handleSelectLayer,
+                    onToggleLayerVisible: _handleToggleLayerVisible,
+                    onSetActiveLayerOpacity: _handleSetActiveLayerOpacity,
+                  ),
+                ),
+                Positioned(
+                  top: 12,
                   right: 12,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -430,6 +580,194 @@ class _OverlayButton extends StatelessWidget {
             style: const TextStyle(
               color: Color(0xFFFFFFFF),
               fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LayerOverlayPanel extends StatelessWidget {
+  const _LayerOverlayPanel({
+    required this.activeLayerIndex,
+    required this.layerVisible,
+    required this.layerOpacity,
+    required this.onAddLayer,
+    required this.onDeleteLayer,
+    required this.onSelectLayer,
+    required this.onToggleLayerVisible,
+    required this.onSetActiveLayerOpacity,
+  });
+
+  final int activeLayerIndex;
+  final List<bool> layerVisible;
+  final List<double> layerOpacity;
+  final VoidCallback onAddLayer;
+  final VoidCallback onDeleteLayer;
+  final ValueChanged<int> onSelectLayer;
+  final ValueChanged<int> onToggleLayerVisible;
+  final ValueChanged<double> onSetActiveLayerOpacity;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> rows = <Widget>[];
+    for (int idx = _kMvpLayerCount - 1; idx >= 0; idx--) {
+      final bool isActive = idx == activeLayerIndex;
+      final bool visible = layerVisible[idx];
+      rows.add(
+        GestureDetector(
+          onTap: () => onSelectLayer(idx),
+          child: Container(
+            width: 160,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: isActive ? const Color(0xFF2B2B2B) : const Color(0xAA202020),
+              border: Border.all(
+                color: isActive ? const Color(0xFF7A7A7A) : const Color(0xFF404040),
+              ),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '图层 ${idx + 1}',
+                    style: TextStyle(
+                      color: visible ? const Color(0xFFFFFFFF) : const Color(0xFF8A8A8A),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => onToggleLayerVisible(idx),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: visible ? const Color(0xFF3A3A3A) : const Color(0xFF1A1A1A),
+                      border: Border.all(color: const Color(0xFF404040)),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      visible ? '显' : '隐',
+                      style: const TextStyle(
+                        color: Color(0xFFFFFFFF),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      rows.add(const SizedBox(height: 6));
+    }
+
+    final double activeOpacity =
+        (activeLayerIndex >= 0 && activeLayerIndex < layerOpacity.length)
+            ? layerOpacity[activeLayerIndex]
+            : 1.0;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xAA101010),
+        border: Border.all(color: const Color(0xFF303030)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '图层',
+                    style: TextStyle(
+                      color: Color(0xFFFFFFFF),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                _OverlayButton(label: '新建', onPressed: onAddLayer),
+                const SizedBox(width: 8),
+                _OverlayButton(label: '删除', onPressed: onDeleteLayer),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...rows,
+            const SizedBox(height: 6),
+            const Text(
+              '不透明度',
+              style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _OpacityButton(
+                  label: '100%',
+                  selected: (activeOpacity - 1.0).abs() < 0.001,
+                  onPressed: () => onSetActiveLayerOpacity(1.0),
+                ),
+                _OpacityButton(
+                  label: '75%',
+                  selected: (activeOpacity - 0.75).abs() < 0.001,
+                  onPressed: () => onSetActiveLayerOpacity(0.75),
+                ),
+                _OpacityButton(
+                  label: '50%',
+                  selected: (activeOpacity - 0.5).abs() < 0.001,
+                  onPressed: () => onSetActiveLayerOpacity(0.5),
+                ),
+                _OpacityButton(
+                  label: '25%',
+                  selected: (activeOpacity - 0.25).abs() < 0.001,
+                  onPressed: () => onSetActiveLayerOpacity(0.25),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OpacityButton extends StatelessWidget {
+  const _OpacityButton({
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF2E5BFF) : const Color(0xFF2A2A2A),
+          border: Border.all(color: const Color(0xFF404040)),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFFFFFFF),
+              fontSize: 11,
             ),
           ),
         ),
