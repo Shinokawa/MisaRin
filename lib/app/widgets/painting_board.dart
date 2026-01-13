@@ -125,6 +125,7 @@ import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
 import '../../backend/rgba_utils.dart';
 import '../../src/rust/api/selection_path.dart' as rust_selection_path;
+import '../../performance/canvas_perf_stress.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import '../workspace/workspace_shared_state.dart';
 

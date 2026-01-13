@@ -16,6 +16,12 @@ import 'theme/theme_controller.dart';
 import 'view/home_page.dart';
 import 'widgets/performance_pulse_overlay.dart';
 import 'workspace/canvas_workspace_controller.dart';
+import 'view/canvas_perf_stress_page.dart';
+
+const bool _kCanvasPerfStressMode = bool.fromEnvironment(
+  'MISA_RIN_CANVAS_PERF_STRESS',
+  defaultValue: false,
+);
 
 class MisarinApp extends StatefulWidget {
   const MisarinApp({
@@ -228,7 +234,9 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
           accentColor: Colors.white.toAccentColor(),
         ),
         themeMode: _themeMode,
-        home: const MisarinHomePage(),
+        home: (!_kCanvasPerfStressMode || kIsWeb)
+            ? const MisarinHomePage()
+            : const CanvasPerfStressPage(),
       ),
       ),
     );

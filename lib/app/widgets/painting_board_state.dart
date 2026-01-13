@@ -17,6 +17,15 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardInteractionMixin,
         _PaintingBoardFilterMixin,
         _PaintingBoardBuildMixin {
+  bool _perfStressRunning = false;
+  bool _perfStressCancelRequested = false;
+  bool _perfStressTimingsAttached = false;
+  Ticker? _perfStressTicker;
+  final ListQueue<int> _perfStressPendingBatchMicros = ListQueue<int>();
+  final List<double> _perfStressLatencySamplesMs = <double>[];
+  final List<double> _perfStressUiBuildSamplesMs = <double>[];
+  int? _perfStressLastFrameGeneration;
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +106,20 @@ class PaintingBoardState extends _PaintingBoardBase
 
   @override
   void dispose() {
+    _perfStressCancelRequested = true;
+    final Ticker? ticker = _perfStressTicker;
+    if (ticker != null) {
+      ticker.stop();
+      ticker.dispose();
+      _perfStressTicker = null;
+    }
+    if (_perfStressTimingsAttached) {
+      SchedulerBinding.instance.removeTimingsCallback(_perfStressOnTimings);
+      _perfStressTimingsAttached = false;
+    }
+    _perfStressPendingBatchMicros.clear();
+    _perfStressLatencySamplesMs.clear();
+    _perfStressUiBuildSamplesMs.clear();
     disposeTextTool();
     _removeFilterOverlay(restoreOriginal: false);
     _disposeReferenceCards();
@@ -121,6 +144,227 @@ class PaintingBoardState extends _PaintingBoardBase
       _handlePixelGridPreferenceChanged,
     );
     super.dispose();
+  }
+
+  void _perfStressOnTimings(List<ui.FrameTiming> timings) {
+    if (!_perfStressRunning) {
+      return;
+    }
+    for (final ui.FrameTiming timing in timings) {
+      final double buildMs = timing.buildDuration.inMicroseconds / 1000.0;
+      if (!buildMs.isFinite || buildMs < 0) {
+        continue;
+      }
+      _perfStressUiBuildSamplesMs.add(buildMs);
+    }
+  }
+
+  void _perfStressMaybeRecordFrame(BitmapCanvasFrame? frame) {
+    if (!_perfStressRunning) {
+      return;
+    }
+    if (frame == null) {
+      return;
+    }
+    final int generation = frame.generation;
+    final int? lastGeneration = _perfStressLastFrameGeneration;
+    if (lastGeneration != null && lastGeneration == generation) {
+      return;
+    }
+    _perfStressLastFrameGeneration = generation;
+    if (_perfStressPendingBatchMicros.isEmpty) {
+      return;
+    }
+    final int startMicros = _perfStressPendingBatchMicros.removeFirst();
+    final int nowMicros = DateTime.now().microsecondsSinceEpoch;
+    final double elapsedMs = (nowMicros - startMicros) / 1000.0;
+    if (elapsedMs.isNaN || elapsedMs.isInfinite || elapsedMs < 0) {
+      return;
+    }
+    _perfStressLatencySamplesMs.add(elapsedMs);
+  }
+
+  Future<CanvasPerfStressReport> runCanvasPerfStressTest({
+    Duration duration = const Duration(seconds: 10),
+    int targetPointsPerSecond = 1000,
+  }) async {
+    if (_perfStressRunning) {
+      throw StateError('Perf stress test already running.');
+    }
+    if (!isBoardReady) {
+      throw StateError('Board not ready.');
+    }
+
+    _perfStressCancelRequested = false;
+    _perfStressRunning = true;
+    _perfStressPendingBatchMicros.clear();
+    _perfStressLatencySamplesMs.clear();
+    _perfStressUiBuildSamplesMs.clear();
+    _perfStressLastFrameGeneration = _controller.frame?.generation;
+
+    if (!_perfStressTimingsAttached) {
+      SchedulerBinding.instance.addTimingsCallback(_perfStressOnTimings);
+      _perfStressTimingsAttached = true;
+    }
+
+    final int width = widget.settings.width.round();
+    final int height = widget.settings.height.round();
+    final int layerCount = _layers.length;
+
+    final List<String> editableLayers = <String>[
+      for (int i = _layers.length - 1; i >= 0; i--)
+        if (!_layers[i].locked) _layers[i].id,
+    ];
+    if (editableLayers.isEmpty) {
+      throw StateError('No editable layers for perf stress test.');
+    }
+
+    final double w = width.toDouble();
+    final double h = height.toDouble();
+    const double margin = 8.0;
+    final double cx = w / 2.0;
+    final double cy = h / 2.0;
+    final double ampX = math.max(1.0, cx - margin);
+    final double ampY = math.max(1.0, cy - margin);
+
+    final Stopwatch stopwatch = Stopwatch()..start();
+    final Completer<void> done = Completer<void>();
+    int pointsGenerated = 0;
+    Duration lastElapsed = Duration.zero;
+    final double startTimestampMs =
+        DateTime.now().microsecondsSinceEpoch / 1000.0;
+
+    void stopTicker() {
+      final Ticker? ticker = _perfStressTicker;
+      if (ticker == null) {
+        return;
+      }
+      ticker.stop();
+      ticker.dispose();
+      _perfStressTicker = null;
+    }
+
+    try {
+      _controller.setActiveLayer(editableLayers.first);
+      _controller.beginStroke(
+        Offset(cx, cy),
+        color: const Color(0xFF000000),
+        radius: 3.0,
+        simulatePressure: false,
+        useDevicePressure: false,
+        profile: StrokePressureProfile.auto,
+        timestampMillis: startTimestampMs,
+        antialiasLevel: 0,
+        brushShape: BrushShape.circle,
+        randomRotation: false,
+        erase: false,
+      );
+
+      double backlog = 0.0;
+      const int maxPointsPerFrame = 96;
+
+      _perfStressTicker = createTicker((elapsed) {
+        if (_perfStressCancelRequested) {
+          if (!done.isCompleted) {
+            done.complete();
+          }
+          return;
+        }
+        if (elapsed >= duration) {
+          if (!done.isCompleted) {
+            done.complete();
+          }
+          return;
+        }
+
+        final Duration delta = elapsed - lastElapsed;
+        lastElapsed = elapsed;
+        final double dtSeconds = delta.inMicroseconds / 1e6;
+        if (!dtSeconds.isFinite || dtSeconds <= 0) {
+          return;
+        }
+
+        backlog += dtSeconds * targetPointsPerSecond;
+        int pointsThisFrame = backlog.floor();
+        backlog -= pointsThisFrame;
+        if (pointsThisFrame <= 0) {
+          return;
+        }
+        if (pointsThisFrame > maxPointsPerFrame) {
+          pointsThisFrame = maxPointsPerFrame;
+          backlog = 0.0;
+        }
+
+        final int layerIndex = (elapsed.inMilliseconds ~/ 750) % editableLayers.length;
+        final String targetLayerId = editableLayers[layerIndex];
+        if (_controller.activeLayerId != targetLayerId) {
+          _controller.setActiveLayer(targetLayerId);
+        }
+
+        final int batchStartMicros = DateTime.now().microsecondsSinceEpoch;
+        _perfStressPendingBatchMicros.add(batchStartMicros);
+
+        final double elapsedSeconds = elapsed.inMicroseconds / 1e6;
+        final double perPointDt = dtSeconds / pointsThisFrame;
+        for (int i = 0; i < pointsThisFrame; i++) {
+          final double t = elapsedSeconds + (i * perPointDt);
+          double x = cx +
+              ampX * math.sin(t * math.pi * 2.0 * 0.97) +
+              ampX * 0.08 * math.sin(t * math.pi * 2.0 * 7.3);
+          double y = cy +
+              ampY * math.sin(t * math.pi * 2.0 * 1.31 + 1.0) +
+              ampY * 0.08 * math.sin(t * math.pi * 2.0 * 6.1);
+          x = x.clamp(0.0, w);
+          y = y.clamp(0.0, h);
+          final double timestampMs =
+              startTimestampMs + (elapsed.inMicroseconds / 1000.0);
+          _controller.extendStroke(
+            Offset(x, y),
+            deltaTimeMillis: perPointDt * 1000.0,
+            timestampMillis: timestampMs,
+          );
+          pointsGenerated++;
+        }
+      });
+      _perfStressTicker!.start();
+      await done.future;
+    } finally {
+      stopTicker();
+      try {
+        _controller.endStroke();
+      } catch (_) {}
+
+      if (_perfStressTimingsAttached) {
+        SchedulerBinding.instance.removeTimingsCallback(_perfStressOnTimings);
+        _perfStressTimingsAttached = false;
+      }
+      _perfStressRunning = false;
+      stopwatch.stop();
+    }
+
+    final Duration actualDuration = stopwatch.elapsed;
+    final double seconds = actualDuration.inMicroseconds / 1e6;
+    final double pps = seconds <= 0 ? 0 : pointsGenerated / seconds;
+
+    final double latencyP50 = percentileMs(_perfStressLatencySamplesMs, 0.50);
+    final double latencyP95 = percentileMs(_perfStressLatencySamplesMs, 0.95);
+    final double uiBuildP95 = percentileMs(_perfStressUiBuildSamplesMs, 0.95);
+
+    final CanvasPerfStressReport report = CanvasPerfStressReport(
+      canvasWidth: width,
+      canvasHeight: height,
+      layerCount: layerCount,
+      duration: actualDuration,
+      pointsGenerated: pointsGenerated,
+      pointsPerSecond: pps,
+      presentLatencySampleCount: _perfStressLatencySamplesMs.length,
+      presentLatencyP50Ms: latencyP50,
+      presentLatencyP95Ms: latencyP95,
+      uiBuildSampleCount: _perfStressUiBuildSamplesMs.length,
+      uiBuildP95Ms: uiBuildP95,
+    );
+    debugPrint(report.toLogString());
+    return report;
   }
 
   void addLayerAboveActiveLayer() {
@@ -500,6 +744,7 @@ class PaintingBoardState extends _PaintingBoardBase
 
   void _handleControllerChanged() {
     final BitmapCanvasFrame? frame = _controller.frame;
+    _perfStressMaybeRecordFrame(frame);
     final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
     if (awaitedGeneration != null &&
         frame != null &&
