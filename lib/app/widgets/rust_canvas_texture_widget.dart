@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/scheduler.dart';
@@ -23,11 +24,12 @@ const int _kMvpLayerCount = 4;
 
 final class _PackedPointBuffer {
   _PackedPointBuffer({int initialCapacityPoints = 256})
-    : _bytes = Uint8List(initialCapacityPoints * _kPointStrideBytes),
-      _data = ByteData.view(_bytes.buffer);
+    : _bytes = Uint8List(initialCapacityPoints * _kPointStrideBytes) {
+    _data = ByteData.view(_bytes.buffer);
+  }
 
   Uint8List _bytes;
-  ByteData _data;
+  late ByteData _data;
   int _len = 0;
 
   int get length => _len;
@@ -172,15 +174,14 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   }
 
   bool _isDrawingPointer(PointerEvent event) {
-    switch (event.kind) {
-      case PointerDeviceKind.stylus:
-      case PointerDeviceKind.invertedStylus:
-        return true;
-      case PointerDeviceKind.mouse:
-        return (event.buttons & kPrimaryButton) != 0;
-      default:
-        return false;
+    if (event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus) {
+      return true;
     }
+    if (event.kind == PointerDeviceKind.mouse) {
+      return (event.buttons & kPrimaryMouseButton) != 0;
+    }
+    return false;
   }
 
   void _handlePointerDown(PointerDownEvent event) {
@@ -508,7 +509,10 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
                             child: SizedBox(
                               width: widget.canvasSize.width,
                               height: widget.canvasSize.height,
-                              child: Texture(textureId: textureId),
+                              child: ColoredBox(
+                                color: const Color(0xFFFFFFFF),
+                                child: Texture(textureId: textureId),
+                              ),
                             ),
                           ),
                         ),
@@ -519,15 +523,18 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
                 Positioned(
                   top: 12,
                   left: 12,
-                  child: _LayerOverlayPanel(
-                    activeLayerIndex: _activeLayerIndex,
-                    layerVisible: _layerVisible,
-                    layerOpacity: _layerOpacity,
-                    onAddLayer: _handleAddLayer,
-                    onDeleteLayer: _handleDeleteLayer,
-                    onSelectLayer: _handleSelectLayer,
-                    onToggleLayerVisible: _handleToggleLayerVisible,
-                    onSetActiveLayerOpacity: _handleSetActiveLayerOpacity,
+                  child: SizedBox(
+                    width: 180,
+                    child: _LayerOverlayPanel(
+                      activeLayerIndex: _activeLayerIndex,
+                      layerVisible: _layerVisible,
+                      layerOpacity: _layerOpacity,
+                      onAddLayer: _handleAddLayer,
+                      onDeleteLayer: _handleDeleteLayer,
+                      onSelectLayer: _handleSelectLayer,
+                      onToggleLayerVisible: _handleToggleLayerVisible,
+                      onSetActiveLayerOpacity: _handleSetActiveLayerOpacity,
+                    ),
                   ),
                 ),
                 Positioned(
