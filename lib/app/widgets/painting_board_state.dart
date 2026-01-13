@@ -228,6 +228,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final double ampY = math.max(1.0, cy - margin);
 
     final Stopwatch stopwatch = Stopwatch()..start();
+    Duration actualDuration = Duration.zero;
     final Completer<void> done = Completer<void>();
     int pointsGenerated = 0;
     Duration lastElapsed = Duration.zero;
@@ -328,7 +329,13 @@ class PaintingBoardState extends _PaintingBoardBase
       });
       _perfStressTicker!.start();
       await done.future;
+      stopwatch.stop();
+      actualDuration = stopwatch.elapsed;
     } finally {
+      if (stopwatch.isRunning) {
+        stopwatch.stop();
+        actualDuration = stopwatch.elapsed;
+      }
       stopTicker();
       try {
         _controller.endStroke();
@@ -339,10 +346,8 @@ class PaintingBoardState extends _PaintingBoardBase
         _perfStressTimingsAttached = false;
       }
       _perfStressRunning = false;
-      stopwatch.stop();
     }
 
-    final Duration actualDuration = stopwatch.elapsed;
     final double seconds = actualDuration.inMicroseconds / 1e6;
     final double pps = seconds <= 0 ? 0 : pointsGenerated / seconds;
 

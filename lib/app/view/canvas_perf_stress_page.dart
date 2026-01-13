@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
@@ -78,32 +77,24 @@ class _CanvasPerfStressPageState extends State<CanvasPerfStressPage> {
       _report = null;
       _error = null;
     });
+    CanvasPerfStressReport? report;
+    Object? error;
     try {
-      final CanvasPerfStressReport report = await board.runCanvasPerfStressTest(
+      report = await board.runCanvasPerfStressTest(
         duration: const Duration(seconds: 10),
         targetPointsPerSecond: 1000,
       );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _report = report;
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Perf stress test failed: $error\n$stackTrace');
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _error = error;
-      });
+    } catch (e, stackTrace) {
+      debugPrint('Perf stress test failed: $e\n$stackTrace');
+      error = e;
     } finally {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _running = false;
+          _report = report;
+          _error = error;
+        });
       }
-      setState(() {
-        _running = false;
-      });
     }
   }
 
@@ -179,7 +170,7 @@ class _CanvasPerfStressPageState extends State<CanvasPerfStressPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.micaBackgroundColor.withOpacity(0.92),
+        color: theme.micaBackgroundColor.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: theme.resources.controlStrokeColorDefault,
