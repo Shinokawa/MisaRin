@@ -30,13 +30,7 @@ pub fn log(required: LogLevel, args: std::fmt::Arguments) {
 fn read_level_from_env() -> LogLevel {
     match std::env::var("MISA_RIN_RUST_GPU_LOG") {
         Ok(raw) => parse_level(&raw),
-        Err(_) => {
-            if cfg!(debug_assertions) {
-                LogLevel::Info
-            } else {
-                LogLevel::Off
-            }
-        }
+        Err(_) => LogLevel::Off,
     }
 }
 
