@@ -1,5 +1,10 @@
 part of 'controller.dart';
 
+const bool _kDebugGpuBrushTiles = bool.fromEnvironment(
+  'MISA_RIN_DEBUG_GPU_BRUSH_TILES',
+  defaultValue: false,
+);
+
 class _GpuStrokeDrawData {
   const _GpuStrokeDrawData({
     required this.points,
@@ -200,8 +205,6 @@ void _controllerFlushDeferredStrokeCommands(
             hollowRatio: overlayCommand.hollowRatio ?? 0.0,
             eraseOccludedParts: false,
           );
-        } catch (error, stackTrace) {
-          debugPrint('GPU笔触绘制失败: $error\n$stackTrace');
         } finally {
           controller._committingStrokes.remove(overlayCommand);
           controller._notify();
@@ -290,8 +293,6 @@ Future<void> _controllerCommitVectorStroke(
       hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
       eraseOccludedParts: resolvedEraseOccludedParts,
     );
-  } catch (error, stackTrace) {
-    debugPrint('GPU笔触绘制失败: $error\n$stackTrace');
   } finally {
     controller._committingStrokes.remove(vectorCommand);
     controller._notify();
@@ -350,13 +351,6 @@ Future<void> _controllerDrawStrokeOnGpu(
           (Offset p) => rust_gpu_brush.GpuPoint2D(x: p.dx, y: p.dy),
         )
         .toList(growable: false);
-
-    if (kDebugMode) {
-      debugPrint(
-        '[GPU] drawStroke layer=$layerId points=${points.length} erase=$erase aa=${antialiasLevel.clamp(0, 3)} hollow=$hollow hollowErase=$eraseOccludedParts',
-      );
-    }
-
     final rust_gpu_brush.GpuStrokeResult result =
         await rust_gpu_brush.gpuDrawStroke(
       layerId: layerId,
@@ -625,17 +619,7 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
         hollow: stroke.hollow,
         hollowRatio: stroke.hollowRatio,
         eraseOccludedParts: stroke.eraseOccludedParts,
-      ).catchError((Object error, StackTrace stackTrace) {
-        debugPrint('GPU笔触绘制失败(回退CPU): $error\n$stackTrace');
-        final Rect? bounds = controller._dirtyRectForCommand(command);
-        if (bounds == null || bounds.isEmpty) {
-          return;
-        }
-        controller._applyPaintingCommandsSynchronously(
-          bounds,
-          <PaintingDrawCommand>[command],
-        );
-      }),
+      ),
     );
   }
   if (!keepStrokeState) {
@@ -678,13 +662,7 @@ void _controllerDispatchDirectPaintCommand(
       eraseOccludedParts: stroke.eraseOccludedParts,
       hollow: false,
       hollowRatio: 0.0,
-    ).catchError((Object error, StackTrace stackTrace) {
-      debugPrint('GPU绘制失败(回退CPU): $error\n$stackTrace');
-      controller._applyPaintingCommandsSynchronously(
-        bounds,
-        <PaintingDrawCommand>[command],
-      );
-    }),
+    ),
   );
 }
 
@@ -807,6 +785,20 @@ void _controllerApplyGpuStrokeResult(
   final int copyHeight = maxBottom - effectiveTop;
   final int srcLeftOffset = effectiveLeft - result.dirtyLeft;
   final int srcTopOffset = effectiveTop - result.dirtyTop;
+
+  if (kDebugMode && _kDebugGpuBrushTiles) {
+    final int tileSize = controller._rasterBackend.tileSize;
+    final int tileLeft = effectiveLeft ~/ tileSize;
+    final int tileRight = (maxRight - 1) ~/ tileSize;
+    final int tileTop = effectiveTop ~/ tileSize;
+    final int tileBottom = (maxBottom - 1) ~/ tileSize;
+    debugPrint(
+      '[gpu-brush] layer=$layerId dirty=(${result.dirtyLeft},${result.dirtyTop}) '
+      '${result.dirtyWidth}x${result.dirtyHeight} effective=($effectiveLeft,$effectiveTop) '
+      '${copyWidth}x${copyHeight} tiles=[$tileLeft..$tileRight]x[$tileTop..$tileBottom] '
+      'pixelsLen=${result.pixels.length}',
+    );
+  }
 
   for (int row = 0; row < copyHeight; row++) {
     final int srcRow = srcTopOffset + row;

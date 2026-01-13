@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::Arc;
+use std::time::Instant;
 
 use wgpu::{Device, Queue};
+
+use crate::gpu::debug::{self, LogLevel};
 
 const BYTES_PER_PIXEL: u32 = 4;
 const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
@@ -57,6 +60,13 @@ impl LayerTextureManager {
         }
 
         if self.width != width || self.height != height {
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "LayerTextureManager canvas resize {}x{} -> {}x{}, clearing textures.",
+                    self.width, self.height, width, height
+                ),
+            );
             self.textures.clear();
             self.width = width;
             self.height = height;
@@ -101,6 +111,9 @@ impl LayerTextureManager {
     }
 
     pub fn download_layer(&self, layer_id: &str) -> Result<Vec<u32>, String> {
+        let verbose = debug::level() >= LogLevel::Verbose;
+        let t0 = if verbose { Some(Instant::now()) } else { None };
+
         let texture = self
             .textures
             .get(layer_id)
@@ -195,6 +208,17 @@ impl LayerTextureManager {
         }
 
         map_status?;
+        if let Some(t0) = t0 {
+            debug::log(
+                LogLevel::Verbose,
+                format_args!(
+                    "download_layer layer='{layer_id}' size={}x{} bytes_per_row_padded={bytes_per_row_padded} readback_size={readback_size} in {:?}.",
+                    self.width,
+                    self.height,
+                    t0.elapsed()
+                ),
+            );
+        }
         Ok(result.unwrap_or_default())
     }
 
@@ -206,6 +230,9 @@ impl LayerTextureManager {
         width: u32,
         height: u32,
     ) -> Result<Vec<u32>, String> {
+        let verbose = debug::level() >= LogLevel::Verbose;
+        let t0 = if verbose { Some(Instant::now()) } else { None };
+
         let texture = self
             .textures
             .get(layer_id)
@@ -219,10 +246,12 @@ impl LayerTextureManager {
         let right = left.saturating_add(width);
         let bottom = top.saturating_add(height);
         if right > self.width || bottom > self.height {
-            return Err(format!(
+            let msg = format!(
                 "download_layer_region: region out of bounds: ({left},{top}) {width}x{height} on {}x{}",
                 self.width, self.height
-            ));
+            );
+            debug::log(LogLevel::Warn, format_args!("{msg}"));
+            return Err(msg);
         }
 
         let bytes_per_row_unpadded: u32 = width
@@ -312,6 +341,17 @@ impl LayerTextureManager {
         }
 
         map_status?;
+        if let Some(t0) = t0 {
+            let bytes_per_row_unpadded = width.saturating_mul(BYTES_PER_PIXEL);
+            let padding = bytes_per_row_padded.saturating_sub(bytes_per_row_unpadded);
+            debug::log(
+                LogLevel::Verbose,
+                format_args!(
+                    "download_layer_region layer='{layer_id}' region=({left},{top}) {width}x{height} bytes_per_row={bytes_per_row_unpadded} padded={bytes_per_row_padded} pad_bytes={padding} readback_size={readback_size} in {:?}.",
+                    t0.elapsed()
+                ),
+            );
+        }
         Ok(result.unwrap_or_default())
     }
 

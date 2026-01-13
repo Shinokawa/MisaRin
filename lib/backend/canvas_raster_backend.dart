@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
+
 import '../bitmap_canvas/bitmap_blend_utils.dart' as blend_utils;
 import '../bitmap_canvas/bitmap_canvas.dart';
 import '../bitmap_canvas/bitmap_layer_state.dart';
@@ -10,6 +12,11 @@ import '../bitmap_canvas/raster_int_rect.dart';
 import '../src/rust/api/gpu_composite.dart' as rust_gpu;
 import '../src/rust/rust_init.dart';
 import 'rgba_utils.dart';
+
+const bool _kDebugGpuComposite = bool.fromEnvironment(
+  'MISA_RIN_DEBUG_GPU_COMPOSITE',
+  defaultValue: false,
+);
 
 class RasterCompositeWork {
   const RasterCompositeWork._({
@@ -182,6 +189,18 @@ class CanvasRasterBackend {
         effectiveLayers.add(layer);
       }
 
+      // Snapshot the layer revisions used for this composite pass.
+      //
+      // IMPORTANT: `gpuCompositeLayers` is async; while awaiting the Rust call,
+      // other tasks (e.g. GPU brush strokes) can mutate layer pixels and bump
+      // revisions. If we update `_cachedLayerRevisions` with the *latest*
+      // revisions after the await, we may incorrectly treat the GPU compositor
+      // cache as up-to-date and skip required uploads, leading to stale tiles
+      // (visual "cuts" along tile boundaries).
+      final List<int> revisionSnapshot = <int>[
+        for (final BitmapLayerState layer in effectiveLayers) layer.revision,
+      ];
+
       final List<String> layerOrder = effectiveLayers
           .map((BitmapLayerState layer) => layer.id)
           .toList(growable: false);
@@ -194,17 +213,45 @@ class CanvasRasterBackend {
 
       final bool allowIncrementalPixels = sameEpoch && sameCanvasSize && sameOrder;
 
+      final List<bool> uploadFlags = List<bool>.filled(effectiveLayers.length, false);
+      final List<int?> cachedRevisionsAtDecision =
+          List<int?>.filled(effectiveLayers.length, null);
+      bool lastForceFullPixels = false;
+
       Future<Uint32List> runComposite({required bool forceFullPixels}) {
+        lastForceFullPixels = forceFullPixels;
         final List<rust_gpu.GpuLayerData> gpuLayers = <rust_gpu.GpuLayerData>[];
-        for (final BitmapLayerState layer in effectiveLayers) {
+        if (kDebugMode && _kDebugGpuComposite) {
+          debugPrint(
+            '[gpu-composite] size=${_width}x${_height} '
+            'requiresFullSurface=$requiresFullSurface regions=${regions?.length ?? 0} '
+            'layers=${effectiveLayers.length} '
+            'sameEpoch=$sameEpoch sameCanvasSize=$sameCanvasSize sameOrder=$sameOrder '
+            'allowIncremental=$allowIncrementalPixels forceFullPixels=$forceFullPixels',
+          );
+        }
+        for (int i = 0; i < effectiveLayers.length; i++) {
+          final BitmapLayerState layer = effectiveLayers[i];
+          final int layerRevision = revisionSnapshot[i];
           final int? cachedRevision = _cachedLayerRevisions[layer.id];
+          cachedRevisionsAtDecision[i] = cachedRevision;
           final bool pixelsUnchanged =
-              cachedRevision != null && cachedRevision == layer.revision;
+              cachedRevision != null && cachedRevision == layerRevision;
           final Uint32List pixels = (!forceFullPixels &&
                   allowIncrementalPixels &&
                   pixelsUnchanged)
               ? _emptyPixels
               : layer.surface.pixels;
+          uploadFlags[i] = pixels.isNotEmpty;
+
+          if (kDebugMode && _kDebugGpuComposite) {
+            debugPrint(
+              '  layer id=${layer.id} revSnapshot=$layerRevision cached=${cachedRevision ?? -1} '
+              'upload=${pixels.isNotEmpty} pixelsLen=${pixels.length} '
+              'opacity=${layer.opacity.toStringAsFixed(3)} blend=${layer.blendMode.index} '
+              'clip=${layer.clippingMask} visible=${layer.visible}',
+            );
+          }
 
           gpuLayers.add(
             rust_gpu.GpuLayerData(
@@ -229,9 +276,15 @@ class CanvasRasterBackend {
         result = await runComposite(forceFullPixels: false);
       } catch (e) {
         if (_isGpuNeedsFullUploadError(e)) {
+          if (kDebugMode && _kDebugGpuComposite) {
+            debugPrint('[gpu-composite] needs full upload, retrying...');
+          }
           _invalidateGpuLayerCache();
           result = await runComposite(forceFullPixels: true);
         } else {
+          if (kDebugMode && _kDebugGpuComposite) {
+            debugPrint('[gpu-composite] error: $e');
+          }
           _invalidateGpuLayerCache();
           _gpuCompositeEpoch++;
           _knownGpuCompositeEpoch = _gpuCompositeEpoch;
@@ -256,8 +309,31 @@ class CanvasRasterBackend {
       _cachedLayerWidth = _width;
       _cachedLayerHeight = _height;
       _cachedLayerOrder = layerOrder;
-      for (final BitmapLayerState layer in effectiveLayers) {
-        _cachedLayerRevisions[layer.id] = layer.revision;
+      for (int i = 0; i < effectiveLayers.length; i++) {
+        final BitmapLayerState layer = effectiveLayers[i];
+        _cachedLayerRevisions[layer.id] = revisionSnapshot[i];
+      }
+
+      if (kDebugMode && _kDebugGpuComposite) {
+        for (int i = 0; i < effectiveLayers.length; i++) {
+          final BitmapLayerState layer = effectiveLayers[i];
+          final int before = revisionSnapshot[i];
+          final int now = layer.revision;
+          if (now != before) {
+            final bool wasUploaded = uploadFlags[i];
+            final int? cached = cachedRevisionsAtDecision[i];
+            debugPrint(
+              '[gpu-composite] layer ${layer.id} revision changed during composite: '
+              '$before -> $now (will be handled next pass)',
+            );
+            if (!lastForceFullPixels && allowIncrementalPixels && !wasUploaded) {
+              debugPrint(
+                '[gpu-composite] layer ${layer.id} used cached GPU pixels in this pass '
+                '(upload=false cached=${cached ?? -1} snapshot=$before now=$now)',
+              );
+            }
+          }
+        }
       }
 
       if (requiresFullSurface) {

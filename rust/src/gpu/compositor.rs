@@ -1,8 +1,10 @@
 use std::sync::mpsc;
+use std::time::Instant;
 
 use wgpu::{ComputePipeline, Device, Queue};
 
 use super::blend_modes::map_canvas_blend_mode_index;
+use super::debug::{self, LogLevel};
 
 const MAX_LAYERS: usize = 16;
 const WORKGROUP_SIZE: u32 = 16;
@@ -58,6 +60,7 @@ pub struct GpuCompositor {
 
 impl GpuCompositor {
     pub fn new() -> Result<Self, String> {
+        let t0 = Instant::now();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -69,6 +72,23 @@ impl GpuCompositor {
             force_fallback_adapter: false,
         }))
         .ok_or_else(|| "wgpu: no compatible GPU adapter found".to_string())?;
+
+        if debug::level() >= LogLevel::Info {
+            let info = adapter.get_info();
+            let limits = adapter.limits();
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "GpuCompositor adapter: backend={:?} device_type={:?} name='{}' max_tex_2d={} max_buf={} max_storage_binding={}",
+                    info.backend,
+                    info.device_type,
+                    info.name,
+                    limits.max_texture_dimension_2d,
+                    limits.max_buffer_size,
+                    limits.max_storage_buffer_binding_size
+                ),
+            );
+        }
 
         let adapter_limits = adapter.limits();
         let required_limits = wgpu::Limits {
@@ -158,6 +178,11 @@ impl GpuCompositor {
             return Err(format!("wgpu out-of-memory error during init: {err}"));
         }
 
+        debug::log(
+            LogLevel::Info,
+            format_args!("GpuCompositor new ok in {:?}.", t0.elapsed()),
+        );
+
         Ok(Self {
             device,
             queue,
@@ -181,6 +206,9 @@ impl GpuCompositor {
         width: u32,
         height: u32,
     ) -> Result<Vec<u32>, String> {
+        let verbose = debug::level() >= LogLevel::Verbose;
+        let t0 = if verbose { Some(Instant::now()) } else { None };
+
         if width == 0 || height == 0 {
             return Ok(Vec::new());
         }
@@ -232,6 +260,16 @@ impl GpuCompositor {
         let needs_tiling = pixel_bytes > max_buffer_size
             || pixel_bytes > max_storage_buffer_size
             || input_bytes > max_storage_buffer_size;
+
+        if needs_tiling {
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "GpuCompositor composite_layers needs tiling: canvas={width}x{height} layers={} pixel_bytes={pixel_bytes} input_bytes={input_bytes} max_buf={max_buffer_size} max_storage_buf={max_storage_buffer_size}",
+                    layers.len()
+                ),
+            );
+        }
         if needs_tiling {
             if layers.iter().any(|layer| layer.pixels.is_empty()) {
                 return Err(format!(
@@ -241,7 +279,14 @@ impl GpuCompositor {
             return self.composite_layers_tiled(layers, width, height, pixel_count);
         }
 
-        self.composite_layers_full(layers, width, height, pixel_bytes)
+        let result = self.composite_layers_full(layers, width, height, pixel_bytes);
+        if let Some(t0) = t0 {
+            debug::log(
+                LogLevel::Verbose,
+                format_args!("GpuCompositor composite_layers done in {:?}.", t0.elapsed()),
+            );
+        }
+        result
     }
 
     fn composite_layers_full(

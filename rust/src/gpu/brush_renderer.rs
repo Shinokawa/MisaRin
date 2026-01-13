@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 use std::sync::Arc;
+use std::time::Instant;
 
 use wgpu::{ComputePipeline, Device, Queue};
+
+use crate::gpu::debug::{self, LogLevel};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Point2D {
@@ -199,10 +202,29 @@ impl BrushRenderer {
             return Err("brush renderer canvas size not set".to_string());
         }
 
+        let verbose = debug::level() >= LogLevel::Verbose;
+        let t0 = if verbose { Some(Instant::now()) } else { None };
+
         let dirty = compute_dirty_rect(points, radii, self.canvas_width, self.canvas_height)?;
         if dirty.width == 0 || dirty.height == 0 {
             return Ok(());
         }
+
+        debug::log(
+            LogLevel::Verbose,
+            format_args!(
+                "BrushRenderer draw_stroke canvas={}x{} dirty=({},{}) {}x{} points={} aa={} erase={} shape={brush_shape:?}",
+                self.canvas_width,
+                self.canvas_height,
+                dirty.origin_x,
+                dirty.origin_y,
+                dirty.width,
+                dirty.height,
+                points.len(),
+                antialias_level,
+                erase
+            ),
+        );
 
         self.ensure_points_buffer(points.len())?;
         let points_buffer = self
@@ -293,6 +315,13 @@ impl BrushRenderer {
             return Err(format!("wgpu out-of-memory error during brush draw: {err}"));
         }
 
+        if let Some(t0) = t0 {
+            debug::log(
+                LogLevel::Verbose,
+                format_args!("BrushRenderer draw_stroke dispatch in {:?}.", t0.elapsed()),
+            );
+        }
+
         Ok(())
     }
 
@@ -343,6 +372,13 @@ impl BrushRenderer {
 
         self.points_buffer = Some(buffer);
         self.points_capacity = point_count;
+        debug::log(
+            LogLevel::Info,
+            format_args!(
+                "BrushRenderer allocated points buffer: capacity_points={} bytes={required_bytes}",
+                point_count
+            ),
+        );
         Ok(())
     }
 }

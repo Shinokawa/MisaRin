@@ -1,11 +1,19 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 
 import '../backend/canvas_raster_backend.dart';
 import 'raster_frame.dart';
 import 'raster_int_rect.dart';
+
+const bool _kDebugRasterTiles = bool.fromEnvironment(
+  'MISA_RIN_DEBUG_RASTER_TILES',
+  defaultValue: false,
+);
 
 class RasterTileCache {
   RasterTileCache({
@@ -44,6 +52,12 @@ class RasterTileCache {
       return _frame;
     }
 
+    if (kDebugMode && _kDebugRasterTiles) {
+      debugPrint(
+        '[raster-tiles] updateTiles fullSurface=$fullSurface dirtyRegions=${dirtyRegions.length}',
+      );
+    }
+
     if (fullSurface) {
       for (final BitmapCanvasTile tile in _tiles.values) {
         _pendingDisposals.add(tile.image);
@@ -56,6 +70,24 @@ class RasterTileCache {
         : dirtyRegions;
     if (targets.isEmpty) {
       return _frame;
+    }
+
+    if (kDebugMode && _kDebugRasterTiles) {
+      int minLeft = 1 << 30;
+      int minTop = 1 << 30;
+      int maxRight = -1;
+      int maxBottom = -1;
+      int count = 0;
+      for (final RasterIntRect rect in targets) {
+        count++;
+        minLeft = math.min(minLeft, rect.left);
+        minTop = math.min(minTop, rect.top);
+        maxRight = math.max(maxRight, rect.right);
+        maxBottom = math.max(maxBottom, rect.bottom);
+      }
+      debugPrint(
+        '[raster-tiles] targets=$count bounds=($minLeft,$minTop)-($maxRight,$maxBottom)',
+      );
     }
 
     final List<_PendingTile> uploads = <_PendingTile>[
