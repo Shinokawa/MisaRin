@@ -1143,10 +1143,12 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "flutter_rust_bridge",
+ "metal",
  "pollster",
  "psd",
  "rayon",
  "wgpu",
+ "wgpu-hal",
 ]
 
 [[package]]

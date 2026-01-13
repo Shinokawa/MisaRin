@@ -19,6 +19,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   static const MethodChannel _channel = MethodChannel('misarin/rust_canvas_texture');
 
   int? _textureId;
+  int? _engineHandle;
   Object? _error;
 
   double _scale = 1.0;
@@ -31,18 +32,25 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadTextureId());
+    unawaited(_loadTextureInfo());
   }
 
-  Future<void> _loadTextureId() async {
+  Future<void> _loadTextureInfo() async {
     try {
-      final int? textureId = await _channel.invokeMethod<int>('getTextureId');
+      final Map<dynamic, dynamic>? info =
+          await _channel.invokeMethod<Map<dynamic, dynamic>>('getTextureInfo');
+      final int? textureId = (info?['textureId'] as num?)?.toInt();
+      final int? engineHandle = (info?['engineHandle'] as num?)?.toInt();
       if (!mounted) {
         return;
       }
       setState(() {
         _textureId = textureId;
-        _error = textureId == null ? StateError('textureId == null') : null;
+        _engineHandle = engineHandle;
+        _error =
+            (textureId == null || engineHandle == null)
+                ? StateError('textureId/engineHandle == null: $info')
+                : null;
       });
     } catch (error) {
       if (!mounted) {
@@ -50,6 +58,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       }
       setState(() {
         _textureId = null;
+        _engineHandle = null;
         _error = error;
       });
     }
