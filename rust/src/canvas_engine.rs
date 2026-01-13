@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
@@ -13,6 +14,9 @@ use metal::MTLTextureType;
 use wgpu_hal::{api::Metal, CopyExtent};
 
 #[cfg(target_os = "macos")]
+use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Color, Point2D};
+
+#[cfg(target_os = "macos")]
 enum EngineCommand {
     AttachPresentTexture {
         mtl_texture_ptr: usize,
@@ -20,7 +24,27 @@ enum EngineCommand {
         height: u32,
         bytes_per_row: u32,
     },
+    ClearLayer { layer_index: u32 },
+    Undo,
+    Redo,
     Stop,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct EnginePoint {
+    pub x: f32,
+    pub y: f32,
+    pub pressure: f32,
+    pub _pad0: f32,
+    pub timestamp_us: u64,
+    pub flags: u32,
+    pub pointer_id: u32,
+}
+
+#[cfg(target_os = "macos")]
+struct EngineInputBatch {
+    points: Vec<EnginePoint>,
 }
 
 #[cfg(target_os = "macos")]
@@ -28,6 +52,8 @@ struct EngineEntry {
     mtl_device_ptr: usize,
     frame_ready: Arc<AtomicBool>,
     cmd_tx: mpsc::Sender<EngineCommand>,
+    input_tx: mpsc::Sender<EngineInputBatch>,
+    input_queue_len: Arc<AtomicU64>,
 }
 
 #[cfg(target_os = "macos")]
@@ -55,54 +81,140 @@ fn spawn_render_thread(
     queue: wgpu::Queue,
     layer_textures: Vec<wgpu::Texture>,
     cmd_rx: mpsc::Receiver<EngineCommand>,
+    input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
+    input_queue_len: Arc<AtomicU64>,
+    canvas_width: u32,
+    canvas_height: u32,
 ) {
     let _ = thread::Builder::new()
         .name("misa-rin-canvas-render".to_string())
-        .spawn(move || render_thread_main(device, queue, layer_textures, cmd_rx, frame_ready));
+        .spawn(move || {
+            render_thread_main(
+                device,
+                queue,
+                layer_textures,
+                cmd_rx,
+                input_rx,
+                frame_ready,
+                input_queue_len,
+                canvas_width,
+                canvas_height,
+            )
+        });
 }
 
 #[cfg(target_os = "macos")]
 fn render_thread_main(
     device: wgpu::Device,
     queue: wgpu::Queue,
-    _layer_textures: Vec<wgpu::Texture>,
+    mut layer_textures: Vec<wgpu::Texture>,
     cmd_rx: mpsc::Receiver<EngineCommand>,
+    input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
+    input_queue_len: Arc<AtomicU64>,
+    canvas_width: u32,
+    canvas_height: u32,
 ) {
+    let device = Arc::new(device);
+    let queue = Arc::new(queue);
+
     let mut present: Option<PresentTarget> = None;
-    let mut frame_index: u64 = 0;
+    let layer0 = match layer_textures.pop() {
+        Some(tex) => tex,
+        None => return,
+    };
+
+    let mut brush = match BrushRenderer::new(device.clone(), queue.clone()) {
+        Ok(renderer) => renderer,
+        Err(_) => return,
+    };
+    brush.set_canvas_size(canvas_width, canvas_height);
+    brush.set_softness(0.0);
+
+    let present_renderer = PresentRenderer::new(device.as_ref());
+    let layer0_view = layer0.create_view(&wgpu::TextureViewDescriptor::default());
+    let present_bind_group = present_renderer.create_bind_group(device.as_ref(), &layer0_view);
+
+    let mut stroke = StrokeResampler::new();
 
     loop {
         match &present {
             None => match cmd_rx.recv() {
                 Ok(cmd) => {
-                    if handle_engine_command(&device, &queue, &frame_ready, &mut present, cmd) {
+                    if handle_engine_command(
+                        device.as_ref(),
+                        queue.as_ref(),
+                        &frame_ready,
+                        &mut present,
+                        cmd,
+                        &layer0,
+                        canvas_width,
+                        canvas_height,
+                    ) {
                         break;
                     }
                 }
                 Err(_) => break,
             },
-            Some(_) => match cmd_rx.recv_timeout(Duration::from_millis(16)) {
-                Ok(cmd) => {
-                    if handle_engine_command(&device, &queue, &frame_ready, &mut present, cmd) {
-                        break;
+            Some(_) => {
+                while let Ok(cmd) = cmd_rx.try_recv() {
+                    if handle_engine_command(
+                        device.as_ref(),
+                        queue.as_ref(),
+                        &frame_ready,
+                        &mut present,
+                        cmd,
+                        &layer0,
+                        canvas_width,
+                        canvas_height,
+                    ) {
+                        return;
                     }
                 }
-                Err(mpsc::RecvTimeoutError::Timeout) => {
-                    if let Some(target) = &present {
-                        frame_index = frame_index.wrapping_add(1);
-                        submit_test_clear(
-                            &device,
-                            &queue,
-                            &target.view,
-                            frame_index,
-                            Arc::clone(&frame_ready),
-                        );
+
+                let mut batches: Vec<EngineInputBatch> = Vec::new();
+                match input_rx.recv_timeout(Duration::from_millis(4)) {
+                    Ok(batch) => {
+                        input_queue_len.fetch_sub(batch.points.len() as u64, Ordering::Relaxed);
+                        batches.push(batch);
+                        while let Ok(more) = input_rx.try_recv() {
+                            input_queue_len
+                                .fetch_sub(more.points.len() as u64, Ordering::Relaxed);
+                            batches.push(more);
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                }
+
+                if !batches.is_empty() {
+                    let mut raw_points: Vec<EnginePoint> = Vec::new();
+                    for batch in batches {
+                        raw_points.extend(batch.points);
+                    }
+
+                    let drawn_any = stroke.consume_and_draw(
+                        &mut brush,
+                        &layer0,
+                        raw_points,
+                        canvas_width,
+                        canvas_height,
+                    );
+
+                    if drawn_any {
+                        if let Some(target) = &present {
+                            present_renderer.render(
+                                device.as_ref(),
+                                queue.as_ref(),
+                                &present_bind_group,
+                                &target.view,
+                                Arc::clone(&frame_ready),
+                            );
+                        }
                     }
                 }
-                Err(mpsc::RecvTimeoutError::Disconnected) => break,
-            },
+            }
         }
 
         device.poll(wgpu::Maintain::Poll);
@@ -116,6 +228,9 @@ fn handle_engine_command(
     frame_ready: &Arc<AtomicBool>,
     present: &mut Option<PresentTarget>,
     cmd: EngineCommand,
+    layer0: &wgpu::Texture,
+    canvas_width: u32,
+    canvas_height: u32,
 ) -> bool {
     match cmd {
         EngineCommand::Stop => return true,
@@ -132,11 +247,331 @@ fn handle_engine_command(
             *present =
                 attach_present_texture(device, mtl_texture_ptr, width, height, bytes_per_row);
             if let Some(target) = present {
+                // Clear the present target once so Flutter has a valid initial frame.
                 submit_test_clear(device, queue, &target.view, 0, Arc::clone(frame_ready));
+                // Also clear layer0 to transparent so the first composite is deterministic.
+                clear_r32uint_texture(queue, layer0, canvas_width, canvas_height);
             }
         }
+        EngineCommand::ClearLayer { layer_index: _ } => {
+            // MVP: single layer only.
+            clear_r32uint_texture(queue, layer0, canvas_width, canvas_height);
+        }
+        EngineCommand::Undo => {}
+        EngineCommand::Redo => {}
     }
     false
+}
+
+#[cfg(target_os = "macos")]
+fn clear_r32uint_texture(
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+) {
+    let size_bytes = (width as usize).saturating_mul(height as usize).saturating_mul(4);
+    let zeroes = vec![0u8; size_bytes];
+    queue.write_texture(
+        wgpu::ImageCopyTexture {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &zeroes,
+        wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * width),
+            rows_per_image: Some(height),
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+}
+
+#[cfg(target_os = "macos")]
+struct PresentRenderer {
+    pipeline: wgpu::RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
+}
+
+#[cfg(target_os = "macos")]
+impl PresentRenderer {
+    fn new(device: &wgpu::Device) -> Self {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("misa-rin present renderer shader"),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("canvas_present.wgsl"))),
+        });
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("misa-rin present renderer bgl"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Uint,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            }],
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("misa-rin present renderer pipeline layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("misa-rin present renderer pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Bgra8Unorm,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
+
+        Self {
+            pipeline,
+            bind_group_layout,
+        }
+    }
+
+    fn create_bind_group(
+        &self,
+        device: &wgpu::Device,
+        layer_view: &wgpu::TextureView,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("misa-rin present renderer bind group"),
+            layout: &self.bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(layer_view),
+            }],
+        })
+    }
+
+    fn render(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        bind_group: &wgpu::BindGroup,
+        present_view: &wgpu::TextureView,
+        frame_ready: Arc<AtomicBool>,
+    ) {
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("misa-rin present renderer encoder"),
+        });
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("misa-rin present renderer pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: present_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+
+        queue.submit(Some(encoder.finish()));
+        queue.on_submitted_work_done(move || {
+            frame_ready.store(true, Ordering::Release);
+        });
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct StrokeResampler {
+    last_emitted: Option<Point2D>,
+    last_pressure: f32,
+}
+
+#[cfg(target_os = "macos")]
+impl StrokeResampler {
+    fn new() -> Self {
+        Self {
+            last_emitted: None,
+            last_pressure: 1.0,
+        }
+    }
+
+    fn consume_and_draw(
+        &mut self,
+        brush: &mut BrushRenderer,
+        layer0: &wgpu::Texture,
+        points: Vec<EnginePoint>,
+        canvas_width: u32,
+        canvas_height: u32,
+    ) -> bool {
+        const FLAG_DOWN: u32 = 1;
+        const FLAG_UP: u32 = 4;
+        const MAX_POINTS_PER_DISPATCH: usize = 64;
+
+        if points.is_empty() {
+            return false;
+        }
+
+        let mut emitted: Vec<(Point2D, f32)> = Vec::new();
+
+        for p in points {
+            let x = if p.x.is_finite() { p.x } else { 0.0 };
+            let y = if p.y.is_finite() { p.y } else { 0.0 };
+            let pressure = if p.pressure.is_finite() {
+                p.pressure.clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+
+            let is_down = (p.flags & FLAG_DOWN) != 0;
+            let is_up = (p.flags & FLAG_UP) != 0;
+
+            let current = Point2D { x, y };
+            if is_down || self.last_emitted.is_none() {
+                self.last_emitted = Some(current);
+                self.last_pressure = pressure;
+                emitted.push((current, pressure));
+                continue;
+            }
+
+            let Some(prev) = self.last_emitted else {
+                continue;
+            };
+
+            let dx = current.x - prev.x;
+            let dy = current.y - prev.y;
+            let dist = (dx * dx + dy * dy).sqrt();
+            if !dist.is_finite() || dist <= 0.0001 {
+                if is_up {
+                    emitted.push((current, pressure));
+                    self.last_emitted = Some(current);
+                    self.last_pressure = pressure;
+                }
+                continue;
+            }
+
+            let radius_prev = brush_radius_from_pressure(self.last_pressure);
+            let radius_next = brush_radius_from_pressure(pressure);
+            let step = resample_step_from_radius((radius_prev + radius_next) * 0.5);
+
+            let dir_x = dx / dist;
+            let dir_y = dy / dist;
+            let mut traveled = 0.0f32;
+
+            while traveled + step <= dist {
+                traveled += step;
+                let t = (traveled / dist).clamp(0.0, 1.0);
+                let interp_pressure = self.last_pressure + (pressure - self.last_pressure) * t;
+                let sample = Point2D {
+                    x: prev.x + dir_x * traveled,
+                    y: prev.y + dir_y * traveled,
+                };
+                emitted.push((sample, interp_pressure));
+                self.last_emitted = Some(sample);
+                self.last_pressure = interp_pressure;
+            }
+
+            if is_up {
+                emitted.push((current, pressure));
+                self.last_emitted = Some(current);
+                self.last_pressure = pressure;
+            }
+        }
+
+        if emitted.is_empty() {
+            return false;
+        }
+
+        brush.set_canvas_size(canvas_width, canvas_height);
+
+        let mut drew_any = false;
+        let mut cursor = 0usize;
+        while cursor < emitted.len() {
+            let end = (cursor + MAX_POINTS_PER_DISPATCH).min(emitted.len());
+            let slice = &emitted[cursor..end];
+
+            let mut pts: Vec<Point2D> = Vec::with_capacity(slice.len());
+            let mut radii: Vec<f32> = Vec::with_capacity(slice.len());
+            for (pt, pres) in slice {
+                pts.push(*pt);
+                radii.push(brush_radius_from_pressure(*pres));
+            }
+
+            if brush
+                .draw_stroke(
+                    layer0,
+                    &pts,
+                    &radii,
+                    Color { argb: 0xFFFFFFFF },
+                    BrushShape::Circle,
+                    false,
+                    1,
+                )
+                .is_ok()
+            {
+                drew_any = true;
+            }
+
+            if end == emitted.len() {
+                break;
+            }
+            cursor = end.saturating_sub(1);
+        }
+
+        drew_any
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn brush_radius_from_pressure(pressure: f32) -> f32 {
+    let p = if pressure.is_finite() {
+        pressure.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    6.0 * (0.25 + 0.75 * p)
+}
+
+#[cfg(target_os = "macos")]
+fn resample_step_from_radius(radius: f32) -> f32 {
+    let r = if radius.is_finite() { radius.max(0.0) } else { 0.0 };
+    (r * 0.1).clamp(0.25, 0.5)
 }
 
 #[cfg(target_os = "macos")]
@@ -200,15 +635,10 @@ fn submit_test_clear(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     view: &wgpu::TextureView,
-    frame_index: u64,
+    _frame_index: u64,
     frame_ready: Arc<AtomicBool>,
 ) {
-    let phase = (frame_index / 60) % 3;
-    let (r, g, b) = match phase {
-        0 => (0.85, 0.15, 0.15),
-        1 => (0.15, 0.85, 0.15),
-        _ => (0.15, 0.15, 0.85),
-    };
+    let (r, g, b, a) = (0.0, 0.0, 0.0, 0.0);
 
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("misa-rin present clear encoder"),
@@ -224,7 +654,7 @@ fn submit_test_clear(
                         r,
                         g,
                         b,
-                        a: 1.0,
+                        a,
                     }),
                     store: wgpu::StoreOp::Store,
                 },
@@ -307,8 +737,20 @@ fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     });
 
     let (cmd_tx, cmd_rx) = mpsc::channel();
+    let (input_tx, input_rx) = mpsc::channel();
+    let input_queue_len = Arc::new(AtomicU64::new(0));
     let frame_ready = Arc::new(AtomicBool::new(false));
-    spawn_render_thread(device, queue, vec![layer0], cmd_rx, Arc::clone(&frame_ready));
+    spawn_render_thread(
+        device,
+        queue,
+        vec![layer0],
+        cmd_rx,
+        input_rx,
+        Arc::clone(&frame_ready),
+        Arc::clone(&input_queue_len),
+        width,
+        height,
+    );
 
     let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
     let mut guard = engines()
@@ -320,6 +762,8 @@ fn create_engine(width: u32, height: u32) -> Result<u64, String> {
             mtl_device_ptr,
             frame_ready,
             cmd_tx,
+            input_tx,
+            input_queue_len,
         },
     );
 
@@ -337,6 +781,8 @@ fn lookup_engine(handle: u64) -> Option<EngineEntry> {
         mtl_device_ptr: entry.mtl_device_ptr,
         frame_ready: Arc::clone(&entry.frame_ready),
         cmd_tx: entry.cmd_tx.clone(),
+        input_tx: entry.input_tx.clone(),
+        input_queue_len: Arc::clone(&entry.input_queue_len),
     })
 }
 
@@ -432,4 +878,40 @@ pub extern "C" fn engine_poll_frame_ready(handle: u64) -> bool {
 #[no_mangle]
 pub extern "C" fn engine_poll_frame_ready(_handle: u64) -> bool {
     false
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_push_points(handle: u64, points: *const EnginePoint, len: usize) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    if points.is_null() || len == 0 {
+        return;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(points, len) };
+    let mut owned: Vec<EnginePoint> = Vec::with_capacity(len);
+    owned.extend_from_slice(slice);
+    entry.input_queue_len.fetch_add(len as u64, Ordering::Relaxed);
+    if entry.input_tx.send(EngineInputBatch { points: owned }).is_err() {
+        entry.input_queue_len.fetch_sub(len as u64, Ordering::Relaxed);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_push_points(_handle: u64, _points: *const EnginePoint, _len: usize) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_get_input_queue_len(handle: u64) -> u64 {
+    lookup_engine(handle)
+        .map(|entry| entry.input_queue_len.load(Ordering::Relaxed))
+        .unwrap_or(0)
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_get_input_queue_len(_handle: u64) -> u64 {
+    0
 }
