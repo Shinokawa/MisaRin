@@ -17,6 +17,9 @@ use wgpu_hal::{api::Metal, CopyExtent};
 use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Color, Point2D};
 
 #[cfg(target_os = "macos")]
+const MVP_LAYER_COUNT: usize = 4;
+
+#[cfg(target_os = "macos")]
 enum EngineCommand {
     AttachPresentTexture {
         mtl_texture_ptr: usize,
@@ -25,6 +28,9 @@ enum EngineCommand {
         bytes_per_row: u32,
     },
     ClearLayer { layer_index: u32 },
+    SetActiveLayer { layer_index: u32 },
+    SetLayerOpacity { layer_index: u32, opacity: f32 },
+    SetLayerVisible { layer_index: u32, visible: bool },
     Undo,
     Redo,
     Stop,
@@ -108,7 +114,7 @@ fn spawn_render_thread(
 fn render_thread_main(
     device: wgpu::Device,
     queue: wgpu::Queue,
-    mut layer_textures: Vec<wgpu::Texture>,
+    layer_textures: Vec<wgpu::Texture>,
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
@@ -120,10 +126,16 @@ fn render_thread_main(
     let queue = Arc::new(queue);
 
     let mut present: Option<PresentTarget> = None;
-    let layer0 = match layer_textures.pop() {
-        Some(tex) => tex,
-        None => return,
-    };
+    if layer_textures.is_empty() {
+        return;
+    }
+    // Layer order is bottom-to-top. MVP uses a fixed number of layers.
+    let layers = layer_textures;
+    let layer_count = layers.len().min(MVP_LAYER_COUNT);
+    if layer_count == 0 {
+        return;
+    }
+    let mut active_layer_index: usize = layer_count.saturating_sub(1);
 
     let mut brush = match BrushRenderer::new(device.clone(), queue.clone()) {
         Ok(renderer) => renderer,
@@ -133,8 +145,30 @@ fn render_thread_main(
     brush.set_softness(0.0);
 
     let present_renderer = PresentRenderer::new(device.as_ref());
-    let layer0_view = layer0.create_view(&wgpu::TextureViewDescriptor::default());
-    let present_bind_group = present_renderer.create_bind_group(device.as_ref(), &layer0_view);
+    let layer_views: Vec<wgpu::TextureView> = layers
+        .iter()
+        .take(MVP_LAYER_COUNT)
+        .map(|tex| tex.create_view(&wgpu::TextureViewDescriptor::default()))
+        .collect();
+
+    let mut layer_opacity = [1.0f32; MVP_LAYER_COUNT];
+    let mut layer_visible = [true; MVP_LAYER_COUNT];
+    let present_config_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("misa-rin present composite config"),
+        size: std::mem::size_of::<PresentCompositeConfig>() as u64,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    write_present_config(
+        queue.as_ref(),
+        &present_config_buffer,
+        layer_count as u32,
+        &layer_opacity,
+        &layer_visible,
+    );
+
+    let present_bind_group =
+        present_renderer.create_bind_group(device.as_ref(), &layer_views, &present_config_buffer);
 
     let mut stroke = StrokeResampler::new();
 
@@ -148,7 +182,11 @@ fn render_thread_main(
                         &frame_ready,
                         &mut present,
                         cmd,
-                        &layer0,
+                        &layers,
+                        &mut active_layer_index,
+                        &mut layer_opacity,
+                        &mut layer_visible,
+                        &present_config_buffer,
                         canvas_width,
                         canvas_height,
                     ) {
@@ -165,7 +203,11 @@ fn render_thread_main(
                         &frame_ready,
                         &mut present,
                         cmd,
-                        &layer0,
+                        &layers,
+                        &mut active_layer_index,
+                        &mut layer_opacity,
+                        &mut layer_visible,
+                        &present_config_buffer,
                         canvas_width,
                         canvas_height,
                     ) {
@@ -194,9 +236,12 @@ fn render_thread_main(
                         raw_points.extend(batch.points);
                     }
 
+                    let active_layer = layers
+                        .get(active_layer_index)
+                        .unwrap_or_else(|| layers.first().expect("layers non-empty"));
                     let drawn_any = stroke.consume_and_draw(
                         &mut brush,
-                        &layer0,
+                        active_layer,
                         raw_points,
                         canvas_width,
                         canvas_height,
@@ -228,7 +273,11 @@ fn handle_engine_command(
     frame_ready: &Arc<AtomicBool>,
     present: &mut Option<PresentTarget>,
     cmd: EngineCommand,
-    layer0: &wgpu::Texture,
+    layers: &[wgpu::Texture],
+    active_layer_index: &mut usize,
+    layer_opacity: &mut [f32; MVP_LAYER_COUNT],
+    layer_visible: &mut [bool; MVP_LAYER_COUNT],
+    present_config_buffer: &wgpu::Buffer,
     canvas_width: u32,
     canvas_height: u32,
 ) -> bool {
@@ -249,13 +298,58 @@ fn handle_engine_command(
             if let Some(target) = present {
                 // Clear the present target once so Flutter has a valid initial frame.
                 submit_test_clear(device, queue, &target.view, 0, Arc::clone(frame_ready));
-                // Also clear layer0 to transparent so the first composite is deterministic.
-                clear_r32uint_texture(queue, layer0, canvas_width, canvas_height);
+                // Also clear all layers to transparent so the first composite is deterministic.
+                for tex in layers.iter().take(MVP_LAYER_COUNT) {
+                    clear_r32uint_texture(queue, tex, canvas_width, canvas_height);
+                }
             }
         }
-        EngineCommand::ClearLayer { layer_index: _ } => {
-            // MVP: single layer only.
-            clear_r32uint_texture(queue, layer0, canvas_width, canvas_height);
+        EngineCommand::ClearLayer { layer_index } => {
+            if let Some(tex) = layers
+                .get(layer_index as usize)
+                .filter(|_| (layer_index as usize) < MVP_LAYER_COUNT)
+            {
+                clear_r32uint_texture(queue, tex, canvas_width, canvas_height);
+            }
+        }
+        EngineCommand::SetActiveLayer { layer_index } => {
+            let idx = layer_index as usize;
+            if idx < layers.len() && idx < MVP_LAYER_COUNT {
+                *active_layer_index = idx;
+            }
+        }
+        EngineCommand::SetLayerOpacity { layer_index, opacity } => {
+            let idx = layer_index as usize;
+            if idx < MVP_LAYER_COUNT {
+                layer_opacity[idx] = if opacity.is_finite() {
+                    opacity.clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                write_present_config(
+                    queue,
+                    present_config_buffer,
+                    layers.len().min(MVP_LAYER_COUNT) as u32,
+                    layer_opacity,
+                    layer_visible,
+                );
+            }
+        }
+        EngineCommand::SetLayerVisible {
+            layer_index,
+            visible,
+        } => {
+            let idx = layer_index as usize;
+            if idx < MVP_LAYER_COUNT {
+                layer_visible[idx] = visible;
+                write_present_config(
+                    queue,
+                    present_config_buffer,
+                    layers.len().min(MVP_LAYER_COUNT) as u32,
+                    layer_opacity,
+                    layer_visible,
+                );
+            }
         }
         EngineCommand::Undo => {}
         EngineCommand::Redo => {}
@@ -300,6 +394,44 @@ struct PresentRenderer {
 }
 
 #[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct PresentCompositeConfig {
+    layer_count: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+    layer_params: [[f32; 4]; MVP_LAYER_COUNT],
+}
+
+#[cfg(target_os = "macos")]
+fn write_present_config(
+    queue: &wgpu::Queue,
+    buffer: &wgpu::Buffer,
+    layer_count: u32,
+    layer_opacity: &[f32; MVP_LAYER_COUNT],
+    layer_visible: &[bool; MVP_LAYER_COUNT],
+) {
+    let mut cfg = PresentCompositeConfig {
+        layer_count,
+        _pad0: 0,
+        _pad1: 0,
+        _pad2: 0,
+        layer_params: [[0.0; 4]; MVP_LAYER_COUNT],
+    };
+    for i in 0..MVP_LAYER_COUNT {
+        let opacity = if layer_opacity[i].is_finite() {
+            layer_opacity[i].clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let visible = if layer_visible[i] { 1.0 } else { 0.0 };
+        cfg.layer_params[i] = [opacity, visible, 0.0, 0.0];
+    }
+    queue.write_buffer(buffer, 0, bytemuck::bytes_of(&cfg));
+}
+
+#[cfg(target_os = "macos")]
 impl PresentRenderer {
     fn new(device: &wgpu::Device) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -309,16 +441,60 @@ impl PresentRenderer {
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("misa-rin present renderer bgl"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Uint,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Uint,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Uint,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Uint,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Uint,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<PresentCompositeConfig>() as u64,
+                        ),
+                    },
+                    count: None,
+                },
+            ],
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -367,15 +543,35 @@ impl PresentRenderer {
     fn create_bind_group(
         &self,
         device: &wgpu::Device,
-        layer_view: &wgpu::TextureView,
+        layer_views: &[wgpu::TextureView],
+        config_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
+        assert_eq!(layer_views.len(), MVP_LAYER_COUNT);
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("misa-rin present renderer bind group"),
             layout: &self.bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(layer_view),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&layer_views[0]),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&layer_views[1]),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&layer_views[2]),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&layer_views[3]),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: config_buffer.as_entire_binding(),
+                },
+            ],
         })
     }
 
@@ -437,7 +633,7 @@ impl StrokeResampler {
     fn consume_and_draw(
         &mut self,
         brush: &mut BrushRenderer,
-        layer0: &wgpu::Texture,
+        layer_texture: &wgpu::Texture,
         points: Vec<EnginePoint>,
         canvas_width: u32,
         canvas_height: u32,
@@ -531,7 +727,7 @@ impl StrokeResampler {
             let r0 = brush_radius_from_pressure(pres0);
             if brush
                 .draw_stroke(
-                    layer0,
+                    layer_texture,
                     &[p0],
                     &[r0],
                     Color { argb: 0xFFFFFFFF },
@@ -557,7 +753,7 @@ impl StrokeResampler {
                 let radii = [r0, r1];
                 if brush
                     .draw_stroke(
-                        layer0,
+                        layer_texture,
                         &pts,
                         &radii,
                         Color { argb: 0xFFFFFFFF },
@@ -821,23 +1017,27 @@ fn create_engine(width: u32, height: u32) -> Result<u64, String> {
         return Err("wgpu: failed to extract underlying MTLDevice".to_string());
     }
 
-    let layer0 = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("misa-rin layer0 (R32Uint)"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING
-            | wgpu::TextureUsages::COPY_DST
-            | wgpu::TextureUsages::COPY_SRC
-            | wgpu::TextureUsages::STORAGE_BINDING,
-        view_formats: &[],
-    });
+    let mut layers: Vec<wgpu::Texture> = Vec::with_capacity(MVP_LAYER_COUNT);
+    for idx in 0..MVP_LAYER_COUNT {
+        let label = format!("misa-rin layer{idx} (R32Uint)");
+        layers.push(device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(&label),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R32Uint,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        }));
+    }
 
     let (cmd_tx, cmd_rx) = mpsc::channel();
     let (input_tx, input_rx) = mpsc::channel();
@@ -846,7 +1046,7 @@ fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     spawn_render_thread(
         device,
         queue,
-        vec![layer0],
+        layers,
         cmd_rx,
         input_rx,
         Arc::clone(&frame_ready),
@@ -1018,3 +1218,48 @@ pub extern "C" fn engine_get_input_queue_len(handle: u64) -> u64 {
 pub extern "C" fn engine_get_input_queue_len(_handle: u64) -> u64 {
     0
 }
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_set_active_layer(handle: u64, layer_index: u32) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::SetActiveLayer { layer_index });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_active_layer(_handle: u64, _layer_index: u32) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_set_layer_opacity(handle: u64, layer_index: u32, opacity: f32) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::SetLayerOpacity { layer_index, opacity });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_layer_opacity(_handle: u64, _layer_index: u32, _opacity: f32) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_set_layer_visible(handle: u64, layer_index: u32, visible: bool) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::SetLayerVisible { layer_index, visible });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_layer_visible(_handle: u64, _layer_index: u32, _visible: bool) {}

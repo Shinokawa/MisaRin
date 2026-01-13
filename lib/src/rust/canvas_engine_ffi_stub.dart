@@ -14,5 +14,18 @@ class CanvasEngineFfi {
   }) {}
 
   int getInputQueueLen(int handle) => 0;
-}
 
+  void setActiveLayer({required int handle, required int layerIndex}) {}
+
+  void setLayerOpacity({
+    required int handle,
+    required int layerIndex,
+    required double opacity,
+  }) {}
+
+  void setLayerVisible({
+    required int handle,
+    required int layerIndex,
+    required bool visible,
+  }) {}
+}

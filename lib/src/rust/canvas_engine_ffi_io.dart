@@ -41,6 +41,20 @@ typedef _EnginePushPointsDart =
 typedef _EngineGetInputQueueLenNative = ffi.Uint64 Function(ffi.Uint64 handle);
 typedef _EngineGetInputQueueLenDart = int Function(int handle);
 
+typedef _EngineSetActiveLayerNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex);
+typedef _EngineSetActiveLayerDart = void Function(int handle, int layerIndex);
+
+typedef _EngineSetLayerOpacityNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Float opacity);
+typedef _EngineSetLayerOpacityDart =
+    void Function(int handle, int layerIndex, double opacity);
+
+typedef _EngineSetLayerVisibleNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Uint8 visible);
+typedef _EngineSetLayerVisibleDart =
+    void Function(int handle, int layerIndex, int visible);
+
 class CanvasEngineFfi {
   CanvasEngineFfi._() {
     try {
@@ -51,6 +65,31 @@ class CanvasEngineFfi {
       _getQueueLen = _lib.lookupFunction<_EngineGetInputQueueLenNative, _EngineGetInputQueueLenDart>(
         'engine_get_input_queue_len',
       );
+
+      // Optional layer controls (not required for basic drawing).
+      try {
+        _setActiveLayer = _lib.lookupFunction<_EngineSetActiveLayerNative, _EngineSetActiveLayerDart>(
+          'engine_set_active_layer',
+        );
+      } catch (_) {
+        _setActiveLayer = null;
+      }
+      try {
+        _setLayerOpacity =
+            _lib.lookupFunction<_EngineSetLayerOpacityNative, _EngineSetLayerOpacityDart>(
+          'engine_set_layer_opacity',
+        );
+      } catch (_) {
+        _setLayerOpacity = null;
+      }
+      try {
+        _setLayerVisible =
+            _lib.lookupFunction<_EngineSetLayerVisibleNative, _EngineSetLayerVisibleDart>(
+          'engine_set_layer_visible',
+        );
+      } catch (_) {
+        _setLayerVisible = null;
+      }
       isSupported = true;
     } catch (_) {
       isSupported = false;
@@ -62,6 +101,9 @@ class CanvasEngineFfi {
   late final ffi.DynamicLibrary _lib;
   late final _EnginePushPointsDart _pushPoints;
   late final _EngineGetInputQueueLenDart _getQueueLen;
+  late final _EngineSetActiveLayerDart? _setActiveLayer;
+  late final _EngineSetLayerOpacityDart? _setLayerOpacity;
+  late final _EngineSetLayerVisibleDart? _setLayerVisible;
 
   ffi.Pointer<ffi.Uint8>? _staging;
   int _stagingCapacityBytes = 0;
@@ -91,6 +133,38 @@ class CanvasEngineFfi {
       return 0;
     }
     return _getQueueLen(handle);
+  }
+
+  void setActiveLayer({required int handle, required int layerIndex}) {
+    final fn = _setActiveLayer;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle, layerIndex);
+  }
+
+  void setLayerOpacity({
+    required int handle,
+    required int layerIndex,
+    required double opacity,
+  }) {
+    final fn = _setLayerOpacity;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle, layerIndex, opacity);
+  }
+
+  void setLayerVisible({
+    required int handle,
+    required int layerIndex,
+    required bool visible,
+  }) {
+    final fn = _setLayerVisible;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle, layerIndex, visible ? 1 : 0);
   }
 
   ffi.Pointer<ffi.Uint8> _ensureStaging(int requiredBytes) {
