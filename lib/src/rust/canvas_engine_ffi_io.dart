@@ -55,6 +55,12 @@ typedef _EngineSetLayerVisibleNative =
 typedef _EngineSetLayerVisibleDart =
     void Function(int handle, int layerIndex, int visible);
 
+typedef _EngineUndoNative = ffi.Void Function(ffi.Uint64 handle);
+typedef _EngineUndoDart = void Function(int handle);
+
+typedef _EngineRedoNative = ffi.Void Function(ffi.Uint64 handle);
+typedef _EngineRedoDart = void Function(int handle);
+
 class CanvasEngineFfi {
   CanvasEngineFfi._() {
     try {
@@ -90,6 +96,18 @@ class CanvasEngineFfi {
       } catch (_) {
         _setLayerVisible = null;
       }
+
+      // Optional undo/redo (Flow 7).
+      try {
+        _undo = _lib.lookupFunction<_EngineUndoNative, _EngineUndoDart>('engine_undo');
+      } catch (_) {
+        _undo = null;
+      }
+      try {
+        _redo = _lib.lookupFunction<_EngineRedoNative, _EngineRedoDart>('engine_redo');
+      } catch (_) {
+        _redo = null;
+      }
       isSupported = true;
     } catch (_) {
       isSupported = false;
@@ -104,6 +122,8 @@ class CanvasEngineFfi {
   late final _EngineSetActiveLayerDart? _setActiveLayer;
   late final _EngineSetLayerOpacityDart? _setLayerOpacity;
   late final _EngineSetLayerVisibleDart? _setLayerVisible;
+  late final _EngineUndoDart? _undo;
+  late final _EngineRedoDart? _redo;
 
   ffi.Pointer<ffi.Uint8>? _staging;
   int _stagingCapacityBytes = 0;
@@ -165,6 +185,22 @@ class CanvasEngineFfi {
       return;
     }
     fn(handle, layerIndex, visible ? 1 : 0);
+  }
+
+  void undo({required int handle}) {
+    final fn = _undo;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle);
+  }
+
+  void redo({required int handle}) {
+    final fn = _redo;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle);
   }
 
   ffi.Pointer<ffi.Uint8> _ensureStaging(int requiredBytes) {

@@ -36,6 +36,390 @@ enum EngineCommand {
     Stop,
 }
 
+#[cfg(target_os = "macos")]
+const UNDO_TILE_SIZE: u32 = 256;
+
+#[cfg(target_os = "macos")]
+const UNDO_STACK_LIMIT: usize = 50;
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct UndoTileKey {
+    tx: u32,
+    ty: u32,
+    layer_index: u32,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug)]
+struct UndoTileRect {
+    left: u32,
+    top: u32,
+    width: u32,
+    height: u32,
+}
+
+#[cfg(target_os = "macos")]
+struct UndoTileBefore {
+    rect: UndoTileRect,
+    before: wgpu::Texture,
+}
+
+#[cfg(target_os = "macos")]
+struct UndoTilePatch {
+    rect: UndoTileRect,
+    before: wgpu::Texture,
+    after: wgpu::Texture,
+}
+
+#[cfg(target_os = "macos")]
+struct UndoRecord {
+    layer_index: u32,
+    tiles: Vec<UndoTilePatch>,
+}
+
+#[cfg(target_os = "macos")]
+struct ActiveStrokeUndo {
+    layer_index: u32,
+    tiles: HashMap<UndoTileKey, UndoTileBefore>,
+}
+
+#[cfg(target_os = "macos")]
+struct UndoManager {
+    canvas_width: u32,
+    canvas_height: u32,
+    tile_size: u32,
+    max_steps: usize,
+    undo_stack: Vec<UndoRecord>,
+    redo_stack: Vec<UndoRecord>,
+    current: Option<ActiveStrokeUndo>,
+}
+
+#[cfg(target_os = "macos")]
+impl UndoManager {
+    fn new(canvas_width: u32, canvas_height: u32) -> Self {
+        Self {
+            canvas_width,
+            canvas_height,
+            tile_size: UNDO_TILE_SIZE,
+            max_steps: UNDO_STACK_LIMIT,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            current: None,
+        }
+    }
+
+    fn begin_stroke(&mut self, layer_index: u32) {
+        self.current = Some(ActiveStrokeUndo {
+            layer_index,
+            tiles: HashMap::new(),
+        });
+    }
+
+    fn begin_stroke_if_needed(&mut self, layer_index: u32) {
+        if self.current.is_none() {
+            self.begin_stroke(layer_index);
+        }
+    }
+
+    fn cancel_stroke(&mut self) {
+        self.current = None;
+    }
+
+    fn capture_before_for_dirty_rect(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layer_texture: &wgpu::Texture,
+        layer_index: u32,
+        dirty: (i32, i32, i32, i32),
+    ) {
+        let canvas_width = self.canvas_width;
+        let canvas_height = self.canvas_height;
+        let tile_size = self.tile_size.max(1);
+
+        let Some(active) = self.current.as_mut() else {
+            return;
+        };
+        if active.layer_index != layer_index {
+            return;
+        }
+        let (left_i, top_i, width_i, height_i) = dirty;
+        if width_i <= 0 || height_i <= 0 {
+            return;
+        }
+
+        let left = (left_i.max(0) as u32).min(canvas_width);
+        let top = (top_i.max(0) as u32).min(canvas_height);
+        let right = (left_i.saturating_add(width_i).max(0) as u32).min(canvas_width);
+        let bottom = (top_i.saturating_add(height_i).max(0) as u32).min(canvas_height);
+        if right <= left || bottom <= top {
+            return;
+        }
+
+        let tx0 = left / tile_size;
+        let ty0 = top / tile_size;
+        let tx1 = right.saturating_sub(1) / tile_size;
+        let ty1 = bottom.saturating_sub(1) / tile_size;
+
+        let mut encoder: Option<wgpu::CommandEncoder> = None;
+
+        for ty in ty0..=ty1 {
+            for tx in tx0..=tx1 {
+                let key = UndoTileKey {
+                    tx,
+                    ty,
+                    layer_index,
+                };
+                if active.tiles.contains_key(&key) {
+                    continue;
+                }
+                let tile_left = tx.saturating_mul(tile_size);
+                let tile_top = ty.saturating_mul(tile_size);
+                if tile_left >= canvas_width || tile_top >= canvas_height {
+                    continue;
+                }
+                let tile_width = tile_size.min(canvas_width.saturating_sub(tile_left));
+                let tile_height = tile_size.min(canvas_height.saturating_sub(tile_top));
+                if tile_width == 0 || tile_height == 0 {
+                    continue;
+                }
+                let rect = UndoTileRect {
+                    left: tile_left,
+                    top: tile_top,
+                    width: tile_width,
+                    height: tile_height,
+                };
+
+                let before_tex = device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("misa-rin undo before (tile)"),
+                    size: wgpu::Extent3d {
+                        width: rect.width,
+                        height: rect.height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::R32Uint,
+                    usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
+                    view_formats: &[],
+                });
+
+                let enc = encoder.get_or_insert_with(|| {
+                    device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("misa-rin undo capture before encoder"),
+                    })
+                });
+                enc.copy_texture_to_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: layer_texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d {
+                            x: rect.left,
+                            y: rect.top,
+                            z: 0,
+                        },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::ImageCopyTexture {
+                        texture: &before_tex,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::Extent3d {
+                        width: rect.width,
+                        height: rect.height,
+                        depth_or_array_layers: 1,
+                    },
+                );
+
+                active.tiles.insert(
+                    key,
+                    UndoTileBefore {
+                        rect,
+                        before: before_tex,
+                    },
+                );
+            }
+        }
+
+        if let Some(enc) = encoder {
+            queue.submit(Some(enc.finish()));
+        }
+    }
+
+    fn end_stroke(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layer_texture: &wgpu::Texture,
+    ) {
+        let Some(active) = self.current.take() else {
+            return;
+        };
+        if active.tiles.is_empty() {
+            return;
+        }
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("misa-rin undo capture after encoder"),
+        });
+        let mut patches: Vec<UndoTilePatch> = Vec::with_capacity(active.tiles.len());
+
+        for (_, tile_before) in active.tiles {
+            let rect = tile_before.rect;
+            let after_tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("misa-rin undo after (tile)"),
+                size: wgpu::Extent3d {
+                    width: rect.width,
+                    height: rect.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::R32Uint,
+                usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            });
+
+            encoder.copy_texture_to_texture(
+                wgpu::ImageCopyTexture {
+                    texture: layer_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: rect.left,
+                        y: rect.top,
+                        z: 0,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::ImageCopyTexture {
+                    texture: &after_tex,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width: rect.width,
+                    height: rect.height,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            patches.push(UndoTilePatch {
+                rect,
+                before: tile_before.before,
+                after: after_tex,
+            });
+        }
+
+        queue.submit(Some(encoder.finish()));
+
+        self.undo_stack.push(UndoRecord {
+            layer_index: active.layer_index,
+            tiles: patches,
+        });
+        if self.undo_stack.len() > self.max_steps {
+            let overflow = self.undo_stack.len() - self.max_steps;
+            self.undo_stack.drain(0..overflow);
+        }
+        self.redo_stack.clear();
+    }
+
+    fn undo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layers: &[wgpu::Texture]) -> bool {
+        self.cancel_stroke();
+        let Some(record) = self.undo_stack.pop() else {
+            return false;
+        };
+        let Some(layer_texture) = layers.get(record.layer_index as usize) else {
+            return false;
+        };
+        if record.tiles.is_empty() {
+            return false;
+        }
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("misa-rin undo apply encoder"),
+        });
+        for tile in &record.tiles {
+            encoder.copy_texture_to_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &tile.before,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::ImageCopyTexture {
+                    texture: layer_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: tile.rect.left,
+                        y: tile.rect.top,
+                        z: 0,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width: tile.rect.width,
+                    height: tile.rect.height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        queue.submit(Some(encoder.finish()));
+        self.redo_stack.push(record);
+        true
+    }
+
+    fn redo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layers: &[wgpu::Texture]) -> bool {
+        self.cancel_stroke();
+        let Some(record) = self.redo_stack.pop() else {
+            return false;
+        };
+        let Some(layer_texture) = layers.get(record.layer_index as usize) else {
+            return false;
+        };
+        if record.tiles.is_empty() {
+            return false;
+        }
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("misa-rin redo apply encoder"),
+        });
+        for tile in &record.tiles {
+            encoder.copy_texture_to_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &tile.after,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::ImageCopyTexture {
+                    texture: layer_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: tile.rect.left,
+                        y: tile.rect.top,
+                        z: 0,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width: tile.rect.width,
+                    height: tile.rect.height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        queue.submit(Some(encoder.finish()));
+        self.undo_stack.push(record);
+        true
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct EnginePoint {
@@ -171,12 +555,13 @@ fn render_thread_main(
         present_renderer.create_bind_group(device.as_ref(), &layer_views, &present_config_buffer);
 
     let mut stroke = StrokeResampler::new();
+    let mut undo_manager = UndoManager::new(canvas_width, canvas_height);
 
     loop {
         match &present {
             None => match cmd_rx.recv() {
                 Ok(cmd) => {
-                    if handle_engine_command(
+                    let outcome = handle_engine_command(
                         device.as_ref(),
                         queue.as_ref(),
                         &frame_ready,
@@ -187,17 +572,20 @@ fn render_thread_main(
                         &mut layer_opacity,
                         &mut layer_visible,
                         &present_config_buffer,
+                        &mut undo_manager,
                         canvas_width,
                         canvas_height,
-                    ) {
+                    );
+                    if outcome.stop {
                         break;
                     }
                 }
                 Err(_) => break,
             },
             Some(_) => {
+                let mut needs_render = false;
                 while let Ok(cmd) = cmd_rx.try_recv() {
-                    if handle_engine_command(
+                    let outcome = handle_engine_command(
                         device.as_ref(),
                         queue.as_ref(),
                         &frame_ready,
@@ -208,11 +596,14 @@ fn render_thread_main(
                         &mut layer_opacity,
                         &mut layer_visible,
                         &present_config_buffer,
+                        &mut undo_manager,
                         canvas_width,
                         canvas_height,
-                    ) {
+                    );
+                    if outcome.stop {
                         return;
                     }
+                    needs_render |= outcome.needs_render;
                 }
 
                 let mut batches: Vec<EngineInputBatch> = Vec::new();
@@ -239,24 +630,79 @@ fn render_thread_main(
                     let active_layer = layers
                         .get(active_layer_index)
                         .unwrap_or_else(|| layers.first().expect("layers non-empty"));
-                    let drawn_any = stroke.consume_and_draw(
-                        &mut brush,
-                        active_layer,
-                        raw_points,
-                        canvas_width,
-                        canvas_height,
-                    );
+                    let mut segment: Vec<EnginePoint> = Vec::new();
+                    let mut drawn_any = false;
 
-                    if drawn_any {
-                        if let Some(target) = &present {
-                            present_renderer.render(
+                    for p in raw_points {
+                        const FLAG_DOWN: u32 = 1;
+                        const FLAG_UP: u32 = 4;
+                        let is_down = (p.flags & FLAG_DOWN) != 0;
+                        let is_up = (p.flags & FLAG_UP) != 0;
+
+                        if is_down {
+                            undo_manager.begin_stroke(active_layer_index as u32);
+                        } else {
+                            undo_manager.begin_stroke_if_needed(active_layer_index as u32);
+                        }
+
+                        segment.push(p);
+
+                        if is_up {
+                            let layer_idx = active_layer_index as u32;
+                            let mut before_draw = |dirty_rect| {
+                                undo_manager.capture_before_for_dirty_rect(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    active_layer,
+                                    layer_idx,
+                                    dirty_rect,
+                                );
+                            };
+                            drawn_any |= stroke.consume_and_draw(
+                                &mut brush,
+                                active_layer,
+                                std::mem::take(&mut segment),
+                                canvas_width,
+                                canvas_height,
+                                &mut before_draw,
+                            );
+                            undo_manager.end_stroke(device.as_ref(), queue.as_ref(), active_layer);
+                        }
+                    }
+
+                    if !segment.is_empty() {
+                        let layer_idx = active_layer_index as u32;
+                        let mut before_draw = |dirty_rect| {
+                            undo_manager.capture_before_for_dirty_rect(
                                 device.as_ref(),
                                 queue.as_ref(),
-                                &present_bind_group,
-                                &target.view,
-                                Arc::clone(&frame_ready),
+                                active_layer,
+                                layer_idx,
+                                dirty_rect,
                             );
-                        }
+                        };
+                        drawn_any |= stroke.consume_and_draw(
+                            &mut brush,
+                            active_layer,
+                            segment,
+                            canvas_width,
+                            canvas_height,
+                            &mut before_draw,
+                        );
+                    }
+
+                    needs_render |= drawn_any;
+                }
+
+                if needs_render {
+                    if let Some(target) = &present {
+                        present_renderer.render(
+                            device.as_ref(),
+                            queue.as_ref(),
+                            &present_bind_group,
+                            &target.view,
+                            Arc::clone(&frame_ready),
+                        );
                     }
                 }
             }
@@ -278,11 +724,17 @@ fn handle_engine_command(
     layer_opacity: &mut [f32; MVP_LAYER_COUNT],
     layer_visible: &mut [bool; MVP_LAYER_COUNT],
     present_config_buffer: &wgpu::Buffer,
+    undo: &mut UndoManager,
     canvas_width: u32,
     canvas_height: u32,
-) -> bool {
+) -> EngineCommandOutcome {
     match cmd {
-        EngineCommand::Stop => return true,
+        EngineCommand::Stop => {
+            return EngineCommandOutcome {
+                stop: true,
+                needs_render: false,
+            }
+        }
         EngineCommand::AttachPresentTexture {
             mtl_texture_ptr,
             width,
@@ -291,7 +743,10 @@ fn handle_engine_command(
         } => {
             if mtl_texture_ptr == 0 || width == 0 || height == 0 {
                 *present = None;
-                return false;
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
             }
             *present =
                 attach_present_texture(device, mtl_texture_ptr, width, height, bytes_per_row);
@@ -310,6 +765,10 @@ fn handle_engine_command(
                 .filter(|_| (layer_index as usize) < MVP_LAYER_COUNT)
             {
                 clear_r32uint_texture(queue, tex, canvas_width, canvas_height);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
             }
         }
         EngineCommand::SetActiveLayer { layer_index } => {
@@ -333,6 +792,10 @@ fn handle_engine_command(
                     layer_opacity,
                     layer_visible,
                 );
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
             }
         }
         EngineCommand::SetLayerVisible {
@@ -349,12 +812,38 @@ fn handle_engine_command(
                     layer_opacity,
                     layer_visible,
                 );
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
             }
         }
-        EngineCommand::Undo => {}
-        EngineCommand::Redo => {}
+        EngineCommand::Undo => {
+            let applied = undo.undo(device, queue, layers);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: applied && present.is_some(),
+            };
+        }
+        EngineCommand::Redo => {
+            let applied = undo.redo(device, queue, layers);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: applied && present.is_some(),
+            };
+        }
     }
-    false
+    EngineCommandOutcome {
+        stop: false,
+        needs_render: false,
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug)]
+struct EngineCommandOutcome {
+    stop: bool,
+    needs_render: bool,
 }
 
 #[cfg(target_os = "macos")]
@@ -630,13 +1119,14 @@ impl StrokeResampler {
         }
     }
 
-    fn consume_and_draw(
+    fn consume_and_draw<F: FnMut((i32, i32, i32, i32))>(
         &mut self,
         brush: &mut BrushRenderer,
         layer_texture: &wgpu::Texture,
         points: Vec<EnginePoint>,
         canvas_width: u32,
         canvas_height: u32,
+        before_draw: &mut F,
     ) -> bool {
         const FLAG_DOWN: u32 = 1;
         const FLAG_UP: u32 = 4;
@@ -725,6 +1215,8 @@ impl StrokeResampler {
         if emitted.len() == 1 {
             let (p0, pres0) = emitted[0];
             let r0 = brush_radius_from_pressure(pres0);
+            let dirty = compute_dirty_rect_i32(&[p0], &[r0], canvas_width, canvas_height);
+            before_draw(dirty);
             if brush
                 .draw_stroke(
                     layer_texture,
@@ -740,7 +1232,7 @@ impl StrokeResampler {
                 drew_any = true;
                 dirty_union = union_dirty_rect_i32(
                     dirty_union,
-                    compute_dirty_rect_i32(&[p0], &[r0], canvas_width, canvas_height),
+                    dirty,
                 );
             }
         } else {
@@ -751,6 +1243,8 @@ impl StrokeResampler {
                 let r1 = brush_radius_from_pressure(pres1);
                 let pts = [p0, p1];
                 let radii = [r0, r1];
+                let dirty = compute_dirty_rect_i32(&pts, &radii, canvas_width, canvas_height);
+                before_draw(dirty);
                 if brush
                     .draw_stroke(
                         layer_texture,
@@ -766,7 +1260,7 @@ impl StrokeResampler {
                     drew_any = true;
                     dirty_union = union_dirty_rect_i32(
                         dirty_union,
-                        compute_dirty_rect_i32(&pts, &radii, canvas_width, canvas_height),
+                        dirty,
                     );
                 }
             }
@@ -1263,3 +1757,29 @@ pub extern "C" fn engine_set_layer_visible(handle: u64, layer_index: u32, visibl
 #[cfg(not(target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn engine_set_layer_visible(_handle: u64, _layer_index: u32, _visible: bool) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_undo(handle: u64) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::Undo);
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_undo(_handle: u64) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_redo(handle: u64) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::Redo);
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_redo(_handle: u64) {}

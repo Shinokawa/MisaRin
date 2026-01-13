@@ -7,6 +7,14 @@ import 'package:flutter/scheduler.dart';
 
 import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
 
+class _UndoIntent extends Intent {
+  const _UndoIntent();
+}
+
+class _RedoIntent extends Intent {
+  const _RedoIntent();
+}
+
 const int _kPointStrideBytes = 32;
 const int _kPointFlagDown = 1;
 const int _kPointFlagMove = 2;
@@ -271,6 +279,22 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
         Offset(widget.canvasSize.width / 2.0, widget.canvasSize.height / 2.0);
   }
 
+  void _handleUndo() {
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.undo(handle: handle);
+  }
+
+  void _handleRedo() {
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.redo(handle: handle);
+  }
+
   @override
   Widget build(BuildContext context) {
     final int? textureId = _textureId;
@@ -305,33 +329,110 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           _viewSize = constraints.biggest;
-          return GestureDetector(
-            onScaleStart: _handleScaleStart,
-            onScaleUpdate: _handleScaleUpdate,
-            child: Listener(
-              onPointerDown: _handlePointerDown,
-              onPointerMove: _handlePointerMove,
-              onPointerUp: _handlePointerUp,
-              onPointerCancel: _handlePointerCancel,
-              child: ColoredBox(
-                color: const Color(0xFF000000),
-                child: Center(
-                  child: Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()
-                      ..translateByDouble(_pan.dx, _pan.dy, 0, 1)
-                      ..scaleByDouble(_scale, _scale, 1, 1),
-                    child: SizedBox(
-                      width: widget.canvasSize.width,
-                      height: widget.canvasSize.height,
-                      child: Texture(textureId: textureId),
+          return FocusableActionDetector(
+            autofocus: true,
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.keyZ, meta: true): _UndoIntent(),
+              SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): _RedoIntent(),
+              SingleActivator(LogicalKeyboardKey.keyY, meta: true): _RedoIntent(),
+            },
+            actions: <Type, Action<Intent>>{
+              _UndoIntent: CallbackAction<_UndoIntent>(
+                onInvoke: (_) {
+                  _handleUndo();
+                  return null;
+                },
+              ),
+              _RedoIntent: CallbackAction<_RedoIntent>(
+                onInvoke: (_) {
+                  _handleRedo();
+                  return null;
+                },
+              ),
+            },
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    onScaleStart: _handleScaleStart,
+                    onScaleUpdate: _handleScaleUpdate,
+                    child: Listener(
+                      onPointerDown: _handlePointerDown,
+                      onPointerMove: _handlePointerMove,
+                      onPointerUp: _handlePointerUp,
+                      onPointerCancel: _handlePointerCancel,
+                      child: ColoredBox(
+                        color: const Color(0xFF000000),
+                        child: Center(
+                          child: Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.identity()
+                              ..translateByDouble(_pan.dx, _pan.dy, 0, 1)
+                              ..scaleByDouble(_scale, _scale, 1, 1),
+                            child: SizedBox(
+                              width: widget.canvasSize.width,
+                              height: widget.canvasSize.height,
+                              child: Texture(textureId: textureId),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _OverlayButton(
+                        label: '撤销',
+                        onPressed: _handleUndo,
+                      ),
+                      const SizedBox(width: 8),
+                      _OverlayButton(
+                        label: '恢复',
+                        onPressed: _handleRedo,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _OverlayButton extends StatelessWidget {
+  const _OverlayButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xAA202020),
+          border: Border.all(color: const Color(0xFF404040)),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFFFFFFF),
+              fontSize: 12,
+            ),
+          ),
+        ),
       ),
     );
   }

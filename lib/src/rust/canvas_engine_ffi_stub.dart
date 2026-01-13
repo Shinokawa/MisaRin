@@ -28,4 +28,8 @@ class CanvasEngineFfi {
     required int layerIndex,
     required bool visible,
   }) {}
+
+  void undo({required int handle}) {}
+
+  void redo({required int handle}) {}
 }
