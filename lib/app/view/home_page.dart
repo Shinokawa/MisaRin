@@ -1,8 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
 import '../dialogs/project_manager_dialog.dart';
 import '../dialogs/recent_projects_dialog.dart';
 import '../l10n/l10n.dart';
+import 'rust_canvas_texture_demo_page.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../menu/menu_action_dispatcher.dart';
@@ -69,6 +72,12 @@ class _MisarinHomePageState extends State<MisarinHomePage> {
 
   Future<void> _handleOpenAbout(BuildContext context) async {
     await AppMenuActions.showAbout(context);
+  }
+
+  Future<void> _handleOpenRustTextureDemo(BuildContext context) async {
+    await Navigator.of(context).push(
+      FluentPageRoute(builder: (_) => const RustCanvasTextureDemoPage()),
+    );
   }
 
   Future<void> _handleManageProjects(BuildContext context) async {
@@ -211,6 +220,14 @@ class _MisarinHomePageState extends State<MisarinHomePage> {
                   description: l10n.homeSettingsDesc,
                   onPressed: () => _handleOpenSettings(context),
                 ),
+                if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS)
+                  _buildSidebarAction(
+                    context,
+                    icon: FluentIcons.developer_tools,
+                    label: 'Rust Texture Demo',
+                    description: 'CVPixelBuffer + IOSurface 外部纹理通路',
+                    onPressed: () => _handleOpenRustTextureDemo(context),
+                  ),
                 _buildSidebarAction(
                   context,
                   icon: FluentIcons.info,

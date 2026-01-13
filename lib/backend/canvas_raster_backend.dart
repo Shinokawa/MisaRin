@@ -236,7 +236,7 @@ class CanvasRasterBackend {
           final BitmapLayerState layer = effectiveLayers[i];
           final int layerRevision = revisionSnapshot[i];
           final int? cachedRevision = _cachedLayerRevisions[layer.id];
-          cachedRevisionsAtDecision?.[i] = cachedRevision;
+          cachedRevisionsAtDecision?[i] = cachedRevision;
           final bool pixelsUnchanged =
               cachedRevision != null && cachedRevision == layerRevision;
           final Uint32List pixels = (!forceFullPixels &&
@@ -244,7 +244,7 @@ class CanvasRasterBackend {
                   pixelsUnchanged)
               ? _emptyPixels
               : layer.surface.pixels;
-          uploadFlags?.[i] = pixels.isNotEmpty;
+          uploadFlags?[i] = pixels.isNotEmpty;
 
           if (kDebugMode && _kDebugGpuComposite) {
             debugPrint(
@@ -322,8 +322,8 @@ class CanvasRasterBackend {
           final int before = revisionSnapshot[i];
           final int now = layer.revision;
           if (now != before) {
-            final bool wasUploaded = uploadFlags?.[i] ?? false;
-            final int? cached = cachedRevisionsAtDecision?.[i];
+            final bool wasUploaded = uploadFlags?[i] ?? false;
+            final int? cached = cachedRevisionsAtDecision?[i];
             debugPrint(
               '[gpu-composite] layer ${layer.id} revision changed during composite: '
               '$before -> $now (will be handled next pass)',
