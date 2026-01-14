@@ -3,9 +3,7 @@ import 'dart:typed_data';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
-import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 
 import '../dialogs/about_dialog.dart';
@@ -370,8 +368,7 @@ class AppMenuActions {
     if (kIsWeb) {
       loadingOverlay = _showWebCanvasLoadingOverlay(context);
     }
-    final bool useRustCanvas =
-        !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+    final bool useRustCanvas = !kIsWeb;
     final CanvasPageState? canvasState = context.findAncestorStateOfType<CanvasPageState>();
     try {
       if (canvasState != null) {
