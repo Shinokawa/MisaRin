@@ -84,7 +84,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
   private let textureRegistry: FlutterTextureRegistry
   private var texture: RustCanvasTexture
-  private var textureId: Int64
+  private var textureId: Int64?
   private var textureWidth: Int
   private var textureHeight: Int
 
@@ -116,7 +116,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
     self.textureWidth = initialWidth
     self.textureHeight = initialHeight
     self.texture = RustCanvasTexture(width: initialWidth, height: initialHeight)
-    self.textureId = textureRegistry.register(texture)
+    self.textureId = nil
     super.init()
   }
 
@@ -132,7 +132,9 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
     if handleToDispose != 0 {
       engine_dispose(handleToDispose)
     }
-    textureRegistry.unregisterTexture(textureId)
+    if let id = textureId {
+      textureRegistry.unregisterTexture(id)
+    }
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -160,7 +162,10 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
     engineStateLock.lock()
     let existingHandle = engineHandle
     if existingHandle != 0 && textureWidth == width && textureHeight == height {
-      let currentTextureId = textureId
+      if textureId == nil {
+        textureId = textureRegistry.register(texture)
+      }
+      let currentTextureId = textureId!
       let currentWidth = textureWidth
       let currentHeight = textureHeight
       engineStateLock.unlock()
@@ -297,21 +302,25 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       DispatchQueue.main.async {
         self.engineStateLock.lock()
         if needsResize {
-          if oldTextureId != 0 {
+          if let oldTextureId {
             self.textureRegistry.unregisterTexture(oldTextureId)
           }
           self.texture = targetTexture
-          self.textureId = self.textureRegistry.register(targetTexture)
           self.textureWidth = resolvedWidth
           self.textureHeight = resolvedHeight
         }
+        if self.textureId == nil || needsResize {
+          self.textureId = self.textureRegistry.register(self.texture)
+        }
+        let resolvedTextureId = self.textureId ?? self.textureRegistry.register(self.texture)
+        self.textureId = resolvedTextureId
         self.engineHandle = handle
         self.engineInitInProgress = false
         self.engineStateLock.unlock()
         self.textureCache = resolvedCache
         self.presentTexture = resolvedCvTexture
         self.completePendingTextureInfoRequests(response: [
-          "textureId": self.textureId,
+          "textureId": resolvedTextureId,
           "engineHandle": NSNumber(value: handle),
           "width": resolvedWidth,
           "height": resolvedHeight,
@@ -350,12 +359,12 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
   fileprivate func onDisplayLinkTick() {
     let handle: UInt64
-    let currentTextureId: Int64
+    let currentTextureId: Int64?
     engineStateLock.lock()
     handle = engineHandle
     currentTextureId = textureId
     engineStateLock.unlock()
-    if handle != 0 && currentTextureId != 0 && engine_poll_frame_ready(handle) {
+    if handle != 0, let currentTextureId, engine_poll_frame_ready(handle) {
       textureRegistry.textureFrameAvailable(currentTextureId)
     }
   }

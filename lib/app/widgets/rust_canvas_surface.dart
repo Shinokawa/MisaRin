@@ -8,6 +8,11 @@ import 'package:flutter/scheduler.dart';
 
 import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
 
+const bool _kDebugRustCanvasInput = bool.fromEnvironment(
+  'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
+  defaultValue: false,
+);
+
 const int _kPointStrideBytes = 32;
 const int _kPointFlagDown = 1;
 const int _kPointFlagMove = 2;
@@ -224,6 +229,11 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     if (handle == null) {
       return;
     }
+    if (_kDebugRustCanvasInput) {
+      debugPrint(
+        '[rust_canvas] down id=${event.pointer} pos=${event.localPosition} pressure=${event.pressure}',
+      );
+    }
     _applyBrushSettings(handle);
     _activeDrawingPointer = event.pointer;
     _enqueuePoint(event, _kPointFlagDown);
@@ -253,6 +263,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     if (_activeDrawingPointer != event.pointer) {
       return;
     }
+    if (_kDebugRustCanvasInput) {
+      debugPrint('[rust_canvas] up id=${event.pointer} pos=${event.localPosition}');
+    }
     _enqueuePoint(event, _kPointFlagUp);
     _activeDrawingPointer = null;
   }
@@ -260,6 +273,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   void _handlePointerCancel(PointerCancelEvent event) {
     if (_activeDrawingPointer != event.pointer) {
       return;
+    }
+    if (_kDebugRustCanvasInput) {
+      debugPrint('[rust_canvas] cancel id=${event.pointer} pos=${event.localPosition}');
     }
     _enqueuePoint(event, _kPointFlagUp);
     _activeDrawingPointer = null;
@@ -321,6 +337,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     final int count = _points.length;
     if (count == 0) {
       return;
+    }
+    if (_kDebugRustCanvasInput) {
+      final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+      debugPrint('[rust_canvas] flush points=$count queued_before=$queued');
     }
     CanvasEngineFfi.instance.pushPointsPacked(
       handle: handle,

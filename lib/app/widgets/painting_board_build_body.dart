@@ -569,36 +569,39 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   ),
                                                 if (showActiveStroke)
                                                   Positioned.fill(
-                                                    child: CustomPaint(
-                                                      painter: _ActiveStrokeOverlayPainter(
-                                                        points: _controller
-                                                            .activeStrokePoints,
-                                                        radii: _controller
-                                                            .activeStrokeRadii,
-                                                        color: _controller
-                                                            .activeStrokeColor,
-                                                        shape: _controller
-                                                            .activeStrokeShape,
-                                                        randomRotationEnabled:
-                                                            _controller
-                                                                .activeStrokeRandomRotationEnabled,
-                                                        rotationSeed: _controller
-                                                            .activeStrokeRotationSeed,
-                                                        antialiasLevel: _controller
-                                                            .activeStrokeAntialiasLevel,
-                                                        hollowStrokeEnabled:
-                                                            _controller
-                                                                .activeStrokeHollowEnabled,
-                                                        hollowStrokeRatio:
-                                                            _controller
-                                                                .activeStrokeHollowRatio,
-                                                        committingStrokes:
-                                                            _controller
-                                                                .committingStrokes,
-                                                        activeStrokeIsEraser:
-                                                            activeStrokeIsEraser,
-                                                        eraserPreviewColor:
-                                                            _kVectorEraserPreviewColor,
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter: _ActiveStrokeOverlayPainter(
+                                                          points: _controller
+                                                              .activeStrokePoints,
+                                                          radii: _controller
+                                                              .activeStrokeRadii,
+                                                          color: _controller
+                                                              .activeStrokeColor,
+                                                          shape: _controller
+                                                              .activeStrokeShape,
+                                                          randomRotationEnabled:
+                                                              _controller
+                                                                  .activeStrokeRandomRotationEnabled,
+                                                          rotationSeed: _controller
+                                                              .activeStrokeRotationSeed,
+                                                          antialiasLevel: _controller
+                                                              .activeStrokeAntialiasLevel,
+                                                          hollowStrokeEnabled:
+                                                              _controller
+                                                                  .activeStrokeHollowEnabled,
+                                                          hollowStrokeRatio:
+                                                              _controller
+                                                                  .activeStrokeHollowRatio,
+                                                          committingStrokes:
+                                                              _controller
+                                                                  .committingStrokes,
+                                                          activeStrokeIsEraser:
+                                                              activeStrokeIsEraser,
+                                                          eraserPreviewColor:
+                                                              _kVectorEraserPreviewColor,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -644,30 +647,36 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 if (_vectorDrawingEnabled &&
                                                     _curvePreviewPath != null)
                                                   Positioned.fill(
-                                                    child: CustomPaint(
-                                                      painter: _PreviewPathPainter(
-                                                        path:
-                                                            _curvePreviewPath!,
-                                                        color: _primaryColor,
-                                                        strokeWidth:
-                                                            _penStrokeWidth,
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter: _PreviewPathPainter(
+                                                          path:
+                                                              _curvePreviewPath!,
+                                                          color: _primaryColor,
+                                                          strokeWidth:
+                                                              _penStrokeWidth,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
                                                 if (_vectorDrawingEnabled &&
                                                     shapePreviewPath != null)
                                                   Positioned.fill(
-                                                    child: CustomPaint(
-                                                      painter: _PreviewPathPainter(
-                                                        path: shapePreviewPath!,
-                                                        color: _primaryColor,
-                                                        strokeWidth:
-                                                            _penStrokeWidth,
-                                                        fill:
-                                                            _shapeFillEnabled &&
-                                                            shapeToolVariant !=
-                                                                ShapeToolVariant
-                                                                    .line,
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter: _PreviewPathPainter(
+                                                          path: shapePreviewPath!,
+                                                          color: _primaryColor,
+                                                          strokeWidth:
+                                                              _penStrokeWidth,
+                                                          fill:
+                                                              _shapeFillEnabled &&
+                                                              shapeToolVariant !=
+                                                                  ShapeToolVariant
+                                                                      .line,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -691,26 +700,29 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   ),
                                                 if (hasSelectionOverlay)
                                                   Positioned.fill(
-                                                    child: CustomPaint(
-                                                      painter: _SelectionOverlayPainter(
-                                                        selectionPath:
-                                                            selectionPath,
-                                                        selectionPreviewPath:
-                                                            selectionPreviewPath,
-                                                        magicPreviewPath:
-                                                            magicWandPreviewPath,
-                                                        dashPhase:
-                                                            selectionDashPhase,
-                                                        viewportScale:
-                                                            _viewport.scale,
-                                                        showPreviewStroke:
-                                                            _effectiveActiveTool !=
-                                                            CanvasTool
-                                                                .selectionPen,
-                                                        fillSelectionPath:
-                                                            _activeTool ==
-                                                            CanvasTool
-                                                                .selectionPen,
+                                                    child: IgnorePointer(
+                                                      ignoring: true,
+                                                      child: CustomPaint(
+                                                        painter: _SelectionOverlayPainter(
+                                                          selectionPath:
+                                                              selectionPath,
+                                                          selectionPreviewPath:
+                                                              selectionPreviewPath,
+                                                          magicPreviewPath:
+                                                              magicWandPreviewPath,
+                                                          dashPhase:
+                                                              selectionDashPhase,
+                                                          viewportScale:
+                                                              _viewport.scale,
+                                                          showPreviewStroke:
+                                                              _effectiveActiveTool !=
+                                                              CanvasTool
+                                                                  .selectionPen,
+                                                          fillSelectionPath:
+                                                              _activeTool ==
+                                                              CanvasTool
+                                                                  .selectionPen,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),

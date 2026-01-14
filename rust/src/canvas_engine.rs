@@ -15,6 +15,8 @@ use wgpu_hal::{api::Metal, CopyExtent};
 
 #[cfg(target_os = "macos")]
 use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Color, Point2D};
+#[cfg(target_os = "macos")]
+use crate::gpu::debug::{self, LogLevel};
 
 #[cfg(target_os = "macos")]
 const MVP_LAYER_COUNT: usize = 4;
@@ -572,7 +574,10 @@ fn render_thread_main(
 
     let mut brush = match BrushRenderer::new(device.clone(), queue.clone()) {
         Ok(renderer) => renderer,
-        Err(_) => return,
+        Err(err) => {
+            debug::log(LogLevel::Warn, format_args!("BrushRenderer init failed: {err}"));
+            return;
+        }
     };
     brush.set_canvas_size(canvas_width, canvas_height);
     brush.set_softness(0.0);
@@ -797,6 +802,12 @@ fn handle_engine_command(
             bytes_per_row,
         } => {
             if mtl_texture_ptr == 0 || width == 0 || height == 0 {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!(
+                        "AttachPresentTexture ignored: ptr=0x{mtl_texture_ptr:x} size={width}x{height}"
+                    ),
+                );
                 *present = None;
                 return EngineCommandOutcome {
                     stop: false,
@@ -806,6 +817,12 @@ fn handle_engine_command(
             *present =
                 attach_present_texture(device, mtl_texture_ptr, width, height, bytes_per_row);
             if let Some(target) = present {
+                debug::log(
+                    LogLevel::Info,
+                    format_args!(
+                        "Present texture attached: ptr=0x{mtl_texture_ptr:x} size={width}x{height} bytes_per_row={bytes_per_row}"
+                    ),
+                );
                 // Clear the present target once so Flutter has a valid initial frame.
                 submit_test_clear(device, queue, &target.view, 0, Arc::clone(frame_ready));
                 // Also clear all layers to transparent so the first composite is deterministic.
@@ -1287,25 +1304,27 @@ impl StrokeResampler {
             let r0 = brush_settings.radius_from_pressure(pres0);
             let dirty = compute_dirty_rect_i32(&[p0], &[r0], canvas_width, canvas_height);
             before_draw(dirty);
-            if brush
-                .draw_stroke(
-                    layer_texture,
-                    &[p0],
-                    &[r0],
-                    Color {
-                        argb: brush_settings.color_argb,
-                    },
-                    brush_settings.shape,
-                    brush_settings.erase,
-                    brush_settings.antialias_level,
-                )
-                .is_ok()
-            {
-                drew_any = true;
-                dirty_union = union_dirty_rect_i32(
-                    dirty_union,
-                    dirty,
-                );
+            match brush.draw_stroke(
+                layer_texture,
+                &[p0],
+                &[r0],
+                Color {
+                    argb: brush_settings.color_argb,
+                },
+                brush_settings.shape,
+                brush_settings.erase,
+                brush_settings.antialias_level,
+            ) {
+                Ok(()) => {
+                    drew_any = true;
+                    dirty_union = union_dirty_rect_i32(dirty_union, dirty);
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("Brush draw_stroke failed: {err}"),
+                    );
+                }
             }
         } else {
             for i in 0..emitted.len().saturating_sub(1) {
@@ -1317,25 +1336,27 @@ impl StrokeResampler {
                 let radii = [r0, r1];
                 let dirty = compute_dirty_rect_i32(&pts, &radii, canvas_width, canvas_height);
                 before_draw(dirty);
-                if brush
-                    .draw_stroke(
-                        layer_texture,
-                        &pts,
-                        &radii,
-                        Color {
-                            argb: brush_settings.color_argb,
-                        },
-                        brush_settings.shape,
-                        brush_settings.erase,
-                        brush_settings.antialias_level,
-                    )
-                    .is_ok()
-                {
-                    drew_any = true;
-                    dirty_union = union_dirty_rect_i32(
-                        dirty_union,
-                        dirty,
-                    );
+                match brush.draw_stroke(
+                    layer_texture,
+                    &pts,
+                    &radii,
+                    Color {
+                        argb: brush_settings.color_argb,
+                    },
+                    brush_settings.shape,
+                    brush_settings.erase,
+                    brush_settings.antialias_level,
+                ) {
+                    Ok(()) => {
+                        drew_any = true;
+                        dirty_union = union_dirty_rect_i32(dirty_union, dirty);
+                    }
+                    Err(err) => {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("Brush draw_stroke failed: {err}"),
+                        );
+                    }
                 }
             }
         }
@@ -1578,10 +1599,18 @@ fn create_engine(width: u32, height: u32) -> Result<u64, String> {
         }))
         .ok_or_else(|| "wgpu: no compatible Metal adapter found".to_string())?;
 
+    let required_features = wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+    if !adapter.features().contains(required_features) {
+        return Err(
+            "wgpu: adapter does not support TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES (required for read-write storage textures)"
+                .to_string(),
+        );
+    }
+
     let (device, queue) = pollster::block_on(adapter.request_device(
         &wgpu::DeviceDescriptor {
             label: Some("misa-rin CanvasEngine device"),
-            required_features: wgpu::Features::empty(),
+            required_features,
             required_limits: wgpu::Limits::default(),
         },
         None,
@@ -1677,7 +1706,13 @@ fn remove_engine(handle: u64) -> Option<EngineEntry> {
 #[cfg(target_os = "macos")]
 #[no_mangle]
 pub extern "C" fn engine_create(width: u32, height: u32) -> u64 {
-    create_engine(width, height).unwrap_or(0)
+    match create_engine(width, height) {
+        Ok(handle) => handle,
+        Err(err) => {
+            debug::log(LogLevel::Warn, format_args!("engine_create failed: {err}"));
+            0
+        }
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -1771,9 +1806,35 @@ pub extern "C" fn engine_push_points(handle: u64, points: *const EnginePoint, le
     let slice = unsafe { std::slice::from_raw_parts(points, len) };
     let mut owned: Vec<EnginePoint> = Vec::with_capacity(len);
     owned.extend_from_slice(slice);
-    entry.input_queue_len.fetch_add(len as u64, Ordering::Relaxed);
+    let queue_len = entry.input_queue_len.fetch_add(len as u64, Ordering::Relaxed) + len as u64;
+
+    if debug::level() >= LogLevel::Verbose {
+        const FLAG_DOWN: u32 = 1;
+        const FLAG_UP: u32 = 4;
+        let mut down_count: usize = 0;
+        let mut up_count: usize = 0;
+        for p in slice {
+            if (p.flags & FLAG_DOWN) != 0 {
+                down_count += 1;
+            }
+            if (p.flags & FLAG_UP) != 0 {
+                up_count += 1;
+            }
+        }
+        debug::log(
+            LogLevel::Verbose,
+            format_args!(
+                "engine_push_points handle={handle} len={len} down={down_count} up={up_count} queue_len={queue_len}"
+            ),
+        );
+    }
+
     if entry.input_tx.send(EngineInputBatch { points: owned }).is_err() {
         entry.input_queue_len.fetch_sub(len as u64, Ordering::Relaxed);
+        debug::log(
+            LogLevel::Warn,
+            format_args!("engine_push_points dropped: input thread disconnected"),
+        );
     }
 }
 
