@@ -65,6 +65,25 @@ typedef _EngineUndoDart = void Function(int handle);
 typedef _EngineRedoNative = ffi.Void Function(ffi.Uint64 handle);
 typedef _EngineRedoDart = void Function(int handle);
 
+typedef _EngineSetBrushNative =
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 colorArgb,
+      ffi.Float baseRadius,
+      ffi.Uint8 usePressure,
+      ffi.Uint8 erase,
+      ffi.Uint32 antialiasLevel,
+    );
+typedef _EngineSetBrushDart =
+    void Function(
+      int handle,
+      int colorArgb,
+      double baseRadius,
+      int usePressure,
+      int erase,
+      int antialiasLevel,
+    );
+
 class CanvasEngineFfi {
   CanvasEngineFfi._() {
     try {
@@ -119,6 +138,15 @@ class CanvasEngineFfi {
       } catch (_) {
         _redo = null;
       }
+
+      // Optional brush settings (color/size/etc).
+      try {
+        _setBrush = _lib.lookupFunction<_EngineSetBrushNative, _EngineSetBrushDart>(
+          'engine_set_brush',
+        );
+      } catch (_) {
+        _setBrush = null;
+      }
       isSupported = true;
     } catch (_) {
       isSupported = false;
@@ -136,6 +164,7 @@ class CanvasEngineFfi {
   late final _EngineClearLayerDart? _clearLayer;
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
+  late final _EngineSetBrushDart? _setBrush;
 
   ffi.Pointer<ffi.Uint8>? _staging;
   int _stagingCapacityBytes = 0;
@@ -221,6 +250,35 @@ class CanvasEngineFfi {
       return;
     }
     fn(handle);
+  }
+
+  void setBrush({
+    required int handle,
+    required int colorArgb,
+    required double baseRadius,
+    bool usePressure = true,
+    bool erase = false,
+    int antialiasLevel = 1,
+  }) {
+    final fn = _setBrush;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    double radius = baseRadius;
+    if (!radius.isFinite) {
+      radius = 0.0;
+    }
+    if (radius < 0.0) {
+      radius = 0.0;
+    }
+    fn(
+      handle,
+      colorArgb,
+      radius,
+      usePressure ? 1 : 0,
+      erase ? 1 : 0,
+      antialiasLevel.clamp(0, 3),
+    );
   }
 
   ffi.Pointer<ffi.Uint8> _ensureStaging(int requiredBytes) {

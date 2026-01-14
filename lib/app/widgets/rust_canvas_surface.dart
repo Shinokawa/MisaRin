@@ -1,0 +1,377 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter/scheduler.dart';
+
+import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
+
+const int _kPointStrideBytes = 32;
+const int _kPointFlagDown = 1;
+const int _kPointFlagMove = 2;
+const int _kPointFlagUp = 4;
+const int _kMvpLayerCount = 4;
+
+final class _PackedPointBuffer {
+  _PackedPointBuffer({int initialCapacityPoints = 256})
+    : _bytes = Uint8List(initialCapacityPoints * _kPointStrideBytes) {
+    _data = ByteData.view(_bytes.buffer);
+  }
+
+  Uint8List _bytes;
+  late ByteData _data;
+  int _len = 0;
+
+  int get length => _len;
+
+  Uint8List get bytes => _bytes;
+
+  void clear() => _len = 0;
+
+  void add({
+    required double x,
+    required double y,
+    required double pressure,
+    required int timestampUs,
+    required int flags,
+    required int pointerId,
+  }) {
+    _ensureCapacity(_len + 1);
+    final int base = _len * _kPointStrideBytes;
+    _data.setFloat32(base + 0, x, Endian.little);
+    _data.setFloat32(base + 4, y, Endian.little);
+    _data.setFloat32(base + 8, pressure, Endian.little);
+    _data.setFloat32(base + 12, 0.0, Endian.little); // pad
+    _data.setUint64(base + 16, timestampUs, Endian.little);
+    _data.setUint32(base + 24, flags, Endian.little);
+    _data.setUint32(base + 28, pointerId, Endian.little);
+    _len++;
+  }
+
+  void _ensureCapacity(int neededPoints) {
+    final int neededBytes = neededPoints * _kPointStrideBytes;
+    if (_bytes.lengthInBytes >= neededBytes) {
+      return;
+    }
+    int nextBytes = _bytes.lengthInBytes;
+    while (nextBytes < neededBytes) {
+      nextBytes = nextBytes * 2;
+    }
+    final Uint8List next = Uint8List(nextBytes);
+    next.setRange(0, _len * _kPointStrideBytes, _bytes, 0);
+    _bytes = next;
+    _data = ByteData.view(_bytes.buffer);
+  }
+}
+
+class RustCanvasSurface extends StatefulWidget {
+  const RustCanvasSurface({
+    super.key,
+    required this.canvasSize,
+    required this.enableDrawing,
+    required this.brushColorArgb,
+    required this.brushRadius,
+    required this.erase,
+    this.antialiasLevel = 1,
+    this.onStrokeBegin,
+  });
+
+  final Size canvasSize;
+  final bool enableDrawing;
+  final int brushColorArgb;
+  final double brushRadius;
+  final bool erase;
+  final int antialiasLevel;
+  final VoidCallback? onStrokeBegin;
+
+  @override
+  State<RustCanvasSurface> createState() => _RustCanvasSurfaceState();
+}
+
+class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
+  static const MethodChannel _channel = MethodChannel('misarin/rust_canvas_texture');
+
+  int? _textureId;
+  int? _engineHandle;
+  Size? _engineSize;
+  Object? _error;
+
+  final _PackedPointBuffer _points = _PackedPointBuffer();
+  bool _flushScheduled = false;
+  int? _activeDrawingPointer;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadTextureInfo());
+  }
+
+  @override
+  void didUpdateWidget(covariant RustCanvasSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.canvasSize != widget.canvasSize) {
+      unawaited(_loadTextureInfo());
+    }
+  }
+
+  Future<void> _loadTextureInfo() async {
+    try {
+      final int width = widget.canvasSize.width.round().clamp(1, 16384);
+      final int height = widget.canvasSize.height.round().clamp(1, 16384);
+      final Map<dynamic, dynamic>? info =
+          await _channel.invokeMethod<Map<dynamic, dynamic>>(
+            'getTextureInfo',
+            <String, Object?>{
+              'width': width,
+              'height': height,
+            },
+          );
+      final int? textureId = (info?['textureId'] as num?)?.toInt();
+      final int? engineHandle = (info?['engineHandle'] as num?)?.toInt();
+      final int? engineWidth = (info?['width'] as num?)?.toInt();
+      final int? engineHeight = (info?['height'] as num?)?.toInt();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _textureId = textureId;
+        _engineHandle = engineHandle;
+        _engineSize =
+            (engineWidth != null && engineHeight != null)
+                ? Size(engineWidth.toDouble(), engineHeight.toDouble())
+                : null;
+        _error =
+            (textureId == null || engineHandle == null)
+                ? StateError('textureId/engineHandle == null: $info')
+                : null;
+      });
+
+      final int? handle = _engineHandle;
+      if (handle != null) {
+        _applyLayerDefaults(handle);
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _textureId = null;
+        _engineHandle = null;
+        _engineSize = null;
+        _error = error;
+      });
+    }
+  }
+
+  void _applyLayerDefaults(int handle) {
+    if (!CanvasEngineFfi.instance.isSupported) {
+      return;
+    }
+    CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: 0);
+    for (int i = 0; i < _kMvpLayerCount; i++) {
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: handle,
+        layerIndex: i,
+        visible: i == 0,
+      );
+      CanvasEngineFfi.instance.setLayerOpacity(
+        handle: handle,
+        layerIndex: i,
+        opacity: 1.0,
+      );
+    }
+  }
+
+  bool _canSendPoints() {
+    return CanvasEngineFfi.instance.isSupported && _engineHandle != null;
+  }
+
+  void _applyBrushSettings(int handle) {
+    if (!CanvasEngineFfi.instance.isSupported) {
+      return;
+    }
+    CanvasEngineFfi.instance.setBrush(
+      handle: handle,
+      colorArgb: widget.brushColorArgb,
+      baseRadius: widget.brushRadius,
+      usePressure: true,
+      erase: widget.erase,
+      antialiasLevel: widget.antialiasLevel,
+    );
+  }
+
+  bool _isDrawingPointer(PointerEvent event) {
+    if (event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus) {
+      return true;
+    }
+    if (event.kind == PointerDeviceKind.mouse) {
+      return (event.buttons & kPrimaryMouseButton) != 0;
+    }
+    return false;
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!widget.enableDrawing) {
+      return;
+    }
+    if (!_canSendPoints() || !_isDrawingPointer(event)) {
+      return;
+    }
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    _applyBrushSettings(handle);
+    _activeDrawingPointer = event.pointer;
+    _enqueuePoint(event, _kPointFlagDown);
+    widget.onStrokeBegin?.call();
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (_activeDrawingPointer != event.pointer) {
+      return;
+    }
+    final dynamic dyn = event;
+    try {
+      final List<dynamic>? coalesced = dyn.coalescedEvents as List<dynamic>?;
+      if (coalesced != null && coalesced.isNotEmpty) {
+        for (final dynamic e in coalesced) {
+          if (e is PointerEvent) {
+            _enqueuePoint(e, _kPointFlagMove);
+          }
+        }
+        return;
+      }
+    } catch (_) {}
+    _enqueuePoint(event, _kPointFlagMove);
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (_activeDrawingPointer != event.pointer) {
+      return;
+    }
+    _enqueuePoint(event, _kPointFlagUp);
+    _activeDrawingPointer = null;
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (_activeDrawingPointer != event.pointer) {
+      return;
+    }
+    _enqueuePoint(event, _kPointFlagUp);
+    _activeDrawingPointer = null;
+  }
+
+  Offset _toEngineSpace(Offset localPosition) {
+    final Size engineSize = _engineSize ?? widget.canvasSize;
+    if (engineSize == widget.canvasSize) {
+      return localPosition;
+    }
+    final double sx =
+        widget.canvasSize.width <= 0 ? 1.0 : engineSize.width / widget.canvasSize.width;
+    final double sy =
+        widget.canvasSize.height <= 0 ? 1.0 : engineSize.height / widget.canvasSize.height;
+    return Offset(localPosition.dx * sx, localPosition.dy * sy);
+  }
+
+  void _enqueuePoint(PointerEvent event, int flags) {
+    final int? handle = _engineHandle;
+    if (handle == null) {
+      return;
+    }
+    final Offset canvasPos = _toEngineSpace(event.localPosition);
+    final double pressure =
+        event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 1.0;
+    final int timestampUs = event.timeStamp.inMicroseconds;
+    _points.add(
+      x: canvasPos.dx,
+      y: canvasPos.dy,
+      pressure: pressure,
+      timestampUs: timestampUs,
+      flags: flags,
+      pointerId: event.pointer,
+    );
+    _scheduleFlush();
+  }
+
+  void _scheduleFlush() {
+    if (_flushScheduled) {
+      return;
+    }
+    _flushScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _flushScheduled = false;
+      if (!mounted) {
+        _points.clear();
+        return;
+      }
+      final int? handle = _engineHandle;
+      if (handle == null) {
+        _points.clear();
+        return;
+      }
+      _flushToRust(handle);
+    });
+  }
+
+  void _flushToRust(int handle) {
+    final int count = _points.length;
+    if (count == 0) {
+      return;
+    }
+    CanvasEngineFfi.instance.pushPointsPacked(
+      handle: handle,
+      bytes: _points.bytes,
+      pointCount: count,
+    );
+    _points.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Size canvasSize = widget.canvasSize;
+    final Object? error = _error;
+    final int? textureId = _textureId;
+
+    if (error != null) {
+      return SizedBox(
+        width: canvasSize.width,
+        height: canvasSize.height,
+        child: ColoredBox(
+          color: const Color(0xFF000000),
+          child: Center(
+            child: Text(
+              'Rust canvas init failed: $error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 12),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (textureId == null) {
+      return SizedBox(
+        width: canvasSize.width,
+        height: canvasSize.height,
+        child: const ColoredBox(color: Color(0xFFFFFFFF)),
+      );
+    }
+
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: _handlePointerDown,
+      onPointerMove: _handlePointerMove,
+      onPointerUp: _handlePointerUp,
+      onPointerCancel: _handlePointerCancel,
+      child: SizedBox(
+        width: canvasSize.width,
+        height: canvasSize.height,
+        child: Texture(textureId: textureId),
+      ),
+    );
+  }
+}

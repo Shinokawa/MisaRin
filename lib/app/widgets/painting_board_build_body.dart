@@ -497,7 +497,28 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               clipBehavior: Clip.none,
                                               children: [
                                                 const _CheckboardBackground(),
-                                                if (_filterSession != null &&
+                                                if (widget.useRustCanvas)
+                                                  RustCanvasSurface(
+                                                    canvasSize: _canvasSize,
+                                                    enableDrawing:
+                                                        canPreviewStroke &&
+                                                        !_layerTransformModeActive &&
+                                                        !_isLayerFreeTransformActive &&
+                                                        !_controller
+                                                            .isActiveLayerTransforming,
+                                                    brushColorArgb:
+                                                        _isBrushEraserEnabled
+                                                            ? 0xFFFFFFFF
+                                                            : _primaryColor
+                                                                .value,
+                                                    brushRadius:
+                                                        _penStrokeWidth / 2,
+                                                    erase: _isBrushEraserEnabled,
+                                                    antialiasLevel:
+                                                        _penAntialiasLevel,
+                                                    onStrokeBegin: _markDirty,
+                                                  )
+                                                else if (_filterSession != null &&
                                                     _previewActiveLayerImage !=
                                                         null)
                                                   _buildFilterPreviewStack()

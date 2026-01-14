@@ -119,8 +119,16 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
 
   Future<void> _loadTextureInfo() async {
     try {
+      final int width = widget.canvasSize.width.round().clamp(1, 16384);
+      final int height = widget.canvasSize.height.round().clamp(1, 16384);
       final Map<dynamic, dynamic>? info =
-          await _channel.invokeMethod<Map<dynamic, dynamic>>('getTextureInfo');
+          await _channel.invokeMethod<Map<dynamic, dynamic>>(
+            'getTextureInfo',
+            <String, Object?>{
+              'width': width,
+              'height': height,
+            },
+          );
       final int? textureId = (info?['textureId'] as num?)?.toInt();
       final int? engineHandle = (info?['engineHandle'] as num?)?.toInt();
       if (!mounted) {

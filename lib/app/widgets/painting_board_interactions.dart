@@ -381,6 +381,9 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
       case CanvasTool.eraser:
         _focusNode.requestFocus();
+        if (widget.useRustCanvas) {
+          break;
+        }
         if (!isPointInsideSelection(boardLocal)) {
           return;
         }

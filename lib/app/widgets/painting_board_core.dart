@@ -81,6 +81,7 @@ class PaintingBoard extends StatefulWidget {
     required this.settings,
     required this.onRequestExit,
     this.isActive = true,
+    this.useRustCanvas = false,
     this.onDirtyChanged,
     this.initialLayers,
     this.initialPerspectiveGuide,
@@ -97,6 +98,7 @@ class PaintingBoard extends StatefulWidget {
   final CanvasSettings settings;
   final VoidCallback onRequestExit;
   final bool isActive;
+  final bool useRustCanvas;
   final ValueChanged<bool>? onDirtyChanged;
   final List<CanvasLayerData>? initialLayers;
   final PerspectiveGuideState? initialPerspectiveGuide;

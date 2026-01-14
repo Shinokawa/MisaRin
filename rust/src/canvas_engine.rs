@@ -31,9 +31,58 @@ enum EngineCommand {
     SetActiveLayer { layer_index: u32 },
     SetLayerOpacity { layer_index: u32, opacity: f32 },
     SetLayerVisible { layer_index: u32, visible: bool },
+    SetBrush {
+        color_argb: u32,
+        base_radius: f32,
+        use_pressure: bool,
+        erase: bool,
+        antialias_level: u32,
+    },
     Undo,
     Redo,
     Stop,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug)]
+struct EngineBrushSettings {
+    color_argb: u32,
+    base_radius: f32,
+    use_pressure: bool,
+    erase: bool,
+    antialias_level: u32,
+    shape: BrushShape,
+}
+
+#[cfg(target_os = "macos")]
+impl Default for EngineBrushSettings {
+    fn default() -> Self {
+        Self {
+            color_argb: 0xFFFFFFFF,
+            base_radius: 6.0,
+            use_pressure: true,
+            erase: false,
+            antialias_level: 1,
+            shape: BrushShape::Circle,
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl EngineBrushSettings {
+    fn sanitize(&mut self) {
+        if !self.base_radius.is_finite() {
+            self.base_radius = 0.0;
+        }
+        if self.base_radius < 0.0 {
+            self.base_radius = 0.0;
+        }
+        self.antialias_level = self.antialias_level.clamp(0, 3);
+    }
+
+    fn radius_from_pressure(&self, pressure: f32) -> f32 {
+        brush_radius_from_pressure(pressure, self.base_radius, self.use_pressure)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -527,6 +576,7 @@ fn render_thread_main(
     };
     brush.set_canvas_size(canvas_width, canvas_height);
     brush.set_softness(0.0);
+    let mut brush_settings = EngineBrushSettings::default();
 
     let present_renderer = PresentRenderer::new(device.as_ref());
     let layer_views: Vec<wgpu::TextureView> = layers
@@ -572,6 +622,7 @@ fn render_thread_main(
                         &mut layer_opacity,
                         &mut layer_visible,
                         &present_config_buffer,
+                        &mut brush_settings,
                         &mut undo_manager,
                         canvas_width,
                         canvas_height,
@@ -596,6 +647,7 @@ fn render_thread_main(
                         &mut layer_opacity,
                         &mut layer_visible,
                         &present_config_buffer,
+                        &mut brush_settings,
                         &mut undo_manager,
                         canvas_width,
                         canvas_height,
@@ -660,6 +712,7 @@ fn render_thread_main(
                             };
                             drawn_any |= stroke.consume_and_draw(
                                 &mut brush,
+                                &brush_settings,
                                 active_layer,
                                 std::mem::take(&mut segment),
                                 canvas_width,
@@ -683,6 +736,7 @@ fn render_thread_main(
                         };
                         drawn_any |= stroke.consume_and_draw(
                             &mut brush,
+                            &brush_settings,
                             active_layer,
                             segment,
                             canvas_width,
@@ -724,6 +778,7 @@ fn handle_engine_command(
     layer_opacity: &mut [f32; MVP_LAYER_COUNT],
     layer_visible: &mut [bool; MVP_LAYER_COUNT],
     present_config_buffer: &wgpu::Buffer,
+    brush_settings: &mut EngineBrushSettings,
     undo: &mut UndoManager,
     canvas_width: u32,
     canvas_height: u32,
@@ -817,6 +872,20 @@ fn handle_engine_command(
                     needs_render: present.is_some(),
                 };
             }
+        }
+        EngineCommand::SetBrush {
+            color_argb,
+            base_radius,
+            use_pressure,
+            erase,
+            antialias_level,
+        } => {
+            brush_settings.color_argb = color_argb;
+            brush_settings.base_radius = base_radius;
+            brush_settings.use_pressure = use_pressure;
+            brush_settings.erase = erase;
+            brush_settings.antialias_level = antialias_level;
+            brush_settings.sanitize();
         }
         EngineCommand::Undo => {
             let applied = undo.undo(device, queue, layers);
@@ -1122,6 +1191,7 @@ impl StrokeResampler {
     fn consume_and_draw<F: FnMut((i32, i32, i32, i32))>(
         &mut self,
         brush: &mut BrushRenderer,
+        brush_settings: &EngineBrushSettings,
         layer_texture: &wgpu::Texture,
         points: Vec<EnginePoint>,
         canvas_width: u32,
@@ -1174,8 +1244,8 @@ impl StrokeResampler {
                 continue;
             }
 
-            let radius_prev = brush_radius_from_pressure(self.last_pressure);
-            let radius_next = brush_radius_from_pressure(pressure);
+            let radius_prev = brush_settings.radius_from_pressure(self.last_pressure);
+            let radius_next = brush_settings.radius_from_pressure(pressure);
             let step = resample_step_from_radius((radius_prev + radius_next) * 0.5);
 
             let dir_x = dx / dist;
@@ -1214,7 +1284,7 @@ impl StrokeResampler {
 
         if emitted.len() == 1 {
             let (p0, pres0) = emitted[0];
-            let r0 = brush_radius_from_pressure(pres0);
+            let r0 = brush_settings.radius_from_pressure(pres0);
             let dirty = compute_dirty_rect_i32(&[p0], &[r0], canvas_width, canvas_height);
             before_draw(dirty);
             if brush
@@ -1222,10 +1292,12 @@ impl StrokeResampler {
                     layer_texture,
                     &[p0],
                     &[r0],
-                    Color { argb: 0xFFFFFFFF },
-                    BrushShape::Circle,
-                    false,
-                    1,
+                    Color {
+                        argb: brush_settings.color_argb,
+                    },
+                    brush_settings.shape,
+                    brush_settings.erase,
+                    brush_settings.antialias_level,
                 )
                 .is_ok()
             {
@@ -1239,8 +1311,8 @@ impl StrokeResampler {
             for i in 0..emitted.len().saturating_sub(1) {
                 let (p0, pres0) = emitted[i];
                 let (p1, pres1) = emitted[i + 1];
-                let r0 = brush_radius_from_pressure(pres0);
-                let r1 = brush_radius_from_pressure(pres1);
+                let r0 = brush_settings.radius_from_pressure(pres0);
+                let r1 = brush_settings.radius_from_pressure(pres1);
                 let pts = [p0, p1];
                 let radii = [r0, r1];
                 let dirty = compute_dirty_rect_i32(&pts, &radii, canvas_width, canvas_height);
@@ -1250,10 +1322,12 @@ impl StrokeResampler {
                         layer_texture,
                         &pts,
                         &radii,
-                        Color { argb: 0xFFFFFFFF },
-                        BrushShape::Circle,
-                        false,
-                        1,
+                        Color {
+                            argb: brush_settings.color_argb,
+                        },
+                        brush_settings.shape,
+                        brush_settings.erase,
+                        brush_settings.antialias_level,
                     )
                     .is_ok()
                 {
@@ -1272,13 +1346,21 @@ impl StrokeResampler {
 }
 
 #[cfg(target_os = "macos")]
-fn brush_radius_from_pressure(pressure: f32) -> f32 {
+fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: bool) -> f32 {
+    let base = if base_radius.is_finite() {
+        base_radius.max(0.0)
+    } else {
+        0.0
+    };
+    if !use_pressure {
+        return base;
+    }
     let p = if pressure.is_finite() {
         pressure.clamp(0.0, 1.0)
     } else {
         0.0
     };
-    6.0 * (0.25 + 0.75 * p)
+    base * (0.25 + 0.75 * p)
 }
 
 #[cfg(target_os = "macos")]
@@ -1757,6 +1839,40 @@ pub extern "C" fn engine_set_layer_visible(handle: u64, layer_index: u32, visibl
 #[cfg(not(target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn engine_set_layer_visible(_handle: u64, _layer_index: u32, _visible: bool) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_set_brush(
+    handle: u64,
+    color_argb: u32,
+    base_radius: f32,
+    use_pressure: u8,
+    erase: u8,
+    antialias_level: u32,
+) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::SetBrush {
+        color_argb,
+        base_radius,
+        use_pressure: use_pressure != 0,
+        erase: erase != 0,
+        antialias_level,
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_brush(
+    _handle: u64,
+    _color_argb: u32,
+    _base_radius: f32,
+    _use_pressure: u8,
+    _erase: u8,
+    _antialias_level: u32,
+) {
+}
 
 #[cfg(target_os = "macos")]
 #[no_mangle]

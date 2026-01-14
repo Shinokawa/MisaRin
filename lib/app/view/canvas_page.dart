@@ -51,10 +51,12 @@ class CanvasPage extends StatefulWidget {
     super.key,
     required this.document,
     this.onInitialBoardReady,
+    this.useRustCanvas = false,
   });
 
   final ProjectDocument document;
   final VoidCallback? onInitialBoardReady;
+  final bool useRustCanvas;
 
   @override
   State<CanvasPage> createState() => CanvasPageState();
@@ -1726,6 +1728,7 @@ class CanvasPageState extends State<CanvasPage> {
     return PaintingBoard(
       key: _ensureBoardKey(id),
       settings: entry.document.settings,
+      useRustCanvas: widget.useRustCanvas,
       onRequestExit: _handleExitRequest,
       isActive: isActive,
       onDirtyChanged: (dirty) => _handleDirtyChanged(id, dirty),

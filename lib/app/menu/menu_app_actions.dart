@@ -17,7 +17,6 @@ import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../utils/clipboard_image_reader.dart';
 import '../view/canvas_page.dart';
-import '../view/rust_canvas_page.dart';
 import '../widgets/app_notification.dart';
 
 class AppMenuActions {
@@ -373,9 +372,7 @@ class AppMenuActions {
     }
     final bool useRustCanvas =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
-    final CanvasPageState? canvasState = useRustCanvas
-        ? null
-        : context.findAncestorStateOfType<CanvasPageState>();
+    final CanvasPageState? canvasState = context.findAncestorStateOfType<CanvasPageState>();
     try {
       if (canvasState != null) {
         await canvasState.openDocument(document);
@@ -385,12 +382,11 @@ class AppMenuActions {
         }
         await Navigator.of(context).push(
           PageRouteBuilder<void>(
-            pageBuilder: (_, __, ___) => useRustCanvas
-                ? RustCanvasPage(document: document)
-                : CanvasPage(
-                  document: document,
-                  onInitialBoardReady: kIsWeb ? hideLoadingOverlay : null,
-                ),
+            pageBuilder: (_, __, ___) => CanvasPage(
+              document: document,
+              onInitialBoardReady: kIsWeb ? hideLoadingOverlay : null,
+              useRustCanvas: useRustCanvas,
+            ),
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,
           ),

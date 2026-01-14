@@ -15,6 +15,15 @@ class CanvasEngineFfi {
 
   int getInputQueueLen(int handle) => 0;
 
+  void setBrush({
+    required int handle,
+    required int colorArgb,
+    required double baseRadius,
+    bool usePressure = true,
+    bool erase = false,
+    int antialiasLevel = 1,
+  }) {}
+
   void setActiveLayer({required int handle, required int layerIndex}) {}
 
   void setLayerOpacity({
