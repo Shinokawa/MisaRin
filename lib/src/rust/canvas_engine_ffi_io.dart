@@ -59,6 +59,15 @@ typedef _EngineClearLayerNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex);
 typedef _EngineClearLayerDart = void Function(int handle, int layerIndex);
 
+typedef _EngineFillLayerNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Uint32 colorArgb);
+typedef _EngineFillLayerDart =
+    void Function(int handle, int layerIndex, int colorArgb);
+
+typedef _EngineResetCanvasNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 backgroundColorArgb);
+typedef _EngineResetCanvasDart = void Function(int handle, int backgroundColorArgb);
+
 typedef _EngineUndoNative = ffi.Void Function(ffi.Uint64 handle);
 typedef _EngineUndoDart = void Function(int handle);
 
@@ -126,6 +135,20 @@ class CanvasEngineFfi {
       } catch (_) {
         _clearLayer = null;
       }
+      try {
+        _fillLayer = _lib.lookupFunction<_EngineFillLayerNative, _EngineFillLayerDart>(
+          'engine_fill_layer',
+        );
+      } catch (_) {
+        _fillLayer = null;
+      }
+      try {
+        _resetCanvas = _lib.lookupFunction<_EngineResetCanvasNative, _EngineResetCanvasDart>(
+          'engine_reset_canvas',
+        );
+      } catch (_) {
+        _resetCanvas = null;
+      }
 
       // Optional undo/redo (Flow 7).
       try {
@@ -162,6 +185,8 @@ class CanvasEngineFfi {
   late final _EngineSetLayerOpacityDart? _setLayerOpacity;
   late final _EngineSetLayerVisibleDart? _setLayerVisible;
   late final _EngineClearLayerDart? _clearLayer;
+  late final _EngineFillLayerDart? _fillLayer;
+  late final _EngineResetCanvasDart? _resetCanvas;
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
   late final _EngineSetBrushDart? _setBrush;
@@ -234,6 +259,29 @@ class CanvasEngineFfi {
       return;
     }
     fn(handle, layerIndex);
+  }
+
+  void fillLayer({
+    required int handle,
+    required int layerIndex,
+    required int colorArgb,
+  }) {
+    final fn = _fillLayer;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle, layerIndex, colorArgb);
+  }
+
+  void resetCanvas({
+    required int handle,
+    required int backgroundColorArgb,
+  }) {
+    final fn = _resetCanvas;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle, backgroundColorArgb);
   }
 
   void undo({required int handle}) {

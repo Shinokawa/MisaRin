@@ -80,6 +80,8 @@ class RustCanvasSurface extends StatefulWidget {
     required this.brushRadius,
     required this.erase,
     this.antialiasLevel = 1,
+    this.backgroundColorArgb = 0xFFFFFFFF,
+    this.usePressure = true,
     this.onStrokeBegin,
     this.onEngineInfoChanged,
   });
@@ -90,6 +92,8 @@ class RustCanvasSurface extends StatefulWidget {
   final double brushRadius;
   final bool erase;
   final int antialiasLevel;
+  final int backgroundColorArgb;
+  final bool usePressure;
   final VoidCallback? onStrokeBegin;
   final void Function(int? handle, Size? engineSize)? onEngineInfoChanged;
 
@@ -108,6 +112,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   final _PackedPointBuffer _points = _PackedPointBuffer();
   bool _flushScheduled = false;
   int? _activeDrawingPointer;
+  bool _activeStrokeUsesPressure = true;
   int? _lastNotifiedEngineHandle;
   Size? _lastNotifiedEngineSize;
 
@@ -127,11 +132,19 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         oldWidget.brushColorArgb != widget.brushColorArgb ||
         (oldWidget.brushRadius - widget.brushRadius).abs() > 1e-6 ||
         oldWidget.erase != widget.erase ||
-        oldWidget.antialiasLevel != widget.antialiasLevel;
+        oldWidget.antialiasLevel != widget.antialiasLevel ||
+        oldWidget.usePressure != widget.usePressure;
     if (brushChanged && _activeDrawingPointer == null) {
       final int? handle = _engineHandle;
       if (handle != null) {
         _applyBrushSettings(handle);
+      }
+    }
+    if (oldWidget.backgroundColorArgb != widget.backgroundColorArgb &&
+        _activeDrawingPointer == null) {
+      final int? handle = _engineHandle;
+      if (handle != null) {
+        _applyBackground(handle);
       }
     }
   }
@@ -171,6 +184,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       final int? handle = _engineHandle;
       if (handle != null) {
         _applyLayerDefaults(handle);
+        _resetCanvas(handle);
         _applyBrushSettings(handle);
       }
       _notifyEngineInfoChanged();
@@ -226,11 +240,34 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     }
   }
 
+  void _resetCanvas(int handle) {
+    if (!CanvasEngineFfi.instance.isSupported) {
+      return;
+    }
+    // Ensure a new RustCanvasSurface always starts from a deterministic blank state.
+    CanvasEngineFfi.instance.resetCanvas(
+      handle: handle,
+      backgroundColorArgb: widget.backgroundColorArgb,
+    );
+  }
+
+  void _applyBackground(int handle) {
+    if (!CanvasEngineFfi.instance.isSupported) {
+      return;
+    }
+    // Background is represented by layer 0 in the Rust MVP compositor.
+    CanvasEngineFfi.instance.fillLayer(
+      handle: handle,
+      layerIndex: 0,
+      colorArgb: widget.backgroundColorArgb,
+    );
+  }
+
   bool _canSendPoints() {
     return CanvasEngineFfi.instance.isSupported && _engineHandle != null;
   }
 
-  void _applyBrushSettings(int handle) {
+  void _applyBrushSettings(int handle, {bool? usePressureOverride}) {
     if (!CanvasEngineFfi.instance.isSupported) {
       return;
     }
@@ -251,7 +288,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       handle: handle,
       colorArgb: widget.brushColorArgb,
       baseRadius: radius,
-      usePressure: true,
+      usePressure: usePressureOverride ?? widget.usePressure,
       erase: widget.erase,
       antialiasLevel: widget.antialiasLevel,
     );
@@ -284,7 +321,11 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         '[rust_canvas] down id=${event.pointer} pos=${event.localPosition} pressure=${event.pressure}',
       );
     }
-    _applyBrushSettings(handle);
+    final bool supportsPressure =
+        event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus;
+    _activeStrokeUsesPressure = widget.usePressure && supportsPressure;
+    _applyBrushSettings(handle, usePressureOverride: _activeStrokeUsesPressure);
     _activeDrawingPointer = event.pointer;
     _enqueuePoint(event, _kPointFlagDown);
     widget.onStrokeBegin?.call();
@@ -350,7 +391,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     }
     final Offset canvasPos = _toEngineSpace(event.localPosition);
     final double pressure =
-        event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 1.0;
+        !_activeStrokeUsesPressure
+            ? 1.0
+            : (event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 1.0);
     final int timestampUs = event.timeStamp.inMicroseconds;
     _points.add(
       x: canvasPos.dx,

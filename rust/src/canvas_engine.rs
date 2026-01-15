@@ -29,6 +29,8 @@ enum EngineCommand {
         height: u32,
         bytes_per_row: u32,
     },
+    ResetCanvas { background_color_argb: u32 },
+    FillLayer { layer_index: u32, color_argb: u32 },
     ClearLayer { layer_index: u32 },
     SetActiveLayer { layer_index: u32 },
     SetLayerOpacity { layer_index: u32, opacity: f32 },
@@ -174,6 +176,12 @@ impl UndoManager {
     }
 
     fn cancel_stroke(&mut self) {
+        self.current = None;
+    }
+
+    fn reset(&mut self) {
+        self.undo_stack.clear();
+        self.redo_stack.clear();
         self.current = None;
     }
 
@@ -619,7 +627,6 @@ fn render_thread_main(
                     let outcome = handle_engine_command(
                         device.as_ref(),
                         queue.as_ref(),
-                        &frame_ready,
                         &mut present,
                         cmd,
                         &layers,
@@ -635,6 +642,21 @@ fn render_thread_main(
                     if outcome.stop {
                         break;
                     }
+                    // The first present texture attach happens while `present` is still `None`
+                    // at the start of the iteration. If the command requests a render and we
+                    // now have a present target, render once so Flutter gets a deterministic
+                    // initial frame (e.g. white background layer).
+                    if outcome.needs_render {
+                        if let Some(target) = &present {
+                            present_renderer.render(
+                                device.as_ref(),
+                                queue.as_ref(),
+                                &present_bind_group,
+                                &target.view,
+                                Arc::clone(&frame_ready),
+                            );
+                        }
+                    }
                 }
                 Err(_) => break,
             },
@@ -644,7 +666,6 @@ fn render_thread_main(
                     let outcome = handle_engine_command(
                         device.as_ref(),
                         queue.as_ref(),
-                        &frame_ready,
                         &mut present,
                         cmd,
                         &layers,
@@ -775,7 +796,6 @@ fn render_thread_main(
 fn handle_engine_command(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    frame_ready: &Arc<AtomicBool>,
     present: &mut Option<PresentTarget>,
     cmd: EngineCommand,
     layers: &[wgpu::Texture],
@@ -816,19 +836,56 @@ fn handle_engine_command(
             }
             *present =
                 attach_present_texture(device, mtl_texture_ptr, width, height, bytes_per_row);
-            if let Some(target) = present {
+            if present.is_some() {
                 debug::log(
                     LogLevel::Info,
                     format_args!(
                         "Present texture attached: ptr=0x{mtl_texture_ptr:x} size={width}x{height} bytes_per_row={bytes_per_row}"
                     ),
                 );
-                // Clear the present target once so Flutter has a valid initial frame.
-                submit_test_clear(device, queue, &target.view, 0, Arc::clone(frame_ready));
-                // Also clear all layers to transparent so the first composite is deterministic.
-                for tex in layers.iter().take(MVP_LAYER_COUNT) {
-                    clear_r32uint_texture(queue, tex, canvas_width, canvas_height);
+                // Initialize layers so the first composite is deterministic.
+                // Layer 0 is the background fill layer (default white), others start transparent.
+                for (idx, tex) in layers.iter().take(MVP_LAYER_COUNT).enumerate() {
+                    let fill = if idx == 0 { 0xFFFFFFFF } else { 0x00000000 };
+                    fill_r32uint_texture(queue, tex, canvas_width, canvas_height, fill);
                 }
+                // Request one render so Flutter gets an actual composited frame immediately.
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: true,
+                };
+            }
+        }
+        EngineCommand::ResetCanvas { background_color_argb } => {
+            // Reset undo history so a fresh canvas doesn't "undo" back into the previous one.
+            undo.reset();
+            // Layer 0 is background fill; everything above starts transparent.
+            for (idx, tex) in layers.iter().take(MVP_LAYER_COUNT).enumerate() {
+                let fill = if idx == 0 {
+                    background_color_argb
+                } else {
+                    0x00000000
+                };
+                fill_r32uint_texture(queue, tex, canvas_width, canvas_height, fill);
+            }
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: present.is_some(),
+            };
+        }
+        EngineCommand::FillLayer {
+            layer_index,
+            color_argb,
+        } => {
+            if let Some(tex) = layers
+                .get(layer_index as usize)
+                .filter(|_| (layer_index as usize) < MVP_LAYER_COUNT)
+            {
+                fill_r32uint_texture(queue, tex, canvas_width, canvas_height, color_argb);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
             }
         }
         EngineCommand::ClearLayer { layer_index } => {
@@ -836,7 +893,7 @@ fn handle_engine_command(
                 .get(layer_index as usize)
                 .filter(|_| (layer_index as usize) < MVP_LAYER_COUNT)
             {
-                clear_r32uint_texture(queue, tex, canvas_width, canvas_height);
+                fill_r32uint_texture(queue, tex, canvas_width, canvas_height, 0x00000000);
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
@@ -933,33 +990,73 @@ struct EngineCommandOutcome {
 }
 
 #[cfg(target_os = "macos")]
-fn clear_r32uint_texture(
+fn fill_r32uint_texture(
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,
     width: u32,
     height: u32,
+    value: u32,
 ) {
-    let size_bytes = (width as usize).saturating_mul(height as usize).saturating_mul(4);
-    let zeroes = vec![0u8; size_bytes];
-    queue.write_texture(
-        wgpu::ImageCopyTexture {
-            texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &zeroes,
-        wgpu::ImageDataLayout {
-            offset: 0,
-            bytes_per_row: Some(4 * width),
-            rows_per_image: Some(height),
-        },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-    );
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    const BYTES_PER_PIXEL: u32 = 4;
+    const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
+    // Keep temporary allocations bounded even for very large canvases.
+    const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+
+    let bytes_per_row_unpadded = width.saturating_mul(BYTES_PER_PIXEL);
+    let bytes_per_row_padded = align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
+    if bytes_per_row_padded == 0 {
+        return;
+    }
+
+    let row_bytes = bytes_per_row_padded as usize;
+    let rows_per_chunk = (MAX_CHUNK_BYTES / row_bytes).max(1) as u32;
+    let texels_per_row = (bytes_per_row_padded / BYTES_PER_PIXEL) as usize;
+
+    let mut y: u32 = 0;
+    while y < height {
+        let chunk_h = (height - y).min(rows_per_chunk);
+        let texel_count = texels_per_row.saturating_mul(chunk_h as usize);
+        let data: Vec<u32> = vec![value; texel_count];
+
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: 0, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            bytemuck::cast_slice(&data),
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row_padded),
+                rows_per_image: Some(chunk_h),
+            },
+            wgpu::Extent3d {
+                width,
+                height: chunk_h,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        y = y.saturating_add(chunk_h);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn align_up_u32(value: u32, alignment: u32) -> u32 {
+    if alignment == 0 {
+        return value;
+    }
+    let rem = value % alignment;
+    if rem == 0 {
+        value
+    } else {
+        value + (alignment - rem)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -1527,47 +1624,6 @@ fn attach_present_texture(
 }
 
 #[cfg(target_os = "macos")]
-fn submit_test_clear(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    view: &wgpu::TextureView,
-    _frame_index: u64,
-    frame_ready: Arc<AtomicBool>,
-) {
-    let (r, g, b, a) = (0.0, 0.0, 0.0, 0.0);
-
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("misa-rin present clear encoder"),
-    });
-    {
-        let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("misa-rin present clear pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r,
-                        g,
-                        b,
-                        a,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-    }
-
-    queue.submit(Some(encoder.finish()));
-    queue.on_submitted_work_done(move || {
-        frame_ready.store(true, Ordering::Release);
-    });
-}
-
-#[cfg(target_os = "macos")]
 fn mtl_device_ptr(device: &wgpu::Device) -> *mut c_void {
     let result = unsafe {
         device.as_hal::<Metal, _, _>(|hal_device| {
@@ -1949,6 +2005,36 @@ pub extern "C" fn engine_clear_layer(handle: u64, layer_index: u32) {
 #[cfg(not(target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn engine_clear_layer(_handle: u64, _layer_index: u32) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_fill_layer(handle: u64, layer_index: u32, color_argb: u32) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::FillLayer { layer_index, color_argb });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_fill_layer(_handle: u64, _layer_index: u32, _color_argb: u32) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_reset_canvas(handle: u64, background_color_argb: u32) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::ResetCanvas { background_color_argb });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_reset_canvas(_handle: u64, _background_color_argb: u32) {}
 
 #[cfg(target_os = "macos")]
 #[no_mangle]

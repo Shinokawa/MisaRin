@@ -40,6 +40,14 @@ class CanvasEngineFfi {
 
   void clearLayer({required int handle, required int layerIndex}) {}
 
+  void fillLayer({
+    required int handle,
+    required int layerIndex,
+    required int colorArgb,
+  }) {}
+
+  void resetCanvas({required int handle, required int backgroundColorArgb}) {}
+
   void undo({required int handle}) {}
 
   void redo({required int handle}) {}

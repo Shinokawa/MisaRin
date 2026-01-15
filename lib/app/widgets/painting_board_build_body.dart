@@ -514,6 +514,10 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     erase: _isBrushEraserEnabled,
                                                     antialiasLevel:
                                                         _penAntialiasLevel,
+                                                    backgroundColorArgb:
+                                                        widget.settings.backgroundColor.toARGB32(),
+                                                    usePressure:
+                                                        _stylusPressureEnabled,
                                                     onStrokeBegin: _markDirty,
                                                     onEngineInfoChanged:
                                                         _handleRustCanvasEngineInfoChanged,
