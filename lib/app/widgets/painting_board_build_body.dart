@@ -218,19 +218,15 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
           onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
           hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
-	          onHollowStrokeEraseOccludedPartsChanged:
-	              _updateHollowStrokeEraseOccludedParts,
-	          strokeStabilizerStrength: _strokeStabilizerStrength,
-	          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
-	          streamlineEnabled: _streamlineEnabled,
-	          onStreamlineEnabledChanged: _updateStreamlineEnabled,
-	          streamlineStrength: _streamlineStrength,
-	          onStreamlineStrengthChanged: _updateStreamlineStrength,
-	          stylusPressureEnabled: _stylusPressureEnabled,
-	          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
-	          simulatePenPressure: _simulatePenPressure,
-	          onSimulatePenPressureChanged: _updatePenPressureSimulation,
-	          penPressureProfile: _penPressureProfile,
+		          onHollowStrokeEraseOccludedPartsChanged:
+		              _updateHollowStrokeEraseOccludedParts,
+		          strokeStabilizerStrength: _strokeStabilizerStrength,
+		          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
+		          stylusPressureEnabled: _stylusPressureEnabled,
+		          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+		          simulatePenPressure: _simulatePenPressure,
+		          onSimulatePenPressureChanged: _updatePenPressureSimulation,
+		          penPressureProfile: _penPressureProfile,
           onPenPressureProfileChanged: _updatePenPressureProfile,
           brushAntialiasLevel: _penAntialiasLevel,
           onBrushAntialiasChanged: _updatePenAntialiasLevel,
@@ -263,8 +259,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onMagicWandToleranceChanged: _updateMagicWandTolerance,
           brushToolsEraserMode: _brushToolsEraserMode,
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
-          vectorDrawingEnabled: _vectorDrawingEnabled,
-          onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
           compactLayout: isSai2Layout,
           textFontSize: _textFontSize,
@@ -464,18 +458,26 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     CanvasTool.pen ||
                                                 _effectiveActiveTool ==
                                                     CanvasTool.eraser;
+                                            final bool activeLayerLocked = () {
+                                              final String? activeId =
+                                                  _controller.activeLayerId;
+                                              if (activeId == null) {
+                                                return false;
+                                              }
+                                              for (final BitmapLayerState layer
+                                                  in _controller.layers) {
+                                                if (layer.id == activeId) {
+                                                  return layer.locked;
+                                                }
+                                              }
+                                              return false;
+                                            }();
                                             final bool hasActiveStroke =
                                                 canPreviewStroke &&
                                                 _controller
                                                     .activeStrokePoints
                                                     .isNotEmpty;
                                             final bool showActiveStroke =
-                                                (_vectorDrawingEnabled ||
-                                                    _controller
-                                                        .activeStrokeHollowEnabled ||
-                                                    _controller
-                                                        .committingStrokes
-                                                        .isNotEmpty) &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&
@@ -486,11 +488,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             final bool activeStrokeIsEraser =
                                                 _controller
                                                     .activeStrokeEraseMode;
-                                            final Path? pendingFillOverlayPath =
-                                                shapeVectorFillOverlayPath;
-                                            final Color?
-                                            pendingFillOverlayColor =
-                                                shapeVectorFillOverlayColor;
 
                                             Widget content = Stack(
                                               fit: StackFit.expand,
@@ -502,6 +499,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     canvasSize: _canvasSize,
                                                     enableDrawing:
                                                         canPreviewStroke &&
+                                                        !activeLayerLocked &&
                                                         !_layerTransformModeActive &&
                                                         !_isLayerFreeTransformActive &&
                                                         !_controller
@@ -517,6 +515,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     antialiasLevel:
                                                         _penAntialiasLevel,
                                                     onStrokeBegin: _markDirty,
+                                                    onEngineInfoChanged:
+                                                        _handleRustCanvasEngineInfoChanged,
                                                   )
                                                 else if (_filterSession != null &&
                                                     _previewActiveLayerImage !=
@@ -548,22 +548,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                               scale: _viewport
                                                                   .scale,
                                                             ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (_streamlinePostStroke != null &&
-                                                    _streamlinePostController != null)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter:
-                                                            _StreamlinePostStrokeOverlayPainter(
-                                                          stroke:
-                                                              _streamlinePostStroke!,
-                                                          progress:
-                                                              _streamlinePostController!,
-                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -644,60 +628,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 if (transformHandlesOverlay !=
                                                     null)
                                                   transformHandlesOverlay,
-                                                if (_vectorDrawingEnabled &&
-                                                    _curvePreviewPath != null)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter: _PreviewPathPainter(
-                                                          path:
-                                                              _curvePreviewPath!,
-                                                          color: _primaryColor,
-                                                          strokeWidth:
-                                                              _penStrokeWidth,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (_vectorDrawingEnabled &&
-                                                    shapePreviewPath != null)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter: _PreviewPathPainter(
-                                                          path: shapePreviewPath!,
-                                                          color: _primaryColor,
-                                                          strokeWidth:
-                                                              _penStrokeWidth,
-                                                          fill:
-                                                              _shapeFillEnabled &&
-                                                              shapeToolVariant !=
-                                                                  ShapeToolVariant
-                                                                      .line,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (_vectorDrawingEnabled &&
-                                                    pendingFillOverlayPath !=
-                                                        null &&
-                                                    pendingFillOverlayColor !=
-                                                        null)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter: _ShapeFillOverlayPainter(
-                                                          path:
-                                                              pendingFillOverlayPath,
-                                                          color:
-                                                              pendingFillOverlayColor,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
                                                 if (hasSelectionOverlay)
                                                   Positioned.fill(
                                                     child: IgnorePointer(

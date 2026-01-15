@@ -519,7 +519,10 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
                               height: widget.canvasSize.height,
                               child: ColoredBox(
                                 color: const Color(0xFFFFFFFF),
-                                child: Texture(textureId: textureId),
+                                child: Texture(
+                                  textureId: textureId,
+                                  filterQuality: FilterQuality.none,
+                                ),
                               ),
                             ),
                           ),

@@ -2,16 +2,6 @@ part of 'painting_board.dart';
 
 const double _kStylusSimulationBlend = 0.68;
 
-class _DisableVectorDrawingConfirmResult {
-  const _DisableVectorDrawingConfirmResult({
-    required this.confirmed,
-    required this.doNotShowAgain,
-  });
-
-  final bool confirmed;
-  final bool doNotShowAgain;
-}
-
 mixin _PaintingBoardInteractionMixin
     on
         _PaintingBoardBase,
@@ -21,82 +11,6 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         TickerProvider {
-  _StreamlinePostStroke? _streamlinePostStroke;
-  AnimationController? _streamlinePostController;
-
-  void initializeStreamlinePostProcessor(TickerProvider provider) {
-    if (_streamlinePostController != null) {
-      return;
-    }
-    final AnimationController controller = AnimationController(
-      vsync: provider,
-      duration: const Duration(milliseconds: 180),
-    )..addStatusListener(_handleStreamlinePostAnimationStatus);
-    _streamlinePostController = controller;
-  }
-
-  void disposeStreamlinePostProcessor() {
-    final AnimationController? controller = _streamlinePostController;
-    if (controller == null) {
-      return;
-    }
-    controller
-      ..removeStatusListener(_handleStreamlinePostAnimationStatus)
-      ..dispose();
-    _streamlinePostController = null;
-    _streamlinePostStroke = null;
-  }
-
-  @override
-  void dispose() {
-    disposeStreamlinePostProcessor();
-    super.dispose();
-  }
-
-  bool get _isStreamlinePostProcessingActive =>
-      _streamlinePostStroke != null &&
-      (_streamlinePostController?.isAnimating ?? false);
-
-  void _handleStreamlinePostAnimationStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed) {
-      return;
-    }
-    final _StreamlinePostStroke? stroke = _streamlinePostStroke;
-    if (stroke == null) {
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-
-    _streamlinePostStroke = null;
-    unawaited(
-      _controller.commitVectorStroke(
-        points: stroke.toPoints,
-        radii: stroke.toRadii,
-        color: stroke.color,
-        brushShape: stroke.shape,
-        applyVectorSmoothing: false,
-        erase: stroke.erase,
-        antialiasLevel: stroke.antialiasLevel,
-        hollow: stroke.hollowStrokeEnabled,
-        hollowRatio: stroke.hollowStrokeRatio,
-        eraseOccludedParts: stroke.eraseOccludedParts,
-        randomRotation: stroke.randomRotationEnabled,
-        rotationSeed: stroke.rotationSeed,
-      ),
-    );
-    setState(() {});
-  }
-
-  Duration _streamlinePostDurationForStrength(double strength) {
-    final double t = strength.isFinite ? strength.clamp(0.0, 1.0) : 0.0;
-    final double eased = math.pow(t, 0.9).toDouble();
-    final double rawMillis = ui.lerpDouble(90.0, 260.0, eased) ?? 180.0;
-    return Duration(
-      milliseconds: rawMillis.round().clamp(60, 340),
-    );
-  }
 
   void clear() async {
     if (_isTextEditingActive) {
@@ -588,8 +502,6 @@ mixin _PaintingBoardInteractionMixin
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           final double? releasePressure = _stylusPressureValue(event);
-          final bool shouldStreamlinePostProcess =
-              _shouldApplyStreamlinePostProcessingForCurrentStroke();
           if (_activeStrokeUsesStylus) {
             _appendStylusReleaseSample(
               boardLocal,
@@ -597,9 +509,7 @@ mixin _PaintingBoardInteractionMixin
               releasePressure,
             );
           }
-          if (shouldStreamlinePostProcess) {
-            _finishStrokeWithStreamlinePostProcessing(event.timeStamp);
-          } else if (_activeStrokeUsesStylus) {
+          if (_activeStrokeUsesStylus) {
             _finishStroke();
           } else {
             _finishStroke(event.timeStamp);

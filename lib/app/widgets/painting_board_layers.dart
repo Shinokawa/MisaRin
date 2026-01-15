@@ -60,6 +60,7 @@ mixin _PaintingBoardLayerMixin
     }
     await _pushUndoSnapshot();
     _controller.updateLayerVisibility(id, visible);
+    _rustCanvasSetLayerVisibleById(id, visible);
     setState(() {});
     _markDirty();
   }
@@ -68,8 +69,18 @@ mixin _PaintingBoardLayerMixin
     if (_guardTransformInProgress(message: context.l10n.completeTransformFirst)) {
       return;
     }
+    if (widget.useRustCanvas) {
+      final int index = _layers.indexWhere((layer) => layer.id == id);
+      if (index >= _kRustCanvasLayerCount) {
+        _showRustCanvasMessage(
+          'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层。',
+        );
+        return;
+      }
+    }
     _layerOpacityPreviewReset(this);
     _controller.setActiveLayer(id);
+    _rustCanvasSetActiveLayerById(id);
     setState(() {});
     _syncRasterizeMenuAvailability();
   }
@@ -200,20 +211,36 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleAddLayer() async {
+    if (widget.useRustCanvas && _layers.length >= _kRustCanvasLayerCount) {
+      _showRustCanvasMessage(
+        'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层。',
+      );
+      return;
+    }
     await _pushUndoSnapshot();
-    _controller.addLayer(aboveLayerId: _activeLayerId);
+    final String? insertAbove =
+        widget.useRustCanvas
+            ? (_layers.isEmpty ? null : _layers.last.id)
+            : _activeLayerId;
+    _controller.addLayer(aboveLayerId: insertAbove);
     setState(() {});
     _markDirty();
+    _syncRustCanvasLayersToEngine();
   }
 
   void _handleRemoveLayer(String id) async {
     if (_layers.length <= 1) {
       return;
     }
+    if (widget.useRustCanvas && id != _layers.last.id) {
+      _showRustCanvasMessage('Rust 画布目前暂不支持删除非最上层图层。');
+      return;
+    }
     await _pushUndoSnapshot();
     _controller.removeLayer(id);
     setState(() {});
     _markDirty();
+    _syncRustCanvasLayersToEngine();
   }
 
   Widget _buildAddLayerButton() {
@@ -231,6 +258,10 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerReorder(int oldIndex, int newIndex) async {
+    if (widget.useRustCanvas) {
+      _showRustCanvasMessage('Rust 画布目前暂不支持图层重排。');
+      return;
+    }
     final int length = _layers.length;
     if (length <= 1) {
       return;
@@ -373,6 +404,7 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     _controller.setLayerOpacity(layerId, clamped);
+    _rustCanvasSetLayerOpacityById(layerId, clamped);
     setState(() {});
     _markDirty();
     return true;
@@ -527,6 +559,10 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleMergeLayerDown(BitmapLayerState layer) async {
+    if (widget.useRustCanvas) {
+      _showRustCanvasMessage('Rust 画布目前暂不支持图层合并。');
+      return;
+    }
     if (!_canMergeLayerDown(layer)) {
       return;
     }
@@ -539,6 +575,10 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerClippingToggle(BitmapLayerState layer) async {
+    if (widget.useRustCanvas) {
+      _showRustCanvasMessage('Rust 画布目前暂不支持剪贴蒙版。');
+      return;
+    }
     if (layer.locked) {
       return;
     }
@@ -550,6 +590,10 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleDuplicateLayer(BitmapLayerState layer) async {
+    if (widget.useRustCanvas) {
+      _showRustCanvasMessage('Rust 画布目前暂不支持复制图层。');
+      return;
+    }
     final CanvasLayerData? snapshot = _controller.buildClipboardLayer(layer.id);
     if (snapshot == null) {
       return;
@@ -651,6 +695,10 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerClipping(bool clipping) async {
+    if (widget.useRustCanvas) {
+      _showRustCanvasMessage('Rust 画布目前暂不支持剪贴蒙版。');
+      return;
+    }
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null || layer.clippingMask == clipping) {
       return;
@@ -661,6 +709,10 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerBlendMode(CanvasLayerBlendMode mode) async {
+    if (widget.useRustCanvas) {
+      _showRustCanvasMessage('Rust 画布目前暂不支持混合模式。');
+      return;
+    }
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null || layer.blendMode == mode) {
       return;

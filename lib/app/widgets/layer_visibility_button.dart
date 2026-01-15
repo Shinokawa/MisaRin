@@ -8,28 +8,34 @@ class LayerVisibilityButton extends StatelessWidget {
   });
 
   final bool visible;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final bool enabled = onChanged != null;
     final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
     final Color borderColor = theme.resources.controlStrokeColorDefault;
-    final Color background = Color.lerp(
-      borderColor.withValues(alpha: borderColor.a * 0.1),
-      accent,
-      0.05,
-    )!;
-    final Color iconColor = visible
-        ? accent
-        : theme.brightness.isDark
-            ? const Color(0xFFC0C0C0)
-            : const Color(0xFF666666);
+    final Color background = enabled
+        ? Color.lerp(
+              borderColor.withValues(alpha: borderColor.a * 0.1),
+              accent,
+              0.05,
+            )!
+        : theme.resources.controlFillColorDisabled;
+    final Color iconColor =
+        enabled
+            ? visible
+                ? accent
+                : theme.brightness.isDark
+                    ? const Color(0xFFC0C0C0)
+                    : const Color(0xFF666666)
+            : theme.resources.textFillColorDisabled;
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
-        onTap: () => onChanged(!visible),
+        onTap: enabled ? () => onChanged!(!visible) : null,
         child: Container(
           width: 24,
           height: 24,
@@ -37,7 +43,9 @@ class LayerVisibilityButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
             color: background,
             border: Border.all(
-              color: borderColor.withValues(alpha: borderColor.a * 0.6),
+              color: enabled
+                  ? borderColor.withValues(alpha: borderColor.a * 0.6)
+                  : borderColor.withValues(alpha: borderColor.a * 0.35),
               width: 1,
             ),
           ),

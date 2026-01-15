@@ -101,6 +101,7 @@ import '../../painting/krita_spray_engine.dart';
 import 'tool_cursor_overlay.dart';
 import 'bitmap_canvas_surface.dart';
 import 'rust_canvas_surface.dart';
+import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../constants/color_line_presets.dart';

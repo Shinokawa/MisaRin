@@ -81,6 +81,7 @@ class RustCanvasSurface extends StatefulWidget {
     required this.erase,
     this.antialiasLevel = 1,
     this.onStrokeBegin,
+    this.onEngineInfoChanged,
   });
 
   final Size canvasSize;
@@ -90,6 +91,7 @@ class RustCanvasSurface extends StatefulWidget {
   final bool erase;
   final int antialiasLevel;
   final VoidCallback? onStrokeBegin;
+  final void Function(int? handle, Size? engineSize)? onEngineInfoChanged;
 
   @override
   State<RustCanvasSurface> createState() => _RustCanvasSurfaceState();
@@ -106,6 +108,8 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   final _PackedPointBuffer _points = _PackedPointBuffer();
   bool _flushScheduled = false;
   int? _activeDrawingPointer;
+  int? _lastNotifiedEngineHandle;
+  Size? _lastNotifiedEngineSize;
 
   @override
   void initState() {
@@ -118,6 +122,17 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.canvasSize != widget.canvasSize) {
       unawaited(_loadTextureInfo());
+    }
+    final bool brushChanged =
+        oldWidget.brushColorArgb != widget.brushColorArgb ||
+        (oldWidget.brushRadius - widget.brushRadius).abs() > 1e-6 ||
+        oldWidget.erase != widget.erase ||
+        oldWidget.antialiasLevel != widget.antialiasLevel;
+    if (brushChanged && _activeDrawingPointer == null) {
+      final int? handle = _engineHandle;
+      if (handle != null) {
+        _applyBrushSettings(handle);
+      }
     }
   }
 
@@ -156,7 +171,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       final int? handle = _engineHandle;
       if (handle != null) {
         _applyLayerDefaults(handle);
+        _applyBrushSettings(handle);
       }
+      _notifyEngineInfoChanged();
     } catch (error) {
       if (!mounted) {
         return;
@@ -167,7 +184,27 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         _engineSize = null;
         _error = error;
       });
+      _notifyEngineInfoChanged();
     }
+  }
+
+  void _notifyEngineInfoChanged() {
+    final int? handle = _engineHandle;
+    final Size? size = _engineSize;
+    if (_lastNotifiedEngineHandle == handle && _lastNotifiedEngineSize == size) {
+      return;
+    }
+    _lastNotifiedEngineHandle = handle;
+    _lastNotifiedEngineSize = size;
+    widget.onEngineInfoChanged?.call(handle, size);
+  }
+
+  @override
+  void dispose() {
+    if (_lastNotifiedEngineHandle != null || _lastNotifiedEngineSize != null) {
+      widget.onEngineInfoChanged?.call(null, null);
+    }
+    super.dispose();
   }
 
   void _applyLayerDefaults(int handle) {
@@ -179,7 +216,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       CanvasEngineFfi.instance.setLayerVisible(
         handle: handle,
         layerIndex: i,
-        visible: i == 0,
+        visible: true,
       );
       CanvasEngineFfi.instance.setLayerOpacity(
         handle: handle,
@@ -197,10 +234,23 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     if (!CanvasEngineFfi.instance.isSupported) {
       return;
     }
+    double radius = widget.brushRadius;
+    final Size engineSize = _engineSize ?? widget.canvasSize;
+    if (engineSize != widget.canvasSize &&
+        widget.canvasSize.width > 0 &&
+        widget.canvasSize.height > 0) {
+      final double sx = engineSize.width / widget.canvasSize.width;
+      final double sy = engineSize.height / widget.canvasSize.height;
+      final double scale =
+          (sx.isFinite && sy.isFinite) ? ((sx + sy) / 2.0) : 1.0;
+      if (scale.isFinite && scale > 0) {
+        radius *= scale;
+      }
+    }
     CanvasEngineFfi.instance.setBrush(
       handle: handle,
       colorArgb: widget.brushColorArgb,
-      baseRadius: widget.brushRadius,
+      baseRadius: radius,
       usePressure: true,
       erase: widget.erase,
       antialiasLevel: widget.antialiasLevel,
@@ -390,7 +440,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       child: SizedBox(
         width: canvasSize.width,
         height: canvasSize.height,
-        child: Texture(textureId: textureId),
+        child: Texture(textureId: textureId, filterQuality: FilterQuality.none),
       ),
     );
   }

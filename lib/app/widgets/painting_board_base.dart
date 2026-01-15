@@ -8,8 +8,6 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   Path? get selectionPath;
   Path? get selectionPreviewPath;
   Path? get shapePreviewPath;
-  Path? get shapeVectorFillOverlayPath;
-  Color? get shapeVectorFillOverlayColor;
   Path? get magicWandPreviewPath;
   double get selectionDashPhase;
   bool isPointInsideSelection(Offset position);
@@ -129,6 +127,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       _controller.loadLayers(rotated, _controller.backgroundColor);
       _resetHistory();
       setState(() {});
+      _syncRustCanvasLayersToEngine();
     }
     return CanvasRotationResult(
       layers: rotated,
@@ -662,6 +661,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _markDirty();
     resetSelectionUndoFlag();
     _updateSelectionAnimation();
+    _syncRustCanvasLayersToEngine();
   }
 
   void _refreshHistoryLimit() {

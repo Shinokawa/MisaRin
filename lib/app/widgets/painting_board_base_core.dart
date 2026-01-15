@@ -1,9 +1,14 @@
 part of 'painting_board.dart';
 
+const int _kRustCanvasLayerCount = 4;
+
 abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   late BitmapCanvasController _controller;
   final FocusNode _focusNode = FocusNode();
   bool _boardReadyNotified = false;
+  int? _rustCanvasEngineHandle;
+  Size? _rustCanvasEngineSize;
+  bool _rustCanvasLayerLimitNotified = false;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -20,15 +25,12 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
-  bool _streamlineEnabled = AppPreferences.defaultStreamlineEnabled;
-  double _streamlineStrength = AppPreferences.defaultStreamlineStrength;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
   int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
-  bool _vectorDrawingEnabled = AppPreferences.defaultVectorDrawingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   bool _brushRandomRotationEnabled =
       AppPreferences.defaultBrushRandomRotationEnabled;
@@ -98,7 +100,6 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   Offset? _lastStrokeBoardPosition;
   Offset? _lastStylusDirection;
   final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
-  final _StreamlineStabilizer _streamlineStabilizer = _StreamlineStabilizer();
   bool _isSpraying = false;
   Offset? _sprayBoardPosition;
   Ticker? _sprayTicker;
@@ -756,6 +757,145 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   ValueListenable<CanvasViewInfo> get viewInfoListenable => _viewInfoNotifier;
+
+  void _handleRustCanvasEngineInfoChanged(int? handle, Size? engineSize) {
+    _rustCanvasEngineHandle = handle;
+    _rustCanvasEngineSize = engineSize;
+    _syncRustCanvasLayersToEngine();
+  }
+
+  int? _rustCanvasLayerIndexForId(String layerId) {
+    final int index = _controller.layers.indexWhere(
+      (BitmapLayerState layer) => layer.id == layerId,
+    );
+    if (index < 0 || index >= _kRustCanvasLayerCount) {
+      return null;
+    }
+    return index;
+  }
+
+  bool _canUseRustCanvasEngine() {
+    return widget.useRustCanvas &&
+        CanvasEngineFfi.instance.isSupported &&
+        _rustCanvasEngineHandle != null;
+  }
+
+  void _showRustCanvasMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    AppNotifications.show(
+      context,
+      message: message,
+      severity: InfoBarSeverity.warning,
+    );
+  }
+
+  void _syncRustCanvasLayersToEngine() {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    final List<BitmapLayerState> layers = _controller.layers;
+    final int clampedLayerCount =
+        layers.length.clamp(0, _kRustCanvasLayerCount);
+
+    for (int i = 0; i < _kRustCanvasLayerCount; i++) {
+      if (i < clampedLayerCount) {
+        final BitmapLayerState layer = layers[i];
+        CanvasEngineFfi.instance.setLayerVisible(
+          handle: handle,
+          layerIndex: i,
+          visible: layer.visible,
+        );
+        CanvasEngineFfi.instance.setLayerOpacity(
+          handle: handle,
+          layerIndex: i,
+          opacity: layer.opacity.clamp(0.0, 1.0),
+        );
+      } else {
+        CanvasEngineFfi.instance.setLayerVisible(
+          handle: handle,
+          layerIndex: i,
+          visible: false,
+        );
+        CanvasEngineFfi.instance.setLayerOpacity(
+          handle: handle,
+          layerIndex: i,
+          opacity: 1.0,
+        );
+        CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: i);
+      }
+    }
+
+    final String? activeLayerId = _controller.activeLayerId;
+    int? activeIndex =
+        activeLayerId != null ? _rustCanvasLayerIndexForId(activeLayerId) : null;
+    if (activeIndex == null && layers.isNotEmpty) {
+      activeIndex = math.min(layers.length - 1, _kRustCanvasLayerCount - 1);
+      final String fallbackLayerId = layers[activeIndex].id;
+      if (fallbackLayerId != activeLayerId) {
+        _controller.setActiveLayer(fallbackLayerId);
+      }
+    }
+    if (activeIndex != null) {
+      CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: activeIndex);
+    }
+
+    if (layers.length > _kRustCanvasLayerCount && !_rustCanvasLayerLimitNotified) {
+      _rustCanvasLayerLimitNotified = true;
+      _showRustCanvasMessage(
+        'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层，超出部分不会显示。',
+      );
+    }
+  }
+
+  void _rustCanvasSetActiveLayerById(String layerId) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      _showRustCanvasMessage(
+        'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层。',
+      );
+      return;
+    }
+    CanvasEngineFfi.instance.setActiveLayer(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+    );
+  }
+
+  void _rustCanvasSetLayerVisibleById(String layerId, bool visible) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+      visible: visible,
+    );
+  }
+
+  void _rustCanvasSetLayerOpacityById(String layerId, double opacity) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerOpacity(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+      opacity: opacity.clamp(0.0, 1.0),
+    );
+  }
 
   CanvasTool get activeTool => _activeTool;
   CanvasTool get _effectiveActiveTool {

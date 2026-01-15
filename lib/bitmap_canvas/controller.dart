@@ -112,8 +112,6 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _currentStrokeEraseOccludedParts = false;
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
-  bool _vectorDrawingEnabled = true;
-  bool _vectorStrokeSmoothingEnabled = false;
   static const double _kStylusSmoothing = 0.55;
   CanvasPaintingWorker? _paintingWorker;
   _PendingWorkerDrawBatch? _pendingWorkerDrawBatch;
@@ -308,9 +306,6 @@ class BitmapCanvasController extends ChangeNotifier {
     return false;
   }
 
-  bool get vectorDrawingEnabled => _vectorDrawingEnabled;
-  bool get vectorStrokeSmoothingEnabled => _vectorStrokeSmoothingEnabled;
-
   void _notify() => notifyListeners();
 
   Future<T> _enqueueGpuBrushTask<T>(Future<T> Function() task) {
@@ -327,23 +322,6 @@ class BitmapCanvasController extends ChangeNotifier {
     } finally {
       _synchronousRasterOverride = previous;
     }
-  }
-
-  void setVectorDrawingEnabled(bool enabled) {
-    if (_vectorDrawingEnabled == enabled) {
-      return;
-    }
-    _vectorDrawingEnabled = enabled;
-    if (!_vectorDrawingEnabled && _deferredStrokeCommands.isNotEmpty) {
-      _commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
-    }
-  }
-
-  void setVectorStrokeSmoothingEnabled(bool enabled) {
-    if (_vectorStrokeSmoothingEnabled == enabled) {
-      return;
-    }
-    _vectorStrokeSmoothingEnabled = enabled;
   }
 
   void configureStylusPressure({
@@ -555,36 +533,6 @@ class BitmapCanvasController extends ChangeNotifier {
   void endStroke() => _strokeEnd(this);
 
   void cancelStroke() => _strokeCancel(this);
-
-  Future<void> commitVectorStroke({
-    required List<Offset> points,
-    required List<double> radii,
-    required Color color,
-    required BrushShape brushShape,
-    bool applyVectorSmoothing = true,
-    bool erase = false,
-    int antialiasLevel = 0,
-    bool hollow = false,
-    double hollowRatio = 0.0,
-    bool eraseOccludedParts = false,
-    bool randomRotation = false,
-    int rotationSeed = 0,
-  }) =>
-      _controllerCommitVectorStroke(
-        this,
-        points: points,
-        radii: radii,
-        color: color,
-        brushShape: brushShape,
-        applyVectorSmoothing: applyVectorSmoothing,
-        erase: erase,
-        antialiasLevel: antialiasLevel,
-        hollow: hollow,
-        hollowRatio: hollowRatio,
-        eraseOccludedParts: eraseOccludedParts,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-      );
 
   void drawFilledPolygon({
     required List<Offset> points,

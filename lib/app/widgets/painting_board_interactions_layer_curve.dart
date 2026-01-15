@@ -179,10 +179,8 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _isCurvePlacingSegment = true;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    if (!_vectorDrawingEnabled) {
-      await _prepareCurveRasterPreview();
-      _refreshCurveRasterPreview();
-    }
+    await _prepareCurveRasterPreview();
+    _refreshCurveRasterPreview();
   }
 
   void _handleCurvePenPointerMove(Offset boardLocal) {
@@ -197,9 +195,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _curveDragDelta = snapped - _curveDragOrigin!;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    if (!_vectorDrawingEnabled) {
-      _refreshCurveRasterPreview();
-    }
+    _refreshCurveRasterPreview();
   }
 
   Future<void> _handleCurvePenPointerUp() async {
@@ -221,16 +217,12 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       end,
       _curveDragDelta,
     );
-    if (!_vectorDrawingEnabled && _curveRasterPreviewSnapshot != null) {
+    if (_curveRasterPreviewSnapshot != null) {
       _clearCurvePreviewOverlay();
     }
-    if (_vectorDrawingEnabled) {
+    _controller.runSynchronousRasterization(() {
       _drawQuadraticCurve(start, control, end);
-    } else {
-      _controller.runSynchronousRasterization(() {
-        _drawQuadraticCurve(start, control, end);
-      });
-    }
+    });
     _disposeCurveRasterPreview(restoreLayer: false);
     setState(() {
       _curveAnchor = end;

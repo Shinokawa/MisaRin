@@ -314,7 +314,6 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     Offset? anchor,
   }) {
     final Offset clamped = _clampToCanvas(position);
-    final bool useStreamline = _streamlineEnabled && _vectorDrawingEnabled;
     final bool supportsStrokeStabilizer =
         _effectiveActiveTool == CanvasTool.pen ||
         _effectiveActiveTool == CanvasTool.eraser ||
@@ -322,14 +321,6 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (!supportsStrokeStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
-        _streamlineStabilizer.reset();
-      }
-      return _maybeSnapToPerspective(clamped, anchor: anchor);
-    }
-    if (useStreamline) {
-      if (isInitialSample) {
-        _strokeStabilizer.reset();
-        _streamlineStabilizer.reset();
       }
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
@@ -338,14 +329,12 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (!enableStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
-        _streamlineStabilizer.reset();
       }
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
 
     if (isInitialSample) {
       _strokeStabilizer.reset();
-      _streamlineStabilizer.reset();
       _strokeStabilizer.start(clamped);
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }

@@ -38,18 +38,19 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     required CanvasLayerBlendMode mode,
     required bool isLocked,
   }) {
+    final bool isEnabled = !isLocked && !widget.useRustCanvas;
     final TextStyle baseStyle =
         theme.typography.body ?? const TextStyle(fontSize: 14);
-    final Color textColor = isLocked
-        ? theme.resources.textFillColorDisabled
-        : baseStyle.color ?? theme.resources.textFillColorPrimary;
+    final Color textColor = isEnabled
+        ? (baseStyle.color ?? theme.resources.textFillColorPrimary)
+        : theme.resources.textFillColorDisabled;
     return FlyoutTarget(
       controller: _blendModeFlyoutController,
       child: Button(
         style: const ButtonStyle(
           padding: WidgetStatePropertyAll(EdgeInsets.zero),
         ),
-        onPressed: isLocked ? null : () => _toggleBlendModeFlyout(mode),
+        onPressed: isEnabled ? () => _toggleBlendModeFlyout(mode) : null,
         child: Container(
           padding: const EdgeInsetsDirectional.only(start: 11, end: 15),
           constraints: const BoxConstraints(minHeight: 32),
@@ -68,9 +69,9 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
               Icon(
                 FluentIcons.chevron_down,
                 size: 8,
-                color: isLocked
-                    ? theme.resources.textFillColorDisabled
-                    : theme.resources.textFillColorSecondary,
+                color: isEnabled
+                    ? theme.resources.textFillColorSecondary
+                    : theme.resources.textFillColorDisabled,
               ),
             ],
           ),
@@ -546,6 +547,10 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
         .toList(growable: false)
         .reversed
         .toList(growable: false);
+    final Map<String, int> layerIndexById = <String, int>{};
+    for (int i = 0; i < _layers.length; i++) {
+      layerIndexById[_layers[i].id] = i;
+    }
     _pruneLayerPreviewCache(_layers);
     final Map<String, bool> layerTileDimStates = _computeLayerTileDimStates();
     final String? activeLayerId = _activeLayerId;
@@ -603,9 +608,15 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                   itemBuilder: (context, index) {
                     final BitmapLayerState layer = orderedLayers[index];
                     final bool isActive = layer.id == activeLayerId;
+                    final int layerIndex = layerIndexById[layer.id] ?? -1;
+                    final bool rustLayerSupported = !widget.useRustCanvas ||
+                        (layerIndex >= 0 &&
+                            layerIndex < _kRustCanvasLayerCount);
                     final bool tileDimmed =
                         layerTileDimStates[layer.id] ?? !layer.visible;
-                    final double contentOpacity = tileDimmed ? 0.45 : 1.0;
+                    final double contentOpacity = !rustLayerSupported
+                        ? 0.25
+                        : (tileDimmed ? 0.45 : 1.0);
                     final bool isTextLayer = layer.text != null;
                     final bool isDark = theme.brightness.isDark;
                     final Color accent = theme.accentColor.defaultBrushFor(
@@ -655,8 +666,10 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
-                      onChanged: (value) =>
-                          _handleLayerVisibilityChanged(layer.id, value),
+                      onChanged: rustLayerSupported
+                          ? (value) =>
+                              _handleLayerVisibilityChanged(layer.id, value)
+                          : null,
                     );
                     Widget leadingButtons = visibilityButton;
                     if (isSai2Layout) {
@@ -825,23 +838,24 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                     return material.ReorderableDragStartListener(
                       key: ValueKey(layer.id),
                       index: index,
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: layer.clippingMask ? 18 : 0,
-                          bottom: index == orderedLayers.length - 1 ? 0 : 8,
-                        ),
-                        child: _LayerTile(
-                          onTapDown: (_) => _handleLayerSelected(layer.id),
-                          onSecondaryTapDown: (details) =>
-                              _showLayerContextMenu(
-                                layer,
-                                details.globalPosition,
-                              ),
-                          backgroundColor: background,
-                          borderColor: tileBorder,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: layer.clippingMask ? 18 : 0,
+                            bottom: index == orderedLayers.length - 1 ? 0 : 8,
+                          ),
+                          child: _LayerTile(
+                            onTapDown: (_) => _handleLayerSelected(layer.id),
+                            onSecondaryTapDown: rustLayerSupported
+                                ? (details) => _showLayerContextMenu(
+                                      layer,
+                                      details.globalPosition,
+                                    )
+                                : null,
+                            backgroundColor: background,
+                            borderColor: tileBorder,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -928,6 +942,14 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       onRequestRename: isLocked
           ? null
           : () {
+              if (widget.useRustCanvas &&
+                  _layers.indexWhere((candidate) => candidate.id == layer.id) >=
+                      _kRustCanvasLayerCount) {
+                _showRustCanvasMessage(
+                  'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层。',
+                );
+                return;
+              }
               _handleLayerSelected(layer.id);
               unawaited(_beginLayerRename(layer));
             },

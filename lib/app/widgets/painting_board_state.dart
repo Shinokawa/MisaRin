@@ -32,7 +32,6 @@ class PaintingBoardState extends _PaintingBoardBase
     _viewInfoNotifier = ValueNotifier<CanvasViewInfo>(_buildViewInfo());
     initializeTextTool();
     initializeSelectionTicker(this);
-    initializeStreamlinePostProcessor(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
     _pixelGridVisible = prefs.pixelGridVisible;
@@ -57,8 +56,6 @@ class PaintingBoardState extends _PaintingBoardBase
     );
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
-    _streamlineEnabled = prefs.streamlineEnabled;
-    _streamlineStrength = prefs.streamlineStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
@@ -66,7 +63,6 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
-    _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
     _brushShape = prefs.brushShape;
     _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
     _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
@@ -91,7 +87,6 @@ class PaintingBoardState extends _PaintingBoardBase
       initialLayers: layers,
       creationLogic: widget.settings.creationLogic,
     );
-    _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
@@ -727,7 +722,6 @@ class PaintingBoardState extends _PaintingBoardBase
         initialLayers: _buildInitialLayers(),
         creationLogic: widget.settings.creationLogic,
       );
-      _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
       _boardReadyNotified = _controller.frame != null;
@@ -744,6 +738,7 @@ class PaintingBoardState extends _PaintingBoardBase
         }
       });
       _notifyViewInfoChanged();
+      _syncRustCanvasLayersToEngine();
     }
   }
 
@@ -761,28 +756,15 @@ class PaintingBoardState extends _PaintingBoardBase
       }
     }
     _handleFilterApplyFrameProgress(frame);
-    final bool shouldClearVectorFillOverlay =
-        _shapeVectorFillOverlayPath != null &&
-        _controller.committingStrokes.isEmpty;
     if (_maybeInitializeLayerTransformStateFromController()) {
-      if (shouldClearVectorFillOverlay) {
-        setState(() {
-          _shapeVectorFillOverlayPath = null;
-          _shapeVectorFillOverlayColor = null;
-        });
-      }
       _scheduleReferenceModelTextureRefresh();
+      _syncRustCanvasLayersToEngine();
       return;
     }
-    setState(() {
-      if (shouldClearVectorFillOverlay) {
-        _shapeVectorFillOverlayPath = null;
-        _shapeVectorFillOverlayColor = null;
-      }
-    });
     _syncRasterizeMenuAvailability();
     _notifyBoardReadyIfNeeded();
     _scheduleReferenceModelTextureRefresh();
+    _syncRustCanvasLayersToEngine();
   }
 
   void _notifyBoardReadyIfNeeded() {
@@ -827,15 +809,12 @@ class PaintingBoardState extends _PaintingBoardBase
       hollowStrokeRatio: _hollowStrokeRatio,
       hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       strokeStabilizerStrength: _strokeStabilizerStrength,
-      streamlineEnabled: _streamlineEnabled,
-      streamlineStrength: _streamlineStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
       penPressureProfile: _penPressureProfile,
       penAntialiasLevel: _penAntialiasLevel,
       bucketAntialiasLevel: _bucketAntialiasLevel,
       autoSharpPeakEnabled: _autoSharpPeakEnabled,
-      vectorDrawingEnabled: _vectorDrawingEnabled,
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -885,15 +864,12 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
     _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
-    _updateStreamlineEnabled(snapshot.streamlineEnabled);
-    _updateStreamlineStrength(snapshot.streamlineStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);
     _updatePenPressureProfile(snapshot.penPressureProfile);
     _updatePenAntialiasLevel(snapshot.penAntialiasLevel);
     _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
     _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
-    _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);

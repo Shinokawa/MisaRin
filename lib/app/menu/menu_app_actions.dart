@@ -110,13 +110,6 @@ class AppMenuActions {
       }
     }
 
-    void setVectorDrawingEnabled(bool value) {
-      if (prefs.vectorDrawingEnabled != value) {
-        prefs.vectorDrawingEnabled = value;
-        changed = true;
-      }
-    }
-
     void setStrokeStabilizerStrength(double value) {
       if (prefs.strokeStabilizerStrength != value) {
         prefs.strokeStabilizerStrength = value;
@@ -124,17 +117,9 @@ class AppMenuActions {
       }
     }
 
-    void setStreamlineEnabled(bool value) {
-      if (prefs.streamlineEnabled != value) {
-        prefs.streamlineEnabled = value;
-        changed = true;
-      }
-    }
-
     switch (preset) {
       case WorkspacePreset.illustration:
         setPenAntialias(1);
-        setStreamlineEnabled(true);
         break;
       case WorkspacePreset.celShading:
         setPenAntialias(0);
@@ -146,7 +131,6 @@ class AppMenuActions {
         setBucketAntialias(0);
         setStrokeStabilizerStrength(0.0);
         setPixelGridVisible(true);
-        setVectorDrawingEnabled(false);
         break;
       default:
         break;
