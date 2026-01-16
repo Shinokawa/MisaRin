@@ -19,7 +19,7 @@ use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Color, Point2D};
 use crate::gpu::debug::{self, LogLevel};
 
 #[cfg(target_os = "macos")]
-const MVP_LAYER_COUNT: usize = 4;
+const INITIAL_LAYER_CAPACITY: usize = 4;
 
 #[cfg(target_os = "macos")]
 enum EngineCommand {
@@ -277,7 +277,7 @@ impl UndoManager {
                         origin: wgpu::Origin3d {
                             x: rect.left,
                             y: rect.top,
-                            z: 0,
+                            z: layer_index,
                         },
                         aspect: wgpu::TextureAspect::All,
                     },
@@ -351,7 +351,7 @@ impl UndoManager {
                     origin: wgpu::Origin3d {
                         x: rect.left,
                         y: rect.top,
-                        z: 0,
+                        z: active.layer_index,
                     },
                     aspect: wgpu::TextureAspect::All,
                 },
@@ -388,12 +388,18 @@ impl UndoManager {
         self.redo_stack.clear();
     }
 
-    fn undo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layers: &[wgpu::Texture]) -> bool {
+    fn undo(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layer_texture: &wgpu::Texture,
+        layer_count: usize,
+    ) -> bool {
         self.cancel_stroke();
         let Some(record) = self.undo_stack.pop() else {
             return false;
         };
-        let Some(layer_texture) = layers.get(record.layer_index as usize) else {
+        if (record.layer_index as usize) >= layer_count {
             return false;
         };
         if record.tiles.is_empty() {
@@ -417,7 +423,7 @@ impl UndoManager {
                     origin: wgpu::Origin3d {
                         x: tile.rect.left,
                         y: tile.rect.top,
-                        z: 0,
+                        z: record.layer_index,
                     },
                     aspect: wgpu::TextureAspect::All,
                 },
@@ -433,12 +439,18 @@ impl UndoManager {
         true
     }
 
-    fn redo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layers: &[wgpu::Texture]) -> bool {
+    fn redo(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layer_texture: &wgpu::Texture,
+        layer_count: usize,
+    ) -> bool {
         self.cancel_stroke();
         let Some(record) = self.redo_stack.pop() else {
             return false;
         };
-        let Some(layer_texture) = layers.get(record.layer_index as usize) else {
+        if (record.layer_index as usize) >= layer_count {
             return false;
         };
         if record.tiles.is_empty() {
@@ -462,7 +474,7 @@ impl UndoManager {
                     origin: wgpu::Origin3d {
                         x: tile.rect.left,
                         y: tile.rect.top,
-                        z: 0,
+                        z: record.layer_index,
                     },
                     aspect: wgpu::TextureAspect::All,
                 },
@@ -525,10 +537,185 @@ struct PresentTarget {
 }
 
 #[cfg(target_os = "macos")]
+struct LayerTextures {
+    texture: wgpu::Texture,
+    array_view: wgpu::TextureView,
+    layer_views: Vec<wgpu::TextureView>,
+    width: u32,
+    height: u32,
+    capacity: usize,
+}
+
+#[cfg(target_os = "macos")]
+impl LayerTextures {
+    fn new(
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+        capacity: usize,
+    ) -> Result<Self, String> {
+        let capacity = capacity.max(1);
+        let max_layers = device.limits().max_texture_array_layers as usize;
+        if capacity > max_layers {
+            return Err(format!(
+                "layer capacity {capacity} exceeds device max {max_layers}"
+            ));
+        }
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("misa-rin layer array (R32Uint)"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: capacity as u32,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R32Uint,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        });
+        let array_view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            base_array_layer: 0,
+            array_layer_count: Some(capacity as u32),
+            ..Default::default()
+        });
+        let mut layer_views = Vec::with_capacity(capacity);
+        for idx in 0..capacity {
+            let view = texture.create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                base_array_layer: idx as u32,
+                array_layer_count: Some(1),
+                ..Default::default()
+            });
+            layer_views.push(view);
+        }
+
+        Ok(Self {
+            texture,
+            array_view,
+            layer_views,
+            width,
+            height,
+            capacity,
+        })
+    }
+
+    fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    fn texture(&self) -> &wgpu::Texture {
+        &self.texture
+    }
+
+    fn array_view(&self) -> &wgpu::TextureView {
+        &self.array_view
+    }
+
+    fn layer_view(&self, index: usize) -> Option<&wgpu::TextureView> {
+        self.layer_views.get(index)
+    }
+
+    fn ensure_capacity(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        required: usize,
+    ) -> Result<Option<usize>, String> {
+        if required <= self.capacity {
+            return Ok(None);
+        }
+
+        let max_layers = device.limits().max_texture_array_layers as usize;
+        let mut next_capacity = self.capacity.max(1);
+        while next_capacity < required {
+            next_capacity = next_capacity.saturating_mul(2).max(required);
+        }
+        if next_capacity > max_layers {
+            return Err(format!(
+                "layer capacity {next_capacity} exceeds device max {max_layers}"
+            ));
+        }
+
+        let old_capacity = self.capacity;
+        let new_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("misa-rin layer array (R32Uint)"),
+            size: wgpu::Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: next_capacity as u32,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R32Uint,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        });
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("misa-rin layer array resize encoder"),
+        });
+        encoder.copy_texture_to_texture(
+            wgpu::ImageCopyTexture {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyTexture {
+                texture: &new_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: old_capacity as u32,
+            },
+        );
+        queue.submit(Some(encoder.finish()));
+
+        let array_view = new_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            base_array_layer: 0,
+            array_layer_count: Some(next_capacity as u32),
+            ..Default::default()
+        });
+        let mut layer_views = Vec::with_capacity(next_capacity);
+        for idx in 0..next_capacity {
+            let view = new_texture.create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                base_array_layer: idx as u32,
+                array_layer_count: Some(1),
+                ..Default::default()
+            });
+            layer_views.push(view);
+        }
+
+        self.texture = new_texture;
+        self.array_view = array_view;
+        self.layer_views = layer_views;
+        self.capacity = next_capacity;
+
+        Ok(Some(old_capacity))
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn spawn_render_thread(
     device: wgpu::Device,
     queue: wgpu::Queue,
-    layer_textures: Vec<wgpu::Texture>,
+    layer_textures: LayerTextures,
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
@@ -557,7 +744,7 @@ fn spawn_render_thread(
 fn render_thread_main(
     device: wgpu::Device,
     queue: wgpu::Queue,
-    layer_textures: Vec<wgpu::Texture>,
+    layer_textures: LayerTextures,
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
@@ -569,16 +756,13 @@ fn render_thread_main(
     let queue = Arc::new(queue);
 
     let mut present: Option<PresentTarget> = None;
-    if layer_textures.is_empty() {
+    let mut layers = layer_textures;
+    if layers.capacity() == 0 {
         return;
     }
-    // Layer order is bottom-to-top. MVP uses a fixed number of layers.
-    let layers = layer_textures;
-    let layer_count = layers.len().min(MVP_LAYER_COUNT);
-    if layer_count == 0 {
-        return;
-    }
-    let mut active_layer_index: usize = layer_count.saturating_sub(1);
+    // Layer order is bottom-to-top.
+    let mut layer_count: usize = 1;
+    let mut active_layer_index: usize = 0;
 
     let mut brush = match BrushRenderer::new(device.clone(), queue.clone()) {
         Ok(renderer) => renderer,
@@ -592,30 +776,40 @@ fn render_thread_main(
     let mut brush_settings = EngineBrushSettings::default();
 
     let present_renderer = PresentRenderer::new(device.as_ref());
-    let layer_views: Vec<wgpu::TextureView> = layers
-        .iter()
-        .take(MVP_LAYER_COUNT)
-        .map(|tex| tex.create_view(&wgpu::TextureViewDescriptor::default()))
-        .collect();
-
-    let mut layer_opacity = [1.0f32; MVP_LAYER_COUNT];
-    let mut layer_visible = [true; MVP_LAYER_COUNT];
+    let mut layer_opacity: Vec<f32> = vec![1.0; layer_count];
+    let mut layer_visible: Vec<bool> = vec![true; layer_count];
     let present_config_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("misa-rin present composite config"),
-        size: std::mem::size_of::<PresentCompositeConfig>() as u64,
+        size: std::mem::size_of::<PresentCompositeHeader>() as u64,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
+    let mut present_params_capacity = layers.capacity();
+    let mut present_params_buffer =
+        match create_present_params_buffer(device.as_ref(), present_params_capacity) {
+            Ok(buffer) => buffer,
+            Err(err) => {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Present params buffer init failed: {err}"),
+                );
+                return;
+            }
+        };
     write_present_config(
         queue.as_ref(),
         &present_config_buffer,
-        layer_count as u32,
+        &present_params_buffer,
+        layer_count,
         &layer_opacity,
         &layer_visible,
     );
-
-    let present_bind_group =
-        present_renderer.create_bind_group(device.as_ref(), &layer_views, &present_config_buffer);
+    let mut present_bind_group = present_renderer.create_bind_group(
+        device.as_ref(),
+        layers.array_view(),
+        &present_config_buffer,
+        &present_params_buffer,
+    );
 
     let mut stroke = StrokeResampler::new();
     let mut undo_manager = UndoManager::new(canvas_width, canvas_height);
@@ -629,11 +823,16 @@ fn render_thread_main(
                         queue.as_ref(),
                         &mut present,
                         cmd,
-                        &layers,
+                        &mut layers,
+                        &mut layer_count,
                         &mut active_layer_index,
                         &mut layer_opacity,
                         &mut layer_visible,
+                        &present_renderer,
                         &present_config_buffer,
+                        &mut present_params_buffer,
+                        &mut present_params_capacity,
+                        &mut present_bind_group,
                         &mut brush_settings,
                         &mut undo_manager,
                         canvas_width,
@@ -668,11 +867,16 @@ fn render_thread_main(
                         queue.as_ref(),
                         &mut present,
                         cmd,
-                        &layers,
+                        &mut layers,
+                        &mut layer_count,
                         &mut active_layer_index,
                         &mut layer_opacity,
                         &mut layer_visible,
+                        &present_renderer,
                         &present_config_buffer,
+                        &mut present_params_buffer,
+                        &mut present_params_capacity,
+                        &mut present_bind_group,
                         &mut brush_settings,
                         &mut undo_manager,
                         canvas_width,
@@ -705,9 +909,11 @@ fn render_thread_main(
                         raw_points.extend(batch.points);
                     }
 
-                    let active_layer = layers
-                        .get(active_layer_index)
-                        .unwrap_or_else(|| layers.first().expect("layers non-empty"));
+                    let active_layer_view = layers
+                        .layer_view(active_layer_index)
+                        .or_else(|| layers.layer_view(0))
+                        .expect("layers non-empty");
+                    let layer_texture = layers.texture();
                     let mut segment: Vec<EnginePoint> = Vec::new();
                     let mut drawn_any = false;
 
@@ -731,7 +937,7 @@ fn render_thread_main(
                                 undo_manager.capture_before_for_dirty_rect(
                                     device.as_ref(),
                                     queue.as_ref(),
-                                    active_layer,
+                                    layer_texture,
                                     layer_idx,
                                     dirty_rect,
                                 );
@@ -739,13 +945,13 @@ fn render_thread_main(
                             drawn_any |= stroke.consume_and_draw(
                                 &mut brush,
                                 &brush_settings,
-                                active_layer,
+                                active_layer_view,
                                 std::mem::take(&mut segment),
                                 canvas_width,
                                 canvas_height,
                                 &mut before_draw,
                             );
-                            undo_manager.end_stroke(device.as_ref(), queue.as_ref(), active_layer);
+                            undo_manager.end_stroke(device.as_ref(), queue.as_ref(), layer_texture);
                         }
                     }
 
@@ -755,7 +961,7 @@ fn render_thread_main(
                             undo_manager.capture_before_for_dirty_rect(
                                 device.as_ref(),
                                 queue.as_ref(),
-                                active_layer,
+                                layer_texture,
                                 layer_idx,
                                 dirty_rect,
                             );
@@ -763,7 +969,7 @@ fn render_thread_main(
                         drawn_any |= stroke.consume_and_draw(
                             &mut brush,
                             &brush_settings,
-                            active_layer,
+                            active_layer_view,
                             segment,
                             canvas_width,
                             canvas_height,
@@ -798,16 +1004,90 @@ fn handle_engine_command(
     queue: &wgpu::Queue,
     present: &mut Option<PresentTarget>,
     cmd: EngineCommand,
-    layers: &[wgpu::Texture],
+    layers: &mut LayerTextures,
+    layer_count: &mut usize,
     active_layer_index: &mut usize,
-    layer_opacity: &mut [f32; MVP_LAYER_COUNT],
-    layer_visible: &mut [bool; MVP_LAYER_COUNT],
+    layer_opacity: &mut Vec<f32>,
+    layer_visible: &mut Vec<bool>,
+    present_renderer: &PresentRenderer,
     present_config_buffer: &wgpu::Buffer,
+    present_params_buffer: &mut wgpu::Buffer,
+    present_params_capacity: &mut usize,
+    present_bind_group: &mut wgpu::BindGroup,
     brush_settings: &mut EngineBrushSettings,
     undo: &mut UndoManager,
     canvas_width: u32,
     canvas_height: u32,
 ) -> EngineCommandOutcome {
+    let mut ensure_layer_index = |idx: usize| -> bool {
+        if idx < *layer_count {
+            return true;
+        }
+        let old_count = *layer_count;
+        let new_count = idx + 1;
+        let resized = match layers.ensure_capacity(device, queue, new_count) {
+            Ok(Some(_)) => true,
+            Ok(None) => false,
+            Err(err) => {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Layer capacity resize failed: {err}"),
+                );
+                return false;
+            }
+        };
+        if resized {
+            *present_params_capacity = layers.capacity();
+            match create_present_params_buffer(device, *present_params_capacity) {
+                Ok(buffer) => {
+                    *present_params_buffer = buffer;
+                    *present_bind_group = present_renderer.create_bind_group(
+                        device,
+                        layers.array_view(),
+                        present_config_buffer,
+                        present_params_buffer,
+                    );
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("Present params buffer resize failed: {err}"),
+                    );
+                    return false;
+                }
+            }
+        }
+
+        if new_count > layer_opacity.len() {
+            layer_opacity.resize(new_count, 1.0);
+        }
+        if new_count > layer_visible.len() {
+            layer_visible.resize(new_count, true);
+        }
+
+        for layer in old_count..new_count {
+            fill_r32uint_texture(
+                queue,
+                layers.texture(),
+                canvas_width,
+                canvas_height,
+                layer as u32,
+                0x00000000,
+            );
+        }
+
+        *layer_count = new_count;
+        write_present_config(
+            queue,
+            present_config_buffer,
+            present_params_buffer,
+            *layer_count,
+            layer_opacity,
+            layer_visible,
+        );
+        true
+    };
+
     match cmd {
         EngineCommand::Stop => {
             return EngineCommandOutcome {
@@ -845,9 +1125,16 @@ fn handle_engine_command(
                 );
                 // Initialize layers so the first composite is deterministic.
                 // Layer 0 is the background fill layer (default white), others start transparent.
-                for (idx, tex) in layers.iter().take(MVP_LAYER_COUNT).enumerate() {
+                for idx in 0..*layer_count {
                     let fill = if idx == 0 { 0xFFFFFFFF } else { 0x00000000 };
-                    fill_r32uint_texture(queue, tex, canvas_width, canvas_height, fill);
+                    fill_r32uint_texture(
+                        queue,
+                        layers.texture(),
+                        canvas_width,
+                        canvas_height,
+                        idx as u32,
+                        fill,
+                    );
                 }
                 // Request one render so Flutter gets an actual composited frame immediately.
                 return EngineCommandOutcome {
@@ -860,13 +1147,20 @@ fn handle_engine_command(
             // Reset undo history so a fresh canvas doesn't "undo" back into the previous one.
             undo.reset();
             // Layer 0 is background fill; everything above starts transparent.
-            for (idx, tex) in layers.iter().take(MVP_LAYER_COUNT).enumerate() {
+            for idx in 0..*layer_count {
                 let fill = if idx == 0 {
                     background_color_argb
                 } else {
                     0x00000000
                 };
-                fill_r32uint_texture(queue, tex, canvas_width, canvas_height, fill);
+                fill_r32uint_texture(
+                    queue,
+                    layers.texture(),
+                    canvas_width,
+                    canvas_height,
+                    idx as u32,
+                    fill,
+                );
             }
             return EngineCommandOutcome {
                 stop: false,
@@ -877,11 +1171,16 @@ fn handle_engine_command(
             layer_index,
             color_argb,
         } => {
-            if let Some(tex) = layers
-                .get(layer_index as usize)
-                .filter(|_| (layer_index as usize) < MVP_LAYER_COUNT)
-            {
-                fill_r32uint_texture(queue, tex, canvas_width, canvas_height, color_argb);
+            let idx = layer_index as usize;
+            if ensure_layer_index(idx) {
+                fill_r32uint_texture(
+                    queue,
+                    layers.texture(),
+                    canvas_width,
+                    canvas_height,
+                    idx as u32,
+                    color_argb,
+                );
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
@@ -889,11 +1188,16 @@ fn handle_engine_command(
             }
         }
         EngineCommand::ClearLayer { layer_index } => {
-            if let Some(tex) = layers
-                .get(layer_index as usize)
-                .filter(|_| (layer_index as usize) < MVP_LAYER_COUNT)
-            {
-                fill_r32uint_texture(queue, tex, canvas_width, canvas_height, 0x00000000);
+            let idx = layer_index as usize;
+            if ensure_layer_index(idx) {
+                fill_r32uint_texture(
+                    queue,
+                    layers.texture(),
+                    canvas_width,
+                    canvas_height,
+                    idx as u32,
+                    0x00000000,
+                );
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
@@ -902,13 +1206,13 @@ fn handle_engine_command(
         }
         EngineCommand::SetActiveLayer { layer_index } => {
             let idx = layer_index as usize;
-            if idx < layers.len() && idx < MVP_LAYER_COUNT {
+            if ensure_layer_index(idx) {
                 *active_layer_index = idx;
             }
         }
         EngineCommand::SetLayerOpacity { layer_index, opacity } => {
             let idx = layer_index as usize;
-            if idx < MVP_LAYER_COUNT {
+            if ensure_layer_index(idx) {
                 layer_opacity[idx] = if opacity.is_finite() {
                     opacity.clamp(0.0, 1.0)
                 } else {
@@ -917,7 +1221,8 @@ fn handle_engine_command(
                 write_present_config(
                     queue,
                     present_config_buffer,
-                    layers.len().min(MVP_LAYER_COUNT) as u32,
+                    present_params_buffer,
+                    *layer_count,
                     layer_opacity,
                     layer_visible,
                 );
@@ -932,12 +1237,13 @@ fn handle_engine_command(
             visible,
         } => {
             let idx = layer_index as usize;
-            if idx < MVP_LAYER_COUNT {
+            if ensure_layer_index(idx) {
                 layer_visible[idx] = visible;
                 write_present_config(
                     queue,
                     present_config_buffer,
-                    layers.len().min(MVP_LAYER_COUNT) as u32,
+                    present_params_buffer,
+                    *layer_count,
                     layer_opacity,
                     layer_visible,
                 );
@@ -962,14 +1268,14 @@ fn handle_engine_command(
             brush_settings.sanitize();
         }
         EngineCommand::Undo => {
-            let applied = undo.undo(device, queue, layers);
+            let applied = undo.undo(device, queue, layers.texture(), *layer_count);
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: applied && present.is_some(),
             };
         }
         EngineCommand::Redo => {
-            let applied = undo.redo(device, queue, layers);
+            let applied = undo.redo(device, queue, layers.texture(), *layer_count);
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: applied && present.is_some(),
@@ -995,6 +1301,7 @@ fn fill_r32uint_texture(
     texture: &wgpu::Texture,
     width: u32,
     height: u32,
+    layer_index: u32,
     value: u32,
 ) {
     if width == 0 || height == 0 {
@@ -1026,7 +1333,11 @@ fn fill_r32uint_texture(
             wgpu::ImageCopyTexture {
                 texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d { x: 0, y, z: 0 },
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y,
+                    z: layer_index,
+                },
                 aspect: wgpu::TextureAspect::All,
             },
             bytemuck::cast_slice(&data),
@@ -1068,39 +1379,93 @@ struct PresentRenderer {
 #[cfg(target_os = "macos")]
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct PresentCompositeConfig {
+struct PresentCompositeHeader {
     layer_count: u32,
     _pad0: u32,
     _pad1: u32,
     _pad2: u32,
-    layer_params: [[f32; 4]; MVP_LAYER_COUNT],
+}
+
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct PresentLayerParams {
+    opacity: f32,
+    visible: f32,
+    _pad0: f32,
+    _pad1: f32,
 }
 
 #[cfg(target_os = "macos")]
 fn write_present_config(
     queue: &wgpu::Queue,
-    buffer: &wgpu::Buffer,
-    layer_count: u32,
-    layer_opacity: &[f32; MVP_LAYER_COUNT],
-    layer_visible: &[bool; MVP_LAYER_COUNT],
+    header_buffer: &wgpu::Buffer,
+    params_buffer: &wgpu::Buffer,
+    layer_count: usize,
+    layer_opacity: &[f32],
+    layer_visible: &[bool],
 ) {
-    let mut cfg = PresentCompositeConfig {
-        layer_count,
+    let header = PresentCompositeHeader {
+        layer_count: layer_count as u32,
         _pad0: 0,
         _pad1: 0,
         _pad2: 0,
-        layer_params: [[0.0; 4]; MVP_LAYER_COUNT],
     };
-    for i in 0..MVP_LAYER_COUNT {
-        let opacity = if layer_opacity[i].is_finite() {
-            layer_opacity[i].clamp(0.0, 1.0)
+    queue.write_buffer(header_buffer, 0, bytemuck::bytes_of(&header));
+
+    if layer_count == 0 {
+        return;
+    }
+
+    let mut params: Vec<PresentLayerParams> = Vec::with_capacity(layer_count);
+    for i in 0..layer_count {
+        let raw_opacity = layer_opacity.get(i).copied().unwrap_or(1.0);
+        let opacity = if raw_opacity.is_finite() {
+            raw_opacity.clamp(0.0, 1.0)
         } else {
             0.0
         };
-        let visible = if layer_visible[i] { 1.0 } else { 0.0 };
-        cfg.layer_params[i] = [opacity, visible, 0.0, 0.0];
+        let visible = if *layer_visible.get(i).unwrap_or(&true) {
+            1.0
+        } else {
+            0.0
+        };
+        params.push(PresentLayerParams {
+            opacity,
+            visible,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        });
     }
-    queue.write_buffer(buffer, 0, bytemuck::bytes_of(&cfg));
+    queue.write_buffer(params_buffer, 0, bytemuck::cast_slice(&params));
+}
+
+#[cfg(target_os = "macos")]
+fn create_present_params_buffer(
+    device: &wgpu::Device,
+    capacity: usize,
+) -> Result<wgpu::Buffer, String> {
+    let size = capacity
+        .checked_mul(std::mem::size_of::<PresentLayerParams>())
+        .ok_or_else(|| "layer params buffer size overflow".to_string())?;
+    let max_storage_binding = device.limits().max_storage_buffer_binding_size as u64;
+    let max_buffer_size = device.limits().max_buffer_size;
+    if (size as u64) > max_buffer_size {
+        return Err(format!(
+            "layer params buffer too large: {size} bytes (max {max_buffer_size})"
+        ));
+    }
+    if (size as u64) > max_storage_binding {
+        return Err(format!(
+            "layer params buffer too large: {size} bytes (max {max_storage_binding})"
+        ));
+    }
+    Ok(device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("misa-rin present layer params"),
+        size: size as u64,
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    }))
 }
 
 #[cfg(target_os = "macos")]
@@ -1119,7 +1484,7 @@ impl PresentRenderer {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Uint,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
                         multisampled: false,
                     },
                     count: None,
@@ -1127,42 +1492,22 @@ impl PresentRenderer {
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Uint,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<PresentCompositeHeader>() as u64,
+                        ),
                     },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Uint,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Uint,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<PresentCompositeConfig>() as u64,
-                        ),
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -1215,33 +1560,25 @@ impl PresentRenderer {
     fn create_bind_group(
         &self,
         device: &wgpu::Device,
-        layer_views: &[wgpu::TextureView],
+        layer_view: &wgpu::TextureView,
         config_buffer: &wgpu::Buffer,
+        params_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
-        assert_eq!(layer_views.len(), MVP_LAYER_COUNT);
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("misa-rin present renderer bind group"),
             layout: &self.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&layer_views[0]),
+                    resource: wgpu::BindingResource::TextureView(layer_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&layer_views[1]),
+                    resource: config_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::TextureView(&layer_views[2]),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&layer_views[3]),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: config_buffer.as_entire_binding(),
+                    resource: params_buffer.as_entire_binding(),
                 },
             ],
         })
@@ -1306,7 +1643,7 @@ impl StrokeResampler {
         &mut self,
         brush: &mut BrushRenderer,
         brush_settings: &EngineBrushSettings,
-        layer_texture: &wgpu::Texture,
+        layer_view: &wgpu::TextureView,
         points: Vec<EnginePoint>,
         canvas_width: u32,
         canvas_height: u32,
@@ -1402,7 +1739,7 @@ impl StrokeResampler {
             let dirty = compute_dirty_rect_i32(&[p0], &[r0], canvas_width, canvas_height);
             before_draw(dirty);
             match brush.draw_stroke(
-                layer_texture,
+                layer_view,
                 &[p0],
                 &[r0],
                 Color {
@@ -1434,7 +1771,7 @@ impl StrokeResampler {
                 let dirty = compute_dirty_rect_i32(&pts, &radii, canvas_width, canvas_height);
                 before_draw(dirty);
                 match brush.draw_stroke(
-                    layer_texture,
+                    layer_view,
                     &pts,
                     &radii,
                     Color {
@@ -1678,27 +2015,8 @@ fn create_engine(width: u32, height: u32) -> Result<u64, String> {
         return Err("wgpu: failed to extract underlying MTLDevice".to_string());
     }
 
-    let mut layers: Vec<wgpu::Texture> = Vec::with_capacity(MVP_LAYER_COUNT);
-    for idx in 0..MVP_LAYER_COUNT {
-        let label = format!("misa-rin layer{idx} (R32Uint)");
-        layers.push(device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(&label),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::STORAGE_BINDING,
-            view_formats: &[],
-        }));
-    }
+    let layers = LayerTextures::new(&device, width, height, INITIAL_LAYER_CAPACITY)
+        .map_err(|err| format!("engine_create: layer init failed: {err}"))?;
 
     let (cmd_tx, cmd_rx) = mpsc::channel();
     let (input_tx, input_rx) = mpsc::channel();

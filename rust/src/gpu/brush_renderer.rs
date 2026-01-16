@@ -177,7 +177,7 @@ impl BrushRenderer {
 
     pub fn draw_stroke(
         &mut self,
-        layer_texture: &wgpu::Texture,
+        layer_view: &wgpu::TextureView,
         points: &[Point2D],
         radii: &[f32],
         color: Color,
@@ -267,7 +267,6 @@ impl BrushRenderer {
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&config));
 
-        let view = layer_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("BrushRenderer bind group"),
             layout: &self.bind_group_layout,
@@ -278,7 +277,7 @@ impl BrushRenderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&view),
+                    resource: wgpu::BindingResource::TextureView(layer_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,

@@ -547,10 +547,6 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
         .toList(growable: false)
         .reversed
         .toList(growable: false);
-    final Map<String, int> layerIndexById = <String, int>{};
-    for (int i = 0; i < _layers.length; i++) {
-      layerIndexById[_layers[i].id] = i;
-    }
     _pruneLayerPreviewCache(_layers);
     final Map<String, bool> layerTileDimStates = _computeLayerTileDimStates();
     final String? activeLayerId = _activeLayerId;
@@ -608,15 +604,9 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                   itemBuilder: (context, index) {
                     final BitmapLayerState layer = orderedLayers[index];
                     final bool isActive = layer.id == activeLayerId;
-                    final int layerIndex = layerIndexById[layer.id] ?? -1;
-                    final bool rustLayerSupported = !widget.useRustCanvas ||
-                        (layerIndex >= 0 &&
-                            layerIndex < _kRustCanvasLayerCount);
                     final bool tileDimmed =
                         layerTileDimStates[layer.id] ?? !layer.visible;
-                    final double contentOpacity = !rustLayerSupported
-                        ? 0.25
-                        : (tileDimmed ? 0.45 : 1.0);
+                    final double contentOpacity = tileDimmed ? 0.45 : 1.0;
                     final bool isTextLayer = layer.text != null;
                     final bool isDark = theme.brightness.isDark;
                     final Color accent = theme.accentColor.defaultBrushFor(
@@ -942,14 +932,6 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       onRequestRename: isLocked
           ? null
           : () {
-              if (widget.useRustCanvas &&
-                  _layers.indexWhere((candidate) => candidate.id == layer.id) >=
-                      _kRustCanvasLayerCount) {
-                _showRustCanvasMessage(
-                  'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层。',
-                );
-                return;
-              }
               _handleLayerSelected(layer.id);
               unawaited(_beginLayerRename(layer));
             },

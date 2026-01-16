@@ -504,6 +504,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                         !_isLayerFreeTransformActive &&
                                                         !_controller
                                                             .isActiveLayerTransforming,
+                                                    layerCount:
+                                                        _controller.layers.length,
                                                     brushColorArgb:
                                                         _isBrushEraserEnabled
                                                             ? 0xFFFFFFFF

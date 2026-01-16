@@ -17,8 +17,6 @@ const int _kPointStrideBytes = 32;
 const int _kPointFlagDown = 1;
 const int _kPointFlagMove = 2;
 const int _kPointFlagUp = 4;
-const int _kMvpLayerCount = 4;
-
 final class _PackedPointBuffer {
   _PackedPointBuffer({int initialCapacityPoints = 256})
     : _bytes = Uint8List(initialCapacityPoints * _kPointStrideBytes) {
@@ -76,6 +74,7 @@ class RustCanvasSurface extends StatefulWidget {
     super.key,
     required this.canvasSize,
     required this.enableDrawing,
+    this.layerCount = 1,
     required this.brushColorArgb,
     required this.brushRadius,
     required this.erase,
@@ -88,6 +87,7 @@ class RustCanvasSurface extends StatefulWidget {
 
   final Size canvasSize;
   final bool enableDrawing;
+  final int layerCount;
   final int brushColorArgb;
   final double brushRadius;
   final bool erase;
@@ -225,8 +225,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     if (!CanvasEngineFfi.instance.isSupported) {
       return;
     }
+    final int layerCount = widget.layerCount < 1 ? 1 : widget.layerCount;
     CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: 0);
-    for (int i = 0; i < _kMvpLayerCount; i++) {
+    for (int i = 0; i < layerCount; i++) {
       CanvasEngineFfi.instance.setLayerVisible(
         handle: handle,
         layerIndex: i,

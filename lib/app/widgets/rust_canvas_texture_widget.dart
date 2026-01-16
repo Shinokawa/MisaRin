@@ -20,7 +20,7 @@ const int _kPointStrideBytes = 32;
 const int _kPointFlagDown = 1;
 const int _kPointFlagMove = 2;
 const int _kPointFlagUp = 4;
-const int _kMvpLayerCount = 4;
+const int _initialLayerCount = 4;
 
 final class _PackedPointBuffer {
   _PackedPointBuffer({int initialCapacityPoints = 256})
@@ -100,9 +100,9 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
 
   int _activeLayerIndex = 0;
   final List<bool> _layerVisible =
-      List<bool>.filled(_kMvpLayerCount, false)..[0] = true;
+      List<bool>.filled(_initialLayerCount, false)..[0] = true;
   final List<double> _layerOpacity =
-      List<double>.filled(_kMvpLayerCount, 1.0);
+      List<double>.filled(_initialLayerCount, 1.0);
 
   double _scale = 1.0;
   Offset _pan = Offset.zero;
@@ -240,7 +240,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       return;
     }
     CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: _activeLayerIndex);
-    for (int i = 0; i < _kMvpLayerCount; i++) {
+    for (int i = 0; i < _layerVisible.length; i++) {
       CanvasEngineFfi.instance.setLayerVisible(
         handle: handle,
         layerIndex: i,
@@ -315,7 +315,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     if (handle == null) {
       return;
     }
-    if (layerIndex < 0 || layerIndex >= _kMvpLayerCount) {
+    if (layerIndex < 0 || layerIndex >= _layerVisible.length) {
       return;
     }
     setState(() => _activeLayerIndex = layerIndex);
@@ -327,7 +327,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     if (handle == null) {
       return;
     }
-    if (layerIndex < 0 || layerIndex >= _kMvpLayerCount) {
+    if (layerIndex < 0 || layerIndex >= _layerVisible.length) {
       return;
     }
     final bool next = !_layerVisible[layerIndex];
@@ -361,10 +361,11 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     }
     final int topVisible = _layerVisible.lastIndexWhere((v) => v);
     final int nextIndex = topVisible == -1 ? 0 : (topVisible + 1);
-    if (nextIndex < 0 || nextIndex >= _kMvpLayerCount) {
-      return;
-    }
     setState(() {
+      while (_layerVisible.length <= nextIndex) {
+        _layerVisible.add(false);
+        _layerOpacity.add(1.0);
+      }
       _layerVisible[nextIndex] = true;
       _layerOpacity[nextIndex] = 1.0;
       _activeLayerIndex = nextIndex;
@@ -395,7 +396,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       }
     }
     if (nextActive == null) {
-      for (int i = layerIndex + 1; i < _kMvpLayerCount; i++) {
+      for (int i = layerIndex + 1; i < _layerVisible.length; i++) {
         if (_layerVisible[i]) {
           nextActive = i;
           break;
@@ -630,7 +631,7 @@ class _LayerOverlayPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<Widget> rows = <Widget>[];
-    for (int idx = _kMvpLayerCount - 1; idx >= 0; idx--) {
+    for (int idx = layerVisible.length - 1; idx >= 0; idx--) {
       final bool isActive = idx == activeLayerIndex;
       final bool visible = layerVisible[idx];
       rows.add(

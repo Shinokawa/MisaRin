@@ -14,6 +14,8 @@ mixin _PaintingBoardLayerMixin
   final FlyoutController _layerContextMenuController = FlyoutController();
   final FlyoutController _blendModeFlyoutController = FlyoutController();
   bool? _rasterizeMenuEnabled;
+  bool get rustLayerSupported =>
+      !widget.useRustCanvas || CanvasEngineFfi.instance.isSupported;
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
@@ -68,15 +70,6 @@ mixin _PaintingBoardLayerMixin
   void _handleLayerSelected(String id) {
     if (_guardTransformInProgress(message: context.l10n.completeTransformFirst)) {
       return;
-    }
-    if (widget.useRustCanvas) {
-      final int index = _layers.indexWhere((layer) => layer.id == id);
-      if (index >= _kRustCanvasLayerCount) {
-        _showRustCanvasMessage(
-          'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层。',
-        );
-        return;
-      }
     }
     _layerOpacityPreviewReset(this);
     _controller.setActiveLayer(id);
@@ -211,12 +204,6 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleAddLayer() async {
-    if (widget.useRustCanvas && _layers.length >= _kRustCanvasLayerCount) {
-      _showRustCanvasMessage(
-        'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层。',
-      );
-      return;
-    }
     await _pushUndoSnapshot();
     final String? insertAbove =
         widget.useRustCanvas

@@ -1,14 +1,12 @@
 part of 'painting_board.dart';
 
-const int _kRustCanvasLayerCount = 4;
-
 abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   late BitmapCanvasController _controller;
   final FocusNode _focusNode = FocusNode();
   bool _boardReadyNotified = false;
   int? _rustCanvasEngineHandle;
   Size? _rustCanvasEngineSize;
-  bool _rustCanvasLayerLimitNotified = false;
+  int _rustCanvasSyncedLayerCount = 0;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -759,6 +757,9 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   ValueListenable<CanvasViewInfo> get viewInfoListenable => _viewInfoNotifier;
 
   void _handleRustCanvasEngineInfoChanged(int? handle, Size? engineSize) {
+    if (_rustCanvasEngineHandle != handle) {
+      _rustCanvasSyncedLayerCount = 0;
+    }
     _rustCanvasEngineHandle = handle;
     _rustCanvasEngineSize = engineSize;
     _syncRustCanvasLayersToEngine();
@@ -768,7 +769,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     final int index = _controller.layers.indexWhere(
       (BitmapLayerState layer) => layer.id == layerId,
     );
-    if (index < 0 || index >= _kRustCanvasLayerCount) {
+    if (index < 0) {
       return null;
     }
     return index;
@@ -797,42 +798,40 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     }
     final int handle = _rustCanvasEngineHandle!;
     final List<BitmapLayerState> layers = _controller.layers;
-    final int clampedLayerCount =
-        layers.length.clamp(0, _kRustCanvasLayerCount);
-
-    for (int i = 0; i < _kRustCanvasLayerCount; i++) {
-      if (i < clampedLayerCount) {
-        final BitmapLayerState layer = layers[i];
-        CanvasEngineFfi.instance.setLayerVisible(
-          handle: handle,
-          layerIndex: i,
-          visible: layer.visible,
-        );
-        CanvasEngineFfi.instance.setLayerOpacity(
-          handle: handle,
-          layerIndex: i,
-          opacity: layer.opacity.clamp(0.0, 1.0),
-        );
-      } else {
-        CanvasEngineFfi.instance.setLayerVisible(
-          handle: handle,
-          layerIndex: i,
-          visible: false,
-        );
-        CanvasEngineFfi.instance.setLayerOpacity(
-          handle: handle,
-          layerIndex: i,
-          opacity: 1.0,
-        );
-        CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: i);
-      }
+    final int currentCount = layers.length;
+    for (int i = 0; i < currentCount; i++) {
+      final BitmapLayerState layer = layers[i];
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: handle,
+        layerIndex: i,
+        visible: layer.visible,
+      );
+      CanvasEngineFfi.instance.setLayerOpacity(
+        handle: handle,
+        layerIndex: i,
+        opacity: layer.opacity.clamp(0.0, 1.0),
+      );
     }
+    for (int i = currentCount; i < _rustCanvasSyncedLayerCount; i++) {
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: handle,
+        layerIndex: i,
+        visible: false,
+      );
+      CanvasEngineFfi.instance.setLayerOpacity(
+        handle: handle,
+        layerIndex: i,
+        opacity: 1.0,
+      );
+      CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: i);
+    }
+    _rustCanvasSyncedLayerCount = currentCount;
 
     final String? activeLayerId = _controller.activeLayerId;
     int? activeIndex =
         activeLayerId != null ? _rustCanvasLayerIndexForId(activeLayerId) : null;
     if (activeIndex == null && layers.isNotEmpty) {
-      activeIndex = math.min(layers.length - 1, _kRustCanvasLayerCount - 1);
+      activeIndex = layers.length - 1;
       final String fallbackLayerId = layers[activeIndex].id;
       if (fallbackLayerId != activeLayerId) {
         _controller.setActiveLayer(fallbackLayerId);
@@ -840,13 +839,6 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     }
     if (activeIndex != null) {
       CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: activeIndex);
-    }
-
-    if (layers.length > _kRustCanvasLayerCount && !_rustCanvasLayerLimitNotified) {
-      _rustCanvasLayerLimitNotified = true;
-      _showRustCanvasMessage(
-        'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层，超出部分不会显示。',
-      );
     }
   }
 
@@ -856,9 +848,6 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     }
     final int? index = _rustCanvasLayerIndexForId(layerId);
     if (index == null) {
-      _showRustCanvasMessage(
-        'Rust 画布目前最多支持 $_kRustCanvasLayerCount 个图层。',
-      );
       return;
     }
     CanvasEngineFfi.instance.setActiveLayer(

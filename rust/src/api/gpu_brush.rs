@@ -288,11 +288,13 @@ pub fn gpu_draw_stroke(
     let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
     let mut draw_calls: u32 = 0;
 
+    let layer_view = layer_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
     if converted_points.len() == 1 {
         let p0 = converted_points[0];
         let r0 = radii[0];
         engine.brush.draw_stroke(
-            layer_texture,
+            &layer_view,
             &[p0],
             &[r0],
             Color { argb: color },
@@ -310,7 +312,7 @@ pub fn gpu_draw_stroke(
             let pts = [converted_points[i], converted_points[i + 1]];
             let rs = [radii[i], radii[i + 1]];
             engine.brush.draw_stroke(
-                layer_texture,
+                &layer_view,
                 &pts,
                 &rs,
                 Color { argb: color },
