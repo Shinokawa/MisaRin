@@ -20,7 +20,9 @@ pub struct Color {
 #[derive(Debug, Clone, Copy)]
 pub enum BrushShape {
     Circle,
+    Triangle,
     Square,
+    Star,
 }
 
 #[repr(C)]
@@ -213,11 +215,7 @@ impl BrushRenderer {
         } else {
             0.0
         };
-        let radius_scale = if matches!(brush_shape, BrushShape::Square) && rotation != 0.0 {
-            std::f32::consts::SQRT_2
-        } else {
-            1.0
-        };
+        let radius_scale = 1.0;
         let dirty = compute_dirty_rect(
             points,
             radii,
@@ -274,7 +272,9 @@ impl BrushRenderer {
             point_count: shader_points.len() as u32,
             brush_shape: match brush_shape {
                 BrushShape::Circle => 0,
-                BrushShape::Square => 1,
+                BrushShape::Triangle => 1,
+                BrushShape::Square => 2,
+                BrushShape::Star => 3,
             },
             erase_mode: if erase { 1 } else { 0 },
             antialias_level: antialias_level.clamp(0, 3),

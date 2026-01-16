@@ -14,7 +14,7 @@ struct Config {
   region_width: u32,
   region_height: u32,
   point_count: u32,
-  brush_shape: u32,        // 0: circle, 1: square
+  brush_shape: u32,        // 0: circle, 1: triangle, 2: square, 3: star
   erase_mode: u32,         // 0: paint, 1: erase
   antialias_level: u32,    // 0..3
   color_argb: u32,         // straight alpha ARGB8888
@@ -24,6 +24,8 @@ struct Config {
   _pad0: u32,
   _pad1: u32,
 };
+
+const SQRT2: f32 = 1.414213562;
 
 @group(0) @binding(0)
 var<storage, read> stroke_points: array<StrokePoint>;
@@ -89,12 +91,6 @@ fn closest_t_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
   return clamp(dot(ap, ab) / ab_len2, 0.0, 1.0);
 }
 
-fn dist_circle_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
-  let t = closest_t_to_segment(p, a, b);
-  let c = a + (b - a) * t;
-  return length(p - c);
-}
-
 fn rotate_to_brush_space(v: vec2<f32>) -> vec2<f32> {
   return vec2<f32>(
     v.x * cfg.rotation_cos + v.y * cfg.rotation_sin,
@@ -102,17 +98,133 @@ fn rotate_to_brush_space(v: vec2<f32>) -> vec2<f32> {
   );
 }
 
-fn dist_square_to_point(p: vec2<f32>, center: vec2<f32>) -> f32 {
-  let rel = rotate_to_brush_space(p - center);
-  let d = abs(rel);
-  return max(d.x, d.y);
+fn tri_vert(i: u32) -> vec2<f32> {
+  if (i == 0u) {
+    return vec2<f32>(0.000000000, -1.000000000);
+  }
+  if (i == 1u) {
+    return vec2<f32>(0.866025404, 0.500000000);
+  }
+  return vec2<f32>(-0.866025404, 0.500000000);
 }
 
-fn dist_square_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
+fn star_vert(i: u32) -> vec2<f32> {
+  if (i == 0u) {
+    return vec2<f32>(0.000000000, -1.000000000);
+  }
+  if (i == 1u) {
+    return vec2<f32>(0.224513988, -0.309016994);
+  }
+  if (i == 2u) {
+    return vec2<f32>(0.951056516, -0.309016994);
+  }
+  if (i == 3u) {
+    return vec2<f32>(0.363271264, 0.118033989);
+  }
+  if (i == 4u) {
+    return vec2<f32>(0.587785252, 0.809016994);
+  }
+  if (i == 5u) {
+    return vec2<f32>(0.000000000, 0.381966011);
+  }
+  if (i == 6u) {
+    return vec2<f32>(-0.587785252, 0.809016994);
+  }
+  if (i == 7u) {
+    return vec2<f32>(-0.363271264, 0.118033989);
+  }
+  if (i == 8u) {
+    return vec2<f32>(-0.951056516, -0.309016994);
+  }
+  return vec2<f32>(-0.224513988, -0.309016994);
+}
+
+fn segment_distance(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
   let t = closest_t_to_segment(p, a, b);
   let c = a + (b - a) * t;
-  let d = abs(rotate_to_brush_space(p - c));
-  return max(d.x, d.y);
+  return length(p - c);
+}
+
+fn signed_distance_box(p: vec2<f32>, half_size: vec2<f32>) -> f32 {
+  let d = abs(p) - half_size;
+  let outside = length(max(d, vec2<f32>(0.0, 0.0)));
+  let inside = min(max(d.x, d.y), 0.0);
+  return outside + inside;
+}
+
+fn signed_distance_triangle_unit(p: vec2<f32>) -> f32 {
+  var min_dist = 1e9;
+  var inside = false;
+  var j: u32 = 2u;
+  for (var i: u32 = 0u; i < 3u; i = i + 1u) {
+    let a = tri_vert(j);
+    let b = tri_vert(i);
+    min_dist = min(min_dist, segment_distance(p, a, b));
+    if ((a.y > p.y) != (b.y > p.y)) {
+      let x = a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y);
+      if (p.x < x) {
+        inside = !inside;
+      }
+    }
+    j = i;
+  }
+  return select(min_dist, -min_dist, inside);
+}
+
+fn signed_distance_star_unit(p: vec2<f32>) -> f32 {
+  var min_dist = 1e9;
+  var inside = false;
+  var j: u32 = 9u;
+  for (var i: u32 = 0u; i < 10u; i = i + 1u) {
+    let a = star_vert(j);
+    let b = star_vert(i);
+    min_dist = min(min_dist, segment_distance(p, a, b));
+    if ((a.y > p.y) != (b.y > p.y)) {
+      let x = a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y);
+      if (p.x < x) {
+        inside = !inside;
+      }
+    }
+    j = i;
+  }
+  return select(min_dist, -min_dist, inside);
+}
+
+fn shape_distance_to_point(
+  sample_pos: vec2<f32>,
+  center: vec2<f32>,
+  radius: f32,
+) -> f32 {
+  let rel = rotate_to_brush_space(sample_pos - center);
+  if (cfg.brush_shape == 0u) {
+    return length(rel);
+  }
+  if (radius <= EPS) {
+    return radius;
+  }
+  if (cfg.brush_shape == 2u) {
+    let half_side = radius / SQRT2;
+    let sd = signed_distance_box(rel, vec2<f32>(half_side, half_side));
+    return radius + sd;
+  }
+  let inv_r = 1.0 / radius;
+  let rel_unit = rel * inv_r;
+  var sd_unit = signed_distance_triangle_unit(rel_unit);
+  if (cfg.brush_shape == 3u) {
+    sd_unit = signed_distance_star_unit(rel_unit);
+  }
+  return radius + sd_unit * radius;
+}
+
+fn shape_distance_to_segment(
+  sample_pos: vec2<f32>,
+  a: vec2<f32>,
+  b: vec2<f32>,
+  radius: f32,
+) -> f32 {
+  let t = closest_t_to_segment(sample_pos, a, b);
+  let c = a + (b - a) * t;
+  return shape_distance_to_point(sample_pos, c, radius);
 }
 
 fn stroke_coverage_at(sample_pos: vec2<f32>) -> f32 {
@@ -122,11 +234,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>) -> f32 {
   }
   if (count == 1u) {
     let sp = stroke_points[0u];
-    let dist = select(
-      dist_square_to_point(sample_pos, sp.pos),
-      distance(sample_pos, sp.pos),
-      cfg.brush_shape == 0u,
-    );
+    let dist = shape_distance_to_point(sample_pos, sp.pos, sp.radius);
     return brush_alpha(dist, sp.radius, cfg.softness);
   }
 
@@ -136,11 +244,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>) -> f32 {
     let p1 = stroke_points[i + 1u];
     let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
     let radius = mix(p0.radius, p1.radius, t);
-    let dist = select(
-      dist_square_to_segment(sample_pos, p0.pos, p1.pos),
-      dist_circle_to_segment(sample_pos, p0.pos, p1.pos),
-      cfg.brush_shape == 0u,
-    );
+    let dist = shape_distance_to_segment(sample_pos, p0.pos, p1.pos, radius);
     let a = brush_alpha(dist, radius, cfg.softness);
     out_alpha = max(out_alpha, a);
   }

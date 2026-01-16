@@ -1745,13 +1745,7 @@ impl StrokeResampler {
 
         let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
         let mut drew_any = false;
-        let dirty_scale = if brush_settings.random_rotation
-            && !matches!(brush_settings.shape, BrushShape::Circle)
-        {
-            std::f32::consts::SQRT_2
-        } else {
-            1.0
-        };
+        let dirty_scale = 1.0;
 
         if emitted.len() == 1 {
             let (p0, pres0) = emitted[0];
@@ -1865,10 +1859,12 @@ fn resample_step_from_radius(radius: f32) -> f32 {
 #[cfg(target_os = "macos")]
 fn map_brush_shape(index: u32) -> BrushShape {
     // Dart enum: circle=0, triangle=1, square=2, star=3.
-    // Some callers may still send circle=0, square=1.
     match index {
         0 => BrushShape::Circle,
-        _ => BrushShape::Square,
+        1 => BrushShape::Triangle,
+        2 => BrushShape::Square,
+        3 => BrushShape::Star,
+        _ => BrushShape::Circle,
     }
 }
 

@@ -376,10 +376,12 @@ pub fn gpu_draw_stroke(
 
 fn map_brush_shape(index: u32) -> Result<BrushShape, String> {
     // Dart enum: circle=0, triangle=1, square=2, star=3.
-    // Some callers may have already migrated to a 2-value enum: circle=0, square=1.
     match index {
         0 => Ok(BrushShape::Circle),
-        _ => Ok(BrushShape::Square),
+        1 => Ok(BrushShape::Triangle),
+        2 => Ok(BrushShape::Square),
+        3 => Ok(BrushShape::Star),
+        _ => Ok(BrushShape::Circle),
     }
 }
 
