@@ -18,7 +18,7 @@ struct Config {
   erase_mode: u32,         // 0: paint, 1: erase
   antialias_level: u32,    // 0..3
   color_argb: u32,         // straight alpha ARGB8888
-  softness: f32,           // 0.0..1.0 (edge feather as fraction of radius)
+  softness: f32,           // 0.0..1.0 (extra edge feather as fraction of radius)
   rotation_sin: f32,       // sin(theta) for brush rotation
   rotation_cos: f32,       // cos(theta) for brush rotation
   _pad0: u32,
@@ -69,16 +69,38 @@ fn unpack_b(c: u32) -> f32 {
   return f32(c & 0xFFu) / 255.0;
 }
 
+fn antialias_feather(level: u32) -> f32 {
+  if (level == 0u) {
+    return 0.0;
+  }
+  if (level == 1u) {
+    return 0.7;
+  }
+  if (level == 2u) {
+    return 1.1;
+  }
+  return 1.6;
+}
+
 fn brush_alpha(dist: f32, radius: f32, softness: f32) -> f32 {
   if (radius <= 0.0) {
     return 0.0;
   }
   let s = clamp(softness, 0.0, 1.0);
-  if (s <= 0.0) {
+  let aa_feather = antialias_feather(cfg.antialias_level);
+  let edge = max(aa_feather, radius * s);
+  if (edge <= 0.0) {
     return select(0.0, 1.0, dist <= radius);
   }
-  let edge = max(EPS, radius * s);
-  return 1.0 - smoothstep(radius - edge, radius, dist);
+  let inner = max(radius - edge, 0.0);
+  let outer = radius + edge;
+  if (dist <= inner) {
+    return 1.0;
+  }
+  if (dist >= outer) {
+    return 0.0;
+  }
+  return (outer - dist) / (outer - inner);
 }
 
 fn closest_t_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
