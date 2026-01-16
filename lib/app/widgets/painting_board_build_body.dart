@@ -514,6 +514,11 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     brushRadius:
                                                         _penStrokeWidth / 2,
                                                     erase: _isBrushEraserEnabled,
+                                                    brushShape: _brushShape,
+                                                    brushRandomRotationEnabled:
+                                                        _brushRandomRotationEnabled,
+                                                    brushRotationSeed:
+                                                        _brushRandomRotationPreviewSeed,
                                                     antialiasLevel:
                                                         _penAntialiasLevel,
                                                     backgroundColorArgb:

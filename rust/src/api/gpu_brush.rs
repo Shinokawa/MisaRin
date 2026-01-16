@@ -301,6 +301,7 @@ pub fn gpu_draw_stroke(
             shape,
             erase,
             antialias_level,
+            0.0,
         )?;
         draw_calls = 1;
         dirty_union = union_dirty_rect_i32(
@@ -319,6 +320,7 @@ pub fn gpu_draw_stroke(
                 shape,
                 erase,
                 antialias_level,
+                0.0,
             )?;
             draw_calls = draw_calls.saturating_add(1);
             dirty_union = union_dirty_rect_i32(

@@ -41,6 +41,9 @@ enum EngineCommand {
         use_pressure: bool,
         erase: bool,
         antialias_level: u32,
+        brush_shape: u32,
+        random_rotation: bool,
+        rotation_seed: u32,
     },
     Undo,
     Redo,
@@ -56,6 +59,8 @@ struct EngineBrushSettings {
     erase: bool,
     antialias_level: u32,
     shape: BrushShape,
+    random_rotation: bool,
+    rotation_seed: u32,
 }
 
 #[cfg(target_os = "macos")]
@@ -68,6 +73,8 @@ impl Default for EngineBrushSettings {
             erase: false,
             antialias_level: 1,
             shape: BrushShape::Circle,
+            random_rotation: false,
+            rotation_seed: 0,
         }
     }
 }
@@ -1259,12 +1266,18 @@ fn handle_engine_command(
             use_pressure,
             erase,
             antialias_level,
+            brush_shape,
+            random_rotation,
+            rotation_seed,
         } => {
             brush_settings.color_argb = color_argb;
             brush_settings.base_radius = base_radius;
             brush_settings.use_pressure = use_pressure;
             brush_settings.erase = erase;
             brush_settings.antialias_level = antialias_level;
+            brush_settings.shape = map_brush_shape(brush_shape);
+            brush_settings.random_rotation = random_rotation;
+            brush_settings.rotation_seed = rotation_seed;
             brush_settings.sanitize();
         }
         EngineCommand::Undo => {
@@ -1732,12 +1745,27 @@ impl StrokeResampler {
 
         let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
         let mut drew_any = false;
+        let dirty_scale = if brush_settings.random_rotation
+            && !matches!(brush_settings.shape, BrushShape::Circle)
+        {
+            std::f32::consts::SQRT_2
+        } else {
+            1.0
+        };
 
         if emitted.len() == 1 {
             let (p0, pres0) = emitted[0];
             let r0 = brush_settings.radius_from_pressure(pres0);
-            let dirty = compute_dirty_rect_i32(&[p0], &[r0], canvas_width, canvas_height);
+            let dirty_r0 = r0 * dirty_scale;
+            let dirty = compute_dirty_rect_i32(&[p0], &[dirty_r0], canvas_width, canvas_height);
             before_draw(dirty);
+            let rotation = if brush_settings.random_rotation
+                && !matches!(brush_settings.shape, BrushShape::Circle)
+            {
+                brush_random_rotation_radians(p0, brush_settings.rotation_seed)
+            } else {
+                0.0
+            };
             match brush.draw_stroke(
                 layer_view,
                 &[p0],
@@ -1748,6 +1776,7 @@ impl StrokeResampler {
                 brush_settings.shape,
                 brush_settings.erase,
                 brush_settings.antialias_level,
+                rotation,
             ) {
                 Ok(()) => {
                     drew_any = true;
@@ -1768,8 +1797,16 @@ impl StrokeResampler {
                 let r1 = brush_settings.radius_from_pressure(pres1);
                 let pts = [p0, p1];
                 let radii = [r0, r1];
-                let dirty = compute_dirty_rect_i32(&pts, &radii, canvas_width, canvas_height);
+                let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
+                let dirty = compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
                 before_draw(dirty);
+                let rotation = if brush_settings.random_rotation
+                    && !matches!(brush_settings.shape, BrushShape::Circle)
+                {
+                    brush_random_rotation_radians(p0, brush_settings.rotation_seed)
+                } else {
+                    0.0
+                };
                 match brush.draw_stroke(
                     layer_view,
                     &pts,
@@ -1780,6 +1817,7 @@ impl StrokeResampler {
                     brush_settings.shape,
                     brush_settings.erase,
                     brush_settings.antialias_level,
+                    rotation,
                 ) {
                     Ok(()) => {
                         drew_any = true;
@@ -1822,6 +1860,41 @@ fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: boo
 fn resample_step_from_radius(radius: f32) -> f32 {
     let r = if radius.is_finite() { radius.max(0.0) } else { 0.0 };
     (r * 0.1).clamp(0.25, 0.5)
+}
+
+#[cfg(target_os = "macos")]
+fn map_brush_shape(index: u32) -> BrushShape {
+    // Dart enum: circle=0, triangle=1, square=2, star=3.
+    // Some callers may still send circle=0, square=1.
+    match index {
+        0 => BrushShape::Circle,
+        _ => BrushShape::Square,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn brush_random_rotation_radians(center: Point2D, seed: u32) -> f32 {
+    let x = (center.x * 256.0).round() as i32;
+    let y = (center.y * 256.0).round() as i32;
+
+    let mut h: u32 = 0;
+    h ^= seed;
+    h ^= (x as u32).wrapping_mul(0x9e3779b1);
+    h ^= (y as u32).wrapping_mul(0x85ebca77);
+    h = mix32(h);
+
+    let unit = (h as f64) / 4294967296.0;
+    (unit * std::f64::consts::PI * 2.0) as f32
+}
+
+#[cfg(target_os = "macos")]
+fn mix32(mut h: u32) -> u32 {
+    h ^= h >> 16;
+    h = h.wrapping_mul(0x7feb352d);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x846ca68b);
+    h ^= h >> 16;
+    h
 }
 
 #[cfg(target_os = "macos")]
@@ -2284,6 +2357,9 @@ pub extern "C" fn engine_set_brush(
     use_pressure: u8,
     erase: u8,
     antialias_level: u32,
+    brush_shape: u32,
+    random_rotation: u8,
+    rotation_seed: u32,
 ) {
     let Some(entry) = lookup_engine(handle) else {
         return;
@@ -2294,6 +2370,9 @@ pub extern "C" fn engine_set_brush(
         use_pressure: use_pressure != 0,
         erase: erase != 0,
         antialias_level,
+        brush_shape,
+        random_rotation: random_rotation != 0,
+        rotation_seed,
     });
 }
 
@@ -2306,6 +2385,9 @@ pub extern "C" fn engine_set_brush(
     _use_pressure: u8,
     _erase: u8,
     _antialias_level: u32,
+    _brush_shape: u32,
+    _random_rotation: u8,
+    _rotation_seed: u32,
 ) {
 }
 

@@ -8,6 +8,8 @@ import 'package:flutter/scheduler.dart';
 
 import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
 
+import '../../canvas/canvas_tools.dart';
+
 const bool _kDebugRustCanvasInput = bool.fromEnvironment(
   'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
   defaultValue: false,
@@ -78,6 +80,9 @@ class RustCanvasSurface extends StatefulWidget {
     required this.brushColorArgb,
     required this.brushRadius,
     required this.erase,
+    required this.brushShape,
+    required this.brushRandomRotationEnabled,
+    required this.brushRotationSeed,
     this.antialiasLevel = 1,
     this.backgroundColorArgb = 0xFFFFFFFF,
     this.usePressure = true,
@@ -91,6 +96,9 @@ class RustCanvasSurface extends StatefulWidget {
   final int brushColorArgb;
   final double brushRadius;
   final bool erase;
+  final BrushShape brushShape;
+  final bool brushRandomRotationEnabled;
+  final int brushRotationSeed;
   final int antialiasLevel;
   final int backgroundColorArgb;
   final bool usePressure;
@@ -133,7 +141,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         (oldWidget.brushRadius - widget.brushRadius).abs() > 1e-6 ||
         oldWidget.erase != widget.erase ||
         oldWidget.antialiasLevel != widget.antialiasLevel ||
-        oldWidget.usePressure != widget.usePressure;
+        oldWidget.usePressure != widget.usePressure ||
+        oldWidget.brushShape != widget.brushShape ||
+        oldWidget.brushRandomRotationEnabled != widget.brushRandomRotationEnabled ||
+        oldWidget.brushRotationSeed != widget.brushRotationSeed;
     if (brushChanged && _activeDrawingPointer == null) {
       final int? handle = _engineHandle;
       if (handle != null) {
@@ -292,6 +303,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       usePressure: usePressureOverride ?? widget.usePressure,
       erase: widget.erase,
       antialiasLevel: widget.antialiasLevel,
+      brushShape: widget.brushShape.index,
+      randomRotation: widget.brushRandomRotationEnabled,
+      rotationSeed: widget.brushRotationSeed,
     );
   }
 

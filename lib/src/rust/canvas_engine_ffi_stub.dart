@@ -22,6 +22,9 @@ class CanvasEngineFfi {
     bool usePressure = true,
     bool erase = false,
     int antialiasLevel = 1,
+    int brushShape = 0,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) {}
 
   void setActiveLayer({required int handle, required int layerIndex}) {}

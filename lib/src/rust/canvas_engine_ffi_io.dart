@@ -82,6 +82,9 @@ typedef _EngineSetBrushNative =
       ffi.Uint8 usePressure,
       ffi.Uint8 erase,
       ffi.Uint32 antialiasLevel,
+      ffi.Uint32 brushShape,
+      ffi.Uint8 randomRotation,
+      ffi.Uint32 rotationSeed,
     );
 typedef _EngineSetBrushDart =
     void Function(
@@ -91,6 +94,9 @@ typedef _EngineSetBrushDart =
       int usePressure,
       int erase,
       int antialiasLevel,
+      int brushShape,
+      int randomRotation,
+      int rotationSeed,
     );
 
 class CanvasEngineFfi {
@@ -307,6 +313,9 @@ class CanvasEngineFfi {
     bool usePressure = true,
     bool erase = false,
     int antialiasLevel = 1,
+    int brushShape = 0,
+    bool randomRotation = false,
+    int rotationSeed = 0,
   }) {
     final fn = _setBrush;
     if (!isSupported || fn == null || handle == 0) {
@@ -319,6 +328,8 @@ class CanvasEngineFfi {
     if (radius < 0.0) {
       radius = 0.0;
     }
+    final int shape = brushShape < 0 ? 0 : brushShape;
+    final int seed = rotationSeed & 0xffffffff;
     fn(
       handle,
       colorArgb,
@@ -326,6 +337,9 @@ class CanvasEngineFfi {
       usePressure ? 1 : 0,
       erase ? 1 : 0,
       antialiasLevel.clamp(0, 3),
+      shape,
+      randomRotation ? 1 : 0,
+      seed,
     );
   }
 

@@ -19,6 +19,8 @@ struct Config {
   antialias_level: u32,    // 0..3
   color_argb: u32,         // straight alpha ARGB8888
   softness: f32,           // 0.0..1.0 (edge feather as fraction of radius)
+  rotation_sin: f32,       // sin(theta) for brush rotation
+  rotation_cos: f32,       // cos(theta) for brush rotation
   _pad0: u32,
   _pad1: u32,
 };
@@ -93,10 +95,23 @@ fn dist_circle_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
   return length(p - c);
 }
 
+fn rotate_to_brush_space(v: vec2<f32>) -> vec2<f32> {
+  return vec2<f32>(
+    v.x * cfg.rotation_cos + v.y * cfg.rotation_sin,
+    -v.x * cfg.rotation_sin + v.y * cfg.rotation_cos,
+  );
+}
+
+fn dist_square_to_point(p: vec2<f32>, center: vec2<f32>) -> f32 {
+  let rel = rotate_to_brush_space(p - center);
+  let d = abs(rel);
+  return max(d.x, d.y);
+}
+
 fn dist_square_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
   let t = closest_t_to_segment(p, a, b);
   let c = a + (b - a) * t;
-  let d = abs(p - c);
+  let d = abs(rotate_to_brush_space(p - c));
   return max(d.x, d.y);
 }
 
@@ -108,7 +123,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>) -> f32 {
   if (count == 1u) {
     let sp = stroke_points[0u];
     let dist = select(
-      max(abs(sample_pos.x - sp.pos.x), abs(sample_pos.y - sp.pos.y)),
+      dist_square_to_point(sample_pos, sp.pos),
       distance(sample_pos, sp.pos),
       cfg.brush_shape == 0u,
     );

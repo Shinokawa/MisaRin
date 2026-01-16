@@ -46,6 +46,8 @@ struct BrushShaderConfig {
     antialias_level: u32,
     color_argb: u32,
     softness: f32,
+    rotation_sin: f32,
+    rotation_cos: f32,
     _pad0: u32,
     _pad1: u32,
 }
@@ -184,6 +186,7 @@ impl BrushRenderer {
         brush_shape: BrushShape,
         erase: bool,
         antialias_level: u32,
+        rotation_radians: f32,
     ) -> Result<(), String> {
         if points.is_empty() {
             return Ok(());
@@ -205,7 +208,23 @@ impl BrushRenderer {
         let verbose = debug::level() >= LogLevel::Verbose;
         let t0 = if verbose { Some(Instant::now()) } else { None };
 
-        let dirty = compute_dirty_rect(points, radii, self.canvas_width, self.canvas_height)?;
+        let rotation = if rotation_radians.is_finite() {
+            rotation_radians
+        } else {
+            0.0
+        };
+        let radius_scale = if matches!(brush_shape, BrushShape::Square) && rotation != 0.0 {
+            std::f32::consts::SQRT_2
+        } else {
+            1.0
+        };
+        let dirty = compute_dirty_rect(
+            points,
+            radii,
+            self.canvas_width,
+            self.canvas_height,
+            radius_scale,
+        )?;
         if dirty.width == 0 || dirty.height == 0 {
             return Ok(());
         }
@@ -261,6 +280,8 @@ impl BrushRenderer {
             antialias_level: antialias_level.clamp(0, 3),
             color_argb: color.argb,
             softness: self.softness,
+            rotation_sin: rotation.sin(),
+            rotation_cos: rotation.cos(),
             _pad0: 0,
             _pad1: 0,
         };
@@ -387,6 +408,7 @@ fn compute_dirty_rect(
     radii: &[f32],
     canvas_width: u32,
     canvas_height: u32,
+    radius_scale: f32,
 ) -> Result<DirtyRect, String> {
     if canvas_width == 0 || canvas_height == 0 {
         return Ok(DirtyRect {
@@ -411,10 +433,15 @@ fn compute_dirty_rect(
     let mut max_y: f32 = f32::NEG_INFINITY;
     let mut max_r: f32 = 0.0;
 
+    let scale = if radius_scale.is_finite() && radius_scale > 0.0 {
+        radius_scale
+    } else {
+        1.0
+    };
     for (p, &r) in points.iter().zip(radii.iter()) {
         let x = finite_f32(p.x);
         let y = finite_f32(p.y);
-        let radius = if r.is_finite() { r.max(0.0) } else { 0.0 };
+        let radius = if r.is_finite() { r.max(0.0) * scale } else { 0.0 };
         if x < min_x {
             min_x = x;
         }
