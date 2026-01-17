@@ -495,39 +495,42 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               children: [
                                                 const _CheckboardBackground(),
                                                 if (widget.useRustCanvas)
-                                                  RustCanvasSurface(
-                                                    canvasSize: _canvasSize,
-                                                    enableDrawing:
-                                                        canPreviewStroke &&
-                                                        !activeLayerLocked &&
-                                                        !_layerTransformModeActive &&
-                                                        !_isLayerFreeTransformActive &&
-                                                        !_controller
-                                                            .isActiveLayerTransforming,
-                                                    layerCount:
-                                                        _controller.layers.length,
-                                                    brushColorArgb:
-                                                        _isBrushEraserEnabled
-                                                            ? 0xFFFFFFFF
-                                                            : _primaryColor
-                                                                .value,
-                                                    brushRadius:
-                                                        _penStrokeWidth / 2,
-                                                    erase: _isBrushEraserEnabled,
-                                                    brushShape: _brushShape,
-                                                    brushRandomRotationEnabled:
-                                                        _brushRandomRotationEnabled,
-                                                    brushRotationSeed:
-                                                        _brushRandomRotationPreviewSeed,
-                                                    antialiasLevel:
-                                                        _penAntialiasLevel,
-                                                    backgroundColorArgb:
-                                                        widget.settings.backgroundColor.toARGB32(),
-                                                    usePressure:
-                                                        _stylusPressureEnabled,
-                                                    onStrokeBegin: _markDirty,
-                                                    onEngineInfoChanged:
-                                                        _handleRustCanvasEngineInfoChanged,
+                                                  IgnorePointer(
+                                                    ignoring: true,
+                                                    child: RustCanvasSurface(
+                                                      canvasSize: _canvasSize,
+                                                      enableDrawing:
+                                                          canPreviewStroke &&
+                                                          !activeLayerLocked &&
+                                                          !_layerTransformModeActive &&
+                                                          !_isLayerFreeTransformActive &&
+                                                          !_controller
+                                                              .isActiveLayerTransforming,
+                                                      layerCount:
+                                                          _controller.layers.length,
+                                                      brushColorArgb:
+                                                          _isBrushEraserEnabled
+                                                              ? 0xFFFFFFFF
+                                                              : _primaryColor
+                                                                  .value,
+                                                      brushRadius:
+                                                          _penStrokeWidth / 2,
+                                                      erase: _isBrushEraserEnabled,
+                                                      brushShape: _brushShape,
+                                                      brushRandomRotationEnabled:
+                                                          _brushRandomRotationEnabled,
+                                                      brushRotationSeed:
+                                                          _brushRandomRotationPreviewSeed,
+                                                      antialiasLevel:
+                                                          _penAntialiasLevel,
+                                                      backgroundColorArgb:
+                                                          widget.settings.backgroundColor.toARGB32(),
+                                                      usePressure:
+                                                          _stylusPressureEnabled,
+                                                      onStrokeBegin: _markDirty,
+                                                      onEngineInfoChanged:
+                                                          _handleRustCanvasEngineInfoChanged,
+                                                    ),
                                                   )
                                                 else if (_filterSession != null &&
                                                     _previewActiveLayerImage !=

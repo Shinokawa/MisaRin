@@ -1,6 +1,62 @@
 part of 'painting_board.dart';
 
 const double _kStylusSimulationBlend = 0.68;
+const int _kRustPointStrideBytes = 32;
+const int _kRustPointFlagDown = 1;
+const int _kRustPointFlagMove = 2;
+const int _kRustPointFlagUp = 4;
+
+final class _RustPointBuffer {
+  _RustPointBuffer({int initialCapacityPoints = 256})
+    : _bytes = Uint8List(initialCapacityPoints * _kRustPointStrideBytes) {
+    _data = ByteData.view(_bytes.buffer);
+  }
+
+  Uint8List _bytes;
+  late ByteData _data;
+  int _len = 0;
+
+  int get length => _len;
+
+  Uint8List get bytes => _bytes;
+
+  void clear() => _len = 0;
+
+  void add({
+    required double x,
+    required double y,
+    required double pressure,
+    required int timestampUs,
+    required int flags,
+    required int pointerId,
+  }) {
+    _ensureCapacity(_len + 1);
+    final int base = _len * _kRustPointStrideBytes;
+    _data.setFloat32(base + 0, x, Endian.little);
+    _data.setFloat32(base + 4, y, Endian.little);
+    _data.setFloat32(base + 8, pressure, Endian.little);
+    _data.setFloat32(base + 12, 0.0, Endian.little);
+    _data.setUint64(base + 16, timestampUs, Endian.little);
+    _data.setUint32(base + 24, flags, Endian.little);
+    _data.setUint32(base + 28, pointerId, Endian.little);
+    _len++;
+  }
+
+  void _ensureCapacity(int neededPoints) {
+    final int neededBytes = neededPoints * _kRustPointStrideBytes;
+    if (_bytes.lengthInBytes >= neededBytes) {
+      return;
+    }
+    int nextBytes = _bytes.lengthInBytes;
+    while (nextBytes < neededBytes) {
+      nextBytes = nextBytes * 2;
+    }
+    final Uint8List next = Uint8List(nextBytes);
+    next.setRange(0, _len * _kRustPointStrideBytes, _bytes, 0);
+    _bytes = next;
+    _data = ByteData.view(_bytes.buffer);
+  }
+}
 
 mixin _PaintingBoardInteractionMixin
     on
@@ -11,6 +67,10 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         TickerProvider {
+  final _RustPointBuffer _rustPoints = _RustPointBuffer();
+  bool _rustFlushScheduled = false;
+  int? _rustActivePointer;
+  bool _rustActiveStrokeUsesPressure = true;
 
   void clear() async {
     if (_isTextEditingActive) {
@@ -229,6 +289,134 @@ mixin _PaintingBoardInteractionMixin
     }
   }
 
+  bool _isRustDrawingPointer(PointerEvent event) {
+    if (event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus) {
+      return true;
+    }
+    if (event.kind == PointerDeviceKind.mouse) {
+      return (event.buttons & kPrimaryMouseButton) != 0;
+    }
+    return false;
+  }
+
+  bool _isActiveLayerLocked() {
+    final String? activeId = _controller.activeLayerId;
+    if (activeId == null) {
+      return false;
+    }
+    for (final BitmapLayerState layer in _controller.layers) {
+      if (layer.id == activeId) {
+        return layer.locked;
+      }
+    }
+    return false;
+  }
+
+  bool _canStartRustStroke({required bool pointerInsideBoard}) {
+    if (!widget.useRustCanvas) {
+      return false;
+    }
+    if (!pointerInsideBoard) {
+      return false;
+    }
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    if (_layerTransformModeActive ||
+        _isLayerFreeTransformActive ||
+        _controller.isActiveLayerTransforming) {
+      return false;
+    }
+    if (_isActiveLayerLocked()) {
+      return false;
+    }
+    return true;
+  }
+
+  Offset _rustToEngineSpace(Offset boardLocal) {
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    if (engineSize == _canvasSize ||
+        _canvasSize.width <= 0 ||
+        _canvasSize.height <= 0) {
+      return boardLocal;
+    }
+    final double sx = engineSize.width / _canvasSize.width;
+    final double sy = engineSize.height / _canvasSize.height;
+    return Offset(boardLocal.dx * sx, boardLocal.dy * sy);
+  }
+
+  void _enqueueRustPoint(PointerEvent event, int flags) {
+    final int? handle = _rustCanvasEngineHandle;
+    if (!_canUseRustCanvasEngine() || handle == null) {
+      return;
+    }
+    final Offset boardLocal = _toBoardLocal(event.localPosition);
+    final Offset enginePos = _rustToEngineSpace(boardLocal);
+    final double pressure =
+        !_rustActiveStrokeUsesPressure
+            ? 1.0
+            : (event.pressure.isFinite
+                ? event.pressure.clamp(0.0, 1.0)
+                : 1.0);
+    final int timestampUs = event.timeStamp.inMicroseconds;
+    _rustPoints.add(
+      x: enginePos.dx,
+      y: enginePos.dy,
+      pressure: pressure,
+      timestampUs: timestampUs,
+      flags: flags,
+      pointerId: event.pointer,
+    );
+    _scheduleRustFlush();
+  }
+
+  void _scheduleRustFlush() {
+    if (_rustFlushScheduled) {
+      return;
+    }
+    _rustFlushScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _rustFlushScheduled = false;
+      if (!mounted) {
+        _rustPoints.clear();
+        return;
+      }
+      final int? handle = _rustCanvasEngineHandle;
+      if (!_canUseRustCanvasEngine() || handle == null) {
+        _rustPoints.clear();
+        return;
+      }
+      _flushRustPoints(handle);
+    });
+  }
+
+  void _flushRustPoints(int handle) {
+    final int count = _rustPoints.length;
+    if (count == 0) {
+      return;
+    }
+    CanvasEngineFfi.instance.pushPointsPacked(
+      handle: handle,
+      bytes: _rustPoints.bytes,
+      pointCount: count,
+    );
+    _rustPoints.clear();
+  }
+
+  void _beginRustStroke(PointerDownEvent event) {
+    if (!_isRustDrawingPointer(event)) {
+      return;
+    }
+    final bool supportsPressure =
+        event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus;
+    _rustActiveStrokeUsesPressure = _stylusPressureEnabled && supportsPressure;
+    _rustActivePointer = event.pointer;
+    _enqueueRustPoint(event, _kRustPointFlagDown);
+    _markDirty();
+  }
+
   void _handlePointerDown(PointerDownEvent event) async {
     if (!_isPrimaryPointer(event)) {
       return;
@@ -296,6 +484,10 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.eraser:
         _focusNode.requestFocus();
         if (widget.useRustCanvas) {
+          if (!_canStartRustStroke(pointerInsideBoard: pointerInsideBoard)) {
+            return;
+          }
+          _beginRustStroke(event);
           break;
         }
         if (!isPointInsideSelection(boardLocal)) {
@@ -426,6 +618,23 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
+        if (widget.useRustCanvas && _rustActivePointer == event.pointer) {
+          final dynamic dyn = event;
+          try {
+            final List<dynamic>? coalesced =
+                dyn.coalescedEvents as List<dynamic>?;
+            if (coalesced != null && coalesced.isNotEmpty) {
+              for (final dynamic e in coalesced) {
+                if (e is PointerEvent) {
+                  _enqueueRustPoint(e, _kRustPointFlagMove);
+                }
+              }
+              break;
+            }
+          } catch (_) {}
+          _enqueueRustPoint(event, _kRustPointFlagMove);
+          break;
+        }
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           _appendPoint(boardLocal, event.timeStamp, event);
@@ -499,6 +708,12 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
+        if (widget.useRustCanvas && _rustActivePointer == event.pointer) {
+          _enqueueRustPoint(event, _kRustPointFlagUp);
+          _rustActivePointer = null;
+          _rustActiveStrokeUsesPressure = true;
+          break;
+        }
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           final double? releasePressure = _stylusPressureValue(event);
@@ -573,6 +788,12 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
+        if (widget.useRustCanvas && _rustActivePointer == event.pointer) {
+          _enqueueRustPoint(event, _kRustPointFlagUp);
+          _rustActivePointer = null;
+          _rustActiveStrokeUsesPressure = true;
+          break;
+        }
         if (_isDrawing) {
           _finishStroke(event.timeStamp);
         }
