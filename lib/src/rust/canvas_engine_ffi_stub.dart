@@ -41,6 +41,12 @@ class CanvasEngineFfi {
     required bool visible,
   }) {}
 
+  void setViewFlags({
+    required int handle,
+    required bool mirror,
+    required bool blackWhite,
+  }) {}
+
   void clearLayer({required int handle, required int layerIndex}) {}
 
   void fillLayer({

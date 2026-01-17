@@ -20,6 +20,10 @@ use crate::gpu::debug::{self, LogLevel};
 
 #[cfg(target_os = "macos")]
 const INITIAL_LAYER_CAPACITY: usize = 4;
+#[cfg(target_os = "macos")]
+const VIEW_FLAG_MIRROR: u32 = 1;
+#[cfg(target_os = "macos")]
+const VIEW_FLAG_BLACK_WHITE: u32 = 2;
 
 #[cfg(target_os = "macos")]
 enum EngineCommand {
@@ -35,6 +39,7 @@ enum EngineCommand {
     SetActiveLayer { layer_index: u32 },
     SetLayerOpacity { layer_index: u32, opacity: f32 },
     SetLayerVisible { layer_index: u32, visible: bool },
+    SetViewFlags { view_flags: u32 },
     SetBrush {
         color_argb: u32,
         base_radius: f32,
@@ -785,6 +790,7 @@ fn render_thread_main(
     let present_renderer = PresentRenderer::new(device.as_ref());
     let mut layer_opacity: Vec<f32> = vec![1.0; layer_count];
     let mut layer_visible: Vec<bool> = vec![true; layer_count];
+    let mut view_flags: u32 = 0;
     let present_config_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("misa-rin present composite config"),
         size: std::mem::size_of::<PresentCompositeHeader>() as u64,
@@ -808,6 +814,7 @@ fn render_thread_main(
         &present_config_buffer,
         &present_params_buffer,
         layer_count,
+        view_flags,
         &layer_opacity,
         &layer_visible,
     );
@@ -835,6 +842,7 @@ fn render_thread_main(
                         &mut active_layer_index,
                         &mut layer_opacity,
                         &mut layer_visible,
+                        &mut view_flags,
                         &present_renderer,
                         &present_config_buffer,
                         &mut present_params_buffer,
@@ -879,6 +887,7 @@ fn render_thread_main(
                         &mut active_layer_index,
                         &mut layer_opacity,
                         &mut layer_visible,
+                        &mut view_flags,
                         &present_renderer,
                         &present_config_buffer,
                         &mut present_params_buffer,
@@ -1016,6 +1025,7 @@ fn handle_engine_command(
     active_layer_index: &mut usize,
     layer_opacity: &mut Vec<f32>,
     layer_visible: &mut Vec<bool>,
+    present_view_flags: &mut u32,
     present_renderer: &PresentRenderer,
     present_config_buffer: &wgpu::Buffer,
     present_params_buffer: &mut wgpu::Buffer,
@@ -1089,6 +1099,7 @@ fn handle_engine_command(
             present_config_buffer,
             present_params_buffer,
             *layer_count,
+            *present_view_flags,
             layer_opacity,
             layer_visible,
         );
@@ -1230,6 +1241,7 @@ fn handle_engine_command(
                     present_config_buffer,
                     present_params_buffer,
                     *layer_count,
+                    *present_view_flags,
                     layer_opacity,
                     layer_visible,
                 );
@@ -1251,6 +1263,26 @@ fn handle_engine_command(
                     present_config_buffer,
                     present_params_buffer,
                     *layer_count,
+                    *present_view_flags,
+                    layer_opacity,
+                    layer_visible,
+                );
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
+            }
+        }
+        EngineCommand::SetViewFlags { view_flags } => {
+            let sanitized = view_flags & (VIEW_FLAG_MIRROR | VIEW_FLAG_BLACK_WHITE);
+            if *present_view_flags != sanitized {
+                *present_view_flags = sanitized;
+                write_present_config(
+                    queue,
+                    present_config_buffer,
+                    present_params_buffer,
+                    *layer_count,
+                    *present_view_flags,
                     layer_opacity,
                     layer_visible,
                 );
@@ -1394,9 +1426,9 @@ struct PresentRenderer {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct PresentCompositeHeader {
     layer_count: u32,
+    view_flags: u32,
     _pad0: u32,
     _pad1: u32,
-    _pad2: u32,
 }
 
 #[cfg(target_os = "macos")]
@@ -1415,14 +1447,15 @@ fn write_present_config(
     header_buffer: &wgpu::Buffer,
     params_buffer: &wgpu::Buffer,
     layer_count: usize,
+    view_flags: u32,
     layer_opacity: &[f32],
     layer_visible: &[bool],
 ) {
     let header = PresentCompositeHeader {
         layer_count: layer_count as u32,
+        view_flags,
         _pad0: 0,
         _pad1: 0,
-        _pad2: 0,
     };
     queue.write_buffer(header_buffer, 0, bytemuck::bytes_of(&header));
 
@@ -2343,6 +2376,19 @@ pub extern "C" fn engine_set_layer_visible(handle: u64, layer_index: u32, visibl
 #[cfg(not(target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn engine_set_layer_visible(_handle: u64, _layer_index: u32, _visible: bool) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_set_view_flags(handle: u64, view_flags: u32) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::SetViewFlags { view_flags });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_view_flags(_handle: u64, _view_flags: u32) {}
 
 #[cfg(target_os = "macos")]
 #[no_mangle]

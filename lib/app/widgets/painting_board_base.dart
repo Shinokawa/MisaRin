@@ -846,6 +846,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     setState(() {
       _viewBlackWhiteOverlay = !_viewBlackWhiteOverlay;
     });
+    _syncRustCanvasViewFlags();
     _notifyViewInfoChanged();
   }
 
@@ -853,6 +854,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     setState(() {
       _viewMirrorOverlay = !_viewMirrorOverlay;
     });
+    _syncRustCanvasViewFlags();
     _notifyViewInfoChanged();
   }
 

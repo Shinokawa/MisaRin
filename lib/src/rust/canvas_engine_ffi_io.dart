@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
 const int _kPointStrideBytes = 32;
+const int _kViewFlagMirror = 1;
+const int _kViewFlagBlackWhite = 2;
 
 final class _EnginePointNative extends ffi.Struct {
   @ffi.Float()
@@ -54,6 +56,10 @@ typedef _EngineSetLayerVisibleNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Uint8 visible);
 typedef _EngineSetLayerVisibleDart =
     void Function(int handle, int layerIndex, int visible);
+
+typedef _EngineSetViewFlagsNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 viewFlags);
+typedef _EngineSetViewFlagsDart = void Function(int handle, int viewFlags);
 
 typedef _EngineClearLayerNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex);
@@ -135,6 +141,14 @@ class CanvasEngineFfi {
         _setLayerVisible = null;
       }
       try {
+        _setViewFlags =
+            _lib.lookupFunction<_EngineSetViewFlagsNative, _EngineSetViewFlagsDart>(
+          'engine_set_view_flags',
+        );
+      } catch (_) {
+        _setViewFlags = null;
+      }
+      try {
         _clearLayer = _lib.lookupFunction<_EngineClearLayerNative, _EngineClearLayerDart>(
           'engine_clear_layer',
         );
@@ -190,6 +204,7 @@ class CanvasEngineFfi {
   late final _EngineSetActiveLayerDart? _setActiveLayer;
   late final _EngineSetLayerOpacityDart? _setLayerOpacity;
   late final _EngineSetLayerVisibleDart? _setLayerVisible;
+  late final _EngineSetViewFlagsDart? _setViewFlags;
   late final _EngineClearLayerDart? _clearLayer;
   late final _EngineFillLayerDart? _fillLayer;
   late final _EngineResetCanvasDart? _resetCanvas;
@@ -257,6 +272,25 @@ class CanvasEngineFfi {
       return;
     }
     fn(handle, layerIndex, visible ? 1 : 0);
+  }
+
+  void setViewFlags({
+    required int handle,
+    required bool mirror,
+    required bool blackWhite,
+  }) {
+    final fn = _setViewFlags;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    int flags = 0;
+    if (mirror) {
+      flags |= _kViewFlagMirror;
+    }
+    if (blackWhite) {
+      flags |= _kViewFlagBlackWhite;
+    }
+    fn(handle, flags);
   }
 
   void clearLayer({required int handle, required int layerIndex}) {

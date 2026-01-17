@@ -763,6 +763,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _rustCanvasEngineHandle = handle;
     _rustCanvasEngineSize = engineSize;
     _syncRustCanvasLayersToEngine();
+    _syncRustCanvasViewFlags();
   }
 
   int? _rustCanvasLayerIndexForId(String layerId) {
@@ -779,6 +780,18 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     return widget.useRustCanvas &&
         CanvasEngineFfi.instance.isSupported &&
         _rustCanvasEngineHandle != null;
+  }
+
+  void _syncRustCanvasViewFlags() {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    CanvasEngineFfi.instance.setViewFlags(
+      handle: handle,
+      mirror: _viewMirrorOverlay,
+      blackWhite: _viewBlackWhiteOverlay,
+    );
   }
 
   void _showRustCanvasMessage(String message) {

@@ -19,9 +19,9 @@ var layer_tex: texture_2d_array<u32>;
 
 struct CompositeConfig {
   layer_count: u32,
+  view_flags: u32,
   _pad0: u32,
   _pad1: u32,
-  _pad2: u32,
 };
 
 @group(0) @binding(1)
@@ -72,7 +72,11 @@ fn apply_layer(dst_premul: vec4<f32>, straight: vec4<f32>, params: vec4<f32>) ->
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   let x = i32(pos.x);
   let y = i32(pos.y);
-  let coord = vec2<i32>(x, y);
+  let dims = textureDimensions(layer_tex);
+  var coord = vec2<i32>(x, y);
+  if ((cfg.view_flags & 1u) != 0u) {
+    coord.x = i32(dims.x) - 1 - coord.x;
+  }
 
   // Normal blend + per-layer opacity, bottom-to-top.
   var out_premul = vec4<f32>(0.0, 0.0, 0.0, 0.0);
@@ -83,5 +87,9 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   }
 
   // Flutter's scene graph expects premultiplied alpha.
+  if ((cfg.view_flags & 2u) != 0u) {
+    let luma = dot(out_premul.rgb, vec3<f32>(0.299, 0.587, 0.114));
+    out_premul = vec4<f32>(vec3<f32>(luma), out_premul.a);
+  }
   return clamp(out_premul, vec4<f32>(0.0), vec4<f32>(1.0));
 }
