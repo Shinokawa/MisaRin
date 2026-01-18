@@ -546,7 +546,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                           widget.settings.backgroundColor.toARGB32(),
                                                       usePressure:
                                                           _stylusPressureEnabled ||
-                                                          _simulatePenPressure,
+                                                          _simulatePenPressure ||
+                                                          _autoSharpPeakEnabled,
                                                       onStrokeBegin: _markDirty,
                                                       onEngineInfoChanged:
                                                           _handleRustCanvasEngineInfoChanged,

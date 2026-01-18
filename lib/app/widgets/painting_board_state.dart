@@ -63,6 +63,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
+    _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
     _brushShape = prefs.brushShape;
     _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
     _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
