@@ -21,8 +21,11 @@ struct Config {
   softness: f32,           // 0.0..1.0 (extra edge feather as fraction of radius)
   rotation_sin: f32,       // sin(theta) for brush rotation
   rotation_cos: f32,       // cos(theta) for brush rotation
-  _pad0: u32,
-  _pad1: u32,
+  hollow_mode: u32,        // 0: solid, 1: hollow
+  hollow_ratio: f32,       // 0.0..1.0 (inner radius scale)
+  hollow_erase: u32,       // 0: keep underlying, 1: erase underlying
+  stroke_mask_mode: u32,  // 0: disabled, 1: use stroke hollow mask
+  stroke_base_mode: u32,  // 0: disabled, 1: blend against stroke base
 };
 
 const SQRT2: f32 = 1.414213562;
@@ -35,6 +38,12 @@ var layer_tex: texture_storage_2d<r32uint, read_write>;
 
 @group(0) @binding(2)
 var<uniform> cfg: Config;
+
+@group(0) @binding(3)
+var stroke_mask: texture_storage_2d<r32uint, read_write>;
+
+@group(0) @binding(4)
+var stroke_base: texture_storage_2d<r32uint, read>;
 
 fn clamp01(x: f32) -> f32 {
   return clamp(x, 0.0, 1.0);
@@ -67,6 +76,20 @@ fn unpack_g(c: u32) -> f32 {
 
 fn unpack_b(c: u32) -> f32 {
   return f32(c & 0xFFu) / 255.0;
+}
+
+fn unpack_inner_mask(c: u32) -> f32 {
+  return f32(c & 0xFFu) / 255.0;
+}
+
+fn unpack_outer_mask(c: u32) -> f32 {
+  return f32((c >> 8u) & 0xFFu) / 255.0;
+}
+
+fn pack_mask(inner: f32, outer: f32) -> u32 {
+  let inner_u = to_u8(inner);
+  let outer_u = to_u8(outer);
+  return (outer_u << 8u) | inner_u;
 }
 
 fn antialias_feather(level: u32) -> f32 {
@@ -249,15 +272,20 @@ fn shape_distance_to_segment(
   return shape_distance_to_point(sample_pos, c, radius);
 }
 
-fn stroke_coverage_at(sample_pos: vec2<f32>) -> f32 {
+fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
   let count = cfg.point_count;
   if (count == 0u) {
     return 0.0;
   }
+  let scale = max(radius_scale, 0.0);
+  if (scale <= 0.0) {
+    return 0.0;
+  }
   if (count == 1u) {
     let sp = stroke_points[0u];
-    let dist = shape_distance_to_point(sample_pos, sp.pos, sp.radius);
-    return brush_alpha(dist, sp.radius, cfg.softness);
+    let radius = sp.radius * scale;
+    let dist = shape_distance_to_point(sample_pos, sp.pos, radius);
+    return brush_alpha(dist, radius, cfg.softness);
   }
 
   var out_alpha = 0.0;
@@ -265,7 +293,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>) -> f32 {
     let p0 = stroke_points[i];
     let p1 = stroke_points[i + 1u];
     let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
-    let radius = mix(p0.radius, p1.radius, t);
+    let radius = mix(p0.radius, p1.radius, t) * scale;
     let dist = shape_distance_to_segment(sample_pos, p0.pos, p1.pos, radius);
     let a = brush_alpha(dist, radius, cfg.softness);
     out_alpha = max(out_alpha, a);
@@ -329,27 +357,55 @@ fn draw_brush_stroke(@builtin(global_invocation_id) id: vec3<u32>) {
 
   let samples = antialias_samples_per_axis(cfg.antialias_level);
   let inv_samples = 1.0 / f32(samples);
-  var alpha_accum = 0.0;
+  let ratio = clamp(cfg.hollow_ratio, 0.0, 1.0);
+  let use_hollow = (cfg.hollow_mode != 0u) && (ratio > 0.0001) && (cfg.erase_mode == 0u);
+  var outer_accum = 0.0;
+  var inner_accum = 0.0;
   for (var sy: u32 = 0u; sy < samples; sy = sy + 1u) {
     for (var sx: u32 = 0u; sx < samples; sx = sx + 1u) {
       let ox = (f32(sx) + 0.5) * inv_samples - 0.5;
       let oy = (f32(sy) + 0.5) * inv_samples - 0.5;
       let sample_pos = vec2<f32>(f32(x) + 0.5 + ox, f32(y) + 0.5 + oy);
-      alpha_accum = alpha_accum + stroke_coverage_at(sample_pos);
+      outer_accum = outer_accum + stroke_coverage_at(sample_pos, 1.0);
+      if (use_hollow) {
+        inner_accum = inner_accum + stroke_coverage_at(sample_pos, ratio);
+      }
     }
   }
   let total_samples = f32(samples * samples);
-  let coverage = clamp01(alpha_accum / max(1.0, total_samples));
-
-  if (coverage <= 0.0) {
-    return;
+  let outer = clamp01(outer_accum / max(1.0, total_samples));
+  let inner = select(0.0, clamp01(inner_accum / max(1.0, total_samples)), use_hollow);
+  let use_mask = use_hollow && (cfg.stroke_mask_mode != 0u);
+  let use_base = use_hollow && (cfg.stroke_base_mode != 0u);
+  var hole = inner;
+  var outer_union = outer;
+  if (use_mask) {
+    let mask_before = textureLoad(stroke_mask, vec2<i32>(i32(x), i32(y))).x;
+    let inner_before = unpack_inner_mask(mask_before);
+    let outer_before = unpack_outer_mask(mask_before);
+    hole = max(inner_before, inner);
+    outer_union = max(outer_before, outer);
+    let mask_u = pack_mask(hole, outer_union);
+    textureStore(stroke_mask, vec2<i32>(i32(x), i32(y)), vec4<u32>(mask_u, 0u, 0u, 0u));
   }
+  let hollow_outer = select(outer, outer_union, use_base);
+  let paint_cov = select(outer, max(hollow_outer - hole, 0.0), use_hollow);
+  let erase_cov = select(0.0, hole, cfg.hollow_erase != 0u);
 
   let src_a_base = unpack_a(cfg.color_argb);
-  let src_a = clamp01(coverage * src_a_base);
-  if (src_a <= 0.0) {
+  if (cfg.erase_mode != 0u) {
+    let erase_a = clamp01(outer * src_a_base);
+    if (erase_a <= 0.0) {
+      return;
+    }
+    let dst = textureLoad(layer_tex, vec2<i32>(i32(x), i32(y))).x;
+    let out = blend_erase(dst, erase_a);
+    textureStore(layer_tex, vec2<i32>(i32(x), i32(y)), vec4<u32>(out, 0u, 0u, 0u));
     return;
   }
+
+  let paint_a = clamp01(paint_cov * src_a_base);
+  let erase_a = clamp01(erase_cov);
 
   let src_rgb = vec3<f32>(
     unpack_r(cfg.color_argb),
@@ -357,12 +413,22 @@ fn draw_brush_stroke(@builtin(global_invocation_id) id: vec3<u32>) {
     unpack_b(cfg.color_argb),
   );
 
+  if (use_base) {
+    let base = textureLoad(stroke_base, vec2<i32>(i32(x), i32(y))).x;
+    let out = blend_paint(base, src_rgb, paint_a);
+    textureStore(layer_tex, vec2<i32>(i32(x), i32(y)), vec4<u32>(out, 0u, 0u, 0u));
+    return;
+  }
+
+  if (paint_a <= 0.0 && erase_a <= 0.0) {
+    return;
+  }
+
   let dst = textureLoad(layer_tex, vec2<i32>(i32(x), i32(y))).x;
-  let out = select(
-    blend_erase(dst, src_a),
-    blend_paint(dst, src_rgb, src_a),
-    cfg.erase_mode == 0u,
-  );
+  var out = blend_paint(dst, src_rgb, paint_a);
+  if (erase_a > 0.0) {
+    out = blend_erase(out, erase_a);
+  }
 
   textureStore(layer_tex, vec2<i32>(i32(x), i32(y)), vec4<u32>(out, 0u, 0u, 0u));
 }

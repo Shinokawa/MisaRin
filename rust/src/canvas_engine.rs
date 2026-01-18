@@ -49,6 +49,9 @@ enum EngineCommand {
         brush_shape: u32,
         random_rotation: bool,
         rotation_seed: u32,
+        hollow_enabled: bool,
+        hollow_ratio: f32,
+        hollow_erase_occluded: bool,
     },
     Undo,
     Redo,
@@ -66,6 +69,9 @@ struct EngineBrushSettings {
     shape: BrushShape,
     random_rotation: bool,
     rotation_seed: u32,
+    hollow_enabled: bool,
+    hollow_ratio: f32,
+    hollow_erase_occluded: bool,
 }
 
 #[cfg(target_os = "macos")]
@@ -80,6 +86,9 @@ impl Default for EngineBrushSettings {
             shape: BrushShape::Circle,
             random_rotation: false,
             rotation_seed: 0,
+            hollow_enabled: false,
+            hollow_ratio: 0.0,
+            hollow_erase_occluded: false,
         }
     }
 }
@@ -92,6 +101,11 @@ impl EngineBrushSettings {
         }
         if self.base_radius < 0.0 {
             self.base_radius = 0.0;
+        }
+        if !self.hollow_ratio.is_finite() {
+            self.hollow_ratio = 0.0;
+        } else {
+            self.hollow_ratio = self.hollow_ratio.clamp(0.0, 1.0);
         }
         self.antialias_level = self.antialias_level.clamp(0, 3);
     }
@@ -941,6 +955,30 @@ fn render_thread_main(
 
                         if is_down {
                             undo_manager.begin_stroke(active_layer_index as u32);
+                            let use_hollow_mask = brush_settings.hollow_enabled
+                                && !brush_settings.erase
+                                && brush_settings.hollow_ratio > 0.0001;
+                            if use_hollow_mask {
+                                if let Err(err) = brush.clear_stroke_mask() {
+                                    debug::log(
+                                        LogLevel::Warn,
+                                        format_args!("Brush stroke mask clear failed: {err}"),
+                                    );
+                                }
+                                if !brush_settings.hollow_erase_occluded {
+                                    if let Err(err) = brush.capture_stroke_base(
+                                        layers.texture(),
+                                        active_layer_index as u32,
+                                    ) {
+                                        debug::log(
+                                            LogLevel::Warn,
+                                            format_args!(
+                                                "Brush stroke base capture failed: {err}"
+                                            ),
+                                        );
+                                    }
+                                }
+                            }
                         } else {
                             undo_manager.begin_stroke_if_needed(active_layer_index as u32);
                         }
@@ -1301,6 +1339,9 @@ fn handle_engine_command(
             brush_shape,
             random_rotation,
             rotation_seed,
+            hollow_enabled,
+            hollow_ratio,
+            hollow_erase_occluded,
         } => {
             brush_settings.color_argb = color_argb;
             brush_settings.base_radius = base_radius;
@@ -1310,6 +1351,9 @@ fn handle_engine_command(
             brush_settings.shape = map_brush_shape(brush_shape);
             brush_settings.random_rotation = random_rotation;
             brush_settings.rotation_seed = rotation_seed;
+            brush_settings.hollow_enabled = hollow_enabled;
+            brush_settings.hollow_ratio = hollow_ratio;
+            brush_settings.hollow_erase_occluded = hollow_erase_occluded;
             brush_settings.sanitize();
         }
         EngineCommand::Undo => {
@@ -1776,6 +1820,16 @@ impl StrokeResampler {
 
         brush.set_canvas_size(canvas_width, canvas_height);
 
+        let hollow_enabled = brush_settings.hollow_enabled
+            && !brush_settings.erase
+            && brush_settings.hollow_ratio > 0.0001;
+        let hollow_ratio = if hollow_enabled {
+            brush_settings.hollow_ratio
+        } else {
+            0.0
+        };
+        let hollow_erase = hollow_enabled && brush_settings.hollow_erase_occluded;
+
         let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
         let mut drew_any = false;
         let dirty_scale = 1.0;
@@ -1804,6 +1858,54 @@ impl StrokeResampler {
                 brush_settings.erase,
                 brush_settings.antialias_level,
                 rotation,
+                hollow_enabled,
+                hollow_ratio,
+                hollow_erase,
+                hollow_enabled,
+            ) {
+                Ok(()) => {
+                    drew_any = true;
+                    dirty_union = union_dirty_rect_i32(dirty_union, dirty);
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("Brush draw_stroke failed: {err}"),
+                    );
+                }
+            }
+        } else if hollow_enabled {
+            let mut points: Vec<Point2D> = Vec::with_capacity(emitted.len());
+            let mut radii: Vec<f32> = Vec::with_capacity(emitted.len());
+            for (p, pres) in &emitted {
+                points.push(*p);
+                radii.push(brush_settings.radius_from_pressure(*pres));
+            }
+            let dirty_radii: Vec<f32> = radii.iter().map(|r| r * dirty_scale).collect();
+            let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
+            before_draw(dirty);
+            let rotation = if brush_settings.random_rotation
+                && !matches!(brush_settings.shape, BrushShape::Circle)
+            {
+                brush_random_rotation_radians(points[0], brush_settings.rotation_seed)
+            } else {
+                0.0
+            };
+            match brush.draw_stroke(
+                layer_view,
+                &points,
+                &radii,
+                Color {
+                    argb: brush_settings.color_argb,
+                },
+                brush_settings.shape,
+                brush_settings.erase,
+                brush_settings.antialias_level,
+                rotation,
+                hollow_enabled,
+                hollow_ratio,
+                hollow_erase,
+                hollow_enabled,
             ) {
                 Ok(()) => {
                     drew_any = true;
@@ -1845,6 +1947,10 @@ impl StrokeResampler {
                     brush_settings.erase,
                     brush_settings.antialias_level,
                     rotation,
+                    hollow_enabled,
+                    hollow_ratio,
+                    hollow_erase,
+                    hollow_enabled,
                 ) {
                     Ok(()) => {
                         drew_any = true;
@@ -2402,6 +2508,9 @@ pub extern "C" fn engine_set_brush(
     brush_shape: u32,
     random_rotation: u8,
     rotation_seed: u32,
+    hollow_enabled: u8,
+    hollow_ratio: f32,
+    hollow_erase_occluded: u8,
 ) {
     let Some(entry) = lookup_engine(handle) else {
         return;
@@ -2415,6 +2524,9 @@ pub extern "C" fn engine_set_brush(
         brush_shape,
         random_rotation: random_rotation != 0,
         rotation_seed,
+        hollow_enabled: hollow_enabled != 0,
+        hollow_ratio,
+        hollow_erase_occluded: hollow_erase_occluded != 0,
     });
 }
 
@@ -2430,6 +2542,9 @@ pub extern "C" fn engine_set_brush(
     _brush_shape: u32,
     _random_rotation: u8,
     _rotation_seed: u32,
+    _hollow_enabled: u8,
+    _hollow_ratio: f32,
+    _hollow_erase_occluded: u8,
 ) {
 }
 

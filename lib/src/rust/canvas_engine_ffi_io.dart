@@ -91,6 +91,9 @@ typedef _EngineSetBrushNative =
       ffi.Uint32 brushShape,
       ffi.Uint8 randomRotation,
       ffi.Uint32 rotationSeed,
+      ffi.Uint8 hollow,
+      ffi.Float hollowRatio,
+      ffi.Uint8 hollowEraseOccludedParts,
     );
 typedef _EngineSetBrushDart =
     void Function(
@@ -103,6 +106,9 @@ typedef _EngineSetBrushDart =
       int brushShape,
       int randomRotation,
       int rotationSeed,
+      int hollow,
+      double hollowRatio,
+      int hollowEraseOccludedParts,
     );
 
 class CanvasEngineFfi {
@@ -350,6 +356,9 @@ class CanvasEngineFfi {
     int brushShape = 0,
     bool randomRotation = false,
     int rotationSeed = 0,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    bool hollowEraseOccludedParts = false,
   }) {
     final fn = _setBrush;
     if (!isSupported || fn == null || handle == 0) {
@@ -364,6 +373,11 @@ class CanvasEngineFfi {
     }
     final int shape = brushShape < 0 ? 0 : brushShape;
     final int seed = rotationSeed & 0xffffffff;
+    double ratio = hollowRatio;
+    if (!ratio.isFinite) {
+      ratio = 0.0;
+    }
+    ratio = ratio.clamp(0.0, 1.0);
     fn(
       handle,
       colorArgb,
@@ -374,6 +388,9 @@ class CanvasEngineFfi {
       shape,
       randomRotation ? 1 : 0,
       seed,
+      hollow ? 1 : 0,
+      ratio,
+      hollowEraseOccludedParts ? 1 : 0,
     );
   }
 

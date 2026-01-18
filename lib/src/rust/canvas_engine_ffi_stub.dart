@@ -25,6 +25,9 @@ class CanvasEngineFfi {
     int brushShape = 0,
     bool randomRotation = false,
     int rotationSeed = 0,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    bool hollowEraseOccludedParts = false,
   }) {}
 
   void setActiveLayer({required int handle, required int layerIndex}) {}

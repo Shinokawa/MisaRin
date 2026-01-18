@@ -534,6 +534,12 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                           _brushRandomRotationEnabled,
                                                       brushRotationSeed:
                                                           _brushRandomRotationPreviewSeed,
+                                                      hollowStrokeEnabled:
+                                                          _hollowStrokeEnabled,
+                                                      hollowStrokeRatio:
+                                                          _hollowStrokeRatio,
+                                                      hollowStrokeEraseOccludedParts:
+                                                          _hollowStrokeEraseOccludedParts,
                                                       antialiasLevel:
                                                           _penAntialiasLevel,
                                                       backgroundColorArgb:

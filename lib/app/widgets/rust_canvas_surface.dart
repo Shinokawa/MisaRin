@@ -83,6 +83,9 @@ class RustCanvasSurface extends StatefulWidget {
     required this.brushShape,
     required this.brushRandomRotationEnabled,
     required this.brushRotationSeed,
+    this.hollowStrokeEnabled = false,
+    this.hollowStrokeRatio = 0.0,
+    this.hollowStrokeEraseOccludedParts = false,
     this.antialiasLevel = 1,
     this.backgroundColorArgb = 0xFFFFFFFF,
     this.usePressure = true,
@@ -99,6 +102,9 @@ class RustCanvasSurface extends StatefulWidget {
   final BrushShape brushShape;
   final bool brushRandomRotationEnabled;
   final int brushRotationSeed;
+  final bool hollowStrokeEnabled;
+  final double hollowStrokeRatio;
+  final bool hollowStrokeEraseOccludedParts;
   final int antialiasLevel;
   final int backgroundColorArgb;
   final bool usePressure;
@@ -144,7 +150,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         oldWidget.usePressure != widget.usePressure ||
         oldWidget.brushShape != widget.brushShape ||
         oldWidget.brushRandomRotationEnabled != widget.brushRandomRotationEnabled ||
-        oldWidget.brushRotationSeed != widget.brushRotationSeed;
+        oldWidget.brushRotationSeed != widget.brushRotationSeed ||
+        oldWidget.hollowStrokeEnabled != widget.hollowStrokeEnabled ||
+        (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
+        oldWidget.hollowStrokeEraseOccludedParts != widget.hollowStrokeEraseOccludedParts;
     if (brushChanged && _activeDrawingPointer == null) {
       final int? handle = _engineHandle;
       if (handle != null) {
@@ -306,6 +315,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       brushShape: widget.brushShape.index,
       randomRotation: widget.brushRandomRotationEnabled,
       rotationSeed: widget.brushRotationSeed,
+      hollow: widget.hollowStrokeEnabled,
+      hollowRatio: widget.hollowStrokeRatio,
+      hollowEraseOccludedParts: widget.hollowStrokeEraseOccludedParts,
     );
   }
 

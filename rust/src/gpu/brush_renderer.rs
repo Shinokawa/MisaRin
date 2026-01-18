@@ -50,8 +50,11 @@ struct BrushShaderConfig {
     softness: f32,
     rotation_sin: f32,
     rotation_cos: f32,
-    _pad0: u32,
-    _pad1: u32,
+    hollow_mode: u32,
+    hollow_ratio: f32,
+    hollow_erase: u32,
+    stroke_mask_mode: u32,
+    stroke_base_mode: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -74,6 +77,15 @@ pub struct BrushRenderer {
     uniform_buffer: wgpu::Buffer,
     points_buffer: Option<wgpu::Buffer>,
     points_capacity: usize,
+    stroke_mask: wgpu::Texture,
+    stroke_mask_view: wgpu::TextureView,
+    stroke_mask_width: u32,
+    stroke_mask_height: u32,
+    stroke_base: wgpu::Texture,
+    stroke_base_view: wgpu::TextureView,
+    stroke_base_width: u32,
+    stroke_base_height: u32,
+    stroke_base_valid: bool,
 
     canvas_width: u32,
     canvas_height: u32,
@@ -122,6 +134,26 @@ impl BrushRenderer {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::ReadWrite,
+                        format: wgpu::TextureFormat::R32Uint,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::ReadOnly,
+                        format: wgpu::TextureFormat::R32Uint,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -152,6 +184,9 @@ impl BrushRenderer {
             return Err(format!("wgpu out-of-memory error during brush init: {err}"));
         }
 
+        let (stroke_mask, stroke_mask_view) = create_stroke_mask(device.as_ref(), 1, 1);
+        let (stroke_base, stroke_base_view) = create_stroke_base(device.as_ref(), 1, 1);
+
         Ok(Self {
             device,
             queue,
@@ -160,6 +195,15 @@ impl BrushRenderer {
             uniform_buffer,
             points_buffer: None,
             points_capacity: 0,
+            stroke_mask,
+            stroke_mask_view,
+            stroke_mask_width: 1,
+            stroke_mask_height: 1,
+            stroke_base,
+            stroke_base_view,
+            stroke_base_width: 1,
+            stroke_base_height: 1,
+            stroke_base_valid: false,
             canvas_width: 0,
             canvas_height: 0,
             softness: 0.0,
@@ -167,8 +211,96 @@ impl BrushRenderer {
     }
 
     pub fn set_canvas_size(&mut self, width: u32, height: u32) {
+        if self.canvas_width != width || self.canvas_height != height {
+            self.stroke_base_valid = false;
+        }
         self.canvas_width = width;
         self.canvas_height = height;
+    }
+
+    pub fn clear_stroke_mask(&mut self) -> Result<(), String> {
+        self.ensure_stroke_mask()?;
+        self.stroke_base_valid = false;
+        device_push_scopes(self.device.as_ref());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("BrushRenderer clear stroke mask"),
+            });
+        encoder.clear_texture(
+            &self.stroke_mask,
+            &wgpu::ImageSubresourceRange {
+                aspect: wgpu::TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: Some(1),
+                base_array_layer: 0,
+                array_layer_count: Some(1),
+            },
+        );
+        self.queue.submit(Some(encoder.finish()));
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!("wgpu validation error during mask clear: {err}"));
+        }
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!("wgpu out-of-memory error during mask clear: {err}"));
+        }
+        Ok(())
+    }
+
+    pub fn capture_stroke_base(
+        &mut self,
+        layer_texture: &wgpu::Texture,
+        layer_index: u32,
+    ) -> Result<(), String> {
+        if self.canvas_width == 0 || self.canvas_height == 0 {
+            self.stroke_base_valid = false;
+            return Ok(());
+        }
+        self.ensure_stroke_base()?;
+        device_push_scopes(self.device.as_ref());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("BrushRenderer capture stroke base"),
+            });
+        encoder.copy_texture_to_texture(
+            wgpu::ImageCopyTexture {
+                texture: layer_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: layer_index,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyTexture {
+                texture: &self.stroke_base,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: self.canvas_width,
+                height: self.canvas_height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit(Some(encoder.finish()));
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            self.stroke_base_valid = false;
+            return Err(format!(
+                "wgpu validation error during stroke base capture: {err}"
+            ));
+        }
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            self.stroke_base_valid = false;
+            return Err(format!(
+                "wgpu out-of-memory error during stroke base capture: {err}"
+            ));
+        }
+        self.stroke_base_valid = true;
+        Ok(())
     }
 
     pub fn set_softness(&mut self, softness: f32) {
@@ -189,6 +321,10 @@ impl BrushRenderer {
         erase: bool,
         antialias_level: u32,
         rotation_radians: f32,
+        hollow_enabled: bool,
+        hollow_ratio: f32,
+        hollow_erase_occluded: bool,
+        use_stroke_mask: bool,
     ) -> Result<(), String> {
         if points.is_empty() {
             return Ok(());
@@ -214,6 +350,36 @@ impl BrushRenderer {
             rotation_radians
         } else {
             0.0
+        };
+        let ratio = if hollow_enabled && !erase {
+            if hollow_ratio.is_finite() {
+                hollow_ratio.clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+        let hollow_mode = if ratio > 0.0001 { 1 } else { 0 };
+        let hollow_erase = if hollow_mode != 0 && hollow_erase_occluded {
+            1
+        } else {
+            0
+        };
+        let stroke_mask_mode = if hollow_mode != 0 && use_stroke_mask {
+            self.ensure_stroke_mask()?;
+            1
+        } else {
+            0
+        };
+        let stroke_base_mode = if hollow_mode != 0
+            && hollow_erase == 0
+            && self.stroke_base_valid
+            && stroke_mask_mode != 0
+        {
+            1
+        } else {
+            0
         };
         let radius_scale = 1.0;
         let dirty = compute_dirty_rect(
@@ -282,8 +448,11 @@ impl BrushRenderer {
             softness: self.softness,
             rotation_sin: rotation.sin(),
             rotation_cos: rotation.cos(),
-            _pad0: 0,
-            _pad1: 0,
+            hollow_mode,
+            hollow_ratio: ratio,
+            hollow_erase,
+            stroke_mask_mode,
+            stroke_base_mode,
         };
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&config));
@@ -303,6 +472,14 @@ impl BrushRenderer {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: self.uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&self.stroke_mask_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(&self.stroke_base_view),
                 },
             ],
         });
@@ -401,6 +578,95 @@ impl BrushRenderer {
         );
         Ok(())
     }
+
+    fn ensure_stroke_mask(&mut self) -> Result<(), String> {
+        if self.canvas_width == 0 || self.canvas_height == 0 {
+            return Ok(());
+        }
+        if self.stroke_mask_width == self.canvas_width
+            && self.stroke_mask_height == self.canvas_height
+        {
+            return Ok(());
+        }
+        let (mask, view) = create_stroke_mask(
+            self.device.as_ref(),
+            self.canvas_width,
+            self.canvas_height,
+        );
+        self.stroke_mask = mask;
+        self.stroke_mask_view = view;
+        self.stroke_mask_width = self.canvas_width;
+        self.stroke_mask_height = self.canvas_height;
+        Ok(())
+    }
+
+    fn ensure_stroke_base(&mut self) -> Result<(), String> {
+        if self.canvas_width == 0 || self.canvas_height == 0 {
+            return Ok(());
+        }
+        if self.stroke_base_width == self.canvas_width
+            && self.stroke_base_height == self.canvas_height
+        {
+            return Ok(());
+        }
+        let (base, view) = create_stroke_base(
+            self.device.as_ref(),
+            self.canvas_width,
+            self.canvas_height,
+        );
+        self.stroke_base = base;
+        self.stroke_base_view = view;
+        self.stroke_base_width = self.canvas_width;
+        self.stroke_base_height = self.canvas_height;
+        self.stroke_base_valid = false;
+        Ok(())
+    }
+}
+
+fn create_stroke_mask(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("BrushRenderer stroke mask"),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::R32Uint,
+        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    (texture, view)
+}
+
+fn create_stroke_base(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("BrushRenderer stroke base"),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::R32Uint,
+        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    (texture, view)
 }
 
 fn compute_dirty_rect(
