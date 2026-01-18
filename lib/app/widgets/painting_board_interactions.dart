@@ -5,7 +5,7 @@ const int _kRustPointStrideBytes = 32;
 const int _kRustPointFlagDown = 1;
 const int _kRustPointFlagMove = 2;
 const int _kRustPointFlagUp = 4;
-const double _kRustPressureMinFactor = 0.25;
+const double _kRustPressureMinFactor = 0.09;
 const double _kRustPressureMaxFactor = 1.0;
 
 final class _RustPointBuffer {
@@ -250,6 +250,10 @@ mixin _PaintingBoardInteractionMixin
   bool _rustSimulatePressure = false;
   bool _rustUseStylusPressure = false;
   Offset? _rustLastEnginePoint;
+  Offset? _rustLastMovementUnit;
+  double _rustLastMovementDistance = 0.0;
+  double? _rustLastStylusPressure;
+  double _rustLastResolvedPressure = 1.0;
 
   void clear() async {
     if (_isTextEditingActive) {
@@ -555,8 +559,16 @@ mixin _PaintingBoardInteractionMixin
     if (!_rustActiveStrokeUsesPressure) {
       return 1.0;
     }
-    final double? stylusPressure =
+    final bool isUpEvent = event is PointerUpEvent || event is PointerCancelEvent;
+    double? stylusPressure =
         _rustUseStylusPressure ? _normalizePointerPressure(event) : null;
+    if (_rustUseStylusPressure) {
+      if (!isUpEvent && stylusPressure != null) {
+        _rustLastStylusPressure = stylusPressure;
+      } else if (isUpEvent) {
+        stylusPressure = _rustLastStylusPressure ?? stylusPressure;
+      }
+    }
     final bool shouldSimulate = _rustSimulatePressure || _autoSharpPeakEnabled;
     if (!shouldSimulate) {
       return stylusPressure ?? 1.0;
@@ -594,6 +606,16 @@ mixin _PaintingBoardInteractionMixin
     required int flags,
     required int pointerId,
   }) {
+    final Offset? previous = _rustLastEnginePoint;
+    if (previous != null) {
+      final Offset delta = enginePos - previous;
+      final double distance = delta.distance;
+      if (distance.isFinite && distance > 0.001) {
+        _rustLastMovementUnit = delta / distance;
+        _rustLastMovementDistance = distance;
+      }
+    }
+    _rustLastResolvedPressure = pressure;
     _rustLastEnginePoint = enginePos;
     _rustPoints.add(
       x: enginePos.dx,
@@ -605,23 +627,41 @@ mixin _PaintingBoardInteractionMixin
     );
   }
 
+  double _rustRadiusFromPressure(double pressure, double baseRadius) {
+    final double base = baseRadius.isFinite ? math.max(baseRadius, 0.0) : 0.0;
+    if (base <= 0.0) {
+      return 0.0;
+    }
+    final double clamped =
+        pressure.isFinite ? pressure.clamp(0.0, 1.0) : 0.0;
+    return base *
+        (_kRustPressureMinFactor +
+            (1.0 - _kRustPressureMinFactor) * clamped);
+  }
+
   Offset? _computeRustSharpTail({
     required Offset tip,
     required Offset? previousPoint,
     required double baseRadius,
   }) {
-    if (previousPoint == null) {
+    Offset? unit;
+    double length = 0.0;
+    if (previousPoint != null) {
+      final Offset direction = tip - previousPoint;
+      length = direction.distance;
+      if (length.isFinite && length > 0.001) {
+        unit = direction / length;
+      }
+    }
+    unit ??= _rustLastMovementUnit;
+    if (unit == null) {
       return null;
     }
-    final Offset direction = tip - previousPoint;
-    final double length = direction.distance;
-    if (length <= 0.001) {
-      return null;
-    }
-    final Offset unit = direction / length;
     final double base = math.max(baseRadius, 0.1);
+    final double movement =
+        length > 0.001 ? length : _rustLastMovementDistance;
     final double taperMax = base * 6.5;
-    final double taperDynamic = length * 2.4 + 2.0;
+    final double taperDynamic = movement * 2.4 + 2.0;
     final double taperLength = math.min(taperMax, taperDynamic);
     return tip + unit * taperLength;
   }
@@ -697,6 +737,10 @@ mixin _PaintingBoardInteractionMixin
     _resetPerspectiveLock();
     _lastStrokeBoardPosition = null;
     _rustLastEnginePoint = null;
+    _rustLastMovementUnit = null;
+    _rustLastMovementDistance = 0.0;
+    _rustLastStylusPressure = null;
+    _rustLastResolvedPressure = 1.0;
     final bool supportsPressure =
         event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus;
@@ -726,25 +770,69 @@ mixin _PaintingBoardInteractionMixin
         isInitialSample: false,
       );
       final int timestampUs = event.timeStamp.inMicroseconds;
+      final double startPressure = _rustLastResolvedPressure.isFinite
+          ? _rustLastResolvedPressure
+          : pressure;
       final bool wantsSharpTail =
           _autoSharpPeakEnabled && _rustPressureSimulator.isSimulatingStroke;
       if (wantsSharpTail) {
         final Offset? previousPoint = _rustLastEnginePoint;
         final double baseRadius =
             (_penStrokeWidth / 2).clamp(0.0, 4096.0).toDouble();
-        final Offset? tailPoint = _computeRustSharpTail(
+        Offset? tailPoint = _computeRustSharpTail(
           tip: enginePos,
           previousPoint: previousPoint,
           baseRadius: baseRadius,
         );
+        final double lastRadius =
+            _rustRadiusFromPressure(startPressure, baseRadius);
+        final double endRadius = _rustRadiusFromPressure(0.0, baseRadius);
+        if (tailPoint == null &&
+            _rustLastMovementUnit != null &&
+            lastRadius > endRadius) {
+          final double targetDist = lastRadius - endRadius + 1.5;
+          tailPoint = enginePos + _rustLastMovementUnit! * targetDist;
+        } else if (tailPoint != null && lastRadius > endRadius) {
+          final Offset delta = tailPoint - enginePos;
+          final double dist = delta.distance;
+          if (dist.isFinite && dist > 0.001 && dist + endRadius < lastRadius) {
+            final double targetDist = lastRadius - endRadius + 1.5;
+            tailPoint = enginePos + (delta / dist) * targetDist;
+          }
+        }
         if (tailPoint != null) {
+          final double tailPressure = startPressure.clamp(0.0, 1.0);
           _appendRustPoint(
             enginePos: enginePos,
-            pressure: pressure,
+            pressure: tailPressure,
             timestampUs: timestampUs,
             flags: _kRustPointFlagMove,
             pointerId: event.pointer,
           );
+          final Offset delta = tailPoint - enginePos;
+          final double dist = delta.distance;
+          if (dist.isFinite && dist > 0.5 && tailPressure > 0.001) {
+            final double spacing = math.max(baseRadius * 0.35, 0.75);
+            final int segments =
+                math.max(2, (dist / spacing).ceil()).clamp(2, 10).toInt();
+            for (int i = 1; i < segments; i++) {
+              final double t = i / segments;
+              final double eased = math.pow(1.0 - t, 1.6).toDouble();
+              final double midPressure =
+                  (tailPressure * eased).clamp(0.0, 1.0);
+              if (midPressure <= 0.001) {
+                continue;
+              }
+              final Offset midPoint = enginePos + delta * t;
+              _appendRustPoint(
+                enginePos: midPoint,
+                pressure: midPressure,
+                timestampUs: timestampUs,
+                flags: _kRustPointFlagMove,
+                pointerId: event.pointer,
+              );
+            }
+          }
           _appendRustPoint(
             enginePos: tailPoint,
             pressure: 0.0,
@@ -778,6 +866,10 @@ mixin _PaintingBoardInteractionMixin
     _rustUseStylusPressure = false;
     _rustPressureSimulator.resetTracking();
     _rustLastEnginePoint = null;
+    _rustLastMovementUnit = null;
+    _rustLastMovementDistance = 0.0;
+    _rustLastStylusPressure = null;
+    _rustLastResolvedPressure = 1.0;
     _lastStrokeBoardPosition = null;
     _strokeStabilizer.reset();
     _resetPerspectiveLock();

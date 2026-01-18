@@ -1972,6 +1972,9 @@ impl StrokeResampler {
 }
 
 #[cfg(target_os = "macos")]
+const RUST_PRESSURE_MIN_FACTOR: f32 = 0.09;
+
+#[cfg(target_os = "macos")]
 fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: bool) -> f32 {
     let base = if base_radius.is_finite() {
         base_radius.max(0.0)
@@ -1986,7 +1989,7 @@ fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: boo
     } else {
         0.0
     };
-    base * (0.25 + 0.75 * p)
+    base * (RUST_PRESSURE_MIN_FACTOR + (1.0 - RUST_PRESSURE_MIN_FACTOR) * p)
 }
 
 #[cfg(target_os = "macos")]
