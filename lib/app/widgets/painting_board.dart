@@ -83,7 +83,10 @@ import '../../minecraft/bedrock_animation.dart';
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/raster_frame.dart';
 import '../../bitmap_canvas/controller.dart';
-import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
+import '../../bitmap_canvas/stroke_dynamics.dart'
+    show StrokeDynamics, StrokePressureProfile, StrokeSampleMetrics;
+import '../../bitmap_canvas/stroke_sample.dart';
+import '../../bitmap_canvas/velocity_smoother.dart';
 import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';

@@ -5,6 +5,8 @@ const int _kRustPointStrideBytes = 32;
 const int _kRustPointFlagDown = 1;
 const int _kRustPointFlagMove = 2;
 const int _kRustPointFlagUp = 4;
+const double _kRustPressureMinFactor = 0.25;
+const double _kRustPressureMaxFactor = 1.0;
 
 final class _RustPointBuffer {
   _RustPointBuffer({int initialCapacityPoints = 256})
@@ -58,6 +60,141 @@ final class _RustPointBuffer {
   }
 }
 
+final class _RustPressureSimulator {
+  _RustPressureSimulator()
+    : _strokeDynamics = StrokeDynamics(
+        profile: StrokePressureProfile.auto,
+        minRadiusFactor: _kRustPressureMinFactor,
+        maxRadiusFactor: _kRustPressureMaxFactor,
+      );
+
+  final StrokeDynamics _strokeDynamics;
+  final StrokeSampleSeries _strokeSamples = StrokeSampleSeries();
+  final VelocitySmoother _velocitySmoother = VelocitySmoother();
+
+  StrokePressureProfile _profile = StrokePressureProfile.auto;
+  bool _simulatingStroke = false;
+  bool _usesDevicePressure = false;
+  double _stylusPressureBlend = 1.0;
+
+  void resetTracking() {
+    _strokeSamples.clear();
+    _velocitySmoother.reset();
+    _simulatingStroke = false;
+    _usesDevicePressure = false;
+    _stylusPressureBlend = 1.0;
+  }
+
+  void setProfile(StrokePressureProfile profile) {
+    if (_profile == profile) {
+      return;
+    }
+    _profile = profile;
+    _strokeDynamics.configure(profile: profile);
+  }
+
+  double? beginStroke({
+    required Offset position,
+    required double timestampMillis,
+    required bool simulatePressure,
+    required bool useDevicePressure,
+    required double stylusPressureBlend,
+    double? stylusPressure,
+  }) {
+    _strokeSamples.clear();
+    _velocitySmoother.reset();
+    _strokeSamples.add(position, timestampMillis);
+    _velocitySmoother.addSample(position, timestampMillis);
+
+    _usesDevicePressure = useDevicePressure;
+    _stylusPressureBlend = stylusPressureBlend.clamp(0.0, 1.0);
+    _simulatingStroke = simulatePressure;
+
+    if (!_simulatingStroke) {
+      return null;
+    }
+
+    _strokeDynamics.start(1.0, profile: _profile);
+    double initialPressure = _radiusToPressure(
+      _strokeDynamics.initialRadius(),
+    );
+    if (_usesDevicePressure && stylusPressure != null) {
+      final double? seeded = _seedPressureSample(stylusPressure);
+      if (seeded != null) {
+        initialPressure = seeded;
+      }
+    }
+    return initialPressure;
+  }
+
+  double? samplePressure({
+    required Offset position,
+    required double timestampMillis,
+    double? stylusPressure,
+  }) {
+    if (!_simulatingStroke) {
+      return null;
+    }
+    final StrokeSample sample = _strokeSamples.add(position, timestampMillis);
+    final double normalizedSpeed =
+        _velocitySmoother.addSample(position, timestampMillis);
+    final StrokeSampleMetrics? metrics =
+        _profile == StrokePressureProfile.auto
+            ? StrokeSampleMetrics(
+                sampleIndex: _strokeSamples.length - 1,
+                normalizedSpeed: normalizedSpeed,
+                stationaryDuration: sample.stationaryDuration,
+                totalDistance: _strokeSamples.totalDistance,
+                totalTime: _strokeSamples.totalTime,
+              )
+            : null;
+    final double? intensityOverride =
+        _usesDevicePressure ? _stylusPressureToIntensity(stylusPressure) : null;
+    final double effectiveBlend =
+        intensityOverride != null ? _stylusPressureBlend : 0.0;
+    final double radius = _strokeDynamics.sample(
+      distance: sample.distance,
+      deltaTimeMillis: sample.deltaTime,
+      metrics: metrics,
+      intensityOverride: intensityOverride,
+      speedSignal: normalizedSpeed,
+      intensityBlend: effectiveBlend,
+    );
+    return _radiusToPressure(radius);
+  }
+
+  double _radiusToPressure(double radius) {
+    final double minRadius = _strokeDynamics.minRadius;
+    final double maxRadius = _strokeDynamics.maxRadius;
+    final double span = maxRadius - minRadius;
+    if (span <= 0.0001) {
+      return 1.0;
+    }
+    return ((radius - minRadius) / span).clamp(0.0, 1.0);
+  }
+
+  double? _seedPressureSample(double pressure) {
+    final double? intensity = _stylusPressureToIntensity(pressure);
+    if (intensity == null) {
+      return null;
+    }
+    final double radius = _strokeDynamics.sample(
+      distance: 0.0,
+      intensityOverride: intensity,
+      speedSignal: 0.0,
+      intensityBlend: _stylusPressureBlend,
+    );
+    return _radiusToPressure(radius);
+  }
+
+  double? _stylusPressureToIntensity(double? pressure) {
+    if (pressure == null || !pressure.isFinite) {
+      return null;
+    }
+    return (1.0 - pressure.clamp(0.0, 1.0)).clamp(0.0, 1.0);
+  }
+}
+
 mixin _PaintingBoardInteractionMixin
     on
         _PaintingBoardBase,
@@ -68,9 +205,13 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardTextMixin,
         TickerProvider {
   final _RustPointBuffer _rustPoints = _RustPointBuffer();
+  final _RustPressureSimulator _rustPressureSimulator =
+      _RustPressureSimulator();
   bool _rustFlushScheduled = false;
   int? _rustActivePointer;
   bool _rustActiveStrokeUsesPressure = true;
+  bool _rustSimulatePressure = false;
+  bool _rustUseStylusPressure = false;
 
   void clear() async {
     if (_isTextEditingActive) {
@@ -359,6 +500,50 @@ mixin _PaintingBoardInteractionMixin
     return sanitized;
   }
 
+  double? _normalizePointerPressure(PointerEvent event) {
+    final double pressure = event.pressure;
+    if (!pressure.isFinite) {
+      return null;
+    }
+    return pressure.clamp(0.0, 1.0);
+  }
+
+  double _resolveRustPressure({
+    required PointerEvent event,
+    required Offset enginePos,
+    required bool isInitialSample,
+  }) {
+    if (!_rustActiveStrokeUsesPressure) {
+      return 1.0;
+    }
+    final double? stylusPressure =
+        _rustUseStylusPressure ? _normalizePointerPressure(event) : null;
+    if (!_rustSimulatePressure) {
+      return stylusPressure ?? 1.0;
+    }
+    final double timestampMillis = event.timeStamp.inMicroseconds / 1000.0;
+    if (isInitialSample) {
+      _rustPressureSimulator.setProfile(_penPressureProfile);
+      final double stylusBlend =
+          _rustUseStylusPressure ? _kStylusSimulationBlend : 1.0;
+      final double? initialPressure = _rustPressureSimulator.beginStroke(
+        position: enginePos,
+        timestampMillis: timestampMillis,
+        simulatePressure: true,
+        useDevicePressure: _rustUseStylusPressure,
+        stylusPressureBlend: stylusBlend,
+        stylusPressure: stylusPressure,
+      );
+      return initialPressure ?? stylusPressure ?? 1.0;
+    }
+    final double? simulated = _rustPressureSimulator.samplePressure(
+      position: enginePos,
+      timestampMillis: timestampMillis,
+      stylusPressure: stylusPressure,
+    );
+    return simulated ?? stylusPressure ?? 1.0;
+  }
+
   void _enqueueRustPoint(
     PointerEvent event,
     int flags, {
@@ -374,12 +559,11 @@ mixin _PaintingBoardInteractionMixin
       isInitialSample: isInitialSample,
     );
     final Offset enginePos = _rustToEngineSpace(sanitized);
-    final double pressure =
-        !_rustActiveStrokeUsesPressure
-            ? 1.0
-            : (event.pressure.isFinite
-                ? event.pressure.clamp(0.0, 1.0)
-                : 1.0);
+    final double pressure = _resolveRustPressure(
+      event: event,
+      enginePos: enginePos,
+      isInitialSample: isInitialSample,
+    );
     final int timestampUs = event.timeStamp.inMicroseconds;
     _rustPoints.add(
       x: enginePos.dx,
@@ -434,7 +618,11 @@ mixin _PaintingBoardInteractionMixin
     final bool supportsPressure =
         event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus;
-    _rustActiveStrokeUsesPressure = _stylusPressureEnabled && supportsPressure;
+    _rustPressureSimulator.resetTracking();
+    _rustSimulatePressure = _simulatePenPressure;
+    _rustUseStylusPressure = _stylusPressureEnabled && supportsPressure;
+    _rustActiveStrokeUsesPressure =
+        _rustUseStylusPressure || _rustSimulatePressure;
     _rustActivePointer = event.pointer;
     _enqueueRustPoint(event, _kRustPointFlagDown, isInitialSample: true);
     _markDirty();
@@ -444,6 +632,9 @@ mixin _PaintingBoardInteractionMixin
     _enqueueRustPoint(event, _kRustPointFlagUp);
     _rustActivePointer = null;
     _rustActiveStrokeUsesPressure = true;
+    _rustSimulatePressure = false;
+    _rustUseStylusPressure = false;
+    _rustPressureSimulator.resetTracking();
     _lastStrokeBoardPosition = null;
     _strokeStabilizer.reset();
     _resetPerspectiveLock();
