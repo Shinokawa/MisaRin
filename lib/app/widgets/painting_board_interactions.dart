@@ -880,7 +880,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _endRustStroke(PointerEvent event) {
+    final bool hadActiveStroke = _rustActivePointer != null;
     final int? handle = _rustCanvasEngineHandle;
+    final bool canRecordHistory = hadActiveStroke && _canUseRustCanvasEngine();
     if (_canUseRustCanvasEngine() && handle != null) {
       _rustWaitingForFirstMove = false;
       final Offset boardLocal = _toBoardLocal(event.localPosition);
@@ -984,6 +986,12 @@ mixin _PaintingBoardInteractionMixin
         );
       }
       _scheduleRustFlush();
+      if (canRecordHistory) {
+        _recordRustHistoryAction();
+        if (mounted) {
+          setState(() {});
+        }
+      }
     }
     _rustActivePointer = null;
     _rustActiveStrokeUsesPressure = true;
@@ -1658,6 +1666,31 @@ mixin _PaintingBoardInteractionMixin
 
   Future<bool> undo() async {
     _refreshHistoryLimit();
+    if (_useCombinedHistory) {
+      final _HistoryActionKind? action = _peekHistoryUndoAction();
+      if (action == _HistoryActionKind.rust) {
+        final int? handle = _rustCanvasEngineHandle;
+        if (!_canUseRustCanvasEngine() || handle == null) {
+          return false;
+        }
+        CanvasEngineFfi.instance.undo(handle: handle);
+        _commitHistoryUndoAction();
+        _markDirty();
+        setState(() {});
+        return true;
+      }
+      if (action == _HistoryActionKind.dart) {
+        if (_undoStack.isEmpty) {
+          return false;
+        }
+        final _CanvasHistoryEntry previous = _undoStack.removeLast();
+        _redoStack.add(await _createHistoryEntry());
+        _commitHistoryUndoAction();
+        _trimHistoryStacks();
+        await _applyHistoryEntry(previous);
+        return true;
+      }
+    }
     if (_undoStack.isEmpty) {
       return false;
     }
@@ -1670,6 +1703,31 @@ mixin _PaintingBoardInteractionMixin
 
   Future<bool> redo() async {
     _refreshHistoryLimit();
+    if (_useCombinedHistory) {
+      final _HistoryActionKind? action = _peekHistoryRedoAction();
+      if (action == _HistoryActionKind.rust) {
+        final int? handle = _rustCanvasEngineHandle;
+        if (!_canUseRustCanvasEngine() || handle == null) {
+          return false;
+        }
+        CanvasEngineFfi.instance.redo(handle: handle);
+        _commitHistoryRedoAction();
+        _markDirty();
+        setState(() {});
+        return true;
+      }
+      if (action == _HistoryActionKind.dart) {
+        if (_redoStack.isEmpty) {
+          return false;
+        }
+        final _CanvasHistoryEntry next = _redoStack.removeLast();
+        _undoStack.add(await _createHistoryEntry());
+        _commitHistoryRedoAction();
+        _trimHistoryStacks();
+        await _applyHistoryEntry(next);
+        return true;
+      }
+    }
     if (_redoStack.isEmpty) {
       return false;
     }

@@ -1,5 +1,7 @@
 part of 'painting_board.dart';
 
+enum _HistoryActionKind { dart, rust }
+
 abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   late BitmapCanvasController _controller;
   final FocusNode _focusNode = FocusNode();
@@ -143,6 +145,8 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
   final List<_CanvasHistoryEntry> _redoStack = <_CanvasHistoryEntry>[];
+  final List<_HistoryActionKind> _historyUndoStack = <_HistoryActionKind>[];
+  final List<_HistoryActionKind> _historyRedoStack = <_HistoryActionKind>[];
   bool _historyLocked = false;
   int _historyLimit = AppPreferences.instance.historyLimit;
   final List<_PaletteCardEntry> _paletteCards = <_PaletteCardEntry>[];
@@ -759,6 +763,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   void _handleRustCanvasEngineInfoChanged(int? handle, Size? engineSize) {
     if (_rustCanvasEngineHandle != handle) {
       _rustCanvasSyncedLayerCount = 0;
+      _purgeRustHistoryActions();
     }
     _rustCanvasEngineHandle = handle;
     _rustCanvasEngineSize = engineSize;
@@ -780,6 +785,84 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     return widget.useRustCanvas &&
         CanvasEngineFfi.instance.isSupported &&
         _rustCanvasEngineHandle != null;
+  }
+
+  bool get _useCombinedHistory => widget.useRustCanvas;
+
+  void _recordDartHistoryAction() {
+    _recordHistoryAction(_HistoryActionKind.dart);
+  }
+
+  void _recordRustHistoryAction() {
+    _recordHistoryAction(_HistoryActionKind.rust);
+  }
+
+  void _recordHistoryAction(_HistoryActionKind action) {
+    if (!_useCombinedHistory) {
+      return;
+    }
+    _historyUndoStack.add(action);
+    _historyRedoStack.clear();
+    _redoStack.clear();
+    _trimHistoryActionStacks();
+  }
+
+  _HistoryActionKind? _peekHistoryUndoAction() {
+    if (!_useCombinedHistory || _historyUndoStack.isEmpty) {
+      return null;
+    }
+    return _historyUndoStack.last;
+  }
+
+  _HistoryActionKind? _peekHistoryRedoAction() {
+    if (!_useCombinedHistory || _historyRedoStack.isEmpty) {
+      return null;
+    }
+    return _historyRedoStack.last;
+  }
+
+  _HistoryActionKind? _commitHistoryUndoAction() {
+    if (!_useCombinedHistory || _historyUndoStack.isEmpty) {
+      return null;
+    }
+    final _HistoryActionKind action = _historyUndoStack.removeLast();
+    _historyRedoStack.add(action);
+    _trimHistoryActionStacks();
+    return action;
+  }
+
+  _HistoryActionKind? _commitHistoryRedoAction() {
+    if (!_useCombinedHistory || _historyRedoStack.isEmpty) {
+      return null;
+    }
+    final _HistoryActionKind action = _historyRedoStack.removeLast();
+    _historyUndoStack.add(action);
+    _trimHistoryActionStacks();
+    return action;
+  }
+
+  void _trimHistoryActionStacks() {
+    if (!_useCombinedHistory) {
+      return;
+    }
+    while (_historyUndoStack.length > _historyLimit) {
+      _historyUndoStack.removeAt(0);
+    }
+    while (_historyRedoStack.length > _historyLimit) {
+      _historyRedoStack.removeAt(0);
+    }
+  }
+
+  void _purgeRustHistoryActions() {
+    if (!_useCombinedHistory) {
+      return;
+    }
+    _historyUndoStack.removeWhere(
+      (_HistoryActionKind action) => action == _HistoryActionKind.rust,
+    );
+    _historyRedoStack.removeWhere(
+      (_HistoryActionKind action) => action == _HistoryActionKind.rust,
+    );
   }
 
   void _syncRustCanvasViewFlags() {

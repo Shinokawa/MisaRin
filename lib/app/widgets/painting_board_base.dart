@@ -1,8 +1,10 @@
 part of 'painting_board.dart';
 
 abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
-  bool get canUndo => _undoStack.isNotEmpty;
-  bool get canRedo => _redoStack.isNotEmpty;
+  bool get canUndo =>
+      _useCombinedHistory ? _historyUndoStack.isNotEmpty : _undoStack.isNotEmpty;
+  bool get canRedo =>
+      _useCombinedHistory ? _historyRedoStack.isNotEmpty : _redoStack.isNotEmpty;
   SelectionShape get selectionShape;
   ShapeToolVariant get shapeToolVariant;
   Path? get selectionPath;
@@ -603,6 +605,8 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void _resetHistory() {
     _undoStack.clear();
     _redoStack.clear();
+    _historyUndoStack.clear();
+    _historyRedoStack.clear();
     _historyLocked = false;
     _historyLimit = AppPreferences.instance.historyLimit;
   }
@@ -616,6 +620,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();
+    _recordDartHistoryAction();
   }
 
   Future<_CanvasHistoryEntry> _createHistoryEntry() async {
@@ -680,6 +685,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     while (_redoStack.length > _historyLimit) {
       _redoStack.removeAt(0);
     }
+    _trimHistoryActionStacks();
   }
 
   void _handleFloatingColorPanelMeasured(double height) {
