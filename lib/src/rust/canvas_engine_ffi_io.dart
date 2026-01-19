@@ -75,6 +75,41 @@ typedef _EngineFillLayerNative =
 typedef _EngineFillLayerDart =
     void Function(int handle, int layerIndex, int colorArgb);
 
+typedef _EngineBucketFillNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Int32 startX,
+      ffi.Int32 startY,
+      ffi.Uint32 colorArgb,
+      ffi.Uint8 contiguous,
+      ffi.Uint8 sampleAllLayers,
+      ffi.Uint32 tolerance,
+      ffi.Uint32 fillGap,
+      ffi.Uint32 antialiasLevel,
+      ffi.Pointer<ffi.Uint32> swallowColors,
+      ffi.UintPtr swallowColorsLen,
+      ffi.Pointer<ffi.Uint8> selectionMask,
+      ffi.UintPtr selectionMaskLen,
+    );
+typedef _EngineBucketFillDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      int startX,
+      int startY,
+      int colorArgb,
+      int contiguous,
+      int sampleAllLayers,
+      int tolerance,
+      int fillGap,
+      int antialiasLevel,
+      ffi.Pointer<ffi.Uint32> swallowColors,
+      int swallowColorsLen,
+      ffi.Pointer<ffi.Uint8> selectionMask,
+      int selectionMaskLen,
+    );
+
 typedef _EngineResetCanvasNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 backgroundColorArgb);
 typedef _EngineResetCanvasDart = void Function(int handle, int backgroundColorArgb);
@@ -182,6 +217,13 @@ class CanvasEngineFfi {
         _fillLayer = null;
       }
       try {
+        _bucketFill = _lib.lookupFunction<_EngineBucketFillNative, _EngineBucketFillDart>(
+          'engine_bucket_fill',
+        );
+      } catch (_) {
+        _bucketFill = null;
+      }
+      try {
         _resetCanvas = _lib.lookupFunction<_EngineResetCanvasNative, _EngineResetCanvasDart>(
           'engine_reset_canvas',
         );
@@ -227,6 +269,7 @@ class CanvasEngineFfi {
   late final _EngineSetViewFlagsDart? _setViewFlags;
   late final _EngineClearLayerDart? _clearLayer;
   late final _EngineFillLayerDart? _fillLayer;
+  late final _EngineBucketFillDart? _bucketFill;
   late final _EngineResetCanvasDart? _resetCanvas;
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
@@ -343,6 +386,74 @@ class CanvasEngineFfi {
       return;
     }
     fn(handle, layerIndex, colorArgb);
+  }
+
+  bool bucketFill({
+    required int handle,
+    required int layerIndex,
+    required int startX,
+    required int startY,
+    required int colorArgb,
+    bool contiguous = true,
+    bool sampleAllLayers = false,
+    int tolerance = 0,
+    int fillGap = 0,
+    int antialiasLevel = 0,
+    Uint32List? swallowColors,
+    Uint8List? selectionMask,
+  }) {
+    final fn = _bucketFill;
+    if (!isSupported || fn == null || handle == 0) {
+      return false;
+    }
+    final int clampedTolerance = tolerance.clamp(0, 255);
+    final int clampedFillGap = fillGap.clamp(0, 64);
+    final int clampedAntialias = antialiasLevel.clamp(0, 3);
+
+    ffi.Pointer<ffi.Uint32> swallowPtr = ffi.nullptr;
+    int swallowLen = 0;
+    if (swallowColors != null && swallowColors.isNotEmpty) {
+      swallowLen = swallowColors.length;
+      swallowPtr = malloc.allocate<ffi.Uint32>(
+        swallowLen * ffi.sizeOf<ffi.Uint32>(),
+      );
+      swallowPtr.asTypedList(swallowLen).setAll(0, swallowColors);
+    }
+
+    ffi.Pointer<ffi.Uint8> selectionPtr = ffi.nullptr;
+    int selectionLen = 0;
+    if (selectionMask != null && selectionMask.isNotEmpty) {
+      selectionLen = selectionMask.length;
+      selectionPtr = malloc.allocate<ffi.Uint8>(selectionLen);
+      selectionPtr.asTypedList(selectionLen).setAll(0, selectionMask);
+    }
+
+    try {
+      final int result = fn(
+        handle,
+        layerIndex,
+        startX,
+        startY,
+        colorArgb,
+        contiguous ? 1 : 0,
+        sampleAllLayers ? 1 : 0,
+        clampedTolerance,
+        clampedFillGap,
+        clampedAntialias,
+        swallowPtr,
+        swallowLen,
+        selectionPtr,
+        selectionLen,
+      );
+      return result != 0;
+    } finally {
+      if (swallowPtr != ffi.nullptr) {
+        malloc.free(swallowPtr);
+      }
+      if (selectionPtr != ffi.nullptr) {
+        malloc.free(selectionPtr);
+      }
+    }
   }
 
   void resetCanvas({

@@ -8,6 +8,7 @@ use std::time::Duration;
 use metal::foreign_types::ForeignType;
 use wgpu_hal::api::Metal;
 
+use crate::api::bucket_fill;
 use crate::gpu::brush_renderer::BrushRenderer;
 use crate::gpu::debug::{self, LogLevel};
 
@@ -51,6 +52,20 @@ pub(crate) enum EngineCommand {
         hollow_enabled: bool,
         hollow_ratio: f32,
         hollow_erase_occluded: bool,
+    },
+    BucketFill {
+        layer_index: u32,
+        start_x: i32,
+        start_y: i32,
+        color_argb: u32,
+        contiguous: bool,
+        sample_all_layers: bool,
+        tolerance: u8,
+        fill_gap: u8,
+        antialias_level: u8,
+        swallow_colors: Vec<u32>,
+        selection_mask: Option<Vec<u8>>,
+        reply: mpsc::Sender<bool>,
     },
     Undo,
     Redo,
@@ -726,6 +741,213 @@ fn handle_engine_command(
             brush_settings.hollow_erase_occluded = hollow_erase_occluded;
             brush_settings.sanitize();
         }
+        EngineCommand::BucketFill {
+            layer_index,
+            start_x,
+            start_y,
+            color_argb,
+            contiguous,
+            sample_all_layers,
+            tolerance,
+            fill_gap,
+            antialias_level,
+            swallow_colors,
+            selection_mask,
+            reply,
+        } => {
+            let idx = layer_index as usize;
+            if !ensure_layer_index(idx) {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            if start_x < 0
+                || start_y < 0
+                || (start_x as u32) >= canvas_width
+                || (start_y as u32) >= canvas_height
+            {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+
+            let (active_pixels, sample_pixels) = if sample_all_layers {
+                let mut layers_pixels: Vec<Vec<u32>> = Vec::with_capacity(*layer_count);
+                for layer_idx in 0..*layer_count {
+                    match read_r32uint_layer(
+                        device,
+                        queue,
+                        layers.texture(),
+                        canvas_width,
+                        canvas_height,
+                        layer_idx as u32,
+                    ) {
+                        Ok(pixels) => layers_pixels.push(pixels),
+                        Err(err) => {
+                            debug::log(
+                                LogLevel::Warn,
+                                format_args!("bucket fill readback failed: {err}"),
+                            );
+                            let _ = reply.send(false);
+                            return EngineCommandOutcome {
+                                stop: false,
+                                needs_render: false,
+                            };
+                        }
+                    }
+                }
+                let sample = composite_layers_for_bucket_fill(
+                    canvas_width as usize,
+                    canvas_height as usize,
+                    &layers_pixels,
+                    layer_opacity,
+                    layer_visible,
+                    layer_clipping_mask,
+                );
+                let active = std::mem::take(&mut layers_pixels[idx]);
+                (active, Some(sample))
+            } else {
+                match read_r32uint_layer(
+                    device,
+                    queue,
+                    layers.texture(),
+                    canvas_width,
+                    canvas_height,
+                    idx as u32,
+                ) {
+                    Ok(pixels) => (pixels, None),
+                    Err(err) => {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("bucket fill readback failed: {err}"),
+                        );
+                        let _ = reply.send(false);
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                        };
+                    }
+                }
+            };
+
+            let patch = bucket_fill::flood_fill_patch(
+                canvas_width as i32,
+                canvas_height as i32,
+                active_pixels,
+                sample_pixels,
+                start_x,
+                start_y,
+                color_argb,
+                None,
+                contiguous,
+                tolerance as i32,
+                fill_gap as i32,
+                selection_mask,
+                if swallow_colors.is_empty() {
+                    None
+                } else {
+                    Some(swallow_colors)
+                },
+                antialias_level as i32,
+            );
+
+            if patch.width <= 0 || patch.height <= 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+
+            let left = patch.left.max(0) as u32;
+            let top = patch.top.max(0) as u32;
+            let width = patch.width.max(0) as u32;
+            let height = patch.height.max(0) as u32;
+            if width == 0 || height == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+
+            let bytes_per_row_unpadded = match width.checked_mul(4) {
+                Some(v) => v,
+                None => {
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            };
+            let bytes_per_row_padded = align_up_u32(bytes_per_row_unpadded, 256);
+            if bytes_per_row_padded == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let packed = match pack_u32_rows_with_padding(
+                &patch.pixels,
+                width,
+                height,
+                bytes_per_row_padded,
+            ) {
+                Ok(data) => data,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("bucket fill pack failed: {err}"),
+                    );
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            };
+
+            undo.begin_stroke(layer_index);
+            undo.capture_before_for_dirty_rect(
+                device,
+                queue,
+                layers.texture(),
+                layer_index,
+                (patch.left, patch.top, patch.width, patch.height),
+            );
+
+            write_r32uint_region(
+                queue,
+                layers.texture(),
+                left,
+                top,
+                width,
+                height,
+                layer_index,
+                bytes_per_row_padded,
+                &packed,
+            );
+            undo.end_stroke(device, queue, layers.texture());
+
+            let _ = reply.send(true);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: present.is_some(),
+            };
+        }
         EngineCommand::Undo => {
             let applied = undo.undo(device, queue, layers.texture(), *layer_count);
             return EngineCommandOutcome {
@@ -824,6 +1046,341 @@ fn align_up_u32(value: u32, alignment: u32) -> u32 {
     } else {
         value + (alignment - rem)
     }
+}
+
+fn read_r32uint_layer(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+    layer_index: u32,
+) -> Result<Vec<u32>, String> {
+    if width == 0 || height == 0 {
+        return Ok(Vec::new());
+    }
+
+    const BYTES_PER_PIXEL: u32 = 4;
+    const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
+
+    let bytes_per_row_unpadded = width
+        .checked_mul(BYTES_PER_PIXEL)
+        .ok_or_else(|| "read_r32uint_layer: bytes_per_row overflow".to_string())?;
+    let bytes_per_row_padded = align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
+    if bytes_per_row_padded == 0 {
+        return Err("read_r32uint_layer: bytes_per_row_padded == 0".to_string());
+    }
+    let readback_size = (bytes_per_row_padded as u64)
+        .checked_mul(height as u64)
+        .ok_or_else(|| "read_r32uint_layer: readback_size overflow".to_string())?;
+
+    let readback = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("misa-rin canvas layer readback"),
+        size: readback_size,
+        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("misa-rin canvas layer readback encoder"),
+    });
+    encoder.copy_texture_to_buffer(
+        wgpu::ImageCopyTexture {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d {
+                x: 0,
+                y: 0,
+                z: layer_index,
+            },
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::ImageCopyBuffer {
+            buffer: &readback,
+            layout: wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row_padded),
+                rows_per_image: Some(height),
+            },
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(Some(encoder.finish()));
+
+    let buffer_slice = readback.slice(0..readback_size);
+    let (tx, rx) = mpsc::channel();
+    buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx.send(res);
+    });
+    device.poll(wgpu::Maintain::Wait);
+
+    let map_status: Result<(), String> = match rx.recv() {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(format!("read_r32uint_layer: map_async failed: {e:?}")),
+        Err(e) => Err(format!("read_r32uint_layer: map_async channel failed: {e}")),
+    };
+
+    let mut result: Option<Vec<u32>> = None;
+    if map_status.is_ok() {
+        let mapped = buffer_slice.get_mapped_range();
+        result = Some(unpack_u32_rows_without_padding(
+            &mapped,
+            width,
+            height,
+            bytes_per_row_padded,
+        )?);
+        drop(mapped);
+        readback.unmap();
+    }
+
+    map_status?;
+    Ok(result.unwrap_or_default())
+}
+
+fn write_r32uint_region(
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    left: u32,
+    top: u32,
+    width: u32,
+    height: u32,
+    layer_index: u32,
+    bytes_per_row_padded: u32,
+    data: &[u8],
+) {
+    if width == 0 || height == 0 {
+        return;
+    }
+    queue.write_texture(
+        wgpu::ImageCopyTexture {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d {
+                x: left,
+                y: top,
+                z: layer_index,
+            },
+            aspect: wgpu::TextureAspect::All,
+        },
+        data,
+        wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: Some(bytes_per_row_padded),
+            rows_per_image: Some(height),
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+}
+
+fn pack_u32_rows_with_padding(
+    pixels: &[u32],
+    width: u32,
+    height: u32,
+    bytes_per_row_padded: u32,
+) -> Result<Vec<u8>, String> {
+    if width == 0 || height == 0 {
+        return Ok(Vec::new());
+    }
+    let expected_len = (width as usize)
+        .checked_mul(height as usize)
+        .ok_or_else(|| "pack_u32_rows_with_padding: pixel_count overflow".to_string())?;
+    if pixels.len() != expected_len {
+        return Err(format!(
+            "pack_u32_rows_with_padding: pixel len mismatch: got {}, expected {}",
+            pixels.len(),
+            expected_len
+        ));
+    }
+
+    let bytes_per_row_unpadded: usize = (width as usize)
+        .checked_mul(4)
+        .ok_or_else(|| "pack_u32_rows_with_padding: bytes_per_row overflow".to_string())?;
+    let bytes_per_row_padded_usize = bytes_per_row_padded as usize;
+    let total_bytes: usize = bytes_per_row_padded_usize
+        .checked_mul(height as usize)
+        .ok_or_else(|| "pack_u32_rows_with_padding: total_bytes overflow".to_string())?;
+
+    let mut out = vec![0u8; total_bytes];
+    let width_usize = width as usize;
+    for y in 0..height as usize {
+        let src_row_start = y * width_usize;
+        let row = &pixels[src_row_start..(src_row_start + width_usize)];
+        let row_bytes: &[u8] = bytemuck::cast_slice(row);
+        let dst_offset = y * bytes_per_row_padded_usize;
+        out[dst_offset..(dst_offset + bytes_per_row_unpadded)].copy_from_slice(row_bytes);
+    }
+    Ok(out)
+}
+
+fn unpack_u32_rows_without_padding(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    bytes_per_row_padded: u32,
+) -> Result<Vec<u32>, String> {
+    if width == 0 || height == 0 {
+        return Ok(Vec::new());
+    }
+    let bytes_per_row_unpadded: usize = (width as usize)
+        .checked_mul(4)
+        .ok_or_else(|| "unpack_u32_rows_without_padding: bytes_per_row overflow".to_string())?;
+    let bytes_per_row_padded_usize = bytes_per_row_padded as usize;
+    let pixel_count: usize = (width as usize)
+        .checked_mul(height as usize)
+        .ok_or_else(|| "unpack_u32_rows_without_padding: pixel_count overflow".to_string())?;
+    let mut out: Vec<u32> = vec![0u32; pixel_count];
+
+    let width_usize = width as usize;
+    for y in 0..height as usize {
+        let src_offset = y * bytes_per_row_padded_usize;
+        let row_bytes = &data[src_offset..(src_offset + bytes_per_row_unpadded)];
+        let row_u32: &[u32] = bytemuck::cast_slice(row_bytes);
+        let dst_row_start = y * width_usize;
+        out[dst_row_start..(dst_row_start + width_usize)].copy_from_slice(row_u32);
+    }
+    Ok(out)
+}
+
+fn composite_layers_for_bucket_fill(
+    width: usize,
+    height: usize,
+    layers_pixels: &[Vec<u32>],
+    layer_opacity: &[f32],
+    layer_visible: &[bool],
+    layer_clipping_mask: &[bool],
+) -> Vec<u32> {
+    let len = match width.checked_mul(height) {
+        Some(v) => v,
+        None => return Vec::new(),
+    };
+    let mut composite = vec![0u32; len];
+
+    for index in 0..len {
+        let mut color: u32 = 0;
+        let mut initialized = false;
+        let mut mask_alpha: u8 = 0;
+
+        for layer_idx in 0..layers_pixels.len() {
+            let visible = layer_visible.get(layer_idx).copied().unwrap_or(true);
+            if !visible {
+                continue;
+            }
+            let opacity = layer_opacity.get(layer_idx).copied().unwrap_or(1.0);
+            let clipping = layer_clipping_mask
+                .get(layer_idx)
+                .copied()
+                .unwrap_or(false);
+            if opacity <= 0.0 {
+                if !clipping {
+                    mask_alpha = 0;
+                }
+                continue;
+            }
+            let pixels = &layers_pixels[layer_idx];
+            if pixels.len() != len {
+                if !clipping {
+                    mask_alpha = 0;
+                }
+                continue;
+            }
+            let src = pixels[index];
+            let src_a = ((src >> 24) & 0xff) as u32;
+            if src_a == 0 {
+                if !clipping {
+                    mask_alpha = 0;
+                }
+                continue;
+            }
+
+            let mut total_opacity = opacity.clamp(0.0, 1.0);
+            if clipping {
+                if mask_alpha == 0 {
+                    continue;
+                }
+                total_opacity *= (mask_alpha as f32) / 255.0;
+                if total_opacity <= 0.0 {
+                    continue;
+                }
+            }
+
+            let mut effective_a = ((src_a as f32) * total_opacity).round() as i32;
+            if effective_a <= 0 {
+                if !clipping {
+                    mask_alpha = 0;
+                }
+                continue;
+            }
+            if effective_a > 255 {
+                effective_a = 255;
+            }
+            if !clipping {
+                mask_alpha = effective_a as u8;
+            }
+            let effective_color = ((effective_a as u32) << 24) | (src & 0x00FFFFFF);
+            if !initialized {
+                color = effective_color;
+                initialized = true;
+            } else {
+                color = blend_argb(color, effective_color);
+            }
+        }
+
+        composite[index] = if initialized { color } else { 0 };
+    }
+
+    composite
+}
+
+fn blend_argb(dst: u32, src: u32) -> u32 {
+    let src_a = (src >> 24) & 0xff;
+    if src_a == 0 {
+        return dst;
+    }
+    if src_a == 255 {
+        return src;
+    }
+    let dst_a = (dst >> 24) & 0xff;
+    let inv_src_a = 255 - src_a;
+    let out_a = src_a + mul255(dst_a, inv_src_a);
+    if out_a == 0 {
+        return 0;
+    }
+
+    let src_r = (src >> 16) & 0xff;
+    let src_g = (src >> 8) & 0xff;
+    let src_b = src & 0xff;
+    let dst_r = (dst >> 16) & 0xff;
+    let dst_g = (dst >> 8) & 0xff;
+    let dst_b = dst & 0xff;
+
+    let src_prem_r = mul255(src_r, src_a);
+    let src_prem_g = mul255(src_g, src_a);
+    let src_prem_b = mul255(src_b, src_a);
+    let dst_prem_r = mul255(dst_r, dst_a);
+    let dst_prem_g = mul255(dst_g, dst_a);
+    let dst_prem_b = mul255(dst_b, dst_a);
+
+    let out_prem_r = src_prem_r + mul255(dst_prem_r, inv_src_a);
+    let out_prem_g = src_prem_g + mul255(dst_prem_g, inv_src_a);
+    let out_prem_b = src_prem_b + mul255(dst_prem_b, inv_src_a);
+
+    let out_r = (((out_prem_r * 255) + (out_a >> 1)) / out_a).min(255);
+    let out_g = (((out_prem_g * 255) + (out_a >> 1)) / out_a).min(255);
+    let out_b = (((out_prem_b * 255) + (out_a >> 1)) / out_a).min(255);
+
+    (out_a << 24) | (out_r << 16) | (out_g << 8) | out_b
+}
+
+fn mul255(channel: u32, alpha: u32) -> u32 {
+    (channel * alpha + 127) / 255
 }
 
 fn mtl_device_ptr(device: &wgpu::Device) -> *mut c_void {

@@ -64,6 +64,23 @@ class CanvasEngineFfi {
     required int colorArgb,
   }) {}
 
+  bool bucketFill({
+    required int handle,
+    required int layerIndex,
+    required int startX,
+    required int startY,
+    required int colorArgb,
+    bool contiguous = true,
+    bool sampleAllLayers = false,
+    int tolerance = 0,
+    int fillGap = 0,
+    int antialiasLevel = 0,
+    Uint32List? swallowColors,
+    Uint8List? selectionMask,
+  }) {
+    return false;
+  }
+
   void resetCanvas({required int handle, required int backgroundColorArgb}) {}
 
   void undo({required int handle}) {}

@@ -38,6 +38,8 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void _rememberColor(Color color);
   void _setPrimaryColor(Color color, {bool remember = true});
   Future<void> _applyPaintBucket(Offset position);
+  bool _isActiveLayerLocked();
+  Offset _rustToEngineSpace(Offset boardLocal);
 
   void _setActiveTool(CanvasTool tool);
   void _convertMagicWandPreviewToSelection();

@@ -147,6 +147,71 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     if (!isPointInsideSelection(position)) {
       return;
     }
+    if (widget.useRustCanvas) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (!_canUseRustCanvasEngine() || handle == null) {
+        return;
+      }
+      if (_isActiveLayerLocked()) {
+        return;
+      }
+      final String? activeLayerId = _controller.activeLayerId;
+      final int? layerIndex =
+          activeLayerId != null ? _rustCanvasLayerIndexForId(activeLayerId) : null;
+      if (layerIndex == null) {
+        return;
+      }
+      final Offset enginePos = _rustToEngineSpace(position);
+      final int startX = enginePos.dx.floor();
+      final int startY = enginePos.dy.floor();
+      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+      final int engineWidth = engineSize.width.round();
+      final int engineHeight = engineSize.height.round();
+      if (engineWidth <= 0 || engineHeight <= 0) {
+        return;
+      }
+      if (startX < 0 ||
+          startY < 0 ||
+          startX >= engineWidth ||
+          startY >= engineHeight) {
+        return;
+      }
+      final Uint8List? selectionMask = selectionMaskSnapshot;
+      final int selectionLen = engineWidth * engineHeight;
+      final Uint8List? selectionMaskForRust =
+          selectionMask != null && selectionMask.length == selectionLen
+          ? selectionMask
+          : null;
+      final List<Color>? swallowColors = _resolveBucketSwallowColors();
+      final Uint32List? swallowColorsArgb =
+          swallowColors != null && swallowColors.isNotEmpty
+          ? Uint32List.fromList(
+              swallowColors.map((color) => color.toARGB32()).toList(growable: false),
+            )
+          : null;
+      final bool applied = CanvasEngineFfi.instance.bucketFill(
+        handle: handle,
+        layerIndex: layerIndex,
+        startX: startX,
+        startY: startY,
+        colorArgb: _primaryColor.toARGB32(),
+        contiguous: _bucketContiguous,
+        sampleAllLayers: _bucketSampleAllLayers,
+        tolerance: _bucketTolerance,
+        fillGap: _bucketFillGap,
+        antialiasLevel: _bucketAntialiasLevel,
+        swallowColors: swallowColorsArgb,
+        selectionMask: selectionMaskForRust,
+      );
+      if (applied) {
+        _recordRustHistoryAction();
+        if (mounted) {
+          setState(() {});
+        }
+        _markDirty();
+      }
+      return;
+    }
     await _pushUndoSnapshot();
     _controller.floodFill(
       position,

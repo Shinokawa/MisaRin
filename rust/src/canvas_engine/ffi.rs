@@ -5,6 +5,8 @@ use super::types::EnginePoint;
 #[cfg(target_os = "macos")]
 use std::sync::atomic::Ordering;
 #[cfg(target_os = "macos")]
+use std::sync::mpsc;
+#[cfg(target_os = "macos")]
 use crate::gpu::debug::{self, LogLevel};
 #[cfg(target_os = "macos")]
 use super::engine::{create_engine, lookup_engine, remove_engine, EngineCommand, EngineInputBatch};
@@ -330,6 +332,95 @@ pub extern "C" fn engine_fill_layer(handle: u64, layer_index: u32, color_argb: u
 #[cfg(not(target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn engine_fill_layer(_handle: u64, _layer_index: u32, _color_argb: u32) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_bucket_fill(
+    handle: u64,
+    layer_index: u32,
+    start_x: i32,
+    start_y: i32,
+    color_argb: u32,
+    contiguous: u8,
+    sample_all_layers: u8,
+    tolerance: u32,
+    fill_gap: u32,
+    antialias_level: u32,
+    swallow_colors_ptr: *const u32,
+    swallow_colors_len: usize,
+    selection_mask_ptr: *const u8,
+    selection_mask_len: usize,
+) -> u8 {
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+
+    let swallow_colors: Vec<u32> = if swallow_colors_ptr.is_null() || swallow_colors_len == 0 {
+        Vec::new()
+    } else {
+        unsafe { std::slice::from_raw_parts(swallow_colors_ptr, swallow_colors_len).to_vec() }
+    };
+    let selection_mask: Option<Vec<u8>> =
+        if selection_mask_ptr.is_null() || selection_mask_len == 0 {
+            None
+        } else {
+            Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
+        };
+
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::BucketFill {
+            layer_index,
+            start_x,
+            start_y,
+            color_argb,
+            contiguous: contiguous != 0,
+            sample_all_layers: sample_all_layers != 0,
+            tolerance: tolerance.min(255) as u8,
+            fill_gap: fill_gap.min(64) as u8,
+            antialias_level: antialias_level.min(3) as u8,
+            swallow_colors,
+            selection_mask,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+
+    match rx.recv() {
+        Ok(changed) => {
+            if changed {
+                1
+            } else {
+                0
+            }
+        }
+        Err(_) => 0,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_bucket_fill(
+    _handle: u64,
+    _layer_index: u32,
+    _start_x: i32,
+    _start_y: i32,
+    _color_argb: u32,
+    _contiguous: u8,
+    _sample_all_layers: u8,
+    _tolerance: u32,
+    _fill_gap: u32,
+    _antialias_level: u32,
+    _swallow_colors_ptr: *const u32,
+    _swallow_colors_len: usize,
+    _selection_mask_ptr: *const u8,
+    _selection_mask_len: usize,
+) -> u8 {
+    0
+}
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
