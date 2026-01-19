@@ -27,7 +27,7 @@ struct CompositeConfig {
 @group(0) @binding(1)
 var<uniform> cfg: CompositeConfig;
 
-// (opacity, visible, _, _) per layer. visible: 1.0=visible, 0.0=hidden.
+// (opacity, visible, clipping_mask, _) per layer. visible: 1.0=visible, 0.0=hidden.
 @group(0) @binding(2)
 var<storage, read> layer_params: array<vec4<f32>>;
 
@@ -51,23 +51,6 @@ fn composite_over(dst_premul: vec4<f32>, src_premul: vec4<f32>) -> vec4<f32> {
   );
 }
 
-fn apply_layer(dst_premul: vec4<f32>, straight: vec4<f32>, params: vec4<f32>) -> vec4<f32> {
-  let opacity = clamp(params.x, 0.0, 1.0);
-  let visible = params.y;
-  if (visible < 0.5 || opacity <= 0.0) {
-    return dst_premul;
-  }
-
-  let a = clamp(straight.a * opacity, 0.0, 1.0);
-  if (a <= 0.0) {
-    return dst_premul;
-  }
-
-  // Convert straight-alpha RGBA to premultiplied RGBA.
-  let premul = vec4<f32>(straight.rgb * a, a);
-  return composite_over(dst_premul, premul);
-}
-
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   let x = i32(pos.x);
@@ -80,10 +63,56 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 
   // Normal blend + per-layer opacity, bottom-to-top.
   var out_premul = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+  var mask_alpha: f32 = 0.0;
   for (var i: u32 = 0u; i < cfg.layer_count; i = i + 1u) {
     let params = layer_params[i];
     let packed = textureLoad(layer_tex, coord, i32(i), 0).x;
-    out_premul = apply_layer(out_premul, unpack_straight_rgba(packed), params);
+    let opacity = clamp(params.x, 0.0, 1.0);
+    let visible = params.y;
+    let clipping = params.z;
+    if (visible < 0.5) {
+      continue;
+    }
+    if (opacity <= 0.0) {
+      if (clipping < 0.5) {
+        mask_alpha = 0.0;
+      }
+      continue;
+    }
+
+    let straight = unpack_straight_rgba(packed);
+    if (straight.a <= 0.0) {
+      if (clipping < 0.5) {
+        mask_alpha = 0.0;
+      }
+      continue;
+    }
+
+    var total_opacity = opacity;
+    if (clipping >= 0.5) {
+      if (mask_alpha <= 0.0) {
+        continue;
+      }
+      total_opacity = total_opacity * mask_alpha;
+      if (total_opacity <= 0.0) {
+        continue;
+      }
+    }
+
+    let a = clamp(straight.a * total_opacity, 0.0, 1.0);
+    if (a <= 0.0) {
+      if (clipping < 0.5) {
+        mask_alpha = 0.0;
+      }
+      continue;
+    }
+    if (clipping < 0.5) {
+      mask_alpha = a;
+    }
+
+    // Convert straight-alpha RGBA to premultiplied RGBA.
+    let premul = vec4<f32>(straight.rgb * a, a);
+    out_premul = composite_over(out_premul, premul);
   }
 
   // Flutter's scene graph expects premultiplied alpha.

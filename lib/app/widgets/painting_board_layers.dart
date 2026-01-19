@@ -562,16 +562,13 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerClippingToggle(BitmapLayerState layer) async {
-    if (widget.useRustCanvas) {
-      _showRustCanvasMessage('Rust 画布目前暂不支持剪贴蒙版。');
-      return;
-    }
     if (layer.locked) {
       return;
     }
     final bool nextValue = !layer.clippingMask;
     await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, nextValue);
+    _rustCanvasSetLayerClippingById(layer.id, nextValue);
     setState(() {});
     _markDirty();
   }
@@ -682,16 +679,13 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerClipping(bool clipping) async {
-    if (widget.useRustCanvas) {
-      _showRustCanvasMessage('Rust 画布目前暂不支持剪贴蒙版。');
-      return;
-    }
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null || layer.clippingMask == clipping) {
       return;
     }
     await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, clipping);
+    _rustCanvasSetLayerClippingById(layer.id, clipping);
     setState(() {});
   }
 

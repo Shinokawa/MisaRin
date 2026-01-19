@@ -907,6 +907,11 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
         layerIndex: i,
         opacity: layer.opacity.clamp(0.0, 1.0),
       );
+      CanvasEngineFfi.instance.setLayerClippingMask(
+        handle: handle,
+        layerIndex: i,
+        clippingMask: layer.clippingMask,
+      );
     }
     for (int i = currentCount; i < _rustCanvasSyncedLayerCount; i++) {
       CanvasEngineFfi.instance.setLayerVisible(
@@ -918,6 +923,11 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
         handle: handle,
         layerIndex: i,
         opacity: 1.0,
+      );
+      CanvasEngineFfi.instance.setLayerClippingMask(
+        handle: handle,
+        layerIndex: i,
+        clippingMask: false,
       );
       CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: i);
     }
@@ -964,6 +974,21 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       handle: _rustCanvasEngineHandle!,
       layerIndex: index,
       visible: visible,
+    );
+  }
+
+  void _rustCanvasSetLayerClippingById(String layerId, bool clippingMask) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerClippingMask(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+      clippingMask: clippingMask,
     );
   }
 

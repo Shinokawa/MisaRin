@@ -57,6 +57,11 @@ typedef _EngineSetLayerVisibleNative =
 typedef _EngineSetLayerVisibleDart =
     void Function(int handle, int layerIndex, int visible);
 
+typedef _EngineSetLayerClippingMaskNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Uint8 clippingMask);
+typedef _EngineSetLayerClippingMaskDart =
+    void Function(int handle, int layerIndex, int clippingMask);
+
 typedef _EngineSetViewFlagsNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 viewFlags);
 typedef _EngineSetViewFlagsDart = void Function(int handle, int viewFlags);
@@ -147,6 +152,14 @@ class CanvasEngineFfi {
         _setLayerVisible = null;
       }
       try {
+        _setLayerClippingMask =
+            _lib.lookupFunction<_EngineSetLayerClippingMaskNative, _EngineSetLayerClippingMaskDart>(
+          'engine_set_layer_clipping_mask',
+        );
+      } catch (_) {
+        _setLayerClippingMask = null;
+      }
+      try {
         _setViewFlags =
             _lib.lookupFunction<_EngineSetViewFlagsNative, _EngineSetViewFlagsDart>(
           'engine_set_view_flags',
@@ -210,6 +223,7 @@ class CanvasEngineFfi {
   late final _EngineSetActiveLayerDart? _setActiveLayer;
   late final _EngineSetLayerOpacityDart? _setLayerOpacity;
   late final _EngineSetLayerVisibleDart? _setLayerVisible;
+  late final _EngineSetLayerClippingMaskDart? _setLayerClippingMask;
   late final _EngineSetViewFlagsDart? _setViewFlags;
   late final _EngineClearLayerDart? _clearLayer;
   late final _EngineFillLayerDart? _fillLayer;
@@ -278,6 +292,18 @@ class CanvasEngineFfi {
       return;
     }
     fn(handle, layerIndex, visible ? 1 : 0);
+  }
+
+  void setLayerClippingMask({
+    required int handle,
+    required int layerIndex,
+    required bool clippingMask,
+  }) {
+    final fn = _setLayerClippingMask;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle, layerIndex, clippingMask ? 1 : 0);
   }
 
   void setViewFlags({

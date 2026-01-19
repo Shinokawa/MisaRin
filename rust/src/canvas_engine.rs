@@ -39,6 +39,7 @@ enum EngineCommand {
     SetActiveLayer { layer_index: u32 },
     SetLayerOpacity { layer_index: u32, opacity: f32 },
     SetLayerVisible { layer_index: u32, visible: bool },
+    SetLayerClippingMask { layer_index: u32, clipping_mask: bool },
     SetViewFlags { view_flags: u32 },
     SetBrush {
         color_argb: u32,
@@ -804,6 +805,7 @@ fn render_thread_main(
     let present_renderer = PresentRenderer::new(device.as_ref());
     let mut layer_opacity: Vec<f32> = vec![1.0; layer_count];
     let mut layer_visible: Vec<bool> = vec![true; layer_count];
+    let mut layer_clipping_mask: Vec<bool> = vec![false; layer_count];
     let mut view_flags: u32 = 0;
     let present_config_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("misa-rin present composite config"),
@@ -831,6 +833,7 @@ fn render_thread_main(
         view_flags,
         &layer_opacity,
         &layer_visible,
+        &layer_clipping_mask,
     );
     let mut present_bind_group = present_renderer.create_bind_group(
         device.as_ref(),
@@ -856,6 +859,7 @@ fn render_thread_main(
                         &mut active_layer_index,
                         &mut layer_opacity,
                         &mut layer_visible,
+                        &mut layer_clipping_mask,
                         &mut view_flags,
                         &present_renderer,
                         &present_config_buffer,
@@ -901,6 +905,7 @@ fn render_thread_main(
                         &mut active_layer_index,
                         &mut layer_opacity,
                         &mut layer_visible,
+                        &mut layer_clipping_mask,
                         &mut view_flags,
                         &present_renderer,
                         &present_config_buffer,
@@ -1063,6 +1068,7 @@ fn handle_engine_command(
     active_layer_index: &mut usize,
     layer_opacity: &mut Vec<f32>,
     layer_visible: &mut Vec<bool>,
+    layer_clipping_mask: &mut Vec<bool>,
     present_view_flags: &mut u32,
     present_renderer: &PresentRenderer,
     present_config_buffer: &wgpu::Buffer,
@@ -1119,6 +1125,9 @@ fn handle_engine_command(
         if new_count > layer_visible.len() {
             layer_visible.resize(new_count, true);
         }
+        if new_count > layer_clipping_mask.len() {
+            layer_clipping_mask.resize(new_count, false);
+        }
 
         for layer in old_count..new_count {
             fill_r32uint_texture(
@@ -1140,6 +1149,7 @@ fn handle_engine_command(
             *present_view_flags,
             layer_opacity,
             layer_visible,
+            layer_clipping_mask,
         );
         true
     };
@@ -1282,6 +1292,7 @@ fn handle_engine_command(
                     *present_view_flags,
                     layer_opacity,
                     layer_visible,
+                    layer_clipping_mask,
                 );
                 return EngineCommandOutcome {
                     stop: false,
@@ -1304,6 +1315,30 @@ fn handle_engine_command(
                     *present_view_flags,
                     layer_opacity,
                     layer_visible,
+                    layer_clipping_mask,
+                );
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
+            }
+        }
+        EngineCommand::SetLayerClippingMask {
+            layer_index,
+            clipping_mask,
+        } => {
+            let idx = layer_index as usize;
+            if ensure_layer_index(idx) {
+                layer_clipping_mask[idx] = clipping_mask;
+                write_present_config(
+                    queue,
+                    present_config_buffer,
+                    present_params_buffer,
+                    *layer_count,
+                    *present_view_flags,
+                    layer_opacity,
+                    layer_visible,
+                    layer_clipping_mask,
                 );
                 return EngineCommandOutcome {
                     stop: false,
@@ -1323,6 +1358,7 @@ fn handle_engine_command(
                     *present_view_flags,
                     layer_opacity,
                     layer_visible,
+                    layer_clipping_mask,
                 );
                 return EngineCommandOutcome {
                     stop: false,
@@ -1481,8 +1517,8 @@ struct PresentCompositeHeader {
 struct PresentLayerParams {
     opacity: f32,
     visible: f32,
+    clipping_mask: f32,
     _pad0: f32,
-    _pad1: f32,
 }
 
 #[cfg(target_os = "macos")]
@@ -1494,6 +1530,7 @@ fn write_present_config(
     view_flags: u32,
     layer_opacity: &[f32],
     layer_visible: &[bool],
+    layer_clipping_mask: &[bool],
 ) {
     let header = PresentCompositeHeader {
         layer_count: layer_count as u32,
@@ -1520,11 +1557,16 @@ fn write_present_config(
         } else {
             0.0
         };
+        let clipping_mask = if *layer_clipping_mask.get(i).unwrap_or(&false) {
+            1.0
+        } else {
+            0.0
+        };
         params.push(PresentLayerParams {
             opacity,
             visible,
+            clipping_mask,
             _pad0: 0.0,
-            _pad1: 0.0,
         });
     }
     queue.write_buffer(params_buffer, 0, bytemuck::cast_slice(&params));
@@ -2485,6 +2527,31 @@ pub extern "C" fn engine_set_layer_visible(handle: u64, layer_index: u32, visibl
 #[cfg(not(target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn engine_set_layer_visible(_handle: u64, _layer_index: u32, _visible: bool) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_set_layer_clipping_mask(
+    handle: u64,
+    layer_index: u32,
+    clipping_mask: bool,
+) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::SetLayerClippingMask {
+        layer_index,
+        clipping_mask,
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_layer_clipping_mask(
+    _handle: u64,
+    _layer_index: u32,
+    _clipping_mask: bool,
+) {
+}
 
 #[cfg(target_os = "macos")]
 #[no_mangle]

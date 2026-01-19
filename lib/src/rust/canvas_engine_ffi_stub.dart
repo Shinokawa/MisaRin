@@ -44,6 +44,12 @@ class CanvasEngineFfi {
     required bool visible,
   }) {}
 
+  void setLayerClippingMask({
+    required int handle,
+    required int layerIndex,
+    required bool clippingMask,
+  }) {}
+
   void setViewFlags({
     required int handle,
     required bool mirror,
