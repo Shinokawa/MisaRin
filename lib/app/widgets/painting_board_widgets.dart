@@ -284,6 +284,10 @@ class PasteIntent extends Intent {
   const PasteIntent();
 }
 
+class DeleteSelectionIntent extends Intent {
+  const DeleteSelectionIntent();
+}
+
 class ImportReferenceImageIntent extends Intent {
   const ImportReferenceImageIntent();
 }

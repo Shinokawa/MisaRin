@@ -103,7 +103,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_isLayerDragging) {
       return;
     }
-    final bool moved = _layerDragAppliedDx != 0 || _layerDragAppliedDy != 0;
+    final int dx = _layerDragAppliedDx;
+    final int dy = _layerDragAppliedDy;
+    final bool moved = dx != 0 || dy != 0;
     _isLayerDragging = false;
     _layerDragStart = null;
     _layerDragAppliedDx = 0;
@@ -114,10 +116,44 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
     await _pushUndoSnapshot();
     _controller.commitActiveLayerTranslation();
+    if (widget.useRustCanvas) {
+      _applyRustLayerTranslation(dx, dy);
+    }
   }
 
   void _finishLayerAdjustDrag() {
     unawaited(_finalizeLayerAdjustDrag());
+  }
+
+  void _applyRustLayerTranslation(int dx, int dy) {
+    if (dx == 0 && dy == 0) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (!_canUseRustCanvasEngine() || handle == null) {
+      return;
+    }
+    final String? activeLayerId = _controller.activeLayerId;
+    if (activeLayerId == null) {
+      return;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(activeLayerId);
+    if (layerIndex == null) {
+      return;
+    }
+    final bool applied = CanvasEngineFfi.instance.translateLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      deltaX: dx,
+      deltaY: dy,
+    );
+    if (applied) {
+      _recordRustHistoryAction();
+      if (mounted) {
+        setState(() {});
+      }
+      _markDirty();
+    }
   }
 
   Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {

@@ -76,6 +76,22 @@ pub(crate) enum EngineCommand {
         selection_mask: Option<Vec<u8>>,
         reply: mpsc::Sender<Option<Vec<u8>>>,
     },
+    ReadLayer {
+        layer_index: u32,
+        reply: mpsc::Sender<Option<Vec<u32>>>,
+    },
+    WriteLayer {
+        layer_index: u32,
+        pixels: Vec<u32>,
+        record_undo: bool,
+        reply: mpsc::Sender<bool>,
+    },
+    TranslateLayer {
+        layer_index: u32,
+        delta_x: i32,
+        delta_y: i32,
+        reply: mpsc::Sender<bool>,
+    },
     SetSelectionMask {
         selection_mask: Option<Vec<u8>>,
     },
@@ -1069,6 +1085,292 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: false,
+            };
+        }
+        EngineCommand::ReadLayer { layer_index, reply } => {
+            let idx = layer_index as usize;
+            if idx >= *layer_count {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            match read_r32uint_layer(
+                device,
+                queue,
+                layers.texture(),
+                canvas_width,
+                canvas_height,
+                layer_index,
+            ) {
+                Ok(pixels) => {
+                    let _ = reply.send(Some(pixels));
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("layer readback failed: {err}"),
+                    );
+                    let _ = reply.send(None);
+                }
+            }
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+            };
+        }
+        EngineCommand::WriteLayer {
+            layer_index,
+            pixels,
+            record_undo,
+            reply,
+        } => {
+            let idx = layer_index as usize;
+            if !ensure_layer_index(idx) {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let expected_len = (canvas_width as usize)
+                .saturating_mul(canvas_height as usize);
+            if expected_len == 0 || pixels.len() != expected_len {
+                if expected_len > 0 {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!(
+                            "layer write size mismatch: got {}, expected {}",
+                            pixels.len(),
+                            expected_len
+                        ),
+                    );
+                }
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let bytes_per_row_unpadded = match canvas_width.checked_mul(4) {
+                Some(v) => v,
+                None => {
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            };
+            let bytes_per_row_padded = align_up_u32(bytes_per_row_unpadded, 256);
+            if bytes_per_row_padded == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let packed = match pack_u32_rows_with_padding(
+                &pixels,
+                canvas_width,
+                canvas_height,
+                bytes_per_row_padded,
+            ) {
+                Ok(data) => data,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("layer write pack failed: {err}"),
+                    );
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            };
+            if record_undo {
+                undo.begin_stroke(layer_index);
+                undo.capture_before_for_dirty_rect(
+                    device,
+                    queue,
+                    layers.texture(),
+                    layer_index,
+                    (0, 0, canvas_width as i32, canvas_height as i32),
+                );
+            }
+            write_r32uint_region(
+                queue,
+                layers.texture(),
+                0,
+                0,
+                canvas_width,
+                canvas_height,
+                layer_index,
+                bytes_per_row_padded,
+                &packed,
+            );
+            if record_undo {
+                undo.end_stroke(device, queue, layers.texture());
+            }
+            let _ = reply.send(true);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: present.is_some(),
+            };
+        }
+        EngineCommand::TranslateLayer {
+            layer_index,
+            delta_x,
+            delta_y,
+            reply,
+        } => {
+            let idx = layer_index as usize;
+            if idx >= *layer_count {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            if delta_x == 0 && delta_y == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let pixels = match read_r32uint_layer(
+                device,
+                queue,
+                layers.texture(),
+                canvas_width,
+                canvas_height,
+                layer_index,
+            ) {
+                Ok(pixels) => pixels,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("layer translate readback failed: {err}"),
+                    );
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            };
+            let width = canvas_width as i64;
+            let height = canvas_height as i64;
+            let dx = delta_x as i64;
+            let dy = delta_y as i64;
+            let mut shifted = vec![0u32; pixels.len()];
+            let src_x_start = if dx >= 0 { 0 } else { (-dx).min(width) };
+            let src_x_end = if dx >= 0 {
+                (width - dx).max(0)
+            } else {
+                width
+            };
+            let src_y_start = if dy >= 0 { 0 } else { (-dy).min(height) };
+            let src_y_end = if dy >= 0 {
+                (height - dy).max(0)
+            } else {
+                height
+            };
+            if src_x_start < src_x_end && src_y_start < src_y_end {
+                let src_width = width as usize;
+                let dst_width = width as usize;
+                for y in src_y_start..src_y_end {
+                    let dst_y = y + dy;
+                    if dst_y < 0 || dst_y >= height {
+                        continue;
+                    }
+                    let src_row = (y as usize) * src_width;
+                    let dst_row = (dst_y as usize) * dst_width;
+                    let src_start = src_row + src_x_start as usize;
+                    let src_end = src_row + src_x_end as usize;
+                    let dst_start = dst_row + (src_x_start + dx) as usize;
+                    let dst_end = dst_start + (src_end - src_start);
+                    shifted[dst_start..dst_end].copy_from_slice(&pixels[src_start..src_end]);
+                }
+            }
+            let bytes_per_row_unpadded = match canvas_width.checked_mul(4) {
+                Some(v) => v,
+                None => {
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            };
+            let bytes_per_row_padded = align_up_u32(bytes_per_row_unpadded, 256);
+            if bytes_per_row_padded == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let packed = match pack_u32_rows_with_padding(
+                &shifted,
+                canvas_width,
+                canvas_height,
+                bytes_per_row_padded,
+            ) {
+                Ok(data) => data,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("layer translate pack failed: {err}"),
+                    );
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            };
+            undo.begin_stroke(layer_index);
+            undo.capture_before_for_dirty_rect(
+                device,
+                queue,
+                layers.texture(),
+                layer_index,
+                (0, 0, canvas_width as i32, canvas_height as i32),
+            );
+            write_r32uint_region(
+                queue,
+                layers.texture(),
+                0,
+                0,
+                canvas_width,
+                canvas_height,
+                layer_index,
+                bytes_per_row_padded,
+                &packed,
+            );
+            undo.end_stroke(device, queue, layers.texture());
+            let _ = reply.send(true);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: present.is_some(),
             };
         }
         EngineCommand::SetSelectionMask { selection_mask } => {

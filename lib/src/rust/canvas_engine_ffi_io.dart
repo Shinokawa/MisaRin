@@ -137,6 +137,48 @@ typedef _EngineMagicWandMaskDart =
       int outMaskLen,
     );
 
+typedef _EngineReadLayerNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Pointer<ffi.Uint32> outPixels,
+      ffi.UintPtr outPixelsLen,
+    );
+typedef _EngineReadLayerDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      ffi.Pointer<ffi.Uint32> outPixels,
+      int outPixelsLen,
+    );
+
+typedef _EngineWriteLayerNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Pointer<ffi.Uint32> pixels,
+      ffi.UintPtr pixelsLen,
+      ffi.Uint8 recordUndo,
+    );
+typedef _EngineWriteLayerDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      ffi.Pointer<ffi.Uint32> pixels,
+      int pixelsLen,
+      int recordUndo,
+    );
+
+typedef _EngineTranslateLayerNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Int32 deltaX,
+      ffi.Int32 deltaY,
+    );
+typedef _EngineTranslateLayerDart =
+    int Function(int handle, int layerIndex, int deltaX, int deltaY);
+
 typedef _EngineSetSelectionMaskNative =
     ffi.Void Function(
       ffi.Uint64 handle,
@@ -272,6 +314,28 @@ class CanvasEngineFfi {
         _magicWandMask = null;
       }
       try {
+        _readLayer = _lib.lookupFunction<_EngineReadLayerNative, _EngineReadLayerDart>(
+          'engine_read_layer',
+        );
+      } catch (_) {
+        _readLayer = null;
+      }
+      try {
+        _writeLayer = _lib.lookupFunction<_EngineWriteLayerNative, _EngineWriteLayerDart>(
+          'engine_write_layer',
+        );
+      } catch (_) {
+        _writeLayer = null;
+      }
+      try {
+        _translateLayer =
+            _lib.lookupFunction<_EngineTranslateLayerNative, _EngineTranslateLayerDart>(
+          'engine_translate_layer',
+        );
+      } catch (_) {
+        _translateLayer = null;
+      }
+      try {
         _setSelectionMask = _lib.lookupFunction<
             _EngineSetSelectionMaskNative,
             _EngineSetSelectionMaskDart>('engine_set_selection_mask');
@@ -326,6 +390,9 @@ class CanvasEngineFfi {
   late final _EngineFillLayerDart? _fillLayer;
   late final _EngineBucketFillDart? _bucketFill;
   late final _EngineMagicWandMaskDart? _magicWandMask;
+  late final _EngineReadLayerDart? _readLayer;
+  late final _EngineWriteLayerDart? _writeLayer;
+  late final _EngineTranslateLayerDart? _translateLayer;
   late final _EngineSetSelectionMaskDart? _setSelectionMask;
   late final _EngineResetCanvasDart? _resetCanvas;
   late final _EngineUndoDart? _undo;
@@ -571,6 +638,78 @@ class CanvasEngineFfi {
         malloc.free(outPtr);
       }
     }
+  }
+
+  Uint32List? readLayer({
+    required int handle,
+    required int layerIndex,
+    required int width,
+    required int height,
+  }) {
+    final fn = _readLayer;
+    if (!isSupported || fn == null || handle == 0) {
+      return null;
+    }
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    final int pixelCount = width * height;
+    if (pixelCount <= 0) {
+      return null;
+    }
+    final ffi.Pointer<ffi.Uint32> outPtr =
+        malloc.allocate<ffi.Uint32>(pixelCount * ffi.sizeOf<ffi.Uint32>());
+    try {
+      final int result = fn(handle, layerIndex, outPtr, pixelCount);
+      if (result == 0) {
+        return null;
+      }
+      return Uint32List.fromList(outPtr.asTypedList(pixelCount));
+    } finally {
+      malloc.free(outPtr);
+    }
+  }
+
+  bool writeLayer({
+    required int handle,
+    required int layerIndex,
+    required Uint32List pixels,
+    bool recordUndo = true,
+  }) {
+    final fn = _writeLayer;
+    if (!isSupported || fn == null || handle == 0) {
+      return false;
+    }
+    if (pixels.isEmpty) {
+      return false;
+    }
+    final ffi.Pointer<ffi.Uint32> ptr =
+        malloc.allocate<ffi.Uint32>(pixels.length * ffi.sizeOf<ffi.Uint32>());
+    ptr.asTypedList(pixels.length).setAll(0, pixels);
+    try {
+      final int result =
+          fn(handle, layerIndex, ptr, pixels.length, recordUndo ? 1 : 0);
+      return result != 0;
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  bool translateLayer({
+    required int handle,
+    required int layerIndex,
+    required int deltaX,
+    required int deltaY,
+  }) {
+    final fn = _translateLayer;
+    if (!isSupported || fn == null || handle == 0) {
+      return false;
+    }
+    if (deltaX == 0 && deltaY == 0) {
+      return false;
+    }
+    final int result = fn(handle, layerIndex, deltaX, deltaY);
+    return result != 0;
   }
 
   void setSelectionMask({

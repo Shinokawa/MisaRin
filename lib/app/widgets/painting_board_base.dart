@@ -89,6 +89,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   Future<bool> cut();
   Future<bool> copy();
   Future<bool> paste();
+  Future<bool> deleteSelection();
 
   void _updatePenStrokeWidth(double value);
   void _updateSprayStrokeWidth(double value);

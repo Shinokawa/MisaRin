@@ -500,6 +500,162 @@ pub extern "C" fn engine_magic_wand_mask(
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
+pub extern "C" fn engine_read_layer(
+    handle: u64,
+    layer_index: u32,
+    out_pixels_ptr: *mut u32,
+    out_pixels_len: usize,
+) -> u8 {
+    if out_pixels_ptr.is_null() || out_pixels_len == 0 {
+        return 0;
+    }
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::ReadLayer {
+            layer_index,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+
+    match rx.recv() {
+        Ok(Some(pixels)) => {
+            if pixels.len() != out_pixels_len {
+                return 0;
+            }
+            unsafe {
+                std::ptr::copy_nonoverlapping(pixels.as_ptr(), out_pixels_ptr, pixels.len());
+            }
+            1
+        }
+        _ => 0,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_read_layer(
+    _handle: u64,
+    _layer_index: u32,
+    _out_pixels_ptr: *mut u32,
+    _out_pixels_len: usize,
+) -> u8 {
+    0
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_write_layer(
+    handle: u64,
+    layer_index: u32,
+    pixels_ptr: *const u32,
+    pixels_len: usize,
+    record_undo: u8,
+) -> u8 {
+    if pixels_ptr.is_null() || pixels_len == 0 {
+        return 0;
+    }
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+    let pixels = unsafe { std::slice::from_raw_parts(pixels_ptr, pixels_len).to_vec() };
+
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::WriteLayer {
+            layer_index,
+            pixels,
+            record_undo: record_undo != 0,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+
+    match rx.recv() {
+        Ok(applied) => {
+            if applied {
+                1
+            } else {
+                0
+            }
+        }
+        Err(_) => 0,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_write_layer(
+    _handle: u64,
+    _layer_index: u32,
+    _pixels_ptr: *const u32,
+    _pixels_len: usize,
+    _record_undo: u8,
+) -> u8 {
+    0
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_translate_layer(
+    handle: u64,
+    layer_index: u32,
+    delta_x: i32,
+    delta_y: i32,
+) -> u8 {
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::TranslateLayer {
+            layer_index,
+            delta_x,
+            delta_y,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+
+    match rx.recv() {
+        Ok(applied) => {
+            if applied {
+                1
+            } else {
+                0
+            }
+        }
+        Err(_) => 0,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_translate_layer(
+    _handle: u64,
+    _layer_index: u32,
+    _delta_x: i32,
+    _delta_y: i32,
+) -> u8 {
+    0
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
 pub extern "C" fn engine_set_selection_mask(
     handle: u64,
     selection_mask_ptr: *const u8,

@@ -94,6 +94,33 @@ class CanvasEngineFfi {
     return null;
   }
 
+  Uint32List? readLayer({
+    required int handle,
+    required int layerIndex,
+    required int width,
+    required int height,
+  }) {
+    return null;
+  }
+
+  bool writeLayer({
+    required int handle,
+    required int layerIndex,
+    required Uint32List pixels,
+    bool recordUndo = true,
+  }) {
+    return false;
+  }
+
+  bool translateLayer({
+    required int handle,
+    required int layerIndex,
+    required int deltaX,
+    required int deltaY,
+  }) {
+    return false;
+  }
+
   void setSelectionMask({
     required int handle,
     Uint8List? selectionMask,
