@@ -56,6 +56,14 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       return;
     }
     _focusNode.requestFocus();
+    if (widget.useRustCanvas) {
+      _layerAdjustRustSynced = _syncActiveLayerFromRustForAdjust(layer);
+      if (_layerAdjustRustSynced) {
+        _hideRustLayerForAdjust(layer);
+      }
+    } else {
+      _layerAdjustRustSynced = false;
+    }
     _controller.translateActiveLayer(0, 0);
     _isLayerDragging = true;
     _layerDragStart = boardLocal;
@@ -111,6 +119,10 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _layerDragAppliedDx = 0;
     _layerDragAppliedDy = 0;
     if (!moved) {
+      if (widget.useRustCanvas) {
+        _restoreRustLayerAfterAdjust();
+      }
+      _layerAdjustRustSynced = false;
       _controller.disposeActiveLayerTransformSession();
       return;
     }
@@ -118,7 +130,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _controller.commitActiveLayerTranslation();
     if (widget.useRustCanvas) {
       _applyRustLayerTranslation(dx, dy);
+      _restoreRustLayerAfterAdjust();
     }
+    _layerAdjustRustSynced = false;
   }
 
   void _finishLayerAdjustDrag() {
@@ -133,20 +147,40 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_canUseRustCanvasEngine() || handle == null) {
       return;
     }
-    final String? activeLayerId = _controller.activeLayerId;
-    if (activeLayerId == null) {
+    final BitmapLayerState? layer = _activeLayerForAdjustment();
+    if (layer == null) {
       return;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(activeLayerId);
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
     if (layerIndex == null) {
       return;
     }
-    final bool applied = CanvasEngineFfi.instance.translateLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      deltaX: dx,
-      deltaY: dy,
-    );
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    bool applied = false;
+    if (!_controller.clipLayerOverflow &&
+        _layerAdjustRustSynced &&
+        layer.surface.width == width &&
+        layer.surface.height == height &&
+        layer.surface.pixels.length == width * height) {
+      applied = CanvasEngineFfi.instance.writeLayer(
+        handle: handle,
+        layerIndex: layerIndex,
+        pixels: layer.surface.pixels,
+        recordUndo: true,
+      );
+    } else {
+      applied = CanvasEngineFfi.instance.translateLayer(
+        handle: handle,
+        layerIndex: layerIndex,
+        deltaX: dx,
+        deltaY: dy,
+      );
+    }
     if (applied) {
       _recordRustHistoryAction();
       if (mounted) {
@@ -154,6 +188,78 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       }
       _markDirty();
     }
+  }
+
+  void _hideRustLayerForAdjust(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return;
+    }
+    _layerAdjustRustHiddenLayerIndex = layerIndex;
+    _layerAdjustRustHiddenVisible = layer.visible;
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: handle,
+      layerIndex: layerIndex,
+      visible: false,
+    );
+  }
+
+  void _restoreRustLayerAfterAdjust() {
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerAdjustRustHiddenLayerIndex;
+    if (handle == null || layerIndex == null) {
+      _layerAdjustRustHiddenLayerIndex = null;
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: handle,
+      layerIndex: layerIndex,
+      visible: _layerAdjustRustHiddenVisible,
+    );
+    _layerAdjustRustHiddenLayerIndex = null;
+    _layerAdjustRustHiddenVisible = false;
+  }
+
+  bool _syncActiveLayerFromRustForAdjust(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    if (layer.surface.width != width || layer.surface.height != height) {
+      return false;
+    }
+    final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+    if (pixels == null || pixels.length != layer.surface.pixels.length) {
+      return false;
+    }
+    layer.surface.pixels.setAll(0, pixels);
+    layer.surface.markDirty();
+    return true;
   }
 
   Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {
