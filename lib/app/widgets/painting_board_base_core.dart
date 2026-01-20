@@ -898,12 +898,15 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     final int handle = _rustCanvasEngineHandle!;
     final List<BitmapLayerState> layers = _controller.layers;
     final int currentCount = layers.length;
+    final int? hiddenLayerIndex = _layerAdjustRustHiddenLayerIndex;
     for (int i = 0; i < currentCount; i++) {
       final BitmapLayerState layer = layers[i];
+      final bool hideForAdjust =
+          hiddenLayerIndex != null && hiddenLayerIndex == i;
       CanvasEngineFfi.instance.setLayerVisible(
         handle: handle,
         layerIndex: i,
-        visible: layer.visible,
+        visible: hideForAdjust ? false : layer.visible,
       );
       CanvasEngineFfi.instance.setLayerOpacity(
         handle: handle,

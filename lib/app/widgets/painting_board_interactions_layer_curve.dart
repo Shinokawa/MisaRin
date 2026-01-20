@@ -58,13 +58,13 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _focusNode.requestFocus();
     if (widget.useRustCanvas) {
       _layerAdjustRustSynced = _syncActiveLayerFromRustForAdjust(layer);
-      if (_layerAdjustRustSynced) {
-        _hideRustLayerForAdjust(layer);
-      }
     } else {
       _layerAdjustRustSynced = false;
     }
     _controller.translateActiveLayer(0, 0);
+    if (widget.useRustCanvas && _controller.isActiveLayerTransforming) {
+      _hideRustLayerForAdjust(layer);
+    }
     _isLayerDragging = true;
     _layerDragStart = boardLocal;
     _layerDragAppliedDx = 0;
