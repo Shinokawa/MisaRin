@@ -78,6 +78,37 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       return;
     }
 
+    if (_canUseRustCanvasEngine() &&
+        (session.type == _FilterPanelType.hueSaturation ||
+            session.type == _FilterPanelType.brightnessContrast)) {
+      setState(() {
+        _filterApplying = true;
+      });
+      _filterOverlayEntry?.markNeedsBuild();
+
+      bool applied = false;
+      try {
+        applied = await _applyRustFilter(session);
+      } catch (error, stackTrace) {
+        debugPrint('Rust filter apply failed: $error');
+        debugPrint('$stackTrace');
+      }
+
+      if (!mounted || _filterSession != session) {
+        return;
+      }
+      if (!applied) {
+        setState(() {
+          _filterApplying = false;
+        });
+        _filterOverlayEntry?.markNeedsBuild();
+        _showFilterMessage(context.l10n.filterApplyFailed);
+        return;
+      }
+      _removeFilterOverlay(restoreOriginal: true);
+      return;
+    }
+
     setState(() {
       _filterApplying = true;
     });
@@ -105,6 +136,100 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
     _filterApplyCompleter = null;
     await _finalizeFilterApply(session, result);
+  }
+
+  Future<bool> _applyRustFilter(_FilterSession session) async {
+    final int? handle = _rustCanvasEngineHandle;
+    if (!_canUseRustCanvasEngine() || handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(session.activeLayerId);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+    if (sourcePixels == null || sourcePixels.length != width * height) {
+      return false;
+    }
+    final Uint8List rgba = _argbPixelsToRgba(sourcePixels);
+    switch (session.type) {
+      case _FilterPanelType.hueSaturation:
+        _filterApplyHueSaturationToBitmap(
+          rgba,
+          session.hueSaturation.hue,
+          session.hueSaturation.saturation,
+          session.hueSaturation.lightness,
+        );
+        break;
+      case _FilterPanelType.brightnessContrast:
+        _filterApplyBrightnessContrastToBitmap(
+          rgba,
+          session.brightnessContrast.brightness,
+          session.brightnessContrast.contrast,
+        );
+        break;
+      case _FilterPanelType.blackWhite:
+      case _FilterPanelType.binarize:
+      case _FilterPanelType.scanPaperDrawing:
+      case _FilterPanelType.gaussianBlur:
+      case _FilterPanelType.leakRemoval:
+      case _FilterPanelType.lineNarrow:
+      case _FilterPanelType.fillExpand:
+        return false;
+    }
+    final Uint32List nextPixels = _rgbaToArgbPixels(rgba);
+    final bool applied = CanvasEngineFfi.instance.writeLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      pixels: nextPixels,
+      recordUndo: true,
+    );
+    if (applied) {
+      _recordRustHistoryAction();
+      if (mounted) {
+        setState(() {});
+      }
+      _markDirty();
+    }
+    return applied;
+  }
+
+  Uint8List _argbPixelsToRgba(Uint32List pixels) {
+    final Uint8List rgba = Uint8List(pixels.length * 4);
+    for (int i = 0; i < pixels.length; i++) {
+      final int argb = pixels[i];
+      final int offset = i * 4;
+      rgba[offset] = (argb >> 16) & 0xff;
+      rgba[offset + 1] = (argb >> 8) & 0xff;
+      rgba[offset + 2] = argb & 0xff;
+      rgba[offset + 3] = (argb >> 24) & 0xff;
+    }
+    return rgba;
+  }
+
+  Uint32List _rgbaToArgbPixels(Uint8List rgba) {
+    final int length = rgba.length ~/ 4;
+    final Uint32List pixels = Uint32List(length);
+    for (int i = 0; i < length; i++) {
+      final int offset = i * 4;
+      final int r = rgba[offset];
+      final int g = rgba[offset + 1];
+      final int b = rgba[offset + 2];
+      final int a = rgba[offset + 3];
+      pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+    return pixels;
   }
 
   Future<void> _confirmScanPaperDrawingChanges() async {
