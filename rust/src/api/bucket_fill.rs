@@ -149,6 +149,82 @@ pub fn flood_fill_in_place(
     }
 }
 
+pub fn magic_wand_mask(
+    width: i32,
+    height: i32,
+    pixels: Vec<u32>,
+    start_x: i32,
+    start_y: i32,
+    tolerance: i32,
+    selection_mask: Option<Vec<u8>>,
+) -> Option<Vec<u8>> {
+    if width <= 0 || height <= 0 {
+        return None;
+    }
+    let width_usize = width as usize;
+    let height_usize = height as usize;
+    let len = width_usize.checked_mul(height_usize)?;
+    if pixels.len() != len {
+        return None;
+    }
+    if start_x < 0 || start_y < 0 {
+        return None;
+    }
+    if start_x as usize >= width_usize || start_y as usize >= height_usize {
+        return None;
+    }
+
+    let start_index = (start_y as usize) * width_usize + (start_x as usize);
+    let selection_mask = selection_mask.filter(|mask| mask.len() == len);
+    if let Some(mask) = selection_mask.as_deref() {
+        if mask[start_index] == 0 {
+            return None;
+        }
+    }
+
+    let base_color = pixels[start_index];
+    let tol = tolerance.clamp(0, 255) as u8;
+    let mut fill_mask: Vec<u8> = vec![0; len];
+    let mut stack: Vec<usize> = vec![start_index];
+    while let Some(index) = stack.pop() {
+        if fill_mask[index] == 1 {
+            continue;
+        }
+        if !colors_within_tolerance(pixels[index], base_color, tol) {
+            continue;
+        }
+        if let Some(mask) = selection_mask.as_deref() {
+            if mask[index] == 0 {
+                continue;
+            }
+        }
+        fill_mask[index] = 1;
+        let x = index % width_usize;
+        let y = index / width_usize;
+        if x > 0 {
+            stack.push(index - 1);
+        }
+        if x + 1 < width_usize {
+            stack.push(index + 1);
+        }
+        if y > 0 {
+            stack.push(index - width_usize);
+        }
+        if y + 1 < height_usize {
+            stack.push(index + width_usize);
+        }
+    }
+
+    if tol > 0 {
+        expand_mask_by_one(&mut fill_mask, width_usize, height_usize, selection_mask.as_deref());
+    }
+
+    if fill_mask.iter().all(|&value| value == 0) {
+        return None;
+    }
+    Some(fill_mask)
+}
+
 fn flood_fill_bounds(
     width: usize,
     height: usize,

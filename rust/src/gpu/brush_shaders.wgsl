@@ -26,6 +26,7 @@ struct Config {
   hollow_erase: u32,       // 0: keep underlying, 1: erase underlying
   stroke_mask_mode: u32,  // 0: disabled, 1: use stroke hollow mask
   stroke_base_mode: u32,  // 0: disabled, 1: blend against stroke base
+  selection_mask_mode: u32, // 0: disabled, 1: clip by selection mask
 };
 
 const SQRT2: f32 = 1.414213562;
@@ -44,6 +45,9 @@ var stroke_mask: texture_storage_2d<r32uint, read_write>;
 
 @group(0) @binding(4)
 var stroke_base: texture_storage_2d<r32uint, read>;
+
+@group(0) @binding(5)
+var selection_mask: texture_storage_2d<r32uint, read>;
 
 fn clamp01(x: f32) -> f32 {
   return clamp(x, 0.0, 1.0);
@@ -353,6 +357,12 @@ fn draw_brush_stroke(@builtin(global_invocation_id) id: vec3<u32>) {
   let y = cfg.origin_y + ly;
   if (x >= cfg.canvas_width || y >= cfg.canvas_height) {
     return;
+  }
+  if (cfg.selection_mask_mode != 0u) {
+    let sel = textureLoad(selection_mask, vec2<i32>(i32(x), i32(y))).x;
+    if (sel == 0u) {
+      return;
+    }
   }
 
   let samples = antialias_samples_per_axis(cfg.antialias_level);

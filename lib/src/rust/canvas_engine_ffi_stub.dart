@@ -81,6 +81,24 @@ class CanvasEngineFfi {
     return false;
   }
 
+  Uint8List? magicWandMask({
+    required int handle,
+    required int layerIndex,
+    required int startX,
+    required int startY,
+    required int maskLength,
+    bool sampleAllLayers = true,
+    int tolerance = 0,
+    Uint8List? selectionMask,
+  }) {
+    return null;
+  }
+
+  void setSelectionMask({
+    required int handle,
+    Uint8List? selectionMask,
+  }) {}
+
   void resetCanvas({required int handle, required int backgroundColorArgb}) {}
 
   void undo({required int handle}) {}

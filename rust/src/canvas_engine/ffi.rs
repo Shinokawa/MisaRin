@@ -424,6 +424,112 @@ pub extern "C" fn engine_bucket_fill(
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
+pub extern "C" fn engine_magic_wand_mask(
+    handle: u64,
+    layer_index: u32,
+    start_x: i32,
+    start_y: i32,
+    sample_all_layers: u8,
+    tolerance: u32,
+    selection_mask_ptr: *const u8,
+    selection_mask_len: usize,
+    out_mask_ptr: *mut u8,
+    out_mask_len: usize,
+) -> u8 {
+    if out_mask_ptr.is_null() || out_mask_len == 0 {
+        return 0;
+    }
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+
+    let selection_mask: Option<Vec<u8>> =
+        if selection_mask_ptr.is_null() || selection_mask_len == 0 {
+            None
+        } else {
+            Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
+        };
+
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::MagicWandMask {
+            layer_index,
+            start_x,
+            start_y,
+            sample_all_layers: sample_all_layers != 0,
+            tolerance: tolerance.min(255) as u8,
+            selection_mask,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+
+    match rx.recv() {
+        Ok(Some(mask)) => {
+            if mask.len() != out_mask_len {
+                return 0;
+            }
+            unsafe {
+                std::ptr::copy_nonoverlapping(mask.as_ptr(), out_mask_ptr, mask.len());
+            }
+            1
+        }
+        _ => 0,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_magic_wand_mask(
+    _handle: u64,
+    _layer_index: u32,
+    _start_x: i32,
+    _start_y: i32,
+    _sample_all_layers: u8,
+    _tolerance: u32,
+    _selection_mask_ptr: *const u8,
+    _selection_mask_len: usize,
+    _out_mask_ptr: *mut u8,
+    _out_mask_len: usize,
+) -> u8 {
+    0
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_set_selection_mask(
+    handle: u64,
+    selection_mask_ptr: *const u8,
+    selection_mask_len: usize,
+) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let selection_mask: Option<Vec<u8>> =
+        if selection_mask_ptr.is_null() || selection_mask_len == 0 {
+            None
+        } else {
+            Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
+        };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::SetSelectionMask { selection_mask });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_selection_mask(
+    _handle: u64,
+    _selection_mask_ptr: *const u8,
+    _selection_mask_len: usize,
+) {
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
 pub extern "C" fn engine_reset_canvas(handle: u64, background_color_argb: u32) {
     let Some(entry) = lookup_engine(handle) else {
         return;

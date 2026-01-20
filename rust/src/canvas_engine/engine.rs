@@ -67,6 +67,18 @@ pub(crate) enum EngineCommand {
         selection_mask: Option<Vec<u8>>,
         reply: mpsc::Sender<bool>,
     },
+    MagicWandMask {
+        layer_index: u32,
+        start_x: i32,
+        start_y: i32,
+        sample_all_layers: bool,
+        tolerance: u8,
+        selection_mask: Option<Vec<u8>>,
+        reply: mpsc::Sender<Option<Vec<u8>>>,
+    },
+    SetSelectionMask {
+        selection_mask: Option<Vec<u8>>,
+    },
     Undo,
     Redo,
     Stop,
@@ -217,6 +229,7 @@ fn render_thread_main(
                         &mut present_params_buffer,
                         &mut present_params_capacity,
                         &mut present_bind_group,
+                        &mut brush,
                         &mut brush_settings,
                         &mut undo_manager,
                         canvas_width,
@@ -263,6 +276,7 @@ fn render_thread_main(
                         &mut present_params_buffer,
                         &mut present_params_capacity,
                         &mut present_bind_group,
+                        &mut brush,
                         &mut brush_settings,
                         &mut undo_manager,
                         canvas_width,
@@ -425,6 +439,7 @@ fn handle_engine_command(
     present_params_buffer: &mut wgpu::Buffer,
     present_params_capacity: &mut usize,
     present_bind_group: &mut wgpu::BindGroup,
+    brush: &mut BrushRenderer,
     brush_settings: &mut EngineBrushSettings,
     undo: &mut UndoManager,
     canvas_width: u32,
@@ -947,6 +962,143 @@ fn handle_engine_command(
                 stop: false,
                 needs_render: present.is_some(),
             };
+        }
+        EngineCommand::MagicWandMask {
+            layer_index,
+            start_x,
+            start_y,
+            sample_all_layers,
+            tolerance,
+            selection_mask,
+            reply,
+        } => {
+            let idx = layer_index as usize;
+            if !ensure_layer_index(idx) {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            if start_x < 0
+                || start_y < 0
+                || (start_x as u32) >= canvas_width
+                || (start_y as u32) >= canvas_height
+            {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+
+            let pixels = if sample_all_layers {
+                let mut layers_pixels: Vec<Vec<u32>> = Vec::with_capacity(*layer_count);
+                for layer_idx in 0..*layer_count {
+                    match read_r32uint_layer(
+                        device,
+                        queue,
+                        layers.texture(),
+                        canvas_width,
+                        canvas_height,
+                        layer_idx as u32,
+                    ) {
+                        Ok(pixels) => layers_pixels.push(pixels),
+                        Err(err) => {
+                            debug::log(
+                                LogLevel::Warn,
+                                format_args!("magic wand readback failed: {err}"),
+                            );
+                            let _ = reply.send(None);
+                            return EngineCommandOutcome {
+                                stop: false,
+                                needs_render: false,
+                            };
+                        }
+                    }
+                }
+                composite_layers_for_bucket_fill(
+                    canvas_width as usize,
+                    canvas_height as usize,
+                    &layers_pixels,
+                    layer_opacity,
+                    layer_visible,
+                    layer_clipping_mask,
+                )
+            } else {
+                match read_r32uint_layer(
+                    device,
+                    queue,
+                    layers.texture(),
+                    canvas_width,
+                    canvas_height,
+                    idx as u32,
+                ) {
+                    Ok(pixels) => pixels,
+                    Err(err) => {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("magic wand readback failed: {err}"),
+                        );
+                        let _ = reply.send(None);
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                        };
+                    }
+                }
+            };
+
+            let mask = bucket_fill::magic_wand_mask(
+                canvas_width as i32,
+                canvas_height as i32,
+                pixels,
+                start_x,
+                start_y,
+                tolerance as i32,
+                selection_mask,
+            );
+            let _ = reply.send(mask);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+            };
+        }
+        EngineCommand::SetSelectionMask { selection_mask } => {
+            let expected_len = (canvas_width as usize).saturating_mul(canvas_height as usize);
+            let valid_mask = match selection_mask {
+                Some(mask) => {
+                    if mask.len() == expected_len {
+                        Some(mask)
+                    } else {
+                        if expected_len > 0 {
+                            debug::log(
+                                LogLevel::Warn,
+                                format_args!(
+                                    "selection mask size mismatch: got {}, expected {}",
+                                    mask.len(),
+                                    expected_len
+                                ),
+                            );
+                        }
+                        None
+                    }
+                }
+                None => None,
+            };
+            if let Err(err) = brush.set_selection_mask(valid_mask.as_deref()) {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("selection mask update failed: {err}"),
+                );
+            }
         }
         EngineCommand::Undo => {
             let applied = undo.undo(device, queue, layers.texture(), *layer_count);

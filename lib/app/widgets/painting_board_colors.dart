@@ -176,12 +176,8 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           startY >= engineHeight) {
         return;
       }
-      final Uint8List? selectionMask = selectionMaskSnapshot;
-      final int selectionLen = engineWidth * engineHeight;
       final Uint8List? selectionMaskForRust =
-          selectionMask != null && selectionMask.length == selectionLen
-          ? selectionMask
-          : null;
+          _resolveSelectionMaskForRust(engineWidth, engineHeight);
       final List<Color>? swallowColors = _resolveBucketSwallowColors();
       final Uint32List? swallowColorsArgb =
           swallowColors != null && swallowColors.isNotEmpty

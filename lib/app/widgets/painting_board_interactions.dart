@@ -1082,6 +1082,9 @@ mixin _PaintingBoardInteractionMixin
           if (!_canStartRustStroke(pointerInsideBoard: pointerInsideBoard)) {
             return;
           }
+          if (!isPointInsideSelection(boardLocal)) {
+            return;
+          }
           _beginRustStroke(event);
           break;
         }

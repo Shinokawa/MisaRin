@@ -110,6 +110,46 @@ typedef _EngineBucketFillDart =
       int selectionMaskLen,
     );
 
+typedef _EngineMagicWandMaskNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Int32 startX,
+      ffi.Int32 startY,
+      ffi.Uint8 sampleAllLayers,
+      ffi.Uint32 tolerance,
+      ffi.Pointer<ffi.Uint8> selectionMask,
+      ffi.UintPtr selectionMaskLen,
+      ffi.Pointer<ffi.Uint8> outMask,
+      ffi.UintPtr outMaskLen,
+    );
+typedef _EngineMagicWandMaskDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      int startX,
+      int startY,
+      int sampleAllLayers,
+      int tolerance,
+      ffi.Pointer<ffi.Uint8> selectionMask,
+      int selectionMaskLen,
+      ffi.Pointer<ffi.Uint8> outMask,
+      int outMaskLen,
+    );
+
+typedef _EngineSetSelectionMaskNative =
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Pointer<ffi.Uint8> selectionMask,
+      ffi.UintPtr selectionMaskLen,
+    );
+typedef _EngineSetSelectionMaskDart =
+    void Function(
+      int handle,
+      ffi.Pointer<ffi.Uint8> selectionMask,
+      int selectionMaskLen,
+    );
+
 typedef _EngineResetCanvasNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 backgroundColorArgb);
 typedef _EngineResetCanvasDart = void Function(int handle, int backgroundColorArgb);
@@ -224,6 +264,21 @@ class CanvasEngineFfi {
         _bucketFill = null;
       }
       try {
+        _magicWandMask =
+            _lib.lookupFunction<_EngineMagicWandMaskNative, _EngineMagicWandMaskDart>(
+          'engine_magic_wand_mask',
+        );
+      } catch (_) {
+        _magicWandMask = null;
+      }
+      try {
+        _setSelectionMask = _lib.lookupFunction<
+            _EngineSetSelectionMaskNative,
+            _EngineSetSelectionMaskDart>('engine_set_selection_mask');
+      } catch (_) {
+        _setSelectionMask = null;
+      }
+      try {
         _resetCanvas = _lib.lookupFunction<_EngineResetCanvasNative, _EngineResetCanvasDart>(
           'engine_reset_canvas',
         );
@@ -270,6 +325,8 @@ class CanvasEngineFfi {
   late final _EngineClearLayerDart? _clearLayer;
   late final _EngineFillLayerDart? _fillLayer;
   late final _EngineBucketFillDart? _bucketFill;
+  late final _EngineMagicWandMaskDart? _magicWandMask;
+  late final _EngineSetSelectionMaskDart? _setSelectionMask;
   late final _EngineResetCanvasDart? _resetCanvas;
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
@@ -450,6 +507,92 @@ class CanvasEngineFfi {
       if (swallowPtr != ffi.nullptr) {
         malloc.free(swallowPtr);
       }
+      if (selectionPtr != ffi.nullptr) {
+        malloc.free(selectionPtr);
+      }
+    }
+  }
+
+  Uint8List? magicWandMask({
+    required int handle,
+    required int layerIndex,
+    required int startX,
+    required int startY,
+    required int maskLength,
+    bool sampleAllLayers = true,
+    int tolerance = 0,
+    Uint8List? selectionMask,
+  }) {
+    final fn = _magicWandMask;
+    if (!isSupported || fn == null || handle == 0) {
+      return null;
+    }
+    if (maskLength <= 0) {
+      return null;
+    }
+    final int clampedTolerance = tolerance.clamp(0, 255);
+
+    ffi.Pointer<ffi.Uint8> selectionPtr = ffi.nullptr;
+    int selectionLen = 0;
+    final Uint8List? normalizedSelection =
+        selectionMask != null && selectionMask.length == maskLength
+        ? selectionMask
+        : null;
+    if (normalizedSelection != null && normalizedSelection.isNotEmpty) {
+      selectionLen = normalizedSelection.length;
+      selectionPtr = malloc.allocate<ffi.Uint8>(selectionLen);
+      selectionPtr.asTypedList(selectionLen).setAll(0, normalizedSelection);
+    }
+
+    ffi.Pointer<ffi.Uint8> outPtr = ffi.nullptr;
+    try {
+      outPtr = malloc.allocate<ffi.Uint8>(maskLength);
+      final int result = fn(
+        handle,
+        layerIndex,
+        startX,
+        startY,
+        sampleAllLayers ? 1 : 0,
+        clampedTolerance,
+        selectionPtr,
+        selectionLen,
+        outPtr,
+        maskLength,
+      );
+      if (result == 0) {
+        return null;
+      }
+      return Uint8List.fromList(outPtr.asTypedList(maskLength));
+    } finally {
+      if (selectionPtr != ffi.nullptr) {
+        malloc.free(selectionPtr);
+      }
+      if (outPtr != ffi.nullptr) {
+        malloc.free(outPtr);
+      }
+    }
+  }
+
+  void setSelectionMask({
+    required int handle,
+    Uint8List? selectionMask,
+  }) {
+    final fn = _setSelectionMask;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+
+    ffi.Pointer<ffi.Uint8> selectionPtr = ffi.nullptr;
+    int selectionLen = 0;
+    if (selectionMask != null && selectionMask.isNotEmpty) {
+      selectionLen = selectionMask.length;
+      selectionPtr = malloc.allocate<ffi.Uint8>(selectionLen);
+      selectionPtr.asTypedList(selectionLen).setAll(0, selectionMask);
+    }
+
+    try {
+      fn(handle, selectionPtr, selectionLen);
+    } finally {
       if (selectionPtr != ffi.nullptr) {
         malloc.free(selectionPtr);
       }
