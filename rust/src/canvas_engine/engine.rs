@@ -9,6 +9,7 @@ use metal::foreign_types::ForeignType;
 use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
+use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::brush_renderer::BrushRenderer;
 use crate::gpu::debug::{self, LogLevel};
 
@@ -169,6 +170,7 @@ fn render_thread_main(
     // Layer order is bottom-to-top.
     let mut layer_count: usize = 1;
     let mut active_layer_index: usize = 0;
+    let mut layer_uniform: Vec<Option<u32>> = vec![None; layer_count];
 
     let mut brush = match BrushRenderer::new(device.clone(), queue.clone()) {
         Ok(renderer) => renderer,
@@ -180,6 +182,17 @@ fn render_thread_main(
     brush.set_canvas_size(canvas_width, canvas_height);
     brush.set_softness(0.0);
     let mut brush_settings = EngineBrushSettings::default();
+
+    let mut bucket_fill_renderer = match BucketFillRenderer::new(device.clone(), queue.clone()) {
+        Ok(renderer) => Some(renderer),
+        Err(err) => {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("BucketFillRenderer init failed: {err}"),
+            );
+            None
+        }
+    };
 
     let present_renderer = PresentRenderer::new(device.as_ref());
     let mut layer_opacity: Vec<f32> = vec![1.0; layer_count];
@@ -233,12 +246,14 @@ fn render_thread_main(
                         queue.as_ref(),
                         &mut present,
                         cmd,
+                        &mut bucket_fill_renderer,
                         &mut layers,
                         &mut layer_count,
                         &mut active_layer_index,
                         &mut layer_opacity,
                         &mut layer_visible,
                         &mut layer_clipping_mask,
+                        &mut layer_uniform,
                         &mut view_flags,
                         &present_renderer,
                         &present_config_buffer,
@@ -280,12 +295,14 @@ fn render_thread_main(
                         queue.as_ref(),
                         &mut present,
                         cmd,
+                        &mut bucket_fill_renderer,
                         &mut layers,
                         &mut layer_count,
                         &mut active_layer_index,
                         &mut layer_opacity,
                         &mut layer_visible,
                         &mut layer_clipping_mask,
+                        &mut layer_uniform,
                         &mut view_flags,
                         &present_renderer,
                         &present_config_buffer,
@@ -441,6 +458,11 @@ fn render_thread_main(
                         );
                     }
 
+                    if drawn_any {
+                        if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
+                            *entry = None;
+                        }
+                    }
                     needs_render |= drawn_any;
                 }
 
@@ -467,12 +489,14 @@ fn handle_engine_command(
     queue: &wgpu::Queue,
     present: &mut Option<PresentTarget>,
     cmd: EngineCommand,
+    bucket_fill_renderer: &mut Option<BucketFillRenderer>,
     layers: &mut LayerTextures,
     layer_count: &mut usize,
     active_layer_index: &mut usize,
     layer_opacity: &mut Vec<f32>,
     layer_visible: &mut Vec<bool>,
     layer_clipping_mask: &mut Vec<bool>,
+    layer_uniform: &mut Vec<Option<u32>>,
     present_view_flags: &mut u32,
     present_renderer: &PresentRenderer,
     present_config_buffer: &wgpu::Buffer,
@@ -533,6 +557,9 @@ fn handle_engine_command(
         if new_count > layer_clipping_mask.len() {
             layer_clipping_mask.resize(new_count, false);
         }
+        if new_count > layer_uniform.len() {
+            layer_uniform.resize(new_count, None);
+        }
 
         for layer in old_count..new_count {
             fill_r32uint_texture(
@@ -543,6 +570,7 @@ fn handle_engine_command(
                 layer as u32,
                 0x00000000,
             );
+            layer_uniform[layer] = Some(0x00000000);
         }
 
         *layer_count = new_count;
@@ -595,6 +623,7 @@ fn handle_engine_command(
                 );
                 // Initialize layers so the first composite is deterministic.
                 // Layer 0 is the background fill layer (default white), others start transparent.
+                layer_uniform.resize(*layer_count, None);
                 for idx in 0..*layer_count {
                     let fill = if idx == 0 { 0xFFFFFFFF } else { 0x00000000 };
                     fill_r32uint_texture(
@@ -605,6 +634,9 @@ fn handle_engine_command(
                         idx as u32,
                         fill,
                     );
+                    if let Some(entry) = layer_uniform.get_mut(idx) {
+                        *entry = Some(fill);
+                    }
                 }
                 // Request one render so Flutter gets an actual composited frame immediately.
                 return EngineCommandOutcome {
@@ -617,6 +649,7 @@ fn handle_engine_command(
             // Reset undo history so a fresh canvas doesn't "undo" back into the previous one.
             undo.reset();
             // Layer 0 is background fill; everything above starts transparent.
+            layer_uniform.resize(*layer_count, None);
             for idx in 0..*layer_count {
                 let fill = if idx == 0 {
                     background_color_argb
@@ -631,6 +664,9 @@ fn handle_engine_command(
                     idx as u32,
                     fill,
                 );
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = Some(fill);
+                }
             }
             return EngineCommandOutcome {
                 stop: false,
@@ -651,6 +687,9 @@ fn handle_engine_command(
                     idx as u32,
                     color_argb,
                 );
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = Some(color_argb);
+                }
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
@@ -668,6 +707,9 @@ fn handle_engine_command(
                     idx as u32,
                     0x00000000,
                 );
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = Some(0x00000000);
+                }
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
@@ -837,6 +879,109 @@ fn handle_engine_command(
                 };
             }
 
+            // Fast path: uniform layer with no selection mask can be filled directly.
+            if !sample_all_layers && selection_mask.is_none() {
+                if let Some(base_color) = layer_uniform.get(idx).copied().flatten() {
+                    if base_color == color_argb {
+                        let _ = reply.send(false);
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                        };
+                    }
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    fill_r32uint_texture(
+                        queue,
+                        layers.texture(),
+                        canvas_width,
+                        canvas_height,
+                        layer_index,
+                        color_argb,
+                    );
+                    undo.end_stroke(device, queue, layers.texture());
+                    if let Some(entry) = layer_uniform.get_mut(idx) {
+                        *entry = Some(color_argb);
+                    }
+                    let _ = reply.send(true);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: present.is_some(),
+                    };
+                }
+            }
+
+            if let Some(renderer) = bucket_fill_renderer.as_mut() {
+                let Some(layer_view) = layers.layer_view(idx) else {
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                };
+
+                undo.begin_stroke(layer_index);
+                undo.capture_before_for_dirty_rect(
+                    device,
+                    queue,
+                    layers.texture(),
+                    layer_index,
+                    (0, 0, canvas_width as i32, canvas_height as i32),
+                );
+
+                let applied = match renderer.bucket_fill(
+                    layer_view,
+                    layers.array_view(),
+                    layer_index,
+                    *layer_count,
+                    layer_opacity,
+                    layer_visible,
+                    layer_clipping_mask,
+                    canvas_width,
+                    canvas_height,
+                    start_x,
+                    start_y,
+                    color_argb,
+                    contiguous,
+                    sample_all_layers,
+                    tolerance,
+                    fill_gap,
+                    antialias_level,
+                    &swallow_colors,
+                    selection_mask.as_deref(),
+                ) {
+                    Ok(changed) => changed,
+                    Err(err) => {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("bucket fill GPU failed: {err}"),
+                        );
+                        false
+                    }
+                };
+
+                if applied {
+                    undo.end_stroke(device, queue, layers.texture());
+                    if let Some(entry) = layer_uniform.get_mut(idx) {
+                        *entry = None;
+                    }
+                } else {
+                    undo.cancel_stroke();
+                }
+
+                let _ = reply.send(applied);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
+            }
+
             let (active_pixels, sample_pixels) = if sample_all_layers {
                 let mut layers_pixels: Vec<Vec<u32>> = Vec::with_capacity(*layer_count);
                 for layer_idx in 0..*layer_count {
@@ -996,6 +1141,9 @@ fn handle_engine_command(
                 &packed,
             );
             undo.end_stroke(device, queue, layers.texture());
+            if let Some(entry) = layer_uniform.get_mut(idx) {
+                *entry = None;
+            }
 
             let _ = reply.send(true);
             return EngineCommandOutcome {
@@ -1245,6 +1393,9 @@ fn handle_engine_command(
             if record_undo {
                 undo.end_stroke(device, queue, layers.texture());
             }
+            if let Some(entry) = layer_uniform.get_mut(idx) {
+                *entry = None;
+            }
             let _ = reply.send(true);
             return EngineCommandOutcome {
                 stop: false,
@@ -1391,6 +1542,9 @@ fn handle_engine_command(
                 &packed,
             );
             undo.end_stroke(device, queue, layers.texture());
+            if let Some(entry) = layer_uniform.get_mut(idx) {
+                *entry = None;
+            }
             let _ = reply.send(true);
             return EngineCommandOutcome {
                 stop: false,
@@ -1428,6 +1582,11 @@ fn handle_engine_command(
         }
         EngineCommand::Undo => {
             let applied = undo.undo(device, queue, layers.texture(), *layer_count);
+            if applied {
+                for entry in layer_uniform.iter_mut() {
+                    *entry = None;
+                }
+            }
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: applied && present.is_some(),
@@ -1435,6 +1594,11 @@ fn handle_engine_command(
         }
         EngineCommand::Redo => {
             let applied = undo.redo(device, queue, layers.texture(), *layer_count);
+            if applied {
+                for entry in layer_uniform.iter_mut() {
+                    *entry = None;
+                }
+            }
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: applied && present.is_some(),

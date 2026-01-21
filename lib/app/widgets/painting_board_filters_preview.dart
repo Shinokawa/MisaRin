@@ -530,6 +530,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _filterOverlayEntry?.remove();
     _filterOverlayEntry = null;
     _cancelFilterPreviewTasks();
+    _restoreRustLayerAfterFilterPreview();
     final _FilterSession? session = _filterSession;
     if (restoreOriginal && session != null) {
       _restoreFilterPreviewToOriginal(session);

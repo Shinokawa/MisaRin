@@ -75,7 +75,7 @@ impl UndoManager {
         }
     }
 
-    fn cancel_stroke(&mut self) {
+    pub(crate) fn cancel_stroke(&mut self) {
         self.current = None;
     }
 

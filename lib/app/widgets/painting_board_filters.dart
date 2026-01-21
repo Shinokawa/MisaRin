@@ -199,6 +199,8 @@ mixin _PaintingBoardFilterMixin
   Completer<_FilterPreviewResult>? _filterApplyCompleter;
   bool _filterAwaitingFrameSwap = false;
   int? _filterAwaitedFrameGeneration;
+  String? _filterRustHiddenLayerId;
+  bool _filterRustHiddenLayerVisible = false;
 
   void showHueSaturationAdjustments() {
     this._openFilterPanel(_FilterPanelType.hueSaturation);
@@ -251,6 +253,67 @@ mixin _PaintingBoardFilterMixin
   void _handleFilterApplyFrameProgress(BitmapCanvasFrame? frame) {
     this._handleFilterApplyFrameProgressInternal(frame);
   }
+
+  bool _shouldUseRustFilterPreview(_FilterSession session) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    return session.type == _FilterPanelType.hueSaturation ||
+        session.type == _FilterPanelType.brightnessContrast;
+  }
+
+  void _enableRustFilterPreviewIfNeeded(_FilterSession session) {
+    if (!_shouldUseRustFilterPreview(session) || _previewActiveLayerImage == null) {
+      _restoreRustLayerAfterFilterPreview();
+      return;
+    }
+    _hideRustLayerForFilterPreview(session.activeLayerId);
+  }
+
+  void _hideRustLayerForFilterPreview(String layerId) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_filterRustHiddenLayerId == layerId) {
+      return;
+    }
+    _restoreRustLayerAfterFilterPreview();
+    final BitmapLayerState? layer = _layerById(layerId);
+    if (layer == null || !layer.visible) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    _filterRustHiddenLayerId = layerId;
+    _filterRustHiddenLayerVisible = layer.visible;
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+      visible: false,
+    );
+  }
+
+  void _restoreRustLayerAfterFilterPreview() {
+    final String? layerId = _filterRustHiddenLayerId;
+    if (layerId == null) {
+      return;
+    }
+    if (_canUseRustCanvasEngine()) {
+      final int? index = _rustCanvasLayerIndexForId(layerId);
+      if (index != null) {
+        CanvasEngineFfi.instance.setLayerVisible(
+          handle: _rustCanvasEngineHandle!,
+          layerIndex: index,
+          visible: _filterRustHiddenLayerVisible,
+        );
+      }
+    }
+    _filterRustHiddenLayerId = null;
+    _filterRustHiddenLayerVisible = false;
+  }
+
   Future<void> invertActiveLayerColors() async {
     final l10n = context.l10n;
     if (_controller.frame == null) {

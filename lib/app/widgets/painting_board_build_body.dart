@@ -565,8 +565,17 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     frame: frame,
                                                   );
 
+                                            final _FilterSession? filterSession =
+                                                _filterSession;
+                                            final bool showRustFilterPreview =
+                                                filterSession != null &&
+                                                _shouldShowRustFilterPreviewOverlay(
+                                                  filterSession,
+                                                );
                                             final List<Widget> overlayChildren =
                                                 <Widget>[
+                                              if (showRustFilterPreview)
+                                                _buildRustFilterPreviewOverlay(),
                                               if (_pixelGridVisible)
                                                 Positioned.fill(
                                                   child: IgnorePointer(

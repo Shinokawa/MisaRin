@@ -356,6 +356,91 @@ mixin _PaintingBoardBuildMixin
     );
   }
 
+  bool _shouldShowRustFilterPreviewOverlay(_FilterSession session) {
+    if (!_shouldUseRustFilterPreview(session)) {
+      return false;
+    }
+    if (_previewActiveLayerImage == null) {
+      return false;
+    }
+    return _filterRustHiddenLayerId == session.activeLayerId;
+  }
+
+  Widget _buildRustFilterPreviewOverlay() {
+    final _FilterSession? session = _filterSession;
+    if (session == null || !_shouldShowRustFilterPreviewOverlay(session)) {
+      return const SizedBox.shrink();
+    }
+
+    ui.Image? activeImage = _previewActiveLayerImage;
+    final bool useFilteredPreviewImage =
+        _previewFilteredImageType == session.type &&
+        _previewFilteredActiveLayerImage != null;
+    if (useFilteredPreviewImage) {
+      activeImage = _previewFilteredActiveLayerImage;
+    }
+    if (activeImage == null) {
+      return const SizedBox.shrink();
+    }
+    Widget activeLayerWidget = RawImage(
+      image: activeImage,
+      filterQuality: FilterQuality.none,
+    );
+
+    if (session.type == _FilterPanelType.hueSaturation) {
+      final double hue = session.hueSaturation.hue;
+      final double saturation = session.hueSaturation.saturation;
+      final double lightness = session.hueSaturation.lightness;
+      final bool requiresAdjustments =
+          hue != 0 || saturation != 0 || lightness != 0;
+      if (requiresAdjustments && !useFilteredPreviewImage) {
+        if (hue != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
+            child: activeLayerWidget,
+          );
+        }
+        if (saturation != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter: ColorFilter.matrix(
+              ColorFilterGenerator.saturation(saturation),
+            ),
+            child: activeLayerWidget,
+          );
+        }
+        if (lightness != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter: ColorFilter.matrix(
+              ColorFilterGenerator.brightness(lightness),
+            ),
+            child: activeLayerWidget,
+          );
+        }
+      }
+    } else if (session.type == _FilterPanelType.brightnessContrast) {
+      final double brightness = session.brightnessContrast.brightness;
+      final double contrast = session.brightnessContrast.contrast;
+      if (brightness != 0 || contrast != 0) {
+        activeLayerWidget = ColorFiltered(
+          colorFilter: ColorFilter.matrix(
+            ColorFilterGenerator.brightnessContrast(brightness, contrast),
+          ),
+          child: activeLayerWidget,
+        );
+      }
+    }
+
+    final BitmapLayerState? layer = _layerById(session.activeLayerId);
+    final double opacity = (layer?.opacity ?? 1.0).clamp(0.0, 1.0);
+    if (opacity < 0.999) {
+      activeLayerWidget = Opacity(opacity: opacity, child: activeLayerWidget);
+    }
+
+    return Positioned.fill(
+      child: IgnorePointer(ignoring: true, child: activeLayerWidget),
+    );
+  }
+
   Widget _buildLayerOpacityPreviewStack() {
     if (_layerOpacityPreviewActiveLayerImage == null) {
       return const SizedBox.shrink();
