@@ -26,6 +26,7 @@ struct Config {
   hollow_erase: u32,       // 0: keep underlying, 1: erase underlying
   stroke_mask_mode: u32,  // 0: disabled, 1: use stroke hollow mask
   stroke_base_mode: u32,  // 0: disabled, 1: blend against stroke base
+  stroke_accumulate_mode: u32, // 0: max coverage, 1: accumulate coverage
   selection_mask_mode: u32, // 0: disabled, 1: clip by selection mask
 };
 
@@ -293,16 +294,29 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
   }
 
   var out_alpha = 0.0;
+  if (cfg.stroke_accumulate_mode == 0u) {
+    for (var i: u32 = 0u; i + 1u < count; i = i + 1u) {
+      let p0 = stroke_points[i];
+      let p1 = stroke_points[i + 1u];
+      let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
+      let radius = mix(p0.radius, p1.radius, t) * scale;
+      let dist = shape_distance_to_segment(sample_pos, p0.pos, p1.pos, radius);
+      let a = brush_alpha(dist, radius, cfg.softness);
+      out_alpha = max(out_alpha, a);
+    }
+    return out_alpha;
+  }
+  var remain = 1.0;
   for (var i: u32 = 0u; i + 1u < count; i = i + 1u) {
     let p0 = stroke_points[i];
     let p1 = stroke_points[i + 1u];
     let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
     let radius = mix(p0.radius, p1.radius, t) * scale;
     let dist = shape_distance_to_segment(sample_pos, p0.pos, p1.pos, radius);
-    let a = brush_alpha(dist, radius, cfg.softness);
-    out_alpha = max(out_alpha, a);
+    let a = clamp01(brush_alpha(dist, radius, cfg.softness));
+    remain = remain * (1.0 - a);
   }
-  return out_alpha;
+  return 1.0 - remain;
 }
 
 fn antialias_samples_per_axis(level: u32) -> u32 {

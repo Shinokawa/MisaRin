@@ -156,6 +156,12 @@ impl StrokeResampler {
             }
         }
 
+        let emitted = if emitted.len() > 2 {
+            fit_and_resample_points(emitted)
+        } else {
+            emitted
+        };
+
         if emitted.is_empty() {
             self.last_tick_dirty = None;
             return false;
@@ -205,6 +211,7 @@ impl StrokeResampler {
                 hollow_ratio,
                 hollow_erase,
                 hollow_enabled,
+                false,
             ) {
                 Ok(()) => {
                     drew_any = true;
@@ -249,6 +256,7 @@ impl StrokeResampler {
                 hollow_ratio,
                 hollow_erase,
                 hollow_enabled,
+                false,
             ) {
                 Ok(()) => {
                     drew_any = true;
@@ -293,6 +301,7 @@ impl StrokeResampler {
                         hollow_ratio,
                         hollow_erase,
                         hollow_enabled,
+                        false,
                     ) {
                         Ok(()) => {
                             drew_any = true;
@@ -345,6 +354,7 @@ impl StrokeResampler {
                             hollow_ratio,
                             hollow_erase,
                             hollow_enabled,
+                            true,
                         ) {
                             Ok(()) => {
                                 drew_any = true;
@@ -383,6 +393,7 @@ impl StrokeResampler {
                         hollow_ratio,
                         hollow_erase,
                         hollow_enabled,
+                        true,
                     ) {
                         Ok(()) => {
                             drew_any = true;
@@ -428,6 +439,133 @@ fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: boo
 fn resample_step_from_radius(radius: f32) -> f32 {
     let r = if radius.is_finite() { radius.max(0.0) } else { 0.0 };
     (r * 0.1).clamp(0.25, 0.5)
+}
+
+fn fit_and_resample_points(points: Vec<(Point2D, f32)>) -> Vec<(Point2D, f32)> {
+    let target_count = points.len();
+    if target_count < 3 {
+        return points;
+    }
+    adaptive_resample_spline(&points, target_count)
+}
+
+fn adaptive_resample_spline(points: &[(Point2D, f32)], target_count: usize) -> Vec<(Point2D, f32)> {
+    if points.len() < 2 || target_count < 2 {
+        return points.to_vec();
+    }
+
+    let mut turning: Vec<f32> = vec![0.0; points.len()];
+    for i in 1..points.len().saturating_sub(1) {
+        turning[i] = turning_angle(points[i - 1].0, points[i].0, points[i + 1].0);
+    }
+
+    let curvature_weight = 0.75f32;
+    let mut weights: Vec<f32> = Vec::with_capacity(points.len().saturating_sub(1));
+    let mut total_weight = 0.0f32;
+
+    for i in 0..points.len().saturating_sub(1) {
+        let length = point_distance(points[i].0, points[i + 1].0);
+        let mut curvature = 0.0f32;
+        let mut count = 0.0f32;
+        if i > 0 {
+            curvature += turning[i];
+            count += 1.0;
+        }
+        if i + 1 < points.len().saturating_sub(1) {
+            curvature += turning[i + 1];
+            count += 1.0;
+        }
+        if count > 0.0 {
+            curvature /= count;
+        }
+        let weight = (length * (1.0 + curvature_weight * curvature)).max(1.0e-4);
+        weights.push(weight);
+        total_weight += weight;
+    }
+
+    if !total_weight.is_finite() || total_weight <= 0.0 {
+        return points.to_vec();
+    }
+
+    let mut output: Vec<(Point2D, f32)> = Vec::with_capacity(target_count);
+    output.push(points[0]);
+
+    let step = total_weight / (target_count.saturating_sub(1) as f32);
+    if !step.is_finite() || step <= 0.0 {
+        return points.to_vec();
+    }
+
+    let mut seg_index = 0usize;
+    let mut seg_start = 0.0f32;
+    let mut seg_end = weights[0];
+
+    for sample_idx in 1..target_count.saturating_sub(1) {
+        let target = step * sample_idx as f32;
+        while target > seg_end && seg_index + 1 < weights.len() {
+            seg_index += 1;
+            seg_start = seg_end;
+            seg_end += weights[seg_index];
+        }
+
+        let denom = (seg_end - seg_start).max(1.0e-6);
+        let t = ((target - seg_start) / denom).clamp(0.0, 1.0);
+
+        let p0 = if seg_index == 0 {
+            points[0].0
+        } else {
+            points[seg_index - 1].0
+        };
+        let p1 = points[seg_index].0;
+        let p2 = points[seg_index + 1].0;
+        let p3 = if seg_index + 2 < points.len() {
+            points[seg_index + 2].0
+        } else {
+            points[points.len() - 1].0
+        };
+        let pos = catmull_rom(p0, p1, p2, p3, t);
+        let pres = points[seg_index].1 + (points[seg_index + 1].1 - points[seg_index].1) * t;
+        output.push((pos, pres));
+    }
+
+    output.push(points[points.len() - 1]);
+    output
+}
+
+fn point_distance(a: Point2D, b: Point2D) -> f32 {
+    let dx = a.x - b.x;
+    let dy = a.y - b.y;
+    (dx * dx + dy * dy).sqrt()
+}
+
+fn turning_angle(prev: Point2D, curr: Point2D, next: Point2D) -> f32 {
+    let v1x = curr.x - prev.x;
+    let v1y = curr.y - prev.y;
+    let v2x = next.x - curr.x;
+    let v2y = next.y - curr.y;
+    let len1 = (v1x * v1x + v1y * v1y).sqrt();
+    let len2 = (v2x * v2x + v2y * v2y).sqrt();
+    if len1 <= 1.0e-6 || len2 <= 1.0e-6 {
+        return 0.0;
+    }
+    let cos = ((v1x * v2x + v1y * v2y) / (len1 * len2)).clamp(-1.0, 1.0);
+    cos.acos()
+}
+
+fn catmull_rom(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: f32) -> Point2D {
+    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let t2 = t * t;
+    let t3 = t2 * t;
+    let x = 0.5
+        * ((2.0 * p1.x)
+            + (-p0.x + p2.x) * t
+            + (2.0 * p0.x - 5.0 * p1.x + 4.0 * p2.x - p3.x) * t2
+            + (-p0.x + 3.0 * p1.x - 3.0 * p2.x + p3.x) * t3);
+    let y = 0.5
+        * ((2.0 * p1.y)
+            + (-p0.y + p2.y) * t
+            + (2.0 * p0.y - 5.0 * p1.y + 4.0 * p2.y - p3.y) * t2
+            + (-p0.y + 3.0 * p1.y - 3.0 * p2.y + p3.y) * t3);
+    Point2D { x, y }
 }
 
 pub(crate) fn map_brush_shape(index: u32) -> BrushShape {

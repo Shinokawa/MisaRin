@@ -56,6 +56,7 @@ struct BrushShaderConfig {
     hollow_erase: u32,
     stroke_mask_mode: u32,
     stroke_base_mode: u32,
+    stroke_accumulate_mode: u32,
     selection_mask_mode: u32,
 }
 
@@ -456,6 +457,7 @@ impl BrushRenderer {
         hollow_ratio: f32,
         hollow_erase_occluded: bool,
         use_stroke_mask: bool,
+        accumulate_segments: bool,
     ) -> Result<(), String> {
         if points.is_empty() {
             return Ok(());
@@ -584,6 +586,7 @@ impl BrushRenderer {
             hollow_erase,
             stroke_mask_mode,
             stroke_base_mode,
+            stroke_accumulate_mode: if accumulate_segments { 1 } else { 0 },
             selection_mask_mode: if self.selection_mask_enabled { 1 } else { 0 },
         };
         self.queue

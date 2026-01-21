@@ -306,6 +306,7 @@ pub fn gpu_draw_stroke(
             0.0,
             false,
             false,
+            false,
         )?;
         draw_calls = 1;
         dirty_union = union_dirty_rect_i32(
@@ -327,6 +328,7 @@ pub fn gpu_draw_stroke(
                 0.0,
                 false,
                 0.0,
+                false,
                 false,
                 false,
             )?;
