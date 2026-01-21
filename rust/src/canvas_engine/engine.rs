@@ -351,19 +351,7 @@ fn render_thread_main(
                                         format_args!("Brush stroke mask clear failed: {err}"),
                                     );
                                 }
-                                if !brush_settings.hollow_erase_occluded {
-                                    if let Err(err) = brush.capture_stroke_base(
-                                        layers.texture(),
-                                        active_layer_index as u32,
-                                    ) {
-                                        debug::log(
-                                            LogLevel::Warn,
-                                            format_args!(
-                                                "Brush stroke base capture failed: {err}"
-                                            ),
-                                        );
-                                    }
-                                }
+                                brush.begin_stroke_base_capture();
                             }
                         } else {
                             undo_manager.begin_stroke_if_needed(active_layer_index as u32);
@@ -373,7 +361,11 @@ fn render_thread_main(
 
                         if is_up {
                             let layer_idx = active_layer_index as u32;
-                            let mut before_draw = |dirty_rect| {
+                            let use_hollow_base = brush_settings.hollow_enabled
+                                && !brush_settings.erase
+                                && brush_settings.hollow_ratio > 0.0001
+                                && !brush_settings.hollow_erase_occluded;
+                            let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
                                 undo_manager.capture_before_for_dirty_rect(
                                     device.as_ref(),
                                     queue.as_ref(),
@@ -381,6 +373,20 @@ fn render_thread_main(
                                     layer_idx,
                                     dirty_rect,
                                 );
+                                if use_hollow_base {
+                                    if let Err(err) = brush.capture_stroke_base_region(
+                                        layer_texture,
+                                        layer_idx,
+                                        dirty_rect,
+                                    ) {
+                                        debug::log(
+                                            LogLevel::Warn,
+                                            format_args!(
+                                                "Brush stroke base capture failed: {err}"
+                                            ),
+                                        );
+                                    }
+                                }
                             };
                             drawn_any |= stroke.consume_and_draw(
                                 &mut brush,
@@ -397,7 +403,11 @@ fn render_thread_main(
 
                     if !segment.is_empty() {
                         let layer_idx = active_layer_index as u32;
-                        let mut before_draw = |dirty_rect| {
+                        let use_hollow_base = brush_settings.hollow_enabled
+                            && !brush_settings.erase
+                            && brush_settings.hollow_ratio > 0.0001
+                            && !brush_settings.hollow_erase_occluded;
+                        let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
                             undo_manager.capture_before_for_dirty_rect(
                                 device.as_ref(),
                                 queue.as_ref(),
@@ -405,6 +415,20 @@ fn render_thread_main(
                                 layer_idx,
                                 dirty_rect,
                             );
+                            if use_hollow_base {
+                                if let Err(err) = brush.capture_stroke_base_region(
+                                    layer_texture,
+                                    layer_idx,
+                                    dirty_rect,
+                                ) {
+                                    debug::log(
+                                        LogLevel::Warn,
+                                        format_args!(
+                                            "Brush stroke base capture failed: {err}"
+                                        ),
+                                    );
+                                }
+                            }
                         };
                         drawn_any |= stroke.consume_and_draw(
                             &mut brush,

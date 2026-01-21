@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -68,6 +69,13 @@ struct DirtyRect {
 
 const WORKGROUP_SIZE: u32 = 16;
 const MAX_POINTS: usize = 8192;
+const STROKE_BASE_TILE_SIZE: u32 = 256;
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct StrokeBaseTile {
+    tx: u32,
+    ty: u32,
+}
 
 pub struct BrushRenderer {
     device: Arc<Device>,
@@ -87,6 +95,7 @@ pub struct BrushRenderer {
     stroke_base_width: u32,
     stroke_base_height: u32,
     stroke_base_valid: bool,
+    stroke_base_tiles: HashSet<StrokeBaseTile>,
     selection_mask: wgpu::Texture,
     selection_mask_view: wgpu::TextureView,
     selection_mask_width: u32,
@@ -221,6 +230,7 @@ impl BrushRenderer {
             stroke_base_width: 1,
             stroke_base_height: 1,
             stroke_base_valid: false,
+            stroke_base_tiles: HashSet::new(),
             selection_mask,
             selection_mask_view,
             selection_mask_width: 1,
@@ -236,6 +246,7 @@ impl BrushRenderer {
         if self.canvas_width != width || self.canvas_height != height {
             self.stroke_base_valid = false;
             self.selection_mask_enabled = false;
+            self.stroke_base_tiles.clear();
         }
         self.canvas_width = width;
         self.canvas_height = height;
@@ -244,6 +255,7 @@ impl BrushRenderer {
     pub fn clear_stroke_mask(&mut self) -> Result<(), String> {
         self.ensure_stroke_mask()?;
         self.stroke_base_valid = false;
+        self.stroke_base_tiles.clear();
         device_push_scopes(self.device.as_ref());
         let mut encoder = self
             .device
@@ -270,59 +282,123 @@ impl BrushRenderer {
         Ok(())
     }
 
-    pub fn capture_stroke_base(
+    pub fn begin_stroke_base_capture(&mut self) {
+        self.stroke_base_valid = false;
+        self.stroke_base_tiles.clear();
+    }
+
+    pub fn capture_stroke_base_region(
         &mut self,
         layer_texture: &wgpu::Texture,
         layer_index: u32,
+        dirty: (i32, i32, i32, i32),
     ) -> Result<(), String> {
         if self.canvas_width == 0 || self.canvas_height == 0 {
             self.stroke_base_valid = false;
+            self.stroke_base_tiles.clear();
+            return Ok(());
+        }
+        let (left_i, top_i, width_i, height_i) = dirty;
+        if width_i <= 0 || height_i <= 0 {
             return Ok(());
         }
         self.ensure_stroke_base()?;
-        device_push_scopes(self.device.as_ref());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("BrushRenderer capture stroke base"),
-            });
-        encoder.copy_texture_to_texture(
-            wgpu::ImageCopyTexture {
-                texture: layer_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d {
-                    x: 0,
-                    y: 0,
-                    z: layer_index,
-                },
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::ImageCopyTexture {
-                texture: &self.stroke_base,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::Extent3d {
-                width: self.canvas_width,
-                height: self.canvas_height,
-                depth_or_array_layers: 1,
-            },
-        );
-        self.queue.submit(Some(encoder.finish()));
-        if let Some(err) = device_pop_scope(self.device.as_ref()) {
-            self.stroke_base_valid = false;
-            return Err(format!(
-                "wgpu validation error during stroke base capture: {err}"
-            ));
+        let left = (left_i.max(0) as u32).min(self.canvas_width);
+        let top = (top_i.max(0) as u32).min(self.canvas_height);
+        let right = (left_i.saturating_add(width_i).max(0) as u32).min(self.canvas_width);
+        let bottom = (top_i.saturating_add(height_i).max(0) as u32).min(self.canvas_height);
+        if right <= left || bottom <= top {
+            return Ok(());
         }
-        if let Some(err) = device_pop_scope(self.device.as_ref()) {
-            self.stroke_base_valid = false;
-            return Err(format!(
-                "wgpu out-of-memory error during stroke base capture: {err}"
-            ));
+
+        let tile_size = STROKE_BASE_TILE_SIZE.max(1);
+        let tx0 = left / tile_size;
+        let ty0 = top / tile_size;
+        let tx1 = right.saturating_sub(1) / tile_size;
+        let ty1 = bottom.saturating_sub(1) / tile_size;
+
+        let mut encoder: Option<wgpu::CommandEncoder> = None;
+        let mut captured_any = false;
+        let mut scopes_pushed = false;
+
+        for ty in ty0..=ty1 {
+            for tx in tx0..=tx1 {
+                let key = StrokeBaseTile { tx, ty };
+                if self.stroke_base_tiles.contains(&key) {
+                    continue;
+                }
+                let tile_left = tx.saturating_mul(tile_size);
+                let tile_top = ty.saturating_mul(tile_size);
+                if tile_left >= self.canvas_width || tile_top >= self.canvas_height {
+                    continue;
+                }
+                let tile_width = tile_size.min(self.canvas_width.saturating_sub(tile_left));
+                let tile_height = tile_size.min(self.canvas_height.saturating_sub(tile_top));
+                if tile_width == 0 || tile_height == 0 {
+                    continue;
+                }
+                if !scopes_pushed {
+                    device_push_scopes(self.device.as_ref());
+                    scopes_pushed = true;
+                }
+                let enc = encoder.get_or_insert_with(|| {
+                    self.device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("BrushRenderer capture stroke base (tiles)"),
+                        })
+                });
+                enc.copy_texture_to_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: layer_texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d {
+                            x: tile_left,
+                            y: tile_top,
+                            z: layer_index,
+                        },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::ImageCopyTexture {
+                        texture: &self.stroke_base,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d {
+                            x: tile_left,
+                            y: tile_top,
+                            z: 0,
+                        },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::Extent3d {
+                        width: tile_width,
+                        height: tile_height,
+                        depth_or_array_layers: 1,
+                    },
+                );
+                self.stroke_base_tiles.insert(key);
+                captured_any = true;
+            }
         }
-        self.stroke_base_valid = true;
+
+        if let Some(enc) = encoder {
+            self.queue.submit(Some(enc.finish()));
+        }
+        if scopes_pushed {
+            if let Some(err) = device_pop_scope(self.device.as_ref()) {
+                self.stroke_base_valid = false;
+                return Err(format!(
+                    "wgpu validation error during stroke base capture: {err}"
+                ));
+            }
+            if let Some(err) = device_pop_scope(self.device.as_ref()) {
+                self.stroke_base_valid = false;
+                return Err(format!(
+                    "wgpu out-of-memory error during stroke base capture: {err}"
+                ));
+            }
+        }
+        if captured_any {
+            self.stroke_base_valid = true;
+        }
         Ok(())
     }
 
@@ -679,6 +755,7 @@ impl BrushRenderer {
         self.stroke_base_width = self.canvas_width;
         self.stroke_base_height = self.canvas_height;
         self.stroke_base_valid = false;
+        self.stroke_base_tiles.clear();
         Ok(())
     }
 

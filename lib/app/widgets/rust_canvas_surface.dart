@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/scheduler.dart';
 
 import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
 
@@ -124,7 +123,6 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   Object? _error;
 
   final _PackedPointBuffer _points = _PackedPointBuffer();
-  bool _flushScheduled = false;
   int? _activeDrawingPointer;
   bool _activeStrokeUsesPressure = true;
   int? _lastNotifiedEngineHandle;
@@ -355,11 +353,16 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     _applyBrushSettings(handle, usePressureOverride: _activeStrokeUsesPressure);
     _activeDrawingPointer = event.pointer;
     _enqueuePoint(event, _kPointFlagDown);
+    _flushToRust(handle);
     widget.onStrokeBegin?.call();
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
     if (_activeDrawingPointer != event.pointer) {
+      return;
+    }
+    final int? handle = _engineHandle;
+    if (handle == null) {
       return;
     }
     final dynamic dyn = event;
@@ -371,10 +374,12 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
             _enqueuePoint(e, _kPointFlagMove);
           }
         }
+        _flushToRust(handle);
         return;
       }
     } catch (_) {}
     _enqueuePoint(event, _kPointFlagMove);
+    _flushToRust(handle);
   }
 
   void _handlePointerUp(PointerUpEvent event) {
@@ -385,6 +390,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       debugPrint('[rust_canvas] up id=${event.pointer} pos=${event.localPosition}');
     }
     _enqueuePoint(event, _kPointFlagUp);
+    final int? handle = _engineHandle;
+    if (handle != null) {
+      _flushToRust(handle);
+    }
     _activeDrawingPointer = null;
   }
 
@@ -396,6 +405,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       debugPrint('[rust_canvas] cancel id=${event.pointer} pos=${event.localPosition}');
     }
     _enqueuePoint(event, _kPointFlagUp);
+    final int? handle = _engineHandle;
+    if (handle != null) {
+      _flushToRust(handle);
+    }
     _activeDrawingPointer = null;
   }
 
@@ -430,27 +443,6 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       flags: flags,
       pointerId: event.pointer,
     );
-    _scheduleFlush();
-  }
-
-  void _scheduleFlush() {
-    if (_flushScheduled) {
-      return;
-    }
-    _flushScheduled = true;
-    SchedulerBinding.instance.scheduleFrameCallback((_) {
-      _flushScheduled = false;
-      if (!mounted) {
-        _points.clear();
-        return;
-      }
-      final int? handle = _engineHandle;
-      if (handle == null) {
-        _points.clear();
-        return;
-      }
-      _flushToRust(handle);
-    });
   }
 
   void _flushToRust(int handle) {

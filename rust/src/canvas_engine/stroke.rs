@@ -72,7 +72,7 @@ impl StrokeResampler {
         }
     }
 
-    pub(crate) fn consume_and_draw<F: FnMut((i32, i32, i32, i32))>(
+    pub(crate) fn consume_and_draw<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32))>(
         &mut self,
         brush: &mut BrushRenderer,
         brush_settings: &EngineBrushSettings,
@@ -182,7 +182,7 @@ impl StrokeResampler {
             let r0 = brush_settings.radius_from_pressure(pres0);
             let dirty_r0 = r0 * dirty_scale;
             let dirty = compute_dirty_rect_i32(&[p0], &[dirty_r0], canvas_width, canvas_height);
-            before_draw(dirty);
+            before_draw(brush, dirty);
             let rotation = if brush_settings.random_rotation
                 && !matches!(brush_settings.shape, BrushShape::Circle)
             {
@@ -226,7 +226,7 @@ impl StrokeResampler {
             }
             let dirty_radii: Vec<f32> = radii.iter().map(|r| r * dirty_scale).collect();
             let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
-            before_draw(dirty);
+            before_draw(brush, dirty);
             let rotation = if brush_settings.random_rotation
                 && !matches!(brush_settings.shape, BrushShape::Circle)
             {
@@ -271,7 +271,7 @@ impl StrokeResampler {
                 let radii = [r0, r1];
                 let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
                 let dirty = compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
-                before_draw(dirty);
+                before_draw(brush, dirty);
                 let rotation = if brush_settings.random_rotation
                     && !matches!(brush_settings.shape, BrushShape::Circle)
                 {
