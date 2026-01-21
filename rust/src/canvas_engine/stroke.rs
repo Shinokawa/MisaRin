@@ -262,48 +262,140 @@ impl StrokeResampler {
                 }
             }
         } else {
-            for i in 0..emitted.len().saturating_sub(1) {
-                let (p0, pres0) = emitted[i];
-                let (p1, pres1) = emitted[i + 1];
-                let r0 = brush_settings.radius_from_pressure(pres0);
-                let r1 = brush_settings.radius_from_pressure(pres1);
-                let pts = [p0, p1];
-                let radii = [r0, r1];
-                let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
-                let dirty = compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
-                before_draw(brush, dirty);
-                let rotation = if brush_settings.random_rotation
-                    && !matches!(brush_settings.shape, BrushShape::Circle)
-                {
-                    brush_random_rotation_radians(p0, brush_settings.rotation_seed)
-                } else {
-                    0.0
-                };
-                match brush.draw_stroke(
-                    layer_view,
-                    &pts,
-                    &radii,
-                    Color {
-                        argb: brush_settings.color_argb,
-                    },
-                    brush_settings.shape,
-                    brush_settings.erase,
-                    brush_settings.antialias_level,
-                    rotation,
-                    hollow_enabled,
-                    hollow_ratio,
-                    hollow_erase,
-                    hollow_enabled,
-                ) {
-                    Ok(()) => {
-                        drew_any = true;
-                        dirty_union = union_dirty_rect_i32(dirty_union, dirty);
+            let needs_per_segment_rotation = brush_settings.random_rotation
+                && !matches!(brush_settings.shape, BrushShape::Circle);
+            let color = Color {
+                argb: brush_settings.color_argb,
+            };
+            if needs_per_segment_rotation {
+                for i in 0..emitted.len().saturating_sub(1) {
+                    let (p0, pres0) = emitted[i];
+                    let (p1, pres1) = emitted[i + 1];
+                    let r0 = brush_settings.radius_from_pressure(pres0);
+                    let r1 = brush_settings.radius_from_pressure(pres1);
+                    let pts = [p0, p1];
+                    let radii = [r0, r1];
+                    let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
+                    let dirty =
+                        compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
+                    before_draw(brush, dirty);
+                    let rotation = brush_random_rotation_radians(p0, brush_settings.rotation_seed);
+                    match brush.draw_stroke(
+                        layer_view,
+                        &pts,
+                        &radii,
+                        color,
+                        brush_settings.shape,
+                        brush_settings.erase,
+                        brush_settings.antialias_level,
+                        rotation,
+                        hollow_enabled,
+                        hollow_ratio,
+                        hollow_erase,
+                        hollow_enabled,
+                    ) {
+                        Ok(()) => {
+                            drew_any = true;
+                            dirty_union = union_dirty_rect_i32(dirty_union, dirty);
+                        }
+                        Err(err) => {
+                            debug::log(
+                                LogLevel::Warn,
+                                format_args!("Brush draw_stroke failed: {err}"),
+                            );
+                        }
                     }
-                    Err(err) => {
-                        debug::log(
-                            LogLevel::Warn,
-                            format_args!("Brush draw_stroke failed: {err}"),
-                        );
+                }
+            } else {
+                const MAX_BATCH_POINTS: usize = 128;
+                let mut batch_points: Vec<Point2D> = Vec::with_capacity(MAX_BATCH_POINTS + 1);
+                let mut batch_radii: Vec<f32> = Vec::with_capacity(MAX_BATCH_POINTS + 1);
+                let mut batch_dirty_union: Option<(i32, i32, i32, i32)> = None;
+
+                for i in 0..emitted.len().saturating_sub(1) {
+                    let (p0, pres0) = emitted[i];
+                    let (p1, pres1) = emitted[i + 1];
+                    let r0 = brush_settings.radius_from_pressure(pres0);
+                    let r1 = brush_settings.radius_from_pressure(pres1);
+                    let pts = [p0, p1];
+                    let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
+                    let dirty =
+                        compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
+                    before_draw(brush, dirty);
+                    batch_dirty_union = union_dirty_rect_i32(batch_dirty_union, dirty);
+
+                    if batch_points.is_empty() {
+                        batch_points.push(p0);
+                        batch_radii.push(r0);
+                    }
+                    batch_points.push(p1);
+                    batch_radii.push(r1);
+
+                    if batch_points.len() >= MAX_BATCH_POINTS {
+                        match brush.draw_stroke(
+                            layer_view,
+                            &batch_points,
+                            &batch_radii,
+                            color,
+                            brush_settings.shape,
+                            brush_settings.erase,
+                            brush_settings.antialias_level,
+                            0.0,
+                            hollow_enabled,
+                            hollow_ratio,
+                            hollow_erase,
+                            hollow_enabled,
+                        ) {
+                            Ok(()) => {
+                                drew_any = true;
+                                if let Some(batch_dirty) = batch_dirty_union {
+                                    dirty_union = union_dirty_rect_i32(dirty_union, batch_dirty);
+                                }
+                            }
+                            Err(err) => {
+                                debug::log(
+                                    LogLevel::Warn,
+                                    format_args!("Brush draw_stroke failed: {err}"),
+                                );
+                            }
+                        }
+                        let last_point = *batch_points.last().expect("batch points not empty");
+                        let last_radius = *batch_radii.last().expect("batch radii not empty");
+                        batch_points.clear();
+                        batch_radii.clear();
+                        batch_points.push(last_point);
+                        batch_radii.push(last_radius);
+                        batch_dirty_union = None;
+                    }
+                }
+
+                if batch_points.len() > 1 {
+                    match brush.draw_stroke(
+                        layer_view,
+                        &batch_points,
+                        &batch_radii,
+                        color,
+                        brush_settings.shape,
+                        brush_settings.erase,
+                        brush_settings.antialias_level,
+                        0.0,
+                        hollow_enabled,
+                        hollow_ratio,
+                        hollow_erase,
+                        hollow_enabled,
+                    ) {
+                        Ok(()) => {
+                            drew_any = true;
+                            if let Some(batch_dirty) = batch_dirty_union {
+                                dirty_union = union_dirty_rect_i32(dirty_union, batch_dirty);
+                            }
+                        }
+                        Err(err) => {
+                            debug::log(
+                                LogLevel::Warn,
+                                format_args!("Brush draw_stroke failed: {err}"),
+                            );
+                        }
                     }
                 }
             }

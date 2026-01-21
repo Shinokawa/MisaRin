@@ -281,6 +281,11 @@ pub(crate) fn attach_present_texture(
         return None;
     }
 
+    // Use ForeignTypeRef logic to avoid taking ownership if possible, 
+    // or ensure we clone it properly. 
+    // metal::Texture::from_ptr wraps it. 
+    // In metal-rs 0.24+, from_ptr calls objc_retain.
+    // So dropping it will call release. This is correct if we want to share ownership.
     let raw_texture = unsafe { metal::Texture::from_ptr(raw_ptr) };
     let hal_texture = unsafe {
         wgpu_hal::metal::Device::texture_from_raw(
