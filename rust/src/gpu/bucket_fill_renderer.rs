@@ -5,6 +5,7 @@ use wgpu::{BindGroup, BindGroupLayout, ComputePipeline, Device, Queue};
 
 
 const WORKGROUP_SIZE: u32 = 16;
+const READBACK_BATCH: u32 = 16;
 
 const MODE_CLEAR: u32 = 0;
 const MODE_READ_BASE: u32 = 1;
@@ -444,17 +445,12 @@ impl BucketFillRenderer {
             config.mode = MODE_INIT_OUTSIDE;
             dispatch(&config)?;
 
-            loop {
-                self.write_state_field(STATE_ITER_OFFSET, 0);
-                config.mode = MODE_EXPAND_OUTSIDE;
-                dispatch(&config)?;
-                config.mode = MODE_FRONTIER_SWAP;
-                dispatch(&config)?;
-                let snapshot = self.read_state()?;
-                if snapshot.iter_flag == 0 {
-                    break;
-                }
-            }
+            let _ = self.run_batched_until(
+                &mut config,
+                MODE_EXPAND_OUTSIDE,
+                &dispatch,
+                |snapshot| snapshot.iter_flag == 0,
+            )?;
 
             let mut snap_found = false;
             let mut effective_start = start_index;
@@ -482,28 +478,16 @@ impl BucketFillRenderer {
                 self.write_state_field(STATE_EFFECTIVE_START_OFFSET, effective_start);
             }
 
-            if snap_found {
+            let touches_outside = if snap_found {
                 self.write_state_field(STATE_TOUCHES_OFFSET, 0);
                 config.mode = MODE_TOUCH_INIT;
                 dispatch(&config)?;
-                loop {
-                    self.write_state_field(STATE_ITER_OFFSET, 0);
-                    config.mode = MODE_TOUCH_EXPAND;
-                    dispatch(&config)?;
-                    config.mode = MODE_FRONTIER_SWAP;
-                    dispatch(&config)?;
-                    let snapshot = self.read_state()?;
-                    if snapshot.touches_outside != 0 {
-                        break;
-                    }
-                    if snapshot.iter_flag == 0 {
-                        break;
-                    }
-                }
-            }
-
-            let touches_outside = if snap_found {
-                let snapshot = self.read_state()?;
+                let snapshot = self.run_batched_until(
+                    &mut config,
+                    MODE_TOUCH_EXPAND,
+                    &dispatch,
+                    |snapshot| snapshot.iter_flag == 0 || snapshot.touches_outside != 0,
+                )?;
                 snapshot.touches_outside != 0
             } else {
                 true
@@ -518,34 +502,24 @@ impl BucketFillRenderer {
             }
             dispatch(&config)?;
 
-            loop {
-                self.write_state_field(STATE_ITER_OFFSET, 0);
-                config.mode = MODE_FILL_EXPAND;
-                dispatch(&config)?;
-                config.mode = MODE_FRONTIER_SWAP;
-                dispatch(&config)?;
-                let snapshot = self.read_state()?;
-                if snapshot.iter_flag == 0 {
-                    break;
-                }
-            }
+            let _ = self.run_batched_until(
+                &mut config,
+                MODE_FILL_EXPAND,
+                &dispatch,
+                |snapshot| snapshot.iter_flag == 0,
+            )?;
         } else {
             config.mode = MODE_FILL_INIT;
             config.aux0 = 0;
             config.start_index = start_index;
             dispatch(&config)?;
 
-            loop {
-                self.write_state_field(STATE_ITER_OFFSET, 0);
-                config.mode = MODE_FILL_EXPAND;
-                dispatch(&config)?;
-                config.mode = MODE_FRONTIER_SWAP;
-                dispatch(&config)?;
-                let snapshot = self.read_state()?;
-                if snapshot.iter_flag == 0 {
-                    break;
-                }
-            }
+            let _ = self.run_batched_until(
+                &mut config,
+                MODE_FILL_EXPAND,
+                &dispatch,
+                |snapshot| snapshot.iter_flag == 0,
+            )?;
 
             if config.tolerance > 0 {
                 config.mode = MODE_EXPAND_FILL_ONE;
@@ -566,18 +540,13 @@ impl BucketFillRenderer {
                 if snapshot.iter_flag == 0 {
                     continue;
                 }
-                loop {
-                    self.write_state_field(STATE_ITER_OFFSET, 0);
-                    config.mode = MODE_SWALLOW_EXPAND;
-                    config.aux0 = idx as u32;
-                    dispatch(&config)?;
-                    config.mode = MODE_FRONTIER_SWAP;
-                    dispatch(&config)?;
-                    snapshot = self.read_state()?;
-                    if snapshot.iter_flag == 0 {
-                        break;
-                    }
-                }
+                config.aux0 = idx as u32;
+                let _ = self.run_batched_until(
+                    &mut config,
+                    MODE_SWALLOW_EXPAND,
+                    &dispatch,
+                    |snapshot| snapshot.iter_flag == 0,
+                )?;
             }
         }
 
@@ -776,6 +745,32 @@ impl BucketFillRenderer {
         }
         self.queue.submit(Some(encoder.finish()));
         Ok(())
+    }
+
+    fn run_batched_until<F, S>(
+        &self,
+        config: &mut BucketFillConfig,
+        expand_mode: u32,
+        dispatch: &F,
+        mut stop: S,
+    ) -> Result<BucketFillStateSnapshot, String>
+    where
+        F: Fn(&BucketFillConfig) -> Result<(), String>,
+        S: FnMut(&BucketFillStateSnapshot) -> bool,
+    {
+        loop {
+            self.write_state_field(STATE_ITER_OFFSET, 0);
+            for _ in 0..READBACK_BATCH {
+                config.mode = expand_mode;
+                dispatch(config)?;
+                config.mode = MODE_FRONTIER_SWAP;
+                dispatch(config)?;
+            }
+            let snapshot = self.read_state()?;
+            if stop(&snapshot) {
+                return Ok(snapshot);
+            }
+        }
     }
 
     fn read_state(&self) -> Result<BucketFillStateSnapshot, String> {
