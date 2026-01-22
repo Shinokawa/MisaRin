@@ -1496,6 +1496,46 @@ fn handle_engine_command(
                     needs_render: false,
                 };
             }
+            if let Some(renderer) = transform_renderer.as_mut() {
+                let matrix = translation_matrix(delta_x, delta_y);
+                undo.begin_stroke(layer_index);
+                undo.capture_before_for_dirty_rect(
+                    device,
+                    queue,
+                    layers.texture(),
+                    layer_index,
+                    (0, 0, canvas_width as i32, canvas_height as i32),
+                );
+                if let Err(err) = renderer.apply_transform(
+                    layers.array_view(),
+                    layers.texture(),
+                    canvas_width,
+                    canvas_height,
+                    layer_index,
+                    matrix,
+                    false,
+                ) {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("layer translate GPU failed: {err}"),
+                    );
+                    undo.cancel_stroke();
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+                undo.end_stroke(device, queue, layers.texture());
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = None;
+                }
+                let _ = reply.send(true);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
+            }
             let pixels = match read_r32uint_layer(
                 device,
                 queue,
@@ -1858,6 +1898,17 @@ fn handle_engine_command(
 struct EngineCommandOutcome {
     stop: bool,
     needs_render: bool,
+}
+
+fn translation_matrix(delta_x: i32, delta_y: i32) -> [f32; 16] {
+    let tx = -(delta_x as f32);
+    let ty = -(delta_y as f32);
+    [
+        1.0, 0.0, 0.0, 0.0, //
+        0.0, 1.0, 0.0, 0.0, //
+        0.0, 0.0, 1.0, 0.0, //
+        tx, ty, 0.0, 1.0, //
+    ]
 }
 
 fn fill_r32uint_texture(

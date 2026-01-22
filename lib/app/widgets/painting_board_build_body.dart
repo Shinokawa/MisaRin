@@ -436,6 +436,9 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   _controller
                                                       .activeLayerTransformBlendMode,
                                                 );
+                                            final bool suppressLayerAdjustOverlay =
+                                                widget.useRustCanvas &&
+                                                _layerAdjustUsingRustPreview;
                                             final bool hasSelectionOverlay =
                                                 selectionPath != null ||
                                                 selectionPreviewPath != null ||
@@ -633,6 +636,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               if (transformImageOverlay != null)
                                                 transformImageOverlay
                                               else if (!_isLayerFreeTransformActive &&
+                                                  !suppressLayerAdjustOverlay &&
                                                   isTransforming &&
                                                   transformedActiveLayerImage !=
                                                       null)

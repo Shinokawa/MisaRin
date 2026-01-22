@@ -56,6 +56,8 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       return;
     }
     _focusNode.requestFocus();
+    _layerAdjustUsingRustPreview = false;
+    _layerAdjustRustPreviewLayerIndex = null;
     if (widget.useRustCanvas) {
       _layerAdjustRustSynced = _syncActiveLayerFromRustForAdjust(layer);
     } else {
@@ -63,7 +65,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
     _controller.translateActiveLayer(0, 0);
     if (widget.useRustCanvas && _controller.isActiveLayerTransforming) {
-      _hideRustLayerForAdjust(layer);
+      if (!_startRustLayerAdjustPreview(layer)) {
+        _hideRustLayerForAdjust(layer);
+      }
     }
     _isLayerDragging = true;
     _layerDragStart = boardLocal;
@@ -89,6 +93,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _layerDragAppliedDx = moveX;
     _layerDragAppliedDy = moveY;
     _controller.translateActiveLayer(moveX, moveY);
+    if (_layerAdjustUsingRustPreview) {
+      _updateRustLayerAdjustPreview(moveX, moveY);
+    }
     _markDirty();
   }
 
@@ -119,6 +126,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _layerDragAppliedDx = 0;
     _layerDragAppliedDy = 0;
     if (!moved) {
+      _clearRustLayerAdjustPreview();
       if (widget.useRustCanvas) {
         _restoreRustLayerAfterAdjust();
       }
@@ -130,6 +138,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _controller.commitActiveLayerTranslation();
     if (widget.useRustCanvas) {
       _applyRustLayerTranslation(dx, dy);
+      _clearRustLayerAdjustPreview();
       _restoreRustLayerAfterAdjust();
     }
     _layerAdjustRustSynced = false;
@@ -137,6 +146,83 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
 
   void _finishLayerAdjustDrag() {
     unawaited(_finalizeLayerAdjustDrag());
+  }
+
+  Float32List _buildLayerAdjustTransformMatrix(int dx, int dy) {
+    final Float32List matrix = Float32List(16);
+    matrix[0] = 1.0;
+    matrix[5] = 1.0;
+    matrix[10] = 1.0;
+    matrix[15] = 1.0;
+    matrix[12] = -dx.toDouble();
+    matrix[13] = -dy.toDouble();
+    return matrix;
+  }
+
+  bool _startRustLayerAdjustPreview(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Float32List matrix = _buildLayerAdjustTransformMatrix(0, 0);
+    final bool ok = CanvasEngineFfi.instance.setLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      enabled: true,
+      bilinear: false,
+    );
+    if (ok) {
+      _layerAdjustUsingRustPreview = true;
+      _layerAdjustRustPreviewLayerIndex = layerIndex;
+    }
+    return ok;
+  }
+
+  void _updateRustLayerAdjustPreview(int dx, int dy) {
+    if (!_layerAdjustUsingRustPreview) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerAdjustRustPreviewLayerIndex;
+    if (!_canUseRustCanvasEngine() || handle == null || layerIndex == null) {
+      return;
+    }
+    final Float32List matrix = _buildLayerAdjustTransformMatrix(dx, dy);
+    CanvasEngineFfi.instance.setLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      enabled: true,
+      bilinear: false,
+    );
+  }
+
+  void _clearRustLayerAdjustPreview() {
+    if (!_layerAdjustUsingRustPreview) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerAdjustRustPreviewLayerIndex;
+    if (_canUseRustCanvasEngine() && handle != null && layerIndex != null) {
+      final Float32List matrix = _buildLayerAdjustTransformMatrix(0, 0);
+      CanvasEngineFfi.instance.setLayerTransformPreview(
+        handle: handle,
+        layerIndex: layerIndex,
+        matrix: matrix,
+        enabled: false,
+        bilinear: false,
+      );
+    }
+    _layerAdjustUsingRustPreview = false;
+    _layerAdjustRustPreviewLayerIndex = null;
   }
 
   void _applyRustLayerTranslation(int dx, int dy) {

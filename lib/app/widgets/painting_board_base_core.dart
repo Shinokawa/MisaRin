@@ -78,6 +78,8 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
   bool _layerAdjustRustSynced = false;
+  bool _layerAdjustUsingRustPreview = false;
+  int? _layerAdjustRustPreviewLayerIndex;
   int? _layerAdjustRustHiddenLayerIndex;
   bool _layerAdjustRustHiddenVisible = false;
   int? _layerTransformRustHiddenLayerIndex;
