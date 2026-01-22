@@ -37,6 +37,11 @@ struct BucketFillState {
   snap_found: atomic<u32>,
 }
 
+struct FrontierCounts {
+  count_a: atomic<u32>,
+  count_b: atomic<u32>,
+}
+
 @group(0) @binding(0) var layer_tex: texture_storage_2d<r32uint, read_write>;
 @group(0) @binding(1) var layers_tex: texture_2d_array<u32>;
 @group(0) @binding(2) var mask_a: texture_storage_2d<r32uint, read_write>;
@@ -45,6 +50,11 @@ struct BucketFillState {
 @group(0) @binding(5) var<storage, read_write> state: BucketFillState;
 @group(0) @binding(6) var<storage, read> swallow_colors: array<u32>;
 @group(0) @binding(7) var<uniform> cfg: BucketFillConfig;
+@group(0) @binding(8) var<storage, read_write> frontier_a: array<u32>;
+@group(0) @binding(9) var<storage, read_write> frontier_b: array<u32>;
+@group(0) @binding(10) var<storage, read_write> frontier_counts: FrontierCounts;
+@group(0) @binding(11) var<storage, read_write> frontier_indirect: array<u32>;
+@group(0) @binding(12) var<storage, read_write> visited_bits: array<atomic<u32>>;
 
 const MASK_SELECTION: u32 = 1u;
 const MASK_TARGET: u32 = 2u;
@@ -82,6 +92,13 @@ const MODE_AA_PASS: u32 = 20u;
 const MODE_COPY_TEMP_TO_LAYER: u32 = 21u;
 const MODE_COPY_MASKB_BIT: u32 = 22u;
 const MODE_EXPAND_FILL_ONE: u32 = 23u;
+const MODE_FILL_QUEUE_CLEAR: u32 = 24u;
+const MODE_FILL_QUEUE_PREPARE: u32 = 25u;
+const MODE_FILL_QUEUE_EXPAND: u32 = 26u;
+const MODE_FILL_QUEUE_SWAP: u32 = 27u;
+
+const WORKGROUP_SIZE: u32 = 16u;
+const QUEUE_GROUP_SIZE: u32 = 256u;
 
 fn mul255(channel: u32, alpha: u32) -> u32 {
   return (channel * alpha + 127u) / 255u;
@@ -277,14 +294,180 @@ fn neighbor_has_fill(x: u32, y: u32) -> bool {
   return false;
 }
 
+fn total_pixels() -> u32 {
+  return cfg.width * cfg.height;
+}
+
+fn visited_word_count(total: u32) -> u32 {
+  return (total + 31u) >> 5u;
+}
+
+fn linear_index(lid: vec3<u32>, wid: vec3<u32>) -> u32 {
+  return wid.x * QUEUE_GROUP_SIZE + lid.y * WORKGROUP_SIZE + lid.x;
+}
+
+fn claim_visited(index: u32) -> bool {
+  let word = index >> 5u;
+  let bit = 1u << (index & 31u);
+  let prev = atomicOr(&visited_bits[word], bit);
+  return (prev & bit) == 0u;
+}
+
+fn write_indirect(count: u32) {
+  let groups = (count + QUEUE_GROUP_SIZE - 1u) / QUEUE_GROUP_SIZE;
+  frontier_indirect[0] = groups;
+  frontier_indirect[1] = 1u;
+  frontier_indirect[2] = 1u;
+}
+
+fn frontier_count(use_b: bool) -> u32 {
+  if (use_b) {
+    return atomicLoad(&frontier_counts.count_b);
+  }
+  return atomicLoad(&frontier_counts.count_a);
+}
+
+fn frontier_push(index: u32, use_b: bool, capacity: u32) {
+  if (use_b) {
+    let slot = atomicAdd(&frontier_counts.count_b, 1u);
+    if (slot < capacity) {
+      frontier_b[slot] = index;
+    }
+  } else {
+    let slot = atomicAdd(&frontier_counts.count_a, 1u);
+    if (slot < capacity) {
+      frontier_a[slot] = index;
+    }
+  }
+}
+
 @compute @workgroup_size(16, 16)
-fn bucket_fill_main(@builtin(global_invocation_id) id: vec3<u32>) {
-  let x = id.x;
-  let y = id.y;
+fn bucket_fill_main(
+  @builtin(global_invocation_id) gid: vec3<u32>,
+  @builtin(local_invocation_id) lid: vec3<u32>,
+  @builtin(workgroup_id) wid: vec3<u32>
+) {
+  let mode = cfg.mode;
+  let linear = linear_index(lid, wid);
+  let total = total_pixels();
+
+  if (mode == MODE_FILL_QUEUE_CLEAR) {
+    let word_count = visited_word_count(total);
+    if (linear >= word_count) {
+      return;
+    }
+    atomicStore(&visited_bits[linear], 0u);
+    return;
+  }
+
+  if (mode == MODE_FILL_QUEUE_PREPARE) {
+    if (linear != 0u) {
+      return;
+    }
+    let input_is_b = cfg.aux1 != 0u;
+    let count = frontier_count(input_is_b);
+    write_indirect(count);
+    if (input_is_b) {
+      atomicStore(&frontier_counts.count_a, 0u);
+    } else {
+      atomicStore(&frontier_counts.count_b, 0u);
+    }
+    return;
+  }
+
+  if (mode == MODE_FILL_QUEUE_SWAP) {
+    if (linear != 0u) {
+      return;
+    }
+    let input_is_b = cfg.aux1 != 0u;
+    if (input_is_b) {
+      let next_count = atomicLoad(&frontier_counts.count_a);
+      atomicStore(&frontier_counts.count_b, 0u);
+      write_indirect(next_count);
+    } else {
+      let next_count = atomicLoad(&frontier_counts.count_b);
+      atomicStore(&frontier_counts.count_a, 0u);
+      write_indirect(next_count);
+    }
+    return;
+  }
+
+  if (mode == MODE_FILL_QUEUE_EXPAND) {
+    let input_is_b = cfg.aux1 != 0u;
+    let input_count = frontier_count(input_is_b);
+    if (linear >= input_count) {
+      return;
+    }
+    let index = select(frontier_a[linear], frontier_b[linear], input_is_b);
+    let x = index % cfg.width;
+    let y = index / cfg.width;
+    let output_is_b = !input_is_b;
+    let use_outside = cfg.aux0 != 0u;
+
+    if (x > 0u) {
+      let nx = x - 1u;
+      let ny = y;
+      let nindex = ny * cfg.width + nx;
+      let a = textureLoad(mask_a, vec2<i32>(i32(nx), i32(ny))).x;
+      if ((a & MASK_FILL) == 0u && (a & MASK_TARGET) != 0u) {
+        if (!use_outside || (textureLoad(mask_b, vec2<i32>(i32(nx), i32(ny))).x & MASK_OUTSIDE) == 0u) {
+          if (claim_visited(nindex)) {
+            textureStore(mask_a, vec2<i32>(i32(nx), i32(ny)), vec4<u32>(a | MASK_FILL, 0u, 0u, 0u));
+            frontier_push(nindex, output_is_b, total);
+          }
+        }
+      }
+    }
+    if (x + 1u < cfg.width) {
+      let nx = x + 1u;
+      let ny = y;
+      let nindex = ny * cfg.width + nx;
+      let a = textureLoad(mask_a, vec2<i32>(i32(nx), i32(ny))).x;
+      if ((a & MASK_FILL) == 0u && (a & MASK_TARGET) != 0u) {
+        if (!use_outside || (textureLoad(mask_b, vec2<i32>(i32(nx), i32(ny))).x & MASK_OUTSIDE) == 0u) {
+          if (claim_visited(nindex)) {
+            textureStore(mask_a, vec2<i32>(i32(nx), i32(ny)), vec4<u32>(a | MASK_FILL, 0u, 0u, 0u));
+            frontier_push(nindex, output_is_b, total);
+          }
+        }
+      }
+    }
+    if (y > 0u) {
+      let nx = x;
+      let ny = y - 1u;
+      let nindex = ny * cfg.width + nx;
+      let a = textureLoad(mask_a, vec2<i32>(i32(nx), i32(ny))).x;
+      if ((a & MASK_FILL) == 0u && (a & MASK_TARGET) != 0u) {
+        if (!use_outside || (textureLoad(mask_b, vec2<i32>(i32(nx), i32(ny))).x & MASK_OUTSIDE) == 0u) {
+          if (claim_visited(nindex)) {
+            textureStore(mask_a, vec2<i32>(i32(nx), i32(ny)), vec4<u32>(a | MASK_FILL, 0u, 0u, 0u));
+            frontier_push(nindex, output_is_b, total);
+          }
+        }
+      }
+    }
+    if (y + 1u < cfg.height) {
+      let nx = x;
+      let ny = y + 1u;
+      let nindex = ny * cfg.width + nx;
+      let a = textureLoad(mask_a, vec2<i32>(i32(nx), i32(ny))).x;
+      if ((a & MASK_FILL) == 0u && (a & MASK_TARGET) != 0u) {
+        if (!use_outside || (textureLoad(mask_b, vec2<i32>(i32(nx), i32(ny))).x & MASK_OUTSIDE) == 0u) {
+          if (claim_visited(nindex)) {
+            textureStore(mask_a, vec2<i32>(i32(nx), i32(ny)), vec4<u32>(a | MASK_FILL, 0u, 0u, 0u));
+            frontier_push(nindex, output_is_b, total);
+          }
+        }
+      }
+    }
+    return;
+  }
+
+  let x = gid.x;
+  let y = gid.y;
   if (x >= cfg.width || y >= cfg.height) {
     return;
   }
-  let mode = cfg.mode;
 
   if (mode == MODE_CLEAR) {
     var a = textureLoad(mask_a, vec2<i32>(i32(x), i32(y))).x;
@@ -446,6 +629,14 @@ fn bucket_fill_main(@builtin(global_invocation_id) id: vec3<u32>) {
       if (is_target && (!use_outside || !outside)) {
         a = a | MASK_FILL;
         b = b | MASK_FRONTIER;
+        let word = index >> 5u;
+        let bit = 1u << (index & 31u);
+        _ = atomicOr(&visited_bits[word], bit);
+        let slot = atomicAdd(&frontier_counts.count_a, 1u);
+        let capacity = total_pixels();
+        if (slot < capacity) {
+          frontier_a[slot] = index;
+        }
       }
     }
     textureStore(mask_a, vec2<i32>(i32(x), i32(y)), vec4<u32>(a, 0u, 0u, 0u));

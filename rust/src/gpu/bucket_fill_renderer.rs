@@ -5,6 +5,7 @@ use wgpu::{BindGroup, BindGroupLayout, ComputePipeline, Device, Queue};
 
 
 const WORKGROUP_SIZE: u32 = 16;
+const QUEUE_GROUP_SIZE: u32 = WORKGROUP_SIZE * WORKGROUP_SIZE;
 const READBACK_BATCH: u32 = 16;
 
 const MODE_CLEAR: u32 = 0;
@@ -31,6 +32,10 @@ const MODE_AA_PASS: u32 = 20;
 const MODE_COPY_TEMP_TO_LAYER: u32 = 21;
 const MODE_COPY_MASKB_BIT: u32 = 22;
 const MODE_EXPAND_FILL_ONE: u32 = 23;
+const MODE_FILL_QUEUE_CLEAR: u32 = 24;
+const MODE_FILL_QUEUE_PREPARE: u32 = 25;
+const MODE_FILL_QUEUE_EXPAND: u32 = 26;
+const MODE_FILL_QUEUE_SWAP: u32 = 27;
 
 const MASK_OPENED: u32 = 1;
 const MASK_TEMP: u32 = 64;
@@ -42,6 +47,7 @@ const STATE_EFFECTIVE_START_OFFSET: u64 = 12;
 const STATE_TOUCHES_OFFSET: u64 = 16;
 const STATE_SNAP_FOUND_OFFSET: u64 = 20;
 const STATE_SIZE: u64 = 24;
+const INDIRECT_ARGS_SIZE: u64 = 12;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -107,6 +113,14 @@ pub struct BucketFillRenderer {
     config_buffer: wgpu::Buffer,
     state_buffer: wgpu::Buffer,
     state_readback: wgpu::Buffer,
+    frontier_a: wgpu::Buffer,
+    frontier_b: wgpu::Buffer,
+    frontier_counts: wgpu::Buffer,
+    frontier_indirect_storage: wgpu::Buffer,
+    frontier_indirect_args: wgpu::Buffer,
+    visited_bits: wgpu::Buffer,
+    frontier_capacity: u32,
+    visited_capacity: u32,
 
     layer_params_buffer: wgpu::Buffer,
     layer_params_capacity: usize,
@@ -207,6 +221,56 @@ impl BucketFillRenderer {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 9,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 10,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 11,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 12,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -244,6 +308,43 @@ impl BucketFillRenderer {
             mapped_at_creation: false,
         });
 
+        let frontier_a = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer frontier A"),
+            size: 4,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        let frontier_b = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer frontier B"),
+            size: 4,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        let frontier_counts = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer frontier counts"),
+            size: 8,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let frontier_indirect_storage = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer frontier indirect storage"),
+            size: INDIRECT_ARGS_SIZE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let frontier_indirect_args = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer frontier indirect args"),
+            size: INDIRECT_ARGS_SIZE,
+            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let visited_bits = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer visited bits"),
+            size: 4,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+
         let layer_params_buffer = create_layer_params_buffer(device.as_ref(), 1)?;
         let swallow_buffer = create_swallow_buffer(device.as_ref(), 1)?;
         let (mask_a, mask_a_view) = create_mask_texture(device.as_ref(), 1, 1, "BucketFill mask A");
@@ -278,6 +379,14 @@ impl BucketFillRenderer {
             config_buffer,
             state_buffer,
             state_readback,
+            frontier_a,
+            frontier_b,
+            frontier_counts,
+            frontier_indirect_storage,
+            frontier_indirect_args,
+            visited_bits,
+            frontier_capacity: 1,
+            visited_capacity: 1,
             layer_params_buffer,
             layer_params_capacity: 1,
             swallow_buffer,
@@ -322,6 +431,7 @@ impl BucketFillRenderer {
         }
 
         self.ensure_masks(width, height)?;
+        self.ensure_frontier_buffers(width, height)?;
         self.ensure_layer_params_capacity(layer_count)?;
         self.write_layer_params(layer_count, layer_opacity, layer_visible, layer_clipping_mask)?;
 
@@ -493,6 +603,8 @@ impl BucketFillRenderer {
                 true
             };
 
+            self.reset_frontier_state();
+            self.dispatch_frontier_clear(&mut config, &write_bind_group)?;
             config.mode = MODE_FILL_INIT;
             config.aux0 = if touches_outside { 0 } else { 1 };
             if touches_outside {
@@ -502,24 +614,15 @@ impl BucketFillRenderer {
             }
             dispatch(&config)?;
 
-            let _ = self.run_batched_until(
-                &mut config,
-                MODE_FILL_EXPAND,
-                &dispatch,
-                |snapshot| snapshot.iter_flag == 0,
-            )?;
+            self.run_fill_queue(&mut config, &write_bind_group)?;
         } else {
+            self.reset_frontier_state();
+            self.dispatch_frontier_clear(&mut config, &write_bind_group)?;
             config.mode = MODE_FILL_INIT;
             config.aux0 = 0;
             config.start_index = start_index;
             dispatch(&config)?;
-
-            let _ = self.run_batched_until(
-                &mut config,
-                MODE_FILL_EXPAND,
-                &dispatch,
-                |snapshot| snapshot.iter_flag == 0,
-            )?;
+            self.run_fill_queue(&mut config, &write_bind_group)?;
 
             if config.tolerance > 0 {
                 config.mode = MODE_EXPAND_FILL_ONE;
@@ -604,6 +707,43 @@ impl BucketFillRenderer {
         self.mask_b_view = mask_b_view;
         self.mask_width = width;
         self.mask_height = height;
+        Ok(())
+    }
+
+    fn ensure_frontier_buffers(&mut self, width: u32, height: u32) -> Result<(), String> {
+        let pixel_count = width
+            .checked_mul(height)
+            .ok_or_else(|| "bucket fill frontier size overflow".to_string())?;
+        if pixel_count == 0 {
+            return Ok(());
+        }
+        let word_count = pixel_count.saturating_add(31) / 32;
+        if pixel_count <= self.frontier_capacity && word_count <= self.visited_capacity {
+            return Ok(());
+        }
+        let frontier_size = (pixel_count as u64) * std::mem::size_of::<u32>() as u64;
+        let visited_size = (word_count as u64) * std::mem::size_of::<u32>() as u64;
+
+        self.frontier_a = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer frontier A"),
+            size: frontier_size,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        self.frontier_b = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer frontier B"),
+            size: frontier_size,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        self.visited_bits = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BucketFillRenderer visited bits"),
+            size: visited_size.max(4),
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        self.frontier_capacity = pixel_count;
+        self.visited_capacity = word_count;
         Ok(())
     }
 
@@ -720,11 +860,44 @@ impl BucketFillRenderer {
                     binding: 7,
                     resource: self.config_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: self.frontier_a.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: self.frontier_b.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: self.frontier_counts.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: self.frontier_indirect_storage.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: self.visited_bits.as_entire_binding(),
+                },
             ],
         }))
     }
 
     fn dispatch_full(&self, bind_group: &BindGroup, config: &BucketFillConfig) -> Result<(), String> {
+        let dispatch_x = (config.width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+        let dispatch_y = (config.height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+        self.dispatch_groups(bind_group, config, dispatch_x, dispatch_y, 1)
+    }
+
+    fn dispatch_groups(
+        &self,
+        bind_group: &BindGroup,
+        config: &BucketFillConfig,
+        dispatch_x: u32,
+        dispatch_y: u32,
+        dispatch_z: u32,
+    ) -> Result<(), String> {
         self.queue
             .write_buffer(&self.config_buffer, 0, bytemuck::bytes_of(config));
         let mut encoder = self
@@ -739,11 +912,144 @@ impl BucketFillRenderer {
             });
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, bind_group, &[]);
-            let dispatch_x = (config.width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-            let dispatch_y = (config.height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-            pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+            pass.dispatch_workgroups(dispatch_x, dispatch_y, dispatch_z);
         }
         self.queue.submit(Some(encoder.finish()));
+        Ok(())
+    }
+
+    fn dispatch_groups_with_indirect_copy(
+        &self,
+        bind_group: &BindGroup,
+        config: &BucketFillConfig,
+        dispatch_x: u32,
+        dispatch_y: u32,
+        dispatch_z: u32,
+    ) -> Result<(), String> {
+        self.queue
+            .write_buffer(&self.config_buffer, 0, bytemuck::bytes_of(config));
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("BucketFillRenderer encoder"),
+            });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("BucketFillRenderer compute pass"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.dispatch_workgroups(dispatch_x, dispatch_y, dispatch_z);
+        }
+        encoder.copy_buffer_to_buffer(
+            &self.frontier_indirect_storage,
+            0,
+            &self.frontier_indirect_args,
+            0,
+            INDIRECT_ARGS_SIZE,
+        );
+        self.queue.submit(Some(encoder.finish()));
+        Ok(())
+    }
+
+    fn dispatch_indirect(&self, bind_group: &BindGroup, config: &BucketFillConfig) -> Result<(), String> {
+        self.queue
+            .write_buffer(&self.config_buffer, 0, bytemuck::bytes_of(config));
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("BucketFillRenderer encoder"),
+            });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("BucketFillRenderer compute pass"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.dispatch_workgroups_indirect(&self.frontier_indirect_args, 0);
+        }
+        self.queue.submit(Some(encoder.finish()));
+        Ok(())
+    }
+
+    fn reset_frontier_state(&self) {
+        let counts = [0u32; 2];
+        self.queue
+            .write_buffer(&self.frontier_counts, 0, bytemuck::cast_slice(&counts));
+        let indirect = [0u32, 1u32, 1u32];
+        self.queue
+            .write_buffer(&self.frontier_indirect_storage, 0, bytemuck::cast_slice(&indirect));
+        self.queue
+            .write_buffer(&self.frontier_indirect_args, 0, bytemuck::cast_slice(&indirect));
+    }
+
+    fn dispatch_frontier_clear(
+        &self,
+        config: &mut BucketFillConfig,
+        bind_group: &BindGroup,
+    ) -> Result<(), String> {
+        let total_pixels = (config.width as u64) * (config.height as u64);
+        if total_pixels == 0 {
+            return Ok(());
+        }
+        let word_count = (total_pixels + 31) / 32;
+        let dispatch_x = ((word_count + (QUEUE_GROUP_SIZE as u64) - 1) / (QUEUE_GROUP_SIZE as u64)) as u32;
+        if dispatch_x == 0 {
+            return Ok(());
+        }
+        config.mode = MODE_FILL_QUEUE_CLEAR;
+        self.dispatch_groups(bind_group, config, dispatch_x, 1, 1)
+    }
+
+    fn dispatch_frontier_prepare(
+        &self,
+        config: &mut BucketFillConfig,
+        bind_group: &BindGroup,
+        input_is_b: bool,
+    ) -> Result<(), String> {
+        config.mode = MODE_FILL_QUEUE_PREPARE;
+        config.aux1 = if input_is_b { 1 } else { 0 };
+        self.dispatch_groups_with_indirect_copy(bind_group, config, 1, 1, 1)
+    }
+
+    fn dispatch_frontier_expand(
+        &self,
+        config: &mut BucketFillConfig,
+        bind_group: &BindGroup,
+        input_is_b: bool,
+    ) -> Result<(), String> {
+        config.mode = MODE_FILL_QUEUE_EXPAND;
+        config.aux1 = if input_is_b { 1 } else { 0 };
+        self.dispatch_indirect(bind_group, config)
+    }
+
+    fn dispatch_frontier_swap(
+        &self,
+        config: &mut BucketFillConfig,
+        bind_group: &BindGroup,
+        input_is_b: bool,
+    ) -> Result<(), String> {
+        config.mode = MODE_FILL_QUEUE_SWAP;
+        config.aux1 = if input_is_b { 1 } else { 0 };
+        self.dispatch_groups_with_indirect_copy(bind_group, config, 1, 1, 1)
+    }
+
+    fn run_fill_queue(
+        &self,
+        config: &mut BucketFillConfig,
+        bind_group: &BindGroup,
+    ) -> Result<(), String> {
+        // GPU worklist: iterate frontier buffers and drive dispatch via indirect counts.
+        self.dispatch_frontier_prepare(config, bind_group, false)?;
+        let max_steps = config.width.saturating_add(config.height);
+        let mut input_is_b = false;
+        for _ in 0..max_steps {
+            self.dispatch_frontier_expand(config, bind_group, input_is_b)?;
+            self.dispatch_frontier_swap(config, bind_group, input_is_b)?;
+            input_is_b = !input_is_b;
+        }
         Ok(())
     }
 
