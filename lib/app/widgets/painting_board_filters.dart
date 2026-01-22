@@ -201,6 +201,7 @@ mixin _PaintingBoardFilterMixin
   int? _filterAwaitedFrameGeneration;
   String? _filterRustHiddenLayerId;
   bool _filterRustHiddenLayerVisible = false;
+  int _filterRustHideToken = 0;
 
   void showHueSaturationAdjustments() {
     this._openFilterPanel(_FilterPanelType.hueSaturation);
@@ -263,7 +264,8 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _enableRustFilterPreviewIfNeeded(_FilterSession session) {
-    if (!_shouldUseRustFilterPreview(session) || _previewActiveLayerImage == null) {
+    if (!_shouldUseRustFilterPreview(session) ||
+        _previewActiveLayerImage == null) {
       _restoreRustLayerAfterFilterPreview();
       return;
     }
@@ -278,24 +280,40 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     _restoreRustLayerAfterFilterPreview();
-    final BitmapLayerState? layer = _layerById(layerId);
-    if (layer == null || !layer.visible) {
-      return;
-    }
-    final int? index = _rustCanvasLayerIndexForId(layerId);
-    if (index == null) {
-      return;
-    }
-    _filterRustHiddenLayerId = layerId;
-    _filterRustHiddenLayerVisible = layer.visible;
-    CanvasEngineFfi.instance.setLayerVisible(
-      handle: _rustCanvasEngineHandle!,
-      layerIndex: index,
-      visible: false,
-    );
+    final int token = ++_filterRustHideToken;
+    // Defer hiding until the next frame so the preview overlay is ready,
+    // avoiding a visible flash.
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      if (!mounted || token != _filterRustHideToken) {
+        return;
+      }
+      final _FilterSession? session = _filterSession;
+      if (session == null ||
+          session.activeLayerId != layerId ||
+          !_shouldUseRustFilterPreview(session) ||
+          _previewActiveLayerImage == null) {
+        return;
+      }
+      final BitmapLayerState? layer = _layerById(layerId);
+      if (layer == null || !layer.visible) {
+        return;
+      }
+      final int? index = _rustCanvasLayerIndexForId(layerId);
+      if (index == null) {
+        return;
+      }
+      _filterRustHiddenLayerId = layerId;
+      _filterRustHiddenLayerVisible = layer.visible;
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: _rustCanvasEngineHandle!,
+        layerIndex: index,
+        visible: false,
+      );
+    });
   }
 
   void _restoreRustLayerAfterFilterPreview() {
+    _filterRustHideToken++;
     final String? layerId = _filterRustHiddenLayerId;
     if (layerId == null) {
       return;
