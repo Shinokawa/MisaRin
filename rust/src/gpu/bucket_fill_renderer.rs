@@ -36,6 +36,11 @@ const MODE_FILL_QUEUE_CLEAR: u32 = 24;
 const MODE_FILL_QUEUE_PREPARE: u32 = 25;
 const MODE_FILL_QUEUE_EXPAND: u32 = 26;
 const MODE_FILL_QUEUE_SWAP: u32 = 27;
+const MODE_LABEL_INIT: u32 = 28;
+const MODE_LABEL_HOOK: u32 = 29;
+const MODE_LABEL_COMPRESS: u32 = 30;
+const MODE_LABEL_SEED: u32 = 31;
+const MODE_LABEL_MARK: u32 = 32;
 
 const MASK_OPENED: u32 = 1;
 const MASK_TEMP: u32 = 64;
@@ -46,7 +51,8 @@ const STATE_ITER_OFFSET: u64 = 8;
 const STATE_EFFECTIVE_START_OFFSET: u64 = 12;
 const STATE_TOUCHES_OFFSET: u64 = 16;
 const STATE_SNAP_FOUND_OFFSET: u64 = 20;
-const STATE_SIZE: u64 = 24;
+const STATE_SEED_ROOT_OFFSET: u64 = 24;
+const STATE_SIZE: u64 = 28;
 const INDIRECT_ARGS_SIZE: u64 = 12;
 
 #[repr(C)]
@@ -91,6 +97,7 @@ struct BucketFillStateSnapshot {
     effective_start: u32,
     touches_outside: u32,
     snap_found: u32,
+    seed_root: u32,
 }
 
 pub struct BucketFillRenderer {
@@ -494,6 +501,7 @@ impl BucketFillRenderer {
         self.write_state_field(STATE_EFFECTIVE_START_OFFSET, u32::MAX);
         self.write_state_field(STATE_TOUCHES_OFFSET, 0);
         self.write_state_field(STATE_SNAP_FOUND_OFFSET, 0);
+        self.write_state_field(STATE_SEED_ROOT_OFFSET, u32::MAX);
 
         let write_bind_group = self.create_bind_group(layer_view, &self.dummy_layers_view)?;
         let sample_bind_group = self.create_bind_group(&self.dummy_layer_view, layers_view)?;
@@ -603,26 +611,17 @@ impl BucketFillRenderer {
                 true
             };
 
-            self.reset_frontier_state();
-            self.dispatch_frontier_clear(&mut config, &write_bind_group)?;
-            config.mode = MODE_FILL_INIT;
             config.aux0 = if touches_outside { 0 } else { 1 };
             if touches_outside {
                 config.start_index = start_index;
             } else {
                 config.start_index = effective_start;
             }
-            dispatch(&config)?;
-
-            self.run_fill_queue(&mut config, &write_bind_group)?;
+            self.run_label_union_find(&mut config, &dispatch)?;
         } else {
-            self.reset_frontier_state();
-            self.dispatch_frontier_clear(&mut config, &write_bind_group)?;
-            config.mode = MODE_FILL_INIT;
             config.aux0 = 0;
             config.start_index = start_index;
-            dispatch(&config)?;
-            self.run_fill_queue(&mut config, &write_bind_group)?;
+            self.run_label_union_find(&mut config, &dispatch)?;
 
             if config.tolerance > 0 {
                 config.mode = MODE_EXPAND_FILL_ONE;
@@ -1053,6 +1052,43 @@ impl BucketFillRenderer {
         Ok(())
     }
 
+    fn run_label_union_find<F>(
+        &self,
+        config: &mut BucketFillConfig,
+        dispatch: &F,
+    ) -> Result<(), String>
+    where
+        F: Fn(&BucketFillConfig) -> Result<(), String>,
+    {
+        self.write_state_field(STATE_SEED_ROOT_OFFSET, u32::MAX);
+
+        config.mode = MODE_LABEL_INIT;
+        dispatch(config)?;
+
+        let iterations = Self::label_iterations(config.width, config.height);
+        for _ in 0..iterations {
+            config.mode = MODE_LABEL_HOOK;
+            dispatch(config)?;
+            config.mode = MODE_LABEL_COMPRESS;
+            dispatch(config)?;
+        }
+
+        config.mode = MODE_LABEL_SEED;
+        dispatch(config)?;
+        config.mode = MODE_LABEL_MARK;
+        dispatch(config)?;
+        Ok(())
+    }
+
+    fn label_iterations(width: u32, height: u32) -> u32 {
+        let total = (width as u64) * (height as u64);
+        if total <= 1 {
+            return 0;
+        }
+        let bits = 64 - (total - 1).leading_zeros();
+        bits.min(32)
+    }
+
     fn run_batched_until<F, S>(
         &self,
         config: &mut BucketFillConfig,
@@ -1108,6 +1144,7 @@ impl BucketFillRenderer {
             effective_start: values.get(3).copied().unwrap_or(u32::MAX),
             touches_outside: values.get(4).copied().unwrap_or(0),
             snap_found: values.get(5).copied().unwrap_or(0),
+            seed_root: values.get(6).copied().unwrap_or(u32::MAX),
         };
         drop(data);
         self.state_readback.unmap();
