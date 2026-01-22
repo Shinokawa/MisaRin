@@ -24,12 +24,19 @@ struct CompositeConfig {
   transform_flags: u32,
 };
 
+struct LayerParams {
+  opacity: f32,
+  visible: f32,
+  clipping_mask: f32,
+  blend_mode: u32,
+};
+
 @group(0) @binding(1)
 var<uniform> cfg: CompositeConfig;
 
-// (opacity, visible, clipping_mask, _) per layer. visible: 1.0=visible, 0.0=hidden.
+// (opacity, visible, clipping_mask, blend_mode) per layer. visible: 1.0=visible, 0.0=hidden.
 @group(0) @binding(2)
-var<storage, read> layer_params: array<vec4<f32>>;
+var<storage, read> layer_params: array<LayerParams>;
 
 struct TransformConfig {
   matrix: mat4x4<f32>,
@@ -57,6 +64,113 @@ fn pack_straight_rgba(c: vec4<f32>) -> u32 {
   let b = u32(round(clamped.b * 255.0));
   let a = u32(round(clamped.a * 255.0));
   return (a << 24u) | (r << 16u) | (g << 8u) | b;
+}
+
+const EPS: f32 = 0.0000001;
+
+fn clamp01(x: f32) -> f32 {
+  return clamp(x, 0.0, 1.0);
+}
+
+fn blend_color_burn(s: f32, d: f32) -> f32 {
+  if (s <= EPS) {
+    return 0.0;
+  }
+  return 1.0 - min(1.0, (1.0 - d) / s);
+}
+
+fn blend_color_dodge(s: f32, d: f32) -> f32 {
+  if (s >= 1.0 - EPS) {
+    return 1.0;
+  }
+  return min(1.0, d / (1.0 - s));
+}
+
+fn blend_overlay(s: f32, d: f32) -> f32 {
+  if (d <= 0.5) {
+    return 2.0 * s * d;
+  }
+  return 1.0 - 2.0 * (1.0 - s) * (1.0 - d);
+}
+
+fn blend_hard_light(s: f32, d: f32) -> f32 {
+  if (s <= 0.5) {
+    return 2.0 * s * d;
+  }
+  return 1.0 - 2.0 * (1.0 - s) * (1.0 - d);
+}
+
+fn soft_light_lum(d: f32) -> f32 {
+  if (d <= 0.25) {
+    return ((16.0 * d - 12.0) * d + 4.0) * d;
+  }
+  return sqrt(d);
+}
+
+fn blend_soft_light(s: f32, d: f32) -> f32 {
+  if (s <= 0.5) {
+    return d - (1.0 - 2.0 * s) * d * (1.0 - d);
+  }
+  return d + (2.0 * s - 1.0) * (soft_light_lum(d) - d);
+}
+
+// GPU blend mode ids (mapped from Dart blend mode indices in Rust):
+// 0 Normal, 1 Multiply, 2 Screen, 3 Overlay, 4 Darken, 5 Lighten,
+// 6 ColorDodge, 7 ColorBurn, 8 HardLight, 9 SoftLight, 10 Difference, 11 Exclusion.
+fn blend_channel(mode: u32, s: f32, d: f32) -> f32 {
+  switch mode {
+    default { return s; }
+    case 0u { return s; }
+    case 1u { return s * d; }
+    case 2u { return 1.0 - (1.0 - s) * (1.0 - d); }
+    case 3u { return blend_overlay(s, d); }
+    case 4u { return min(s, d); }
+    case 5u { return max(s, d); }
+    case 6u { return blend_color_dodge(s, d); }
+    case 7u { return blend_color_burn(s, d); }
+    case 8u { return blend_hard_light(s, d); }
+    case 9u { return blend_soft_light(s, d); }
+    case 10u { return abs(d - s); }
+    case 11u { return d + s - 2.0 * d * s; }
+  }
+}
+
+fn blend_premul(
+  dst_premul: vec4<f32>,
+  src_rgb: vec3<f32>,
+  src_a: f32,
+  mode: u32,
+) -> vec4<f32> {
+  let sa = clamp01(src_a);
+  if (sa <= 0.0) {
+    return dst_premul;
+  }
+
+  let da = dst_premul.a;
+  var dr: f32 = 0.0;
+  var dg: f32 = 0.0;
+  var db: f32 = 0.0;
+  if (da > 0.0) {
+    let inv_da = 1.0 / da;
+    dr = dst_premul.r * inv_da;
+    dg = dst_premul.g * inv_da;
+    db = dst_premul.b * inv_da;
+  }
+
+  let fr = blend_channel(mode, src_rgb.r, dr);
+  let fg = blend_channel(mode, src_rgb.g, dg);
+  let fb = blend_channel(mode, src_rgb.b, db);
+
+  let out_a = sa + da * (1.0 - sa);
+  if (out_a <= 0.0) {
+    return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+  }
+
+  let rr = ((fr * sa) + dr * da * (1.0 - sa)) / out_a;
+  let rg = ((fg * sa) + dg * da * (1.0 - sa)) / out_a;
+  let rb = ((fb * sa) + db * da * (1.0 - sa)) / out_a;
+
+  return vec4<f32>(vec3<f32>(rr, rg, rb) * out_a, out_a);
 }
 
 fn load_layer_pixel(x: i32, y: i32, layer: i32) -> vec4<f32> {
@@ -104,14 +218,6 @@ fn sample_transformed(coord: vec2<f32>, layer: i32) -> u32 {
   return sample_nearest(coord, layer);
 }
 
-fn composite_over(dst_premul: vec4<f32>, src_premul: vec4<f32>) -> vec4<f32> {
-  let one_minus_sa = 1.0 - src_premul.a;
-  return vec4<f32>(
-    src_premul.rgb + dst_premul.rgb * one_minus_sa,
-    src_premul.a + dst_premul.a * one_minus_sa,
-  );
-}
-
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   let x = i32(pos.x);
@@ -123,9 +229,10 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   }
   let board_pos = vec2<f32>(f32(coord.x) + 0.5, f32(coord.y) + 0.5);
 
-  // Normal blend + per-layer opacity, bottom-to-top.
+  // Blend modes + per-layer opacity, bottom-to-top.
   var out_premul = vec4<f32>(0.0, 0.0, 0.0, 0.0);
   var mask_alpha: f32 = 0.0;
+  var initialized: bool = false;
   for (var i: u32 = 0u; i < cfg.layer_count; i = i + 1u) {
     let params = layer_params[i];
     var packed: u32 = 0u;
@@ -135,9 +242,10 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     } else {
       packed = textureLoad(layer_tex, coord, i32(i), 0).x;
     }
-    let opacity = clamp(params.x, 0.0, 1.0);
-    let visible = params.y;
-    let clipping = params.z;
+    let opacity = clamp(params.opacity, 0.0, 1.0);
+    let visible = params.visible;
+    let clipping = params.clipping_mask;
+    let blend_mode = params.blend_mode;
     if (visible < 0.5) {
       continue;
     }
@@ -178,9 +286,12 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
       mask_alpha = a;
     }
 
-    // Convert straight-alpha RGBA to premultiplied RGBA.
-    let premul = vec4<f32>(straight.rgb * a, a);
-    out_premul = composite_over(out_premul, premul);
+    if (!initialized) {
+      out_premul = vec4<f32>(straight.rgb * a, a);
+      initialized = true;
+    } else {
+      out_premul = blend_premul(out_premul, straight.rgb, a, blend_mode);
+    }
   }
 
   // Flutter's scene graph expects premultiplied alpha.

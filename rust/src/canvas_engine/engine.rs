@@ -9,6 +9,7 @@ use metal::foreign_types::ForeignType;
 use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
+use crate::gpu::blend_modes::map_canvas_blend_mode_index;
 use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::brush_renderer::BrushRenderer;
 use crate::gpu::debug::{self, LogLevel};
@@ -41,6 +42,10 @@ pub(crate) enum EngineCommand {
     SetLayerOpacity { layer_index: u32, opacity: f32 },
     SetLayerVisible { layer_index: u32, visible: bool },
     SetLayerClippingMask { layer_index: u32, clipping_mask: bool },
+    SetLayerBlendMode {
+        layer_index: u32,
+        blend_mode_index: u32,
+    },
     SetViewFlags { view_flags: u32 },
     SetBrush {
         color_argb: u32,
@@ -215,6 +220,7 @@ fn render_thread_main(
     let mut layer_opacity: Vec<f32> = vec![1.0; layer_count];
     let mut layer_visible: Vec<bool> = vec![true; layer_count];
     let mut layer_clipping_mask: Vec<bool> = vec![false; layer_count];
+    let mut layer_blend_mode: Vec<u32> = vec![0; layer_count];
     let mut view_flags: u32 = 0;
     let present_config_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("misa-rin present composite config"),
@@ -254,6 +260,7 @@ fn render_thread_main(
         &layer_opacity,
         &layer_visible,
         &layer_clipping_mask,
+        &layer_blend_mode,
     );
     write_present_transform(queue.as_ref(), &present_transform_buffer, transform_matrix);
     let mut present_bind_group = present_renderer.create_bind_group(
@@ -293,6 +300,7 @@ fn render_thread_main(
                         &mut layer_opacity,
                         &mut layer_visible,
                         &mut layer_clipping_mask,
+                        &mut layer_blend_mode,
                         &mut layer_uniform,
                         &mut view_flags,
                         &present_renderer,
@@ -347,6 +355,7 @@ fn render_thread_main(
                         &mut layer_opacity,
                         &mut layer_visible,
                         &mut layer_clipping_mask,
+                        &mut layer_blend_mode,
                         &mut layer_uniform,
                         &mut view_flags,
                         &present_renderer,
@@ -546,6 +555,7 @@ fn handle_engine_command(
     layer_opacity: &mut Vec<f32>,
     layer_visible: &mut Vec<bool>,
     layer_clipping_mask: &mut Vec<bool>,
+    layer_blend_mode: &mut Vec<u32>,
     layer_uniform: &mut Vec<Option<u32>>,
     present_view_flags: &mut u32,
     present_renderer: &PresentRenderer,
@@ -613,6 +623,9 @@ fn handle_engine_command(
         if new_count > layer_clipping_mask.len() {
             layer_clipping_mask.resize(new_count, false);
         }
+        if new_count > layer_blend_mode.len() {
+            layer_blend_mode.resize(new_count, 0);
+        }
         if new_count > layer_uniform.len() {
             layer_uniform.resize(new_count, None);
         }
@@ -641,6 +654,7 @@ fn handle_engine_command(
             layer_opacity,
             layer_visible,
             layer_clipping_mask,
+            layer_blend_mode,
         );
         true
     };
@@ -799,6 +813,7 @@ fn handle_engine_command(
                     layer_opacity,
                     layer_visible,
                     layer_clipping_mask,
+                    layer_blend_mode,
                 );
                 return EngineCommandOutcome {
                     stop: false,
@@ -824,6 +839,7 @@ fn handle_engine_command(
                     layer_opacity,
                     layer_visible,
                     layer_clipping_mask,
+                    layer_blend_mode,
                 );
                 return EngineCommandOutcome {
                     stop: false,
@@ -849,6 +865,33 @@ fn handle_engine_command(
                     layer_opacity,
                     layer_visible,
                     layer_clipping_mask,
+                    layer_blend_mode,
+                );
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                };
+            }
+        }
+        EngineCommand::SetLayerBlendMode {
+            layer_index,
+            blend_mode_index,
+        } => {
+            let idx = layer_index as usize;
+            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+                layer_blend_mode[idx] = map_canvas_blend_mode_index(blend_mode_index).as_u32();
+                write_present_config(
+                    queue,
+                    present_config_buffer,
+                    present_params_buffer,
+                    *layer_count,
+                    *present_view_flags,
+                    *transform_layer_index,
+                    *transform_flags,
+                    layer_opacity,
+                    layer_visible,
+                    layer_clipping_mask,
+                    layer_blend_mode,
                 );
                 return EngineCommandOutcome {
                     stop: false,
@@ -871,6 +914,7 @@ fn handle_engine_command(
                     layer_opacity,
                     layer_visible,
                     layer_clipping_mask,
+                    layer_blend_mode,
                 );
                 return EngineCommandOutcome {
                     stop: false,
@@ -1682,6 +1726,7 @@ fn handle_engine_command(
                 layer_opacity,
                 layer_visible,
                 layer_clipping_mask,
+                layer_blend_mode,
             );
             return EngineCommandOutcome {
                 stop: false,

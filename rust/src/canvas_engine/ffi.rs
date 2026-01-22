@@ -240,6 +240,33 @@ pub extern "C" fn engine_set_layer_clipping_mask(
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
+pub extern "C" fn engine_set_layer_blend_mode(
+    handle: u64,
+    layer_index: u32,
+    blend_mode_index: u32,
+) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::SetLayerBlendMode {
+            layer_index,
+            blend_mode_index,
+        });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_layer_blend_mode(
+    _handle: u64,
+    _layer_index: u32,
+    _blend_mode_index: u32,
+) {
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
 pub extern "C" fn engine_set_view_flags(handle: u64, view_flags: u32) {
     let Some(entry) = lookup_engine(handle) else {
         return;

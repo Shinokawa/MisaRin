@@ -709,16 +709,13 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerBlendMode(CanvasLayerBlendMode mode) async {
-    if (widget.useRustCanvas) {
-      _showRustCanvasMessage('Rust 画布目前暂不支持混合模式。');
-      return;
-    }
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null || layer.blendMode == mode) {
       return;
     }
     await _pushUndoSnapshot();
     _controller.setLayerBlendMode(layer.id, mode);
+    _rustCanvasSetLayerBlendModeById(layer.id, mode);
     setState(() {});
   }
 

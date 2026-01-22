@@ -38,7 +38,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     required CanvasLayerBlendMode mode,
     required bool isLocked,
   }) {
-    final bool isEnabled = !isLocked && !widget.useRustCanvas;
+    final bool isEnabled = !isLocked && rustLayerSupported;
     final TextStyle baseStyle =
         theme.typography.body ?? const TextStyle(fontSize: 14);
     final Color textColor = isEnabled

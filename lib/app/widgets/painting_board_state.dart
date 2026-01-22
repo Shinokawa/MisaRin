@@ -140,6 +140,7 @@ class PaintingBoardState extends _PaintingBoardBase
       _handlePixelGridPreferenceChanged,
     );
     _rustLayerSnapshots.clear();
+    _rustLayerSnapshotHandle = null;
     super.dispose();
   }
 
@@ -742,6 +743,7 @@ class PaintingBoardState extends _PaintingBoardBase
       _rustLayerSnapshotInFlight = false;
       _rustLayerSnapshotWidth = 0;
       _rustLayerSnapshotHeight = 0;
+      _rustLayerSnapshotHandle = null;
       setState(() {
         if (sizeChanged) {
           _viewport.reset();

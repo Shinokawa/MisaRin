@@ -34,7 +34,7 @@ struct PresentLayerParams {
     opacity: f32,
     visible: f32,
     clipping_mask: f32,
-    _pad0: f32,
+    blend_mode: u32,
 }
 
 #[repr(C)]
@@ -54,6 +54,7 @@ pub(crate) fn write_present_config(
     layer_opacity: &[f32],
     layer_visible: &[bool],
     layer_clipping_mask: &[bool],
+    layer_blend_mode: &[u32],
 ) {
     let header = PresentCompositeHeader {
         layer_count: layer_count as u32,
@@ -85,11 +86,12 @@ pub(crate) fn write_present_config(
         } else {
             0.0
         };
+        let blend_mode = layer_blend_mode.get(i).copied().unwrap_or(0);
         params.push(PresentLayerParams {
             opacity,
             visible,
             clipping_mask,
-            _pad0: 0.0,
+            blend_mode,
         });
     }
     queue.write_buffer(params_buffer, 0, bytemuck::cast_slice(&params));

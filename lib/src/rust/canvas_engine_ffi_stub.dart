@@ -50,6 +50,12 @@ class CanvasEngineFfi {
     required bool clippingMask,
   }) {}
 
+  void setLayerBlendMode({
+    required int handle,
+    required int layerIndex,
+    required int blendModeIndex,
+  }) {}
+
   void setViewFlags({
     required int handle,
     required bool mirror,
