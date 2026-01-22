@@ -26,39 +26,47 @@ enum _LayerTransformHandle {
 
 class _LayerTransformStateModel {
   _LayerTransformStateModel({
-    required ui.Image image,
     required Rect bounds,
     required Offset imageOrigin,
+    ui.Image? image,
+    Size? fullImageSizeOverride,
   }) : image = image,
        bounds = bounds,
        imageOrigin = imageOrigin,
-       fullImageSize = Size(
-         image.width.toDouble().clamp(1.0, double.infinity),
-         image.height.toDouble().clamp(1.0, double.infinity),
-       ),
+       fullImageSize = fullImageSizeOverride ??
+           (image != null
+               ? Size(
+                   image.width.toDouble().clamp(1.0, double.infinity),
+                   image.height.toDouble().clamp(1.0, double.infinity),
+                 )
+               : Size(
+                   bounds.width.clamp(1.0, double.infinity),
+                   bounds.height.clamp(1.0, double.infinity),
+                 )),
        imageSize = Size(
          bounds.width.clamp(1.0, double.infinity),
          bounds.height.clamp(1.0, double.infinity),
-       ),
-       clipOffset = _computeClipOffset(
-         bounds,
-         imageOrigin,
-         image.width.toDouble(),
-         image.height.toDouble(),
        ),
        baseTranslation = bounds.topLeft,
        translation = bounds.topLeft,
        rotation = 0.0,
        scaleX = 1.0,
        scaleY = 1.0,
-       pivotLocal = Offset(bounds.width / 2, bounds.height / 2);
+       pivotLocal = Offset(bounds.width / 2, bounds.height / 2) {
+    clipOffset = _computeClipOffset(
+      bounds,
+      imageOrigin,
+      fullImageSize.width,
+      fullImageSize.height,
+    );
+  }
 
-  final ui.Image image;
+  final ui.Image? image;
   final Rect bounds;
   final Offset imageOrigin;
   final Size fullImageSize;
   final Size imageSize;
-  final Offset clipOffset;
+  late final Offset clipOffset;
   final Offset baseTranslation;
   Offset translation;
   double rotation;

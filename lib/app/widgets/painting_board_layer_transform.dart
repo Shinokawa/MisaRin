@@ -23,6 +23,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   int _layerTransformRevision = 0;
   Offset? _layerTransformCursorWorkspacePosition;
   _LayerTransformHandle? _layerTransformCursorHandle;
+  bool _layerTransformUsingRustPreview = false;
+  int? _layerTransformRustLayerIndex;
 
   bool get _isLayerFreeTransformActive =>
       _layerTransformModeActive && _layerTransformState != null;
@@ -80,11 +82,77 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     }
     setState(() {
       _layerTransformState = _LayerTransformStateModel(
-        image: image,
         bounds: bounds,
         imageOrigin: origin,
+        image: image,
       );
     });
+    final BitmapLayerState? activeLayer = _activeLayerSnapshot();
+    if (activeLayer != null) {
+      _hideRustLayerForTransform(activeLayer);
+    }
+    return true;
+  }
+
+  bool _startLayerFreeTransformWithRust(BitmapLayerState activeLayer) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(activeLayer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Rect? bounds = _fetchRustLayerBounds(handle, layerIndex);
+    if (bounds == null || bounds.isEmpty) {
+      return false;
+    }
+    final _LayerTransformStateModel state = _LayerTransformStateModel(
+      bounds: bounds,
+      imageOrigin: bounds.topLeft,
+      image: null,
+      fullImageSizeOverride: bounds.size,
+    );
+    if (!_setRustLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      state: state,
+      enabled: true,
+    )) {
+      return false;
+    }
+    setState(() {
+      _layerTransformModeActive = true;
+      _layerTransformState = state;
+      _activeLayerTransformHandle = null;
+      _hoverLayerTransformHandle = null;
+      _layerTransformPointerStartBoard = null;
+      _layerTransformInitialTranslation = null;
+      _layerTransformInitialRotation = 0.0;
+      _layerTransformInitialScaleX = 1.0;
+      _layerTransformInitialScaleY = 1.0;
+      _layerTransformPointerStartInverse = null;
+      _layerTransformHandleAnchorLocal = null;
+      _layerTransformHandleFixedLocal = null;
+      _layerTransformHandleFixedBoard = null;
+      _layerTransformApplying = false;
+      _layerTransformRevision = 0;
+      _layerTransformCursorWorkspacePosition = null;
+      _layerTransformCursorHandle = null;
+      _layerTransformPanelOffset = _workspacePanelSpawnOffset(
+        this,
+        panelWidth: _kLayerTransformPanelWidth,
+        panelHeight: _kLayerTransformPanelMinHeight,
+        additionalDy: 12,
+      );
+      _layerTransformUsingRustPreview = true;
+      _layerTransformRustLayerIndex = layerIndex;
+    });
+    _toolCursorPosition = null;
+    _penCursorWorkspacePosition = null;
     return true;
   }
 
@@ -120,6 +188,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         _controller.isActiveLayerTransformPendingCleanup) {
       return;
     }
+    _restoreRustLayerAfterTransform();
     final BitmapLayerState? activeLayer = _activeLayerSnapshot();
     if (activeLayer == null) {
       AppNotifications.show(
@@ -136,6 +205,20 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         severity: InfoBarSeverity.warning,
       );
       return;
+    }
+    if (_canUseRustCanvasEngine()) {
+      final bool started = _startLayerFreeTransformWithRust(activeLayer);
+      if (started) {
+        return;
+      }
+      if (!_syncActiveLayerFromRustForTransform(activeLayer)) {
+        AppNotifications.show(
+          context,
+          message: context.l10n.cannotEnterTransformMode,
+          severity: InfoBarSeverity.warning,
+        );
+        return;
+      }
     }
     if (!_controller.isActiveLayerTransforming) {
       _controller.translateActiveLayer(0, 0);
@@ -172,6 +255,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         panelHeight: _kLayerTransformPanelMinHeight,
         additionalDy: 12,
       );
+      _layerTransformUsingRustPreview = false;
+      _layerTransformRustLayerIndex = null;
     });
     _toolCursorPosition = null;
     _penCursorWorkspacePosition = null;
@@ -181,6 +266,9 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   void _cancelLayerFreeTransform() {
     if (!_layerTransformModeActive || _layerTransformApplying) {
       return;
+    }
+    if (_layerTransformUsingRustPreview) {
+      _clearRustLayerTransformPreview();
     }
     _controller.cancelActiveLayerTranslation();
     setState(() {
@@ -196,7 +284,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformRevision = 0;
       _layerTransformCursorWorkspacePosition = null;
       _layerTransformCursorHandle = null;
+      _layerTransformUsingRustPreview = false;
+      _layerTransformRustLayerIndex = null;
     });
+    _restoreRustLayerAfterTransform();
   }
 
   Future<void> _confirmLayerFreeTransform() async {
@@ -208,12 +299,65 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (activeLayer == null || state == null) {
       return;
     }
+    if (_layerTransformUsingRustPreview) {
+      setState(() => _layerTransformApplying = true);
+      try {
+        final bool applied = _applyRustLayerTransformPreview(state);
+        if (!applied) {
+          throw StateError(context.l10n.applyTransformFailed);
+        }
+        _recordRustHistoryAction();
+        _controller.disposeActiveLayerTransformSession();
+        _clearRustLayerTransformPreview();
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _layerTransformModeActive = false;
+          _layerTransformState = null;
+          _activeLayerTransformHandle = null;
+          _hoverLayerTransformHandle = null;
+          _layerTransformApplying = false;
+          _layerTransformPointerStartInverse = null;
+          _layerTransformHandleAnchorLocal = null;
+          _layerTransformHandleFixedLocal = null;
+          _layerTransformHandleFixedBoard = null;
+          _layerTransformRevision = 0;
+          _layerTransformCursorWorkspacePosition = null;
+          _layerTransformCursorHandle = null;
+          _layerTransformUsingRustPreview = false;
+          _layerTransformRustLayerIndex = null;
+        });
+        _restoreRustLayerAfterTransform();
+        _markDirty();
+        return;
+      } catch (error, stackTrace) {
+        debugPrint('Failed to apply transform: $error\n$stackTrace');
+        setState(() => _layerTransformApplying = false);
+        AppNotifications.show(
+          context,
+          message: context.l10n.applyTransformFailed,
+          severity: InfoBarSeverity.error,
+        );
+        return;
+      }
+    }
     setState(() => _layerTransformApplying = true);
     try {
       final _LayerTransformRenderResult result =
           await _renderLayerTransformResult(state);
       final _CanvasHistoryEntry? undoEntry =
           await _buildLayerTransformUndoEntry(state);
+      if (_canUseRustCanvasEngine()) {
+        final bool applied = _applyRustLayerTransform(
+          layer: activeLayer,
+          result: result,
+        );
+        if (!applied) {
+          throw StateError(context.l10n.applyTransformFailed);
+        }
+        _recordRustHistoryAction();
+      }
       await _pushUndoSnapshot(entry: undoEntry);
       final CanvasLayerData data = CanvasLayerData(
         id: activeLayer.id,
@@ -250,6 +394,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         _layerTransformCursorWorkspacePosition = null;
         _layerTransformCursorHandle = null;
       });
+      _restoreRustLayerAfterTransform();
       _markDirty();
     } catch (error, stackTrace) {
       debugPrint('Failed to apply transform: $error\n$stackTrace');
@@ -281,7 +426,11 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (index < 0) {
       return entry;
     }
-    final ByteData? byteData = await state.image.toByteData(
+    final ui.Image? image = state.image;
+    if (image == null) {
+      return entry;
+    }
+    final ByteData? byteData = await image.toByteData(
       format: ui.ImageByteFormat.rawRgba,
     );
     if (byteData == null) {
@@ -302,8 +451,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       clippingMask: activeLayer.clippingMask,
       blendMode: activeLayer.blendMode,
       bitmap: rgba,
-      bitmapWidth: state.image.width,
-      bitmapHeight: state.image.height,
+      bitmapWidth: image.width,
+      bitmapHeight: image.height,
       bitmapLeft: state.imageOrigin.dx.round(),
       bitmapTop: state.imageOrigin.dy.round(),
       cloneBitmap: false,
@@ -353,6 +502,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   Future<_LayerTransformRenderResult> _renderLayerTransformResult(
     _LayerTransformStateModel state,
   ) async {
+    final ui.Image? image = state.image;
+    if (image == null) {
+      throw StateError(context.l10n.failedToExportTransform);
+    }
     final Rect bounds = state.boundingBox;
     final int left = bounds.left.floor();
     final int top = bounds.top.floor();
@@ -380,7 +533,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     canvas.save();
     canvas.clipRect(localBounds);
     canvas.translate(-state.clipOffset.dx, -state.clipOffset.dy);
-    canvas.drawImage(state.image, Offset.zero, paint);
+    canvas.drawImage(image, Offset.zero, paint);
     canvas.restore();
     final ui.Picture picture = recorder.endRecording();
     final ui.Image rendered = await picture.toImage(width, height);
@@ -400,6 +553,267 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       height: height,
       rgba: rgba,
     );
+  }
+
+  bool _syncActiveLayerFromRustForTransform(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    if (layer.surface.width != width || layer.surface.height != height) {
+      return false;
+    }
+    final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+    if (pixels == null || pixels.length != layer.surface.pixels.length) {
+      return false;
+    }
+    layer.surface.pixels.setAll(0, pixels);
+    layer.surface.markDirty();
+    return true;
+  }
+
+  void _hideRustLayerForTransform(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_layerTransformUsingRustPreview) {
+      return;
+    }
+    if (_layerTransformRustHiddenLayerIndex != null) {
+      return;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return;
+    }
+    _layerTransformRustHiddenLayerIndex = layerIndex;
+    _layerTransformRustHiddenVisible = layer.visible;
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: layerIndex,
+      visible: false,
+    );
+  }
+
+  void _restoreRustLayerAfterTransform() {
+    final int? layerIndex = _layerTransformRustHiddenLayerIndex;
+    if (layerIndex == null) {
+      return;
+    }
+    if (_canUseRustCanvasEngine()) {
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: _rustCanvasEngineHandle!,
+        layerIndex: layerIndex,
+        visible: _layerTransformRustHiddenVisible,
+      );
+    }
+    _layerTransformRustHiddenLayerIndex = null;
+    _layerTransformRustHiddenVisible = false;
+  }
+
+  Rect? _fetchRustLayerBounds(int handle, int layerIndex) {
+    final Int32List? bounds = CanvasEngineFfi.instance.getLayerBounds(
+      handle: handle,
+      layerIndex: layerIndex,
+    );
+    if (bounds == null || bounds.length < 4) {
+      return null;
+    }
+    final double left = bounds[0].toDouble();
+    final double top = bounds[1].toDouble();
+    final double right = bounds[2].toDouble();
+    final double bottom = bounds[3].toDouble();
+    if (right <= left || bottom <= top) {
+      return null;
+    }
+    return Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  Float32List? _buildRustTransformMatrix(_LayerTransformStateModel state) {
+    final Matrix4? inverse = state.inverseMatrix;
+    if (inverse == null) {
+      return null;
+    }
+    final Matrix4 boardToSource = Matrix4.identity()
+      ..translate(state.bounds.left, state.bounds.top)
+      ..multiply(inverse);
+    final Float32List out = Float32List(16);
+    final Float64List storage = boardToSource.storage;
+    for (int i = 0; i < 16; i++) {
+      out[i] = storage[i].toDouble();
+    }
+    return out;
+  }
+
+  bool _setRustLayerTransformPreview({
+    required int handle,
+    required int layerIndex,
+    required _LayerTransformStateModel state,
+    required bool enabled,
+  }) {
+    final Float32List? matrix = _buildRustTransformMatrix(state);
+    if (matrix == null) {
+      return false;
+    }
+    return CanvasEngineFfi.instance.setLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      enabled: enabled,
+      bilinear: true,
+    );
+  }
+
+  void _updateRustLayerTransformPreview() {
+    if (!_layerTransformUsingRustPreview) {
+      return;
+    }
+    final _LayerTransformStateModel? state = _layerTransformState;
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerTransformRustLayerIndex;
+    if (state == null || handle == null || layerIndex == null) {
+      return;
+    }
+    _setRustLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      state: state,
+      enabled: true,
+    );
+  }
+
+  void _clearRustLayerTransformPreview() {
+    if (!_layerTransformUsingRustPreview) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerTransformRustLayerIndex;
+    if (handle != null && layerIndex != null && _layerTransformState != null) {
+      _setRustLayerTransformPreview(
+        handle: handle,
+        layerIndex: layerIndex,
+        state: _layerTransformState!,
+        enabled: false,
+      );
+    }
+    _layerTransformUsingRustPreview = false;
+    _layerTransformRustLayerIndex = null;
+  }
+
+  bool _applyRustLayerTransformPreview(_LayerTransformStateModel state) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerTransformRustLayerIndex;
+    if (handle == null || layerIndex == null) {
+      return false;
+    }
+    final Float32List? matrix = _buildRustTransformMatrix(state);
+    if (matrix == null) {
+      return false;
+    }
+    return CanvasEngineFfi.instance.applyLayerTransform(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      bilinear: true,
+    );
+  }
+
+  bool _applyRustLayerTransform({
+    required BitmapLayerState layer,
+    required _LayerTransformRenderResult result,
+  }) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int canvasWidth = engineSize.width.round();
+    final int canvasHeight = engineSize.height.round();
+    if (canvasWidth <= 0 || canvasHeight <= 0) {
+      return false;
+    }
+    if (layer.surface.width != canvasWidth ||
+        layer.surface.height != canvasHeight) {
+      return false;
+    }
+    final Uint32List pixels = _buildRustTransformPixels(
+      result: result,
+      canvasWidth: canvasWidth,
+      canvasHeight: canvasHeight,
+    );
+    return CanvasEngineFfi.instance.writeLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      pixels: pixels,
+      recordUndo: true,
+    );
+  }
+
+  Uint32List _buildRustTransformPixels({
+    required _LayerTransformRenderResult result,
+    required int canvasWidth,
+    required int canvasHeight,
+  }) {
+    final Uint32List pixels = Uint32List(canvasWidth * canvasHeight);
+    final int srcWidth = result.width;
+    final int srcHeight = result.height;
+    if (srcWidth <= 0 || srcHeight <= 0) {
+      return pixels;
+    }
+    final int left = result.left;
+    final int top = result.top;
+    final int destLeft = math.max(0, left);
+    final int destTop = math.max(0, top);
+    final int destRight = math.min(canvasWidth, left + srcWidth);
+    final int destBottom = math.min(canvasHeight, top + srcHeight);
+    if (destLeft >= destRight || destTop >= destBottom) {
+      return pixels;
+    }
+    final Uint8List rgba = result.rgba;
+    final int rowWidth = destRight - destLeft;
+    for (int y = destTop; y < destBottom; y++) {
+      final int srcY = y - top;
+      int srcIndex = (srcY * srcWidth + (destLeft - left)) * 4;
+      int destIndex = y * canvasWidth + destLeft;
+      for (int x = 0; x < rowWidth; x++) {
+        final int r = rgba[srcIndex];
+        final int g = rgba[srcIndex + 1];
+        final int b = rgba[srcIndex + 2];
+        final int a = rgba[srcIndex + 3];
+        pixels[destIndex] = (a << 24) | (r << 16) | (g << 8) | b;
+        srcIndex += 4;
+        destIndex++;
+      }
+    }
+    return pixels;
   }
 
   void _handleLayerTransformPointerDown(Offset boardLocal) {
@@ -466,6 +880,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           state.translation = initial + delta;
           _layerTransformRevision++;
         });
+        _updateRustLayerTransformPreview();
         break;
       case _LayerTransformHandle.rotation:
         final Offset pivot = state.translation + state.pivotLocal;
@@ -490,6 +905,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           state.rotation = _layerTransformInitialRotation + delta;
           _layerTransformRevision++;
         });
+        _updateRustLayerTransformPreview();
         break;
       default:
         final Matrix4? inverse = _layerTransformPointerStartInverse;
@@ -572,6 +988,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           state.scaleY = nextScaleY;
           _layerTransformRevision++;
         });
+        _updateRustLayerTransformPreview();
         break;
     }
   }
@@ -756,8 +1173,15 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_isLayerFreeTransformActive) {
       return null;
     }
+    if (_layerTransformUsingRustPreview) {
+      return null;
+    }
     final _LayerTransformStateModel? state = _layerTransformState;
     if (state == null) {
+      return null;
+    }
+    final ui.Image? image = state.image;
+    if (image == null) {
       return null;
     }
     final double opacity = _controller.activeLayerTransformOpacity;
@@ -765,7 +1189,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _controller.activeLayerTransformBlendMode,
     );
     Widget content = RawImage(
-      image: state.image,
+      image: image,
       filterQuality: FilterQuality.high,
       fit: BoxFit.none,
       alignment: Alignment.topLeft,

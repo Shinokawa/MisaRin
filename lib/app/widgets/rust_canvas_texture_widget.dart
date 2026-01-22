@@ -88,10 +88,12 @@ class RustCanvasTextureWidget extends StatefulWidget {
 
 class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   static const MethodChannel _channel = MethodChannel('misarin/rust_canvas_texture');
+  static int _nextSurfaceId = 1;
 
   int? _textureId;
   int? _engineHandle;
   Object? _error;
+  late final String _surfaceId;
 
   final _PackedPointBuffer _points = _PackedPointBuffer();
   bool _flushScheduled = false;
@@ -114,6 +116,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   @override
   void initState() {
     super.initState();
+    _surfaceId = 'rust_canvas_demo_${_nextSurfaceId++}';
     unawaited(_loadTextureInfo());
   }
 
@@ -125,6 +128,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
           await _channel.invokeMethod<Map<dynamic, dynamic>>(
             'getTextureInfo',
             <String, Object?>{
+              'surfaceId': _surfaceId,
               'width': width,
               'height': height,
             },
@@ -156,6 +160,21 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
         _error = error;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_disposeSurface());
+    super.dispose();
+  }
+
+  Future<void> _disposeSurface() async {
+    try {
+      await _channel.invokeMethod<void>(
+        'disposeTexture',
+        <String, Object?>{'surfaceId': _surfaceId},
+      );
+    } catch (_) {}
   }
 
   void _handleScaleStart(ScaleStartDetails details) {

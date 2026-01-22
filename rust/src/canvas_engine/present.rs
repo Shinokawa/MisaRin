@@ -24,8 +24,8 @@ pub(crate) struct PresentRenderer {
 pub(crate) struct PresentCompositeHeader {
     layer_count: u32,
     view_flags: u32,
-    _pad0: u32,
-    _pad1: u32,
+    transform_layer: u32,
+    transform_flags: u32,
 }
 
 #[repr(C)]
@@ -37,12 +37,20 @@ struct PresentLayerParams {
     _pad0: f32,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub(crate) struct PresentTransformConfig {
+    matrix: [f32; 16],
+}
+
 pub(crate) fn write_present_config(
     queue: &wgpu::Queue,
     header_buffer: &wgpu::Buffer,
     params_buffer: &wgpu::Buffer,
     layer_count: usize,
     view_flags: u32,
+    transform_layer: u32,
+    transform_flags: u32,
     layer_opacity: &[f32],
     layer_visible: &[bool],
     layer_clipping_mask: &[bool],
@@ -50,8 +58,8 @@ pub(crate) fn write_present_config(
     let header = PresentCompositeHeader {
         layer_count: layer_count as u32,
         view_flags,
-        _pad0: 0,
-        _pad1: 0,
+        transform_layer,
+        transform_flags,
     };
     queue.write_buffer(header_buffer, 0, bytemuck::bytes_of(&header));
 
@@ -85,6 +93,24 @@ pub(crate) fn write_present_config(
         });
     }
     queue.write_buffer(params_buffer, 0, bytemuck::cast_slice(&params));
+}
+
+pub(crate) fn write_present_transform(
+    queue: &wgpu::Queue,
+    buffer: &wgpu::Buffer,
+    matrix: [f32; 16],
+) {
+    let config = PresentTransformConfig { matrix };
+    queue.write_buffer(buffer, 0, bytemuck::bytes_of(&config));
+}
+
+pub(crate) fn create_present_transform_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("misa-rin present transform config"),
+        size: std::mem::size_of::<PresentTransformConfig>() as u64,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
 }
 
 pub(crate) fn create_present_params_buffer(
@@ -158,6 +184,18 @@ impl PresentRenderer {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<PresentTransformConfig>() as u64,
+                        ),
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -210,6 +248,7 @@ impl PresentRenderer {
         layer_view: &wgpu::TextureView,
         config_buffer: &wgpu::Buffer,
         params_buffer: &wgpu::Buffer,
+        transform_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("misa-rin present renderer bind group"),
@@ -226,6 +265,10 @@ impl PresentRenderer {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: params_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: transform_buffer.as_entire_binding(),
                 },
             ],
         })

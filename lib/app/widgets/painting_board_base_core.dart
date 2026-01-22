@@ -9,6 +9,12 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   int? _rustCanvasEngineHandle;
   Size? _rustCanvasEngineSize;
   int _rustCanvasSyncedLayerCount = 0;
+  final Map<String, Uint32List> _rustLayerSnapshots = <String, Uint32List>{};
+  bool _rustLayerSnapshotDirty = false;
+  bool _rustLayerSnapshotPendingRestore = false;
+  bool _rustLayerSnapshotInFlight = false;
+  int _rustLayerSnapshotWidth = 0;
+  int _rustLayerSnapshotHeight = 0;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -74,6 +80,8 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _layerAdjustRustSynced = false;
   int? _layerAdjustRustHiddenLayerIndex;
   bool _layerAdjustRustHiddenVisible = false;
+  int? _layerTransformRustHiddenLayerIndex;
+  bool _layerTransformRustHiddenVisible = false;
   Future<void>? _layerAdjustFinalizeTask;
   Offset? _layerDragStart;
   int _layerDragAppliedDx = 0;
@@ -767,11 +775,15 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (_rustCanvasEngineHandle != handle) {
       _rustCanvasSyncedLayerCount = 0;
       _purgeRustHistoryActions();
+      if (_rustLayerSnapshots.isNotEmpty) {
+        _rustLayerSnapshotPendingRestore = true;
+      }
     }
     _rustCanvasEngineHandle = handle;
     _rustCanvasEngineSize = engineSize;
     _syncRustCanvasLayersToEngine();
     _syncRustCanvasViewFlags();
+    _restoreRustLayerSnapshotIfNeeded();
   }
 
   int? _rustCanvasLayerIndexForId(String layerId) {
@@ -797,6 +809,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _recordRustHistoryAction() {
+    _rustLayerSnapshotDirty = true;
     _recordHistoryAction(_HistoryActionKind.rust);
   }
 
@@ -880,6 +893,94 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     );
   }
 
+  Future<void> _captureRustLayerSnapshotIfNeeded() async {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (!_rustLayerSnapshotDirty || _rustLayerSnapshotInFlight) {
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    _rustLayerSnapshotInFlight = true;
+    bool allOk = true;
+    final Map<String, Uint32List> next = <String, Uint32List>{};
+    final List<BitmapLayerState> layers = _controller.layers;
+    for (int i = 0; i < layers.length; i++) {
+      final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
+        handle: handle,
+        layerIndex: i,
+        width: width,
+        height: height,
+      );
+      if (pixels == null) {
+        allOk = false;
+        continue;
+      }
+      next[layers[i].id] = pixels;
+    }
+    if (next.isNotEmpty) {
+      _rustLayerSnapshots
+        ..clear()
+        ..addAll(next);
+      _rustLayerSnapshotWidth = width;
+      _rustLayerSnapshotHeight = height;
+      _rustLayerSnapshotPendingRestore = true;
+      if (allOk) {
+        _rustLayerSnapshotDirty = false;
+      }
+    }
+    _rustLayerSnapshotInFlight = false;
+    if (mounted && widget.isActive) {
+      _restoreRustLayerSnapshotIfNeeded();
+    }
+  }
+
+  void _restoreRustLayerSnapshotIfNeeded() {
+    if (!_rustLayerSnapshotPendingRestore) {
+      return;
+    }
+    if (_rustLayerSnapshotInFlight) {
+      return;
+    }
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_rustLayerSnapshots.isEmpty) {
+      _rustLayerSnapshotPendingRestore = false;
+      return;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width != _rustLayerSnapshotWidth || height != _rustLayerSnapshotHeight) {
+      _rustLayerSnapshots.clear();
+      _rustLayerSnapshotPendingRestore = false;
+      _rustLayerSnapshotDirty = false;
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    final List<BitmapLayerState> layers = _controller.layers;
+    for (int i = 0; i < layers.length; i++) {
+      final Uint32List? pixels = _rustLayerSnapshots[layers[i].id];
+      if (pixels == null) {
+        continue;
+      }
+      CanvasEngineFfi.instance.writeLayer(
+        handle: handle,
+        layerIndex: i,
+        pixels: pixels,
+        recordUndo: false,
+      );
+    }
+    _rustLayerSnapshotPendingRestore = false;
+  }
+
   void _showRustCanvasMessage(String message) {
     if (!mounted) {
       return;
@@ -898,11 +999,13 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     final int handle = _rustCanvasEngineHandle!;
     final List<BitmapLayerState> layers = _controller.layers;
     final int currentCount = layers.length;
-    final int? hiddenLayerIndex = _layerAdjustRustHiddenLayerIndex;
+    final int? hiddenAdjustIndex = _layerAdjustRustHiddenLayerIndex;
+    final int? hiddenTransformIndex = _layerTransformRustHiddenLayerIndex;
     for (int i = 0; i < currentCount; i++) {
       final BitmapLayerState layer = layers[i];
       final bool hideForAdjust =
-          hiddenLayerIndex != null && hiddenLayerIndex == i;
+          (hiddenAdjustIndex != null && hiddenAdjustIndex == i) ||
+          (hiddenTransformIndex != null && hiddenTransformIndex == i);
       CanvasEngineFfi.instance.setLayerVisible(
         handle: handle,
         layerIndex: i,

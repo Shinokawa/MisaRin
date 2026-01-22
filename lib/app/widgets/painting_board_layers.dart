@@ -329,6 +329,10 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityGestureActive = true;
     _layerOpacityGestureLayerId = layer.id;
     _layerOpacityUndoOriginalValue = layer.opacity;
+    if (widget.useRustCanvas) {
+      _layerOpacityPreviewReset(this);
+      return;
+    }
     _ensureLayerOpacityPreview(layer);
   }
 
@@ -340,6 +344,12 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityUndoOriginalValue = null;
     final double clampedValue = value.clamp(0.0, 1.0);
     final bool applied = _applyLayerOpacityValue(targetLayerId, clampedValue);
+    if (widget.useRustCanvas) {
+      if (targetLayerId != null && originalValue != null) {
+        unawaited(_commitLayerOpacityUndoSnapshot(targetLayerId, originalValue));
+      }
+      return;
+    }
     final bool shouldHoldPreview =
         applied &&
         targetLayerId != null &&
@@ -366,6 +376,15 @@ mixin _PaintingBoardLayerMixin
   void _handleLayerOpacityChanged(double value) {
     final BitmapLayerState? layer = _currentActiveLayer();
     if (layer == null) {
+      return;
+    }
+    if (widget.useRustCanvas) {
+      if (!_layerOpacityGestureActive || _layerOpacityGestureLayerId != layer.id) {
+        _layerOpacityGestureActive = true;
+        _layerOpacityGestureLayerId = layer.id;
+        _layerOpacityUndoOriginalValue = layer.opacity;
+      }
+      _applyLayerOpacityValue(layer.id, value);
       return;
     }
     _ensureLayerOpacityPreview(layer);

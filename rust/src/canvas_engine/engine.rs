@@ -15,10 +15,11 @@ use crate::gpu::debug::{self, LogLevel};
 
 use super::layers::LayerTextures;
 use super::present::{
-    attach_present_texture, create_present_params_buffer, write_present_config, PresentRenderer,
-    PresentTarget,
+    attach_present_texture, create_present_params_buffer, create_present_transform_buffer,
+    write_present_config, write_present_transform, PresentRenderer, PresentTarget,
 };
 use super::stroke::{map_brush_shape, EngineBrushSettings, StrokeResampler};
+use super::transform::LayerTransformRenderer;
 use super::types::EnginePoint;
 use super::undo::UndoManager;
 
@@ -92,6 +93,22 @@ pub(crate) enum EngineCommand {
         delta_x: i32,
         delta_y: i32,
         reply: mpsc::Sender<bool>,
+    },
+    SetLayerTransformPreview {
+        layer_index: u32,
+        matrix: [f32; 16],
+        enabled: bool,
+        bilinear: bool,
+    },
+    ApplyLayerTransform {
+        layer_index: u32,
+        matrix: [f32; 16],
+        bilinear: bool,
+        reply: mpsc::Sender<bool>,
+    },
+    GetLayerBounds {
+        layer_index: u32,
+        reply: mpsc::Sender<Option<(i32, i32, i32, i32)>>,
     },
     SetSelectionMask {
         selection_mask: Option<Vec<u8>>,
@@ -205,6 +222,15 @@ fn render_thread_main(
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
+    let present_transform_buffer = create_present_transform_buffer(device.as_ref());
+    let mut transform_matrix: [f32; 16] = [
+        1.0, 0.0, 0.0, 0.0, //
+        0.0, 1.0, 0.0, 0.0, //
+        0.0, 0.0, 1.0, 0.0, //
+        0.0, 0.0, 0.0, 1.0, //
+    ];
+    let mut transform_layer_index: u32 = 0;
+    let mut transform_flags: u32 = 0;
     let mut present_params_capacity = layers.capacity();
     let mut present_params_buffer =
         match create_present_params_buffer(device.as_ref(), present_params_capacity) {
@@ -223,19 +249,33 @@ fn render_thread_main(
         &present_params_buffer,
         layer_count,
         view_flags,
+        transform_layer_index,
+        transform_flags,
         &layer_opacity,
         &layer_visible,
         &layer_clipping_mask,
     );
+    write_present_transform(queue.as_ref(), &present_transform_buffer, transform_matrix);
     let mut present_bind_group = present_renderer.create_bind_group(
         device.as_ref(),
         layers.array_view(),
         &present_config_buffer,
         &present_params_buffer,
+        &present_transform_buffer,
     );
 
     let mut stroke = StrokeResampler::new();
     let mut undo_manager = UndoManager::new(canvas_width, canvas_height);
+    let mut transform_renderer = match LayerTransformRenderer::new(device.clone(), queue.clone()) {
+        Ok(renderer) => Some(renderer),
+        Err(err) => {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("LayerTransformRenderer init failed: {err}"),
+            );
+            None
+        }
+    };
 
     loop {
         match &present {
@@ -257,9 +297,14 @@ fn render_thread_main(
                         &mut view_flags,
                         &present_renderer,
                         &present_config_buffer,
+                        &present_transform_buffer,
+                        &mut transform_matrix,
+                        &mut transform_layer_index,
+                        &mut transform_flags,
                         &mut present_params_buffer,
                         &mut present_params_capacity,
                         &mut present_bind_group,
+                        &mut transform_renderer,
                         &mut brush,
                         &mut brush_settings,
                         &mut undo_manager,
@@ -306,9 +351,14 @@ fn render_thread_main(
                         &mut view_flags,
                         &present_renderer,
                         &present_config_buffer,
+                        &present_transform_buffer,
+                        &mut transform_matrix,
+                        &mut transform_layer_index,
+                        &mut transform_flags,
                         &mut present_params_buffer,
                         &mut present_params_capacity,
                         &mut present_bind_group,
+                        &mut transform_renderer,
                         &mut brush,
                         &mut brush_settings,
                         &mut undo_manager,
@@ -500,16 +550,21 @@ fn handle_engine_command(
     present_view_flags: &mut u32,
     present_renderer: &PresentRenderer,
     present_config_buffer: &wgpu::Buffer,
+    present_transform_buffer: &wgpu::Buffer,
+    transform_matrix: &mut [f32; 16],
+    transform_layer_index: &mut u32,
+    transform_flags: &mut u32,
     present_params_buffer: &mut wgpu::Buffer,
     present_params_capacity: &mut usize,
     present_bind_group: &mut wgpu::BindGroup,
+    transform_renderer: &mut Option<LayerTransformRenderer>,
     brush: &mut BrushRenderer,
     brush_settings: &mut EngineBrushSettings,
     undo: &mut UndoManager,
     canvas_width: u32,
     canvas_height: u32,
 ) -> EngineCommandOutcome {
-    let mut ensure_layer_index = |idx: usize| -> bool {
+    let mut ensure_layer_index = |idx: usize, transform_layer_index: u32, transform_flags: u32| -> bool {
         if idx < *layer_count {
             return true;
         }
@@ -536,6 +591,7 @@ fn handle_engine_command(
                         layers.array_view(),
                         present_config_buffer,
                         present_params_buffer,
+                        present_transform_buffer,
                     );
                 }
                 Err(err) => {
@@ -580,6 +636,8 @@ fn handle_engine_command(
             present_params_buffer,
             *layer_count,
             *present_view_flags,
+            transform_layer_index,
+            transform_flags,
             layer_opacity,
             layer_visible,
             layer_clipping_mask,
@@ -678,7 +736,7 @@ fn handle_engine_command(
             color_argb,
         } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx) {
+            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 fill_r32uint_texture(
                     queue,
                     layers.texture(),
@@ -698,7 +756,7 @@ fn handle_engine_command(
         }
         EngineCommand::ClearLayer { layer_index } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx) {
+            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 fill_r32uint_texture(
                     queue,
                     layers.texture(),
@@ -718,13 +776,13 @@ fn handle_engine_command(
         }
         EngineCommand::SetActiveLayer { layer_index } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx) {
+            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 *active_layer_index = idx;
             }
         }
         EngineCommand::SetLayerOpacity { layer_index, opacity } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx) {
+            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 layer_opacity[idx] = if opacity.is_finite() {
                     opacity.clamp(0.0, 1.0)
                 } else {
@@ -736,6 +794,8 @@ fn handle_engine_command(
                     present_params_buffer,
                     *layer_count,
                     *present_view_flags,
+                    *transform_layer_index,
+                    *transform_flags,
                     layer_opacity,
                     layer_visible,
                     layer_clipping_mask,
@@ -751,7 +811,7 @@ fn handle_engine_command(
             visible,
         } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx) {
+            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 layer_visible[idx] = visible;
                 write_present_config(
                     queue,
@@ -759,6 +819,8 @@ fn handle_engine_command(
                     present_params_buffer,
                     *layer_count,
                     *present_view_flags,
+                    *transform_layer_index,
+                    *transform_flags,
                     layer_opacity,
                     layer_visible,
                     layer_clipping_mask,
@@ -774,7 +836,7 @@ fn handle_engine_command(
             clipping_mask,
         } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx) {
+            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 layer_clipping_mask[idx] = clipping_mask;
                 write_present_config(
                     queue,
@@ -782,6 +844,8 @@ fn handle_engine_command(
                     present_params_buffer,
                     *layer_count,
                     *present_view_flags,
+                    *transform_layer_index,
+                    *transform_flags,
                     layer_opacity,
                     layer_visible,
                     layer_clipping_mask,
@@ -802,6 +866,8 @@ fn handle_engine_command(
                     present_params_buffer,
                     *layer_count,
                     *present_view_flags,
+                    *transform_layer_index,
+                    *transform_flags,
                     layer_opacity,
                     layer_visible,
                     layer_clipping_mask,
@@ -853,7 +919,7 @@ fn handle_engine_command(
             reply,
         } => {
             let idx = layer_index as usize;
-            if !ensure_layer_index(idx) {
+            if !ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 let _ = reply.send(false);
                 return EngineCommandOutcome {
                     stop: false,
@@ -1161,7 +1227,7 @@ fn handle_engine_command(
             reply,
         } => {
             let idx = layer_index as usize;
-            if !ensure_layer_index(idx) {
+            if !ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 let _ = reply.send(None);
                 return EngineCommandOutcome {
                     stop: false,
@@ -1306,7 +1372,7 @@ fn handle_engine_command(
             reply,
         } => {
             let idx = layer_index as usize;
-            if !ensure_layer_index(idx) {
+            if !ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
                 let _ = reply.send(false);
                 return EngineCommandOutcome {
                     stop: false,
@@ -1549,6 +1615,183 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: present.is_some(),
+            };
+        }
+        EngineCommand::SetLayerTransformPreview {
+            layer_index,
+            matrix,
+            enabled,
+            bilinear,
+        } => {
+            if enabled && (layer_index as usize) < *layer_count {
+                *transform_layer_index = layer_index;
+                *transform_flags = 1 | if bilinear { 2 } else { 0 };
+                *transform_matrix = matrix;
+                write_present_transform(queue, present_transform_buffer, *transform_matrix);
+            } else {
+                *transform_flags = 0;
+            }
+            write_present_config(
+                queue,
+                present_config_buffer,
+                present_params_buffer,
+                *layer_count,
+                *present_view_flags,
+                *transform_layer_index,
+                *transform_flags,
+                layer_opacity,
+                layer_visible,
+                layer_clipping_mask,
+            );
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: present.is_some(),
+            };
+        }
+        EngineCommand::ApplyLayerTransform {
+            layer_index,
+            matrix,
+            bilinear,
+            reply,
+        } => {
+            let idx = layer_index as usize;
+            if idx >= *layer_count {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let Some(renderer) = transform_renderer.as_mut() else {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            };
+            undo.begin_stroke(layer_index);
+            undo.capture_before_for_dirty_rect(
+                device,
+                queue,
+                layers.texture(),
+                layer_index,
+                (0, 0, canvas_width as i32, canvas_height as i32),
+            );
+            let result = renderer.apply_transform(
+                layers.array_view(),
+                layers.texture(),
+                canvas_width,
+                canvas_height,
+                layer_index,
+                matrix,
+                bilinear,
+            );
+            if let Err(err) = result {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("layer transform apply failed: {err}"),
+                );
+                undo.cancel_stroke();
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            undo.end_stroke(device, queue, layers.texture());
+            if let Some(entry) = layer_uniform.get_mut(idx) {
+                *entry = None;
+            }
+            let _ = reply.send(true);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: present.is_some(),
+            };
+        }
+        EngineCommand::GetLayerBounds { layer_index, reply } => {
+            let idx = layer_index as usize;
+            if idx >= *layer_count || canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let pixels = match read_r32uint_layer(
+                device,
+                queue,
+                layers.texture(),
+                canvas_width,
+                canvas_height,
+                layer_index,
+            ) {
+                Ok(pixels) => pixels,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("layer bounds readback failed: {err}"),
+                    );
+                    let _ = reply.send(None);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            };
+            if pixels.is_empty() {
+                let _ = reply.send(Some((
+                    0,
+                    0,
+                    canvas_width as i32,
+                    canvas_height as i32,
+                )));
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                };
+            }
+            let width = canvas_width as i32;
+            let height = canvas_height as i32;
+            let mut min_x = width;
+            let mut min_y = height;
+            let mut max_x = -1;
+            let mut max_y = -1;
+            for y in 0..height {
+                let row_offset = (y as usize) * (width as usize);
+                for x in 0..width {
+                    let argb = pixels[row_offset + (x as usize)];
+                    if (argb >> 24) == 0 {
+                        continue;
+                    }
+                    if x < min_x {
+                        min_x = x;
+                    }
+                    if x > max_x {
+                        max_x = x;
+                    }
+                    if y < min_y {
+                        min_y = y;
+                    }
+                    if y > max_y {
+                        max_y = y;
+                    }
+                }
+            }
+            if max_x < min_x || max_y < min_y {
+                let _ = reply.send(Some((0, 0, width, height)));
+            } else {
+                let _ = reply.send(Some((min_x, min_y, max_x + 1, max_y + 1)));
+            }
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
             };
         }
         EngineCommand::SetSelectionMask { selection_mask } => {

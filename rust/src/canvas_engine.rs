@@ -10,4 +10,6 @@ mod present;
 #[cfg(target_os = "macos")]
 mod stroke;
 #[cfg(target_os = "macos")]
+mod transform;
+#[cfg(target_os = "macos")]
 mod undo;

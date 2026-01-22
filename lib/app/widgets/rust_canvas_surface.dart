@@ -116,11 +116,14 @@ class RustCanvasSurface extends StatefulWidget {
 
 class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   static const MethodChannel _channel = MethodChannel('misarin/rust_canvas_texture');
+  static int _nextSurfaceId = 1;
 
   int? _textureId;
   int? _engineHandle;
   Size? _engineSize;
   Object? _error;
+  late final String _surfaceId;
+  int? _lastResetEngineHandle;
 
   final _PackedPointBuffer _points = _PackedPointBuffer();
   int? _activeDrawingPointer;
@@ -131,6 +134,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   @override
   void initState() {
     super.initState();
+    _surfaceId = 'rust_canvas_${_nextSurfaceId++}';
     unawaited(_loadTextureInfo());
   }
 
@@ -175,6 +179,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
           await _channel.invokeMethod<Map<dynamic, dynamic>>(
             'getTextureInfo',
             <String, Object?>{
+              'surfaceId': _surfaceId,
               'width': width,
               'height': height,
             },
@@ -183,6 +188,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       final int? engineHandle = (info?['engineHandle'] as num?)?.toInt();
       final int? engineWidth = (info?['width'] as num?)?.toInt();
       final int? engineHeight = (info?['height'] as num?)?.toInt();
+      final Object? isNewEngineValue = info?['isNewEngine'];
+      final bool isNewEngine =
+          (isNewEngineValue is bool && isNewEngineValue) ||
+          (isNewEngineValue is num && isNewEngineValue != 0);
       if (!mounted) {
         return;
       }
@@ -201,8 +210,15 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
 
       final int? handle = _engineHandle;
       if (handle != null) {
-        _applyLayerDefaults(handle);
-        _resetCanvas(handle);
+        final bool shouldReset =
+            isNewEngine ||
+            _lastResetEngineHandle == null ||
+            (isNewEngineValue == null && _lastResetEngineHandle != handle);
+        if (shouldReset) {
+          _applyLayerDefaults(handle);
+          _resetCanvas(handle);
+          _lastResetEngineHandle = handle;
+        }
         _applyBrushSettings(handle);
       }
       _notifyEngineInfoChanged();
@@ -233,10 +249,20 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
 
   @override
   void dispose() {
+    unawaited(_disposeSurface());
     if (_lastNotifiedEngineHandle != null || _lastNotifiedEngineSize != null) {
       widget.onEngineInfoChanged?.call(null, null);
     }
     super.dispose();
+  }
+
+  Future<void> _disposeSurface() async {
+    try {
+      await _channel.invokeMethod<void>(
+        'disposeTexture',
+        <String, Object?>{'surfaceId': _surfaceId},
+      );
+    } catch (_) {}
   }
 
   void _applyLayerDefaults(int handle) {

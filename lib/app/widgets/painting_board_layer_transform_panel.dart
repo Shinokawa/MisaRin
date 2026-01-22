@@ -61,6 +61,7 @@ extension _PaintingBoardLayerTransformPanelBuilder
                           state!.reset();
                           _layerTransformRevision++;
                         });
+                        _updateRustLayerTransformPreview();
                       }
                     : null,
                 child: Text(l10n.reset),
@@ -88,4 +89,3 @@ extension _PaintingBoardLayerTransformPanelBuilder
     );
   }
 }
-

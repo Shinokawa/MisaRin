@@ -121,6 +121,32 @@ class CanvasEngineFfi {
     return false;
   }
 
+  bool setLayerTransformPreview({
+    required int handle,
+    required int layerIndex,
+    required Float32List matrix,
+    bool enabled = true,
+    bool bilinear = true,
+  }) {
+    return false;
+  }
+
+  bool applyLayerTransform({
+    required int handle,
+    required int layerIndex,
+    required Float32List matrix,
+    bool bilinear = true,
+  }) {
+    return false;
+  }
+
+  Int32List? getLayerBounds({
+    required int handle,
+    required int layerIndex,
+  }) {
+    return null;
+  }
+
   void setSelectionMask({
     required int handle,
     Uint8List? selectionMask,

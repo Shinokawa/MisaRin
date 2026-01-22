@@ -139,6 +139,7 @@ class PaintingBoardState extends _PaintingBoardBase
     AppPreferences.pixelGridVisibleNotifier.removeListener(
       _handlePixelGridPreferenceChanged,
     );
+    _rustLayerSnapshots.clear();
     super.dispose();
   }
 
@@ -708,6 +709,11 @@ class PaintingBoardState extends _PaintingBoardBase
   @override
   void didUpdateWidget(covariant PaintingBoard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive && !widget.isActive) {
+      unawaited(_captureRustLayerSnapshotIfNeeded());
+    } else if (!oldWidget.isActive && widget.isActive) {
+      _restoreRustLayerSnapshotIfNeeded();
+    }
     final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
     final bool backgroundChanged =
         widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
@@ -730,6 +736,12 @@ class PaintingBoardState extends _PaintingBoardBase
         widget.onReadyChanged?.call(true);
       }
       _resetHistory();
+      _rustLayerSnapshots.clear();
+      _rustLayerSnapshotDirty = false;
+      _rustLayerSnapshotPendingRestore = false;
+      _rustLayerSnapshotInFlight = false;
+      _rustLayerSnapshotWidth = 0;
+      _rustLayerSnapshotHeight = 0;
       setState(() {
         if (sizeChanged) {
           _viewport.reset();

@@ -656,6 +656,161 @@ pub extern "C" fn engine_translate_layer(
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
+pub extern "C" fn engine_set_layer_transform_preview(
+    handle: u64,
+    layer_index: u32,
+    matrix_ptr: *const f32,
+    matrix_len: usize,
+    enabled: u8,
+    bilinear: u8,
+) -> u8 {
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+    if matrix_ptr.is_null() || matrix_len < 16 {
+        return 0;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(matrix_ptr, matrix_len) };
+    let mut matrix = [0f32; 16];
+    matrix.copy_from_slice(&slice[..16]);
+    if entry
+        .cmd_tx
+        .send(EngineCommand::SetLayerTransformPreview {
+            layer_index,
+            matrix,
+            enabled: enabled != 0,
+            bilinear: bilinear != 0,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+    1
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_set_layer_transform_preview(
+    _handle: u64,
+    _layer_index: u32,
+    _matrix_ptr: *const f32,
+    _matrix_len: usize,
+    _enabled: u8,
+    _bilinear: u8,
+) -> u8 {
+    0
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_apply_layer_transform(
+    handle: u64,
+    layer_index: u32,
+    matrix_ptr: *const f32,
+    matrix_len: usize,
+    bilinear: u8,
+) -> u8 {
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+    if matrix_ptr.is_null() || matrix_len < 16 {
+        return 0;
+    }
+    let slice = unsafe { std::slice::from_raw_parts(matrix_ptr, matrix_len) };
+    let mut matrix = [0f32; 16];
+    matrix.copy_from_slice(&slice[..16]);
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::ApplyLayerTransform {
+            layer_index,
+            matrix,
+            bilinear: bilinear != 0,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+
+    match rx.recv() {
+        Ok(applied) => {
+            if applied {
+                1
+            } else {
+                0
+            }
+        }
+        Err(_) => 0,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_apply_layer_transform(
+    _handle: u64,
+    _layer_index: u32,
+    _matrix_ptr: *const f32,
+    _matrix_len: usize,
+    _bilinear: u8,
+) -> u8 {
+    0
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_get_layer_bounds(
+    handle: u64,
+    layer_index: u32,
+    out_ptr: *mut i32,
+    out_len: usize,
+) -> u8 {
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+    if out_ptr.is_null() || out_len < 4 {
+        return 0;
+    }
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::GetLayerBounds {
+            layer_index,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+    let bounds = match rx.recv() {
+        Ok(bounds) => bounds,
+        Err(_) => None,
+    };
+    if let Some((left, top, right, bottom)) = bounds {
+        let out_slice = unsafe { std::slice::from_raw_parts_mut(out_ptr, out_len) };
+        out_slice[0] = left;
+        out_slice[1] = top;
+        out_slice[2] = right;
+        out_slice[3] = bottom;
+        1
+    } else {
+        0
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_get_layer_bounds(
+    _handle: u64,
+    _layer_index: u32,
+    _out_ptr: *mut i32,
+    _out_len: usize,
+) -> u8 {
+    0
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
 pub extern "C" fn engine_set_selection_mask(
     handle: u64,
     selection_mask_ptr: *const u8,

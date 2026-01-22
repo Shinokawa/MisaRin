@@ -66,6 +66,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
         final bool hideCursorBecauseReferenceResize = _isReferenceCardResizing;
         final bool hideCursorBecauseLayerTransform =
             _shouldHideCursorForLayerTransform;
+        final bool suppressToolCursorOverlays = _layerTransformModeActive;
         final bool perspectiveCursorActive =
             _perspectiveVisible &&
             _perspectiveMode != PerspectiveGuideMode.off &&
@@ -834,7 +835,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                           if (transformPanel != null) transformPanel,
                           if (transformCursorOverlay != null)
                             transformCursorOverlay,
-                          if (_toolCursorPosition != null &&
+                          if (!suppressToolCursorOverlays &&
+                              _toolCursorPosition != null &&
                               cursorStyle != null)
                             Positioned(
                               left:
@@ -853,7 +855,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                 ),
                               ),
                             ),
-                          if (_penRequiresOverlay &&
+                          if (!suppressToolCursorOverlays &&
+                              _penRequiresOverlay &&
                               _penCursorWorkspacePosition != null)
                             PenCursorOverlay(
                               position: _penCursorWorkspacePosition!,
@@ -872,7 +875,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                         )
                                       : 0.0,
                             ),
-                          if (_toolCursorPosition != null)
+                          if (!suppressToolCursorOverlays &&
+                              _toolCursorPosition != null)
                             Positioned(
                               left:
                                   _toolCursorPosition!.dx -

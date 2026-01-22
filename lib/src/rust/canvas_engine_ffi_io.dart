@@ -179,6 +179,57 @@ typedef _EngineTranslateLayerNative =
 typedef _EngineTranslateLayerDart =
     int Function(int handle, int layerIndex, int deltaX, int deltaY);
 
+typedef _EngineSetLayerTransformPreviewNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Pointer<ffi.Float> matrix,
+      ffi.UintPtr matrixLen,
+      ffi.Uint8 enabled,
+      ffi.Uint8 bilinear,
+    );
+typedef _EngineSetLayerTransformPreviewDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      ffi.Pointer<ffi.Float> matrix,
+      int matrixLen,
+      int enabled,
+      int bilinear,
+    );
+
+typedef _EngineApplyLayerTransformNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Pointer<ffi.Float> matrix,
+      ffi.UintPtr matrixLen,
+      ffi.Uint8 bilinear,
+    );
+typedef _EngineApplyLayerTransformDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      ffi.Pointer<ffi.Float> matrix,
+      int matrixLen,
+      int bilinear,
+    );
+
+typedef _EngineGetLayerBoundsNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Pointer<ffi.Int32> outBounds,
+      ffi.UintPtr outLen,
+    );
+typedef _EngineGetLayerBoundsDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      ffi.Pointer<ffi.Int32> outBounds,
+      int outLen,
+    );
+
 typedef _EngineSetSelectionMaskNative =
     ffi.Void Function(
       ffi.Uint64 handle,
@@ -336,6 +387,27 @@ class CanvasEngineFfi {
         _translateLayer = null;
       }
       try {
+        _setLayerTransformPreview = _lib.lookupFunction<
+            _EngineSetLayerTransformPreviewNative,
+            _EngineSetLayerTransformPreviewDart>('engine_set_layer_transform_preview');
+      } catch (_) {
+        _setLayerTransformPreview = null;
+      }
+      try {
+        _applyLayerTransform = _lib.lookupFunction<
+            _EngineApplyLayerTransformNative,
+            _EngineApplyLayerTransformDart>('engine_apply_layer_transform');
+      } catch (_) {
+        _applyLayerTransform = null;
+      }
+      try {
+        _getLayerBounds = _lib.lookupFunction<
+            _EngineGetLayerBoundsNative,
+            _EngineGetLayerBoundsDart>('engine_get_layer_bounds');
+      } catch (_) {
+        _getLayerBounds = null;
+      }
+      try {
         _setSelectionMask = _lib.lookupFunction<
             _EngineSetSelectionMaskNative,
             _EngineSetSelectionMaskDart>('engine_set_selection_mask');
@@ -393,6 +465,9 @@ class CanvasEngineFfi {
   late final _EngineReadLayerDart? _readLayer;
   late final _EngineWriteLayerDart? _writeLayer;
   late final _EngineTranslateLayerDart? _translateLayer;
+  late final _EngineSetLayerTransformPreviewDart? _setLayerTransformPreview;
+  late final _EngineApplyLayerTransformDart? _applyLayerTransform;
+  late final _EngineGetLayerBoundsDart? _getLayerBounds;
   late final _EngineSetSelectionMaskDart? _setSelectionMask;
   late final _EngineResetCanvasDart? _resetCanvas;
   late final _EngineUndoDart? _undo;
@@ -710,6 +785,83 @@ class CanvasEngineFfi {
     }
     final int result = fn(handle, layerIndex, deltaX, deltaY);
     return result != 0;
+  }
+
+  bool setLayerTransformPreview({
+    required int handle,
+    required int layerIndex,
+    required Float32List matrix,
+    bool enabled = true,
+    bool bilinear = true,
+  }) {
+    final fn = _setLayerTransformPreview;
+    if (!isSupported || fn == null || handle == 0) {
+      return false;
+    }
+    if (matrix.length < 16) {
+      return false;
+    }
+    final ffi.Pointer<ffi.Float> ptr =
+        malloc.allocate<ffi.Float>(16 * ffi.sizeOf<ffi.Float>());
+    ptr.asTypedList(16).setRange(0, 16, matrix);
+    try {
+      final int result = fn(
+        handle,
+        layerIndex,
+        ptr,
+        16,
+        enabled ? 1 : 0,
+        bilinear ? 1 : 0,
+      );
+      return result != 0;
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  bool applyLayerTransform({
+    required int handle,
+    required int layerIndex,
+    required Float32List matrix,
+    bool bilinear = true,
+  }) {
+    final fn = _applyLayerTransform;
+    if (!isSupported || fn == null || handle == 0) {
+      return false;
+    }
+    if (matrix.length < 16) {
+      return false;
+    }
+    final ffi.Pointer<ffi.Float> ptr =
+        malloc.allocate<ffi.Float>(16 * ffi.sizeOf<ffi.Float>());
+    ptr.asTypedList(16).setRange(0, 16, matrix);
+    try {
+      final int result = fn(handle, layerIndex, ptr, 16, bilinear ? 1 : 0);
+      return result != 0;
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  Int32List? getLayerBounds({
+    required int handle,
+    required int layerIndex,
+  }) {
+    final fn = _getLayerBounds;
+    if (!isSupported || fn == null || handle == 0) {
+      return null;
+    }
+    final ffi.Pointer<ffi.Int32> ptr =
+        malloc.allocate<ffi.Int32>(4 * ffi.sizeOf<ffi.Int32>());
+    try {
+      final int result = fn(handle, layerIndex, ptr, 4);
+      if (result == 0) {
+        return null;
+      }
+      return Int32List.fromList(ptr.asTypedList(4));
+    } finally {
+      malloc.free(ptr);
+    }
   }
 
   void setSelectionMask({

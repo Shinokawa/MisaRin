@@ -60,6 +60,32 @@ private final class RustCanvasTexture: NSObject, FlutterTexture {
   }
 }
 
+private final class RustCanvasSurfaceState {
+  let surfaceId: String
+  var texture: RustCanvasTexture
+  var textureId: Int64?
+  var textureWidth: Int
+  var textureHeight: Int
+  var engineHandle: UInt64
+  var textureCache: CVMetalTextureCache?
+  var presentTexture: CVMetalTexture?
+  var initInProgress: Bool
+  var pendingTextureInfoResults: [FlutterResult]
+
+  init(surfaceId: String, width: Int, height: Int) {
+    self.surfaceId = surfaceId
+    self.texture = RustCanvasTexture(width: width, height: height)
+    self.textureId = nil
+    self.textureWidth = width
+    self.textureHeight = height
+    self.engineHandle = 0
+    self.textureCache = nil
+    self.presentTexture = nil
+    self.initInProgress = false
+    self.pendingTextureInfoResults = []
+  }
+}
+
 private func rustCanvasDisplayLinkCallback(
   displayLink: CVDisplayLink,
   inNow: UnsafePointer<CVTimeStamp>,
@@ -83,19 +109,10 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
   private static var didRegister = false
 
   private let textureRegistry: FlutterTextureRegistry
-  private var texture: RustCanvasTexture
-  private var textureId: Int64?
-  private var textureWidth: Int
-  private var textureHeight: Int
-
   private let engineStateLock = NSLock()
-  private var engineHandle: UInt64 = 0
-  private var textureCache: CVMetalTextureCache?
-  private var presentTexture: CVMetalTexture?
+  private var surfaces: [String: RustCanvasSurfaceState] = [:]
   private var displayLink: CVDisplayLink?
   private let engineInitQueue = DispatchQueue(label: "misarin.canvas.engine-init", qos: .userInitiated)
-  private var engineInitInProgress = false
-  private var pendingTextureInfoResults: [FlutterResult] = []
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     if didRegister {
@@ -111,12 +128,6 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
   private init(textureRegistry: FlutterTextureRegistry) {
     self.textureRegistry = textureRegistry
-    let initialWidth = 512
-    let initialHeight = 512
-    self.textureWidth = initialWidth
-    self.textureHeight = initialHeight
-    self.texture = RustCanvasTexture(width: initialWidth, height: initialHeight)
-    self.textureId = nil
     super.init()
   }
 
@@ -124,70 +135,128 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
     if let displayLink {
       CVDisplayLinkStop(displayLink)
     }
-    let handleToDispose: UInt64
+    var handlesToDispose: [UInt64] = []
+    var texturesToUnregister: [Int64] = []
     engineStateLock.lock()
-    handleToDispose = engineHandle
-    engineHandle = 0
-    engineStateLock.unlock()
-    if handleToDispose != 0 {
-      engine_dispose(handleToDispose)
+    for entry in surfaces.values {
+      if entry.engineHandle != 0 {
+        handlesToDispose.append(entry.engineHandle)
+      }
+      if let id = entry.textureId {
+        texturesToUnregister.append(id)
+      }
     }
-    if let id = textureId {
+    surfaces.removeAll()
+    engineStateLock.unlock()
+
+    for id in texturesToUnregister {
       textureRegistry.unregisterTexture(id)
+    }
+    for handle in handlesToDispose {
+      engine_dispose(handle)
     }
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
     case "getTextureInfo":
-      let requested = parseRequestedTextureSize(arguments: call.arguments)
-      getTextureInfo(width: requested.width, height: requested.height, result: result)
+      let requested = parseRequestedTextureInfo(arguments: call.arguments)
+      getTextureInfo(
+        surfaceId: requested.surfaceId,
+        width: requested.width,
+        height: requested.height,
+        result: result
+      )
+    case "disposeTexture":
+      let surfaceId = parseSurfaceId(arguments: call.arguments)
+      disposeSurface(surfaceId: surfaceId, result: result)
     default:
       result(FlutterMethodNotImplemented)
     }
   }
 
-  private func parseRequestedTextureSize(arguments: Any?) -> (width: Int, height: Int) {
+  private func parseRequestedTextureInfo(
+    arguments: Any?
+  ) -> (surfaceId: String, width: Int, height: Int) {
     let fallbackWidth = 512
     let fallbackHeight = 512
+    let fallbackSurfaceId = "default"
     guard let dict = arguments as? [String: Any] else {
-      return (fallbackWidth, fallbackHeight)
+      return (fallbackSurfaceId, fallbackWidth, fallbackHeight)
     }
     let w = (dict["width"] as? NSNumber)?.intValue ?? fallbackWidth
     let h = (dict["height"] as? NSNumber)?.intValue ?? fallbackHeight
-    return (max(1, min(w, 16384)), max(1, min(h, 16384)))
+    let surfaceIdValue = dict["surfaceId"]
+    let surfaceId: String
+    if let str = surfaceIdValue as? String, !str.isEmpty {
+      surfaceId = str
+    } else if let num = surfaceIdValue as? NSNumber {
+      surfaceId = num.stringValue
+    } else {
+      surfaceId = fallbackSurfaceId
+    }
+    return (surfaceId, max(1, min(w, 16384)), max(1, min(h, 16384)))
   }
 
-  private func getTextureInfo(width: Int, height: Int, result: @escaping FlutterResult) {
+  private func parseSurfaceId(arguments: Any?) -> String {
+    let fallbackSurfaceId = "default"
+    guard let dict = arguments as? [String: Any] else {
+      return fallbackSurfaceId
+    }
+    let surfaceIdValue = dict["surfaceId"]
+    if let str = surfaceIdValue as? String, !str.isEmpty {
+      return str
+    }
+    if let num = surfaceIdValue as? NSNumber {
+      return num.stringValue
+    }
+    return fallbackSurfaceId
+  }
+
+  private func getTextureInfo(
+    surfaceId: String,
+    width: Int,
+    height: Int,
+    result: @escaping FlutterResult
+  ) {
     engineStateLock.lock()
-    let existingHandle = engineHandle
-    if existingHandle != 0 && textureWidth == width && textureHeight == height {
-      if textureId == nil {
-        textureId = textureRegistry.register(texture)
+    let entry: RustCanvasSurfaceState
+    if let existing = surfaces[surfaceId] {
+      entry = existing
+    } else {
+      let created = RustCanvasSurfaceState(surfaceId: surfaceId, width: width, height: height)
+      surfaces[surfaceId] = created
+      entry = created
+    }
+    if entry.engineHandle != 0 && entry.textureWidth == width && entry.textureHeight == height {
+      if entry.textureId == nil {
+        entry.textureId = textureRegistry.register(entry.texture)
       }
-      let currentTextureId = textureId!
-      let currentWidth = textureWidth
-      let currentHeight = textureHeight
+      let currentTextureId = entry.textureId!
+      let currentWidth = entry.textureWidth
+      let currentHeight = entry.textureHeight
       engineStateLock.unlock()
       result([
         "textureId": currentTextureId,
-        "engineHandle": NSNumber(value: existingHandle),
+        "engineHandle": NSNumber(value: entry.engineHandle),
         "width": currentWidth,
         "height": currentHeight,
+        "isNewEngine": false,
       ])
       return
     }
-    if engineInitInProgress {
-      pendingTextureInfoResults.append(result)
+    if entry.initInProgress {
+      entry.pendingTextureInfoResults.append(result)
       engineStateLock.unlock()
       return
     }
-    engineInitInProgress = true
-    pendingTextureInfoResults.append(result)
-    let handleToDispose = engineHandle
-    engineHandle = 0
-    let oldTextureId = textureId
-    let needsResize = (textureWidth != width || textureHeight != height)
+    entry.initInProgress = true
+    entry.pendingTextureInfoResults.append(result)
+    let handleToDispose = entry.engineHandle
+    let needsResize = entry.textureWidth != width || entry.textureHeight != height
+    let oldTextureId = needsResize ? entry.textureId : nil
+    let existingTexture = entry.texture
+    entry.engineHandle = 0
     engineStateLock.unlock()
 
     engineInitQueue.async { [weak self] in
@@ -201,7 +270,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
       let targetTexture: RustCanvasTexture = needsResize
         ? RustCanvasTexture(width: width, height: height)
-        : self.texture
+        : existingTexture
 
       let resolvedWidth = CVPixelBufferGetWidth(targetTexture.pixelBuffer)
       let resolvedHeight = CVPixelBufferGetHeight(targetTexture.pixelBuffer)
@@ -210,6 +279,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       if handle == 0 {
         DispatchQueue.main.async {
           self.completePendingTextureInfoRequests(
+            surfaceId: surfaceId,
             response: FlutterError(code: "engine_create_failed", message: "engine_create returned 0", details: nil)
           )
         }
@@ -219,7 +289,12 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       guard let devicePtr = engine_get_mtl_device(handle) else {
         DispatchQueue.main.async {
           self.completePendingTextureInfoRequests(
-            response: FlutterError(code: "engine_get_mtl_device_failed", message: "engine_get_mtl_device returned null", details: nil)
+            surfaceId: surfaceId,
+            response: FlutterError(
+              code: "engine_get_mtl_device_failed",
+              message: "engine_get_mtl_device returned null",
+              details: nil
+            )
           )
         }
         return
@@ -232,6 +307,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       guard cacheStatus == kCVReturnSuccess, let resolvedCache = cache else {
         DispatchQueue.main.async {
           self.completePendingTextureInfoRequests(
+            surfaceId: surfaceId,
             response: FlutterError(
               code: "cv_metal_texture_cache_failed",
               message: "CVMetalTextureCacheCreate failed: \(cacheStatus)",
@@ -267,6 +343,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       guard texStatus == kCVReturnSuccess, let resolvedCvTexture = cvTexture else {
         DispatchQueue.main.async {
           self.completePendingTextureInfoRequests(
+            surfaceId: surfaceId,
             response: FlutterError(
               code: "cv_metal_texture_failed",
               message: "CVMetalTextureCacheCreateTextureFromImage failed: \(texStatus)",
@@ -280,6 +357,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       guard let mtlTexture = CVMetalTextureGetTexture(resolvedCvTexture) else {
         DispatchQueue.main.async {
           self.completePendingTextureInfoRequests(
+            surfaceId: surfaceId,
             response: FlutterError(
               code: "cv_metal_texture_get_failed",
               message: "CVMetalTextureGetTexture returned null",
@@ -301,39 +379,87 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
       DispatchQueue.main.async {
         self.engineStateLock.lock()
+        guard let entry = self.surfaces[surfaceId] else {
+          self.engineStateLock.unlock()
+          self.engineInitQueue.async {
+            engine_dispose(handle)
+          }
+          return
+        }
         if needsResize {
           if let oldTextureId {
             self.textureRegistry.unregisterTexture(oldTextureId)
           }
-          self.texture = targetTexture
-          self.textureWidth = resolvedWidth
-          self.textureHeight = resolvedHeight
+          entry.texture = targetTexture
+          entry.textureWidth = resolvedWidth
+          entry.textureHeight = resolvedHeight
+        } else if entry.textureWidth != resolvedWidth || entry.textureHeight != resolvedHeight {
+          entry.textureWidth = resolvedWidth
+          entry.textureHeight = resolvedHeight
         }
-        if self.textureId == nil || needsResize {
-          self.textureId = self.textureRegistry.register(self.texture)
+        if entry.textureId == nil || needsResize {
+          entry.textureId = self.textureRegistry.register(entry.texture)
         }
-        let resolvedTextureId = self.textureId ?? self.textureRegistry.register(self.texture)
-        self.textureId = resolvedTextureId
-        self.engineHandle = handle
-        self.engineInitInProgress = false
+        let resolvedTextureId = entry.textureId ?? self.textureRegistry.register(entry.texture)
+        entry.textureId = resolvedTextureId
+        entry.engineHandle = handle
+        entry.textureCache = resolvedCache
+        entry.presentTexture = resolvedCvTexture
         self.engineStateLock.unlock()
-        self.textureCache = resolvedCache
-        self.presentTexture = resolvedCvTexture
-        self.completePendingTextureInfoRequests(response: [
+        self.completePendingTextureInfoRequests(surfaceId: surfaceId, response: [
           "textureId": resolvedTextureId,
           "engineHandle": NSNumber(value: handle),
           "width": resolvedWidth,
           "height": resolvedHeight,
+          "isNewEngine": true,
         ])
       }
     }
   }
 
-  private func completePendingTextureInfoRequests(response: Any?) {
+  private func disposeSurface(surfaceId: String, result: @escaping FlutterResult) {
+    var handleToDispose: UInt64 = 0
+    var textureIdToUnregister: Int64?
+    var pendingResults: [FlutterResult] = []
     engineStateLock.lock()
-    let callbacks = pendingTextureInfoResults
-    pendingTextureInfoResults.removeAll()
-    engineInitInProgress = false
+    if let entry = surfaces.removeValue(forKey: surfaceId) {
+      handleToDispose = entry.engineHandle
+      textureIdToUnregister = entry.textureId
+      pendingResults = entry.pendingTextureInfoResults
+      entry.pendingTextureInfoResults.removeAll()
+      entry.initInProgress = false
+    }
+    engineStateLock.unlock()
+
+    if let id = textureIdToUnregister {
+      textureRegistry.unregisterTexture(id)
+    }
+    if handleToDispose != 0 {
+      engineInitQueue.async {
+        engine_dispose(handleToDispose)
+      }
+    }
+    for callback in pendingResults {
+      callback(
+        FlutterError(
+          code: "surface_disposed",
+          message: "surface disposed",
+          details: nil
+        )
+      )
+    }
+    result(nil)
+  }
+
+  private func completePendingTextureInfoRequests(surfaceId: String, response: Any?) {
+    engineStateLock.lock()
+    guard let entry = surfaces[surfaceId] else {
+      engineStateLock.unlock()
+      return
+    }
+    let callbacks = entry.pendingTextureInfoResults
+    entry.pendingTextureInfoResults.removeAll()
+    entry.initInProgress = false
     engineStateLock.unlock()
 
     for callback in callbacks {
@@ -358,14 +484,18 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
   }
 
   fileprivate func onDisplayLinkTick() {
-    let handle: UInt64
-    let currentTextureId: Int64?
+    var entries: [(UInt64, Int64)] = []
     engineStateLock.lock()
-    handle = engineHandle
-    currentTextureId = textureId
+    for entry in surfaces.values {
+      if entry.engineHandle != 0, let textureId = entry.textureId {
+        entries.append((entry.engineHandle, textureId))
+      }
+    }
     engineStateLock.unlock()
-    if handle != 0, let currentTextureId, engine_poll_frame_ready(handle) {
-      textureRegistry.textureFrameAvailable(currentTextureId)
+    for (handle, textureId) in entries {
+      if engine_poll_frame_ready(handle) {
+        textureRegistry.textureFrameAvailable(textureId)
+      }
     }
   }
 }
