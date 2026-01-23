@@ -971,11 +971,6 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       return;
     }
     final int handle = _rustCanvasEngineHandle!;
-    // Skip restore when the snapshot came from the same engine instance.
-    if (_rustLayerSnapshotHandle != null && _rustLayerSnapshotHandle == handle) {
-      _rustLayerSnapshotPendingRestore = false;
-      return;
-    }
     final List<BitmapLayerState> layers = _controller.layers;
     for (int i = 0; i < layers.length; i++) {
       final Uint32List? pixels = _rustLayerSnapshots[layers[i].id];
