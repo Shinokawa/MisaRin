@@ -10,6 +10,8 @@ import '../backend/canvas_raster_backend.dart';
 import 'raster_frame.dart';
 import 'raster_int_rect.dart';
 
+import '../app/debug/rust_canvas_timeline.dart';
+
 const bool _kDebugRasterTiles = bool.fromEnvironment(
   'MISA_RIN_DEBUG_RASTER_TILES',
   defaultValue: false,
@@ -90,6 +92,7 @@ class RasterTileCache {
       );
     }
 
+    final Stopwatch sw = Stopwatch()..start();
     final List<_PendingTile> uploads = <_PendingTile>[
       for (final RasterIntRect rect in targets)
         _PendingTile(
@@ -97,11 +100,13 @@ class RasterTileCache {
           bytes: backend.copyTileRgba(rect),
         ),
     ];
+    final int copyTime = sw.elapsedMilliseconds;
 
     if (uploads.isEmpty) {
       return _frame;
     }
 
+    final int startDecode = sw.elapsedMilliseconds;
     final List<_DecodedTile> decodedTiles = await Future.wait(
       uploads.map((_PendingTile tile) async {
         final ui.Image image = await _decodeTile(
@@ -112,6 +117,8 @@ class RasterTileCache {
         return _DecodedTile(rect: tile.rect, image: image);
       }),
     );
+    final int decodeTime = sw.elapsedMilliseconds - startDecode;
+    RustCanvasTimeline.mark('tiles: copyPixels total took ${copyTime}ms, decodeImages total wait took ${decodeTime}ms');
 
     for (final _DecodedTile tile in decodedTiles) {
       final int key = _tileKeyForRect(tile.rect);

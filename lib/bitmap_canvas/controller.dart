@@ -12,6 +12,7 @@ import 'package:flutter/scheduler.dart';
 // ignore: unused_import
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 
+import '../app/debug/rust_canvas_timeline.dart';
 import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
 import '../backend/rgba_utils.dart';
