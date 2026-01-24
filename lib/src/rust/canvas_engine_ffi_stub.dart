@@ -146,17 +146,11 @@ class CanvasEngineFfi {
     return false;
   }
 
-  Int32List? getLayerBounds({
-    required int handle,
-    required int layerIndex,
-  }) {
+  Int32List? getLayerBounds({required int handle, required int layerIndex}) {
     return null;
   }
 
-  void setSelectionMask({
-    required int handle,
-    Uint8List? selectionMask,
-  }) {}
+  void setSelectionMask({required int handle, Uint8List? selectionMask}) {}
 
   void resetCanvas({required int handle, required int backgroundColorArgb}) {}
 

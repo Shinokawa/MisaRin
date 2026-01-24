@@ -48,22 +48,38 @@ typedef _EngineSetActiveLayerNative =
 typedef _EngineSetActiveLayerDart = void Function(int handle, int layerIndex);
 
 typedef _EngineSetLayerOpacityNative =
-    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Float opacity);
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Float opacity,
+    );
 typedef _EngineSetLayerOpacityDart =
     void Function(int handle, int layerIndex, double opacity);
 
 typedef _EngineSetLayerVisibleNative =
-    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Uint8 visible);
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Uint8 visible,
+    );
 typedef _EngineSetLayerVisibleDart =
     void Function(int handle, int layerIndex, int visible);
 
 typedef _EngineSetLayerClippingMaskNative =
-    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Uint8 clippingMask);
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Uint8 clippingMask,
+    );
 typedef _EngineSetLayerClippingMaskDart =
     void Function(int handle, int layerIndex, int clippingMask);
 
 typedef _EngineSetLayerBlendModeNative =
-    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Uint32 blendModeIndex);
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Uint32 blendModeIndex,
+    );
 typedef _EngineSetLayerBlendModeDart =
     void Function(int handle, int layerIndex, int blendModeIndex);
 
@@ -76,7 +92,11 @@ typedef _EngineClearLayerNative =
 typedef _EngineClearLayerDart = void Function(int handle, int layerIndex);
 
 typedef _EngineFillLayerNative =
-    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex, ffi.Uint32 colorArgb);
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Uint32 colorArgb,
+    );
 typedef _EngineFillLayerDart =
     void Function(int handle, int layerIndex, int colorArgb);
 
@@ -250,7 +270,8 @@ typedef _EngineSetSelectionMaskDart =
 
 typedef _EngineResetCanvasNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 backgroundColorArgb);
-typedef _EngineResetCanvasDart = void Function(int handle, int backgroundColorArgb);
+typedef _EngineResetCanvasDart =
+    void Function(int handle, int backgroundColorArgb);
 
 typedef _EngineUndoNative = ffi.Void Function(ffi.Uint64 handle);
 typedef _EngineUndoDart = void Function(int handle);
@@ -293,165 +314,195 @@ class CanvasEngineFfi {
   CanvasEngineFfi._() {
     try {
       _lib = ffi.DynamicLibrary.process();
-      _pushPoints = _lib.lookupFunction<_EnginePushPointsNative, _EnginePushPointsDart>(
-        'engine_push_points',
-      );
-      _getQueueLen = _lib.lookupFunction<_EngineGetInputQueueLenNative, _EngineGetInputQueueLenDart>(
-        'engine_get_input_queue_len',
-      );
+      _pushPoints = _lib
+          .lookupFunction<_EnginePushPointsNative, _EnginePushPointsDart>(
+            'engine_push_points',
+          );
+      _getQueueLen = _lib
+          .lookupFunction<
+            _EngineGetInputQueueLenNative,
+            _EngineGetInputQueueLenDart
+          >('engine_get_input_queue_len');
 
       // Optional layer controls (not required for basic drawing).
       try {
-        _setActiveLayer = _lib.lookupFunction<_EngineSetActiveLayerNative, _EngineSetActiveLayerDart>(
-          'engine_set_active_layer',
-        );
+        _setActiveLayer = _lib
+            .lookupFunction<
+              _EngineSetActiveLayerNative,
+              _EngineSetActiveLayerDart
+            >('engine_set_active_layer');
       } catch (_) {
         _setActiveLayer = null;
       }
       try {
-        _setLayerOpacity =
-            _lib.lookupFunction<_EngineSetLayerOpacityNative, _EngineSetLayerOpacityDart>(
-          'engine_set_layer_opacity',
-        );
+        _setLayerOpacity = _lib
+            .lookupFunction<
+              _EngineSetLayerOpacityNative,
+              _EngineSetLayerOpacityDart
+            >('engine_set_layer_opacity');
       } catch (_) {
         _setLayerOpacity = null;
       }
       try {
-        _setLayerVisible =
-            _lib.lookupFunction<_EngineSetLayerVisibleNative, _EngineSetLayerVisibleDart>(
-          'engine_set_layer_visible',
-        );
+        _setLayerVisible = _lib
+            .lookupFunction<
+              _EngineSetLayerVisibleNative,
+              _EngineSetLayerVisibleDart
+            >('engine_set_layer_visible');
       } catch (_) {
         _setLayerVisible = null;
       }
       try {
-        _setLayerClippingMask =
-            _lib.lookupFunction<_EngineSetLayerClippingMaskNative, _EngineSetLayerClippingMaskDart>(
-          'engine_set_layer_clipping_mask',
-        );
+        _setLayerClippingMask = _lib
+            .lookupFunction<
+              _EngineSetLayerClippingMaskNative,
+              _EngineSetLayerClippingMaskDart
+            >('engine_set_layer_clipping_mask');
       } catch (_) {
         _setLayerClippingMask = null;
       }
       try {
-        _setLayerBlendMode =
-            _lib.lookupFunction<_EngineSetLayerBlendModeNative, _EngineSetLayerBlendModeDart>(
-          'engine_set_layer_blend_mode',
-        );
+        _setLayerBlendMode = _lib
+            .lookupFunction<
+              _EngineSetLayerBlendModeNative,
+              _EngineSetLayerBlendModeDart
+            >('engine_set_layer_blend_mode');
       } catch (_) {
         _setLayerBlendMode = null;
       }
       try {
-        _setViewFlags =
-            _lib.lookupFunction<_EngineSetViewFlagsNative, _EngineSetViewFlagsDart>(
-          'engine_set_view_flags',
-        );
+        _setViewFlags = _lib
+            .lookupFunction<_EngineSetViewFlagsNative, _EngineSetViewFlagsDart>(
+              'engine_set_view_flags',
+            );
       } catch (_) {
         _setViewFlags = null;
       }
       try {
-        _clearLayer = _lib.lookupFunction<_EngineClearLayerNative, _EngineClearLayerDart>(
-          'engine_clear_layer',
-        );
+        _clearLayer = _lib
+            .lookupFunction<_EngineClearLayerNative, _EngineClearLayerDart>(
+              'engine_clear_layer',
+            );
       } catch (_) {
         _clearLayer = null;
       }
       try {
-        _fillLayer = _lib.lookupFunction<_EngineFillLayerNative, _EngineFillLayerDart>(
-          'engine_fill_layer',
-        );
+        _fillLayer = _lib
+            .lookupFunction<_EngineFillLayerNative, _EngineFillLayerDart>(
+              'engine_fill_layer',
+            );
       } catch (_) {
         _fillLayer = null;
       }
       try {
-        _bucketFill = _lib.lookupFunction<_EngineBucketFillNative, _EngineBucketFillDart>(
-          'engine_bucket_fill',
-        );
+        _bucketFill = _lib
+            .lookupFunction<_EngineBucketFillNative, _EngineBucketFillDart>(
+              'engine_bucket_fill',
+            );
       } catch (_) {
         _bucketFill = null;
       }
       try {
-        _magicWandMask =
-            _lib.lookupFunction<_EngineMagicWandMaskNative, _EngineMagicWandMaskDart>(
-          'engine_magic_wand_mask',
-        );
+        _magicWandMask = _lib
+            .lookupFunction<
+              _EngineMagicWandMaskNative,
+              _EngineMagicWandMaskDart
+            >('engine_magic_wand_mask');
       } catch (_) {
         _magicWandMask = null;
       }
       try {
-        _readLayer = _lib.lookupFunction<_EngineReadLayerNative, _EngineReadLayerDart>(
-          'engine_read_layer',
-        );
+        _readLayer = _lib
+            .lookupFunction<_EngineReadLayerNative, _EngineReadLayerDart>(
+              'engine_read_layer',
+            );
       } catch (_) {
         _readLayer = null;
       }
       try {
-        _writeLayer = _lib.lookupFunction<_EngineWriteLayerNative, _EngineWriteLayerDart>(
-          'engine_write_layer',
-        );
+        _writeLayer = _lib
+            .lookupFunction<_EngineWriteLayerNative, _EngineWriteLayerDart>(
+              'engine_write_layer',
+            );
       } catch (_) {
         _writeLayer = null;
       }
       try {
-        _translateLayer =
-            _lib.lookupFunction<_EngineTranslateLayerNative, _EngineTranslateLayerDart>(
-          'engine_translate_layer',
-        );
+        _translateLayer = _lib
+            .lookupFunction<
+              _EngineTranslateLayerNative,
+              _EngineTranslateLayerDart
+            >('engine_translate_layer');
       } catch (_) {
         _translateLayer = null;
       }
       try {
-        _setLayerTransformPreview = _lib.lookupFunction<
-            _EngineSetLayerTransformPreviewNative,
-            _EngineSetLayerTransformPreviewDart>('engine_set_layer_transform_preview');
+        _setLayerTransformPreview = _lib
+            .lookupFunction<
+              _EngineSetLayerTransformPreviewNative,
+              _EngineSetLayerTransformPreviewDart
+            >('engine_set_layer_transform_preview');
       } catch (_) {
         _setLayerTransformPreview = null;
       }
       try {
-        _applyLayerTransform = _lib.lookupFunction<
-            _EngineApplyLayerTransformNative,
-            _EngineApplyLayerTransformDart>('engine_apply_layer_transform');
+        _applyLayerTransform = _lib
+            .lookupFunction<
+              _EngineApplyLayerTransformNative,
+              _EngineApplyLayerTransformDart
+            >('engine_apply_layer_transform');
       } catch (_) {
         _applyLayerTransform = null;
       }
       try {
-        _getLayerBounds = _lib.lookupFunction<
-            _EngineGetLayerBoundsNative,
-            _EngineGetLayerBoundsDart>('engine_get_layer_bounds');
+        _getLayerBounds = _lib
+            .lookupFunction<
+              _EngineGetLayerBoundsNative,
+              _EngineGetLayerBoundsDart
+            >('engine_get_layer_bounds');
       } catch (_) {
         _getLayerBounds = null;
       }
       try {
-        _setSelectionMask = _lib.lookupFunction<
-            _EngineSetSelectionMaskNative,
-            _EngineSetSelectionMaskDart>('engine_set_selection_mask');
+        _setSelectionMask = _lib
+            .lookupFunction<
+              _EngineSetSelectionMaskNative,
+              _EngineSetSelectionMaskDart
+            >('engine_set_selection_mask');
       } catch (_) {
         _setSelectionMask = null;
       }
       try {
-        _resetCanvas = _lib.lookupFunction<_EngineResetCanvasNative, _EngineResetCanvasDart>(
-          'engine_reset_canvas',
-        );
+        _resetCanvas = _lib
+            .lookupFunction<_EngineResetCanvasNative, _EngineResetCanvasDart>(
+              'engine_reset_canvas',
+            );
       } catch (_) {
         _resetCanvas = null;
       }
 
       // Optional undo/redo (Flow 7).
       try {
-        _undo = _lib.lookupFunction<_EngineUndoNative, _EngineUndoDart>('engine_undo');
+        _undo = _lib.lookupFunction<_EngineUndoNative, _EngineUndoDart>(
+          'engine_undo',
+        );
       } catch (_) {
         _undo = null;
       }
       try {
-        _redo = _lib.lookupFunction<_EngineRedoNative, _EngineRedoDart>('engine_redo');
+        _redo = _lib.lookupFunction<_EngineRedoNative, _EngineRedoDart>(
+          'engine_redo',
+        );
       } catch (_) {
         _redo = null;
       }
 
       // Optional brush settings (color/size/etc).
       try {
-        _setBrush = _lib.lookupFunction<_EngineSetBrushNative, _EngineSetBrushDart>(
-          'engine_set_brush',
-        );
+        _setBrush = _lib
+            .lookupFunction<_EngineSetBrushNative, _EngineSetBrushDart>(
+              'engine_set_brush',
+            );
       } catch (_) {
         _setBrush = null;
       }
@@ -758,8 +809,9 @@ class CanvasEngineFfi {
     if (pixelCount <= 0) {
       return null;
     }
-    final ffi.Pointer<ffi.Uint32> outPtr =
-        malloc.allocate<ffi.Uint32>(pixelCount * ffi.sizeOf<ffi.Uint32>());
+    final ffi.Pointer<ffi.Uint32> outPtr = malloc.allocate<ffi.Uint32>(
+      pixelCount * ffi.sizeOf<ffi.Uint32>(),
+    );
     try {
       final int result = fn(handle, layerIndex, outPtr, pixelCount);
       if (result == 0) {
@@ -784,12 +836,18 @@ class CanvasEngineFfi {
     if (pixels.isEmpty) {
       return false;
     }
-    final ffi.Pointer<ffi.Uint32> ptr =
-        malloc.allocate<ffi.Uint32>(pixels.length * ffi.sizeOf<ffi.Uint32>());
+    final ffi.Pointer<ffi.Uint32> ptr = malloc.allocate<ffi.Uint32>(
+      pixels.length * ffi.sizeOf<ffi.Uint32>(),
+    );
     ptr.asTypedList(pixels.length).setAll(0, pixels);
     try {
-      final int result =
-          fn(handle, layerIndex, ptr, pixels.length, recordUndo ? 1 : 0);
+      final int result = fn(
+        handle,
+        layerIndex,
+        ptr,
+        pixels.length,
+        recordUndo ? 1 : 0,
+      );
       return result != 0;
     } finally {
       malloc.free(ptr);
@@ -827,8 +885,9 @@ class CanvasEngineFfi {
     if (matrix.length < 16) {
       return false;
     }
-    final ffi.Pointer<ffi.Float> ptr =
-        malloc.allocate<ffi.Float>(16 * ffi.sizeOf<ffi.Float>());
+    final ffi.Pointer<ffi.Float> ptr = malloc.allocate<ffi.Float>(
+      16 * ffi.sizeOf<ffi.Float>(),
+    );
     ptr.asTypedList(16).setRange(0, 16, matrix);
     try {
       final int result = fn(
@@ -858,8 +917,9 @@ class CanvasEngineFfi {
     if (matrix.length < 16) {
       return false;
     }
-    final ffi.Pointer<ffi.Float> ptr =
-        malloc.allocate<ffi.Float>(16 * ffi.sizeOf<ffi.Float>());
+    final ffi.Pointer<ffi.Float> ptr = malloc.allocate<ffi.Float>(
+      16 * ffi.sizeOf<ffi.Float>(),
+    );
     ptr.asTypedList(16).setRange(0, 16, matrix);
     try {
       final int result = fn(handle, layerIndex, ptr, 16, bilinear ? 1 : 0);
@@ -869,16 +929,14 @@ class CanvasEngineFfi {
     }
   }
 
-  Int32List? getLayerBounds({
-    required int handle,
-    required int layerIndex,
-  }) {
+  Int32List? getLayerBounds({required int handle, required int layerIndex}) {
     final fn = _getLayerBounds;
     if (!isSupported || fn == null || handle == 0) {
       return null;
     }
-    final ffi.Pointer<ffi.Int32> ptr =
-        malloc.allocate<ffi.Int32>(4 * ffi.sizeOf<ffi.Int32>());
+    final ffi.Pointer<ffi.Int32> ptr = malloc.allocate<ffi.Int32>(
+      4 * ffi.sizeOf<ffi.Int32>(),
+    );
     try {
       final int result = fn(handle, layerIndex, ptr, 4);
       if (result == 0) {
@@ -890,10 +948,7 @@ class CanvasEngineFfi {
     }
   }
 
-  void setSelectionMask({
-    required int handle,
-    Uint8List? selectionMask,
-  }) {
+  void setSelectionMask({required int handle, Uint8List? selectionMask}) {
     final fn = _setSelectionMask;
     if (!isSupported || fn == null || handle == 0) {
       return;
@@ -916,10 +971,7 @@ class CanvasEngineFfi {
     }
   }
 
-  void resetCanvas({
-    required int handle,
-    required int backgroundColorArgb,
-  }) {
+  void resetCanvas({required int handle, required int backgroundColorArgb}) {
     final fn = _resetCanvas;
     if (!isSupported || fn == null || handle == 0) {
       return;
@@ -1001,7 +1053,9 @@ class CanvasEngineFfi {
       _staging = null;
       _stagingCapacityBytes = 0;
     }
-    final ffi.Pointer<ffi.Uint8> next = malloc.allocate<ffi.Uint8>(requiredBytes);
+    final ffi.Pointer<ffi.Uint8> next = malloc.allocate<ffi.Uint8>(
+      requiredBytes,
+    );
     _staging = next;
     _stagingCapacityBytes = requiredBytes;
     return next;

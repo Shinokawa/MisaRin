@@ -6,3 +6,4 @@ pub mod memory;
 pub mod psd;
 pub mod selection_path;
 pub mod simple;
+pub mod workspace;

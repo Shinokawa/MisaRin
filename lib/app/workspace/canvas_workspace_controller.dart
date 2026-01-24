@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:flutter/widgets.dart';
 
 import '../project/project_document.dart';
+import '../../src/rust/api/workspace.dart' as rust;
 
 class CanvasWorkspaceEntry {
   CanvasWorkspaceEntry({required this.document, this.isDirty = false});
@@ -22,7 +23,9 @@ class CanvasWorkspaceEntry {
 }
 
 class CanvasWorkspaceController extends ChangeNotifier {
-  CanvasWorkspaceController._();
+  CanvasWorkspaceController._() {
+    _restoreFromRust();
+  }
 
   static final CanvasWorkspaceController instance =
       CanvasWorkspaceController._();
@@ -46,16 +49,17 @@ class CanvasWorkspaceController extends ChangeNotifier {
   }
 
   void open(ProjectDocument document, {bool activate = true}) {
-    final int index = _entries.indexWhere((entry) => entry.id == document.id);
-    if (index >= 0) {
-      _entries[index].document = document;
-    } else {
-      _entries.add(CanvasWorkspaceEntry(document: document));
-    }
-    if (activate) {
-      _activeId = document.id;
-    }
-    _scheduleNotify();
+    final CanvasWorkspaceEntry? existing = entryById(document.id);
+    final bool isDirty = existing?.isDirty ?? false;
+    final rust.WorkspaceState state = rust.workspaceOpen(
+      entry: rust.WorkspaceEntry(
+        id: document.id,
+        name: document.name,
+        isDirty: isDirty,
+      ),
+      activate: activate,
+    );
+    _applyRustState(state, documentOverride: document);
   }
 
   void updateDocument(ProjectDocument document) {
@@ -63,63 +67,68 @@ class CanvasWorkspaceController extends ChangeNotifier {
   }
 
   void markDirty(String id, bool isDirty) {
-    final int index = _entries.indexWhere((entry) => entry.id == id);
-    if (index < 0) {
+    final CanvasWorkspaceEntry? current = entryById(id);
+    if (current == null || current.isDirty == isDirty) {
       return;
     }
-    if (_entries[index].isDirty == isDirty) {
-      return;
-    }
-    _entries[index].isDirty = isDirty;
-    _scheduleNotify();
+    final rust.WorkspaceState state = rust.workspaceMarkDirty(
+      id: id,
+      isDirty: isDirty,
+    );
+    _applyRustState(state);
   }
 
   void setActive(String id) {
     if (_activeId == id) {
       return;
     }
-    if (_entries.any((entry) => entry.id == id)) {
-      _activeId = id;
-      _scheduleNotify();
+    if (entryById(id) == null) {
+      return;
     }
+    final rust.WorkspaceState state = rust.workspaceSetActive(id: id);
+    _applyRustState(state);
   }
 
   CanvasWorkspaceEntry? neighborFor(String id) {
-    if (_entries.length <= 1) {
+    rust.WorkspaceEntry? neighbor;
+    try {
+      neighbor = rust.workspaceNeighbor(id: id);
+    } catch (_) {
+      neighbor = null;
+    }
+    if (neighbor == null) {
       return null;
     }
-    final int index = _entries.indexWhere((entry) => entry.id == id);
-    if (index < 0) {
-      return _entries.isNotEmpty ? _entries.last : null;
+    final CanvasWorkspaceEntry? existing = entryById(neighbor.id);
+    if (existing == null) {
+      return null;
     }
-    if (index > 0) {
-      return _entries[index - 1];
+    if (existing.isDirty == neighbor.isDirty && existing.name == neighbor.name) {
+      return existing;
     }
-    if (index + 1 < _entries.length) {
-      return _entries[index + 1];
-    }
-    return null;
+    final ProjectDocument document = existing.name == neighbor.name
+        ? existing.document
+        : existing.document.copyWith(name: neighbor.name);
+    return CanvasWorkspaceEntry(
+      document: document,
+      isDirty: neighbor.isDirty,
+    );
   }
 
   void remove(String id, {String? activateAfter}) {
-    final int index = _entries.indexWhere((entry) => entry.id == id);
-    if (index < 0) {
+    if (entryById(id) == null) {
       return;
     }
-    _entries.removeAt(index);
-    if (activateAfter != null &&
-        _entries.any((entry) => entry.id == activateAfter)) {
-      _activeId = activateAfter;
-    } else if (_activeId == id) {
-      _activeId = _entries.isNotEmpty ? _entries.last.id : null;
-    }
-    _scheduleNotify();
+    final rust.WorkspaceState state = rust.workspaceRemove(
+      id: id,
+      activateAfter: activateAfter,
+    );
+    _applyRustState(state);
   }
 
   void reset() {
-    _entries.clear();
-    _activeId = null;
-    _scheduleNotify();
+    final rust.WorkspaceState state = rust.workspaceReset();
+    _applyRustState(state);
   }
 
   void reorder(int oldIndex, int newIndex) {
@@ -129,20 +138,79 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (oldIndex < 0 || oldIndex >= _entries.length) {
       return;
     }
-    if (newIndex < 0) {
-      newIndex = 0;
+    final rust.WorkspaceState state = rust.workspaceReorder(
+      oldIndex: oldIndex,
+      newIndex: newIndex,
+    );
+    _applyRustState(state);
+  }
+
+  void _restoreFromRust() {
+    try {
+      final rust.WorkspaceState state = rust.workspaceState();
+      _applyRustState(state);
+    } catch (_) {
+      _entries.clear();
+      _activeId = null;
     }
-    if (newIndex > _entries.length) {
-      newIndex = _entries.length;
+  }
+
+  void _applyRustState(
+    rust.WorkspaceState state, {
+    ProjectDocument? documentOverride,
+  }) {
+    final Map<String, CanvasWorkspaceEntry> cache =
+        <String, CanvasWorkspaceEntry>{
+      for (final CanvasWorkspaceEntry entry in _entries) entry.id: entry,
+    };
+
+    if (documentOverride != null) {
+      final bool isDirty = cache[documentOverride.id]?.isDirty ?? false;
+      cache[documentOverride.id] = CanvasWorkspaceEntry(
+        document: documentOverride,
+        isDirty: isDirty,
+      );
     }
-    if (newIndex > oldIndex) {
-      newIndex -= 1;
+
+    final List<CanvasWorkspaceEntry> nextEntries = <CanvasWorkspaceEntry>[];
+    for (final rust.WorkspaceEntry entry in state.entries) {
+      final CanvasWorkspaceEntry? current = cache[entry.id];
+      if (current == null) {
+        continue;
+      }
+      final ProjectDocument document = current.name == entry.name
+          ? current.document
+          : current.document.copyWith(name: entry.name);
+      nextEntries.add(
+        CanvasWorkspaceEntry(
+          document: document,
+          isDirty: entry.isDirty,
+        ),
+      );
     }
-    if (oldIndex == newIndex) {
+
+    bool sameEntries = nextEntries.length == _entries.length;
+    if (sameEntries) {
+      for (int i = 0; i < nextEntries.length; i++) {
+        final CanvasWorkspaceEntry next = nextEntries[i];
+        final CanvasWorkspaceEntry current = _entries[i];
+        if (next.id != current.id ||
+            next.name != current.name ||
+            next.isDirty != current.isDirty) {
+          sameEntries = false;
+          break;
+        }
+      }
+    }
+
+    if (sameEntries && _activeId == state.activeId) {
       return;
     }
-    final CanvasWorkspaceEntry entry = _entries.removeAt(oldIndex);
-    _entries.insert(newIndex, entry);
+
+    _entries
+      ..clear()
+      ..addAll(nextEntries);
+    _activeId = state.activeId;
     _scheduleNotify();
   }
 

@@ -14,6 +14,7 @@ import 'api/memory.dart';
 import 'api/psd.dart';
 import 'api/selection_path.dart';
 import 'api/simple.dart';
+import 'api/workspace.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -35,6 +36,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  WorkspaceEntry dco_decode_box_autoadd_workspace_entry(dynamic raw);
 
   @protected
   double dco_decode_f_32(dynamic raw);
@@ -88,7 +92,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PsdLayer> dco_decode_list_psd_layer(dynamic raw);
 
   @protected
+  List<WorkspaceEntry> dco_decode_list_workspace_entry(dynamic raw);
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  WorkspaceEntry? dco_decode_opt_box_autoadd_workspace_entry(dynamic raw);
 
   @protected
   Uint32List? dco_decode_opt_list_prim_u_32_strict(dynamic raw);
@@ -115,6 +128,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
+  WorkspaceEntry dco_decode_workspace_entry(dynamic raw);
+
+  @protected
+  WorkspaceState dco_decode_workspace_state(dynamic raw);
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
@@ -122,6 +141,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  WorkspaceEntry sse_decode_box_autoadd_workspace_entry(
+    SseDeserializer deserializer,
+  );
 
   @protected
   double sse_decode_f_32(SseDeserializer deserializer);
@@ -177,7 +201,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PsdLayer> sse_decode_list_psd_layer(SseDeserializer deserializer);
 
   @protected
+  List<WorkspaceEntry> sse_decode_list_workspace_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  WorkspaceEntry? sse_decode_opt_box_autoadd_workspace_entry(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Uint32List? sse_decode_opt_list_prim_u_32_strict(
@@ -206,6 +243,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
+  WorkspaceEntry sse_decode_workspace_entry(SseDeserializer deserializer);
+
+  @protected
+  WorkspaceState sse_decode_workspace_state(SseDeserializer deserializer);
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
@@ -213,6 +256,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_workspace_entry(
+    WorkspaceEntry self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
@@ -293,7 +342,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_psd_layer(List<PsdLayer> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_workspace_entry(
+    List<WorkspaceEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_workspace_entry(
+    WorkspaceEntry? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_list_prim_u_32_strict(
@@ -324,6 +388,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_workspace_entry(
+    WorkspaceEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_workspace_state(
+    WorkspaceState self,
+    SseSerializer serializer,
+  );
 }
 
 // Section: wire_class
