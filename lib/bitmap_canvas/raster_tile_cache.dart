@@ -93,13 +93,19 @@ class RasterTileCache {
     }
 
     final Stopwatch sw = Stopwatch()..start();
+    final bool useSurfaceBuffer = fullSurface;
+    final int surfaceRowBytes = surfaceWidth * 4;
+    Uint8List? surfaceRgba;
     final List<_PendingTile> uploads = <_PendingTile>[
       for (final RasterIntRect rect in targets)
         _PendingTile(
           rect: rect,
-          bytes: backend.copyTileRgba(rect),
+          bytes: useSurfaceBuffer ? null : backend.copyTileRgba(rect),
         ),
     ];
+    if (useSurfaceBuffer) {
+      surfaceRgba = backend.copySurfaceRgba();
+    }
     final int copyTime = sw.elapsedMilliseconds;
 
     if (uploads.isEmpty) {
@@ -109,10 +115,24 @@ class RasterTileCache {
     final int startDecode = sw.elapsedMilliseconds;
     final List<_DecodedTile> decodedTiles = await Future.wait(
       uploads.map((_PendingTile tile) async {
+        final Uint8List bytes;
+        final int? rowBytes;
+        if (useSurfaceBuffer) {
+          bytes = _tileBytesViewFromSurface(
+            surfaceRgba!,
+            tile.rect,
+            surfaceRowBytes,
+          );
+          rowBytes = surfaceRowBytes;
+        } else {
+          bytes = tile.bytes!;
+          rowBytes = null;
+        }
         final ui.Image image = await _decodeTile(
-          tile.bytes,
+          bytes,
           tile.rect.width,
           tile.rect.height,
+          rowBytes: rowBytes,
         );
         return _DecodedTile(rect: tile.rect, image: image);
       }),
@@ -164,8 +184,9 @@ class RasterTileCache {
   Future<ui.Image> _decodeTile(
     Uint8List bytes,
     int width,
-    int height,
-  ) {
+    int height, {
+    int? rowBytes,
+  }) {
     final Completer<ui.Image> completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
       bytes,
@@ -173,8 +194,25 @@ class RasterTileCache {
       height,
       ui.PixelFormat.rgba8888,
       completer.complete,
+      rowBytes: rowBytes,
     );
     return completer.future;
+  }
+
+  Uint8List _tileBytesViewFromSurface(
+    Uint8List surfaceRgba,
+    RasterIntRect rect,
+    int rowBytes,
+  ) {
+    final int byteOffset =
+        ((rect.top * surfaceWidth) + rect.left) * 4;
+    final int length =
+        (rowBytes * (rect.height - 1)) + (rect.width * 4);
+    return Uint8List.view(
+      surfaceRgba.buffer,
+      surfaceRgba.offsetInBytes + byteOffset,
+      length,
+    );
   }
 
   int _tileKeyForRect(RasterIntRect rect) {
@@ -191,7 +229,7 @@ class _PendingTile {
   });
 
   final RasterIntRect rect;
-  final Uint8List bytes;
+  final Uint8List? bytes;
 }
 
 class _DecodedTile {

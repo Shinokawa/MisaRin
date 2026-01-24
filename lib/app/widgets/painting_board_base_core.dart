@@ -155,6 +155,8 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   void _handlePrimaryColorChanged() {}
   @protected
   void _handleTextStrokeColorChanged(Color color) {}
+  @protected
+  void _notifyBoardReadyIfNeeded();
   final List<Color> _recentColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
@@ -797,6 +799,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _syncRustCanvasLayersToEngine();
     _syncRustCanvasViewFlags();
     _restoreRustLayerSnapshotIfNeeded();
+    _notifyBoardReadyIfNeeded();
   }
 
   int? _rustCanvasLayerIndexForId(String layerId) {

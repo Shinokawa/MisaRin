@@ -411,7 +411,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 	                                          builder: (context, _) {
                                             final BitmapCanvasFrame? frame =
                                                 _controller.frame;
-                                            if (frame == null) {
+                                            if (frame == null &&
+                                                !widget.useRustCanvas) {
                                               return ColoredBox(
                                                 color:
                                                     _controller.backgroundColor,

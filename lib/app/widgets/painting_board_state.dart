@@ -81,12 +81,15 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(_primaryColor);
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
+    final bool enableRasterOutput =
+        !(widget.useRustCanvas && CanvasEngineFfi.instance.isSupported);
     _controller = BitmapCanvasController(
       width: widget.settings.width.round(),
       height: widget.settings.height.round(),
       backgroundColor: widget.settings.backgroundColor,
       initialLayers: layers,
       creationLogic: widget.settings.creationLogic,
+      enableRasterOutput: enableRasterOutput,
     );
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     _applyStylusSettingsToController();
@@ -727,12 +730,15 @@ class PaintingBoardState extends _PaintingBoardBase
     if (sizeChanged || backgroundChanged || logicChanged) {
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
+      final bool enableRasterOutput =
+          !(widget.useRustCanvas && CanvasEngineFfi.instance.isSupported);
       _controller = BitmapCanvasController(
         width: widget.settings.width.round(),
         height: widget.settings.height.round(),
         backgroundColor: widget.settings.backgroundColor,
         initialLayers: _buildInitialLayers(),
         creationLogic: widget.settings.creationLogic,
+        enableRasterOutput: enableRasterOutput,
       );
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
@@ -786,16 +792,24 @@ class PaintingBoardState extends _PaintingBoardBase
     _syncRustCanvasLayersToEngine();
   }
 
+  @override
   void _notifyBoardReadyIfNeeded() {
     if (_boardReadyNotified) {
       return;
     }
-    if (_controller.frame == null) {
-      return;
+    final BitmapCanvasFrame? frame = _controller.frame;
+    if (frame == null) {
+      if (!(widget.useRustCanvas && _rustCanvasEngineHandle != null)) {
+        return;
+      }
+      RustCanvasTimeline.mark(
+        'paintingBoard: board ready rustEngine=${_rustCanvasEngineHandle}',
+      );
+    } else {
+      RustCanvasTimeline.mark(
+        'paintingBoard: board ready generation=${frame.generation}',
+      );
     }
-    RustCanvasTimeline.mark(
-      'paintingBoard: board ready generation=${_controller.frame?.generation}',
-    );
     _boardReadyNotified = true;
     widget.onReadyChanged?.call(true);
   }

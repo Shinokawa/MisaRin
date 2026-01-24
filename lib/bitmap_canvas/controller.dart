@@ -54,12 +54,14 @@ class BitmapCanvasController extends ChangeNotifier {
     required Color backgroundColor,
     List<CanvasLayerData>? initialLayers,
     CanvasCreationLogic creationLogic = CanvasCreationLogic.multiThread,
+    bool enableRasterOutput = true,
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
        _isMultithreaded =
            CanvasSettings.supportsMultithreadedCanvas &&
            creationLogic == CanvasCreationLogic.multiThread,
+       _rasterOutputEnabled = enableRasterOutput,
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
@@ -77,7 +79,9 @@ class BitmapCanvasController extends ChangeNotifier {
     } else {
       _initializeDefaultLayers(this, backgroundColor);
     }
-    _scheduleCompositeRefresh();
+    if (_rasterOutputEnabled) {
+      _scheduleCompositeRefresh();
+    }
   }
 
   final int _width;
@@ -86,6 +90,7 @@ class BitmapCanvasController extends ChangeNotifier {
   final List<BitmapLayerState> _layers = <BitmapLayerState>[];
   int _activeIndex = 0;
   final bool _isMultithreaded;
+  bool _rasterOutputEnabled;
   bool _synchronousRasterOverride = false;
 
   final List<Offset> _currentStrokePoints = <Offset>[];
@@ -264,6 +269,7 @@ class BitmapCanvasController extends ChangeNotifier {
       _controllerDirtyRectForCommand(this, command);
 
   BitmapCanvasFrame? get frame => _currentFrame;
+  bool get rasterOutputEnabled => _rasterOutputEnabled;
   Color get backgroundColor => _backgroundColor;
   int get width => _width;
   int get height => _height;
@@ -322,6 +328,16 @@ class BitmapCanvasController extends ChangeNotifier {
       action();
     } finally {
       _synchronousRasterOverride = previous;
+    }
+  }
+
+  void setRasterOutputEnabled(bool enabled) {
+    if (_rasterOutputEnabled == enabled) {
+      return;
+    }
+    _rasterOutputEnabled = enabled;
+    if (enabled) {
+      _scheduleCompositeRefresh();
     }
   }
 

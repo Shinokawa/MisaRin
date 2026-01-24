@@ -4,7 +4,9 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
   void _openFilterPanel(_FilterPanelType type) async {
     final String? activeLayerId = _activeLayerId;
     final l10n = context.l10n;
-    if (type == _FilterPanelType.scanPaperDrawing && _controller.frame == null) {
+    if (type == _FilterPanelType.scanPaperDrawing &&
+        _controller.frame == null &&
+        !_canUseRustCanvasEngine()) {
       _showFilterMessage(l10n.canvasNotReady);
       return;
     }

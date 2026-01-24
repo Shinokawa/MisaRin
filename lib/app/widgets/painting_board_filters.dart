@@ -334,7 +334,7 @@ mixin _PaintingBoardFilterMixin
 
   Future<void> invertActiveLayerColors() async {
     final l10n = context.l10n;
-    if (_controller.frame == null) {
+    if (_controller.frame == null && !_canUseRustCanvasEngine()) {
       _showFilterMessage(l10n.canvasNotReadyInvert);
       return;
     }

@@ -15,6 +15,9 @@ void _compositeMarkDirty(
 }
 
 void _compositeScheduleRefresh(BitmapCanvasController controller) {
+  if (!controller._rasterOutputEnabled) {
+    return;
+  }
   if (controller._refreshScheduled) {
     return;
   }
@@ -26,6 +29,9 @@ void _compositeScheduleRefresh(BitmapCanvasController controller) {
 
 void _compositeProcessScheduled(BitmapCanvasController controller) {
   controller._refreshScheduled = false;
+  if (!controller._rasterOutputEnabled) {
+    return;
+  }
   if (controller._compositeProcessing) {
     return;
   }
@@ -35,6 +41,9 @@ void _compositeProcessScheduled(BitmapCanvasController controller) {
 
 Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
   try {
+    if (!controller._rasterOutputEnabled) {
+      return;
+    }
     final Stopwatch sw = Stopwatch()..start();
     final RasterCompositeWork work = controller._rasterBackend
         .dequeueCompositeWork();

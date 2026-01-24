@@ -829,7 +829,8 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   bool get isPerspectiveGuideVisible => _perspectiveVisible;
   PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
 
-  bool get isBoardReady => _controller.frame != null;
+  bool get isBoardReady =>
+      _controller.frame != null || _canUseRustCanvasEngine();
 
   void _handlePixelGridPreferenceChanged() {
     if (!mounted) {

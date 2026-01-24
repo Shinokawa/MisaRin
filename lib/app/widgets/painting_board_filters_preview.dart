@@ -630,7 +630,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
   Future<void> scanPaperDrawing() async {
     final l10n = context.l10n;
-    if (_controller.frame == null) {
+    if (_controller.frame == null && !_canUseRustCanvasEngine()) {
       _showFilterMessage(l10n.canvasNotReady);
       return;
     }
