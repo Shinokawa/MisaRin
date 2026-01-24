@@ -18,6 +18,7 @@ const int _kPointStrideBytes = 32;
 const int _kPointFlagDown = 1;
 const int _kPointFlagMove = 2;
 const int _kPointFlagUp = 4;
+
 final class _PackedPointBuffer {
   _PackedPointBuffer({int initialCapacityPoints = 256})
     : _bytes = Uint8List(initialCapacityPoints * _kPointStrideBytes) {
@@ -115,7 +116,9 @@ class RustCanvasSurface extends StatefulWidget {
 }
 
 class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
-  static const MethodChannel _channel = MethodChannel('misarin/rust_canvas_texture');
+  static const MethodChannel _channel = MethodChannel(
+    'misarin/rust_canvas_texture',
+  );
   static int _nextSurfaceId = 1;
 
   int? _textureId;
@@ -123,7 +126,6 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   Size? _engineSize;
   Object? _error;
   late final String _surfaceId;
-  int? _lastResetEngineHandle;
 
   final _PackedPointBuffer _points = _PackedPointBuffer();
   int? _activeDrawingPointer;
@@ -151,11 +153,13 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         oldWidget.antialiasLevel != widget.antialiasLevel ||
         oldWidget.usePressure != widget.usePressure ||
         oldWidget.brushShape != widget.brushShape ||
-        oldWidget.brushRandomRotationEnabled != widget.brushRandomRotationEnabled ||
+        oldWidget.brushRandomRotationEnabled !=
+            widget.brushRandomRotationEnabled ||
         oldWidget.brushRotationSeed != widget.brushRotationSeed ||
         oldWidget.hollowStrokeEnabled != widget.hollowStrokeEnabled ||
         (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
-        oldWidget.hollowStrokeEraseOccludedParts != widget.hollowStrokeEraseOccludedParts;
+        oldWidget.hollowStrokeEraseOccludedParts !=
+            widget.hollowStrokeEraseOccludedParts;
     if (brushChanged && _activeDrawingPointer == null) {
       final int? handle = _engineHandle;
       if (handle != null) {
@@ -175,50 +179,37 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     try {
       final int width = widget.canvasSize.width.round().clamp(1, 16384);
       final int height = widget.canvasSize.height.round().clamp(1, 16384);
-      final Map<dynamic, dynamic>? info =
-          await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      final Map<dynamic, dynamic>? info = await _channel
+          .invokeMethod<Map<dynamic, dynamic>>(
             'getTextureInfo',
             <String, Object?>{
               'surfaceId': _surfaceId,
               'width': width,
               'height': height,
+              'layerCount': widget.layerCount,
+              'backgroundColorArgb': widget.backgroundColorArgb,
             },
           );
       final int? textureId = (info?['textureId'] as num?)?.toInt();
       final int? engineHandle = (info?['engineHandle'] as num?)?.toInt();
       final int? engineWidth = (info?['width'] as num?)?.toInt();
       final int? engineHeight = (info?['height'] as num?)?.toInt();
-      final Object? isNewEngineValue = info?['isNewEngine'];
-      final bool isNewEngine =
-          (isNewEngineValue is bool && isNewEngineValue) ||
-          (isNewEngineValue is num && isNewEngineValue != 0);
       if (!mounted) {
         return;
       }
       setState(() {
         _textureId = textureId;
         _engineHandle = engineHandle;
-        _engineSize =
-            (engineWidth != null && engineHeight != null)
-                ? Size(engineWidth.toDouble(), engineHeight.toDouble())
-                : null;
-        _error =
-            (textureId == null || engineHandle == null)
-                ? StateError('textureId/engineHandle == null: $info')
-                : null;
+        _engineSize = (engineWidth != null && engineHeight != null)
+            ? Size(engineWidth.toDouble(), engineHeight.toDouble())
+            : null;
+        _error = (textureId == null || engineHandle == null)
+            ? StateError('textureId/engineHandle == null: $info')
+            : null;
       });
 
       final int? handle = _engineHandle;
       if (handle != null) {
-        final bool shouldReset =
-            isNewEngine ||
-            _lastResetEngineHandle == null ||
-            (isNewEngineValue == null && _lastResetEngineHandle != handle);
-        if (shouldReset) {
-          _applyLayerDefaults(handle);
-          _resetCanvas(handle);
-          _lastResetEngineHandle = handle;
-        }
         _applyBrushSettings(handle);
       }
       _notifyEngineInfoChanged();
@@ -239,7 +230,8 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   void _notifyEngineInfoChanged() {
     final int? handle = _engineHandle;
     final Size? size = _engineSize;
-    if (_lastNotifiedEngineHandle == handle && _lastNotifiedEngineSize == size) {
+    if (_lastNotifiedEngineHandle == handle &&
+        _lastNotifiedEngineSize == size) {
       return;
     }
     _lastNotifiedEngineHandle = handle;
@@ -258,42 +250,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
 
   Future<void> _disposeSurface() async {
     try {
-      await _channel.invokeMethod<void>(
-        'disposeTexture',
-        <String, Object?>{'surfaceId': _surfaceId},
-      );
+      await _channel.invokeMethod<void>('disposeTexture', <String, Object?>{
+        'surfaceId': _surfaceId,
+      });
     } catch (_) {}
-  }
-
-  void _applyLayerDefaults(int handle) {
-    if (!CanvasEngineFfi.instance.isSupported) {
-      return;
-    }
-    final int layerCount = widget.layerCount < 1 ? 1 : widget.layerCount;
-    CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: 0);
-    for (int i = 0; i < layerCount; i++) {
-      CanvasEngineFfi.instance.setLayerVisible(
-        handle: handle,
-        layerIndex: i,
-        visible: true,
-      );
-      CanvasEngineFfi.instance.setLayerOpacity(
-        handle: handle,
-        layerIndex: i,
-        opacity: 1.0,
-      );
-    }
-  }
-
-  void _resetCanvas(int handle) {
-    if (!CanvasEngineFfi.instance.isSupported) {
-      return;
-    }
-    // Ensure a new RustCanvasSurface always starts from a deterministic blank state.
-    CanvasEngineFfi.instance.resetCanvas(
-      handle: handle,
-      backgroundColorArgb: widget.backgroundColorArgb,
-    );
   }
 
   void _applyBackground(int handle) {
@@ -323,8 +283,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         widget.canvasSize.height > 0) {
       final double sx = engineSize.width / widget.canvasSize.width;
       final double sy = engineSize.height / widget.canvasSize.height;
-      final double scale =
-          (sx.isFinite && sy.isFinite) ? ((sx + sy) / 2.0) : 1.0;
+      final double scale = (sx.isFinite && sy.isFinite)
+          ? ((sx + sy) / 2.0)
+          : 1.0;
       if (scale.isFinite && scale > 0) {
         radius *= scale;
       }
@@ -413,7 +374,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       return;
     }
     if (_kDebugRustCanvasInput) {
-      debugPrint('[rust_canvas] up id=${event.pointer} pos=${event.localPosition}');
+      debugPrint(
+        '[rust_canvas] up id=${event.pointer} pos=${event.localPosition}',
+      );
     }
     _enqueuePoint(event, _kPointFlagUp);
     final int? handle = _engineHandle;
@@ -428,7 +391,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       return;
     }
     if (_kDebugRustCanvasInput) {
-      debugPrint('[rust_canvas] cancel id=${event.pointer} pos=${event.localPosition}');
+      debugPrint(
+        '[rust_canvas] cancel id=${event.pointer} pos=${event.localPosition}',
+      );
     }
     _enqueuePoint(event, _kPointFlagUp);
     final int? handle = _engineHandle;
@@ -443,10 +408,12 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     if (engineSize == widget.canvasSize) {
       return localPosition;
     }
-    final double sx =
-        widget.canvasSize.width <= 0 ? 1.0 : engineSize.width / widget.canvasSize.width;
-    final double sy =
-        widget.canvasSize.height <= 0 ? 1.0 : engineSize.height / widget.canvasSize.height;
+    final double sx = widget.canvasSize.width <= 0
+        ? 1.0
+        : engineSize.width / widget.canvasSize.width;
+    final double sy = widget.canvasSize.height <= 0
+        ? 1.0
+        : engineSize.height / widget.canvasSize.height;
     return Offset(localPosition.dx * sx, localPosition.dy * sy);
   }
 
@@ -456,10 +423,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       return;
     }
     final Offset canvasPos = _toEngineSpace(event.localPosition);
-    final double pressure =
-        !_activeStrokeUsesPressure
-            ? 1.0
-            : (event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 1.0);
+    final double pressure = !_activeStrokeUsesPressure
+        ? 1.0
+        : (event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 1.0);
     final int timestampUs = event.timeStamp.inMicroseconds;
     _points.add(
       x: canvasPos.dx,

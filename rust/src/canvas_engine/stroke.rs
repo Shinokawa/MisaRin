@@ -437,7 +437,11 @@ fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: boo
 }
 
 fn resample_step_from_radius(radius: f32) -> f32 {
-    let r = if radius.is_finite() { radius.max(0.0) } else { 0.0 };
+    let r = if radius.is_finite() {
+        radius.max(0.0)
+    } else {
+        0.0
+    };
     (r * 0.1).clamp(0.25, 0.5)
 }
 
@@ -552,7 +556,11 @@ fn turning_angle(prev: Point2D, curr: Point2D, next: Point2D) -> f32 {
 }
 
 fn catmull_rom(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: f32) -> Point2D {
-    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let t = if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
     let t2 = t * t;
     let t3 = t2 * t;
     let x = 0.5
@@ -608,8 +616,7 @@ fn compute_dirty_rect_i32(
     canvas_width: u32,
     canvas_height: u32,
 ) -> (i32, i32, i32, i32) {
-    if canvas_width == 0 || canvas_height == 0 || points.is_empty() || points.len() != radii.len()
-    {
+    if canvas_width == 0 || canvas_height == 0 || points.is_empty() || points.len() != radii.len() {
         return (0, 0, 0, 0);
     }
 

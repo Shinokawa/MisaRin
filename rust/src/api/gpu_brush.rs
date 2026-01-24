@@ -1,7 +1,7 @@
-use std::sync::{Mutex, OnceLock};
-use std::sync::Arc;
-use std::time::Instant;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Color, Point2D};
 use crate::gpu::debug::{self, LogLevel};
@@ -81,12 +81,14 @@ pub fn gpu_upload_layer(
     let mut guard = brush_cell()
         .lock()
         .map_err(|_| "gpu brush lock poisoned".to_string())?;
-    let engine = guard.as_mut().ok_or_else(|| {
-        "gpu brush not initialized (call gpu_brush_init first)".to_string()
-    })?;
+    let engine = guard
+        .as_mut()
+        .ok_or_else(|| "gpu brush not initialized (call gpu_brush_init first)".to_string())?;
 
     let t0 = Instant::now();
-    engine.textures.upload_layer(&layer_id, &pixels, width, height)?;
+    engine
+        .textures
+        .upload_layer(&layer_id, &pixels, width, height)?;
     engine.brush.set_canvas_size(width, height);
     debug::log(
         LogLevel::Info,
@@ -103,9 +105,9 @@ pub fn gpu_download_layer(layer_id: String) -> Result<Vec<u32>, String> {
     let guard = brush_cell()
         .lock()
         .map_err(|_| "gpu brush lock poisoned".to_string())?;
-    let engine = guard.as_ref().ok_or_else(|| {
-        "gpu brush not initialized (call gpu_brush_init first)".to_string()
-    })?;
+    let engine = guard
+        .as_ref()
+        .ok_or_else(|| "gpu brush not initialized (call gpu_brush_init first)".to_string())?;
     engine.textures.download_layer(&layer_id)
 }
 
@@ -146,15 +148,16 @@ pub fn gpu_draw_stroke(
     let mut guard = brush_cell()
         .lock()
         .map_err(|_| "gpu brush lock poisoned".to_string())?;
-    let engine = guard.as_mut().ok_or_else(|| {
-        "gpu brush not initialized (call gpu_brush_init first)".to_string()
-    })?;
+    let engine = guard
+        .as_mut()
+        .ok_or_else(|| "gpu brush not initialized (call gpu_brush_init first)".to_string())?;
 
     let width = engine.textures.width();
     let height = engine.textures.height();
     if width == 0 || height == 0 {
-        return Err("gpu_draw_stroke: layer textures not initialized (upload a layer first)"
-            .to_string());
+        return Err(
+            "gpu_draw_stroke: layer textures not initialized (upload a layer first)".to_string(),
+        );
     }
     engine.brush.set_canvas_size(width, height);
 
@@ -217,8 +220,7 @@ pub fn gpu_draw_stroke(
                     LogLevel::Verbose,
                     format_args!(
                         "#{seq} stroke continuity layer='{layer_id}': dist={:.3}px dt={}ms",
-                        dist,
-                        dt_ms
+                        dist, dt_ms
                     ),
                 );
             }
@@ -258,8 +260,14 @@ pub fn gpu_draw_stroke(
             max_r = max_r.max(rr);
         }
 
-        let first = converted_points.first().copied().unwrap_or(Point2D { x: 0.0, y: 0.0 });
-        let last = converted_points.last().copied().unwrap_or(Point2D { x: 0.0, y: 0.0 });
+        let first = converted_points
+            .first()
+            .copied()
+            .unwrap_or(Point2D { x: 0.0, y: 0.0 });
+        let last = converted_points
+            .last()
+            .copied()
+            .unwrap_or(Point2D { x: 0.0, y: 0.0 });
         debug::log(
             LogLevel::Info,
             format_args!(
@@ -348,8 +356,7 @@ pub fn gpu_draw_stroke(
         ),
     );
 
-    let (dirty_left, dirty_top, dirty_width, dirty_height) =
-        dirty_union.unwrap_or((0, 0, 0, 0));
+    let (dirty_left, dirty_top, dirty_width, dirty_height) = dirty_union.unwrap_or((0, 0, 0, 0));
     debug::log(
         LogLevel::Info,
         format_args!(
@@ -395,7 +402,12 @@ fn map_brush_shape(index: u32) -> Result<BrushShape, String> {
     }
 }
 
-fn compute_dirty_rect_i32(points: &[Point2D], radii: &[f32], width: u32, height: u32) -> (i32, i32, i32, i32) {
+fn compute_dirty_rect_i32(
+    points: &[Point2D],
+    radii: &[f32],
+    width: u32,
+    height: u32,
+) -> (i32, i32, i32, i32) {
     if width == 0 || height == 0 || points.is_empty() || points.len() != radii.len() {
         return (0, 0, 0, 0);
     }
@@ -507,7 +519,9 @@ fn create_wgpu_device() -> Result<(wgpu::Device, wgpu::Queue), String> {
 
     let required_features = wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
     if !adapter_features.contains(required_features) {
-        return Err("wgpu: adapter does not support TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES".to_string());
+        return Err(
+            "wgpu: adapter does not support TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES".to_string(),
+        );
     }
 
     pollster::block_on(adapter.request_device(

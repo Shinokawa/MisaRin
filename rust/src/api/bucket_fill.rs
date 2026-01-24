@@ -216,7 +216,12 @@ pub fn magic_wand_mask(
     }
 
     if tol > 0 {
-        expand_mask_by_one(&mut fill_mask, width_usize, height_usize, selection_mask.as_deref());
+        expand_mask_by_one(
+            &mut fill_mask,
+            width_usize,
+            height_usize,
+            selection_mask.as_deref(),
+        );
     }
 
     if fill_mask.iter().all(|&value| value == 0) {

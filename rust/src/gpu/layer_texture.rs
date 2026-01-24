@@ -82,8 +82,9 @@ impl LayerTextureManager {
         let bytes_per_row_unpadded: u32 = width
             .checked_mul(BYTES_PER_PIXEL)
             .ok_or_else(|| "upload_layer: bytes_per_row overflow".to_string())?;
-        let bytes_per_row_padded = align_up(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT)
-            .ok_or_else(|| "upload_layer: bytes_per_row padded overflow".to_string())?;
+        let bytes_per_row_padded =
+            align_up(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT)
+                .ok_or_else(|| "upload_layer: bytes_per_row padded overflow".to_string())?;
 
         let data = pack_u32_rows_with_padding(pixels, width, height, bytes_per_row_padded)?;
 
@@ -126,8 +127,9 @@ impl LayerTextureManager {
             .width
             .checked_mul(BYTES_PER_PIXEL)
             .ok_or_else(|| "download_layer: bytes_per_row overflow".to_string())?;
-        let bytes_per_row_padded = align_up(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT)
-            .ok_or_else(|| "download_layer: bytes_per_row padded overflow".to_string())?;
+        let bytes_per_row_padded =
+            align_up(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT)
+                .ok_or_else(|| "download_layer: bytes_per_row padded overflow".to_string())?;
         let readback_size: u64 = (bytes_per_row_padded as u64)
             .checked_mul(self.height as u64)
             .ok_or_else(|| "download_layer: readback_size overflow".to_string())?;
@@ -199,7 +201,9 @@ impl LayerTextureManager {
         }
 
         if let Some(err) = device_pop_scope(self.device.as_ref()) {
-            return Err(format!("wgpu validation error during layer download: {err}"));
+            return Err(format!(
+                "wgpu validation error during layer download: {err}"
+            ));
         }
         if let Some(err) = device_pop_scope(self.device.as_ref()) {
             return Err(format!(
@@ -258,7 +262,9 @@ impl LayerTextureManager {
             .checked_mul(BYTES_PER_PIXEL)
             .ok_or_else(|| "download_layer_region: bytes_per_row overflow".to_string())?;
         let bytes_per_row_padded = align_up(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT)
-            .ok_or_else(|| "download_layer_region: bytes_per_row padded overflow".to_string())?;
+            .ok_or_else(|| {
+            "download_layer_region: bytes_per_row padded overflow".to_string()
+        })?;
         let readback_size: u64 = (bytes_per_row_padded as u64)
             .checked_mul(height as u64)
             .ok_or_else(|| "download_layer_region: readback_size overflow".to_string())?;
@@ -282,7 +288,11 @@ impl LayerTextureManager {
             wgpu::ImageCopyTexture {
                 texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d { x: left, y: top, z: 0 },
+                origin: wgpu::Origin3d {
+                    x: left,
+                    y: top,
+                    z: 0,
+                },
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::ImageCopyBuffer {

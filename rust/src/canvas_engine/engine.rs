@@ -10,8 +10,8 @@ use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
 use crate::gpu::blend_modes::map_canvas_blend_mode_index;
-use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::brush_renderer::BrushRenderer;
+use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::debug::{self, LogLevel};
 
 use super::layers::LayerTextures;
@@ -35,18 +35,42 @@ pub(crate) enum EngineCommand {
         height: u32,
         bytes_per_row: u32,
     },
-    ResetCanvas { background_color_argb: u32 },
-    FillLayer { layer_index: u32, color_argb: u32 },
-    ClearLayer { layer_index: u32 },
-    SetActiveLayer { layer_index: u32 },
-    SetLayerOpacity { layer_index: u32, opacity: f32 },
-    SetLayerVisible { layer_index: u32, visible: bool },
-    SetLayerClippingMask { layer_index: u32, clipping_mask: bool },
+    ResetCanvas {
+        background_color_argb: u32,
+    },
+    ResetCanvasWithLayers {
+        layer_count: u32,
+        background_color_argb: u32,
+    },
+    FillLayer {
+        layer_index: u32,
+        color_argb: u32,
+    },
+    ClearLayer {
+        layer_index: u32,
+    },
+    SetActiveLayer {
+        layer_index: u32,
+    },
+    SetLayerOpacity {
+        layer_index: u32,
+        opacity: f32,
+    },
+    SetLayerVisible {
+        layer_index: u32,
+        visible: bool,
+    },
+    SetLayerClippingMask {
+        layer_index: u32,
+        clipping_mask: bool,
+    },
     SetLayerBlendMode {
         layer_index: u32,
         blend_mode_index: u32,
     },
-    SetViewFlags { view_flags: u32 },
+    SetViewFlags {
+        view_flags: u32,
+    },
     SetBrush {
         color_argb: u32,
         base_radius: f32,
@@ -142,9 +166,65 @@ fn engines() -> &'static Mutex<HashMap<u64, EngineEntry>> {
     ENGINES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+struct EngineDeviceContext {
+    _instance: wgpu::Instance,
+    _adapter: wgpu::Adapter,
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
+}
+
+static DEVICE_CONTEXT: OnceLock<Result<EngineDeviceContext, String>> = OnceLock::new();
+
+fn device_context() -> Result<&'static EngineDeviceContext, String> {
+    let init_result = DEVICE_CONTEXT.get_or_init(|| {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::METAL,
+            ..Default::default()
+        });
+
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: None,
+                force_fallback_adapter: false,
+            }))
+            .ok_or_else(|| "wgpu: no compatible Metal adapter found".to_string())?;
+
+        let required_features = wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+        if !adapter.features().contains(required_features) {
+            return Err(
+                "wgpu: adapter does not support TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES (required for read-write storage textures)"
+                    .to_string(),
+            );
+        }
+
+        let (device, queue) = pollster::block_on(adapter.request_device(
+            &wgpu::DeviceDescriptor {
+                label: Some("misa-rin CanvasEngine device"),
+                required_features,
+                required_limits: wgpu::Limits::default(),
+            },
+            None,
+        ))
+        .map_err(|e| format!("wgpu: request_device failed: {e:?}"))?;
+
+        Ok(EngineDeviceContext {
+            _instance: instance,
+            _adapter: adapter,
+            device: Arc::new(device),
+            queue: Arc::new(queue),
+        })
+    });
+
+    match init_result {
+        Ok(ctx) => Ok(ctx),
+        Err(err) => Err(err.clone()),
+    }
+}
+
 fn spawn_render_thread(
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
     layer_textures: LayerTextures,
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
@@ -171,8 +251,8 @@ fn spawn_render_thread(
 }
 
 fn render_thread_main(
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
     layer_textures: LayerTextures,
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
@@ -181,9 +261,6 @@ fn render_thread_main(
     canvas_width: u32,
     canvas_height: u32,
 ) {
-    let device = Arc::new(device);
-    let queue = Arc::new(queue);
-
     let mut present: Option<PresentTarget> = None;
     let mut layers = layer_textures;
     if layers.capacity() == 0 {
@@ -197,7 +274,10 @@ fn render_thread_main(
     let mut brush = match BrushRenderer::new(device.clone(), queue.clone()) {
         Ok(renderer) => renderer,
         Err(err) => {
-            debug::log(LogLevel::Warn, format_args!("BrushRenderer init failed: {err}"));
+            debug::log(
+                LogLevel::Warn,
+                format_args!("BrushRenderer init failed: {err}"),
+            );
             return;
         }
     };
@@ -386,8 +466,7 @@ fn render_thread_main(
                         input_queue_len.fetch_sub(batch.points.len() as u64, Ordering::Relaxed);
                         batches.push(batch);
                         while let Ok(more) = input_rx.try_recv() {
-                            input_queue_len
-                                .fetch_sub(more.points.len() as u64, Ordering::Relaxed);
+                            input_queue_len.fetch_sub(more.points.len() as u64, Ordering::Relaxed);
                             batches.push(more);
                         }
                     }
@@ -457,9 +536,7 @@ fn render_thread_main(
                                     ) {
                                         debug::log(
                                             LogLevel::Warn,
-                                            format_args!(
-                                                "Brush stroke base capture failed: {err}"
-                                            ),
+                                            format_args!("Brush stroke base capture failed: {err}"),
                                         );
                                     }
                                 }
@@ -499,9 +576,7 @@ fn render_thread_main(
                                 ) {
                                     debug::log(
                                         LogLevel::Warn,
-                                        format_args!(
-                                            "Brush stroke base capture failed: {err}"
-                                        ),
+                                        format_args!("Brush stroke base capture failed: {err}"),
                                     );
                                 }
                             }
@@ -574,90 +649,94 @@ fn handle_engine_command(
     canvas_width: u32,
     canvas_height: u32,
 ) -> EngineCommandOutcome {
-    let mut ensure_layer_index = |idx: usize, transform_layer_index: u32, transform_flags: u32| -> bool {
-        if idx < *layer_count {
-            return true;
-        }
-        let old_count = *layer_count;
-        let new_count = idx + 1;
-        let resized = match layers.ensure_capacity(device, queue, new_count) {
-            Ok(Some(_)) => true,
-            Ok(None) => false,
-            Err(err) => {
-                debug::log(
-                    LogLevel::Warn,
-                    format_args!("Layer capacity resize failed: {err}"),
-                );
-                return false;
+    let mut ensure_layer_index =
+        |layer_count: &mut usize,
+         idx: usize,
+         transform_layer_index: u32,
+         transform_flags: u32| -> bool {
+            if idx < *layer_count {
+                return true;
             }
-        };
-        if resized {
-            *present_params_capacity = layers.capacity();
-            match create_present_params_buffer(device, *present_params_capacity) {
-                Ok(buffer) => {
-                    *present_params_buffer = buffer;
-                    *present_bind_group = present_renderer.create_bind_group(
-                        device,
-                        layers.array_view(),
-                        present_config_buffer,
-                        present_params_buffer,
-                        present_transform_buffer,
-                    );
-                }
+            let old_count = *layer_count;
+            let new_count = idx + 1;
+            let resized = match layers.ensure_capacity(device, queue, new_count) {
+                Ok(Some(_)) => true,
+                Ok(None) => false,
                 Err(err) => {
                     debug::log(
                         LogLevel::Warn,
-                        format_args!("Present params buffer resize failed: {err}"),
+                        format_args!("Layer capacity resize failed: {err}"),
                     );
                     return false;
                 }
+            };
+            if resized {
+                *present_params_capacity = layers.capacity();
+                match create_present_params_buffer(device, *present_params_capacity) {
+                    Ok(buffer) => {
+                        *present_params_buffer = buffer;
+                        *present_bind_group = present_renderer.create_bind_group(
+                            device,
+                            layers.array_view(),
+                            present_config_buffer,
+                            present_params_buffer,
+                            present_transform_buffer,
+                        );
+                    }
+                    Err(err) => {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("Present params buffer resize failed: {err}"),
+                        );
+                        return false;
+                    }
+                }
             }
-        }
 
-        if new_count > layer_opacity.len() {
-            layer_opacity.resize(new_count, 1.0);
-        }
-        if new_count > layer_visible.len() {
-            layer_visible.resize(new_count, true);
-        }
-        if new_count > layer_clipping_mask.len() {
-            layer_clipping_mask.resize(new_count, false);
-        }
-        if new_count > layer_blend_mode.len() {
-            layer_blend_mode.resize(new_count, 0);
-        }
-        if new_count > layer_uniform.len() {
-            layer_uniform.resize(new_count, None);
-        }
+            if new_count > layer_opacity.len() {
+                layer_opacity.resize(new_count, 1.0);
+            }
+            if new_count > layer_visible.len() {
+                layer_visible.resize(new_count, true);
+            }
+            if new_count > layer_clipping_mask.len() {
+                layer_clipping_mask.resize(new_count, false);
+            }
+            if new_count > layer_blend_mode.len() {
+                layer_blend_mode.resize(new_count, 0);
+            }
+            if new_count > layer_uniform.len() {
+                layer_uniform.resize(new_count, None);
+            }
 
-        for layer in old_count..new_count {
-            fill_r32uint_texture(
+            for layer in old_count..new_count {
+                fill_r32uint_texture(
+                    queue,
+                    layers.texture(),
+                    canvas_width,
+                    canvas_height,
+                    layer as u32,
+                    0x00000000,
+                );
+                layer_uniform[layer] = Some(0x00000000);
+            }
+
+            *layer_count = new_count;
+            write_present_config(
                 queue,
-                layers.texture(),
-                canvas_width,
-                canvas_height,
-                layer as u32,
-                0x00000000,
+                present_config_buffer,
+                present_params_buffer,
+                *layer_count,
+                *present_view_flags,
+                transform_layer_index,
+                transform_flags,
+                layer_opacity,
+                layer_visible,
+                layer_clipping_mask,
+                layer_blend_mode,
             );
-            layer_uniform[layer] = Some(0x00000000);
-        }
-
-        *layer_count = new_count;
-        write_present_config(
-            queue,
-            present_config_buffer,
-            present_params_buffer,
-            *layer_count,
-            *present_view_flags,
-            transform_layer_index,
-            transform_flags,
-            layer_opacity,
-            layer_visible,
-            layer_clipping_mask,
-            layer_blend_mode,
-        );
-        true
-    };
+            true
+        };
 
     match cmd {
         EngineCommand::Stop => {
@@ -685,7 +764,8 @@ fn handle_engine_command(
                     needs_render: false,
                 };
             }
-            *present = attach_present_texture(device, mtl_texture_ptr, width, height, bytes_per_row);
+            *present =
+                attach_present_texture(device, mtl_texture_ptr, width, height, bytes_per_row);
             if present.is_some() {
                 debug::log(
                     LogLevel::Info,
@@ -717,7 +797,9 @@ fn handle_engine_command(
                 };
             }
         }
-        EngineCommand::ResetCanvas { background_color_argb } => {
+        EngineCommand::ResetCanvas {
+            background_color_argb,
+        } => {
             // Reset undo history so a fresh canvas doesn't "undo" back into the previous one.
             undo.reset();
             // Layer 0 is background fill; everything above starts transparent.
@@ -745,12 +827,74 @@ fn handle_engine_command(
                 needs_render: present.is_some(),
             };
         }
+        EngineCommand::ResetCanvasWithLayers {
+            layer_count: requested_count,
+            background_color_argb,
+        } => {
+            let target_count: usize = (requested_count.max(1)) as usize;
+            if target_count > *layer_count {
+                let idx = target_count - 1;
+                if !ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                    };
+                }
+            }
+            *layer_count = target_count;
+            layer_opacity.resize(target_count, 1.0);
+            layer_visible.resize(target_count, true);
+            layer_clipping_mask.resize(target_count, false);
+            layer_blend_mode.resize(target_count, 0);
+            layer_uniform.resize(target_count, None);
+
+            for idx in 0..target_count {
+                let fill = if idx == 0 {
+                    background_color_argb
+                } else {
+                    0x00000000
+                };
+                fill_r32uint_texture(
+                    queue,
+                    layers.texture(),
+                    canvas_width,
+                    canvas_height,
+                    idx as u32,
+                    fill,
+                );
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = Some(fill);
+                }
+            }
+
+            *active_layer_index = (*active_layer_index).min(target_count.saturating_sub(1));
+            *transform_layer_index = 0;
+            *transform_flags = 0;
+            write_present_config(
+                queue,
+                present_config_buffer,
+                present_params_buffer,
+                *layer_count,
+                *present_view_flags,
+                *transform_layer_index,
+                *transform_flags,
+                layer_opacity,
+                layer_visible,
+                layer_clipping_mask,
+                layer_blend_mode,
+            );
+            undo.reset();
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: present.is_some(),
+            };
+        }
         EngineCommand::FillLayer {
             layer_index,
             color_argb,
         } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 fill_r32uint_texture(
                     queue,
                     layers.texture(),
@@ -770,7 +914,7 @@ fn handle_engine_command(
         }
         EngineCommand::ClearLayer { layer_index } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 fill_r32uint_texture(
                     queue,
                     layers.texture(),
@@ -790,13 +934,16 @@ fn handle_engine_command(
         }
         EngineCommand::SetActiveLayer { layer_index } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 *active_layer_index = idx;
             }
         }
-        EngineCommand::SetLayerOpacity { layer_index, opacity } => {
+        EngineCommand::SetLayerOpacity {
+            layer_index,
+            opacity,
+        } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 layer_opacity[idx] = if opacity.is_finite() {
                     opacity.clamp(0.0, 1.0)
                 } else {
@@ -826,7 +973,7 @@ fn handle_engine_command(
             visible,
         } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 layer_visible[idx] = visible;
                 write_present_config(
                     queue,
@@ -852,7 +999,7 @@ fn handle_engine_command(
             clipping_mask,
         } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 layer_clipping_mask[idx] = clipping_mask;
                 write_present_config(
                     queue,
@@ -878,7 +1025,7 @@ fn handle_engine_command(
             blend_mode_index,
         } => {
             let idx = layer_index as usize;
-            if ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 layer_blend_mode[idx] = map_canvas_blend_mode_index(blend_mode_index).as_u32();
                 write_present_config(
                     queue,
@@ -963,7 +1110,7 @@ fn handle_engine_command(
             reply,
         } => {
             let idx = layer_index as usize;
-            if !ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if !ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 let _ = reply.send(false);
                 return EngineCommandOutcome {
                     stop: false,
@@ -1271,7 +1418,7 @@ fn handle_engine_command(
             reply,
         } => {
             let idx = layer_index as usize;
-            if !ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if !ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 let _ = reply.send(None);
                 return EngineCommandOutcome {
                     stop: false,
@@ -1397,10 +1544,7 @@ fn handle_engine_command(
                     let _ = reply.send(Some(pixels));
                 }
                 Err(err) => {
-                    debug::log(
-                        LogLevel::Warn,
-                        format_args!("layer readback failed: {err}"),
-                    );
+                    debug::log(LogLevel::Warn, format_args!("layer readback failed: {err}"));
                     let _ = reply.send(None);
                 }
             }
@@ -1416,15 +1560,14 @@ fn handle_engine_command(
             reply,
         } => {
             let idx = layer_index as usize;
-            if !ensure_layer_index(idx, *transform_layer_index, *transform_flags) {
+            if !ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
                 let _ = reply.send(false);
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
                 };
             }
-            let expected_len = (canvas_width as usize)
-                .saturating_mul(canvas_height as usize);
+            let expected_len = (canvas_width as usize).saturating_mul(canvas_height as usize);
             if expected_len == 0 || pixels.len() != expected_len {
                 if expected_len > 0 {
                     debug::log(
@@ -1607,11 +1750,7 @@ fn handle_engine_command(
             let dy = delta_y as i64;
             let mut shifted = vec![0u32; pixels.len()];
             let src_x_start = if dx >= 0 { 0 } else { (-dx).min(width) };
-            let src_x_end = if dx >= 0 {
-                (width - dx).max(0)
-            } else {
-                width
-            };
+            let src_x_end = if dx >= 0 { (width - dx).max(0) } else { width };
             let src_y_start = if dy >= 0 { 0 } else { (-dy).min(height) };
             let src_y_end = if dy >= 0 {
                 (height - dy).max(0)
@@ -1831,12 +1970,7 @@ fn handle_engine_command(
                 }
             };
             if pixels.is_empty() {
-                let _ = reply.send(Some((
-                    0,
-                    0,
-                    canvas_width as i32,
-                    canvas_height as i32,
-                )));
+                let _ = reply.send(Some((0, 0, canvas_width as i32, canvas_height as i32)));
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
@@ -2255,10 +2389,7 @@ fn composite_layers_for_bucket_fill(
                 continue;
             }
             let opacity = layer_opacity.get(layer_idx).copied().unwrap_or(1.0);
-            let clipping = layer_clipping_mask
-                .get(layer_idx)
-                .copied()
-                .unwrap_or(false);
+            let clipping = layer_clipping_mask.get(layer_idx).copied().unwrap_or(false);
             if opacity <= 0.0 {
                 if !clipping {
                     mask_alpha = 0;
@@ -2381,43 +2512,14 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
         return Err("engine_create: width/height must be > 0".to_string());
     }
 
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::METAL,
-        ..Default::default()
-    });
+    let ctx = device_context()?;
 
-    let adapter =
-        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        }))
-        .ok_or_else(|| "wgpu: no compatible Metal adapter found".to_string())?;
-
-    let required_features = wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
-    if !adapter.features().contains(required_features) {
-        return Err(
-            "wgpu: adapter does not support TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES (required for read-write storage textures)"
-                .to_string(),
-        );
-    }
-
-    let (device, queue) = pollster::block_on(adapter.request_device(
-        &wgpu::DeviceDescriptor {
-            label: Some("misa-rin CanvasEngine device"),
-            required_features,
-            required_limits: wgpu::Limits::default(),
-        },
-        None,
-    ))
-    .map_err(|e| format!("wgpu: request_device failed: {e:?}"))?;
-
-    let mtl_device_ptr = mtl_device_ptr(&device) as usize;
+    let mtl_device_ptr = mtl_device_ptr(ctx.device.as_ref()) as usize;
     if mtl_device_ptr == 0 {
         return Err("wgpu: failed to extract underlying MTLDevice".to_string());
     }
 
-    let layers = LayerTextures::new(&device, width, height, INITIAL_LAYER_CAPACITY)
+    let layers = LayerTextures::new(ctx.device.as_ref(), width, height, INITIAL_LAYER_CAPACITY)
         .map_err(|err| format!("engine_create: layer init failed: {err}"))?;
 
     let (cmd_tx, cmd_rx) = mpsc::channel();
@@ -2425,8 +2527,8 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     let input_queue_len = Arc::new(AtomicU64::new(0));
     let frame_ready = Arc::new(AtomicBool::new(false));
     spawn_render_thread(
-        device,
-        queue,
+        Arc::clone(&ctx.device),
+        Arc::clone(&ctx.queue),
         layers,
         cmd_rx,
         input_rx,

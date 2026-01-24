@@ -146,9 +146,7 @@ impl PresentRenderer {
     pub(crate) fn new(device: &wgpu::Device) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("misa-rin present renderer shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
-                "../canvas_present.wgsl"
-            ))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("../canvas_present.wgsl"))),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -170,9 +168,9 @@ impl PresentRenderer {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<PresentCompositeHeader>() as u64,
-                        ),
+                        min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
+                            PresentCompositeHeader,
+                        >() as u64),
                     },
                     count: None,
                 },
@@ -192,9 +190,9 @@ impl PresentRenderer {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<PresentTransformConfig>() as u64,
-                        ),
+                        min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
+                            PresentTransformConfig,
+                        >() as u64),
                     },
                     count: None,
                 },
@@ -326,9 +324,9 @@ pub(crate) fn attach_present_texture(
         return None;
     }
 
-    // Use ForeignTypeRef logic to avoid taking ownership if possible, 
-    // or ensure we clone it properly. 
-    // metal::Texture::from_ptr wraps it. 
+    // Use ForeignTypeRef logic to avoid taking ownership if possible,
+    // or ensure we clone it properly.
+    // metal::Texture::from_ptr wraps it.
     // In metal-rs 0.24+, from_ptr calls objc_retain.
     // So dropping it will call release. This is correct if we want to share ownership.
     let raw_texture = unsafe { metal::Texture::from_ptr(raw_ptr) };

@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use wgpu::{BindGroup, BindGroupLayout, ComputePipeline, Device, Queue};
 
-
-
 const WORKGROUP_SIZE: u32 = 16;
 const QUEUE_GROUP_SIZE: u32 = WORKGROUP_SIZE * WORKGROUP_SIZE;
 const READBACK_BATCH: u32 = 16;
@@ -304,7 +302,9 @@ impl BucketFillRenderer {
         let state_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("BucketFillRenderer state buffer"),
             size: STATE_SIZE,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
@@ -336,7 +336,9 @@ impl BucketFillRenderer {
         let frontier_indirect_storage = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("BucketFillRenderer frontier indirect storage"),
             size: INDIRECT_ARGS_SIZE,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let frontier_indirect_args = device.create_buffer(&wgpu::BufferDescriptor {
@@ -362,10 +364,14 @@ impl BucketFillRenderer {
             create_sampled_layers_texture(device.as_ref(), 1, 1, "BucketFill dummy layers");
 
         if let Some(err) = device_pop_scope(device.as_ref()) {
-            return Err(format!("wgpu validation error during bucket fill init: {err}"));
+            return Err(format!(
+                "wgpu validation error during bucket fill init: {err}"
+            ));
         }
         if let Some(err) = device_pop_scope(device.as_ref()) {
-            return Err(format!("wgpu out-of-memory error during bucket fill init: {err}"));
+            return Err(format!(
+                "wgpu out-of-memory error during bucket fill init: {err}"
+            ));
         }
 
         Ok(Self {
@@ -440,7 +446,12 @@ impl BucketFillRenderer {
         self.ensure_masks(width, height)?;
         self.ensure_frontier_buffers(width, height)?;
         self.ensure_layer_params_capacity(layer_count)?;
-        self.write_layer_params(layer_count, layer_opacity, layer_visible, layer_clipping_mask)?;
+        self.write_layer_params(
+            layer_count,
+            layer_opacity,
+            layer_visible,
+            layer_clipping_mask,
+        )?;
 
         let filtered_swallow: Vec<u32> = swallow_colors
             .iter()
@@ -458,19 +469,11 @@ impl BucketFillRenderer {
             .is_some();
         if selection_enabled {
             if let Some(mask) = selection_mask {
-                write_mask_texture(
-                    self.queue.as_ref(),
-                    &self.mask_a,
-                    width,
-                    height,
-                    mask,
-                )?;
+                write_mask_texture(self.queue.as_ref(), &self.mask_a, width, height, mask)?;
             }
         }
 
-        let start_index = start_y
-            .saturating_mul(width)
-            .saturating_add(start_x);
+        let start_index = start_y.saturating_mul(width).saturating_add(start_x);
 
         let mut config = BucketFillConfig {
             width,
@@ -563,12 +566,10 @@ impl BucketFillRenderer {
             config.mode = MODE_INIT_OUTSIDE;
             dispatch(&config)?;
 
-            let _ = self.run_batched_until(
-                &mut config,
-                MODE_EXPAND_OUTSIDE,
-                &dispatch,
-                |snapshot| snapshot.iter_flag == 0,
-            )?;
+            let _ =
+                self.run_batched_until(&mut config, MODE_EXPAND_OUTSIDE, &dispatch, |snapshot| {
+                    snapshot.iter_flag == 0
+                })?;
 
             let mut snap_found = false;
             let mut effective_start = start_index;
@@ -688,18 +689,10 @@ impl BucketFillRenderer {
         if width == self.mask_width && height == self.mask_height {
             return Ok(());
         }
-        let (mask_a, mask_a_view) = create_mask_texture(
-            self.device.as_ref(),
-            width,
-            height,
-            "BucketFill mask A",
-        );
-        let (mask_b, mask_b_view) = create_mask_texture(
-            self.device.as_ref(),
-            width,
-            height,
-            "BucketFill mask B",
-        );
+        let (mask_a, mask_a_view) =
+            create_mask_texture(self.device.as_ref(), width, height, "BucketFill mask A");
+        let (mask_b, mask_b_view) =
+            create_mask_texture(self.device.as_ref(), width, height, "BucketFill mask B");
         self.mask_a = mask_a;
         self.mask_a_view = mask_a_view;
         self.mask_b = mask_b;
@@ -883,7 +876,11 @@ impl BucketFillRenderer {
         }))
     }
 
-    fn dispatch_full(&self, bind_group: &BindGroup, config: &BucketFillConfig) -> Result<(), String> {
+    fn dispatch_full(
+        &self,
+        bind_group: &BindGroup,
+        config: &BucketFillConfig,
+    ) -> Result<(), String> {
         let dispatch_x = (config.width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
         let dispatch_y = (config.height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
         self.dispatch_groups(bind_group, config, dispatch_x, dispatch_y, 1)
@@ -952,7 +949,11 @@ impl BucketFillRenderer {
         Ok(())
     }
 
-    fn dispatch_indirect(&self, bind_group: &BindGroup, config: &BucketFillConfig) -> Result<(), String> {
+    fn dispatch_indirect(
+        &self,
+        bind_group: &BindGroup,
+        config: &BucketFillConfig,
+    ) -> Result<(), String> {
         self.queue
             .write_buffer(&self.config_buffer, 0, bytemuck::bytes_of(config));
         let mut encoder = self
@@ -978,10 +979,16 @@ impl BucketFillRenderer {
         self.queue
             .write_buffer(&self.frontier_counts, 0, bytemuck::cast_slice(&counts));
         let indirect = [0u32, 1u32, 1u32];
-        self.queue
-            .write_buffer(&self.frontier_indirect_storage, 0, bytemuck::cast_slice(&indirect));
-        self.queue
-            .write_buffer(&self.frontier_indirect_args, 0, bytemuck::cast_slice(&indirect));
+        self.queue.write_buffer(
+            &self.frontier_indirect_storage,
+            0,
+            bytemuck::cast_slice(&indirect),
+        );
+        self.queue.write_buffer(
+            &self.frontier_indirect_args,
+            0,
+            bytemuck::cast_slice(&indirect),
+        );
     }
 
     fn dispatch_frontier_clear(
@@ -994,7 +1001,8 @@ impl BucketFillRenderer {
             return Ok(());
         }
         let word_count = (total_pixels + 31) / 32;
-        let dispatch_x = ((word_count + (QUEUE_GROUP_SIZE as u64) - 1) / (QUEUE_GROUP_SIZE as u64)) as u32;
+        let dispatch_x =
+            ((word_count + (QUEUE_GROUP_SIZE as u64) - 1) / (QUEUE_GROUP_SIZE as u64)) as u32;
         if dispatch_x == 0 {
             return Ok(());
         }
@@ -1215,7 +1223,10 @@ fn create_sampled_layers_texture(
     (texture, view)
 }
 
-fn create_layer_params_buffer(device: &wgpu::Device, capacity: usize) -> Result<wgpu::Buffer, String> {
+fn create_layer_params_buffer(
+    device: &wgpu::Device,
+    capacity: usize,
+) -> Result<wgpu::Buffer, String> {
     let size = capacity
         .checked_mul(std::mem::size_of::<BucketFillLayerParams>())
         .ok_or_else(|| "layer params buffer size overflow".to_string())?;

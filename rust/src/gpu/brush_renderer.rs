@@ -470,7 +470,10 @@ impl BrushRenderer {
             ));
         }
         if points.len() > MAX_POINTS {
-            return Err(format!("too many stroke points: {} (max {MAX_POINTS})", points.len()));
+            return Err(format!(
+                "too many stroke points: {} (max {MAX_POINTS})",
+                points.len()
+            ));
         }
         if self.canvas_width == 0 || self.canvas_height == 0 {
             return Err("brush renderer canvas size not set".to_string());
@@ -727,11 +730,8 @@ impl BrushRenderer {
         {
             return Ok(());
         }
-        let (mask, view) = create_stroke_mask(
-            self.device.as_ref(),
-            self.canvas_width,
-            self.canvas_height,
-        );
+        let (mask, view) =
+            create_stroke_mask(self.device.as_ref(), self.canvas_width, self.canvas_height);
         self.stroke_mask = mask;
         self.stroke_mask_view = view;
         self.stroke_mask_width = self.canvas_width;
@@ -748,11 +748,8 @@ impl BrushRenderer {
         {
             return Ok(());
         }
-        let (base, view) = create_stroke_base(
-            self.device.as_ref(),
-            self.canvas_width,
-            self.canvas_height,
-        );
+        let (base, view) =
+            create_stroke_base(self.device.as_ref(), self.canvas_width, self.canvas_height);
         self.stroke_base = base;
         self.stroke_base_view = view;
         self.stroke_base_width = self.canvas_width;
@@ -771,11 +768,8 @@ impl BrushRenderer {
         {
             return Ok(());
         }
-        let (mask, view) = create_selection_mask(
-            self.device.as_ref(),
-            self.canvas_width,
-            self.canvas_height,
-        );
+        let (mask, view) =
+            create_selection_mask(self.device.as_ref(), self.canvas_width, self.canvas_height);
         self.selection_mask = mask;
         self.selection_mask_view = view;
         self.selection_mask_width = self.canvas_width;
@@ -891,7 +885,11 @@ fn compute_dirty_rect(
     for (p, &r) in points.iter().zip(radii.iter()) {
         let x = finite_f32(p.x);
         let y = finite_f32(p.y);
-        let radius = if r.is_finite() { r.max(0.0) * scale } else { 0.0 };
+        let radius = if r.is_finite() {
+            r.max(0.0) * scale
+        } else {
+            0.0
+        };
         if x < min_x {
             min_x = x;
         }
@@ -987,11 +985,7 @@ fn write_selection_mask(
             wgpu::ImageCopyTexture {
                 texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d {
-                    x: 0,
-                    y,
-                    z: 0,
-                },
+                origin: wgpu::Origin3d { x: 0, y, z: 0 },
                 aspect: wgpu::TextureAspect::All,
             },
             bytemuck::cast_slice(&data),

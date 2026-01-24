@@ -3,13 +3,13 @@ use std::ffi::c_void;
 use super::types::EnginePoint;
 
 #[cfg(target_os = "macos")]
-use std::sync::atomic::Ordering;
-#[cfg(target_os = "macos")]
-use std::sync::mpsc;
+use super::engine::{create_engine, lookup_engine, remove_engine, EngineCommand, EngineInputBatch};
 #[cfg(target_os = "macos")]
 use crate::gpu::debug::{self, LogLevel};
 #[cfg(target_os = "macos")]
-use super::engine::{create_engine, lookup_engine, remove_engine, EngineCommand, EngineInputBatch};
+use std::sync::atomic::Ordering;
+#[cfg(target_os = "macos")]
+use std::sync::mpsc;
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
@@ -114,7 +114,10 @@ pub extern "C" fn engine_push_points(handle: u64, points: *const EnginePoint, le
     let slice = unsafe { std::slice::from_raw_parts(points, len) };
     let mut owned: Vec<EnginePoint> = Vec::with_capacity(len);
     owned.extend_from_slice(slice);
-    let queue_len = entry.input_queue_len.fetch_add(len as u64, Ordering::Relaxed) + len as u64;
+    let queue_len = entry
+        .input_queue_len
+        .fetch_add(len as u64, Ordering::Relaxed)
+        + len as u64;
 
     if debug::level() >= LogLevel::Verbose {
         const FLAG_DOWN: u32 = 1;
@@ -142,7 +145,9 @@ pub extern "C" fn engine_push_points(handle: u64, points: *const EnginePoint, le
         .send(EngineInputBatch { points: owned })
         .is_err()
     {
-        entry.input_queue_len.fetch_sub(len as u64, Ordering::Relaxed);
+        entry
+            .input_queue_len
+            .fetch_sub(len as u64, Ordering::Relaxed);
         debug::log(
             LogLevel::Warn,
             format_args!("engine_push_points dropped: input thread disconnected"),
@@ -189,9 +194,10 @@ pub extern "C" fn engine_set_layer_opacity(handle: u64, layer_index: u32, opacit
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
-    let _ = entry
-        .cmd_tx
-        .send(EngineCommand::SetLayerOpacity { layer_index, opacity });
+    let _ = entry.cmd_tx.send(EngineCommand::SetLayerOpacity {
+        layer_index,
+        opacity,
+    });
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -204,9 +210,10 @@ pub extern "C" fn engine_set_layer_visible(handle: u64, layer_index: u32, visibl
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
-    let _ = entry
-        .cmd_tx
-        .send(EngineCommand::SetLayerVisible { layer_index, visible });
+    let _ = entry.cmd_tx.send(EngineCommand::SetLayerVisible {
+        layer_index,
+        visible,
+    });
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -248,12 +255,10 @@ pub extern "C" fn engine_set_layer_blend_mode(
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
-    let _ = entry
-        .cmd_tx
-        .send(EngineCommand::SetLayerBlendMode {
-            layer_index,
-            blend_mode_index,
-        });
+    let _ = entry.cmd_tx.send(EngineCommand::SetLayerBlendMode {
+        layer_index,
+        blend_mode_index,
+    });
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -271,7 +276,9 @@ pub extern "C" fn engine_set_view_flags(handle: u64, view_flags: u32) {
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
-    let _ = entry.cmd_tx.send(EngineCommand::SetViewFlags { view_flags });
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::SetViewFlags { view_flags });
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -336,9 +343,7 @@ pub extern "C" fn engine_clear_layer(handle: u64, layer_index: u32) {
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
-    let _ = entry
-        .cmd_tx
-        .send(EngineCommand::ClearLayer { layer_index });
+    let _ = entry.cmd_tx.send(EngineCommand::ClearLayer { layer_index });
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -351,9 +356,10 @@ pub extern "C" fn engine_fill_layer(handle: u64, layer_index: u32, color_argb: u
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
-    let _ = entry
-        .cmd_tx
-        .send(EngineCommand::FillLayer { layer_index, color_argb });
+    let _ = entry.cmd_tx.send(EngineCommand::FillLayer {
+        layer_index,
+        color_argb,
+    });
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -387,12 +393,12 @@ pub extern "C" fn engine_bucket_fill(
     } else {
         unsafe { std::slice::from_raw_parts(swallow_colors_ptr, swallow_colors_len).to_vec() }
     };
-    let selection_mask: Option<Vec<u8>> =
-        if selection_mask_ptr.is_null() || selection_mask_len == 0 {
-            None
-        } else {
-            Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
-        };
+    let selection_mask: Option<Vec<u8>> = if selection_mask_ptr.is_null() || selection_mask_len == 0
+    {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
+    };
 
     let (tx, rx) = mpsc::channel();
     if entry
@@ -470,12 +476,12 @@ pub extern "C" fn engine_magic_wand_mask(
         return 0;
     };
 
-    let selection_mask: Option<Vec<u8>> =
-        if selection_mask_ptr.is_null() || selection_mask_len == 0 {
-            None
-        } else {
-            Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
-        };
+    let selection_mask: Option<Vec<u8>> = if selection_mask_ptr.is_null() || selection_mask_len == 0
+    {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
+    };
 
     let (tx, rx) = mpsc::channel();
     if entry
@@ -846,12 +852,12 @@ pub extern "C" fn engine_set_selection_mask(
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
-    let selection_mask: Option<Vec<u8>> =
-        if selection_mask_ptr.is_null() || selection_mask_len == 0 {
-            None
-        } else {
-            Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
-        };
+    let selection_mask: Option<Vec<u8>> = if selection_mask_ptr.is_null() || selection_mask_len == 0
+    {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(selection_mask_ptr, selection_mask_len).to_vec() })
+    };
     let _ = entry
         .cmd_tx
         .send(EngineCommand::SetSelectionMask { selection_mask });
@@ -872,14 +878,39 @@ pub extern "C" fn engine_reset_canvas(handle: u64, background_color_argb: u32) {
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
-    let _ = entry
-        .cmd_tx
-        .send(EngineCommand::ResetCanvas { background_color_argb });
+    let _ = entry.cmd_tx.send(EngineCommand::ResetCanvas {
+        background_color_argb,
+    });
 }
 
 #[cfg(not(target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn engine_reset_canvas(_handle: u64, _background_color_argb: u32) {}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub extern "C" fn engine_reset_canvas_with_layers(
+    handle: u64,
+    layer_count: u32,
+    background_color_argb: u32,
+) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::ResetCanvasWithLayers {
+        layer_count,
+        background_color_argb,
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_reset_canvas_with_layers(
+    _handle: u64,
+    _layer_count: u32,
+    _background_color_argb: u32,
+) {
+}
 
 #[cfg(target_os = "macos")]
 #[no_mangle]

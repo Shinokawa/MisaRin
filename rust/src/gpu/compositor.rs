@@ -505,7 +505,9 @@ impl GpuCompositor {
         for tile_y_usize in (0..height as usize).step_by(tile_step) {
             for tile_x_usize in (0..width as usize).step_by(tile_step) {
                 let copy_w = (width as usize).saturating_sub(tile_x_usize).min(tile_step);
-                let copy_h = (height as usize).saturating_sub(tile_y_usize).min(tile_step);
+                let copy_h = (height as usize)
+                    .saturating_sub(tile_y_usize)
+                    .min(tile_step);
 
                 for (layer_idx, layer) in layers.iter().enumerate() {
                     if !layer.visible || !(layer.opacity > 0.0) {
@@ -515,8 +517,7 @@ impl GpuCompositor {
                     for row in 0..copy_h {
                         let src_y = tile_y_usize + row;
                         let src_row_start = src_y * canvas_width_usize + tile_x_usize;
-                        let src_range =
-                            src_row_start..(src_row_start + copy_w);
+                        let src_range = src_row_start..(src_row_start + copy_w);
                         let dst_row_start = row * tile_step;
                         let dst_range = dst_row_start..(dst_row_start + copy_w);
                         tile_layer[dst_range].copy_from_slice(&layer.pixels[src_range]);
@@ -534,17 +535,16 @@ impl GpuCompositor {
 
                 device_push_scopes(&self.device);
 
-                let mut encoder = self
-                    .device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                        label: Some("GpuCompositor tiled encoder"),
-                    });
-                {
-                    let mut pass =
-                        encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                            label: Some("GpuCompositor tiled pass"),
-                            timestamp_writes: None,
+                let mut encoder =
+                    self.device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("GpuCompositor tiled encoder"),
                         });
+                {
+                    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                        label: Some("GpuCompositor tiled pass"),
+                        timestamp_writes: None,
+                    });
                     pass.set_pipeline(&self.pipeline);
                     pass.set_bind_group(0, bind_group, &[]);
                     let wg_x = (tile_dim + (WORKGROUP_SIZE - 1)) / WORKGROUP_SIZE;
@@ -582,9 +582,8 @@ impl GpuCompositor {
                         let src_row_start = row * tile_step;
                         let dst_y = tile_y_usize + row;
                         let dst_row_start = dst_y * canvas_width_usize + tile_x_usize;
-                        result[dst_row_start..(dst_row_start + copy_w)].copy_from_slice(
-                            &mapped_u32[src_row_start..(src_row_start + copy_w)],
-                        );
+                        result[dst_row_start..(dst_row_start + copy_w)]
+                            .copy_from_slice(&mapped_u32[src_row_start..(src_row_start + copy_w)]);
                     }
                     drop(mapped);
                     readback_buffer.unmap();
@@ -623,11 +622,13 @@ impl GpuCompositor {
             self.cached_layer_capacity.max(layer_capacity)
         };
 
-        let needs_input_resize =
-            dims_changed || self.input_buffer.is_none() || target_layer_capacity > self.cached_layer_capacity;
+        let needs_input_resize = dims_changed
+            || self.input_buffer.is_none()
+            || target_layer_capacity > self.cached_layer_capacity;
         let needs_output_resize =
             dims_changed || self.output_buffer.is_none() || self.readback_buffer.is_none();
-        let needs_bind_group = self.bind_group.is_none() || needs_input_resize || needs_output_resize;
+        let needs_bind_group =
+            self.bind_group.is_none() || needs_input_resize || needs_output_resize;
 
         if !needs_bind_group {
             return Ok(());

@@ -83,11 +83,14 @@ class RustCanvasTextureWidget extends StatefulWidget {
   final Size canvasSize;
 
   @override
-  State<RustCanvasTextureWidget> createState() => _RustCanvasTextureWidgetState();
+  State<RustCanvasTextureWidget> createState() =>
+      _RustCanvasTextureWidgetState();
 }
 
 class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
-  static const MethodChannel _channel = MethodChannel('misarin/rust_canvas_texture');
+  static const MethodChannel _channel = MethodChannel(
+    'misarin/rust_canvas_texture',
+  );
   static int _nextSurfaceId = 1;
 
   int? _textureId;
@@ -101,10 +104,12 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   Size _viewSize = Size.zero;
 
   int _activeLayerIndex = 0;
-  final List<bool> _layerVisible =
-      List<bool>.filled(_initialLayerCount, false)..[0] = true;
-  final List<double> _layerOpacity =
-      List<double>.filled(_initialLayerCount, 1.0);
+  final List<bool> _layerVisible = List<bool>.filled(_initialLayerCount, false)
+    ..[0] = true;
+  final List<double> _layerOpacity = List<double>.filled(
+    _initialLayerCount,
+    1.0,
+  );
 
   double _scale = 1.0;
   Offset _pan = Offset.zero;
@@ -124,13 +129,15 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     try {
       final int width = widget.canvasSize.width.round().clamp(1, 16384);
       final int height = widget.canvasSize.height.round().clamp(1, 16384);
-      final Map<dynamic, dynamic>? info =
-          await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      final Map<dynamic, dynamic>? info = await _channel
+          .invokeMethod<Map<dynamic, dynamic>>(
             'getTextureInfo',
             <String, Object?>{
               'surfaceId': _surfaceId,
               'width': width,
               'height': height,
+              'layerCount': _layerVisible.length,
+              'backgroundColorArgb': 0xFFFFFFFF,
             },
           );
       final int? textureId = (info?['textureId'] as num?)?.toInt();
@@ -141,10 +148,9 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       setState(() {
         _textureId = textureId;
         _engineHandle = engineHandle;
-        _error =
-            (textureId == null || engineHandle == null)
-                ? StateError('textureId/engineHandle == null: $info')
-                : null;
+        _error = (textureId == null || engineHandle == null)
+            ? StateError('textureId/engineHandle == null: $info')
+            : null;
       });
       final int? handle = _engineHandle;
       if (handle != null) {
@@ -170,10 +176,9 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
 
   Future<void> _disposeSurface() async {
     try {
-      await _channel.invokeMethod<void>(
-        'disposeTexture',
-        <String, Object?>{'surfaceId': _surfaceId},
-      );
+      await _channel.invokeMethod<void>('disposeTexture', <String, Object?>{
+        'surfaceId': _surfaceId,
+      });
     } catch (_) {}
   }
 
@@ -187,7 +192,10 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     if (details.pointerCount < 2) {
       return;
     }
-    final double nextScale = (_gestureStartScale * details.scale).clamp(0.1, 64.0);
+    final double nextScale = (_gestureStartScale * details.scale).clamp(
+      0.1,
+      64.0,
+    );
     final Offset nextPan =
         _gestureStartPan + (details.focalPoint - _gestureStartFocalPoint);
     setState(() {
@@ -258,7 +266,10 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     if (!CanvasEngineFfi.instance.isSupported) {
       return;
     }
-    CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: _activeLayerIndex);
+    CanvasEngineFfi.instance.setActiveLayer(
+      handle: handle,
+      layerIndex: _activeLayerIndex,
+    );
     for (int i = 0; i < _layerVisible.length; i++) {
       CanvasEngineFfi.instance.setLayerVisible(
         handle: handle,
@@ -282,8 +293,9 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       return;
     }
     final Offset canvasPos = _toCanvasSpace(event.localPosition, _viewSize);
-    final double pressure =
-        event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 1.0;
+    final double pressure = event.pressure.isFinite
+        ? event.pressure.clamp(0.0, 1.0)
+        : 1.0;
     final int timestampUs = event.timeStamp.inMicroseconds;
     _points.add(
       x: canvasPos.dx,
@@ -338,7 +350,10 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       return;
     }
     setState(() => _activeLayerIndex = layerIndex);
-    CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: layerIndex);
+    CanvasEngineFfi.instance.setActiveLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+    );
   }
 
   void _handleToggleLayerVisible(int layerIndex) {
@@ -390,9 +405,20 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       _activeLayerIndex = nextIndex;
     });
     CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: nextIndex);
-    CanvasEngineFfi.instance.setLayerVisible(handle: handle, layerIndex: nextIndex, visible: true);
-    CanvasEngineFfi.instance.setLayerOpacity(handle: handle, layerIndex: nextIndex, opacity: 1.0);
-    CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: nextIndex);
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: handle,
+      layerIndex: nextIndex,
+      visible: true,
+    );
+    CanvasEngineFfi.instance.setLayerOpacity(
+      handle: handle,
+      layerIndex: nextIndex,
+      opacity: 1.0,
+    );
+    CanvasEngineFfi.instance.setActiveLayer(
+      handle: handle,
+      layerIndex: nextIndex,
+    );
   }
 
   void _handleDeleteLayer() {
@@ -403,7 +429,10 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     final int layerIndex = _activeLayerIndex;
     final int visibleCount = _layerVisible.where((v) => v).length;
     if (visibleCount <= 1) {
-      CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: layerIndex);
+      CanvasEngineFfi.instance.clearLayer(
+        handle: handle,
+        layerIndex: layerIndex,
+      );
       return;
     }
 
@@ -429,10 +458,17 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
         _activeLayerIndex = nextActive;
       }
     });
-    CanvasEngineFfi.instance.setLayerVisible(handle: handle, layerIndex: layerIndex, visible: false);
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: handle,
+      layerIndex: layerIndex,
+      visible: false,
+    );
     CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: layerIndex);
     if (nextActive != null && nextActive >= 0) {
-      CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: nextActive);
+      CanvasEngineFfi.instance.setActiveLayer(
+        handle: handle,
+        layerIndex: nextActive,
+      );
     }
   }
 
@@ -497,9 +533,12 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
           return FocusableActionDetector(
             autofocus: true,
             shortcuts: const <ShortcutActivator, Intent>{
-              SingleActivator(LogicalKeyboardKey.keyZ, meta: true): _UndoIntent(),
-              SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true): _RedoIntent(),
-              SingleActivator(LogicalKeyboardKey.keyY, meta: true): _RedoIntent(),
+              SingleActivator(LogicalKeyboardKey.keyZ, meta: true):
+                  _UndoIntent(),
+              SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true):
+                  _RedoIntent(),
+              SingleActivator(LogicalKeyboardKey.keyY, meta: true):
+                  _RedoIntent(),
             },
             actions: <Type, Action<Intent>>{
               _UndoIntent: CallbackAction<_UndoIntent>(
@@ -574,15 +613,9 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _OverlayButton(
-                        label: '撤销',
-                        onPressed: _handleUndo,
-                      ),
+                      _OverlayButton(label: '撤销', onPressed: _handleUndo),
                       const SizedBox(width: 8),
-                      _OverlayButton(
-                        label: '恢复',
-                        onPressed: _handleRedo,
-                      ),
+                      _OverlayButton(label: '恢复', onPressed: _handleRedo),
                     ],
                   ),
                 ),
@@ -615,10 +648,7 @@ class _OverlayButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFFFFFFFF),
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 12),
           ),
         ),
       ),
@@ -660,9 +690,13 @@ class _LayerOverlayPanel extends StatelessWidget {
             width: 160,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: isActive ? const Color(0xFF2B2B2B) : const Color(0xAA202020),
+              color: isActive
+                  ? const Color(0xFF2B2B2B)
+                  : const Color(0xAA202020),
               border: Border.all(
-                color: isActive ? const Color(0xFF7A7A7A) : const Color(0xFF404040),
+                color: isActive
+                    ? const Color(0xFF7A7A7A)
+                    : const Color(0xFF404040),
               ),
               borderRadius: BorderRadius.circular(6),
             ),
@@ -672,7 +706,9 @@ class _LayerOverlayPanel extends StatelessWidget {
                   child: Text(
                     '图层 ${idx + 1}',
                     style: TextStyle(
-                      color: visible ? const Color(0xFFFFFFFF) : const Color(0xFF8A8A8A),
+                      color: visible
+                          ? const Color(0xFFFFFFFF)
+                          : const Color(0xFF8A8A8A),
                       fontSize: 12,
                     ),
                   ),
@@ -680,9 +716,14 @@ class _LayerOverlayPanel extends StatelessWidget {
                 GestureDetector(
                   onTap: () => onToggleLayerVisible(idx),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: visible ? const Color(0xFF3A3A3A) : const Color(0xFF1A1A1A),
+                      color: visible
+                          ? const Color(0xFF3A3A3A)
+                          : const Color(0xFF1A1A1A),
                       border: Border.all(color: const Color(0xFF404040)),
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -705,8 +746,8 @@ class _LayerOverlayPanel extends StatelessWidget {
 
     final double activeOpacity =
         (activeLayerIndex >= 0 && activeLayerIndex < layerOpacity.length)
-            ? layerOpacity[activeLayerIndex]
-            : 1.0;
+        ? layerOpacity[activeLayerIndex]
+        : 1.0;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -803,10 +844,7 @@ class _OpacityButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFFFFFFFF),
-              fontSize: 11,
-            ),
+            style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 11),
           ),
         ),
       ),

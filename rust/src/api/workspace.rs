@@ -26,9 +26,7 @@ where
     F: FnOnce(&mut WorkspaceState),
 {
     let cell = workspace_cell();
-    let mut guard = cell
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut guard = cell.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     apply(&mut guard);
     guard.clone()
 }

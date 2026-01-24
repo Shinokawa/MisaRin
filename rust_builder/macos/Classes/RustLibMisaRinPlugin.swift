@@ -25,6 +25,13 @@ private func engine_dispose(_ engineHandle: UInt64)
 @_silgen_name("engine_poll_frame_ready")
 private func engine_poll_frame_ready(_ engineHandle: UInt64) -> Bool
 
+@_silgen_name("engine_reset_canvas_with_layers")
+private func engine_reset_canvas_with_layers(
+  _ engineHandle: UInt64,
+  _ layerCount: UInt32,
+  _ backgroundColorArgb: UInt32
+)
+
 private final class RustCanvasTexture: NSObject, FlutterTexture {
   fileprivate let pixelBuffer: CVPixelBuffer
 
@@ -165,6 +172,8 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
         surfaceId: requested.surfaceId,
         width: requested.width,
         height: requested.height,
+        layerCount: requested.layerCount,
+        backgroundColor: requested.backgroundColor,
         result: result
       )
     case "disposeTexture":
@@ -177,15 +186,21 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
   private func parseRequestedTextureInfo(
     arguments: Any?
-  ) -> (surfaceId: String, width: Int, height: Int) {
+  ) -> (surfaceId: String, width: Int, height: Int, layerCount: Int, backgroundColor: UInt32) {
     let fallbackWidth = 512
     let fallbackHeight = 512
     let fallbackSurfaceId = "default"
+    let fallbackLayerCount = 1
+    let fallbackBackground: UInt32 = 0xFFFFFFFF
     guard let dict = arguments as? [String: Any] else {
-      return (fallbackSurfaceId, fallbackWidth, fallbackHeight)
+      return (fallbackSurfaceId, fallbackWidth, fallbackHeight, fallbackLayerCount, fallbackBackground)
     }
     let w = (dict["width"] as? NSNumber)?.intValue ?? fallbackWidth
     let h = (dict["height"] as? NSNumber)?.intValue ?? fallbackHeight
+    let layerCountRaw = (dict["layerCount"] as? NSNumber)?.intValue ?? fallbackLayerCount
+    let layerCount = max(1, min(layerCountRaw, 1024))
+    let backgroundRaw = (dict["backgroundColorArgb"] as? NSNumber)?.uint64Value ?? UInt64(fallbackBackground)
+    let backgroundColor = UInt32(truncatingIfNeeded: backgroundRaw)
     let surfaceIdValue = dict["surfaceId"]
     let surfaceId: String
     if let str = surfaceIdValue as? String, !str.isEmpty {
@@ -195,7 +210,13 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
     } else {
       surfaceId = fallbackSurfaceId
     }
-    return (surfaceId, max(1, min(w, 16384)), max(1, min(h, 16384)))
+    return (
+      surfaceId,
+      max(1, min(w, 16384)),
+      max(1, min(h, 16384)),
+      layerCount,
+      backgroundColor
+    )
   }
 
   private func parseSurfaceId(arguments: Any?) -> String {
@@ -217,6 +238,8 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
     surfaceId: String,
     width: Int,
     height: Int,
+    layerCount: Int,
+    backgroundColor: UInt32,
     result: @escaping FlutterResult
   ) {
     engineStateLock.lock()
@@ -375,6 +398,12 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
         UInt32(resolvedWidth),
         UInt32(resolvedHeight),
         UInt32(bytesPerRow)
+      )
+      let resolvedLayerCount = max(1, layerCount)
+      engine_reset_canvas_with_layers(
+        handle,
+        UInt32(resolvedLayerCount),
+        backgroundColor
       )
 
       DispatchQueue.main.async {
