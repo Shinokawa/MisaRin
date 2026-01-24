@@ -405,6 +405,15 @@ class AppMenuActions {
     }
     final bool useRustCanvas = !kIsWeb;
     final CanvasPageState? canvasState = context.findAncestorStateOfType<CanvasPageState>();
+    if (useRustCanvas) {
+      try {
+        await RustCanvasSurface.prewarm(
+          canvasSize: document.settings.size,
+          layerCount: document.layers.length,
+          backgroundColorArgb: document.settings.backgroundColor.value,
+        );
+      } catch (_) {}
+    }
     try {
       if (canvasState != null) {
         await canvasState.openDocument(document);

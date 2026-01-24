@@ -16,6 +16,7 @@ import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
 import 'app/widgets/rust_canvas_surface.dart';
 import 'backend/canvas_raster_backend.dart';
+import 'canvas/canvas_settings.dart';
 import 'src/rust/rust_init.dart';
 
 Future<void> main() async {
@@ -29,6 +30,13 @@ Future<void> main() async {
       await CanvasRasterBackend.prewarmGpuEngine();
       // Also pre-warm the Texture engine used by RustCanvasSurface.
       await RustCanvasSurface.prewarmTextureEngine();
+      unawaited(
+        RustCanvasSurface.prewarm(
+          canvasSize: CanvasSettings.defaults.size,
+          layerCount: 2,
+          backgroundColorArgb: CanvasSettings.defaults.backgroundColor.value,
+        ).catchError((_) {}),
+      );
       // Pre-warm Flutter's image decoding pipeline.
       await _prewarmImageDecoder();
     }
