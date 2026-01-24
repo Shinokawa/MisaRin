@@ -164,6 +164,25 @@ class _RustSurfaceWarmupCache {
     );
   }
 
+  Future<void> cancelWarmup({required String surfaceId}) async {
+    final Future<_RustSurfaceInfo>? pending = _warmups.remove(surfaceId);
+    if (pending == null) {
+      return;
+    }
+    try {
+      try {
+        await pending;
+      } catch (_) {}
+      RustCanvasTimeline.mark(
+        'rustSurface: warmup canceled surface=$surfaceId',
+      );
+      await _rustCanvasChannel.invokeMethod<void>(
+        'disposeTexture',
+        <String, Object?>{'surfaceId': surfaceId},
+      );
+    } catch (_) {}
+  }
+
   void drop(String surfaceId) {
     _warmups.remove(surfaceId);
   }
@@ -237,6 +256,16 @@ class RustCanvasSurface extends StatefulWidget {
       height: height,
       layerCount: layerCount,
       backgroundColorArgb: backgroundColorArgb,
+    );
+  }
+
+  static String surfaceIdFor(Size canvasSize, int layerCount) {
+    return _stableSurfaceId(canvasSize, layerCount);
+  }
+
+  static Future<void> cancelWarmup({required String surfaceId}) {
+    return _RustSurfaceWarmupCache.instance.cancelWarmup(
+      surfaceId: surfaceId,
     );
   }
 
@@ -366,6 +395,8 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       final int? engineHandle = info.engineHandle;
       final int? engineWidth = info.engineWidth;
       final int? engineHeight = info.engineHeight;
+      final bool backgroundNeedsUpdate =
+          info.backgroundColorArgb != widget.backgroundColorArgb;
       if (!mounted) {
         return;
       }
@@ -389,6 +420,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       final int? handle = _engineHandle;
       if (handle != null) {
         _applyBrushSettings(handle);
+        if (backgroundNeedsUpdate) {
+          _applyBackground(handle);
+        }
       }
       _notifyEngineInfoChanged();
     } catch (error) {

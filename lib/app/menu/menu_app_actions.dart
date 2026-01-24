@@ -18,23 +18,54 @@ import '../utils/clipboard_image_reader.dart';
 import '../view/canvas_page.dart';
 import '../widgets/app_notification.dart';
 import '../widgets/rust_canvas_surface.dart';
+import '../../canvas/canvas_settings.dart';
 
 class AppMenuActions {
   const AppMenuActions._();
+  static const int _newProjectLayerCount = 2;
 
   static Future<void> createProject(BuildContext context) async {
-    RustCanvasTimeline.start('createProject: click new canvas');
+    String? warmupSurfaceId;
+    if (!kIsWeb) {
+      const CanvasSettings warmupSettings = CanvasSettings.defaults;
+      warmupSurfaceId = RustCanvasSurface.surfaceIdFor(
+        warmupSettings.size,
+        _newProjectLayerCount,
+      );
+      unawaited(
+        RustCanvasSurface.prewarm(
+          canvasSize: warmupSettings.size,
+          layerCount: _newProjectLayerCount,
+          backgroundColorArgb: warmupSettings.backgroundColor.value,
+        ).catchError((_) {}),
+      );
+    }
     final NewProjectConfig? config = await showCanvasSettingsDialog(context);
     if (config == null || !context.mounted) {
-      RustCanvasTimeline.mark('createProject: dialog dismissed or unmounted');
+      if (warmupSurfaceId != null) {
+        unawaited(
+          RustCanvasSurface.cancelWarmup(surfaceId: warmupSurfaceId),
+        );
+      }
       return;
     }
-    RustCanvasTimeline.mark('createProject: dialog confirmed');
+    if (warmupSurfaceId != null) {
+      final String targetSurfaceId = RustCanvasSurface.surfaceIdFor(
+        config.settings.size,
+        _newProjectLayerCount,
+      );
+      final bool warmupMatches = targetSurfaceId == warmupSurfaceId;
+      if (!warmupMatches) {
+        unawaited(
+          RustCanvasSurface.cancelWarmup(surfaceId: warmupSurfaceId),
+        );
+        warmupSurfaceId = null;
+      }
+    }
     try {
       _applyWorkspacePreset(config.workspacePreset);
       ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
-      RustCanvasTimeline.mark('createProject: document created');
       if (!kIsWeb) {
         unawaited(
           RustCanvasSurface.prewarm(
@@ -48,9 +79,13 @@ class AppMenuActions {
       if (!context.mounted) {
         return;
       }
-      RustCanvasTimeline.mark('createProject: navigating to canvas page');
       await _showProject(context, document);
     } catch (error) {
+      if (warmupSurfaceId != null) {
+        unawaited(
+          RustCanvasSurface.cancelWarmup(surfaceId: warmupSurfaceId),
+        );
+      }
       if (!context.mounted) {
         return;
       }
