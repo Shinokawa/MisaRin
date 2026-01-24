@@ -119,7 +119,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   static const MethodChannel _channel = MethodChannel(
     'misarin/rust_canvas_texture',
   );
-  static int _nextSurfaceId = 1;
+  static bool _didPrewarm = false;
 
   int? _textureId;
   int? _engineHandle;
@@ -136,7 +136,8 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   @override
   void initState() {
     super.initState();
-    _surfaceId = 'rust_canvas_${_nextSurfaceId++}';
+    _surfaceId = _stableSurfaceId(widget.canvasSize, widget.layerCount);
+    unawaited(_prewarmIfNeeded());
     unawaited(_loadTextureInfo());
   }
 
@@ -173,6 +174,35 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         _applyBackground(handle);
       }
     }
+  }
+
+  static String _stableSurfaceId(Size size, int layerCount) {
+    final int width = size.width.round().clamp(1, 16384);
+    final int height = size.height.round().clamp(1, 16384);
+    return 'rust_canvas_${width}x${height}_layers$layerCount';
+  }
+
+  static Future<void> _prewarmIfNeeded() async {
+    if (_didPrewarm) {
+      return;
+    }
+    _didPrewarm = true;
+    try {
+      const String warmSurfaceId = 'rust_canvas_prewarm';
+      await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getTextureInfo',
+        <String, Object?>{
+          'surfaceId': warmSurfaceId,
+          'width': 1,
+          'height': 1,
+          'layerCount': 1,
+          'backgroundColorArgb': 0xFFFFFFFF,
+        },
+      );
+      await _channel.invokeMethod<void>('disposeTexture', <String, Object?>{
+        'surfaceId': warmSurfaceId,
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadTextureInfo() async {

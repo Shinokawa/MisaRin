@@ -42,6 +42,13 @@ pub(crate) enum EngineCommand {
         layer_count: u32,
         background_color_argb: u32,
     },
+    ResizeCanvas {
+        width: u32,
+        height: u32,
+        layer_count: u32,
+        background_color_argb: u32,
+        reply: mpsc::Sender<bool>,
+    },
     FillLayer {
         layer_index: u32,
         color_argb: u32,
@@ -261,6 +268,8 @@ fn render_thread_main(
     canvas_width: u32,
     canvas_height: u32,
 ) {
+    let mut canvas_width = canvas_width;
+    let mut canvas_height = canvas_height;
     let mut present: Option<PresentTarget> = None;
     let mut layers = layer_textures;
     if layers.capacity() == 0 {
@@ -373,6 +382,11 @@ fn render_thread_main(
                     if outcome.stop {
                         break;
                     }
+                    if let Some((new_width, new_height)) = outcome.new_canvas_size {
+                        canvas_width = new_width;
+                        canvas_height = new_height;
+                        stroke = StrokeResampler::new();
+                    }
                     // The first present texture attach happens while `present` is still `None`
                     // at the start of the iteration. If the command requests a render and we
                     // now have a present target, render once so Flutter gets a deterministic
@@ -427,6 +441,11 @@ fn render_thread_main(
                     );
                     if outcome.stop {
                         return;
+                    }
+                    if let Some((new_width, new_height)) = outcome.new_canvas_size {
+                        canvas_width = new_width;
+                        canvas_height = new_height;
+                        stroke = StrokeResampler::new();
                     }
                     needs_render |= outcome.needs_render;
                 }
@@ -732,6 +751,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: true,
                 needs_render: false,
+                new_canvas_size: None,
             }
         }
         EngineCommand::AttachPresentTexture {
@@ -751,6 +771,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             *present =
@@ -783,6 +804,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: true,
+                    new_canvas_size: None,
                 };
             }
         }
@@ -814,6 +836,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: present.is_some(),
+                new_canvas_size: None,
             };
         }
         EngineCommand::ResetCanvasWithLayers {
@@ -827,6 +850,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             }
@@ -876,6 +900,123 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: present.is_some(),
+                new_canvas_size: None,
+            };
+        }
+        EngineCommand::ResizeCanvas {
+            width,
+            height,
+            layer_count: requested_count,
+            background_color_argb,
+            reply,
+        } => {
+            let new_width = width.max(1);
+            let new_height = height.max(1);
+            let target_layer_count = (requested_count.max(1)) as usize;
+            let target_capacity = layers.capacity().max(target_layer_count).max(1);
+            let new_layers =
+                match LayerTextures::new(device.as_ref(), new_width, new_height, target_capacity) {
+                    Ok(layers) => layers,
+                    Err(err) => {
+                        let _ = reply.send(false);
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("ResizeCanvas: layer init failed: {err}"),
+                        );
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                            new_canvas_size: None,
+                        };
+                    }
+                };
+            let new_params_capacity = new_layers.capacity();
+            let new_params_buffer =
+                match create_present_params_buffer(device.as_ref(), new_params_capacity) {
+                    Ok(buffer) => buffer,
+                    Err(err) => {
+                        let _ = reply.send(false);
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("ResizeCanvas: present params buffer init failed: {err}"),
+                        );
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                            new_canvas_size: None,
+                        };
+                    }
+                };
+
+            layer_opacity.resize(target_layer_count, 1.0);
+            layer_visible.resize(target_layer_count, true);
+            layer_clipping_mask.resize(target_layer_count, false);
+            layer_blend_mode.resize(target_layer_count, 0);
+            layer_uniform.resize(target_layer_count, None);
+
+            for idx in 0..target_layer_count {
+                let fill = if idx == 0 {
+                    background_color_argb
+                } else {
+                    0x00000000
+                };
+                fill_r32uint_texture(
+                    queue,
+                    new_layers.texture(),
+                    new_width,
+                    new_height,
+                    idx as u32,
+                    fill,
+                );
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = Some(fill);
+                }
+            }
+
+            *layer_count = target_layer_count;
+            *present_params_capacity = new_layers.capacity();
+            *present_params_buffer = new_params_buffer;
+            *present_bind_group = present_renderer.create_bind_group(
+                device,
+                new_layers.array_view(),
+                present_config_buffer,
+                present_params_buffer,
+                present_transform_buffer,
+            );
+            *layers = new_layers;
+            *active_layer_index = (*active_layer_index).min(target_layer_count.saturating_sub(1));
+            *transform_layer_index = 0;
+            *transform_flags = 0;
+            *transform_matrix = [
+                1.0, 0.0, 0.0, 0.0, //
+                0.0, 1.0, 0.0, 0.0, //
+                0.0, 0.0, 1.0, 0.0, //
+                0.0, 0.0, 0.0, 1.0, //
+            ];
+            write_present_transform(queue.as_ref(), present_transform_buffer, *transform_matrix);
+            write_present_config(
+                queue,
+                present_config_buffer,
+                present_params_buffer,
+                *layer_count,
+                *present_view_flags,
+                *transform_layer_index,
+                *transform_flags,
+                layer_opacity,
+                layer_visible,
+                layer_clipping_mask,
+                layer_blend_mode,
+            );
+            *undo = UndoManager::new(new_width, new_height);
+            *present = None;
+            *bucket_fill_renderer = None;
+            *transform_renderer = None;
+
+            let _ = reply.send(true);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+                new_canvas_size: Some((new_width, new_height)),
             };
         }
         EngineCommand::FillLayer {
@@ -898,6 +1039,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
         }
@@ -918,6 +1060,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
         }
@@ -954,6 +1097,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
         }
@@ -980,6 +1124,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
         }
@@ -1006,6 +1151,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
         }
@@ -1032,6 +1178,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
         }
@@ -1055,6 +1202,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
         }
@@ -1104,6 +1252,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if canvas_width == 0 || canvas_height == 0 {
@@ -1111,6 +1260,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if start_x < 0
@@ -1122,6 +1272,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
 
@@ -1133,6 +1284,7 @@ fn handle_engine_command(
                         return EngineCommandOutcome {
                             stop: false,
                             needs_render: false,
+                            new_canvas_size: None,
                         };
                     }
                     undo.begin_stroke(layer_index);
@@ -1159,6 +1311,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: present.is_some(),
+                        new_canvas_size: None,
                     };
                 }
             }
@@ -1181,6 +1334,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 };
 
@@ -1237,6 +1391,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
 
@@ -1261,6 +1416,7 @@ fn handle_engine_command(
                             return EngineCommandOutcome {
                                 stop: false,
                                 needs_render: false,
+                                new_canvas_size: None,
                             };
                         }
                     }
@@ -1294,6 +1450,7 @@ fn handle_engine_command(
                         return EngineCommandOutcome {
                             stop: false,
                             needs_render: false,
+                            new_canvas_size: None,
                         };
                     }
                 }
@@ -1325,6 +1482,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
 
@@ -1337,6 +1495,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
 
@@ -1347,6 +1506,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             };
@@ -1356,6 +1516,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             let packed = match pack_u32_rows_with_padding(
@@ -1374,6 +1535,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             };
@@ -1407,6 +1569,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: present.is_some(),
+                new_canvas_size: None,
             };
         }
         EngineCommand::MagicWandMask {
@@ -1424,6 +1587,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if canvas_width == 0 || canvas_height == 0 {
@@ -1431,6 +1595,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if start_x < 0
@@ -1442,6 +1607,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
 
@@ -1466,6 +1632,7 @@ fn handle_engine_command(
                             return EngineCommandOutcome {
                                 stop: false,
                                 needs_render: false,
+                                new_canvas_size: None,
                             };
                         }
                     }
@@ -1497,6 +1664,7 @@ fn handle_engine_command(
                         return EngineCommandOutcome {
                             stop: false,
                             needs_render: false,
+                            new_canvas_size: None,
                         };
                     }
                 }
@@ -1515,6 +1683,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: false,
+                new_canvas_size: None,
             };
         }
         EngineCommand::ReadLayer { layer_index, reply } => {
@@ -1524,6 +1693,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if canvas_width == 0 || canvas_height == 0 {
@@ -1531,6 +1701,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             match read_r32uint_layer(
@@ -1552,6 +1723,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: false,
+                new_canvas_size: None,
             };
         }
         EngineCommand::WriteLayer {
@@ -1566,6 +1738,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             let expected_len = (canvas_width as usize).saturating_mul(canvas_height as usize);
@@ -1584,6 +1757,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             let bytes_per_row_unpadded = match canvas_width.checked_mul(4) {
@@ -1593,6 +1767,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             };
@@ -1602,6 +1777,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             let packed = match pack_u32_rows_with_padding(
@@ -1620,6 +1796,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             };
@@ -1654,6 +1831,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: present.is_some(),
+                new_canvas_size: None,
             };
         }
         EngineCommand::TranslateLayer {
@@ -1668,6 +1846,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if canvas_width == 0 || canvas_height == 0 {
@@ -1675,6 +1854,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if delta_x == 0 && delta_y == 0 {
@@ -1682,6 +1862,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if transform_renderer.is_none() {
@@ -1720,6 +1901,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
                 undo.end_stroke(device, queue, layers.texture());
@@ -1730,6 +1912,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: present.is_some(),
+                    new_canvas_size: None,
                 };
             }
             let pixels = match read_r32uint_layer(
@@ -1750,6 +1933,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             };
@@ -1790,6 +1974,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             };
@@ -1799,6 +1984,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             let packed = match pack_u32_rows_with_padding(
@@ -1817,6 +2003,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             };
@@ -1847,6 +2034,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: present.is_some(),
+                new_canvas_size: None,
             };
         }
         EngineCommand::SetLayerTransformPreview {
@@ -1879,6 +2067,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: present.is_some(),
+                new_canvas_size: None,
             };
         }
         EngineCommand::ApplyLayerTransform {
@@ -1893,6 +2082,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if canvas_width == 0 || canvas_height == 0 {
@@ -1900,6 +2090,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             if transform_renderer.is_none() {
@@ -1915,6 +2106,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             };
             undo.begin_stroke(layer_index);
@@ -1944,6 +2136,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             undo.end_stroke(device, queue, layers.texture());
@@ -1954,6 +2147,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: present.is_some(),
+                new_canvas_size: None,
             };
         }
         EngineCommand::GetLayerBounds { layer_index, reply } => {
@@ -1963,6 +2157,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             let pixels = match read_r32uint_layer(
@@ -1983,6 +2178,7 @@ fn handle_engine_command(
                     return EngineCommandOutcome {
                         stop: false,
                         needs_render: false,
+                        new_canvas_size: None,
                     };
                 }
             };
@@ -1991,6 +2187,7 @@ fn handle_engine_command(
                 return EngineCommandOutcome {
                     stop: false,
                     needs_render: false,
+                    new_canvas_size: None,
                 };
             }
             let width = canvas_width as i32;
@@ -2028,6 +2225,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: false,
+                new_canvas_size: None,
             };
         }
         EngineCommand::SetSelectionMask { selection_mask } => {
@@ -2079,6 +2277,7 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: applied && present.is_some(),
+                new_canvas_size: None,
             };
         }
         EngineCommand::Redo => {
@@ -2091,12 +2290,14 @@ fn handle_engine_command(
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: applied && present.is_some(),
+                new_canvas_size: None,
             };
         }
     }
     EngineCommandOutcome {
         stop: false,
         needs_render: false,
+        new_canvas_size: None,
     }
 }
 
@@ -2104,6 +2305,7 @@ fn handle_engine_command(
 struct EngineCommandOutcome {
     stop: bool,
     needs_render: bool,
+    new_canvas_size: Option<(u32, u32)>,
 }
 
 fn ensure_brush<'a>(

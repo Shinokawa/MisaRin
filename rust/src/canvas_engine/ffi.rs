@@ -914,6 +914,59 @@ pub extern "C" fn engine_reset_canvas_with_layers(
 
 #[cfg(target_os = "macos")]
 #[no_mangle]
+pub extern "C" fn engine_resize_canvas(
+    handle: u64,
+    width: u32,
+    height: u32,
+    layer_count: u32,
+    background_color_argb: u32,
+) -> u8 {
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+    if width == 0 || height == 0 {
+        return 0;
+    }
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::ResizeCanvas {
+            width,
+            height,
+            layer_count,
+            background_color_argb,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+    match rx.recv() {
+        Ok(ok) => {
+            if ok {
+                1
+            } else {
+                0
+            }
+        }
+        Err(_) => 0,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[no_mangle]
+pub extern "C" fn engine_resize_canvas(
+    _handle: u64,
+    _width: u32,
+    _height: u32,
+    _layer_count: u32,
+    _background_color_argb: u32,
+) -> u8 {
+    0
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
 pub extern "C" fn engine_undo(handle: u64) {
     let Some(entry) = lookup_engine(handle) else {
         return;
