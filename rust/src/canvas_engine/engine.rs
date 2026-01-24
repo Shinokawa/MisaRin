@@ -271,30 +271,10 @@ fn render_thread_main(
     let mut active_layer_index: usize = 0;
     let mut layer_uniform: Vec<Option<u32>> = vec![None; layer_count];
 
-    let mut brush = match BrushRenderer::new(device.clone(), queue.clone()) {
-        Ok(renderer) => renderer,
-        Err(err) => {
-            debug::log(
-                LogLevel::Warn,
-                format_args!("BrushRenderer init failed: {err}"),
-            );
-            return;
-        }
-    };
-    brush.set_canvas_size(canvas_width, canvas_height);
-    brush.set_softness(0.0);
+    let mut brush: Option<BrushRenderer> = None;
     let mut brush_settings = EngineBrushSettings::default();
 
-    let mut bucket_fill_renderer = match BucketFillRenderer::new(device.clone(), queue.clone()) {
-        Ok(renderer) => Some(renderer),
-        Err(err) => {
-            debug::log(
-                LogLevel::Warn,
-                format_args!("BucketFillRenderer init failed: {err}"),
-            );
-            None
-        }
-    };
+    let mut bucket_fill_renderer: Option<BucketFillRenderer> = None;
 
     let present_renderer = PresentRenderer::new(device.as_ref());
     let mut layer_opacity: Vec<f32> = vec![1.0; layer_count];
@@ -353,24 +333,15 @@ fn render_thread_main(
 
     let mut stroke = StrokeResampler::new();
     let mut undo_manager = UndoManager::new(canvas_width, canvas_height);
-    let mut transform_renderer = match LayerTransformRenderer::new(device.clone(), queue.clone()) {
-        Ok(renderer) => Some(renderer),
-        Err(err) => {
-            debug::log(
-                LogLevel::Warn,
-                format_args!("LayerTransformRenderer init failed: {err}"),
-            );
-            None
-        }
-    };
+    let mut transform_renderer: Option<LayerTransformRenderer> = None;
 
     loop {
         match &present {
             None => match cmd_rx.recv() {
                 Ok(cmd) => {
                     let outcome = handle_engine_command(
-                        device.as_ref(),
-                        queue.as_ref(),
+                        &device,
+                        &queue,
                         &mut present,
                         cmd,
                         &mut bucket_fill_renderer,
@@ -424,8 +395,8 @@ fn render_thread_main(
                 let mut needs_render = false;
                 while let Ok(cmd) = cmd_rx.try_recv() {
                     let outcome = handle_engine_command(
-                        device.as_ref(),
-                        queue.as_ref(),
+                        &device,
+                        &queue,
                         &mut present,
                         cmd,
                         &mut bucket_fill_renderer,
@@ -480,6 +451,24 @@ fn render_thread_main(
                         raw_points.extend(batch.points);
                     }
 
+                    let brush_ref = match ensure_brush(
+                        &mut brush,
+                        &device,
+                        &queue,
+                        canvas_width,
+                        canvas_height,
+                    ) {
+                        Ok(brush_ref) => brush_ref,
+                        Err(err) => {
+                            debug::log(
+                                LogLevel::Warn,
+                                format_args!("BrushRenderer init failed: {err}"),
+                            );
+                            stroke = StrokeResampler::new();
+                            continue;
+                        }
+                    };
+
                     let active_layer_view = layers
                         .layer_view(active_layer_index)
                         .or_else(|| layers.layer_view(0))
@@ -500,13 +489,13 @@ fn render_thread_main(
                                 && !brush_settings.erase
                                 && brush_settings.hollow_ratio > 0.0001;
                             if use_hollow_mask {
-                                if let Err(err) = brush.clear_stroke_mask() {
+                                if let Err(err) = brush_ref.clear_stroke_mask() {
                                     debug::log(
                                         LogLevel::Warn,
                                         format_args!("Brush stroke mask clear failed: {err}"),
                                     );
                                 }
-                                brush.begin_stroke_base_capture();
+                                brush_ref.begin_stroke_base_capture();
                             }
                         } else {
                             undo_manager.begin_stroke_if_needed(active_layer_index as u32);
@@ -542,7 +531,7 @@ fn render_thread_main(
                                 }
                             };
                             drawn_any |= stroke.consume_and_draw(
-                                &mut brush,
+                                brush_ref,
                                 &brush_settings,
                                 active_layer_view,
                                 std::mem::take(&mut segment),
@@ -582,7 +571,7 @@ fn render_thread_main(
                             }
                         };
                         drawn_any |= stroke.consume_and_draw(
-                            &mut brush,
+                            brush_ref,
                             &brush_settings,
                             active_layer_view,
                             segment,
@@ -619,8 +608,8 @@ fn render_thread_main(
 }
 
 fn handle_engine_command(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
+    device: &Arc<wgpu::Device>,
+    queue: &Arc<wgpu::Queue>,
     present: &mut Option<PresentTarget>,
     cmd: EngineCommand,
     bucket_fill_renderer: &mut Option<BucketFillRenderer>,
@@ -643,100 +632,100 @@ fn handle_engine_command(
     present_params_capacity: &mut usize,
     present_bind_group: &mut wgpu::BindGroup,
     transform_renderer: &mut Option<LayerTransformRenderer>,
-    brush: &mut BrushRenderer,
+    brush: &mut Option<BrushRenderer>,
     brush_settings: &mut EngineBrushSettings,
     undo: &mut UndoManager,
     canvas_width: u32,
     canvas_height: u32,
 ) -> EngineCommandOutcome {
-    let mut ensure_layer_index =
-        |layer_count: &mut usize,
-         idx: usize,
-         transform_layer_index: u32,
-         transform_flags: u32| -> bool {
-            if idx < *layer_count {
-                return true;
+    let mut ensure_layer_index = |layer_count: &mut usize,
+                                  idx: usize,
+                                  transform_layer_index: u32,
+                                  transform_flags: u32|
+     -> bool {
+        if idx < *layer_count {
+            return true;
+        }
+        let old_count = *layer_count;
+        let new_count = idx + 1;
+        let resized = match layers.ensure_capacity(device, queue, new_count) {
+            Ok(Some(_)) => true,
+            Ok(None) => false,
+            Err(err) => {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Layer capacity resize failed: {err}"),
+                );
+                return false;
             }
-            let old_count = *layer_count;
-            let new_count = idx + 1;
-            let resized = match layers.ensure_capacity(device, queue, new_count) {
-                Ok(Some(_)) => true,
-                Ok(None) => false,
+        };
+        if resized {
+            *present_params_capacity = layers.capacity();
+            match create_present_params_buffer(device, *present_params_capacity) {
+                Ok(buffer) => {
+                    *present_params_buffer = buffer;
+                    *present_bind_group = present_renderer.create_bind_group(
+                        device,
+                        layers.array_view(),
+                        present_config_buffer,
+                        present_params_buffer,
+                        present_transform_buffer,
+                    );
+                }
                 Err(err) => {
                     debug::log(
                         LogLevel::Warn,
-                        format_args!("Layer capacity resize failed: {err}"),
+                        format_args!("Present params buffer resize failed: {err}"),
                     );
                     return false;
                 }
-            };
-            if resized {
-                *present_params_capacity = layers.capacity();
-                match create_present_params_buffer(device, *present_params_capacity) {
-                    Ok(buffer) => {
-                        *present_params_buffer = buffer;
-                        *present_bind_group = present_renderer.create_bind_group(
-                            device,
-                            layers.array_view(),
-                            present_config_buffer,
-                            present_params_buffer,
-                            present_transform_buffer,
-                        );
-                    }
-                    Err(err) => {
-                        debug::log(
-                            LogLevel::Warn,
-                            format_args!("Present params buffer resize failed: {err}"),
-                        );
-                        return false;
-                    }
-                }
             }
+        }
 
-            if new_count > layer_opacity.len() {
-                layer_opacity.resize(new_count, 1.0);
-            }
-            if new_count > layer_visible.len() {
-                layer_visible.resize(new_count, true);
-            }
-            if new_count > layer_clipping_mask.len() {
-                layer_clipping_mask.resize(new_count, false);
-            }
-            if new_count > layer_blend_mode.len() {
-                layer_blend_mode.resize(new_count, 0);
-            }
-            if new_count > layer_uniform.len() {
-                layer_uniform.resize(new_count, None);
-            }
+        if new_count > layer_opacity.len() {
+            layer_opacity.resize(new_count, 1.0);
+        }
+        if new_count > layer_visible.len() {
+            layer_visible.resize(new_count, true);
+        }
+        if new_count > layer_clipping_mask.len() {
+            layer_clipping_mask.resize(new_count, false);
+        }
+        if new_count > layer_blend_mode.len() {
+            layer_blend_mode.resize(new_count, 0);
+        }
+        if new_count > layer_uniform.len() {
+            layer_uniform.resize(new_count, None);
+        }
 
-            for layer in old_count..new_count {
-                fill_r32uint_texture(
-                    queue,
-                    layers.texture(),
-                    canvas_width,
-                    canvas_height,
-                    layer as u32,
-                    0x00000000,
-                );
-                layer_uniform[layer] = Some(0x00000000);
-            }
-
-            *layer_count = new_count;
-            write_present_config(
+        for layer in old_count..new_count {
+            fill_r32uint_texture(
                 queue,
-                present_config_buffer,
-                present_params_buffer,
-                *layer_count,
-                *present_view_flags,
-                transform_layer_index,
-                transform_flags,
-                layer_opacity,
-                layer_visible,
-                layer_clipping_mask,
-                layer_blend_mode,
+                layers.texture(),
+                canvas_width,
+                canvas_height,
+                layer as u32,
+                0x00000000,
             );
-            true
-        };
+            layer_uniform[layer] = Some(0x00000000);
+        }
+
+        *layer_count = new_count;
+        write_present_config(
+            queue,
+            present_config_buffer,
+            present_params_buffer,
+            *layer_count,
+            *present_view_flags,
+            transform_layer_index,
+            transform_flags,
+            layer_opacity,
+            layer_visible,
+            layer_clipping_mask,
+            layer_blend_mode,
+        );
+        true
+    };
 
     match cmd {
         EngineCommand::Stop => {
@@ -1171,6 +1160,18 @@ fn handle_engine_command(
                         stop: false,
                         needs_render: present.is_some(),
                     };
+                }
+            }
+
+            if bucket_fill_renderer.is_none() {
+                match BucketFillRenderer::new(device.clone(), queue.clone()) {
+                    Ok(renderer) => *bucket_fill_renderer = Some(renderer),
+                    Err(err) => {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("BucketFillRenderer init failed: {err}"),
+                        );
+                    }
                 }
             }
 
@@ -1683,6 +1684,14 @@ fn handle_engine_command(
                     needs_render: false,
                 };
             }
+            if transform_renderer.is_none() {
+                if let Err(err) = ensure_transform_renderer(transform_renderer, device, queue) {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("LayerTransformRenderer init failed: {err}"),
+                    );
+                }
+            }
             if let Some(renderer) = transform_renderer.as_mut() {
                 let matrix = translation_matrix(delta_x, delta_y);
                 undo.begin_stroke(layer_index);
@@ -1893,6 +1902,14 @@ fn handle_engine_command(
                     needs_render: false,
                 };
             }
+            if transform_renderer.is_none() {
+                if let Err(err) = ensure_transform_renderer(transform_renderer, device, queue) {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("LayerTransformRenderer init failed: {err}"),
+                    );
+                }
+            }
             let Some(renderer) = transform_renderer.as_mut() else {
                 let _ = reply.send(false);
                 return EngineCommandOutcome {
@@ -2035,11 +2052,21 @@ fn handle_engine_command(
                 }
                 None => None,
             };
-            if let Err(err) = brush.set_selection_mask(valid_mask.as_deref()) {
-                debug::log(
-                    LogLevel::Warn,
-                    format_args!("selection mask update failed: {err}"),
-                );
+            match ensure_brush(brush, device, queue, canvas_width, canvas_height) {
+                Ok(brush_ref) => {
+                    if let Err(err) = brush_ref.set_selection_mask(valid_mask.as_deref()) {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("selection mask update failed: {err}"),
+                        );
+                    }
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("selection mask skipped: {err}"),
+                    );
+                }
             }
         }
         EngineCommand::Undo => {
@@ -2077,6 +2104,39 @@ fn handle_engine_command(
 struct EngineCommandOutcome {
     stop: bool,
     needs_render: bool,
+}
+
+fn ensure_brush<'a>(
+    brush: &'a mut Option<BrushRenderer>,
+    device: &Arc<wgpu::Device>,
+    queue: &Arc<wgpu::Queue>,
+    canvas_width: u32,
+    canvas_height: u32,
+) -> Result<&'a mut BrushRenderer, String> {
+    if brush.is_none() {
+        let mut renderer =
+            BrushRenderer::new(device.clone(), queue.clone()).map_err(|err| err.to_string())?;
+        renderer.set_canvas_size(canvas_width, canvas_height);
+        renderer.set_softness(0.0);
+        *brush = Some(renderer);
+    }
+    let brush_ref = brush.as_mut().expect("brush present after init");
+    brush_ref.set_canvas_size(canvas_width, canvas_height);
+    Ok(brush_ref)
+}
+
+fn ensure_transform_renderer<'a>(
+    transform_renderer: &'a mut Option<LayerTransformRenderer>,
+    device: &Arc<wgpu::Device>,
+    queue: &Arc<wgpu::Queue>,
+) -> Result<&'a mut LayerTransformRenderer, String> {
+    if transform_renderer.is_none() {
+        let renderer = LayerTransformRenderer::new(device.clone(), queue.clone())?;
+        *transform_renderer = Some(renderer);
+    }
+    transform_renderer
+        .as_mut()
+        .ok_or_else(|| "transform renderer missing after init".to_string())
 }
 
 fn translation_matrix(delta_x: i32, delta_y: i32) -> [f32; 16] {

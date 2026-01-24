@@ -297,6 +297,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
       let resolvedWidth = CVPixelBufferGetWidth(targetTexture.pixelBuffer)
       let resolvedHeight = CVPixelBufferGetHeight(targetTexture.pixelBuffer)
+      self.clearPixelBuffer(targetTexture.pixelBuffer, to: backgroundColor)
 
       let handle = engine_create(UInt32(resolvedWidth), UInt32(resolvedHeight))
       if handle == 0 {
@@ -493,6 +494,25 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
     for callback in callbacks {
       callback(response)
+    }
+  }
+
+  private func clearPixelBuffer(_ pixelBuffer: CVPixelBuffer, to colorArgb: UInt32) {
+    CVPixelBufferLockBaseAddress(pixelBuffer, [])
+    defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+    guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+      return
+    }
+    let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+    let height = CVPixelBufferGetHeight(pixelBuffer)
+    let a = UInt8((colorArgb >> 24) & 0xFF)
+    let r = UInt8((colorArgb >> 16) & 0xFF)
+    let g = UInt8((colorArgb >> 8) & 0xFF)
+    let b = UInt8(colorArgb & 0xFF)
+    var pixel = UInt32(b) | (UInt32(g) << 8) | (UInt32(r) << 16) | (UInt32(a) << 24)
+    for y in 0..<height {
+      let rowPtr = baseAddress.advanced(by: y * bytesPerRow)
+      memset_pattern4(rowPtr, &pixel, bytesPerRow)
     }
   }
 
