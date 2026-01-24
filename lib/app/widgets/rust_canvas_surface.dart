@@ -7,12 +7,23 @@ import 'package:flutter/widgets.dart';
 
 import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
 
+import '../debug/rust_canvas_timeline.dart';
 import '../../canvas/canvas_tools.dart';
+
+const MethodChannel _rustCanvasChannel = MethodChannel(
+  'misarin/rust_canvas_texture',
+);
 
 const bool _kDebugRustCanvasInput = bool.fromEnvironment(
   'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
   defaultValue: false,
 );
+
+String _stableSurfaceId(Size size, int layerCount) {
+  final int width = size.width.round().clamp(1, 16384);
+  final int height = size.height.round().clamp(1, 16384);
+  return 'rust_canvas_${width}x${height}_layers$layerCount';
+}
 
 const int _kPointStrideBytes = 32;
 const int _kPointFlagDown = 1;
@@ -71,6 +82,126 @@ final class _PackedPointBuffer {
   }
 }
 
+class _RustSurfaceInfo {
+  const _RustSurfaceInfo({
+    required this.textureId,
+    required this.engineHandle,
+    required this.engineWidth,
+    required this.engineHeight,
+    required this.backgroundColorArgb,
+    required this.fromWarmup,
+  });
+
+  final int? textureId;
+  final int? engineHandle;
+  final int? engineWidth;
+  final int? engineHeight;
+  final int backgroundColorArgb;
+  final bool fromWarmup;
+
+  bool get isValid => textureId != null && engineHandle != null;
+}
+
+class _RustSurfaceWarmupCache {
+  _RustSurfaceWarmupCache._();
+
+  static final _RustSurfaceWarmupCache instance =
+      _RustSurfaceWarmupCache._();
+
+  final Map<String, Future<_RustSurfaceInfo>> _warmups =
+      <String, Future<_RustSurfaceInfo>>{};
+
+  Future<void> startWarmup({
+    required String surfaceId,
+    required int width,
+    required int height,
+    required int layerCount,
+    required int backgroundColorArgb,
+  }) async {
+    _warmups.putIfAbsent(surfaceId, () async {
+      RustCanvasTimeline.mark(
+        'rustSurface: warmup request surface=$surfaceId '
+        'size=${width}x${height} layers=$layerCount',
+      );
+      try {
+        return await _requestTextureInfo(
+          surfaceId: surfaceId,
+          width: width,
+          height: height,
+          layerCount: layerCount,
+          backgroundColorArgb: backgroundColorArgb,
+          fromWarmup: true,
+        );
+      } catch (error) {
+        RustCanvasTimeline.mark('rustSurface: warmup failed $error');
+        rethrow;
+      }
+    });
+  }
+
+  Future<_RustSurfaceInfo> takeOrRequest({
+    required String surfaceId,
+    required int width,
+    required int height,
+    required int layerCount,
+    required int backgroundColorArgb,
+  }) async {
+    final Future<_RustSurfaceInfo>? pending = _warmups.remove(surfaceId);
+    if (pending != null) {
+      try {
+        return await pending;
+      } catch (_) {
+        // Fall through to a fresh request.
+      }
+    }
+    return _requestTextureInfo(
+      surfaceId: surfaceId,
+      width: width,
+      height: height,
+      layerCount: layerCount,
+      backgroundColorArgb: backgroundColorArgb,
+      fromWarmup: false,
+    );
+  }
+
+  void drop(String surfaceId) {
+    _warmups.remove(surfaceId);
+  }
+}
+
+Future<_RustSurfaceInfo> _requestTextureInfo({
+  required String surfaceId,
+  required int width,
+  required int height,
+  required int layerCount,
+  required int backgroundColorArgb,
+  required bool fromWarmup,
+}) async {
+  final Map<dynamic, dynamic>? info =
+      await _rustCanvasChannel.invokeMethod<Map<dynamic, dynamic>>(
+    'getTextureInfo',
+    <String, Object?>{
+      'surfaceId': surfaceId,
+      'width': width,
+      'height': height,
+      'layerCount': layerCount,
+      'backgroundColorArgb': backgroundColorArgb,
+    },
+  );
+  final int? textureId = (info?['textureId'] as num?)?.toInt();
+  final int? engineHandle = (info?['engineHandle'] as num?)?.toInt();
+  final int? engineWidth = (info?['width'] as num?)?.toInt();
+  final int? engineHeight = (info?['height'] as num?)?.toInt();
+  return _RustSurfaceInfo(
+    textureId: textureId,
+    engineHandle: engineHandle,
+    engineWidth: engineWidth,
+    engineHeight: engineHeight,
+    backgroundColorArgb: backgroundColorArgb,
+    fromWarmup: fromWarmup,
+  );
+}
+
 class RustCanvasSurface extends StatefulWidget {
   const RustCanvasSurface({
     super.key,
@@ -92,6 +223,22 @@ class RustCanvasSurface extends StatefulWidget {
     this.onStrokeBegin,
     this.onEngineInfoChanged,
   });
+
+  static Future<void> prewarm({
+    required Size canvasSize,
+    required int layerCount,
+    required int backgroundColorArgb,
+  }) async {
+    final int width = canvasSize.width.round().clamp(1, 16384);
+    final int height = canvasSize.height.round().clamp(1, 16384);
+    await _RustSurfaceWarmupCache.instance.startWarmup(
+      surfaceId: _stableSurfaceId(canvasSize, layerCount),
+      width: width,
+      height: height,
+      layerCount: layerCount,
+      backgroundColorArgb: backgroundColorArgb,
+    );
+  }
 
   final Size canvasSize;
   final bool enableDrawing;
@@ -116,9 +263,6 @@ class RustCanvasSurface extends StatefulWidget {
 }
 
 class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
-  static const MethodChannel _channel = MethodChannel(
-    'misarin/rust_canvas_texture',
-  );
   static bool _didPrewarm = false;
 
   int? _textureId;
@@ -137,6 +281,11 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   void initState() {
     super.initState();
     _surfaceId = _stableSurfaceId(widget.canvasSize, widget.layerCount);
+    RustCanvasTimeline.mark(
+      'rustSurface: initState id=$_surfaceId '
+      'size=${widget.canvasSize.width}x${widget.canvasSize.height} '
+      'layers=${widget.layerCount}',
+    );
     unawaited(_prewarmIfNeeded());
     unawaited(_loadTextureInfo());
   }
@@ -176,20 +325,15 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     }
   }
 
-  static String _stableSurfaceId(Size size, int layerCount) {
-    final int width = size.width.round().clamp(1, 16384);
-    final int height = size.height.round().clamp(1, 16384);
-    return 'rust_canvas_${width}x${height}_layers$layerCount';
-  }
-
   static Future<void> _prewarmIfNeeded() async {
     if (_didPrewarm) {
       return;
     }
     _didPrewarm = true;
     try {
+      RustCanvasTimeline.mark('rustSurface: prewarm start');
       const String warmSurfaceId = 'rust_canvas_prewarm';
-      await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      await _rustCanvasChannel.invokeMethod<Map<dynamic, dynamic>>(
         'getTextureInfo',
         <String, Object?>{
           'surfaceId': warmSurfaceId,
@@ -199,9 +343,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
           'backgroundColorArgb': 0xFFFFFFFF,
         },
       );
-      await _channel.invokeMethod<void>('disposeTexture', <String, Object?>{
+      await _rustCanvasChannel.invokeMethod<void>('disposeTexture', <String, Object?>{
         'surfaceId': warmSurfaceId,
       });
+      RustCanvasTimeline.mark('rustSurface: prewarm done');
     } catch (_) {}
   }
 
@@ -209,21 +354,18 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     try {
       final int width = widget.canvasSize.width.round().clamp(1, 16384);
       final int height = widget.canvasSize.height.round().clamp(1, 16384);
-      final Map<dynamic, dynamic>? info = await _channel
-          .invokeMethod<Map<dynamic, dynamic>>(
-            'getTextureInfo',
-            <String, Object?>{
-              'surfaceId': _surfaceId,
-              'width': width,
-              'height': height,
-              'layerCount': widget.layerCount,
-              'backgroundColorArgb': widget.backgroundColorArgb,
-            },
-          );
-      final int? textureId = (info?['textureId'] as num?)?.toInt();
-      final int? engineHandle = (info?['engineHandle'] as num?)?.toInt();
-      final int? engineWidth = (info?['width'] as num?)?.toInt();
-      final int? engineHeight = (info?['height'] as num?)?.toInt();
+      final _RustSurfaceInfo info =
+          await _RustSurfaceWarmupCache.instance.takeOrRequest(
+        surfaceId: _surfaceId,
+        width: width,
+        height: height,
+        layerCount: widget.layerCount,
+        backgroundColorArgb: widget.backgroundColorArgb,
+      );
+      final int? textureId = info.textureId;
+      final int? engineHandle = info.engineHandle;
+      final int? engineWidth = info.engineWidth;
+      final int? engineHeight = info.engineHeight;
       if (!mounted) {
         return;
       }
@@ -237,6 +379,12 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
             ? StateError('textureId/engineHandle == null: $info')
             : null;
       });
+      RustCanvasTimeline.mark(
+        'rustSurface: texture ready '
+        'textureId=$textureId handle=$engineHandle '
+        'engine=${engineWidth}x${engineHeight} '
+        'source=${info.fromWarmup ? 'warmup' : 'direct'}',
+      );
 
       final int? handle = _engineHandle;
       if (handle != null) {
@@ -253,6 +401,9 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         _engineSize = null;
         _error = error;
       });
+      RustCanvasTimeline.mark(
+        'rustSurface: loadTextureInfo error $error',
+      );
       _notifyEngineInfoChanged();
     }
   }
@@ -271,6 +422,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
 
   @override
   void dispose() {
+    _RustSurfaceWarmupCache.instance.drop(_surfaceId);
     unawaited(_disposeSurface());
     if (_lastNotifiedEngineHandle != null || _lastNotifiedEngineSize != null) {
       widget.onEngineInfoChanged?.call(null, null);
@@ -280,7 +432,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
 
   Future<void> _disposeSurface() async {
     try {
-      await _channel.invokeMethod<void>('disposeTexture', <String, Object?>{
+      await _rustCanvasChannel.invokeMethod<void>('disposeTexture', <String, Object?>{
         'surfaceId': _surfaceId,
       });
     } catch (_) {}

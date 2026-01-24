@@ -77,6 +77,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../dialogs/misarin_dialog.dart';
 import '../l10n/l10n.dart';
+import '../debug/rust_canvas_timeline.dart';
 
 import '../../minecraft/bedrock_model.dart';
 import '../../minecraft/bedrock_animation.dart';

@@ -10,29 +10,45 @@ import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
 import '../l10n/l10n.dart';
+import '../debug/rust_canvas_timeline.dart';
 import '../preferences/app_preferences.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../utils/clipboard_image_reader.dart';
 import '../view/canvas_page.dart';
 import '../widgets/app_notification.dart';
+import '../widgets/rust_canvas_surface.dart';
 
 class AppMenuActions {
   const AppMenuActions._();
 
   static Future<void> createProject(BuildContext context) async {
+    RustCanvasTimeline.start('createProject: click new canvas');
     final NewProjectConfig? config = await showCanvasSettingsDialog(context);
     if (config == null || !context.mounted) {
+      RustCanvasTimeline.mark('createProject: dialog dismissed or unmounted');
       return;
     }
+    RustCanvasTimeline.mark('createProject: dialog confirmed');
     try {
       _applyWorkspacePreset(config.workspacePreset);
       ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
+      RustCanvasTimeline.mark('createProject: document created');
+      if (!kIsWeb) {
+        unawaited(
+          RustCanvasSurface.prewarm(
+            canvasSize: config.settings.size,
+            layerCount: document.layers.length,
+            backgroundColorArgb: config.settings.backgroundColor.value,
+          ).catchError((_) {}),
+        );
+      }
       document = _applyNewProjectPresetDefaults(document, config);
       if (!context.mounted) {
         return;
       }
+      RustCanvasTimeline.mark('createProject: navigating to canvas page');
       await _showProject(context, document);
     } catch (error) {
       if (!context.mounted) {

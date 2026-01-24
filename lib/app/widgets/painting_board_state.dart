@@ -98,6 +98,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _resetHistory();
     _syncRasterizeMenuAvailability();
     _notifyViewInfoChanged();
+    RustCanvasTimeline.mark(
+      'paintingBoard: initState useRust=${widget.useRustCanvas} '
+      'size=${widget.settings.width.round()}x${widget.settings.height.round()}',
+    );
   }
 
   @override
@@ -789,6 +793,9 @@ class PaintingBoardState extends _PaintingBoardBase
     if (_controller.frame == null) {
       return;
     }
+    RustCanvasTimeline.mark(
+      'paintingBoard: board ready generation=${_controller.frame?.generation}',
+    );
     _boardReadyNotified = true;
     widget.onReadyChanged?.call(true);
   }

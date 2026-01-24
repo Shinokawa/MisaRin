@@ -775,7 +775,17 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   ValueListenable<CanvasViewInfo> get viewInfoListenable => _viewInfoNotifier;
 
   void _handleRustCanvasEngineInfoChanged(int? handle, Size? engineSize) {
-    if (_rustCanvasEngineHandle != handle) {
+    final bool handleChanged = _rustCanvasEngineHandle != handle;
+    if (handleChanged && handle != null) {
+      final String sizeText = engineSize == null
+          ? 'null'
+          : '${engineSize.width.round()}x${engineSize.height.round()}';
+      RustCanvasTimeline.mark(
+        'paintingBoard: rust engine handle=$handle '
+        'size=$sizeText',
+      );
+    }
+    if (handleChanged) {
       _rustCanvasSyncedLayerCount = 0;
       _purgeRustHistoryActions();
       if (_rustLayerSnapshots.isNotEmpty) {

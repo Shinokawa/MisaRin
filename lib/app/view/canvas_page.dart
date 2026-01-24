@@ -30,6 +30,7 @@ import '../menu/menu_app_actions.dart';
 import '../models/canvas_resize_anchor.dart';
 import '../models/canvas_view_info.dart';
 import '../models/workspace_layout.dart';
+import '../debug/rust_canvas_timeline.dart';
 import '../palette/palette_importer.dart';
 import '../preferences/app_preferences.dart';
 import '../project/project_binary_codec.dart';
@@ -328,6 +329,9 @@ class CanvasPageState extends State<CanvasPage> {
       _updateMenuOverlay();
     }
     if (!_initialBoardReadyDispatched && id == widget.document.id) {
+      RustCanvasTimeline.mark(
+        'canvasPage: board ready for active document id=$id',
+      );
       _initialBoardReadyDispatched = true;
       widget.onInitialBoardReady?.call();
     }
@@ -484,6 +488,11 @@ class CanvasPageState extends State<CanvasPage> {
   void initState() {
     super.initState();
     _document = widget.document;
+    RustCanvasTimeline.mark(
+      'canvasPage: initState '
+      'useRust=${widget.useRustCanvas} '
+      'size=${_document.settings.width.round()}x${_document.settings.height.round()}',
+    );
     _workspace.open(_document, activate: true);
     _workspace.markDirty(_document.id, false);
     _ensureBoardKey(_document.id);
