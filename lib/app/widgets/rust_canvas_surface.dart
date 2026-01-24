@@ -269,6 +269,10 @@ class RustCanvasSurface extends StatefulWidget {
     );
   }
 
+  static Future<void> prewarmTextureEngine() {
+    return _RustCanvasSurfaceState.prewarmIfNeeded();
+  }
+
   final Size canvasSize;
   final bool enableDrawing;
   final int layerCount;
@@ -292,7 +296,7 @@ class RustCanvasSurface extends StatefulWidget {
 }
 
 class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
-  static bool _didPrewarm = false;
+  static Future<void>? _prewarmFuture;
 
   int? _textureId;
   int? _engineHandle;
@@ -315,7 +319,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       'size=${widget.canvasSize.width}x${widget.canvasSize.height} '
       'layers=${widget.layerCount}',
     );
-    unawaited(_prewarmIfNeeded());
+    unawaited(prewarmIfNeeded());
     unawaited(_loadTextureInfo());
   }
 
@@ -354,11 +358,15 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     }
   }
 
-  static Future<void> _prewarmIfNeeded() async {
-    if (_didPrewarm) {
-      return;
+  static Future<void> prewarmIfNeeded() async {
+    if (_prewarmFuture != null) {
+      return _prewarmFuture;
     }
-    _didPrewarm = true;
+    _prewarmFuture = _doPrewarm();
+    return _prewarmFuture;
+  }
+
+  static Future<void> _doPrewarm() async {
     try {
       RustCanvasTimeline.mark('rustSurface: prewarm start');
       const String warmSurfaceId = 'rust_canvas_prewarm';
@@ -376,7 +384,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         'surfaceId': warmSurfaceId,
       });
       RustCanvasTimeline.mark('rustSurface: prewarm done');
-    } catch (_) {}
+    } catch (e) {
+      RustCanvasTimeline.mark('rustSurface: prewarm failed $e');
+      _prewarmFuture = null; // Allow retry if it failed
+    }
   }
 
   Future<void> _loadTextureInfo() async {

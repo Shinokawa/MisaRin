@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
@@ -11,6 +14,7 @@ import 'app/app.dart';
 import 'app/l10n/l10n.dart';
 import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
+import 'app/widgets/rust_canvas_surface.dart';
 import 'backend/canvas_raster_backend.dart';
 import 'src/rust/rust_init.dart';
 
@@ -21,11 +25,16 @@ Future<void> main() async {
   try {
     await ensureRustInitialized();
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      await CanvasRasterBackend.initGpu();
+      // Initialize the GPU compositor and pre-warm shaders/pipelines.
+      await CanvasRasterBackend.prewarmGpuEngine();
+      // Also pre-warm the Texture engine used by RustCanvasSurface.
+      await RustCanvasSurface.prewarmTextureEngine();
+      // Pre-warm Flutter's image decoding pipeline.
+      await _prewarmImageDecoder();
     }
   } catch (error, stackTrace) {
     debugPrint('GPU init failed: $error\n$stackTrace');
-    rethrow;
+    // We continue anyway, but canvas might fail later.
   }
 
   final Future<void> preloadFuture = _preloadCoreServices();
@@ -170,5 +179,23 @@ class _MisarinWebLoadingScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _prewarmImageDecoder() async {
+  try {
+    final Uint8List transparentPixel = Uint8List.fromList([0, 0, 0, 0]);
+    final Completer<ui.Image> completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+      transparentPixel,
+      1,
+      1,
+      ui.PixelFormat.rgba8888,
+      completer.complete,
+    );
+    final ui.Image image = await completer.future;
+    image.dispose();
+  } catch (_) {
+    // Ignore pre-warm errors
   }
 }

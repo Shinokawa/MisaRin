@@ -10,6 +10,7 @@ import '../bitmap_canvas/bitmap_canvas.dart';
 import '../bitmap_canvas/bitmap_layer_state.dart';
 import '../bitmap_canvas/raster_int_rect.dart';
 import '../src/rust/api/gpu_composite.dart' as rust_gpu;
+import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import '../src/rust/rust_init.dart';
 import 'rgba_utils.dart';
 
@@ -91,6 +92,24 @@ class CanvasRasterBackend {
     } catch (e) {
       throw Exception('GPU初始化失败，无法运行: $e');
     }
+  }
+
+  static Future<void> prewarmGpuEngine() async {
+    await initGpu();
+    await _runGpuCompositeSerialized(() async {
+      try {
+        // Perform a dummy 1x1 composite to trigger shader compilation and pipeline setup.
+        await rust_gpu.gpuCompositeLayers(
+          layers: [],
+          width: 1,
+          height: 1,
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('GPU engine prewarm failed: $e');
+        }
+      }
+    });
   }
 
   static Future<void> _ensureGpuInitialized() {
@@ -394,36 +413,28 @@ class CanvasRasterBackend {
     final Uint32List pixels = ensureCompositePixels();
     final int tileWidth = rect.width;
     final int tileHeight = rect.height;
-    final Uint8List rgba = Uint8List(tileWidth * tileHeight * 4);
+    final int surfaceWidth = _width;
+    
+    // Extract the tile pixels into a flat Uint32List for Rust processing
+    final Uint32List tilePixels = Uint32List(tileWidth * tileHeight);
     for (int row = 0; row < tileHeight; row++) {
-      final int srcRow = (rect.top + row) * _width + rect.left;
-      final int dstRow = row * tileWidth;
-      for (int col = 0; col < tileWidth; col++) {
-        final int argb = pixels[srcRow + col];
-        final int offset = (dstRow + col) * 4;
-        rgba[offset] = (argb >> 16) & 0xff;
-        rgba[offset + 1] = (argb >> 8) & 0xff;
-        rgba[offset + 2] = argb & 0xff;
-        rgba[offset + 3] = (argb >> 24) & 0xff;
-      }
+      final int srcRowStart = (rect.top + row) * surfaceWidth + rect.left;
+      tilePixels.setRange(
+        row * tileWidth,
+        (row + 1) * tileWidth,
+        pixels,
+        srcRowStart,
+      );
     }
-    premultiplyRgbaInPlace(rgba);
-    return rgba;
+    
+    // The Rust side now handles both conversion to RGBA and Premultiply in one high-speed pass.
+    return rust_image_ops.convertPixelsToRgba(pixels: tilePixels);
   }
 
   Uint8List copySurfaceRgba() {
     final Uint32List pixels = ensureCompositePixels();
-    final Uint8List rgba = Uint8List(pixels.length * 4);
-    for (int i = 0; i < pixels.length; i++) {
-      final int argb = pixels[i];
-      final int offset = i * 4;
-      rgba[offset] = (argb >> 16) & 0xff;
-      rgba[offset + 1] = (argb >> 8) & 0xff;
-      rgba[offset + 2] = argb & 0xff;
-      rgba[offset + 3] = (argb >> 24) & 0xff;
-    }
-    premultiplyRgbaInPlace(rgba);
-    return rgba;
+    // The Rust side now handles both conversion to RGBA and Premultiply in one high-speed pass.
+    return rust_image_ops.convertPixelsToRgba(pixels: pixels);
   }
 
   List<RasterIntRect> fullSurfaceTileRects() {
