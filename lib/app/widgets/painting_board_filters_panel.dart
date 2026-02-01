@@ -72,6 +72,9 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _previewBlackWhiteUpdateScheduled = false;
     _previewBlackWhiteUpdateInFlight = false;
     _previewBlackWhiteUpdateToken++;
+    _previewBinarizeUpdateScheduled = false;
+    _previewBinarizeUpdateInFlight = false;
+    _previewBinarizeUpdateToken++;
 
     if (_filterPanelOffset == Offset.zero) {
       final Offset workspaceOffset = _workspacePanelSpawnOffset(
@@ -172,11 +175,16 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _previewBlackWhiteUpdateToken++;
     _previewBlackWhiteUpdateScheduled = false;
     _previewBlackWhiteUpdateInFlight = false;
+    _previewBinarizeUpdateToken++;
+    _previewBinarizeUpdateScheduled = false;
+    _previewBinarizeUpdateInFlight = false;
     if (session.type == _FilterPanelType.hueSaturation) {
       _scheduleHueSaturationPreviewImageUpdate();
     } else if (session.type == _FilterPanelType.blackWhite ||
         session.type == _FilterPanelType.scanPaperDrawing) {
       _scheduleBlackWhitePreviewImageUpdate();
+    } else if (session.type == _FilterPanelType.binarize) {
+      _scheduleBinarizePreviewImageUpdate();
     }
     if (useRustPreview) {
       _enableRustFilterPreviewIfNeeded(session);
@@ -368,6 +376,69 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _previewBlackWhiteUpdateInFlight = false;
     if (_previewBlackWhiteUpdateScheduled) {
       unawaited(_runBlackWhitePreviewImageUpdate());
+    }
+  }
+
+  void _scheduleBinarizePreviewImageUpdate() {
+    if (_filterSession?.type != _FilterPanelType.binarize) {
+      return;
+    }
+    if (_previewActiveLayerPixels == null || _previewActiveLayerImage == null) {
+      return;
+    }
+    _previewBinarizeUpdateScheduled = true;
+    if (!_previewBinarizeUpdateInFlight) {
+      unawaited(_runBinarizePreviewImageUpdate());
+    }
+  }
+
+  Future<void> _runBinarizePreviewImageUpdate() async {
+    if (_previewBinarizeUpdateInFlight) {
+      return;
+    }
+    _previewBinarizeUpdateInFlight = true;
+    while (_previewBinarizeUpdateScheduled) {
+      _previewBinarizeUpdateScheduled = false;
+      final _FilterSession? session = _filterSession;
+      final ui.Image? baseImage = _previewActiveLayerImage;
+      final Uint8List? source = _previewActiveLayerPixels;
+      if (session == null ||
+          session.type != _FilterPanelType.binarize ||
+          baseImage == null ||
+          source == null) {
+        break;
+      }
+      final double threshold = session.binarize.alphaThreshold;
+      final int token = ++_previewBinarizeUpdateToken;
+      final List<Object?> args = <Object?>[source, threshold];
+      Uint8List processed;
+      try {
+        processed = await _generateBinarizePreviewBytes(args);
+      } catch (error) {
+        debugPrint('Failed to compute binarize preview: $error');
+        break;
+      }
+      if (!mounted || token != _previewBinarizeUpdateToken) {
+        break;
+      }
+      final ui.Image image = await _decodeImage(
+        processed,
+        baseImage.width,
+        baseImage.height,
+      );
+      if (!mounted || token != _previewBinarizeUpdateToken) {
+        image.dispose();
+        break;
+      }
+      setState(() {
+        _previewFilteredActiveLayerImage?.dispose();
+        _previewFilteredActiveLayerImage = image;
+        _previewFilteredImageType = _FilterPanelType.binarize;
+      });
+    }
+    _previewBinarizeUpdateInFlight = false;
+    if (_previewBinarizeUpdateScheduled) {
+      unawaited(_runBinarizePreviewImageUpdate());
     }
   }
 
@@ -636,6 +707,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleHueSaturationPreviewImageUpdate();
     _scheduleBlackWhitePreviewImageUpdate();
+    _scheduleBinarizePreviewImageUpdate();
   }
 
   void _updateHueSaturation({
@@ -703,6 +775,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.binarize.alphaThreshold = threshold.clamp(0.0, 255.0);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _scheduleBinarizePreviewImageUpdate();
   }
 
   void _updateGaussianBlur(double radius) {

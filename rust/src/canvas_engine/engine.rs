@@ -26,6 +26,8 @@ use super::present::{
     attach_present_texture, create_present_params_buffer, create_present_transform_buffer,
     write_present_config, write_present_transform, PresentRenderer, PresentTarget,
 };
+#[cfg(target_os = "windows")]
+use super::present::create_dxgi_shared_present_target;
 use super::stroke::{map_brush_shape, EngineBrushSettings, StrokeResampler};
 use super::transform::LayerTransformRenderer;
 use super::types::EnginePoint;
@@ -41,6 +43,12 @@ pub(crate) enum EngineCommand {
         width: u32,
         height: u32,
         bytes_per_row: u32,
+    },
+    #[cfg(target_os = "windows")]
+    AttachPresentDxgi {
+        width: u32,
+        height: u32,
+        reply: mpsc::Sender<Option<usize>>,
     },
     ResetCanvas {
         background_color_argb: u32,
@@ -210,6 +218,8 @@ fn device_context() -> Result<&'static EngineDeviceContext, String> {
     let init_result = DEVICE_CONTEXT.get_or_init(|| {
         let backends = if cfg!(target_os = "macos") {
             wgpu::Backends::METAL
+        } else if cfg!(target_os = "windows") {
+            wgpu::Backends::DX12
         } else {
             wgpu::Backends::PRIMARY
         };
@@ -840,6 +850,83 @@ fn handle_engine_command(
                     new_canvas_size: None,
                 };
             }
+        }
+        #[cfg(target_os = "windows")]
+        EngineCommand::AttachPresentDxgi {
+            width,
+            height,
+            reply,
+        } => {
+            if width == 0 || height == 0 {
+                let _ = reply.send(None);
+                *present = None;
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            if let Some(existing) = present.as_ref() {
+                if existing.width == width && existing.height == height {
+                    let _ = reply.send(existing.dxgi_handle());
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                        new_canvas_size: None,
+                    };
+                }
+            }
+
+            match create_dxgi_shared_present_target(device.as_ref(), width, height) {
+                Ok(target) => {
+                    let handle = target.dxgi_handle();
+                    *present = Some(target);
+                    if handle.is_some() {
+                        // Initialize layers so the first composite is deterministic.
+                        // Layer 0 is the background fill layer (default white), others start transparent.
+                        layer_uniform.resize(*layer_count, None);
+                        for idx in 0..*layer_count {
+                            let fill = if idx == 0 { 0xFFFFFFFF } else { 0x00000000 };
+                            fill_r32uint_texture(
+                                queue,
+                                layers.texture(),
+                                canvas_width,
+                                canvas_height,
+                                idx as u32,
+                                fill,
+                            );
+                            if let Some(entry) = layer_uniform.get_mut(idx) {
+                                *entry = Some(fill);
+                            }
+                        }
+                        let _ = reply.send(handle);
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: true,
+                            new_canvas_size: None,
+                        };
+                    }
+
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("AttachPresentDxgi failed: shared handle missing"),
+                    );
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("AttachPresentDxgi failed: {err}"),
+                    );
+                }
+            }
+
+            let _ = reply.send(None);
+            *present = None;
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+                new_canvas_size: None,
+            };
         }
         EngineCommand::ResetCanvas {
             background_color_argb,

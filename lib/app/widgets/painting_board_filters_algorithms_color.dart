@@ -34,6 +34,31 @@ Uint8List _computeBlackWhitePreviewPixels(List<Object?> args) {
   return pixels;
 }
 
+Future<Uint8List> _generateBinarizePreviewBytes(List<Object?> args) async {
+  if (kIsWeb) {
+    return _computeBinarizePreviewPixels(args);
+  }
+  try {
+    return await compute<List<Object?>, Uint8List>(
+      _computeBinarizePreviewPixels,
+      args,
+    );
+  } on UnsupportedError catch (_) {
+    return _computeBinarizePreviewPixels(args);
+  }
+}
+
+Uint8List _computeBinarizePreviewPixels(List<Object?> args) {
+  final Uint8List source = args[0] as Uint8List;
+  final double threshold = (args[1] as num).toDouble();
+  final Uint8List pixels = Uint8List.fromList(source);
+  _filterApplyBinarizeToBitmap(
+    pixels,
+    threshold.round().clamp(0, 255),
+  );
+  return pixels;
+}
+
 Future<Uint8List> _generateScanPaperDrawingPreviewBytes(
   List<Object?> args,
 ) async {
@@ -553,4 +578,3 @@ _ScanPaperDrawingComputeResult _computeScanPaperDrawing(List<Object?> args) {
     changed: changed,
   );
 }
-

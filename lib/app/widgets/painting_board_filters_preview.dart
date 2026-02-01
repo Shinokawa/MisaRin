@@ -606,6 +606,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _previewBlackWhiteUpdateScheduled = false;
     _previewBlackWhiteUpdateInFlight = false;
     _previewBlackWhiteUpdateToken++;
+    _previewBinarizeUpdateScheduled = false;
+    _previewBinarizeUpdateInFlight = false;
+    _previewBinarizeUpdateToken++;
     _filterLoading = false;
     _filterApplying = false;
 

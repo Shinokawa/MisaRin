@@ -1142,6 +1142,7 @@ name = "rust_lib_misa_rin"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "d3d12",
  "flutter_rust_bridge",
  "metal",
  "pollster",
@@ -1149,6 +1150,7 @@ dependencies = [
  "rayon",
  "wgpu",
  "wgpu-hal",
+ "winapi",
 ]
 
 [[package]]

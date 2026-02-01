@@ -149,6 +149,13 @@ class _ColorRangeSession {
   final List<CanvasLayerData> originalLayers;
   final int activeLayerIndex;
   CanvasLayerData? previewLayer;
+  Uint8List? rustBitmap;
+  Uint32List? rustPixels;
+  int rustWidth = 0;
+  int rustHeight = 0;
+
+  bool get usesRust =>
+      rustPixels != null && rustWidth > 0 && rustHeight > 0;
 }
 
 mixin _PaintingBoardFilterMixin
@@ -195,6 +202,9 @@ mixin _PaintingBoardFilterMixin
   bool _previewBlackWhiteUpdateScheduled = false;
   bool _previewBlackWhiteUpdateInFlight = false;
   int _previewBlackWhiteUpdateToken = 0;
+  bool _previewBinarizeUpdateScheduled = false;
+  bool _previewBinarizeUpdateInFlight = false;
+  int _previewBinarizeUpdateToken = 0;
   bool _filterApplying = false;
   Completer<_FilterPreviewResult>? _filterApplyCompleter;
   bool _filterAwaitingFrameSwap = false;
@@ -261,6 +271,8 @@ mixin _PaintingBoardFilterMixin
     }
     return session.type == _FilterPanelType.hueSaturation ||
         session.type == _FilterPanelType.brightnessContrast ||
+        session.type == _FilterPanelType.blackWhite ||
+        session.type == _FilterPanelType.binarize ||
         session.type == _FilterPanelType.gaussianBlur;
   }
 
@@ -595,23 +607,65 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     final CanvasLayerData activeLayer = snapshot[layerIndex];
-    final bool hasBitmap =
-        activeLayer.bitmap != null &&
-        activeLayer.bitmap!.isNotEmpty &&
-        (activeLayer.bitmapWidth ?? 0) > 0 &&
-        (activeLayer.bitmapHeight ?? 0) > 0;
+    final bool useRust = _canUseRustCanvasEngine();
+    Uint8List? rustBitmap;
+    Uint32List? rustPixels;
+    int rustWidth = 0;
+    int rustHeight = 0;
+    if (useRust) {
+      final int? handle = _rustCanvasEngineHandle;
+      final int? rustLayerIndex = _rustCanvasLayerIndexForId(activeLayerId);
+      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+      final int width = engineSize.width.round();
+      final int height = engineSize.height.round();
+      if (handle != null && rustLayerIndex != null && width > 0 && height > 0) {
+        final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
+          handle: handle,
+          layerIndex: rustLayerIndex,
+          width: width,
+          height: height,
+        );
+        if (sourcePixels != null && sourcePixels.length == width * height) {
+          rustPixels = sourcePixels;
+          rustBitmap = this._argbPixelsToRgba(sourcePixels);
+          rustWidth = width;
+          rustHeight = height;
+        }
+      }
+      if (rustPixels == null) {
+        _showFilterMessage('画布尚未准备好，无法设置色彩范围。');
+        return;
+      }
+    }
+    final bool hasBitmap = useRust
+        ? rustBitmap != null &&
+            rustBitmap.isNotEmpty &&
+            rustWidth > 0 &&
+            rustHeight > 0
+        : activeLayer.bitmap != null &&
+            activeLayer.bitmap!.isNotEmpty &&
+            (activeLayer.bitmapWidth ?? 0) > 0 &&
+            (activeLayer.bitmapHeight ?? 0) > 0;
     final Color? fillColor = activeLayer.fillColor;
-    final bool hasFill = fillColor != null && fillColor.alpha != 0;
+    final bool hasFill = !useRust && fillColor != null && fillColor.alpha != 0;
     if (!hasBitmap && !hasFill) {
       _showFilterMessage('当前图层为空，无法设置色彩范围。');
       return;
     }
     _teardownColorRangeSession();
-    _colorRangeSession = _ColorRangeSession(
+    final _ColorRangeSession session = _ColorRangeSession(
       layerId: activeLayerId,
       originalLayers: snapshot,
       activeLayerIndex: layerIndex,
     );
+    if (useRust) {
+      session
+        ..rustBitmap = rustBitmap
+        ..rustPixels = rustPixels
+        ..rustWidth = rustWidth
+        ..rustHeight = rustHeight;
+    }
+    _colorRangeSession = session;
     _colorRangePreviewToken++;
     _colorRangePreviewScheduled = false;
     _colorRangePreviewInFlight = false;
@@ -632,7 +686,9 @@ mixin _PaintingBoardFilterMixin
       _colorRangeCardVisible = true;
       _colorRangeLoading = true;
     });
-    final int count = await _computeLayerColorCount(activeLayer);
+    final int count = useRust
+        ? await _computeLayerColorCountFromPixels(rustBitmap, null)
+        : await _computeLayerColorCount(activeLayer);
     if (!mounted || _colorRangeSession?.layerId != activeLayerId) {
       return;
     }
@@ -774,12 +830,16 @@ mixin _PaintingBoardFilterMixin
     setState(() {
       _colorRangePreviewInFlight = true;
     });
+    final bool useRust = session.usesRust && _canUseRustCanvasEngine();
     final CanvasLayerData baseLayer =
         session.originalLayers[session.activeLayerIndex];
+    final Uint8List? baseBitmap =
+        useRust ? session.rustBitmap : baseLayer.bitmap;
+    final Color? baseFillColor = useRust ? null : baseLayer.fillColor;
     try {
       final _ColorRangeComputeResult result = await _generateColorRangeResult(
-        baseLayer.bitmap,
-        baseLayer.fillColor,
+        baseBitmap,
+        baseFillColor,
         targetColors,
       );
       if (!mounted ||
@@ -787,14 +847,32 @@ mixin _PaintingBoardFilterMixin
           _colorRangeSession?.layerId != session.layerId) {
         return;
       }
-      final CanvasLayerData adjusted = _buildColorRangeAdjustedLayer(
-        baseLayer,
-        result,
-      );
-      session.previewLayer = adjusted;
-      _controller.replaceLayer(session.layerId, adjusted);
-      _controller.setActiveLayer(session.layerId);
-      setState(() {});
+      if (useRust) {
+        final Uint8List? reduced = result.bitmap;
+        final int? handle = _rustCanvasEngineHandle;
+        final int? layerIndex = _rustCanvasLayerIndexForId(session.layerId);
+        if (reduced != null &&
+            handle != null &&
+            layerIndex != null &&
+            CanvasEngineFfi.instance.writeLayer(
+              handle: handle,
+              layerIndex: layerIndex,
+              pixels: this._rgbaToArgbPixels(reduced),
+              recordUndo: false,
+            )) {
+          session.previewLayer ??=
+              session.originalLayers[session.activeLayerIndex];
+        }
+      } else {
+        final CanvasLayerData adjusted = _buildColorRangeAdjustedLayer(
+          baseLayer,
+          result,
+        );
+        session.previewLayer = adjusted;
+        _controller.replaceLayer(session.layerId, adjusted);
+        _controller.setActiveLayer(session.layerId);
+        setState(() {});
+      }
     } catch (error, stackTrace) {
       debugPrint('Color range preview failed: $error\n$stackTrace');
       if (mounted) {
@@ -831,6 +909,7 @@ mixin _PaintingBoardFilterMixin
       1,
       math.min(_colorRangeSelectedColors, _colorRangeMaxSelectable()),
     );
+    final bool useRust = session.usesRust && _canUseRustCanvasEngine();
     if (targetColors >= availableColors) {
       _showFilterMessage('目标颜色数量不少于当前颜色数量，图层保持不变。');
       hideColorRangeCard();
@@ -842,6 +921,40 @@ mixin _PaintingBoardFilterMixin
     try {
       // 确保撤销基于应用前的原始图层状态，而非预览态。
       _restoreColorRangePreviewToOriginal(session);
+      if (useRust) {
+        final Uint8List? baseBitmap = session.rustBitmap;
+        final _ColorRangeComputeResult result = await _generateColorRangeResult(
+          baseBitmap,
+          null,
+          targetColors,
+        );
+        if (!mounted) {
+          return;
+        }
+        final Uint8List? reduced = result.bitmap;
+        final int? handle = _rustCanvasEngineHandle;
+        final int? layerIndex = _rustCanvasLayerIndexForId(session.layerId);
+        final bool applied = reduced != null &&
+            handle != null &&
+            layerIndex != null &&
+            CanvasEngineFfi.instance.writeLayer(
+              handle: handle,
+              layerIndex: layerIndex,
+              pixels: this._rgbaToArgbPixels(reduced),
+              recordUndo: true,
+            );
+        if (!applied) {
+          throw StateError('Apply rust color range failed.');
+        }
+        _recordRustHistoryAction();
+        _markDirty();
+        setState(() {
+          _colorRangeApplying = false;
+          _colorRangeCardVisible = false;
+        });
+        _teardownColorRangeSession(restoreOriginal: false);
+        return;
+      }
       final List<CanvasLayerData> currentLayers = _controller.snapshotLayers();
       final int currentIndex = currentLayers.indexWhere(
         (CanvasLayerData item) => item.id == session.layerId,
@@ -910,6 +1023,24 @@ mixin _PaintingBoardFilterMixin
     if (session.previewLayer == null) {
       return;
     }
+    if (session.usesRust && _canUseRustCanvasEngine()) {
+      final int? handle = _rustCanvasEngineHandle;
+      final int? layerIndex = _rustCanvasLayerIndexForId(session.layerId);
+      final Uint32List? pixels = session.rustPixels;
+      if (handle != null && layerIndex != null && pixels != null) {
+        CanvasEngineFfi.instance.writeLayer(
+          handle: handle,
+          layerIndex: layerIndex,
+          pixels: pixels,
+          recordUndo: false,
+        );
+      }
+      session.previewLayer = null;
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
     final CanvasLayerData original =
         session.originalLayers[session.activeLayerIndex];
     _controller.replaceLayer(session.layerId, original);
@@ -962,6 +1093,24 @@ mixin _PaintingBoardFilterMixin
   Future<int> _computeLayerColorCount(CanvasLayerData layer) async {
     final Uint8List? bitmap = layer.bitmap;
     final int? fillColor = layer.fillColor?.value;
+    final bool hasFill = fillColor != null && ((fillColor >> 24) & 0xFF) != 0;
+    if ((bitmap == null || bitmap.isEmpty) && !hasFill) {
+      return 0;
+    }
+    try {
+      return await compute(_countUniqueColorsForLayer, <Object?>[
+        bitmap,
+        fillColor,
+      ]);
+    } catch (_) {
+      return _countUniqueColorsForLayer(<Object?>[bitmap, fillColor]);
+    }
+  }
+
+  Future<int> _computeLayerColorCountFromPixels(
+    Uint8List? bitmap,
+    int? fillColor,
+  ) async {
     final bool hasFill = fillColor != null && ((fillColor >> 24) & 0xFF) != 0;
     if ((bitmap == null || bitmap.isEmpty) && !hasFill) {
       return 0;

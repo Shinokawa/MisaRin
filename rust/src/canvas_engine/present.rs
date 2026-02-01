@@ -8,6 +8,16 @@ use metal::foreign_types::ForeignType;
 use metal::MTLTextureType;
 #[cfg(target_os = "macos")]
 use wgpu_hal::{api::Metal, CopyExtent};
+#[cfg(target_os = "windows")]
+use wgpu_hal::api::Dx12;
+#[cfg(target_os = "windows")]
+use wgpu_hal::dx12;
+#[cfg(target_os = "windows")]
+use winapi::shared::{dxgiformat, dxgitype};
+#[cfg(target_os = "windows")]
+use winapi::Interface as _;
+#[cfg(target_os = "windows")]
+use winapi::um::{d3d12 as d3d12_ty, handleapi::CloseHandle, winnt};
 
 pub(crate) struct PresentTarget {
     _texture: wgpu::Texture,
@@ -15,11 +25,29 @@ pub(crate) struct PresentTarget {
     pub(crate) width: u32,
     pub(crate) height: u32,
     _bytes_per_row: u32,
+    #[cfg(target_os = "windows")]
+    dxgi_handle: Option<winnt::HANDLE>,
 }
 
 impl PresentTarget {
     pub(crate) fn texture(&self) -> &wgpu::Texture {
         &self._texture
+    }
+
+    #[cfg(target_os = "windows")]
+    pub(crate) fn dxgi_handle(&self) -> Option<usize> {
+        self.dxgi_handle.map(|handle| handle as usize)
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for PresentTarget {
+    fn drop(&mut self) {
+        if let Some(handle) = self.dxgi_handle.take() {
+            unsafe {
+                CloseHandle(handle);
+            }
+        }
     }
 }
 
@@ -382,7 +410,12 @@ pub(crate) fn attach_present_texture(
             _bytes_per_row: bytes_per_row,
         });
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (device, mtl_texture_ptr, width, height, bytes_per_row);
+        None
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     {
         let _ = (mtl_texture_ptr, bytes_per_row);
         if width == 0 || height == 0 {
@@ -414,4 +447,122 @@ pub(crate) fn attach_present_texture(
             _bytes_per_row: bytes_per_row,
         });
     }
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn create_dxgi_shared_present_target(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> Result<PresentTarget, String> {
+    if width == 0 || height == 0 {
+        return Err("present target size must be > 0".to_string());
+    }
+
+    let (resource, shared_handle) = unsafe {
+        device
+            .as_hal::<Dx12, _, _>(|hal_device| {
+                let Some(hal_device) = hal_device else {
+                    return Err("wgpu: dx12 backend unavailable".to_string());
+                };
+
+                let raw_device = hal_device.raw_device();
+                let mut resource = d3d12::ComPtr::<d3d12_ty::ID3D12Resource>::null();
+
+                let heap_props = d3d12_ty::D3D12_HEAP_PROPERTIES {
+                    Type: d3d12_ty::D3D12_HEAP_TYPE_DEFAULT,
+                    CPUPageProperty: d3d12_ty::D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+                    MemoryPoolPreference: d3d12_ty::D3D12_MEMORY_POOL_UNKNOWN,
+                    CreationNodeMask: 0,
+                    VisibleNodeMask: 0,
+                };
+
+                let desc = d3d12_ty::D3D12_RESOURCE_DESC {
+                    Dimension: d3d12_ty::D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+                    Alignment: 0,
+                    Width: width as u64,
+                    Height: height,
+                    DepthOrArraySize: 1,
+                    MipLevels: 1,
+                    Format: dxgiformat::DXGI_FORMAT_B8G8R8A8_UNORM,
+                    SampleDesc: dxgitype::DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+                    Layout: d3d12_ty::D3D12_TEXTURE_LAYOUT_UNKNOWN,
+                    Flags: d3d12_ty::D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET
+                        | d3d12_ty::D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS,
+                };
+
+                let hr = raw_device.CreateCommittedResource(
+                    &heap_props,
+                    d3d12_ty::D3D12_HEAP_FLAG_SHARED,
+                    &desc,
+                    d3d12_ty::D3D12_RESOURCE_STATE_COMMON,
+                    std::ptr::null(),
+                    &d3d12_ty::ID3D12Resource::uuidof(),
+                    resource.mut_void(),
+                );
+                if hr < 0 || resource.is_null() {
+                    return Err(format!(
+                        "dx12 CreateCommittedResource failed: 0x{hr:08X}"
+                    ));
+                }
+
+                let mut handle: winnt::HANDLE = std::ptr::null_mut();
+                let hr = raw_device.CreateSharedHandle(
+                    resource.as_mut_ptr() as *mut _,
+                    std::ptr::null(),
+                    winnt::GENERIC_ALL,
+                    std::ptr::null(),
+                    &mut handle,
+                );
+                if hr < 0 || handle.is_null() {
+                    return Err(format!("dx12 CreateSharedHandle failed: 0x{hr:08X}"));
+                }
+
+                Ok((resource, handle))
+            })
+            .ok_or_else(|| "wgpu: dx12 backend unavailable".to_string())?
+    }?;
+
+    let hal_texture = unsafe {
+        dx12::Device::texture_from_raw(
+            resource,
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::TextureDimension::D2,
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            1,
+            1,
+        )
+    };
+
+    let desc = wgpu::TextureDescriptor {
+        label: Some("misa-rin present texture (dxgi shared)"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Bgra8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    };
+
+    let texture = unsafe { device.create_texture_from_hal::<Dx12>(hal_texture, &desc) };
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let bytes_per_row = width.saturating_mul(4);
+
+    Ok(PresentTarget {
+        _texture: texture,
+        view,
+        width,
+        height,
+        _bytes_per_row: bytes_per_row,
+        dxgi_handle: Some(shared_handle),
+    })
 }

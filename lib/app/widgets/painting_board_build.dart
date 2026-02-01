@@ -438,6 +438,49 @@ mixin _PaintingBoardBuildMixin
           child: activeLayerWidget,
         );
       }
+    } else if (session.type == _FilterPanelType.blackWhite) {
+      if (!useFilteredPreviewImage) {
+        final double black = session.blackWhite.blackPoint.clamp(0.0, 100.0);
+        final double white = session.blackWhite.whitePoint.clamp(0.0, 100.0);
+        final double clampedWhite = white <= black + _kBlackWhiteMinRange
+            ? math.min(100.0, black + _kBlackWhiteMinRange)
+            : white;
+        final double blackNorm = black / 100.0;
+        final double whiteNorm = math.max(
+          blackNorm + (_kBlackWhiteMinRange / 100.0),
+          clampedWhite / 100.0,
+        );
+        final double invRange = 1.0 / math.max(0.0001, whiteNorm - blackNorm);
+        final double offset = -blackNorm * 255.0 * invRange;
+        const double lwR = 0.299;
+        const double lwG = 0.587;
+        const double lwB = 0.114;
+        activeLayerWidget = ColorFiltered(
+          colorFilter: ColorFilter.matrix(<double>[
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            0,
+            0,
+            0,
+            1,
+            0,
+          ]),
+          child: activeLayerWidget,
+        );
+      }
     }
 
     final BitmapLayerState? layer = _layerById(session.activeLayerId);

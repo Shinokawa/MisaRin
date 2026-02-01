@@ -74,6 +74,49 @@ pub extern "C" fn engine_attach_present_texture(
 ) {
 }
 
+#[cfg(target_os = "windows")]
+#[no_mangle]
+pub extern "C" fn engine_create_present_dxgi_surface(
+    handle: u64,
+    width: u32,
+    height: u32,
+) -> *mut c_void {
+    if width == 0 || height == 0 {
+        return std::ptr::null_mut();
+    }
+    let Some(entry) = lookup_engine(handle) else {
+        return std::ptr::null_mut();
+    };
+
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::AttachPresentDxgi {
+            width,
+            height,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return std::ptr::null_mut();
+    }
+
+    match rx.recv() {
+        Ok(Some(shared_handle)) => shared_handle as *mut c_void,
+        _ => std::ptr::null_mut(),
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+#[no_mangle]
+pub extern "C" fn engine_create_present_dxgi_surface(
+    _handle: u64,
+    _width: u32,
+    _height: u32,
+) -> *mut c_void {
+    std::ptr::null_mut()
+}
+
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 #[no_mangle]
 pub extern "C" fn engine_dispose(handle: u64) {
