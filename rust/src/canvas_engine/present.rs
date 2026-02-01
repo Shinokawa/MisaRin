@@ -2,8 +2,11 @@ use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+#[cfg(target_os = "macos")]
 use metal::foreign_types::ForeignType;
+#[cfg(target_os = "macos")]
 use metal::MTLTextureType;
+#[cfg(target_os = "macos")]
 use wgpu_hal::{api::Metal, CopyExtent};
 
 pub(crate) struct PresentTarget {
@@ -12,6 +15,12 @@ pub(crate) struct PresentTarget {
     pub(crate) width: u32,
     pub(crate) height: u32,
     _bytes_per_row: u32,
+}
+
+impl PresentTarget {
+    pub(crate) fn texture(&self) -> &wgpu::Texture {
+        &self._texture
+    }
 }
 
 pub(crate) struct PresentRenderer {
@@ -319,6 +328,39 @@ pub(crate) fn attach_present_texture(
     height: u32,
     bytes_per_row: u32,
 ) -> Option<PresentTarget> {
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (mtl_texture_ptr, bytes_per_row);
+        if width == 0 || height == 0 {
+            return None;
+        }
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("misa-rin present texture (internal)"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Bgra8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bytes_per_row = width.saturating_mul(4);
+        return Some(PresentTarget {
+            _texture: texture,
+            view,
+            width,
+            height,
+            _bytes_per_row: bytes_per_row,
+        });
+    }
+    #[cfg(target_os = "macos")]
     let raw_ptr = mtl_texture_ptr as *mut metal::MTLTexture;
     if raw_ptr.is_null() {
         return None;

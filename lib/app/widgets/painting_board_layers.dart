@@ -741,6 +741,28 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     final int clamped = level.clamp(0, 3);
+    if (_canUseRustCanvasEngine()) {
+      final int? handle = _rustCanvasEngineHandle;
+      final String? layerId = _activeLayerId;
+      if (handle == null || layerId == null) {
+        return false;
+      }
+      final int? index = _rustCanvasLayerIndexForId(layerId);
+      if (index == null) {
+        return false;
+      }
+      final bool applied = CanvasEngineFfi.instance.applyAntialias(
+        handle: handle,
+        layerIndex: index,
+        level: clamped,
+      );
+      if (applied) {
+        _recordRustHistoryAction();
+        setState(() {});
+        _markDirty();
+      }
+      return applied;
+    }
     if (!await _controller.applyAntialiasToActiveLayer(
       clamped,
       previewOnly: true,

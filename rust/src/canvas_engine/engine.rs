@@ -5,7 +5,9 @@ use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
+#[cfg(target_os = "macos")]
 use metal::foreign_types::ForeignType;
+#[cfg(target_os = "macos")]
 use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
@@ -13,6 +15,11 @@ use crate::gpu::blend_modes::map_canvas_blend_mode_index;
 use crate::gpu::brush_renderer::BrushRenderer;
 use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::debug::{self, LogLevel};
+use crate::gpu::filter_renderer::{
+    FilterRenderer, FILTER_BINARIZE, FILTER_BLACK_WHITE, FILTER_BRIGHTNESS_CONTRAST,
+    FILTER_FILL_EXPAND, FILTER_GAUSSIAN_BLUR, FILTER_HUE_SATURATION, FILTER_LEAK_REMOVAL,
+    FILTER_LINE_NARROW,
+};
 
 use super::layers::LayerTextures;
 use super::present::{
@@ -91,6 +98,20 @@ pub(crate) enum EngineCommand {
         hollow_ratio: f32,
         hollow_erase_occluded: bool,
     },
+    ApplyFilter {
+        layer_index: u32,
+        filter_type: u32,
+        param0: f32,
+        param1: f32,
+        param2: f32,
+        param3: f32,
+        reply: mpsc::Sender<bool>,
+    },
+    ApplyAntialias {
+        layer_index: u32,
+        level: u32,
+        reply: mpsc::Sender<bool>,
+    },
     BucketFill {
         layer_index: u32,
         start_x: i32,
@@ -117,6 +138,9 @@ pub(crate) enum EngineCommand {
     ReadLayer {
         layer_index: u32,
         reply: mpsc::Sender<Option<Vec<u32>>>,
+    },
+    ReadPresent {
+        reply: mpsc::Sender<Option<Vec<u8>>>,
     },
     WriteLayer {
         layer_index: u32,
@@ -184,8 +208,13 @@ static DEVICE_CONTEXT: OnceLock<Result<EngineDeviceContext, String>> = OnceLock:
 
 fn device_context() -> Result<&'static EngineDeviceContext, String> {
     let init_result = DEVICE_CONTEXT.get_or_init(|| {
+        let backends = if cfg!(target_os = "macos") {
+            wgpu::Backends::METAL
+        } else {
+            wgpu::Backends::PRIMARY
+        };
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::METAL,
+            backends,
             ..Default::default()
         });
 
@@ -195,7 +224,7 @@ fn device_context() -> Result<&'static EngineDeviceContext, String> {
                 compatible_surface: None,
                 force_fallback_adapter: false,
             }))
-            .ok_or_else(|| "wgpu: no compatible Metal adapter found".to_string())?;
+            .ok_or_else(|| "wgpu: no compatible adapter found".to_string())?;
 
         let required_features = wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
         if !adapter.features().contains(required_features) {
@@ -284,6 +313,7 @@ fn render_thread_main(
     let mut brush_settings = EngineBrushSettings::default();
 
     let mut bucket_fill_renderer: Option<BucketFillRenderer> = None;
+    let mut filter_renderer: Option<FilterRenderer> = None;
 
     let present_renderer = PresentRenderer::new(device.as_ref());
     let mut layer_opacity: Vec<f32> = vec![1.0; layer_count];
@@ -354,6 +384,7 @@ fn render_thread_main(
                         &mut present,
                         cmd,
                         &mut bucket_fill_renderer,
+                        &mut filter_renderer,
                         &mut layers,
                         &mut layer_count,
                         &mut active_layer_index,
@@ -414,6 +445,7 @@ fn render_thread_main(
                         &mut present,
                         cmd,
                         &mut bucket_fill_renderer,
+                        &mut filter_renderer,
                         &mut layers,
                         &mut layer_count,
                         &mut active_layer_index,
@@ -632,6 +664,7 @@ fn handle_engine_command(
     present: &mut Option<PresentTarget>,
     cmd: EngineCommand,
     bucket_fill_renderer: &mut Option<BucketFillRenderer>,
+    filter_renderer: &mut Option<FilterRenderer>,
     layers: &mut LayerTextures,
     layer_count: &mut usize,
     active_layer_index: &mut usize,
@@ -1232,6 +1265,383 @@ fn handle_engine_command(
             brush_settings.hollow_erase_occluded = hollow_erase_occluded;
             brush_settings.sanitize();
         }
+        EngineCommand::ApplyFilter {
+            layer_index,
+            filter_type,
+            param0,
+            param1,
+            param2,
+            param3: _,
+            reply,
+        } => {
+            let idx = layer_index as usize;
+            if !ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            let Some(layer_view) = layers.layer_view(idx) else {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            };
+
+            let renderer = match ensure_filter_renderer(
+                filter_renderer,
+                device,
+                queue,
+                canvas_width,
+                canvas_height,
+            ) {
+                Ok(renderer) => renderer,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("FilterRenderer init failed: {err}"),
+                    );
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                        new_canvas_size: None,
+                    };
+                }
+            };
+
+            let mut applied = false;
+            let mut result: Result<(), String> = Ok(());
+            match filter_type {
+                FILTER_HUE_SATURATION => {
+                    let params0 = [
+                        param0 / 360.0,
+                        param1 / 100.0,
+                        param2 / 100.0,
+                        0.0,
+                    ];
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_color_filter(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        0,
+                        params0,
+                        [0.0; 4],
+                    );
+                    applied = result.is_ok();
+                }
+                FILTER_BRIGHTNESS_CONTRAST => {
+                    let brightness = param0 / 100.0;
+                    let contrast = (1.0 + param1 / 100.0).max(0.0);
+                    let params0 = [brightness, contrast, 0.0, 0.0];
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_color_filter(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        1,
+                        params0,
+                        [0.0; 4],
+                    );
+                    applied = result.is_ok();
+                }
+                FILTER_BLACK_WHITE => {
+                    let black = (param0 / 100.0).clamp(0.0, 1.0);
+                    let white = (param1 / 100.0).clamp(0.0, 1.0);
+                    let safe_white = (black + 0.01).max(white);
+                    let inv_range = 1.0 / (safe_white - black).max(1.0e-4);
+                    let gamma = 2.0_f32.powf(param2.clamp(-100.0, 100.0) / 100.0);
+                    let params0 = [black, inv_range, gamma, 0.0];
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_color_filter(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        2,
+                        params0,
+                        [0.0; 4],
+                    );
+                    applied = result.is_ok();
+                }
+                FILTER_BINARIZE => {
+                    let threshold = param0.clamp(0.0, 255.0) / 255.0;
+                    let params0 = [threshold, 0.0, 0.0, 0.0];
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_color_filter(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        3,
+                        params0,
+                        [0.0; 4],
+                    );
+                    applied = result.is_ok();
+                }
+                FILTER_GAUSSIAN_BLUR => {
+                    let radius = param0;
+                    if radius <= 0.0 {
+                        let _ = reply.send(false);
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                            new_canvas_size: None,
+                        };
+                    }
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_gaussian_blur(layer_view, radius);
+                    applied = result.is_ok();
+                }
+                FILTER_LINE_NARROW => {
+                    let steps = param0.round().clamp(0.0, 20.0) as u32;
+                    if steps == 0 {
+                        let _ = reply.send(false);
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                            new_canvas_size: None,
+                        };
+                    }
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_morphology(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        steps,
+                        false,
+                    );
+                    applied = result.is_ok();
+                }
+                FILTER_FILL_EXPAND => {
+                    let steps = param0.round().clamp(0.0, 20.0) as u32;
+                    if steps == 0 {
+                        let _ = reply.send(false);
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                            new_canvas_size: None,
+                        };
+                    }
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_morphology(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        steps,
+                        true,
+                    );
+                    applied = result.is_ok();
+                }
+                FILTER_LEAK_REMOVAL => {
+                    let steps = param0.round().clamp(0.0, 20.0) as u32;
+                    if steps == 0 {
+                        let _ = reply.send(false);
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                            new_canvas_size: None,
+                        };
+                    }
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_morphology(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        steps,
+                        true,
+                    );
+                    if result.is_ok() {
+                        result = renderer.apply_morphology(
+                            layers.texture(),
+                            layer_view,
+                            layer_index,
+                            steps,
+                            false,
+                        );
+                    }
+                    applied = result.is_ok();
+                }
+                _ => {}
+            }
+
+            if applied {
+                undo.end_stroke(device, queue, layers.texture());
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = None;
+                }
+                let _ = reply.send(true);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                    new_canvas_size: None,
+                };
+            }
+
+            undo.cancel_stroke();
+            if let Err(err) = result {
+                debug::log(LogLevel::Warn, format_args!("Filter apply failed: {err}"));
+            }
+            let _ = reply.send(false);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+                new_canvas_size: None,
+            };
+        }
+        EngineCommand::ApplyAntialias {
+            layer_index,
+            level,
+            reply,
+        } => {
+            let idx = layer_index as usize;
+            if !ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            let Some(layer_view) = layers.layer_view(idx) else {
+                let _ = reply.send(false);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            };
+
+            let renderer = match ensure_filter_renderer(
+                filter_renderer,
+                device,
+                queue,
+                canvas_width,
+                canvas_height,
+            ) {
+                Ok(renderer) => renderer,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("FilterRenderer init failed: {err}"),
+                    );
+                    let _ = reply.send(false);
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                        new_canvas_size: None,
+                    };
+                }
+            };
+
+            undo.begin_stroke(layer_index);
+            undo.capture_before_for_dirty_rect(
+                device,
+                queue,
+                layers.texture(),
+                layer_index,
+                (0, 0, canvas_width as i32, canvas_height as i32),
+            );
+            let result = renderer.apply_antialias(layer_view, level);
+            if result.is_ok() {
+                undo.end_stroke(device, queue, layers.texture());
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = None;
+                }
+                let _ = reply.send(true);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: present.is_some(),
+                    new_canvas_size: None,
+                };
+            }
+
+            undo.cancel_stroke();
+            if let Err(err) = result {
+                debug::log(LogLevel::Warn, format_args!("Antialias apply failed: {err}"));
+            }
+            let _ = reply.send(false);
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+                new_canvas_size: None,
+            };
+        }
         EngineCommand::BucketFill {
             layer_index,
             start_x,
@@ -1717,6 +2127,44 @@ fn handle_engine_command(
                 }
                 Err(err) => {
                     debug::log(LogLevel::Warn, format_args!("layer readback failed: {err}"));
+                    let _ = reply.send(None);
+                }
+            }
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+                new_canvas_size: None,
+            };
+        }
+        EngineCommand::ReadPresent { reply } => {
+            let Some(target) = &present else {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            };
+            if target.width == 0 || target.height == 0 {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            match read_bgra_texture(
+                device,
+                queue,
+                target.texture(),
+                target.width,
+                target.height,
+            ) {
+                Ok(bytes) => {
+                    let _ = reply.send(Some(bytes));
+                }
+                Err(err) => {
+                    debug::log(LogLevel::Warn, format_args!("present readback failed: {err}"));
                     let _ = reply.send(None);
                 }
             }
@@ -2327,6 +2775,26 @@ fn ensure_brush<'a>(
     Ok(brush_ref)
 }
 
+fn ensure_filter_renderer<'a>(
+    filter_renderer: &'a mut Option<FilterRenderer>,
+    device: &Arc<wgpu::Device>,
+    queue: &Arc<wgpu::Queue>,
+    canvas_width: u32,
+    canvas_height: u32,
+) -> Result<&'a mut FilterRenderer, String> {
+    if filter_renderer.is_none() {
+        let mut renderer =
+            FilterRenderer::new(device.clone(), queue.clone()).map_err(|err| err.to_string())?;
+        renderer.set_canvas_size(canvas_width, canvas_height);
+        *filter_renderer = Some(renderer);
+    }
+    let renderer_ref = filter_renderer
+        .as_mut()
+        .ok_or_else(|| "filter renderer missing after init".to_string())?;
+    renderer_ref.set_canvas_size(canvas_width, canvas_height);
+    Ok(renderer_ref)
+}
+
 fn ensure_transform_renderer<'a>(
     transform_renderer: &'a mut Option<LayerTransformRenderer>,
     device: &Arc<wgpu::Device>,
@@ -2518,6 +2986,94 @@ fn read_r32uint_layer(
     Ok(result.unwrap_or_default())
 }
 
+fn read_bgra_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, String> {
+    if width == 0 || height == 0 {
+        return Ok(Vec::new());
+    }
+
+    const BYTES_PER_PIXEL: u32 = 4;
+    const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
+
+    let bytes_per_row_unpadded = width
+        .checked_mul(BYTES_PER_PIXEL)
+        .ok_or_else(|| "read_bgra_texture: bytes_per_row overflow".to_string())?;
+    let bytes_per_row_padded = align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
+    if bytes_per_row_padded == 0 {
+        return Err("read_bgra_texture: bytes_per_row_padded == 0".to_string());
+    }
+    let readback_size = (bytes_per_row_padded as u64)
+        .checked_mul(height as u64)
+        .ok_or_else(|| "read_bgra_texture: readback_size overflow".to_string())?;
+
+    let readback = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("misa-rin canvas present readback"),
+        size: readback_size,
+        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("misa-rin canvas present readback encoder"),
+    });
+    encoder.copy_texture_to_buffer(
+        wgpu::ImageCopyTexture {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::ImageCopyBuffer {
+            buffer: &readback,
+            layout: wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row_padded),
+                rows_per_image: Some(height),
+            },
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(Some(encoder.finish()));
+
+    let buffer_slice = readback.slice(0..readback_size);
+    let (tx, rx) = mpsc::channel();
+    buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx.send(res);
+    });
+    device.poll(wgpu::Maintain::Wait);
+
+    let map_status: Result<(), String> = match rx.recv() {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(format!("read_bgra_texture: map_async failed: {e:?}")),
+        Err(e) => Err(format!("read_bgra_texture: map_async channel failed: {e}")),
+    };
+
+    let mut result: Option<Vec<u8>> = None;
+    if map_status.is_ok() {
+        let mapped = buffer_slice.get_mapped_range();
+        result = Some(unpack_u8_rows_without_padding(
+            &mapped,
+            width,
+            height,
+            bytes_per_row_padded,
+        )?);
+        drop(mapped);
+        readback.unmap();
+    }
+
+    map_status?;
+    Ok(result.unwrap_or_default())
+}
+
 fn write_r32uint_region(
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,
@@ -2622,6 +3178,33 @@ fn unpack_u32_rows_without_padding(
         let row_u32: &[u32] = bytemuck::cast_slice(row_bytes);
         let dst_row_start = y * width_usize;
         out[dst_row_start..(dst_row_start + width_usize)].copy_from_slice(row_u32);
+    }
+    Ok(out)
+}
+
+fn unpack_u8_rows_without_padding(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    bytes_per_row_padded: u32,
+) -> Result<Vec<u8>, String> {
+    if width == 0 || height == 0 {
+        return Ok(Vec::new());
+    }
+    let bytes_per_row_unpadded: usize = (width as usize)
+        .checked_mul(4)
+        .ok_or_else(|| "unpack_u8_rows_without_padding: bytes_per_row overflow".to_string())?;
+    let bytes_per_row_padded_usize = bytes_per_row_padded as usize;
+    let total_bytes: usize = bytes_per_row_unpadded
+        .checked_mul(height as usize)
+        .ok_or_else(|| "unpack_u8_rows_without_padding: total_bytes overflow".to_string())?;
+    let mut out: Vec<u8> = vec![0u8; total_bytes];
+
+    for y in 0..height as usize {
+        let src_offset = y * bytes_per_row_padded_usize;
+        let dst_offset = y * bytes_per_row_unpadded;
+        out[dst_offset..(dst_offset + bytes_per_row_unpadded)]
+            .copy_from_slice(&data[src_offset..(src_offset + bytes_per_row_unpadded)]);
     }
     Ok(out)
 }
@@ -2757,6 +3340,7 @@ fn mul255(channel: u32, alpha: u32) -> u32 {
     (channel * alpha + 127) / 255
 }
 
+#[cfg(target_os = "macos")]
 fn mtl_device_ptr(device: &wgpu::Device) -> *mut c_void {
     let result = unsafe {
         device.as_hal::<Metal, _, _>(|hal_device| {
@@ -2769,6 +3353,11 @@ fn mtl_device_ptr(device: &wgpu::Device) -> *mut c_void {
     result.flatten().unwrap_or(std::ptr::null_mut())
 }
 
+#[cfg(not(target_os = "macos"))]
+fn mtl_device_ptr(_device: &wgpu::Device) -> *mut c_void {
+    std::ptr::null_mut()
+}
+
 pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     if width == 0 || height == 0 {
         return Err("engine_create: width/height must be > 0".to_string());
@@ -2777,6 +3366,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     let ctx = device_context()?;
 
     let mtl_device_ptr = mtl_device_ptr(ctx.device.as_ref()) as usize;
+    #[cfg(target_os = "macos")]
     if mtl_device_ptr == 0 {
         return Err("wgpu: failed to extract underlying MTLDevice".to_string());
     }

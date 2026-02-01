@@ -78,9 +78,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       return;
     }
 
-    if (_canUseRustCanvasEngine() &&
-        (session.type == _FilterPanelType.hueSaturation ||
-            session.type == _FilterPanelType.brightnessContrast)) {
+    if (_canUseRustCanvasEngine() && _supportsRustFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -147,54 +145,80 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     if (layerIndex == null) {
       return false;
     }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      return false;
-    }
-    final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
-    );
-    if (sourcePixels == null || sourcePixels.length != width * height) {
-      return false;
-    }
-    final Uint8List rgba = _argbPixelsToRgba(sourcePixels);
+    bool applied = false;
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
-        _filterApplyHueSaturationToBitmap(
-          rgba,
-          session.hueSaturation.hue,
-          session.hueSaturation.saturation,
-          session.hueSaturation.lightness,
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeHueSaturation,
+          param0: session.hueSaturation.hue,
+          param1: session.hueSaturation.saturation,
+          param2: session.hueSaturation.lightness,
         );
         break;
       case _FilterPanelType.brightnessContrast:
-        _filterApplyBrightnessContrastToBitmap(
-          rgba,
-          session.brightnessContrast.brightness,
-          session.brightnessContrast.contrast,
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeBrightnessContrast,
+          param0: session.brightnessContrast.brightness,
+          param1: session.brightnessContrast.contrast,
         );
         break;
       case _FilterPanelType.blackWhite:
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeBlackWhite,
+          param0: session.blackWhite.blackPoint,
+          param1: session.blackWhite.whitePoint,
+          param2: session.blackWhite.midTone,
+        );
+        break;
       case _FilterPanelType.binarize:
-      case _FilterPanelType.scanPaperDrawing:
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeBinarize,
+          param0: session.binarize.alphaThreshold,
+        );
+        break;
       case _FilterPanelType.gaussianBlur:
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeGaussianBlur,
+          param0: session.gaussianBlur.radius,
+        );
+        break;
       case _FilterPanelType.leakRemoval:
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeLeakRemoval,
+          param0: session.leakRemoval.radius,
+        );
+        break;
       case _FilterPanelType.lineNarrow:
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeLineNarrow,
+          param0: session.lineNarrow.radius,
+        );
+        break;
       case _FilterPanelType.fillExpand:
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeFillExpand,
+          param0: session.fillExpand.radius,
+        );
+        break;
+      case _FilterPanelType.scanPaperDrawing:
         return false;
     }
-    final Uint32List nextPixels = _rgbaToArgbPixels(rgba);
-    final bool applied = CanvasEngineFfi.instance.writeLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      pixels: nextPixels,
-      recordUndo: true,
-    );
     if (applied) {
       _recordRustHistoryAction();
       if (mounted) {
@@ -203,6 +227,22 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       _markDirty();
     }
     return applied;
+  }
+
+  bool _supportsRustFilter(_FilterPanelType type) {
+    switch (type) {
+      case _FilterPanelType.hueSaturation:
+      case _FilterPanelType.brightnessContrast:
+      case _FilterPanelType.blackWhite:
+      case _FilterPanelType.binarize:
+      case _FilterPanelType.gaussianBlur:
+      case _FilterPanelType.leakRemoval:
+      case _FilterPanelType.lineNarrow:
+      case _FilterPanelType.fillExpand:
+        return true;
+      case _FilterPanelType.scanPaperDrawing:
+        return false;
+    }
   }
 
   Uint8List _argbPixelsToRgba(Uint32List pixels) {

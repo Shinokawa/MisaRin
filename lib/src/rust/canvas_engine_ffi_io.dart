@@ -1,4 +1,5 @@
 import 'dart:ffi' as ffi;
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -310,10 +311,44 @@ typedef _EngineSetBrushDart =
       int hollowEraseOccludedParts,
     );
 
+typedef _EngineApplyFilterNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Uint32 filterType,
+      ffi.Float param0,
+      ffi.Float param1,
+      ffi.Float param2,
+      ffi.Float param3,
+    );
+typedef _EngineApplyFilterDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      int filterType,
+      double param0,
+      double param1,
+      double param2,
+      double param3,
+    );
+
+typedef _EngineApplyAntialiasNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Uint32 level,
+    );
+typedef _EngineApplyAntialiasDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      int level,
+    );
+
 class CanvasEngineFfi {
   CanvasEngineFfi._() {
     try {
-      _lib = ffi.DynamicLibrary.process();
+      _lib = _openLibrary();
       _pushPoints = _lib
           .lookupFunction<_EnginePushPointsNative, _EnginePushPointsDart>(
             'engine_push_points',
@@ -506,6 +541,23 @@ class CanvasEngineFfi {
       } catch (_) {
         _setBrush = null;
       }
+      try {
+        _applyFilter = _lib
+            .lookupFunction<_EngineApplyFilterNative, _EngineApplyFilterDart>(
+              'engine_apply_filter',
+            );
+      } catch (_) {
+        _applyFilter = null;
+      }
+      try {
+        _applyAntialias = _lib
+            .lookupFunction<
+              _EngineApplyAntialiasNative,
+              _EngineApplyAntialiasDart
+            >('engine_apply_antialias');
+      } catch (_) {
+        _applyAntialias = null;
+      }
       isSupported = true;
     } catch (_) {
       isSupported = false;
@@ -513,6 +565,13 @@ class CanvasEngineFfi {
   }
 
   static final CanvasEngineFfi instance = CanvasEngineFfi._();
+
+  static ffi.DynamicLibrary _openLibrary() {
+    if (Platform.isWindows) {
+      return ffi.DynamicLibrary.open('rust_lib_misa_rin.dll');
+    }
+    return ffi.DynamicLibrary.process();
+  }
 
   late final ffi.DynamicLibrary _lib;
   late final _EnginePushPointsDart _pushPoints;
@@ -538,6 +597,8 @@ class CanvasEngineFfi {
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
   late final _EngineSetBrushDart? _setBrush;
+  late final _EngineApplyFilterDart? _applyFilter;
+  late final _EngineApplyAntialiasDart? _applyAntialias;
 
   ffi.Pointer<ffi.Uint8>? _staging;
   int _stagingCapacityBytes = 0;
@@ -1041,6 +1102,44 @@ class CanvasEngineFfi {
       ratio,
       hollowEraseOccludedParts ? 1 : 0,
     );
+  }
+
+  bool applyFilter({
+    required int handle,
+    required int layerIndex,
+    required int filterType,
+    double param0 = 0.0,
+    double param1 = 0.0,
+    double param2 = 0.0,
+    double param3 = 0.0,
+  }) {
+    final fn = _applyFilter;
+    if (!isSupported || fn == null || handle == 0) {
+      return false;
+    }
+    final int result = fn(
+      handle,
+      layerIndex,
+      filterType,
+      param0,
+      param1,
+      param2,
+      param3,
+    );
+    return result != 0;
+  }
+
+  bool applyAntialias({
+    required int handle,
+    required int layerIndex,
+    required int level,
+  }) {
+    final fn = _applyAntialias;
+    if (!isSupported || fn == null || handle == 0) {
+      return false;
+    }
+    final int result = fn(handle, layerIndex, level);
+    return result != 0;
   }
 
   ffi.Pointer<ffi.Uint8> _ensureStaging(int requiredBytes) {

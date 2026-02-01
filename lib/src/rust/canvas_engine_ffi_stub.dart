@@ -30,6 +30,26 @@ class CanvasEngineFfi {
     bool hollowEraseOccludedParts = false,
   }) {}
 
+  bool applyFilter({
+    required int handle,
+    required int layerIndex,
+    required int filterType,
+    double param0 = 0.0,
+    double param1 = 0.0,
+    double param2 = 0.0,
+    double param3 = 0.0,
+  }) {
+    return false;
+  }
+
+  bool applyAntialias({
+    required int handle,
+    required int layerIndex,
+    required int level,
+  }) {
+    return false;
+  }
+
   void setActiveLayer({required int handle, required int layerIndex}) {}
 
   void setLayerOpacity({

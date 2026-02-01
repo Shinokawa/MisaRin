@@ -31,4 +31,5 @@ flutter:
       macos:
         pluginClass: RustLibMisaRinPlugin
       windows:
-        ffiPlugin: true
+        pluginClass: RustLibMisaRinPlugin
+        fileName: rust_lib_misa_rin_plugin.cpp
