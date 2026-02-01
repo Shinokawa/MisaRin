@@ -33,10 +33,8 @@ pub struct FilterRenderer {
     queue: Arc<Queue>,
     bind_group_layout: wgpu::BindGroupLayout,
     uniform_buffer: wgpu::Buffer,
-    flags_buffer: wgpu::Buffer,
     pipeline_color: ComputePipeline,
     pipeline_blur: ComputePipeline,
-    pipeline_morph_scan: ComputePipeline,
     pipeline_morph: ComputePipeline,
     pipeline_antialias_alpha: ComputePipeline,
     pipeline_antialias_edge: ComputePipeline,
@@ -90,16 +88,6 @@ impl FilterRenderer {
                     },
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
             ],
         });
 
@@ -120,12 +108,6 @@ impl FilterRenderer {
             layout: Some(&pipeline_layout),
             module: &shader,
             entry_point: "blur_pass",
-        });
-        let pipeline_morph_scan = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("FilterRenderer morph scan pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: "morphology_scan",
         });
         let pipeline_morph = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("FilterRenderer morph pipeline"),
@@ -155,13 +137,6 @@ impl FilterRenderer {
             mapped_at_creation: false,
         });
 
-        let flags_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("FilterRenderer flags buffer"),
-            size: 4,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         if let Some(err) = device_pop_scope(device.as_ref()) {
             return Err(format!("wgpu validation error during filter init: {err}"));
         }
@@ -177,10 +152,8 @@ impl FilterRenderer {
             queue,
             bind_group_layout,
             uniform_buffer,
-            flags_buffer,
             pipeline_color,
             pipeline_blur,
-            pipeline_morph_scan,
             pipeline_morph,
             pipeline_antialias_alpha,
             pipeline_antialias_edge,
@@ -368,22 +341,6 @@ impl FilterRenderer {
             return Ok(());
         }
         device_push_scopes(self.device.as_ref());
-        self.queue.write_buffer(&self.flags_buffer, 0, &[0, 0, 0, 0]);
-
-        let scan_config = FilterConfig {
-            width: self.width,
-            height: self.height,
-            radius: 0,
-            flags: 0,
-            params0: [0.0; 4],
-            params1: [0.0; 4],
-        };
-        self.queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::bytes_of(&scan_config),
-        );
-        self.run_pass(&self.pipeline_morph_scan, layer_view, &self.scratch_a_view)?;
 
         let morph_config = FilterConfig {
             width: self.width,
@@ -533,10 +490,6 @@ impl FilterRenderer {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: self.uniform_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: self.flags_buffer.as_entire_binding(),
                 },
             ],
         });

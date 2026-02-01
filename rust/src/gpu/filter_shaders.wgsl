@@ -9,10 +9,6 @@ struct FilterConfig {
   params1: vec4<f32>,
 };
 
-struct Flags {
-  flags: atomic<u32>,
-};
-
 @group(0) @binding(0)
 var src_tex: texture_storage_2d<r32uint, read>;
 
@@ -21,9 +17,6 @@ var dst_tex: texture_storage_2d<r32uint, read_write>;
 
 @group(0) @binding(2)
 var<uniform> cfg: FilterConfig;
-
-@group(0) @binding(3)
-var<storage, read_write> scan_flags: Flags;
 
 fn clamp01(x: f32) -> f32 {
   return clamp(x, 0.0, 1.0);
@@ -121,9 +114,9 @@ fn color_filter(@builtin(global_invocation_id) id: vec3<u32>) {
   }
   let src = textureLoad(src_tex, vec2<i32>(i32(x), i32(y))).x;
   let a = unpack_a(src);
-  let mut r = unpack_r(src);
-  let mut g = unpack_g(src);
-  let mut b = unpack_b(src);
+  var r = unpack_r(src);
+  var g = unpack_g(src);
+  var b = unpack_b(src);
 
   let filter_type = cfg.flags;
   if (filter_type == 0u) {
@@ -232,48 +225,24 @@ fn blur_pass(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 
 @compute @workgroup_size(16, 16)
-fn morphology_scan(@builtin(global_invocation_id) id: vec3<u32>) {
-  let x = id.x;
-  let y = id.y;
-  if (x >= cfg.width || y >= cfg.height) {
-    return;
-  }
-  let src = textureLoad(src_tex, vec2<i32>(i32(x), i32(y))).x;
-  let a = unpack_a(src);
-  if (a < 1.0) {
-    atomicOr(&scan_flags.flags, 1u);
-    return;
-  }
-  let lum = luma(vec3<f32>(unpack_r(src), unpack_g(src), unpack_b(src)));
-  let coverage = clamp01(1.0 - lum);
-  if (coverage > 0.0) {
-    atomicOr(&scan_flags.flags, 2u);
-  }
-}
-
-fn coverage_for_pixel(c: u32, use_luma: bool) -> f32 {
-  if (use_luma) {
-    let lum = luma(vec3<f32>(unpack_r(c), unpack_g(c), unpack_b(c)));
-    return clamp01(1.0 - lum);
-  }
-  return unpack_a(c);
-}
-
-@compute @workgroup_size(16, 16)
 fn morphology_pass(@builtin(global_invocation_id) id: vec3<u32>) {
   let x = id.x;
   let y = id.y;
   if (x >= cfg.width || y >= cfg.height) {
     return;
   }
-  let flags = atomicLoad(&scan_flags.flags);
-  let use_luma = (flags & 1u) == 0u && (flags & 2u) != 0u;
-  let preserve_alpha = use_luma;
   let dilate = (cfg.flags & 1u) != 0u;
 
   let center = textureLoad(src_tex, vec2<i32>(i32(x), i32(y))).x;
-  var best = center;
-  var best_cov = coverage_for_pixel(center, use_luma);
+  let center_alpha = unpack_a(center);
+  var use_luma = center_alpha >= 1.0 - EPS;
+  let center_luma = clamp01(
+    1.0 - luma(vec3<f32>(unpack_r(center), unpack_g(center), unpack_b(center)))
+  );
+  var best_alpha = center;
+  var best_alpha_cov = center_alpha;
+  var best_luma = center;
+  var best_luma_cov = center_luma;
 
   for (var dy: i32 = -1; dy <= 1; dy = dy + 1) {
     let ny = i32(y) + dy;
@@ -286,21 +255,39 @@ fn morphology_pass(@builtin(global_invocation_id) id: vec3<u32>) {
         continue;
       }
       let sample = textureLoad(src_tex, vec2<i32>(nx, ny)).x;
-      let cov = coverage_for_pixel(sample, use_luma);
+      let sa = unpack_a(sample);
+      if (sa < 1.0 - EPS) {
+        use_luma = false;
+      }
+      let luma_cov = clamp01(
+        1.0 - luma(vec3<f32>(unpack_r(sample), unpack_g(sample), unpack_b(sample)))
+      );
+      let alpha_cov = sa;
       if (dilate) {
-        if (cov > best_cov + EPS) {
-          best_cov = cov;
-          best = sample;
+        if (alpha_cov > best_alpha_cov + EPS) {
+          best_alpha_cov = alpha_cov;
+          best_alpha = sample;
+        }
+        if (luma_cov > best_luma_cov + EPS) {
+          best_luma_cov = luma_cov;
+          best_luma = sample;
         }
       } else {
-        if (cov + EPS < best_cov) {
-          best_cov = cov;
-          best = sample;
+        if (alpha_cov + EPS < best_alpha_cov) {
+          best_alpha_cov = alpha_cov;
+          best_alpha = sample;
+        }
+        if (luma_cov + EPS < best_luma_cov) {
+          best_luma_cov = luma_cov;
+          best_luma = sample;
         }
       }
     }
   }
 
+  let preserve_alpha = use_luma;
+  let best = select(best_alpha, best_luma, use_luma);
+  let best_cov = select(best_alpha_cov, best_luma_cov, use_luma);
   if (best_cov <= EPS) {
     if (preserve_alpha) {
       textureStore(dst_tex, vec2<i32>(i32(x), i32(y)), vec4<u32>(center, 0u, 0u, 0u));
