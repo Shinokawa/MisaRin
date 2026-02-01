@@ -328,6 +328,60 @@ pub(crate) fn attach_present_texture(
     height: u32,
     bytes_per_row: u32,
 ) -> Option<PresentTarget> {
+    #[cfg(target_os = "macos")]
+    {
+        let raw_ptr = mtl_texture_ptr as *mut metal::MTLTexture;
+        if raw_ptr.is_null() {
+            return None;
+        }
+
+        // Use ForeignTypeRef logic to avoid taking ownership if possible,
+        // or ensure we clone it properly.
+        // metal::Texture::from_ptr wraps it.
+        // In metal-rs 0.24+, from_ptr calls objc_retain.
+        // So dropping it will call release. This is correct if we want to share ownership.
+        let raw_texture = unsafe { metal::Texture::from_ptr(raw_ptr) };
+        let hal_texture = unsafe {
+            wgpu_hal::metal::Device::texture_from_raw(
+                raw_texture,
+                wgpu::TextureFormat::Bgra8Unorm,
+                MTLTextureType::D2,
+                1,
+                1,
+                CopyExtent {
+                    width,
+                    height,
+                    depth: 1,
+                },
+            )
+        };
+
+        let desc = wgpu::TextureDescriptor {
+            label: Some("misa-rin present texture (external MTLTexture)"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Bgra8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        };
+
+        let texture = unsafe { device.create_texture_from_hal::<Metal>(hal_texture, &desc) };
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        return Some(PresentTarget {
+            _texture: texture,
+            view,
+            width,
+            height,
+            _bytes_per_row: bytes_per_row,
+        });
+    }
     #[cfg(not(target_os = "macos"))]
     {
         let _ = (mtl_texture_ptr, bytes_per_row);
@@ -360,56 +414,4 @@ pub(crate) fn attach_present_texture(
             _bytes_per_row: bytes_per_row,
         });
     }
-    #[cfg(target_os = "macos")]
-    let raw_ptr = mtl_texture_ptr as *mut metal::MTLTexture;
-    if raw_ptr.is_null() {
-        return None;
-    }
-
-    // Use ForeignTypeRef logic to avoid taking ownership if possible,
-    // or ensure we clone it properly.
-    // metal::Texture::from_ptr wraps it.
-    // In metal-rs 0.24+, from_ptr calls objc_retain.
-    // So dropping it will call release. This is correct if we want to share ownership.
-    let raw_texture = unsafe { metal::Texture::from_ptr(raw_ptr) };
-    let hal_texture = unsafe {
-        wgpu_hal::metal::Device::texture_from_raw(
-            raw_texture,
-            wgpu::TextureFormat::Bgra8Unorm,
-            MTLTextureType::D2,
-            1,
-            1,
-            CopyExtent {
-                width,
-                height,
-                depth: 1,
-            },
-        )
-    };
-
-    let desc = wgpu::TextureDescriptor {
-        label: Some("misa-rin present texture (external MTLTexture)"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Bgra8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: &[],
-    };
-
-    let texture = unsafe { device.create_texture_from_hal::<Metal>(hal_texture, &desc) };
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-    Some(PresentTarget {
-        _texture: texture,
-        view,
-        width,
-        height,
-        _bytes_per_row: bytes_per_row,
-    })
 }

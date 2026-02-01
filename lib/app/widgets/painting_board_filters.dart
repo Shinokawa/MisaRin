@@ -260,7 +260,8 @@ mixin _PaintingBoardFilterMixin
       return false;
     }
     return session.type == _FilterPanelType.hueSaturation ||
-        session.type == _FilterPanelType.brightnessContrast;
+        session.type == _FilterPanelType.brightnessContrast ||
+        session.type == _FilterPanelType.gaussianBlur;
   }
 
   void _enableRustFilterPreviewIfNeeded(_FilterSession session) {

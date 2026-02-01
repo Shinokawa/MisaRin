@@ -387,7 +387,17 @@ mixin _PaintingBoardBuildMixin
       filterQuality: FilterQuality.none,
     );
 
-    if (session.type == _FilterPanelType.hueSaturation) {
+    if (session.type == _FilterPanelType.gaussianBlur) {
+      final double sigma = _gaussianBlurSigmaForRadius(
+        session.gaussianBlur.radius,
+      );
+      if (sigma > 0) {
+        activeLayerWidget = ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          child: activeLayerWidget,
+        );
+      }
+    } else if (session.type == _FilterPanelType.hueSaturation) {
       final double hue = session.hueSaturation.hue;
       final double saturation = session.hueSaturation.saturation;
       final double lightness = session.hueSaturation.lightness;
