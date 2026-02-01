@@ -1192,7 +1192,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
-    if (!_isPrimaryPointer(event)) {
+    final bool rustStrokeActive =
+        widget.useRustCanvas && _rustActivePointer == event.pointer;
+    if (!_isPrimaryPointer(event) && !rustStrokeActive) {
       return;
     }
     if (_isScalingGesture) {
@@ -1216,7 +1218,7 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
-        if (widget.useRustCanvas && _rustActivePointer == event.pointer) {
+        if (rustStrokeActive) {
           final dynamic dyn = event;
           try {
             final List<dynamic>? coalesced =
