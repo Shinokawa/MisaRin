@@ -17,8 +17,8 @@ use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::debug::{self, LogLevel};
 use crate::gpu::filter_renderer::{
     FilterRenderer, FILTER_BINARIZE, FILTER_BLACK_WHITE, FILTER_BRIGHTNESS_CONTRAST,
-    FILTER_FILL_EXPAND, FILTER_GAUSSIAN_BLUR, FILTER_HUE_SATURATION, FILTER_LEAK_REMOVAL,
-    FILTER_LINE_NARROW,
+    FILTER_FILL_EXPAND, FILTER_GAUSSIAN_BLUR, FILTER_HUE_SATURATION, FILTER_INVERT,
+    FILTER_LEAK_REMOVAL, FILTER_LINE_NARROW, FILTER_SCAN_PAPER_DRAWING,
 };
 
 use super::layers::LayerTextures;
@@ -1484,6 +1484,39 @@ fn handle_engine_command(
                     );
                     applied = result.is_ok();
                 }
+                FILTER_SCAN_PAPER_DRAWING => {
+                    let black = (param0 / 100.0).clamp(0.0, 1.0);
+                    let white = (param1 / 100.0).clamp(0.0, 1.0);
+                    let safe_white = (black + 0.01).max(white);
+                    let inv_range = 1.0 / (safe_white - black).max(1.0e-4);
+                    let gamma = 2.0_f32.powf(param2.clamp(-100.0, 100.0) / 100.0);
+                    let tone_enabled = if param0.abs() > 1.0e-4
+                        || (param1 - 100.0).abs() > 1.0e-4
+                        || param2.abs() > 1.0e-4
+                    {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    let params0 = [black, inv_range, gamma, tone_enabled];
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_color_filter(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        4,
+                        params0,
+                        [0.0; 4],
+                    );
+                    applied = result.is_ok();
+                }
                 FILTER_BINARIZE => {
                     let threshold = param0.clamp(0.0, 255.0) / 255.0;
                     let params0 = [threshold, 0.0, 0.0, 0.0];
@@ -1501,6 +1534,25 @@ fn handle_engine_command(
                         layer_index,
                         3,
                         params0,
+                        [0.0; 4],
+                    );
+                    applied = result.is_ok();
+                }
+                FILTER_INVERT => {
+                    undo.begin_stroke(layer_index);
+                    undo.capture_before_for_dirty_rect(
+                        device,
+                        queue,
+                        layers.texture(),
+                        layer_index,
+                        (0, 0, canvas_width as i32, canvas_height as i32),
+                    );
+                    result = renderer.apply_color_filter(
+                        layers.texture(),
+                        layer_view,
+                        layer_index,
+                        5,
+                        [0.0; 4],
                         [0.0; 4],
                     );
                     applied = result.is_ok();

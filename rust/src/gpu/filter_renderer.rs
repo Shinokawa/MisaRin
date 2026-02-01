@@ -11,6 +11,8 @@ pub const FILTER_LEAK_REMOVAL: u32 = 4;
 pub const FILTER_LINE_NARROW: u32 = 5;
 pub const FILTER_FILL_EXPAND: u32 = 6;
 pub const FILTER_BINARIZE: u32 = 7;
+pub const FILTER_SCAN_PAPER_DRAWING: u32 = 8;
+pub const FILTER_INVERT: u32 = 9;
 
 const FILTER_PREMULTIPLY: u32 = 10;
 const FILTER_UNPREMULTIPLY: u32 = 11;

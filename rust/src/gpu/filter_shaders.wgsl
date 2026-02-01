@@ -1,4 +1,8 @@
 const EPS: f32 = 0.000001;
+const SCAN_PAPER_WHITE_MAX: f32 = 190.0;
+const SCAN_PAPER_WHITE_DELTA: f32 = 90.0;
+const SCAN_PAPER_COLOR_DISTANCE: f32 = 180.0 * 180.0;
+const SCAN_PAPER_BLACK_DISTANCE: f32 = 320.0 * 320.0;
 
 struct FilterConfig {
   width: u32,
@@ -105,6 +109,69 @@ fn luma(rgb: vec3<f32>) -> f32 {
   return dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
 }
 
+fn scan_paper_map_rgb(
+  r: f32,
+  g: f32,
+  b: f32,
+  tone_enabled: bool,
+  black: f32,
+  inv_range: f32,
+  gamma: f32,
+) -> vec4<f32> {
+  let r8 = r * 255.0;
+  let g8 = g * 255.0;
+  let b8 = b * 255.0;
+  let maxc = max(max(r8, g8), b8);
+  let minc = min(min(r8, g8), b8);
+  let delta = maxc - minc;
+
+  var white_test = maxc >= SCAN_PAPER_WHITE_MAX &&
+    delta <= SCAN_PAPER_WHITE_DELTA;
+  if (tone_enabled) {
+    var normalized = clamp((luma(vec3<f32>(r, g, b)) - black) * inv_range, 0.0, 1.0);
+    normalized = clamp(pow(normalized, gamma), 0.0, 1.0);
+    let gray = normalized * 255.0;
+    white_test = gray >= SCAN_PAPER_WHITE_MAX && delta <= SCAN_PAPER_WHITE_DELTA;
+  }
+  if (white_test) {
+    return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+  }
+
+  let dr = 255.0 - r8;
+  let dg = 255.0 - g8;
+  let db = 255.0 - b8;
+  let dist_red = dr * dr + g8 * g8 + b8 * b8;
+  let dist_green = r8 * r8 + dg * dg + b8 * b8;
+  let dist_blue = r8 * r8 + g8 * g8 + db * db;
+
+  var min_dist = dist_red;
+  var out_r = 1.0;
+  var out_g = 0.0;
+  var out_b = 0.0;
+  if (dist_green < min_dist) {
+    min_dist = dist_green;
+    out_r = 0.0;
+    out_g = 1.0;
+    out_b = 0.0;
+  }
+  if (dist_blue < min_dist) {
+    min_dist = dist_blue;
+    out_r = 0.0;
+    out_g = 0.0;
+    out_b = 1.0;
+  }
+  if (min_dist <= SCAN_PAPER_COLOR_DISTANCE) {
+    return vec4<f32>(out_r, out_g, out_b, 1.0);
+  }
+
+  let dist_black = r8 * r8 + g8 * g8 + b8 * b8;
+  if (dist_black <= SCAN_PAPER_BLACK_DISTANCE) {
+    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+  }
+
+  return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+}
+
 @compute @workgroup_size(16, 16)
 fn color_filter(@builtin(global_invocation_id) id: vec3<u32>) {
   let x = id.x;
@@ -159,6 +226,29 @@ fn color_filter(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     textureStore(dst_tex, vec2<i32>(i32(x), i32(y)), vec4<u32>(pack_argb(1.0, r, g, b), 0u, 0u, 0u));
     return;
+  } else if (filter_type == 4u) {
+    if (a <= 0.0) {
+      textureStore(dst_tex, vec2<i32>(i32(x), i32(y)), vec4<u32>(pack_argb(a, r, g, b), 0u, 0u, 0u));
+      return;
+    }
+    let tone_enabled = cfg.params0.w > 0.5;
+    let mapped = scan_paper_map_rgb(
+      r,
+      g,
+      b,
+      tone_enabled,
+      cfg.params0.x,
+      cfg.params0.y,
+      cfg.params0.z,
+    );
+    textureStore(dst_tex, vec2<i32>(i32(x), i32(y)), vec4<u32>(pack_argb(mapped.w, mapped.x, mapped.y, mapped.z), 0u, 0u, 0u));
+    return;
+  } else if (filter_type == 5u) {
+    if (a > 0.0) {
+      r = 1.0 - r;
+      g = 1.0 - g;
+      b = 1.0 - b;
+    }
   } else if (filter_type == 10u) {
     if (a <= 0.0) {
       r = 0.0;

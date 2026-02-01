@@ -49,7 +49,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
           (data.bitmapHeight ?? 0) > 0;
       final bool hasFill =
           data.fillColor != null && data.fillColor!.alpha != 0;
-      if (!hasBitmap && !hasFill) {
+      if (!hasBitmap && !hasFill && !_canUseRustCanvasEngine()) {
         _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
         return;
       }

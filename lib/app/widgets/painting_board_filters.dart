@@ -273,6 +273,7 @@ mixin _PaintingBoardFilterMixin
         session.type == _FilterPanelType.brightnessContrast ||
         session.type == _FilterPanelType.blackWhite ||
         session.type == _FilterPanelType.binarize ||
+        session.type == _FilterPanelType.scanPaperDrawing ||
         session.type == _FilterPanelType.gaussianBlur;
   }
 
@@ -363,6 +364,30 @@ mixin _PaintingBoardFilterMixin
     }
     if (layer.locked) {
       _showFilterMessage(l10n.layerLockedInvert);
+      return;
+    }
+
+    if (_canUseRustCanvasEngine()) {
+      final int? handle = _rustCanvasEngineHandle;
+      final int? layerIndex = _rustCanvasLayerIndexForId(activeLayerId);
+      if (handle == null || layerIndex == null) {
+        _showFilterMessage(l10n.cannotLocateLayer);
+        return;
+      }
+      final bool applied = CanvasEngineFfi.instance.applyFilter(
+        handle: handle,
+        layerIndex: layerIndex,
+        filterType: _kFilterTypeInvert,
+      );
+      if (!applied) {
+        _showFilterMessage(l10n.filterApplyFailed);
+        return;
+      }
+      _recordRustHistoryAction();
+      if (mounted) {
+        setState(() {});
+      }
+      _markDirty();
       return;
     }
 

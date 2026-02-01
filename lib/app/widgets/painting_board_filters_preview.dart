@@ -217,7 +217,15 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
       case _FilterPanelType.scanPaperDrawing:
-        return false;
+        applied = CanvasEngineFfi.instance.applyFilter(
+          handle: handle,
+          layerIndex: layerIndex,
+          filterType: _kFilterTypeScanPaperDrawing,
+          param0: session.blackWhite.blackPoint,
+          param1: session.blackWhite.whitePoint,
+          param2: session.blackWhite.midTone,
+        );
+        break;
     }
     if (applied) {
       _recordRustHistoryAction();
@@ -239,9 +247,8 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       case _FilterPanelType.leakRemoval:
       case _FilterPanelType.lineNarrow:
       case _FilterPanelType.fillExpand:
-        return true;
       case _FilterPanelType.scanPaperDrawing:
-        return false;
+        return true;
     }
   }
 
@@ -279,6 +286,35 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
 
     final l10n = context.l10n;
+    if (_canUseRustCanvasEngine() && _supportsRustFilter(session.type)) {
+      setState(() {
+        _filterApplying = true;
+      });
+      _filterOverlayEntry?.markNeedsBuild();
+
+      bool applied = false;
+      try {
+        applied = await _applyRustFilter(session);
+      } catch (error, stackTrace) {
+        debugPrint('Rust scan paper drawing apply failed: $error');
+        debugPrint('$stackTrace');
+      }
+
+      if (!mounted || _filterSession != session) {
+        return;
+      }
+      if (!applied) {
+        setState(() {
+          _filterApplying = false;
+        });
+        _filterOverlayEntry?.markNeedsBuild();
+        _showFilterMessage(l10n.filterApplyFailed);
+        return;
+      }
+      _removeFilterOverlay(restoreOriginal: true);
+      return;
+    }
+
     final CanvasLayerData data =
         session.originalLayers[session.activeLayerIndex];
     final Uint8List? bitmap = data.bitmap;
