@@ -414,6 +414,8 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
   }
 
   bool _isFilterSessionIdentity(_FilterSession session) {
+    final bool allowRust =
+        _canUseRustCanvasEngine() && _supportsRustFilter(session.type);
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
         final _HueSaturationSettings settings = session.hueSaturation;
@@ -431,7 +433,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
         final bool hasFill = layer.fillColor != null;
-        return !hasBitmap && !hasFill;
+        return !hasBitmap && !hasFill && !allowRust;
       case _FilterPanelType.scanPaperDrawing:
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
@@ -442,6 +444,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         final bool hasFill = layer.fillColor != null;
         return !hasBitmap && !hasFill;
       case _FilterPanelType.binarize:
+        if (allowRust) {
+          return false;
+        }
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
         final Uint8List? bitmap = layer.bitmap;
@@ -475,7 +480,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || !hasBitmap;
+        return radius <= 0 || (!hasBitmap && !allowRust);
       case _FilterPanelType.leakRemoval:
         final double radius = session.leakRemoval.radius;
         final CanvasLayerData layer =
@@ -484,7 +489,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || !hasBitmap;
+        return radius <= 0 || (!hasBitmap && !allowRust);
       case _FilterPanelType.lineNarrow:
       case _FilterPanelType.fillExpand:
         final double radius = session.type == _FilterPanelType.lineNarrow
@@ -496,7 +501,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || !hasBitmap;
+        return radius <= 0 || (!hasBitmap && !allowRust);
     }
   }
 
