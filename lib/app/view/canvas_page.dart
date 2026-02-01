@@ -1736,6 +1736,7 @@ class CanvasPageState extends State<CanvasPage> {
     final String id = entry.id;
     return PaintingBoard(
       key: _ensureBoardKey(id),
+      surfaceKey: id,
       settings: entry.document.settings,
       useRustCanvas: widget.useRustCanvas,
       onRequestExit: _handleExitRequest,

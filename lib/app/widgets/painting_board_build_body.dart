@@ -516,6 +516,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 ? IgnorePointer(
                                                     ignoring: true,
                                                     child: RustCanvasSurface(
+                                                      surfaceKey: widget.surfaceKey,
                                                       canvasSize: _canvasSize,
                                                       enableDrawing:
                                                           canPreviewStroke &&

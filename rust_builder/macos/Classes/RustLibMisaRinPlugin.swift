@@ -130,7 +130,8 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
   private let engineStateLock = NSLock()
   private var surfaces: [String: RustCanvasSurfaceState] = [:]
   private var idleSurfaces: [String: [RustCanvasSurfaceState]] = [:]
-  private let maxIdleSurfacesPerSize = 1
+  // Disable pooling to guarantee per-project isolation.
+  private let maxIdleSurfacesPerSize = 0
   private var displayLink: CVDisplayLink?
   private let engineInitQueue = DispatchQueue(label: "misarin.canvas.engine-init", qos: .userInitiated)
 
@@ -263,6 +264,9 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
   }
 
   private func takeIdleSurface(width: Int, height: Int) -> RustCanvasSurfaceState? {
+    if maxIdleSurfacesPerSize <= 0 {
+      return nil
+    }
     let key = poolKey(width: width, height: height)
     guard var bucket = idleSurfaces[key], !bucket.isEmpty else {
       return nil
@@ -285,6 +289,10 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
   private func addIdleSurface(_ entry: RustCanvasSurfaceState) {
     guard entry.engineHandle != 0 else {
+      return
+    }
+    if maxIdleSurfacesPerSize <= 0 {
+      destroySurfaceState(entry)
       return
     }
     let key = poolKey(width: entry.textureWidth, height: entry.textureHeight)

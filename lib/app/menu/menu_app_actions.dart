@@ -10,7 +10,6 @@ import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
 import '../l10n/l10n.dart';
-import '../debug/rust_canvas_timeline.dart';
 import '../preferences/app_preferences.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
@@ -18,49 +17,14 @@ import '../utils/clipboard_image_reader.dart';
 import '../view/canvas_page.dart';
 import '../widgets/app_notification.dart';
 import '../widgets/rust_canvas_surface.dart';
-import '../../canvas/canvas_settings.dart';
 
 class AppMenuActions {
   const AppMenuActions._();
-  static const int _newProjectLayerCount = 2;
 
   static Future<void> createProject(BuildContext context) async {
-    String? warmupSurfaceId;
-    if (!kIsWeb) {
-      const CanvasSettings warmupSettings = CanvasSettings.defaults;
-      warmupSurfaceId = RustCanvasSurface.surfaceIdFor(
-        warmupSettings.size,
-        _newProjectLayerCount,
-      );
-      unawaited(
-        RustCanvasSurface.prewarm(
-          canvasSize: warmupSettings.size,
-          layerCount: _newProjectLayerCount,
-          backgroundColorArgb: warmupSettings.backgroundColor.value,
-        ).catchError((_) {}),
-      );
-    }
     final NewProjectConfig? config = await showCanvasSettingsDialog(context);
     if (config == null || !context.mounted) {
-      if (warmupSurfaceId != null) {
-        unawaited(
-          RustCanvasSurface.cancelWarmup(surfaceId: warmupSurfaceId),
-        );
-      }
       return;
-    }
-    if (warmupSurfaceId != null) {
-      final String targetSurfaceId = RustCanvasSurface.surfaceIdFor(
-        config.settings.size,
-        _newProjectLayerCount,
-      );
-      final bool warmupMatches = targetSurfaceId == warmupSurfaceId;
-      if (!warmupMatches) {
-        unawaited(
-          RustCanvasSurface.cancelWarmup(surfaceId: warmupSurfaceId),
-        );
-        warmupSurfaceId = null;
-      }
     }
     try {
       _applyWorkspacePreset(config.workspacePreset);
@@ -69,6 +33,7 @@ class AppMenuActions {
       if (!kIsWeb) {
         unawaited(
           RustCanvasSurface.prewarm(
+            surfaceKey: document.id,
             canvasSize: config.settings.size,
             layerCount: document.layers.length,
             backgroundColorArgb: config.settings.backgroundColor.value,
@@ -81,11 +46,6 @@ class AppMenuActions {
       }
       await _showProject(context, document);
     } catch (error) {
-      if (warmupSurfaceId != null) {
-        unawaited(
-          RustCanvasSurface.cancelWarmup(surfaceId: warmupSurfaceId),
-        );
-      }
       if (!context.mounted) {
         return;
       }
@@ -408,6 +368,7 @@ class AppMenuActions {
     if (useRustCanvas) {
       try {
         await RustCanvasSurface.prewarm(
+          surfaceKey: document.id,
           canvasSize: document.settings.size,
           layerCount: document.layers.length,
           backgroundColorArgb: document.settings.backgroundColor.value,

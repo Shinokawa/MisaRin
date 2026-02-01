@@ -23,6 +23,7 @@ class _CanvasPerfStressPageState extends State<CanvasPerfStressPage> {
 
   late final CanvasSettings _settings;
   late final List<CanvasLayerData> _layers;
+  late final String _surfaceKey;
 
   bool _started = false;
   bool _running = false;
@@ -32,6 +33,7 @@ class _CanvasPerfStressPageState extends State<CanvasPerfStressPage> {
   @override
   void initState() {
     super.initState();
+    _surfaceKey = 'perf_stress_${DateTime.now().microsecondsSinceEpoch}';
     _settings = CanvasSettings(
       width: _kCanvasSize.toDouble(),
       height: _kCanvasSize.toDouble(),
@@ -108,6 +110,7 @@ class _CanvasPerfStressPageState extends State<CanvasPerfStressPage> {
             Positioned.fill(
               child: PaintingBoard(
                 key: _boardKey,
+                surfaceKey: _surfaceKey,
                 settings: _settings,
                 initialLayers: _layers,
                 onRequestExit: () {},

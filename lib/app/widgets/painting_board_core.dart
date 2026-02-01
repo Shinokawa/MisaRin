@@ -78,6 +78,7 @@ class _ImportedImageData {
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
     super.key,
+    required this.surfaceKey,
     required this.settings,
     required this.onRequestExit,
     this.isActive = true,
@@ -95,6 +96,7 @@ class PaintingBoard extends StatefulWidget {
     this.toolbarLayoutStyle = PaintingToolbarLayoutStyle.floating,
   });
 
+  final String surfaceKey;
   final CanvasSettings settings;
   final VoidCallback onRequestExit;
   final bool isActive;
