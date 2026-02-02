@@ -578,6 +578,24 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 _shouldShowRustFilterPreviewOverlay(
                                                   filterSession,
                                                 );
+                                            final bool showRustCurvePreview =
+                                                _canUseRustCanvasEngine() &&
+                                                _curvePreviewPath != null;
+                                            final bool showRustShapePreview =
+                                                _canUseRustCanvasEngine() &&
+                                                _shapePreviewPath != null;
+                                            final Color rustPreviewBaseColor =
+                                                _isBrushEraserEnabled
+                                                    ? _kVectorEraserPreviewColor
+                                                    : _primaryColor;
+                                            final Color rustPreviewStrokeColor =
+                                                rustPreviewBaseColor.withOpacity(
+                                                  0.85,
+                                                );
+                                            final Color rustPreviewFillColor =
+                                                rustPreviewBaseColor.withOpacity(
+                                                  0.25,
+                                                );
                                             final List<Widget> overlayChildren =
                                                 <Widget>[
                                               if (showRustFilterPreview)
@@ -631,6 +649,46 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                             activeStrokeIsEraser,
                                                         eraserPreviewColor:
                                                             _kVectorEraserPreviewColor,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (showRustCurvePreview)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child: CustomPaint(
+                                                      painter: _PathPreviewPainter(
+                                                        path: _curvePreviewPath!,
+                                                        strokeColor:
+                                                            rustPreviewStrokeColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                        antialiasLevel:
+                                                            _penAntialiasLevel,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (showRustShapePreview)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child: CustomPaint(
+                                                      painter: _PathPreviewPainter(
+                                                        path: _shapePreviewPath!,
+                                                        strokeColor:
+                                                            rustPreviewStrokeColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                        antialiasLevel:
+                                                            _penAntialiasLevel,
+                                                        fill: _shapeFillEnabled &&
+                                                            _shapeToolVariant !=
+                                                                ShapeToolVariant
+                                                                    .line,
+                                                        fillColor:
+                                                            rustPreviewFillColor,
                                                       ),
                                                     ),
                                                   ),

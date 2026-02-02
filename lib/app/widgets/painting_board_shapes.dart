@@ -52,7 +52,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     _resetPerspectiveLock();
-    await _prepareShapeRasterPreview();
+    if (!(widget.useRustCanvas && _canUseRustCanvasEngine())) {
+      await _prepareShapeRasterPreview();
+    }
     final Offset clamped = _clampToCanvas(boardLocal);
     setState(() {
       _shapeDragStart = clamped;
@@ -104,7 +106,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       _shapeStrokePoints = strokePoints;
       _shapePreviewPath = preview;
     });
-    _refreshShapeRasterPreview(strokePoints);
+    if (!(widget.useRustCanvas && _canUseRustCanvasEngine())) {
+      _refreshShapeRasterPreview(strokePoints);
+    }
   }
 
   Future<void> _finishShapeDrawing() async {
@@ -117,15 +121,25 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
 
-    if (!_shapeUndoCapturedForPreview) {
+    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    if (!_shapeUndoCapturedForPreview && !useRustCanvas) {
       await _pushUndoSnapshot();
     }
     const double initialTimestamp = 0.0;
     _clearShapePreviewOverlay();
+    if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
+      _disposeShapeRasterPreview(restoreLayer: true);
+      setState(_resetShapeDrawingState);
+      return;
+    }
     _controller.runSynchronousRasterization(() {
       _paintShapeStroke(strokePoints, initialTimestamp);
     });
     _disposeShapeRasterPreview(restoreLayer: false);
+    if (useRustCanvas && !_commitActiveLayerToRust()) {
+      _showRustCanvasMessage('Rust 画布写入图层失败。');
+    }
 
     setState(_resetShapeDrawingState);
   }
@@ -294,6 +308,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   Future<void> _prepareShapeRasterPreview() async {
+    if (widget.useRustCanvas && _canUseRustCanvasEngine()) {
+      return;
+    }
     if (_shapeUndoCapturedForPreview) {
       return;
     }
@@ -322,6 +339,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
+    if (widget.useRustCanvas && _canUseRustCanvasEngine()) {
+      return;
+    }
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {
       _clearShapePreviewOverlay();

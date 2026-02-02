@@ -274,6 +274,114 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _controller.configureSharpTips(enabled: _autoSharpPeakEnabled);
   }
 
+  void _markDirty() {
+    if (_isDirty) {
+      return;
+    }
+    _isDirty = true;
+    widget.onDirtyChanged?.call(true);
+  }
+
+  BitmapLayerState? _activeLayerStateForRustSync() {
+    final String? activeId = _controller.activeLayerId;
+    if (activeId == null) {
+      return null;
+    }
+    for (final BitmapLayerState layer in _controller.layers) {
+      if (layer.id == activeId) {
+        return layer;
+      }
+    }
+    return null;
+  }
+
+  bool _syncLayerPixelsFromRust(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    if (layer.surface.width != width || layer.surface.height != height) {
+      return false;
+    }
+    final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+    if (pixels == null || pixels.length != layer.surface.pixels.length) {
+      return false;
+    }
+    layer.surface.pixels.setAll(0, pixels);
+    layer.surface.markDirty();
+    return true;
+  }
+
+  bool _syncActiveLayerPixelsFromRust() {
+    final BitmapLayerState? layer = _activeLayerStateForRustSync();
+    if (layer == null) {
+      return false;
+    }
+    return _syncLayerPixelsFromRust(layer);
+  }
+
+  bool _commitActiveLayerToRust({bool recordUndo = true}) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final BitmapLayerState? layer = _activeLayerStateForRustSync();
+    if (layer == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    if (layer.surface.width != width || layer.surface.height != height) {
+      return false;
+    }
+    if (layer.surface.pixels.length != width * height) {
+      return false;
+    }
+    final bool applied = CanvasEngineFfi.instance.writeLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      pixels: layer.surface.pixels,
+      recordUndo: recordUndo,
+    );
+    if (applied) {
+      _recordRustHistoryAction();
+      if (mounted) {
+        setState(() {});
+      }
+      _markDirty();
+    }
+    return applied;
+  }
+
   List<_SyntheticStrokeSample> _buildSyntheticStrokeSamples(
     List<Offset> points,
     Offset initialPoint,

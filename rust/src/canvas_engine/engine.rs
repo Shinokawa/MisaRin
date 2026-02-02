@@ -1351,6 +1351,14 @@ fn handle_engine_command(
             brush_settings.hollow_ratio = hollow_ratio;
             brush_settings.hollow_erase_occluded = hollow_erase_occluded;
             brush_settings.sanitize();
+            if brush.is_none() {
+                if let Err(err) = ensure_brush(brush, device, queue, canvas_width, canvas_height) {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("BrushRenderer prewarm failed: {err}"),
+                    );
+                }
+            }
         }
         EngineCommand::ApplyFilter {
             layer_index,

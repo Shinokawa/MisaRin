@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart' as material;
 import 'package:window_manager/window_manager.dart';
 import 'package:misa_rin/l10n/app_localizations.dart';
 
@@ -163,81 +164,161 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
   }
 
   @override
-	  Widget build(BuildContext context) {
-	    return ThemeController(
-	      themeMode: _themeMode,
-	      onThemeModeChanged: _handleThemeModeChanged,
-	      child: LocaleController(
-	        locale: _locale,
-	        onLocaleChanged: _handleLocaleChanged,
-	        child: FluentApp(
-        navigatorKey: _navigatorKey,
-        debugShowCheckedModeBanner: false,
-        title: 'Misa Rin',
+  Widget build(BuildContext context) {
+    final FluentThemeData lightFluentTheme = FluentThemeData(
+      brightness: Brightness.light,
+      accentColor: Colors.black.toAccentColor(),
+    );
+    final FluentThemeData darkFluentTheme = FluentThemeData(
+      brightness: Brightness.dark,
+      accentColor: Colors.white.toAccentColor(),
+    );
+    final material.ThemeData lightMaterialTheme =
+        _materialThemeFromFluent(lightFluentTheme);
+    final material.ThemeData darkMaterialTheme =
+        _materialThemeFromFluent(darkFluentTheme);
+    return ThemeController(
+      themeMode: _themeMode,
+      onThemeModeChanged: _handleThemeModeChanged,
+      child: LocaleController(
         locale: _locale,
-        localizationsDelegates: <LocalizationsDelegate<dynamic>>[
-          ...AppLocalizations.localizationsDelegates,
-          FluentLocalizations.delegate,
-        ],
-	        supportedLocales: AppLocalizations.supportedLocales,
-	        builder: (context, child) {
-	          Widget content = child ?? const SizedBox.shrink();
-	          if (widget.showCustomMenu && child != null) {
-	            content = CustomMenuShell(
-	              navigatorKey: _navigatorKey,
-	              showMenus: widget.showCustomMenuItems,
-	              child: child,
-	            );
-	          }
-	          Widget appBody = ValueListenableBuilder<bool>(
-	            valueListenable: AppPreferences.fpsOverlayEnabledNotifier,
-	            builder: (context, enabled, appChild) {
-	              final Widget resolvedChild = appChild ?? const SizedBox.shrink();
-	              if (!enabled) {
-	                return resolvedChild;
-	              }
-	              return Stack(
-	                fit: StackFit.passthrough,
-	                children: [resolvedChild, const PerformancePulseOverlay()],
-	              );
-	            },
-	            child: content,
-	          );
+        onLocaleChanged: _handleLocaleChanged,
+        child: material.MaterialApp(
+          navigatorKey: _navigatorKey,
+          debugShowCheckedModeBanner: false,
+          title: 'Misa Rin',
+          locale: _locale,
+          localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+            ...AppLocalizations.localizationsDelegates,
+            FluentLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          scrollBehavior: const FluentScrollBehavior(),
+          theme: lightMaterialTheme,
+          darkTheme: darkMaterialTheme,
+          themeMode: _themeMode,
+          builder: (context, child) {
+            final FluentThemeData resolvedFluentTheme = _resolveFluentTheme(
+              context,
+              lightTheme: lightFluentTheme,
+              darkTheme: darkFluentTheme,
+            );
+            return AnimatedFluentTheme(
+              curve: resolvedFluentTheme.animationCurve,
+              data: resolvedFluentTheme,
+              child: Builder(
+                builder: (context) {
+                  Widget content = child ?? const SizedBox.shrink();
+                  if (widget.showCustomMenu && child != null) {
+                    content = CustomMenuShell(
+                      navigatorKey: _navigatorKey,
+                      showMenus: widget.showCustomMenuItems,
+                      child: child,
+                    );
+                  }
+                  Widget appBody = ValueListenableBuilder<bool>(
+                    valueListenable: AppPreferences.fpsOverlayEnabledNotifier,
+                    builder: (context, enabled, appChild) {
+                      final Widget resolvedChild =
+                          appChild ?? const SizedBox.shrink();
+                      if (!enabled) {
+                        return resolvedChild;
+                      }
+                      return Stack(
+                        fit: StackFit.passthrough,
+                        children: [
+                          resolvedChild,
+                          const PerformancePulseOverlay(),
+                        ],
+                      );
+                    },
+                    child: content,
+                  );
 
-	          // PlatformMenuBar needs AppLocalizations, so build it inside FluentApp.
-	          if (!kIsWeb && Platform.isMacOS) {
-	            appBody = MacosMenuShell(child: appBody);
-	          }
+                  // PlatformMenuBar needs AppLocalizations, so build it inside the app.
+                  if (!kIsWeb && Platform.isMacOS) {
+                    appBody = MacosMenuShell(child: appBody);
+                  }
 
-	          final FluentThemeData theme = FluentTheme.of(context);
-	          final Color selectionColor =
-	              Color.lerp(
-	                theme.resources.controlFillColorInputActive,
-	                theme.resources.textFillColorPrimary,
-	                0.25,
-	              ) ??
-	              theme.resources.textFillColorPrimary.withOpacity(0.25);
+                  final FluentThemeData theme = FluentTheme.of(context);
+                  final Color selectionColor =
+                      Color.lerp(
+                        theme.resources.controlFillColorInputActive,
+                        theme.resources.textFillColorPrimary,
+                        0.25,
+                      ) ??
+                      theme.resources.textFillColorPrimary.withOpacity(0.25);
 
-	          return DefaultSelectionStyle(
-	            cursorColor:
-	                theme.accentColor.defaultBrushFor(theme.brightness),
-	            selectionColor: selectionColor,
-	            child: appBody,
-	          );
-	        },
-	        theme: FluentThemeData(
-	          brightness: Brightness.light,
-	          accentColor: Colors.black.toAccentColor(),
-	        ),
-        darkTheme: FluentThemeData(
-          brightness: Brightness.dark,
-          accentColor: Colors.white.toAccentColor(),
+                  return DefaultSelectionStyle(
+                    cursorColor:
+                        theme.accentColor.defaultBrushFor(theme.brightness),
+                    selectionColor: selectionColor,
+                    child: appBody,
+                  );
+                },
+              ),
+            );
+          },
+          home: (!_kCanvasPerfStressMode || kIsWeb)
+              ? const MisarinHomePage()
+              : const CanvasPerfStressPage(),
         ),
-        themeMode: _themeMode,
-        home: (!_kCanvasPerfStressMode || kIsWeb)
-            ? const MisarinHomePage()
-            : const CanvasPerfStressPage(),
       ),
+    );
+  }
+
+  FluentThemeData _resolveFluentTheme(
+    BuildContext context, {
+    required FluentThemeData lightTheme,
+    required FluentThemeData darkTheme,
+  }) {
+    switch (_themeMode) {
+      case ThemeMode.light:
+        return lightTheme;
+      case ThemeMode.dark:
+        return darkTheme;
+      case ThemeMode.system:
+        final Brightness platformBrightness =
+            MediaQuery.platformBrightnessOf(context);
+        return platformBrightness == Brightness.dark ? darkTheme : lightTheme;
+    }
+  }
+
+  material.ThemeData _materialThemeFromFluent(FluentThemeData fluentTheme) {
+    final AccentColor accent = fluentTheme.accentColor;
+    final material.MaterialColor primarySwatch = material.MaterialColor(
+      accent.value,
+      <int, Color>{
+        50: accent.lightest,
+        100: accent.lighter,
+        200: accent.light,
+        300: accent.normal,
+        400: accent.normal,
+        500: accent.normal,
+        600: accent.dark,
+        700: accent.darker,
+        800: accent.darkest,
+        900: accent.darkest,
+      },
+    );
+    return material.ThemeData(
+      colorScheme: material.ColorScheme.fromSwatch(
+        primarySwatch: primarySwatch,
+        accentColor: accent.normal,
+        errorColor: fluentTheme.resources.systemFillColorCritical,
+        backgroundColor: fluentTheme.resources.controlFillColorDefault,
+        cardColor: fluentTheme.resources.cardBackgroundFillColorDefault,
+        brightness: fluentTheme.brightness,
+      ),
+      primaryColorDark: accent.darker,
+      extensions: fluentTheme.extensions.values,
+      brightness: fluentTheme.brightness,
+      canvasColor: fluentTheme.cardColor,
+      shadowColor: fluentTheme.shadowColor,
+      disabledColor: fluentTheme.resources.controlFillColorDisabled,
+      textSelectionTheme: material.TextSelectionThemeData(
+        selectionColor: fluentTheme.selectionColor,
+        cursorColor: fluentTheme.inactiveColor,
       ),
     );
   }

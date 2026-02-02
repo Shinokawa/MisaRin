@@ -90,14 +90,21 @@ Future<void> _initializeDesktopWindowIfNeeded() async {
   );
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.maximize();
-    await windowManager.show();
+    if (isWindowsDesktop) {
+      await windowManager.setMaximizable(true);
+      await windowManager.show();
+      await windowManager.maximize();
+    } else {
+      await windowManager.maximize();
+      await windowManager.show();
+    }
     await windowManager.focus();
   });
 }
 
 Future<void> _initializePerformancePulse() async {
   try {
+    final bool enableBatteryMonitoring = !Platform.isWindows;
     await PerformanceMonitor.instance.initialize(
       config: MonitorConfig(
         showMemory: true,
@@ -108,7 +115,7 @@ Future<void> _initializePerformancePulse() async {
         memoryWarningThreshold: 500 * 1024 * 1024,
         diskWarningThreshold: 85.0,
         enableNetworkMonitoring: true,
-        enableBatteryMonitoring: true,
+        enableBatteryMonitoring: enableBatteryMonitoring,
         enableDeviceInfo: true,
         enableDiskMonitoring: true,
         logLevel: LogLevel.info,

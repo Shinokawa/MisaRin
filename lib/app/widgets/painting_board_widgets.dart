@@ -528,6 +528,57 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   }
 }
 
+class _PathPreviewPainter extends CustomPainter {
+  const _PathPreviewPainter({
+    required this.path,
+    required this.strokeColor,
+    required this.strokeWidth,
+    this.fillColor,
+    this.fill = false,
+    this.antialiasLevel = 1,
+  });
+
+  final Path path;
+  final Color strokeColor;
+  final double strokeWidth;
+  final Color? fillColor;
+  final bool fill;
+  final int antialiasLevel;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bool aa = antialiasLevel > 0;
+    if (fill && fillColor != null) {
+      final Paint fillPaint = Paint()
+        ..color = fillColor!
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = aa;
+      canvas.drawPath(path, fillPaint);
+    }
+    final double width = strokeWidth.isFinite
+        ? strokeWidth.clamp(0.1, 4096.0)
+        : 1.0;
+    final Paint strokePaint = Paint()
+      ..color = strokeColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = aa;
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(_PathPreviewPainter oldDelegate) {
+    return oldDelegate.path != path ||
+        oldDelegate.strokeColor != strokeColor ||
+        (oldDelegate.strokeWidth - strokeWidth).abs() > 1e-6 ||
+        oldDelegate.fillColor != fillColor ||
+        oldDelegate.fill != fill ||
+        oldDelegate.antialiasLevel != antialiasLevel;
+  }
+}
+
 class _BucketOptionTile extends StatelessWidget {
   const _BucketOptionTile({
     required this.title,

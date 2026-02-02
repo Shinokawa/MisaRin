@@ -314,38 +314,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   bool _syncActiveLayerFromRustForAdjust(BitmapLayerState layer) {
-    if (!_canUseRustCanvasEngine()) {
-      return false;
-    }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return false;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
-    if (layerIndex == null) {
-      return false;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      return false;
-    }
-    if (layer.surface.width != width || layer.surface.height != height) {
-      return false;
-    }
-    final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
-    );
-    if (pixels == null || pixels.length != layer.surface.pixels.length) {
-      return false;
-    }
-    layer.surface.pixels.setAll(0, pixels);
-    layer.surface.markDirty();
-    return true;
+    return _syncLayerPixelsFromRust(layer);
   }
 
   Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {
@@ -356,12 +325,19 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     );
     _focusNode.requestFocus();
     final bool insideCanvas = _isWithinCanvasBounds(snapped);
+    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
     if (_curveAnchor == null) {
       if (insideCanvas && !isPointInsideSelection(snapped)) {
         return;
       }
       if (insideCanvas) {
-        await _pushUndoSnapshot();
+        if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
+          _showRustCanvasMessage('Rust 画布同步图层失败。');
+          return;
+        }
+        if (!useRustCanvas) {
+          await _pushUndoSnapshot();
+        }
         final bool erase = _isBrushEraserEnabled;
         final Color strokeColor = erase
             ? const Color(0xFFFFFFFF)
@@ -386,6 +362,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
           _brushRandomRotationPreviewSeed =
               _brushRotationRandom.nextInt(1 << 31);
         }
+        if (useRustCanvas && !_commitActiveLayerToRust()) {
+          _showRustCanvasMessage('Rust 画布写入图层失败。');
+        }
         _markDirty();
       }
       setState(() {
@@ -407,14 +386,17 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _isCurvePlacingSegment = true;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    await _prepareCurveRasterPreview();
-    _refreshCurveRasterPreview();
+    if (!useRustCanvas) {
+      await _prepareCurveRasterPreview();
+      _refreshCurveRasterPreview();
+    }
   }
 
   void _handleCurvePenPointerMove(Offset boardLocal) {
     if (!_isCurvePlacingSegment || _curveDragOrigin == null) {
       return;
     }
+    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
     final Offset snapped = _maybeSnapToPerspective(
       boardLocal,
       anchor: _curveAnchor ?? _curveDragOrigin,
@@ -423,7 +405,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _curveDragDelta = snapped - _curveDragOrigin!;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    _refreshCurveRasterPreview();
+    if (!useRustCanvas) {
+      _refreshCurveRasterPreview();
+    }
   }
 
   Future<void> _handleCurvePenPointerUp() async {
@@ -431,13 +415,14 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_isCurvePlacingSegment) {
       return;
     }
+    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;
     if (start == null || end == null) {
       _cancelCurvePenSegment();
       return;
     }
-    if (!_curveUndoCapturedForPreview) {
+    if (!_curveUndoCapturedForPreview && !useRustCanvas) {
       await _pushUndoSnapshot();
     }
     final Offset control = _computeCurveControlPoint(
@@ -445,6 +430,11 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       end,
       _curveDragDelta,
     );
+    if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
+      _cancelCurvePenSegment();
+      return;
+    }
     if (_curveRasterPreviewSnapshot != null) {
       _clearCurvePreviewOverlay();
     }
@@ -452,6 +442,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _drawQuadraticCurve(start, control, end);
     });
     _disposeCurveRasterPreview(restoreLayer: false);
+    if (useRustCanvas && !_commitActiveLayerToRust()) {
+      _showRustCanvasMessage('Rust 画布写入图层失败。');
+    }
     setState(() {
       _curveAnchor = end;
       _curvePendingEnd = null;
@@ -495,6 +488,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   Future<void> _prepareCurveRasterPreview() async {
+    if (widget.useRustCanvas && _canUseRustCanvasEngine()) {
+      return;
+    }
     if (_curveUndoCapturedForPreview) {
       return;
     }
@@ -523,6 +519,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   void _refreshCurveRasterPreview() {
+    if (widget.useRustCanvas && _canUseRustCanvasEngine()) {
+      return;
+    }
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;

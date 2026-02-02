@@ -590,14 +590,6 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     return false;
   }
 
-  void _markDirty() {
-    if (_isDirty) {
-      return;
-    }
-    _isDirty = true;
-    widget.onDirtyChanged?.call(true);
-  }
-
   void _emitClean() {
     if (!_isDirty) {
       return;

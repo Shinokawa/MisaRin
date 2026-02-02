@@ -93,8 +93,9 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
   Future<void> _startStroke(
     Offset position,
     Duration timestamp,
-    PointerEvent? rawEvent,
-  ) async {
+    PointerEvent? rawEvent, {
+    bool skipUndo = false,
+  }) async {
     _resetPerspectiveLock();
     final Offset start = _sanitizeStrokePosition(
       position,
@@ -123,7 +124,9 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     _lastStylusDirection = null;
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
-    await _pushUndoSnapshot();
+    if (!skipUndo) {
+      await _pushUndoSnapshot();
+    }
     StrokeLatencyMonitor.instance.recordStrokeStart();
     _lastPenSampleTimestamp = timestamp;
     setState(() {
@@ -241,6 +244,23 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     final Offset? anchor = _perspectivePenAnchor;
     final Offset? snapped = _perspectivePenSnappedTarget;
     if (anchor == null || snapped == null) {
+      return;
+    }
+    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    if (useRustCanvas) {
+      if (!_syncActiveLayerPixelsFromRust()) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        _clearPerspectivePenPreview();
+        return;
+      }
+      await _startStroke(anchor, timestamp, rawEvent, skipUndo: true);
+      _appendPoint(snapped, timestamp, rawEvent);
+      _finishStroke(timestamp);
+      await _controller.waitForPendingWorkerTasks();
+      if (!_commitActiveLayerToRust()) {
+        _showRustCanvasMessage('Rust 画布写入图层失败。');
+      }
+      _clearPerspectivePenPreview();
       return;
     }
     await _startStroke(anchor, timestamp, rawEvent);
