@@ -89,17 +89,28 @@ Future<void> _initializeDesktopWindowIfNeeded() async {
     skipTaskbar: false,
   );
 
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    if (isWindowsDesktop) {
-      await windowManager.setMaximizable(true);
-      await windowManager.show();
-      await windowManager.maximize();
-    } else {
-      await windowManager.maximize();
-      await windowManager.show();
+  await windowManager.waitUntilReadyToShow(windowOptions);
+  if (isWindowsDesktop) {
+    await windowManager.setMaximizable(true);
+  }
+  await windowManager.show();
+  await windowManager.maximize();
+  if (isWindowsDesktop) {
+    await _waitForMaximized();
+  }
+  await windowManager.focus();
+}
+
+Future<void> _waitForMaximized() async {
+  const Duration step = Duration(milliseconds: 16);
+  const Duration timeout = Duration(milliseconds: 400);
+  final DateTime start = DateTime.now();
+  while (DateTime.now().difference(start) < timeout) {
+    if (await windowManager.isMaximized()) {
+      return;
     }
-    await windowManager.focus();
-  });
+    await Future<void>.delayed(step);
+  }
 }
 
 Future<void> _initializePerformancePulse() async {

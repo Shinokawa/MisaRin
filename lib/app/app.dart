@@ -52,6 +52,7 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     _themeMode = AppPreferences.instance.themeMode;
     _locale = AppPreferences.instance.localeOverride;
     _initWindowCloseHandler();
+    _scheduleStartupDiagnostics();
   }
 
   void _handleThemeModeChanged(ThemeMode mode) {
@@ -81,6 +82,59 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     windowManager.addListener(this);
     _windowListenerAttached = true;
     unawaited(windowManager.setPreventClose(true));
+  }
+
+  void _scheduleStartupDiagnostics() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_logDisplayDiagnostics('first-frame'));
+      unawaited(
+        _logDisplayDiagnostics(
+          'post-settle',
+          delay: const Duration(milliseconds: 500),
+        ),
+      );
+    });
+  }
+
+  Future<void> _logDisplayDiagnostics(
+    String label, {
+    Duration delay = Duration.zero,
+  }) async {
+    if (delay > Duration.zero) {
+      await Future<void>.delayed(delay);
+    }
+    if (!mounted) {
+      return;
+    }
+    final view = View.of(context);
+    final Size logicalSize = Size(
+      view.physicalSize.width / view.devicePixelRatio,
+      view.physicalSize.height / view.devicePixelRatio,
+    );
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    debugPrint(
+      '[startup][$label] viewCount=${views.length} refreshRate='
+      '${view.display.refreshRate.toStringAsFixed(1)}Hz '
+      'logical=${logicalSize.width.toStringAsFixed(1)}x'
+      '${logicalSize.height.toStringAsFixed(1)} '
+      'physical=${view.physicalSize.width.toStringAsFixed(1)}x'
+      '${view.physicalSize.height.toStringAsFixed(1)} '
+      'dpr=${view.devicePixelRatio.toStringAsFixed(2)}',
+    );
+    if (_supportsDesktopWindowManagement) {
+      try {
+        final bounds = await windowManager.getBounds();
+        debugPrint(
+          '[startup][$label] windowBounds='
+          '${bounds.width.toStringAsFixed(1)}x'
+          '${bounds.height.toStringAsFixed(1)} '
+          '@(${bounds.left.toStringAsFixed(1)},'
+          '${bounds.top.toStringAsFixed(1)})',
+        );
+      } catch (error) {
+        debugPrint('[startup][$label] windowBounds failed: $error');
+      }
+    }
   }
 
   bool get _supportsDesktopWindowManagement =>
