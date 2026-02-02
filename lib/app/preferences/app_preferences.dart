@@ -79,7 +79,7 @@ class AppPreferences {
   static const bool _defaultAutoSharpPeakEnabled = false;
   static const PenStrokeSliderRange _defaultPenStrokeSliderRange =
       PenStrokeSliderRange.compact;
-  static const double _defaultStrokeStabilizerStrength = 0.0;
+  static const double _defaultStrokeStabilizerStrength = 10.0 / 30.0;
   static const BrushShape _defaultBrushShape = BrushShape.circle;
   static const bool _defaultBrushRandomRotationEnabled = false;
   static const bool _defaultHollowStrokeEnabled = false;
