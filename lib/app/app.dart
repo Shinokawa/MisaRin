@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:ui' show FramePhase, FrameTiming;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' as material;
+import 'package:flutter/scheduler.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:misa_rin/l10n/app_localizations.dart';
 
@@ -93,6 +95,7 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
           delay: const Duration(milliseconds: 500),
         ),
       );
+      _startFrameTimingDiagnostics();
     });
   }
 
@@ -140,6 +143,58 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
         debugPrint('[startup][$label] windowBounds failed: $error');
       }
     }
+  }
+
+  void _startFrameTimingDiagnostics() {
+    if (kIsWeb || !Platform.isWindows) {
+      return;
+    }
+    const int sampleTarget = 120;
+    final Stopwatch stopwatch = Stopwatch()..start();
+    int? lastVsyncStart;
+    final List<int> intervals = <int>[];
+    final List<int> buildDurations = <int>[];
+    final List<int> rasterDurations = <int>[];
+
+    void handler(List<FrameTiming> timings) {
+      for (final FrameTiming timing in timings) {
+        final int vsyncStart =
+            timing.timestampInMicroseconds(FramePhase.vsyncStart);
+        if (lastVsyncStart != null) {
+          intervals.add(vsyncStart - lastVsyncStart!);
+        }
+        lastVsyncStart = vsyncStart;
+        buildDurations.add(timing.buildDuration.inMicroseconds);
+        rasterDurations.add(timing.rasterDuration.inMicroseconds);
+      }
+      if (intervals.length < sampleTarget &&
+          stopwatch.elapsedMilliseconds < 2500) {
+        return;
+      }
+      SchedulerBinding.instance.removeTimingsCallback(handler);
+      if (intervals.isEmpty) {
+        debugPrint('[startup][timings] no frame intervals captured');
+        return;
+      }
+      final double avgIntervalUs =
+          intervals.reduce((a, b) => a + b) / intervals.length;
+      final double avgFps = avgIntervalUs > 0
+          ? 1000000.0 / avgIntervalUs
+          : 0;
+      final double avgBuildUs =
+          buildDurations.reduce((a, b) => a + b) / buildDurations.length;
+      final double avgRasterUs =
+          rasterDurations.reduce((a, b) => a + b) / rasterDurations.length;
+      debugPrint(
+        '[startup][timings] samples=${intervals.length} '
+        'avgInterval=${(avgIntervalUs / 1000).toStringAsFixed(2)}ms '
+        'avgFps=${avgFps.toStringAsFixed(1)} '
+        'build=${(avgBuildUs / 1000).toStringAsFixed(2)}ms '
+        'raster=${(avgRasterUs / 1000).toStringAsFixed(2)}ms',
+      );
+    }
+
+    SchedulerBinding.instance.addTimingsCallback(handler);
   }
 
   bool get _supportsDesktopWindowManagement =>
