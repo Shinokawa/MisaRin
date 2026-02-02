@@ -112,9 +112,14 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
       view.physicalSize.height / view.devicePixelRatio,
     );
     final views = WidgetsBinding.instance.platformDispatcher.views;
+    String refreshRateText = 'unknown';
+    try {
+      refreshRateText = '${view.display.refreshRate.toStringAsFixed(1)}Hz';
+    } catch (error) {
+      debugPrint('[startup][$label] refreshRate unavailable: $error');
+    }
     debugPrint(
-      '[startup][$label] viewCount=${views.length} refreshRate='
-      '${view.display.refreshRate.toStringAsFixed(1)}Hz '
+      '[startup][$label] viewCount=${views.length} refreshRate=$refreshRateText '
       'logical=${logicalSize.width.toStringAsFixed(1)}x'
       '${logicalSize.height.toStringAsFixed(1)} '
       'physical=${view.physicalSize.width.toStringAsFixed(1)}x'
