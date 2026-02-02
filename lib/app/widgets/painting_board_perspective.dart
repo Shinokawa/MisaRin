@@ -335,7 +335,7 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     final bool withinTolerance =
         tolerance >= 179.9 ||
         bestAngle <= tolerance;
-    final Offset snapped = _projectOntoDirection(anchor, delta, bestDir);
+    final Offset snapped = _snapToDirectionWithDistance(anchor, delta, bestDir);
     return _PerspectiveSnapPreviewResult(
       snapped: snapped,
       withinTolerance: withinTolerance,
@@ -371,6 +371,25 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     final Offset norm = direction / length;
     final double projectedLength = (delta.dx * norm.dx + delta.dy * norm.dy);
     return anchor + norm * projectedLength;
+  }
+
+  Offset _snapToDirectionWithDistance(
+    Offset anchor,
+    Offset delta,
+    Offset direction,
+  ) {
+    final double length = direction.distance;
+    if (length < 0.0001) {
+      return anchor;
+    }
+    final Offset norm = direction / length;
+    final double deltaLength = delta.distance;
+    if (deltaLength < 0.0001) {
+      return anchor;
+    }
+    final double projection = (delta.dx * norm.dx + delta.dy * norm.dy);
+    final double sign = projection >= 0.0 ? 1.0 : -1.0;
+    return anchor + norm * deltaLength * sign;
   }
 
   Offset _maybeSnapToPerspective(
@@ -418,6 +437,12 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     }
 
     if (bestDir == null) {
+      return position;
+    }
+
+    final double tolerance =
+        _perspectiveSnapAngleTolerance.clamp(0.0, 180.0);
+    if (tolerance < 179.9 && bestAngle > tolerance) {
       return position;
     }
 

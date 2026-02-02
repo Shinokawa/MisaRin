@@ -362,8 +362,11 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
           _brushRandomRotationPreviewSeed =
               _brushRotationRandom.nextInt(1 << 31);
         }
-        if (useRustCanvas && !_commitActiveLayerToRust()) {
-          _showRustCanvasMessage('Rust 画布写入图层失败。');
+        if (useRustCanvas) {
+          await _controller.waitForPendingWorkerTasks();
+          if (!_commitActiveLayerToRust()) {
+            _showRustCanvasMessage('Rust 画布写入图层失败。');
+          }
         }
         _markDirty();
       }
@@ -442,8 +445,11 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _drawQuadraticCurve(start, control, end);
     });
     _disposeCurveRasterPreview(restoreLayer: false);
-    if (useRustCanvas && !_commitActiveLayerToRust()) {
-      _showRustCanvasMessage('Rust 画布写入图层失败。');
+    if (useRustCanvas) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_commitActiveLayerToRust()) {
+        _showRustCanvasMessage('Rust 画布写入图层失败。');
+      }
     }
     setState(() {
       _curveAnchor = end;

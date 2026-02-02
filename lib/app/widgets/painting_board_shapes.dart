@@ -137,8 +137,11 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       _paintShapeStroke(strokePoints, initialTimestamp);
     });
     _disposeShapeRasterPreview(restoreLayer: false);
-    if (useRustCanvas && !_commitActiveLayerToRust()) {
-      _showRustCanvasMessage('Rust 画布写入图层失败。');
+    if (useRustCanvas) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_commitActiveLayerToRust()) {
+        _showRustCanvasMessage('Rust 画布写入图层失败。');
+      }
     }
 
     setState(_resetShapeDrawingState);
