@@ -100,6 +100,13 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _curveUndoCapturedForPreview = false;
   Rect? _curvePreviewDirtyRect;
   Uint32List? _curveRasterPreviewPixels;
+  ui.Image? _curvePreviewRasterImage;
+  int _curvePreviewRasterToken = 0;
+  ui.Image? _shapePreviewRasterImage;
+  int _shapePreviewRasterToken = 0;
+  String? _rustVectorPreviewHiddenLayerId;
+  bool _rustVectorPreviewHiddenLayerVisible = false;
+  int _rustVectorPreviewHideToken = 0;
   bool _isEyedropperSampling = false;
   bool _eyedropperOverrideActive = false;
   Offset? _lastEyedropperSample;
@@ -924,6 +931,76 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     return widget.useRustCanvas &&
         CanvasEngineFfi.instance.isSupported &&
         _rustCanvasEngineHandle != null;
+  }
+
+  bool get _isRustVectorPreviewActive =>
+      _curvePreviewRasterImage != null || _shapePreviewRasterImage != null;
+
+  Uint8List _argbPixelsToRgbaForPreview(Uint32List pixels) {
+    final Uint8List rgba = Uint8List(pixels.length * 4);
+    for (int i = 0; i < pixels.length; i++) {
+      final int argb = pixels[i];
+      final int offset = i * 4;
+      rgba[offset] = (argb >> 16) & 0xff;
+      rgba[offset + 1] = (argb >> 8) & 0xff;
+      rgba[offset + 2] = argb & 0xff;
+      rgba[offset + 3] = (argb >> 24) & 0xff;
+    }
+    return rgba;
+  }
+
+  void _hideRustLayerForVectorPreview(String layerId) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_rustVectorPreviewHiddenLayerId == layerId) {
+      return;
+    }
+    _restoreRustLayerAfterVectorPreview();
+    final int token = ++_rustVectorPreviewHideToken;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      if (!mounted || token != _rustVectorPreviewHideToken) {
+        return;
+      }
+      if (!_isRustVectorPreviewActive) {
+        return;
+      }
+      final BitmapLayerState layer = _controller.activeLayer;
+      if (layer.id != layerId || !layer.visible) {
+        return;
+      }
+      final int? index = _rustCanvasLayerIndexForId(layerId);
+      if (index == null) {
+        return;
+      }
+      _rustVectorPreviewHiddenLayerId = layerId;
+      _rustVectorPreviewHiddenLayerVisible = layer.visible;
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: _rustCanvasEngineHandle!,
+        layerIndex: index,
+        visible: false,
+      );
+    });
+  }
+
+  void _restoreRustLayerAfterVectorPreview() {
+    _rustVectorPreviewHideToken++;
+    final String? layerId = _rustVectorPreviewHiddenLayerId;
+    if (layerId == null) {
+      return;
+    }
+    if (_canUseRustCanvasEngine()) {
+      final int? index = _rustCanvasLayerIndexForId(layerId);
+      if (index != null) {
+        CanvasEngineFfi.instance.setLayerVisible(
+          handle: _rustCanvasEngineHandle!,
+          layerIndex: index,
+          visible: _rustVectorPreviewHiddenLayerVisible,
+        );
+      }
+    }
+    _rustVectorPreviewHiddenLayerId = null;
+    _rustVectorPreviewHiddenLayerVisible = false;
   }
 
   bool get _useCombinedHistory => widget.useRustCanvas;

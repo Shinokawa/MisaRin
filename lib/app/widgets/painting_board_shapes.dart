@@ -52,9 +52,12 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     _resetPerspectiveLock();
-    if (!(widget.useRustCanvas && _canUseRustCanvasEngine())) {
-      await _prepareShapeRasterPreview();
+    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
+      return;
     }
+    await _prepareShapeRasterPreview(captureUndo: !useRustCanvas);
     final Offset clamped = _clampToCanvas(boardLocal);
     setState(() {
       _shapeDragStart = clamped;
@@ -106,9 +109,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       _shapeStrokePoints = strokePoints;
       _shapePreviewPath = preview;
     });
-    if (!(widget.useRustCanvas && _canUseRustCanvasEngine())) {
-      _refreshShapeRasterPreview(strokePoints);
-    }
+    _refreshShapeRasterPreview(strokePoints);
   }
 
   Future<void> _finishShapeDrawing() async {
@@ -136,12 +137,16 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     _controller.runSynchronousRasterization(() {
       _paintShapeStroke(strokePoints, initialTimestamp);
     });
-    _disposeShapeRasterPreview(restoreLayer: false);
+    _disposeShapeRasterPreview(
+      restoreLayer: false,
+      clearPreviewImage: !useRustCanvas,
+    );
     if (useRustCanvas) {
       await _controller.waitForPendingWorkerTasks();
       if (!_commitActiveLayerToRust()) {
         _showRustCanvasMessage('Rust 画布写入图层失败。');
       }
+      _clearShapePreviewRasterImage(notify: false);
     }
 
     setState(_resetShapeDrawingState);
@@ -310,14 +315,15 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     );
   }
 
-  Future<void> _prepareShapeRasterPreview() async {
-    if (widget.useRustCanvas && _canUseRustCanvasEngine()) {
-      return;
-    }
+  Future<void> _prepareShapeRasterPreview({bool captureUndo = true}) async {
     if (_shapeUndoCapturedForPreview) {
       return;
     }
-    await _pushUndoSnapshot();
+    if (captureUndo) {
+      await _pushUndoSnapshot();
+    } else {
+      _clearShapePreviewRasterImage(notify: false);
+    }
     _shapeUndoCapturedForPreview = true;
     final String? activeLayerId = _controller.activeLayerId;
     if (activeLayerId == null) {
@@ -342,12 +348,13 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
-    if (widget.useRustCanvas && _canUseRustCanvasEngine()) {
-      return;
-    }
+    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {
       _clearShapePreviewOverlay();
+      if (useRustCanvas) {
+        _clearShapePreviewRasterImage();
+      }
       return;
     }
     final Rect? previous = _shapePreviewDirtyRect;
@@ -375,9 +382,15 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (restoredRegion != null) {
       _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
     }
+    if (useRustCanvas) {
+      unawaited(_updateShapePreviewRasterImage());
+    }
   }
 
-  void _disposeShapeRasterPreview({required bool restoreLayer}) {
+  void _disposeShapeRasterPreview({
+    required bool restoreLayer,
+    bool clearPreviewImage = true,
+  }) {
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot != null && restoreLayer) {
       _clearShapePreviewOverlay();
@@ -385,6 +398,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     _shapeRasterPreviewSnapshot = null;
     _shapeUndoCapturedForPreview = false;
     _shapeRasterPreviewPixels = null;
+    if (clearPreviewImage) {
+      _clearShapePreviewRasterImage(notify: false);
+    }
   }
 
   void _clearShapePreviewOverlay() {
@@ -400,6 +416,64 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       pixelCache: _shapeRasterPreviewPixels,
     );
     _shapePreviewDirtyRect = null;
+  }
+
+  Future<void> _updateShapePreviewRasterImage() async {
+    if (!(widget.useRustCanvas && _canUseRustCanvasEngine())) {
+      return;
+    }
+    if (_shapePreviewPath == null) {
+      _clearShapePreviewRasterImage();
+      return;
+    }
+    final BitmapLayerState layer = _controller.activeLayer;
+    if (!layer.visible) {
+      _clearShapePreviewRasterImage();
+      return;
+    }
+    final int width = layer.surface.width;
+    final int height = layer.surface.height;
+    if (width <= 0 || height <= 0) {
+      _clearShapePreviewRasterImage();
+      return;
+    }
+    final int token = ++_shapePreviewRasterToken;
+    await _controller.waitForPendingWorkerTasks();
+    if (!mounted ||
+        token != _shapePreviewRasterToken ||
+        _shapePreviewPath == null) {
+      return;
+    }
+    final Uint32List pixels = layer.surface.pixels;
+    if (pixels.length != width * height) {
+      _clearShapePreviewRasterImage();
+      return;
+    }
+    final Uint8List rgba = _argbPixelsToRgbaForPreview(pixels);
+    final ui.Image image = await _decodeImage(rgba, width, height);
+    if (!mounted ||
+        token != _shapePreviewRasterToken ||
+        _shapePreviewPath == null) {
+      image.dispose();
+      return;
+    }
+    _shapePreviewRasterImage?.dispose();
+    _shapePreviewRasterImage = image;
+    setState(() {});
+    _hideRustLayerForVectorPreview(layer.id);
+  }
+
+  void _clearShapePreviewRasterImage({bool notify = true}) {
+    _shapePreviewRasterToken++;
+    final bool hadImage = _shapePreviewRasterImage != null;
+    _shapePreviewRasterImage?.dispose();
+    _shapePreviewRasterImage = null;
+    if (!_isRustVectorPreviewActive) {
+      _restoreRustLayerAfterVectorPreview();
+    }
+    if (notify && hadImage && mounted) {
+      setState(() {});
+    }
   }
 
   void _paintShapeStroke(List<Offset> strokePoints, double initialTimestamp) {

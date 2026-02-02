@@ -580,22 +580,21 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 );
                                             final bool showRustCurvePreview =
                                                 _canUseRustCanvasEngine() &&
-                                                _curvePreviewPath != null;
+                                                _curvePreviewRasterImage != null;
                                             final bool showRustShapePreview =
                                                 _canUseRustCanvasEngine() &&
-                                                _shapePreviewPath != null;
-                                            final Color rustPreviewBaseColor =
-                                                _isBrushEraserEnabled
-                                                    ? _kVectorEraserPreviewColor
-                                                    : _primaryColor;
-                                            final Color rustPreviewStrokeColor =
-                                                rustPreviewBaseColor.withOpacity(
-                                                  0.85,
+                                                _shapePreviewRasterImage != null;
+                                            final BitmapLayerState activeLayer =
+                                                _controller.activeLayer;
+                                            final ui.BlendMode?
+                                                rustPreviewBlendMode =
+                                                _flutterBlendMode(
+                                                  activeLayer.blendMode,
                                                 );
-                                            final Color rustPreviewFillColor =
-                                                rustPreviewBaseColor.withOpacity(
-                                                  0.25,
-                                                );
+                                            final double rustPreviewOpacity =
+                                                activeLayer.opacity
+                                                    .clamp(0.0, 1.0)
+                                                    .toDouble();
                                             final List<Widget> overlayChildren =
                                                 <Widget>[
                                               if (showRustFilterPreview)
@@ -657,40 +656,30 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
-                                                    child: CustomPaint(
-                                                      painter: _PathPreviewPainter(
-                                                        path: _curvePreviewPath!,
-                                                        strokeColor:
-                                                            rustPreviewStrokeColor,
-                                                        strokeWidth:
-                                                            _penStrokeWidth,
-                                                        antialiasLevel:
-                                                            _penAntialiasLevel,
-                                                      ),
-                                                    ),
+                                                    child:
+                                                        _buildTransformedLayerOverlay(
+                                                          image:
+                                                              _curvePreviewRasterImage!,
+                                                          opacity:
+                                                              rustPreviewOpacity,
+                                                          blendMode:
+                                                              rustPreviewBlendMode,
+                                                        ),
                                                   ),
                                                 ),
                                               if (showRustShapePreview)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
-                                                    child: CustomPaint(
-                                                      painter: _PathPreviewPainter(
-                                                        path: _shapePreviewPath!,
-                                                        strokeColor:
-                                                            rustPreviewStrokeColor,
-                                                        strokeWidth:
-                                                            _penStrokeWidth,
-                                                        antialiasLevel:
-                                                            _penAntialiasLevel,
-                                                        fill: _shapeFillEnabled &&
-                                                            _shapeToolVariant !=
-                                                                ShapeToolVariant
-                                                                    .line,
-                                                        fillColor:
-                                                            rustPreviewFillColor,
-                                                      ),
-                                                    ),
+                                                    child:
+                                                        _buildTransformedLayerOverlay(
+                                                          image:
+                                                              _shapePreviewRasterImage!,
+                                                          opacity:
+                                                              rustPreviewOpacity,
+                                                          blendMode:
+                                                              rustPreviewBlendMode,
+                                                        ),
                                                   ),
                                                 ),
                                               if (transformImageOverlay != null)

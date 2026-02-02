@@ -382,6 +382,10 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (insideCanvas && !isPointInsideSelection(snapped)) {
       return;
     }
+    if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
+      return;
+    }
     setState(() {
       _curvePendingEnd = snapped;
       _curveDragOrigin = snapped;
@@ -389,17 +393,14 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _isCurvePlacingSegment = true;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    if (!useRustCanvas) {
-      await _prepareCurveRasterPreview();
-      _refreshCurveRasterPreview();
-    }
+    await _prepareCurveRasterPreview(captureUndo: !useRustCanvas);
+    _refreshCurveRasterPreview();
   }
 
   void _handleCurvePenPointerMove(Offset boardLocal) {
     if (!_isCurvePlacingSegment || _curveDragOrigin == null) {
       return;
     }
-    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
     final Offset snapped = _maybeSnapToPerspective(
       boardLocal,
       anchor: _curveAnchor ?? _curveDragOrigin,
@@ -408,9 +409,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _curveDragDelta = snapped - _curveDragOrigin!;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    if (!useRustCanvas) {
-      _refreshCurveRasterPreview();
-    }
+    _refreshCurveRasterPreview();
   }
 
   Future<void> _handleCurvePenPointerUp() async {
@@ -444,12 +443,16 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _controller.runSynchronousRasterization(() {
       _drawQuadraticCurve(start, control, end);
     });
-    _disposeCurveRasterPreview(restoreLayer: false);
+    _disposeCurveRasterPreview(
+      restoreLayer: false,
+      clearPreviewImage: !useRustCanvas,
+    );
     if (useRustCanvas) {
       await _controller.waitForPendingWorkerTasks();
       if (!_commitActiveLayerToRust()) {
         _showRustCanvasMessage('Rust 画布写入图层失败。');
       }
+      _clearCurvePreviewRasterImage(notify: false);
     }
     setState(() {
       _curveAnchor = end;
@@ -493,14 +496,15 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
   }
 
-  Future<void> _prepareCurveRasterPreview() async {
-    if (widget.useRustCanvas && _canUseRustCanvasEngine()) {
-      return;
-    }
+  Future<void> _prepareCurveRasterPreview({bool captureUndo = true}) async {
     if (_curveUndoCapturedForPreview) {
       return;
     }
-    await _pushUndoSnapshot();
+    if (captureUndo) {
+      await _pushUndoSnapshot();
+    } else {
+      _clearCurvePreviewRasterImage(notify: false);
+    }
     _curveUndoCapturedForPreview = true;
     final String? activeLayerId = _controller.activeLayerId;
     if (activeLayerId == null) {
@@ -525,14 +529,15 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   void _refreshCurveRasterPreview() {
-    if (widget.useRustCanvas && _canUseRustCanvasEngine()) {
-      return;
-    }
+    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;
     if (snapshot == null || start == null || end == null) {
       _clearCurvePreviewOverlay();
+      if (useRustCanvas) {
+        _clearCurvePreviewRasterImage();
+      }
       return;
     }
     final Rect? previous = _curvePreviewDirtyRect;
@@ -565,9 +570,15 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (restoredRegion != null) {
       _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
     }
+    if (useRustCanvas) {
+      unawaited(_updateCurvePreviewRasterImage());
+    }
   }
 
-  void _disposeCurveRasterPreview({required bool restoreLayer}) {
+  void _disposeCurveRasterPreview({
+    required bool restoreLayer,
+    bool clearPreviewImage = true,
+  }) {
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     if (snapshot != null && restoreLayer) {
       _clearCurvePreviewOverlay();
@@ -576,6 +587,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _curveUndoCapturedForPreview = false;
     _curvePreviewDirtyRect = null;
     _curveRasterPreviewPixels = null;
+    if (clearPreviewImage) {
+      _clearCurvePreviewRasterImage(notify: false);
+    }
   }
 
   void _clearCurvePreviewOverlay() {
@@ -591,6 +605,64 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       pixelCache: _curveRasterPreviewPixels,
     );
     _curvePreviewDirtyRect = null;
+  }
+
+  Future<void> _updateCurvePreviewRasterImage() async {
+    if (!(widget.useRustCanvas && _canUseRustCanvasEngine())) {
+      return;
+    }
+    if (_curvePreviewPath == null) {
+      _clearCurvePreviewRasterImage();
+      return;
+    }
+    final BitmapLayerState layer = _controller.activeLayer;
+    if (!layer.visible) {
+      _clearCurvePreviewRasterImage();
+      return;
+    }
+    final int width = layer.surface.width;
+    final int height = layer.surface.height;
+    if (width <= 0 || height <= 0) {
+      _clearCurvePreviewRasterImage();
+      return;
+    }
+    final int token = ++_curvePreviewRasterToken;
+    await _controller.waitForPendingWorkerTasks();
+    if (!mounted ||
+        token != _curvePreviewRasterToken ||
+        _curvePreviewPath == null) {
+      return;
+    }
+    final Uint32List pixels = layer.surface.pixels;
+    if (pixels.length != width * height) {
+      _clearCurvePreviewRasterImage();
+      return;
+    }
+    final Uint8List rgba = _argbPixelsToRgbaForPreview(pixels);
+    final ui.Image image = await _decodeImage(rgba, width, height);
+    if (!mounted ||
+        token != _curvePreviewRasterToken ||
+        _curvePreviewPath == null) {
+      image.dispose();
+      return;
+    }
+    _curvePreviewRasterImage?.dispose();
+    _curvePreviewRasterImage = image;
+    setState(() {});
+    _hideRustLayerForVectorPreview(layer.id);
+  }
+
+  void _clearCurvePreviewRasterImage({bool notify = true}) {
+    _curvePreviewRasterToken++;
+    final bool hadImage = _curvePreviewRasterImage != null;
+    _curvePreviewRasterImage?.dispose();
+    _curvePreviewRasterImage = null;
+    if (!_isRustVectorPreviewActive) {
+      _restoreRustLayerAfterVectorPreview();
+    }
+    if (notify && hadImage && mounted) {
+      setState(() {});
+    }
   }
 
   Rect? _curvePreviewDirtyRectForCurrentPath() {

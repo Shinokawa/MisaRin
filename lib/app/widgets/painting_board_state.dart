@@ -146,6 +146,11 @@ class PaintingBoardState extends _PaintingBoardBase
     AppPreferences.pixelGridVisibleNotifier.removeListener(
       _handlePixelGridPreferenceChanged,
     );
+    _curvePreviewRasterImage?.dispose();
+    _curvePreviewRasterImage = null;
+    _shapePreviewRasterImage?.dispose();
+    _shapePreviewRasterImage = null;
+    _restoreRustLayerAfterVectorPreview();
     _rustLayerSnapshots.clear();
     _rustLayerSnapshotHandle = null;
     super.dispose();
