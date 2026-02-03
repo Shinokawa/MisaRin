@@ -962,6 +962,14 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       );
     }
     if (handleChanged || sizeChanged) {
+      final String sizeText = engineSize == null
+          ? 'null'
+          : '${engineSize.width.round()}x${engineSize.height.round()}';
+      debugPrint(
+        'paintingBoard: rust engine info handle=$handle size=$sizeText',
+      );
+    }
+    if (handleChanged || sizeChanged) {
       _rustCanvasSyncedLayerCount = 0;
       _rustPixelsSyncedHandle = null;
       _purgeRustHistoryActions();

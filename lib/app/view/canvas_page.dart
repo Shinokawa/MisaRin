@@ -6,7 +6,7 @@ import 'dart:ui' as ui;
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/widgets.dart'
     show
         StatefulBuilder,
@@ -971,18 +971,29 @@ class CanvasPageState extends State<CanvasPage> {
     if (config == null) {
       return;
     }
+    debugPrint(
+      'canvasPage: resizeImage request '
+      'doc=${_document.settings.width.round()}x${_document.settings.height.round()} '
+      'target=${config.width}x${config.height} sampling=${config.sampling} '
+      'useRust=${widget.useRustCanvas}',
+    );
     final CanvasResizeResult? result = await board.resizeImage(
       config.width,
       config.height,
       config.sampling,
     );
     if (result == null) {
+      debugPrint('canvasPage: resizeImage result=null');
       _showInfoBar(
         context.l10n.resizeImageFailed,
         severity: InfoBarSeverity.error,
       );
       return;
     }
+    debugPrint(
+      'canvasPage: resizeImage result '
+      '${result.width}x${result.height} layers=${result.layers.length}',
+    );
     _applyCanvasResizeResult(result);
   }
 
@@ -1021,18 +1032,29 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
     _lastCanvasAnchor = config.anchor;
+    debugPrint(
+      'canvasPage: resizeCanvas request '
+      'doc=${_document.settings.width.round()}x${_document.settings.height.round()} '
+      'target=${config.width}x${config.height} anchor=${config.anchor} '
+      'useRust=${widget.useRustCanvas}',
+    );
     final CanvasResizeResult? result = await board.resizeCanvas(
       config.width,
       config.height,
       config.anchor,
     );
     if (result == null) {
+      debugPrint('canvasPage: resizeCanvas result=null');
       _showInfoBar(
         context.l10n.resizeCanvasFailed,
         severity: InfoBarSeverity.error,
       );
       return;
     }
+    debugPrint(
+      'canvasPage: resizeCanvas result '
+      '${result.width}x${result.height} layers=${result.layers.length}',
+    );
     _applyCanvasResizeResult(result);
   }
 
@@ -1308,6 +1330,10 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   void _applyCanvasResizeResult(CanvasResizeResult result) {
+    debugPrint(
+      'canvasPage: applyCanvasResize '
+      '${result.width}x${result.height} layers=${result.layers.length}',
+    );
     _pushDocumentHistorySnapshot();
     final CanvasSettings updatedSettings = _document.settings.copyWith(
       width: result.width.toDouble(),

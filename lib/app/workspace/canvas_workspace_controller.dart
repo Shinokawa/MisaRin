@@ -196,7 +196,8 @@ class CanvasWorkspaceController extends ChangeNotifier {
         final CanvasWorkspaceEntry current = _entries[i];
         if (next.id != current.id ||
             next.name != current.name ||
-            next.isDirty != current.isDirty) {
+            next.isDirty != current.isDirty ||
+            next.document != current.document) {
           sameEntries = false;
           break;
         }

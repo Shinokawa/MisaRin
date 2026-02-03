@@ -678,12 +678,14 @@ class PaintingBoardState extends _PaintingBoardBase
     ImageResizeSampling sampling,
   ) async {
     if (width <= 0 || height <= 0) {
+      debugPrint('resizeImage: invalid target=${width}x$height');
       return null;
     }
     _controller.commitActiveLayerTranslation();
     if (_canUseRustCanvasEngine()) {
       await _controller.waitForPendingWorkerTasks();
       if (!_syncAllLayerPixelsFromRust()) {
+        debugPrint('resizeImage: rust sync failed');
         _showRustCanvasMessage('Rust 画布同步图层失败。');
         return null;
       }
@@ -691,8 +693,14 @@ class PaintingBoardState extends _PaintingBoardBase
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
     if (sourceWidth <= 0 || sourceHeight <= 0) {
+      debugPrint('resizeImage: invalid source=${sourceWidth}x$sourceHeight');
       return null;
     }
+    debugPrint(
+      'resizeImage: source=${sourceWidth}x$sourceHeight '
+      'target=${width}x$height sampling=$sampling '
+      'rust=${_canUseRustCanvasEngine()}',
+    );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
       for (final CanvasLayerData layer in layers)
@@ -718,12 +726,14 @@ class PaintingBoardState extends _PaintingBoardBase
     CanvasResizeAnchor anchor,
   ) async {
     if (width <= 0 || height <= 0) {
+      debugPrint('resizeCanvas: invalid target=${width}x$height');
       return null;
     }
     _controller.commitActiveLayerTranslation();
     if (_canUseRustCanvasEngine()) {
       await _controller.waitForPendingWorkerTasks();
       if (!_syncAllLayerPixelsFromRust()) {
+        debugPrint('resizeCanvas: rust sync failed');
         _showRustCanvasMessage('Rust 画布同步图层失败。');
         return null;
       }
@@ -731,8 +741,14 @@ class PaintingBoardState extends _PaintingBoardBase
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
     if (sourceWidth <= 0 || sourceHeight <= 0) {
+      debugPrint('resizeCanvas: invalid source=${sourceWidth}x$sourceHeight');
       return null;
     }
+    debugPrint(
+      'resizeCanvas: source=${sourceWidth}x$sourceHeight '
+      'target=${width}x$height anchor=$anchor '
+      'rust=${_canUseRustCanvasEngine()}',
+    );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
       for (final CanvasLayerData layer in layers)
@@ -766,6 +782,13 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool logicChanged =
         widget.settings.creationLogic != oldWidget.settings.creationLogic;
     if (sizeChanged || backgroundChanged || logicChanged) {
+      if (sizeChanged) {
+        debugPrint(
+          'paintingBoard: size changed '
+          'old=${oldWidget.settings.width}x${oldWidget.settings.height} '
+          'new=${widget.settings.width}x${widget.settings.height}',
+        );
+      }
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
       final bool enableRasterOutput =

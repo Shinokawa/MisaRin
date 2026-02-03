@@ -464,6 +464,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     try {
       final int width = widget.canvasSize.width.round().clamp(1, 16384);
       final int height = widget.canvasSize.height.round().clamp(1, 16384);
+      debugPrint(
+        'rustSurface: request size=${width}x$height '
+        'layers=${widget.layerCount} id=$_surfaceId',
+      );
       final _RustSurfaceInfo info =
           await _RustSurfaceWarmupCache.instance.takeOrRequest(
         surfaceId: _surfaceId,
@@ -491,6 +495,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
             ? StateError('textureId/engineHandle == null: $info')
             : null;
       });
+      debugPrint(
+        'rustSurface: ready textureId=$textureId handle=$engineHandle '
+        'engine=${engineWidth}x${engineHeight} id=$_surfaceId',
+      );
       RustCanvasTimeline.mark(
         'rustSurface: texture ready '
         'textureId=$textureId handle=$engineHandle '

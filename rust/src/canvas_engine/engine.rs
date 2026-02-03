@@ -278,6 +278,7 @@ struct StreamlineAnimation {
     duration: Duration,
     next_frame_at: Instant,
     frame_interval: Duration,
+    pending_first_frame: bool,
     from_points: Vec<(Point2D, f32)>,
     to_points: Vec<(Point2D, f32)>,
     scratch: Vec<(Point2D, f32)>,
@@ -312,7 +313,7 @@ fn streamline_animation_duration(strength: f32) -> Duration {
         0.0
     };
     let eased = s.powf(0.6);
-    let ms = (80.0 + 200.0 * eased).round() as u64;
+    let ms = (60.0 + 160.0 * eased).round() as u64;
     Duration::from_millis(ms.max(1))
 }
 
@@ -850,6 +851,7 @@ fn render_thread_main(
                                             duration: streamline_animation_duration(strength),
                                             next_frame_at: now,
                                             frame_interval: Duration::from_millis(16),
+                                            pending_first_frame: true,
                                             from_points: points,
                                             to_points: smoothed,
                                             scratch: Vec::new(),
@@ -920,7 +922,11 @@ fn render_thread_main(
 
                 if let Some(animation) = streamline_animation.as_mut() {
                     let now = Instant::now();
-                    if animation.should_render(now) {
+                    if animation.pending_first_frame {
+                        animation.pending_first_frame = false;
+                        animation.start = now;
+                        animation.next_frame_at = now + animation.frame_interval;
+                    } else if animation.should_render(now) {
                         let mut t = ease_out_cubic(animation.progress(now));
                         let done = t >= 0.999;
                         if done {
