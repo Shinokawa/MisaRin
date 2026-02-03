@@ -317,9 +317,9 @@ fn streamline_animation_duration(strength: f32) -> Duration {
     } else {
         0.0
     };
-    let eased = s.powf(0.6);
-    let ms = (60.0 + 160.0 * eased).round() as u64;
-    Duration::from_millis(ms.max(1))
+    let eased = s.powf(0.7);
+    let ms = (150.0 + 150.0 * eased).round() as u64;
+    Duration::from_millis(ms.max(150))
 }
 
 fn now_ms() -> u64 {
@@ -1098,7 +1098,7 @@ fn render_thread_main(
                                             duration: streamline_animation_duration(strength),
                                             next_frame_at: now,
                                             frame_interval: Duration::from_millis(16),
-                                            pending_first_frame: true,
+                                            pending_first_frame: false,
                                             from_points: points,
                                             to_points: smoothed,
                                             scratch: Vec::new(),
