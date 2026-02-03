@@ -676,15 +676,22 @@ class PaintingBoardState extends _PaintingBoardBase
     int width,
     int height,
     ImageResizeSampling sampling,
-  ) {
+  ) async {
     if (width <= 0 || height <= 0) {
-      return Future.value(null);
+      return null;
     }
     _controller.commitActiveLayerTranslation();
+    if (_canUseRustCanvasEngine()) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return null;
+      }
+    }
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
     if (sourceWidth <= 0 || sourceHeight <= 0) {
-      return Future.value(null);
+      return null;
     }
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
@@ -698,8 +705,10 @@ class PaintingBoardState extends _PaintingBoardBase
           sampling,
         ),
     ];
-    return Future.value(
-      CanvasResizeResult(layers: resizedLayers, width: width, height: height),
+    return CanvasResizeResult(
+      layers: resizedLayers,
+      width: width,
+      height: height,
     );
   }
 
@@ -707,15 +716,22 @@ class PaintingBoardState extends _PaintingBoardBase
     int width,
     int height,
     CanvasResizeAnchor anchor,
-  ) {
+  ) async {
     if (width <= 0 || height <= 0) {
-      return Future.value(null);
+      return null;
     }
     _controller.commitActiveLayerTranslation();
+    if (_canUseRustCanvasEngine()) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return null;
+      }
+    }
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
     if (sourceWidth <= 0 || sourceHeight <= 0) {
-      return Future.value(null);
+      return null;
     }
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
@@ -729,8 +745,10 @@ class PaintingBoardState extends _PaintingBoardBase
           anchor,
         ),
     ];
-    return Future.value(
-      CanvasResizeResult(layers: resizedLayers, width: width, height: height),
+    return CanvasResizeResult(
+      layers: resizedLayers,
+      width: width,
+      height: height,
     );
   }
 

@@ -32,6 +32,22 @@ void _commitActiveLayerTranslation(BitmapCanvasController controller) {
   final Rect? dirtyRegion = controller._activeLayerTransformDirtyRegion;
   final String? layerId = controller._activeLayerTranslationId;
   _applyActiveLayerTranslation(controller);
+  if (!controller._rasterOutputEnabled) {
+    // No composite pass will run, so cleanup immediately.
+    if (dirtyRegion != null) {
+      controller._markDirty(
+        region: dirtyRegion,
+        layerId: layerId,
+        pixelsDirty: true,
+      );
+    } else {
+      controller._markDirty(layerId: layerId, pixelsDirty: true);
+    }
+    controller._pendingActiveLayerTransformCleanup = false;
+    _resetActiveLayerTranslationState(controller);
+    controller._notify();
+    return;
+  }
   controller._pendingActiveLayerTransformCleanup = true;
   if (dirtyRegion != null) {
     controller._markDirty(
@@ -51,6 +67,20 @@ void _cancelActiveLayerTranslation(BitmapCanvasController controller) {
   final Rect? dirtyRegion = controller._activeLayerTransformDirtyRegion;
   final String? layerId = controller._activeLayerTranslationId;
   _restoreActiveLayerSnapshot(controller);
+  if (!controller._rasterOutputEnabled) {
+    if (dirtyRegion != null) {
+      controller._markDirty(
+        region: dirtyRegion,
+        layerId: layerId,
+        pixelsDirty: true,
+      );
+    } else {
+      controller._markDirty(layerId: layerId, pixelsDirty: true);
+    }
+    controller._pendingActiveLayerTransformCleanup = false;
+    controller._notify();
+    return;
+  }
   controller._pendingActiveLayerTransformCleanup = true;
   if (dirtyRegion != null) {
     controller._markDirty(
@@ -738,6 +768,18 @@ void _restoreActiveLayerSnapshot(BitmapCanvasController controller) {
 
 void _disposeActiveLayerTransformSession(BitmapCanvasController controller) {
   if (controller._activeLayerTranslationSnapshot == null) {
+    return;
+  }
+  if (!controller._rasterOutputEnabled) {
+    final String? layerId = controller._activeLayerTranslationId;
+    _resetActiveLayerTranslationState(controller);
+    if (layerId != null) {
+      controller._markDirty(layerId: layerId, pixelsDirty: true);
+    } else {
+      controller._markDirty(pixelsDirty: true);
+    }
+    controller._pendingActiveLayerTransformCleanup = false;
+    controller._notify();
     return;
   }
   controller._pendingActiveLayerTransformCleanup = true;

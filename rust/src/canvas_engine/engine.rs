@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[cfg(target_os = "macos")]
 use metal::foreign_types::ForeignType;
@@ -12,7 +12,7 @@ use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
 use crate::gpu::blend_modes::map_canvas_blend_mode_index;
-use crate::gpu::brush_renderer::BrushRenderer;
+use crate::gpu::brush_renderer::{BrushRenderer, Point2D};
 use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::debug::{self, LogLevel};
 use crate::gpu::filter_renderer::{
@@ -273,6 +273,169 @@ fn device_context() -> Result<&'static EngineDeviceContext, String> {
     }
 }
 
+struct StreamlineAnimation {
+    start: Instant,
+    duration: Duration,
+    next_frame_at: Instant,
+    frame_interval: Duration,
+    from_points: Vec<(Point2D, f32)>,
+    to_points: Vec<(Point2D, f32)>,
+    scratch: Vec<(Point2D, f32)>,
+    layer_index: u32,
+    brush_settings: EngineBrushSettings,
+    use_hollow_mask: bool,
+    use_hollow_base: bool,
+}
+
+impl StreamlineAnimation {
+    fn progress(&self, now: Instant) -> f32 {
+        if self.duration.is_zero() {
+            return 1.0;
+        }
+        let elapsed = now.saturating_duration_since(self.start);
+        (elapsed.as_secs_f32() / self.duration.as_secs_f32()).clamp(0.0, 1.0)
+    }
+
+    fn should_render(&mut self, now: Instant) -> bool {
+        if now < self.next_frame_at {
+            return false;
+        }
+        self.next_frame_at = now + self.frame_interval;
+        true
+    }
+}
+
+fn streamline_animation_duration(strength: f32) -> Duration {
+    let s = if strength.is_finite() {
+        strength.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let eased = s.powf(0.6);
+    let ms = (80.0 + 200.0 * eased).round() as u64;
+    Duration::from_millis(ms.max(1))
+}
+
+fn ease_out_cubic(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    let inv = 1.0 - t;
+    1.0 - inv * inv * inv
+}
+
+fn interpolate_streamline_points(
+    from: &[(Point2D, f32)],
+    to: &[(Point2D, f32)],
+    t: f32,
+    out: &mut Vec<(Point2D, f32)>,
+) {
+    out.clear();
+    if from.len() != to.len() || from.is_empty() {
+        out.extend_from_slice(to);
+        return;
+    }
+    let t = t.clamp(0.0, 1.0);
+    out.reserve(from.len());
+    for (orig, smooth) in from.iter().zip(to.iter()) {
+        let x = orig.0.x + (smooth.0.x - orig.0.x) * t;
+        let y = orig.0.y + (smooth.0.y - orig.0.y) * t;
+        let blended = orig.1 + (smooth.1 - orig.1) * t;
+        let pres = if blended.is_finite() {
+            blended.clamp(0.0, 1.0)
+        } else {
+            orig.1
+        };
+        out.push((Point2D { x, y }, pres));
+    }
+}
+
+fn render_streamline_frame(
+    animation: &mut StreamlineAnimation,
+    t: f32,
+    stroke: &mut StrokeResampler,
+    brush: &mut Option<BrushRenderer>,
+    device: &Arc<wgpu::Device>,
+    queue: &Arc<wgpu::Queue>,
+    layers: &LayerTextures,
+    undo_manager: &mut UndoManager,
+    layer_uniform: &mut Vec<Option<u32>>,
+    canvas_width: u32,
+    canvas_height: u32,
+) -> bool {
+    let brush_ref = match ensure_brush(brush, device, queue, canvas_width, canvas_height) {
+        Ok(brush_ref) => brush_ref,
+        Err(err) => {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("BrushRenderer init failed: {err}"),
+            );
+            return false;
+        }
+    };
+    let layer_idx = animation.layer_index as usize;
+    let Some(active_layer_view) = layers
+        .layer_view(layer_idx)
+        .or_else(|| layers.layer_view(0))
+    else {
+        return false;
+    };
+    let layer_texture = layers.texture();
+    if !undo_manager.restore_current_before(device.as_ref(), queue.as_ref(), layer_texture) {
+        return false;
+    }
+    if animation.use_hollow_mask {
+        if let Err(err) = brush_ref.clear_stroke_mask() {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("Brush stroke mask clear failed: {err}"),
+            );
+        }
+        brush_ref.begin_stroke_base_capture();
+    }
+    interpolate_streamline_points(
+        &animation.from_points,
+        &animation.to_points,
+        t,
+        &mut animation.scratch,
+    );
+    if animation.scratch.is_empty() {
+        return false;
+    }
+    let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+        undo_manager.capture_before_for_dirty_rect(
+            device.as_ref(),
+            queue.as_ref(),
+            layer_texture,
+            animation.layer_index,
+            dirty_rect,
+        );
+        if animation.use_hollow_base {
+            if let Err(err) =
+                brush.capture_stroke_base_region(layer_texture, animation.layer_index, dirty_rect)
+            {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Brush stroke base capture failed: {err}"),
+                );
+            }
+        }
+    };
+    let drawn_any = stroke.draw_emitted_points(
+        brush_ref,
+        &animation.brush_settings,
+        active_layer_view,
+        &animation.scratch,
+        canvas_width,
+        canvas_height,
+        &mut before_draw,
+    );
+    if drawn_any {
+        if let Some(entry) = layer_uniform.get_mut(layer_idx) {
+            *entry = None;
+        }
+    }
+    drawn_any
+}
+
 fn spawn_render_thread(
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
@@ -388,6 +551,7 @@ fn render_thread_main(
     let mut stroke = StrokeResampler::new();
     let mut undo_manager = UndoManager::new(canvas_width, canvas_height);
     let mut transform_renderer: Option<LayerTransformRenderer> = None;
+    let mut streamline_animation: Option<StreamlineAnimation> = None;
 
     loop {
         match &present {
@@ -454,6 +618,28 @@ fn render_thread_main(
             Some(_) => {
                 let mut needs_render = false;
                 while let Ok(cmd) = cmd_rx.try_recv() {
+                    if let Some(mut animation) = streamline_animation.take() {
+                        let frame_drawn = render_streamline_frame(
+                            &mut animation,
+                            1.0,
+                            &mut stroke,
+                            &mut brush,
+                            &device,
+                            &queue,
+                            &layers,
+                            &mut undo_manager,
+                            &mut layer_uniform,
+                            canvas_width,
+                            canvas_height,
+                        );
+                        undo_manager.end_stroke(device.as_ref(), queue.as_ref(), layers.texture());
+                        if frame_drawn {
+                            if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
+                                *entry = None;
+                            }
+                            needs_render = true;
+                        }
+                    }
                     let outcome = handle_engine_command(
                         &device,
                         &queue,
@@ -498,7 +684,19 @@ fn render_thread_main(
                 }
 
                 let mut batches: Vec<EngineInputBatch> = Vec::new();
-                match input_rx.recv_timeout(Duration::from_millis(4)) {
+                let mut next_timeout = Duration::from_millis(4);
+                if let Some(anim) = streamline_animation.as_ref() {
+                    let now = Instant::now();
+                    if now >= anim.next_frame_at {
+                        next_timeout = Duration::from_millis(0);
+                    } else {
+                        let until = anim.next_frame_at.saturating_duration_since(now);
+                        if until < next_timeout {
+                            next_timeout = until;
+                        }
+                    }
+                }
+                match input_rx.recv_timeout(next_timeout) {
                     Ok(batch) => {
                         input_queue_len.fetch_sub(batch.points.len() as u64, Ordering::Relaxed);
                         batches.push(batch);
@@ -512,9 +710,38 @@ fn render_thread_main(
                 }
 
                 if !batches.is_empty() {
+                    const FLAG_DOWN: u32 = 1;
+                    const FLAG_UP: u32 = 4;
                     let mut raw_points: Vec<EnginePoint> = Vec::new();
                     for batch in batches {
                         raw_points.extend(batch.points);
+                    }
+                    let has_down = raw_points.iter().any(|p| (p.flags & FLAG_DOWN) != 0);
+                    if has_down {
+                        if let Some(mut animation) = streamline_animation.take() {
+                            let _ = render_streamline_frame(
+                                &mut animation,
+                                1.0,
+                                &mut stroke,
+                                &mut brush,
+                                &device,
+                                &queue,
+                                &layers,
+                                &mut undo_manager,
+                                &mut layer_uniform,
+                                canvas_width,
+                                canvas_height,
+                            );
+                            undo_manager.end_stroke(
+                                device.as_ref(),
+                                queue.as_ref(),
+                                layers.texture(),
+                            );
+                            if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
+                                *entry = None;
+                            }
+                            needs_render = true;
+                        }
                     }
 
                     let brush_ref = match ensure_brush(
@@ -544,8 +771,6 @@ fn render_thread_main(
                     let mut drawn_any = false;
 
                     for p in raw_points {
-                        const FLAG_DOWN: u32 = 1;
-                        const FLAG_UP: u32 = 4;
                         let is_down = (p.flags & FLAG_DOWN) != 0;
                         let is_up = (p.flags & FLAG_UP) != 0;
 
@@ -576,6 +801,7 @@ fn render_thread_main(
                                 && brush_settings.hollow_ratio > 0.0001;
                             let use_hollow_base =
                                 use_hollow_mask && !brush_settings.hollow_erase_occluded;
+                            let mut defer_end_stroke = false;
                             drawn_any |= {
                                 let mut before_draw =
                                     |brush: &mut BrushRenderer, dirty_rect| {
@@ -613,68 +839,36 @@ fn render_thread_main(
                             };
 
                             if let Some(payload) = stroke.take_streamline_payload() {
-                                if payload.points.len() > 2 && payload.strength > 0.0001 {
-                                    let smoothed =
-                                        apply_streamline(&payload.points, payload.strength);
-                                    if !smoothed.is_empty()
-                                        && undo_manager.restore_current_before(
-                                            device.as_ref(),
-                                            queue.as_ref(),
-                                            layer_texture,
-                                        )
-                                    {
-                                        if use_hollow_mask {
-                                            if let Err(err) = brush_ref.clear_stroke_mask() {
-                                                debug::log(
-                                                    LogLevel::Warn,
-                                                    format_args!(
-                                                        "Brush stroke mask clear failed: {err}"
-                                                    ),
-                                                );
-                                            }
-                                            brush_ref.begin_stroke_base_capture();
-                                        }
-                                        drawn_any |= {
-                                            let mut before_draw =
-                                                |brush: &mut BrushRenderer, dirty_rect| {
-                                                    undo_manager.capture_before_for_dirty_rect(
-                                                        device.as_ref(),
-                                                        queue.as_ref(),
-                                                        layer_texture,
-                                                        layer_idx,
-                                                        dirty_rect,
-                                                    );
-                                                    if use_hollow_base {
-                                                        if let Err(err) =
-                                                            brush.capture_stroke_base_region(
-                                                                layer_texture,
-                                                                layer_idx,
-                                                                dirty_rect,
-                                                            )
-                                                        {
-                                                            debug::log(
-                                                                LogLevel::Warn,
-                                                                format_args!(
-                                                                    "Brush stroke base capture failed: {err}"
-                                                                ),
-                                                            );
-                                                        }
-                                                    }
-                                                };
-                                            stroke.draw_emitted_points(
-                                                brush_ref,
-                                                &brush_settings,
-                                                active_layer_view,
-                                                &smoothed,
-                                                canvas_width,
-                                                canvas_height,
-                                                &mut before_draw,
-                                            )
-                                        };
+                                let points = payload.points;
+                                let strength = payload.strength;
+                                if points.len() > 2 && strength > 0.0001 {
+                                    let smoothed = apply_streamline(&points, strength);
+                                    if !smoothed.is_empty() && smoothed.len() == points.len() {
+                                        let now = Instant::now();
+                                        streamline_animation = Some(StreamlineAnimation {
+                                            start: now,
+                                            duration: streamline_animation_duration(strength),
+                                            next_frame_at: now,
+                                            frame_interval: Duration::from_millis(16),
+                                            from_points: points,
+                                            to_points: smoothed,
+                                            scratch: Vec::new(),
+                                            layer_index: layer_idx,
+                                            brush_settings,
+                                            use_hollow_mask,
+                                            use_hollow_base,
+                                        });
+                                        defer_end_stroke = true;
                                     }
                                 }
                             }
-                            undo_manager.end_stroke(device.as_ref(), queue.as_ref(), layer_texture);
+                            if !defer_end_stroke {
+                                undo_manager.end_stroke(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    layer_texture,
+                                );
+                            }
                         }
                     }
 
@@ -722,6 +916,41 @@ fn render_thread_main(
                         }
                     }
                     needs_render |= drawn_any;
+                }
+
+                if let Some(animation) = streamline_animation.as_mut() {
+                    let now = Instant::now();
+                    if animation.should_render(now) {
+                        let mut t = ease_out_cubic(animation.progress(now));
+                        let done = t >= 0.999;
+                        if done {
+                            t = 1.0;
+                        }
+                        let frame_drawn = render_streamline_frame(
+                            animation,
+                            t,
+                            &mut stroke,
+                            &mut brush,
+                            &device,
+                            &queue,
+                            &layers,
+                            &mut undo_manager,
+                            &mut layer_uniform,
+                            canvas_width,
+                            canvas_height,
+                        );
+                        if frame_drawn {
+                            needs_render = true;
+                        }
+                        if done {
+                            undo_manager.end_stroke(
+                                device.as_ref(),
+                                queue.as_ref(),
+                                layers.texture(),
+                            );
+                            streamline_animation = None;
+                        }
+                    }
                 }
 
                 if needs_render {
