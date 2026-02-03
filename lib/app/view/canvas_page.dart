@@ -137,10 +137,11 @@ class CanvasPageState extends State<CanvasPage> {
     _documentRedoStacks.remove(id);
   }
 
-  void _pushDocumentHistorySnapshot() {
+  void _pushDocumentHistorySnapshot({ProjectDocument? snapshot}) {
     final String id = _document.id;
     final List<ProjectDocument> undoStack = _undoStackFor(id);
-    undoStack.add(_document.copyWith());
+    final ProjectDocument entry = (snapshot ?? _document).copyWith();
+    undoStack.add(entry);
     _documentRedoStacks[id]?.clear();
     _trimDocumentHistoryStacks(id);
   }
@@ -990,6 +991,10 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
+    final ProjectDocument historySnapshot = _document.copyWith(
+      layers: await board.snapshotLayersForExport(),
+    );
+    _pushDocumentHistorySnapshot(snapshot: historySnapshot);
     debugPrint(
       'canvasPage: resizeImage result '
       '${result.width}x${result.height} layers=${result.layers.length}',
@@ -1051,6 +1056,10 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
+    final ProjectDocument historySnapshot = _document.copyWith(
+      layers: await board.snapshotLayersForExport(),
+    );
+    _pushDocumentHistorySnapshot(snapshot: historySnapshot);
     debugPrint(
       'canvasPage: resizeCanvas result '
       '${result.width}x${result.height} layers=${result.layers.length}',
@@ -1334,7 +1343,6 @@ class CanvasPageState extends State<CanvasPage> {
       'canvasPage: applyCanvasResize '
       '${result.width}x${result.height} layers=${result.layers.length}',
     );
-    _pushDocumentHistorySnapshot();
     final CanvasSettings updatedSettings = _document.settings.copyWith(
       width: result.width.toDouble(),
       height: result.height.toDouble(),

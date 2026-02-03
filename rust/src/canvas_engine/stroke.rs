@@ -148,11 +148,20 @@ impl StrokeResampler {
         const FLAG_UP: u32 = 4;
 
         if points.is_empty() {
+            if debug::level() >= LogLevel::Info && brush_settings.streamline_strength > 0.0001 {
+                debug::log(
+                    LogLevel::Info,
+                    format_args!("stroke consume skipped: points=0"),
+                );
+            }
             self.last_tick_dirty = None;
             return false;
         }
 
+        let points_len = points.len();
         let mut emitted: Vec<(Point2D, f32)> = Vec::new();
+        let mut down_count: usize = 0;
+        let mut up_count: usize = 0;
 
         for p in points {
             let x = if p.x.is_finite() { p.x } else { 0.0 };
@@ -165,6 +174,12 @@ impl StrokeResampler {
 
             let is_down = (p.flags & FLAG_DOWN) != 0;
             let is_up = (p.flags & FLAG_UP) != 0;
+            if is_down {
+                down_count += 1;
+            }
+            if is_up {
+                up_count += 1;
+            }
             if is_down {
                 self.begin_streamline(brush_settings.streamline_strength);
             }
@@ -230,10 +245,18 @@ impl StrokeResampler {
         self.record_streamline_points(&emitted);
 
         if emitted.is_empty() {
+            if debug::level() >= LogLevel::Info && brush_settings.streamline_strength > 0.0001 {
+                debug::log(
+                    LogLevel::Info,
+                    format_args!(
+                        "stroke consume skipped: points={points_len} down={down_count} up={up_count} emitted=0"
+                    ),
+                );
+            }
             self.last_tick_dirty = None;
             return false;
         }
-        self.draw_emitted_points(
+        let drawn = self.draw_emitted_points(
             brush,
             brush_settings,
             layer_view,
@@ -241,7 +264,17 @@ impl StrokeResampler {
             canvas_width,
             canvas_height,
             before_draw,
-        )
+        );
+        if debug::level() >= LogLevel::Info && brush_settings.streamline_strength > 0.0001 {
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "stroke consume drawn={drawn} points={points_len} down={down_count} up={up_count} emitted={}",
+                    emitted.len()
+                ),
+            );
+        }
+        drawn
     }
 
     pub(crate) fn draw_emitted_points<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32))>(

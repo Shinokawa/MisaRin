@@ -381,6 +381,12 @@ fn render_streamline_frame(
     };
     let layer_texture = layers.texture();
     if !undo_manager.restore_current_before(device.as_ref(), queue.as_ref(), layer_texture) {
+        if debug::level() >= LogLevel::Info {
+            debug::log(
+                LogLevel::Info,
+                format_args!("streamline restore skipped: no undo tiles"),
+            );
+        }
         return false;
     }
     if animation.use_hollow_mask {
@@ -429,6 +435,17 @@ fn render_streamline_frame(
         canvas_height,
         &mut before_draw,
     );
+    if debug::level() >= LogLevel::Info {
+        debug::log(
+            LogLevel::Info,
+            format_args!(
+                "streamline frame t={:.3} points={} drawn={}",
+                t,
+                animation.scratch.len(),
+                drawn_any
+            ),
+        );
+    }
     if drawn_any {
         if let Some(entry) = layer_uniform.get_mut(layer_idx) {
             *entry = None;
@@ -845,6 +862,19 @@ fn render_thread_main(
                                 if points.len() > 2 && strength > 0.0001 {
                                     let smoothed = apply_streamline(&points, strength);
                                     if !smoothed.is_empty() && smoothed.len() == points.len() {
+                                        if debug::level() >= LogLevel::Info {
+                                            let duration =
+                                                streamline_animation_duration(strength);
+                                            debug::log(
+                                                LogLevel::Info,
+                                                format_args!(
+                                                    "streamline start points={} strength={:.3} duration_ms={}",
+                                                    points.len(),
+                                                    strength,
+                                                    duration.as_millis()
+                                                ),
+                                            );
+                                        }
                                         let now = Instant::now();
                                         streamline_animation = Some(StreamlineAnimation {
                                             start: now,
