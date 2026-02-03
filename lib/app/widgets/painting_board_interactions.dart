@@ -7,6 +7,10 @@ const int _kRustPointFlagMove = 2;
 const int _kRustPointFlagUp = 4;
 const double _kRustPressureMinFactor = 0.09;
 const double _kRustPressureMaxFactor = 1.0;
+const bool _kDebugRustCanvasInput = bool.fromEnvironment(
+  'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
+  defaultValue: false,
+);
 
 final class _RustPointBuffer {
   _RustPointBuffer({int initialCapacityPoints = 256})
@@ -811,11 +815,25 @@ mixin _PaintingBoardInteractionMixin
       flags: flags,
       pointerId: event.pointer,
     );
+    if (_kDebugRustCanvasInput &&
+        (flags == _kRustPointFlagDown || flags == _kRustPointFlagUp)) {
+      final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+      debugPrint(
+        '[rust_canvas] enqueue flags=$flags points=${_rustPoints.length} '
+        'queued=$queued streamline=${_streamlineStrength.toStringAsFixed(3)}',
+      );
+    }
     _scheduleRustFlush();
   }
 
   void _scheduleRustFlush() {
     if (_rustWaitingForFirstMove && _rustPoints.length <= 1) {
+      if (_kDebugRustCanvasInput && _rustPoints.length == 1) {
+        debugPrint(
+          '[rust_canvas] flush skipped: waiting first move '
+          'streamline=${_streamlineStrength.toStringAsFixed(3)}',
+        );
+      }
       return;
     }
     if (_rustFlushScheduled) {
@@ -841,6 +859,13 @@ mixin _PaintingBoardInteractionMixin
     final int count = _rustPoints.length;
     if (count == 0) {
       return;
+    }
+    if (_kDebugRustCanvasInput) {
+      final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+      debugPrint(
+        '[rust_canvas] flush points=$count queued_before=$queued '
+        'streamline=${_streamlineStrength.toStringAsFixed(3)}',
+      );
     }
     CanvasEngineFfi.instance.pushPointsPacked(
       handle: handle,

@@ -264,36 +264,21 @@ mixin _PaintingBoardLayerMixin
     if (oldIndex < 0 || oldIndex >= length || newIndex < 0) {
       return;
     }
-    final List<String> orderedIds = _layers
-        .map((BitmapLayerState layer) => layer.id)
-        .toList(growable: false)
-        .reversed
-        .toList(growable: false);
-    if (oldIndex >= orderedIds.length) {
-      return;
-    }
-    final String movedId = orderedIds[oldIndex];
     int targetIndex = newIndex;
+    if (targetIndex > length) {
+      targetIndex = length;
+    }
     if (targetIndex > oldIndex) {
       targetIndex -= 1;
     }
-    targetIndex = targetIndex.clamp(0, orderedIds.length - 1);
-    orderedIds.removeAt(oldIndex);
-    orderedIds.insert(targetIndex, movedId);
-    final List<String> nextOrder = orderedIds.reversed.toList(growable: false);
-    final int actualOldIndex = _layers.indexWhere(
-      (BitmapLayerState layer) => layer.id == movedId,
-    );
-    if (actualOldIndex < 0) {
-      return;
+    targetIndex = targetIndex.clamp(0, length - 1);
+    final int actualOldIndex = length - 1 - oldIndex;
+    int actualNewIndex = length - 1 - targetIndex;
+    if (actualNewIndex > actualOldIndex) {
+      actualNewIndex += 1;
     }
-    final int desiredIndex = nextOrder.indexOf(movedId);
-    if (desiredIndex < 0 || desiredIndex == actualOldIndex) {
+    if (actualOldIndex == actualNewIndex) {
       return;
-    }
-    int actualNewIndex = desiredIndex;
-    if (desiredIndex > actualOldIndex) {
-      actualNewIndex = desiredIndex + 1;
     }
     if (widget.useRustCanvas) {
       if (!_canUseRustCanvasEngine()) {

@@ -274,6 +274,15 @@ impl StrokeResampler {
                 ),
             );
         }
+        if !drawn && brush_settings.streamline_strength > 0.0001 {
+            debug::log(
+                LogLevel::Warn,
+                format_args!(
+                    "stroke consume no-draw points={points_len} down={down_count} up={up_count} emitted={}",
+                    emitted.len()
+                ),
+            );
+        }
         drawn
     }
 
