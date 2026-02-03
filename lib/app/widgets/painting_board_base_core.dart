@@ -345,6 +345,23 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     return _syncLayerPixelsFromRust(layer);
   }
 
+  bool _syncAllLayerPixelsFromRust() {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final List<BitmapLayerState> layers = _controller.layers;
+    if (layers.isEmpty) {
+      return true;
+    }
+    bool allOk = true;
+    for (final BitmapLayerState layer in layers) {
+      if (!_syncLayerPixelsFromRust(layer)) {
+        allOk = false;
+      }
+    }
+    return allOk;
+  }
+
   bool _commitActiveLayerToRust({bool recordUndo = true}) {
     if (!_canUseRustCanvasEngine()) {
       return false;
@@ -387,6 +404,45 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       _markDirty();
     }
     return applied;
+  }
+
+  bool _syncAllLayerPixelsToRust({bool recordUndo = false}) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    final List<BitmapLayerState> layers = _controller.layers;
+    bool allOk = true;
+    for (int i = 0; i < layers.length; i++) {
+      final BitmapLayerState layer = layers[i];
+      if (layer.surface.width != width || layer.surface.height != height) {
+        allOk = false;
+        continue;
+      }
+      if (layer.surface.pixels.length != width * height) {
+        allOk = false;
+        continue;
+      }
+      final bool applied = CanvasEngineFfi.instance.writeLayer(
+        handle: handle,
+        layerIndex: i,
+        pixels: layer.surface.pixels,
+        recordUndo: recordUndo,
+      );
+      if (!applied) {
+        allOk = false;
+      }
+    }
+    return allOk;
   }
 
   List<_SyntheticStrokeSample> _buildSyntheticStrokeSamples(

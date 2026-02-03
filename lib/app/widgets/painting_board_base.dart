@@ -106,6 +106,17 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
 
   List<CanvasLayerData> snapshotLayers() => _controller.snapshotLayers();
 
+  Future<List<CanvasLayerData>> snapshotLayersForExport() async {
+    await _controller.waitForPendingWorkerTasks();
+    if (_canUseRustCanvasEngine()) {
+      final bool ok = _syncAllLayerPixelsFromRust();
+      if (!ok) {
+        debugPrint('Rust 画布同步图层失败，导出将使用当前缓存数据。');
+      }
+    }
+    return _controller.snapshotLayers();
+  }
+
   CanvasRotationResult? rotateCanvas(CanvasRotation rotation) {
     final int width = _controller.width;
     final int height = _controller.height;
@@ -607,19 +618,25 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _historyLimit = AppPreferences.instance.historyLimit;
   }
 
-  Future<void> _pushUndoSnapshot({_CanvasHistoryEntry? entry}) async {
+  Future<void> _pushUndoSnapshot({
+    _CanvasHistoryEntry? entry,
+    bool rustPixelsSynced = false,
+  }) async {
     _refreshHistoryLimit();
     if (_historyLocked) {
       return;
     }
-    final _CanvasHistoryEntry snapshot = entry ?? await _createHistoryEntry();
+    final _CanvasHistoryEntry snapshot =
+        entry ?? await _createHistoryEntry(rustPixelsSynced: rustPixelsSynced);
     _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();
     _recordDartHistoryAction();
   }
 
-  Future<_CanvasHistoryEntry> _createHistoryEntry() async {
+  Future<_CanvasHistoryEntry> _createHistoryEntry({
+    bool rustPixelsSynced = false,
+  }) async {
     await _controller.waitForPendingWorkerTasks();
     return _CanvasHistoryEntry(
       layers: _controller.snapshotLayers(),
@@ -632,6 +649,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       selectionPath: selectionPathSnapshot != null
           ? (Path()..addPath(selectionPathSnapshot!, Offset.zero))
           : null,
+      rustPixelsSynced: rustPixelsSynced,
     );
   }
 
@@ -663,6 +681,13 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     resetSelectionUndoFlag();
     _updateSelectionAnimation();
     _syncRustCanvasLayersToEngine();
+    if (_canUseRustCanvasEngine()) {
+      if (entry.rustPixelsSynced) {
+        _syncAllLayerPixelsToRust();
+      } else {
+        _syncAllLayerPixelsFromRust();
+      }
+    }
   }
 
   void _refreshHistoryLimit() {

@@ -1689,7 +1689,11 @@ mixin _PaintingBoardInteractionMixin
           return false;
         }
         final _CanvasHistoryEntry previous = _undoStack.removeLast();
-        _redoStack.add(await _createHistoryEntry());
+        _redoStack.add(
+          await _createHistoryEntry(
+            rustPixelsSynced: previous.rustPixelsSynced,
+          ),
+        );
         _commitHistoryUndoAction();
         _trimHistoryStacks();
         await _applyHistoryEntry(previous);
@@ -1700,7 +1704,9 @@ mixin _PaintingBoardInteractionMixin
       return false;
     }
     final _CanvasHistoryEntry previous = _undoStack.removeLast();
-    _redoStack.add(await _createHistoryEntry());
+    _redoStack.add(
+      await _createHistoryEntry(rustPixelsSynced: previous.rustPixelsSynced),
+    );
     _trimHistoryStacks();
     await _applyHistoryEntry(previous);
     return true;
@@ -1726,7 +1732,9 @@ mixin _PaintingBoardInteractionMixin
           return false;
         }
         final _CanvasHistoryEntry next = _redoStack.removeLast();
-        _undoStack.add(await _createHistoryEntry());
+        _undoStack.add(
+          await _createHistoryEntry(rustPixelsSynced: next.rustPixelsSynced),
+        );
         _commitHistoryRedoAction();
         _trimHistoryStacks();
         await _applyHistoryEntry(next);
@@ -1737,7 +1745,9 @@ mixin _PaintingBoardInteractionMixin
       return false;
     }
     final _CanvasHistoryEntry next = _redoStack.removeLast();
-    _undoStack.add(await _createHistoryEntry());
+    _undoStack.add(
+      await _createHistoryEntry(rustPixelsSynced: next.rustPixelsSynced),
+    );
     _trimHistoryStacks();
     await _applyHistoryEntry(next);
     return true;

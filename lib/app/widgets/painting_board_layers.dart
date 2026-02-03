@@ -219,15 +219,27 @@ mixin _PaintingBoardLayerMixin
     if (_layers.length <= 1) {
       return;
     }
-    if (widget.useRustCanvas && id != _layers.last.id) {
-      _showRustCanvasMessage('Rust 画布目前暂不支持删除非最上层图层。');
-      return;
+    if (widget.useRustCanvas) {
+      if (!_canUseRustCanvasEngine()) {
+        _showRustCanvasMessage('Rust 画布尚未准备好。');
+        return;
+      }
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return;
+      }
     }
-    await _pushUndoSnapshot();
+    await _pushUndoSnapshot(rustPixelsSynced: widget.useRustCanvas);
     _controller.removeLayer(id);
     setState(() {});
     _markDirty();
     _syncRustCanvasLayersToEngine();
+    if (widget.useRustCanvas) {
+      if (!_syncAllLayerPixelsToRust()) {
+        _showRustCanvasMessage('Rust 画布写入图层失败。');
+      }
+    }
   }
 
   Widget _buildAddLayerButton() {
@@ -565,11 +577,29 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleMergeLayerDown(BitmapLayerState layer) async {
-    if (widget.useRustCanvas) {
-      _showRustCanvasMessage('Rust 画布目前暂不支持图层合并。');
+    if (!_canMergeLayerDown(layer)) {
       return;
     }
-    if (!_canMergeLayerDown(layer)) {
+    if (widget.useRustCanvas) {
+      if (!_canUseRustCanvasEngine()) {
+        _showRustCanvasMessage('Rust 画布尚未准备好。');
+        return;
+      }
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return;
+      }
+      await _pushUndoSnapshot(rustPixelsSynced: true);
+      if (!_controller.mergeLayerDown(layer.id)) {
+        return;
+      }
+      _syncRustCanvasLayersToEngine();
+      if (!_syncAllLayerPixelsToRust()) {
+        _showRustCanvasMessage('Rust 画布写入图层失败。');
+      }
+      setState(() {});
+      _markDirty();
       return;
     }
     await _pushUndoSnapshot();

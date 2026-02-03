@@ -395,6 +395,14 @@ class PaintingBoardState extends _PaintingBoardBase
       return false;
     }
     try {
+      final bool rustSynced = _canUseRustCanvasEngine();
+      if (rustSynced) {
+        await _controller.waitForPendingWorkerTasks();
+        if (!_syncAllLayerPixelsFromRust()) {
+          _showRustCanvasMessage('Rust 画布同步图层失败。');
+          return false;
+        }
+      }
       final _ImportedImageData decoded = await _decodeExternalImage(bytes);
       final int canvasWidth = widget.settings.width.round();
       final int canvasHeight = widget.settings.height.round();
@@ -411,9 +419,15 @@ class PaintingBoardState extends _PaintingBoardBase
         bitmapTop: offsetY,
         cloneBitmap: false,
       );
-      await _pushUndoSnapshot();
+      await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
       _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
       _controller.setActiveLayer(layerData.id);
+      if (_canUseRustCanvasEngine()) {
+        _syncRustCanvasLayersToEngine();
+        if (!_syncAllLayerPixelsToRust()) {
+          _showRustCanvasMessage('Rust 画布写入图层失败。');
+        }
+      }
       setState(() {});
       _markDirty();
       return true;
@@ -941,6 +955,7 @@ class _CanvasHistoryEntry {
     required this.selectionShape,
     this.selectionMask,
     this.selectionPath,
+    this.rustPixelsSynced = false,
   });
 
   final List<CanvasLayerData> layers;
@@ -949,6 +964,7 @@ class _CanvasHistoryEntry {
   final SelectionShape selectionShape;
   final Uint8List? selectionMask;
   final Path? selectionPath;
+  final bool rustPixelsSynced;
 }
 
 StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;

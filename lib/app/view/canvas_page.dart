@@ -548,7 +548,7 @@ class CanvasPageState extends State<CanvasPage> {
     }
     setState(() => _isAutoSaving = true);
     try {
-      final layers = board.snapshotLayers();
+      final layers = await board.snapshotLayersForExport();
       final preview = await _exporter.exportToPng(
         settings: _document.settings,
         layers: layers,
@@ -665,7 +665,7 @@ class CanvasPageState extends State<CanvasPage> {
 
     setState(() => _isSaving = true);
     try {
-      final layers = board.snapshotLayers();
+      final layers = await board.snapshotLayersForExport();
       final perspective = board.snapshotPerspectiveGuide();
       final preview = await _exporter.exportToPng(
         settings: _document.settings,
@@ -732,7 +732,7 @@ class CanvasPageState extends State<CanvasPage> {
     setState(() => _isSaving = true);
     final l10n = context.l10n;
     try {
-      final layers = board.snapshotLayers();
+      final layers = await board.snapshotLayersForExport();
       final perspective = board.snapshotPerspectiveGuide();
       final Uint8List preview = await _exporter.exportToPng(
         settings: _document.settings,
@@ -873,7 +873,7 @@ class CanvasPageState extends State<CanvasPage> {
 
     try {
       setState(() => _isSaving = true);
-      final layers = board.snapshotLayers();
+      final layers = await board.snapshotLayersForExport();
       final Uint8List bytes = exportVector
           ? await _exporter.exportToSvg(
               settings: _document.settings,
