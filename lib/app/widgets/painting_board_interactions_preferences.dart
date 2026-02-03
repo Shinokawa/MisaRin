@@ -87,6 +87,17 @@ extension _PaintingBoardInteractionPreferencesExtension on _PaintingBoardInterac
     unawaited(AppPreferences.save());
   }
 
+  void _updateStreamlineStrength(double value) {
+    final double clamped = value.clamp(0.0, 1.0);
+    if ((_streamlineStrength - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _streamlineStrength = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.streamlineStrength = clamped;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateStylusPressureEnabled(bool value) {
     if (_stylusPressureEnabled == value) {
       return;

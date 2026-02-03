@@ -85,6 +85,36 @@ impl UndoManager {
         self.current = None;
     }
 
+    pub(crate) fn reorder_layers(&mut self, from: u32, to: u32) {
+        if from == to {
+            return;
+        }
+        for record in self.undo_stack.iter_mut() {
+            record.layer_index = remap_layer_index(record.layer_index, from, to);
+        }
+        for record in self.redo_stack.iter_mut() {
+            record.layer_index = remap_layer_index(record.layer_index, from, to);
+        }
+        if let Some(active) = self.current.as_mut() {
+            active.layer_index = remap_layer_index(active.layer_index, from, to);
+            if !active.tiles.is_empty() {
+                let mut next = HashMap::with_capacity(active.tiles.len());
+                for (key, value) in active.tiles.drain() {
+                    let remapped = remap_layer_index(key.layer_index, from, to);
+                    next.insert(
+                        UndoTileKey {
+                            tx: key.tx,
+                            ty: key.ty,
+                            layer_index: remapped,
+                        },
+                        value,
+                    );
+                }
+                active.tiles = next;
+            }
+        }
+    }
+
     pub(crate) fn capture_before_for_dirty_rect(
         &mut self,
         device: &wgpu::Device,
@@ -288,6 +318,51 @@ impl UndoManager {
         self.redo_stack.clear();
     }
 
+    pub(crate) fn restore_current_before(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layer_texture: &wgpu::Texture,
+    ) -> bool {
+        let Some(active) = self.current.as_ref() else {
+            return false;
+        };
+        if active.tiles.is_empty() {
+            return false;
+        }
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("misa-rin undo restore current before encoder"),
+        });
+        for tile in active.tiles.values() {
+            encoder.copy_texture_to_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &tile.before,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::ImageCopyTexture {
+                    texture: layer_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: tile.rect.left,
+                        y: tile.rect.top,
+                        z: active.layer_index,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width: tile.rect.width,
+                    height: tile.rect.height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        queue.submit(Some(encoder.finish()));
+        true
+    }
+
     pub(crate) fn undo(
         &mut self,
         device: &wgpu::Device,
@@ -389,4 +464,23 @@ impl UndoManager {
         self.undo_stack.push(record);
         true
     }
+}
+
+fn remap_layer_index(index: u32, from: u32, to: u32) -> u32 {
+    if from == to {
+        return index;
+    }
+    if index == from {
+        return to;
+    }
+    if from < to {
+        if index > from && index <= to {
+            return index.saturating_sub(1);
+        }
+    } else if from > to {
+        if index >= to && index < from {
+            return index.saturating_add(1);
+        }
+    }
+    index
 }

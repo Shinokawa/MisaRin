@@ -315,6 +315,22 @@ pub extern "C" fn engine_set_layer_blend_mode(
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 #[no_mangle]
+pub extern "C" fn engine_reorder_layer(handle: u64, from_index: u32, to_index: u32) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::ReorderLayer {
+        from_index,
+        to_index,
+    });
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[no_mangle]
+pub extern "C" fn engine_reorder_layer(_handle: u64, _from_index: u32, _to_index: u32) {}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[no_mangle]
 pub extern "C" fn engine_set_view_flags(handle: u64, view_flags: u32) {
     let Some(entry) = lookup_engine(handle) else {
         return;
@@ -343,6 +359,7 @@ pub extern "C" fn engine_set_brush(
     hollow_enabled: u8,
     hollow_ratio: f32,
     hollow_erase_occluded: u8,
+    streamline_strength: f32,
 ) {
     let Some(entry) = lookup_engine(handle) else {
         return;
@@ -359,6 +376,7 @@ pub extern "C" fn engine_set_brush(
         hollow_enabled: hollow_enabled != 0,
         hollow_ratio,
         hollow_erase_occluded: hollow_erase_occluded != 0,
+        streamline_strength,
     });
 }
 
@@ -377,6 +395,7 @@ pub extern "C" fn engine_set_brush(
     _hollow_enabled: u8,
     _hollow_ratio: f32,
     _hollow_erase_occluded: u8,
+    _streamline_strength: f32,
 ) {
 }
 

@@ -31,6 +31,7 @@ class AppPreferences {
     required this.autoSharpPeakEnabled,
     required this.penStrokeSliderRange,
     required this.strokeStabilizerStrength,
+    this.streamlineStrength = _defaultStreamlineStrength,
     required this.brushShape,
     this.brushRandomRotationEnabled = _defaultBrushRandomRotationEnabled,
     required this.layerAdjustCropOutside,
@@ -61,7 +62,7 @@ class AppPreferences {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 37;
+  static const int _version = 38;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -80,6 +81,7 @@ class AppPreferences {
   static const PenStrokeSliderRange _defaultPenStrokeSliderRange =
       PenStrokeSliderRange.compact;
   static const double _defaultStrokeStabilizerStrength = 10.0 / 30.0;
+  static const double _defaultStreamlineStrength = 0.0;
   static const BrushShape _defaultBrushShape = BrushShape.circle;
   static const bool _defaultBrushRandomRotationEnabled = false;
   static const bool _defaultHollowStrokeEnabled = false;
@@ -119,6 +121,7 @@ class AppPreferences {
       _defaultPenStrokeSliderRange;
   static const double defaultStrokeStabilizerStrength =
       _defaultStrokeStabilizerStrength;
+  static const double defaultStreamlineStrength = _defaultStreamlineStrength;
   static const BrushShape defaultBrushShape = _defaultBrushShape;
   static const bool defaultBrushRandomRotationEnabled =
       _defaultBrushRandomRotationEnabled;
@@ -167,6 +170,7 @@ class AppPreferences {
   bool autoSharpPeakEnabled;
   PenStrokeSliderRange penStrokeSliderRange;
   double strokeStabilizerStrength;
+  double streamlineStrength;
   BrushShape brushShape;
   bool brushRandomRotationEnabled;
   bool hollowStrokeEnabled;
@@ -246,6 +250,10 @@ class AppPreferences {
               version >= 35 && bytes.length >= 51
                   ? bytes[50] != 0
                   : _defaultBrushRandomRotationEnabled;
+          final double decodedStreamlineStrength =
+              version >= 38 && bytes.length >= 52
+                  ? _decodeStreamlineStrength(bytes[51])
+                  : _defaultStreamlineStrength;
           if (version >= 20 && bytes.length >= 26) {
             final bool hasWorkspaceSplitPayload =
                 version >= 21 && bytes.length >= 32;
@@ -330,6 +338,7 @@ class AppPreferences {
                 strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
                   bytes[15],
                 ),
+                streamlineStrength: decodedStreamlineStrength,
                 brushShape: _decodeBrushShape(bytes[16]),
                 brushRandomRotationEnabled: decodedBrushRandomRotationEnabled,
                 layerAdjustCropOutside: bytes[17] != 0,
@@ -1154,6 +1163,9 @@ class AppPreferences {
     prefs.strokeStabilizerStrength = _clampStrokeStabilizerStrength(
       prefs.strokeStabilizerStrength,
     );
+    prefs.streamlineStrength = _clampStreamlineStrength(
+      prefs.streamlineStrength,
+    );
 
     final int stylusCurveEncoded = _encodeStylusFactor(
       stylusCurve,
@@ -1165,6 +1177,9 @@ class AppPreferences {
     );
     final int stabilizerEncoded = _encodeStrokeStabilizerStrength(
       prefs.strokeStabilizerStrength,
+    );
+    final int streamlineEncoded = _encodeStreamlineStrength(
+      prefs.streamlineStrength,
     );
     final int colorLineEncoded = _encodeColorLineColor(prefs.colorLineColor);
     final int floatingColorEncoded = _encodePanelExtent(
@@ -1239,7 +1254,7 @@ class AppPreferences {
       bucketSwallowColorLineModeEncoded,
       bucketFillGapEncoded,
       prefs.brushRandomRotationEnabled ? 1 : 0,
-      0,
+      streamlineEncoded,
       0,
     ]);
     await _writePreferencesPayload(payload);
@@ -1587,6 +1602,16 @@ class AppPreferences {
     return (clamped * 255.0).round().clamp(0, 255);
   }
 
+  static double _decodeStreamlineStrength(int value) {
+    final int clamped = value.clamp(0, 255);
+    return clamped / 255.0;
+  }
+
+  static int _encodeStreamlineStrength(double value) {
+    final double clamped = _clampStreamlineStrength(value);
+    return (clamped * 255.0).round().clamp(0, 255);
+  }
+
   static BrushShape _decodeBrushShape(int value) {
     switch (value) {
       case 1:
@@ -1617,6 +1642,16 @@ class AppPreferences {
   static double _clampStrokeStabilizerStrength(double value) {
     if (!value.isFinite) {
       return _defaultStrokeStabilizerStrength;
+    }
+    return value.clamp(
+      _strokeStabilizerLowerBound,
+      _strokeStabilizerUpperBound,
+    );
+  }
+
+  static double _clampStreamlineStrength(double value) {
+    if (!value.isFinite) {
+      return _defaultStreamlineStrength;
     }
     return value.clamp(
       _strokeStabilizerLowerBound,

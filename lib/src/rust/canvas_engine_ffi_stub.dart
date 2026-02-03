@@ -28,6 +28,7 @@ class CanvasEngineFfi {
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
+    double streamlineStrength = 0.0,
   }) {}
 
   bool applyFilter({
@@ -74,6 +75,12 @@ class CanvasEngineFfi {
     required int handle,
     required int layerIndex,
     required int blendModeIndex,
+  }) {}
+
+  void reorderLayer({
+    required int handle,
+    required int fromIndex,
+    required int toIndex,
   }) {}
 
   void setViewFlags({

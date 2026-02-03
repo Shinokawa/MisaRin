@@ -16,6 +16,7 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) hollow_enabled: bool,
     pub(crate) hollow_ratio: f32,
     pub(crate) hollow_erase_occluded: bool,
+    pub(crate) streamline_strength: f32,
 }
 
 impl Default for EngineBrushSettings {
@@ -32,6 +33,7 @@ impl Default for EngineBrushSettings {
             hollow_enabled: false,
             hollow_ratio: 0.0,
             hollow_erase_occluded: false,
+            streamline_strength: 0.0,
         }
     }
 }
@@ -49,6 +51,11 @@ impl EngineBrushSettings {
         } else {
             self.hollow_ratio = self.hollow_ratio.clamp(0.0, 1.0);
         }
+        if !self.streamline_strength.is_finite() {
+            self.streamline_strength = 0.0;
+        } else {
+            self.streamline_strength = self.streamline_strength.clamp(0.0, 1.0);
+        }
         self.antialias_level = self.antialias_level.clamp(0, 3);
     }
 
@@ -57,10 +64,18 @@ impl EngineBrushSettings {
     }
 }
 
+pub(crate) struct StreamlinePayload {
+    pub(crate) points: Vec<(Point2D, f32)>,
+    pub(crate) strength: f32,
+}
+
 pub(crate) struct StrokeResampler {
     last_emitted: Option<Point2D>,
     last_pressure: f32,
     last_tick_dirty: Option<(i32, i32, i32, i32)>,
+    streamline_points: Vec<(Point2D, f32)>,
+    streamline_active: bool,
+    streamline_strength: f32,
 }
 
 impl StrokeResampler {
@@ -69,6 +84,53 @@ impl StrokeResampler {
             last_emitted: None,
             last_pressure: 1.0,
             last_tick_dirty: None,
+            streamline_points: Vec::new(),
+            streamline_active: false,
+            streamline_strength: 0.0,
+        }
+    }
+
+    pub(crate) fn take_streamline_payload(&mut self) -> Option<StreamlinePayload> {
+        if !self.streamline_active {
+            self.streamline_points.clear();
+            self.streamline_strength = 0.0;
+            return None;
+        }
+        let points = std::mem::take(&mut self.streamline_points);
+        let strength = self.streamline_strength;
+        self.streamline_active = false;
+        self.streamline_strength = 0.0;
+        if points.len() < 2 || strength <= 0.0001 {
+            return None;
+        }
+        Some(StreamlinePayload { points, strength })
+    }
+
+    fn begin_streamline(&mut self, strength: f32) {
+        let strength = if strength.is_finite() {
+            strength.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        self.streamline_strength = strength;
+        self.streamline_active = strength > 0.0001;
+        self.streamline_points.clear();
+    }
+
+    fn record_streamline_points(&mut self, emitted: &[(Point2D, f32)]) {
+        if !self.streamline_active || emitted.is_empty() {
+            return;
+        }
+        for (point, pressure) in emitted {
+            if let Some((last_point, last_pressure)) = self.streamline_points.last() {
+                let dx = point.x - last_point.x;
+                let dy = point.y - last_point.y;
+                let dist2 = dx * dx + dy * dy;
+                if dist2 <= 1.0e-6 && (pressure - last_pressure).abs() <= 1.0e-4 {
+                    continue;
+                }
+            }
+            self.streamline_points.push((*point, *pressure));
         }
     }
 
@@ -103,6 +165,9 @@ impl StrokeResampler {
 
             let is_down = (p.flags & FLAG_DOWN) != 0;
             let is_up = (p.flags & FLAG_UP) != 0;
+            if is_down {
+                self.begin_streamline(brush_settings.streamline_strength);
+            }
 
             let current = Point2D { x, y };
             if is_down || self.last_emitted.is_none() {
@@ -162,224 +227,232 @@ impl StrokeResampler {
             emitted
         };
 
+        self.record_streamline_points(&emitted);
+
         if emitted.is_empty() {
             self.last_tick_dirty = None;
             return false;
         }
+        self.draw_emitted_points(
+            brush,
+            brush_settings,
+            layer_view,
+            &emitted,
+            canvas_width,
+            canvas_height,
+            before_draw,
+        )
+    }
 
-        brush.set_canvas_size(canvas_width, canvas_height);
+    pub(crate) fn draw_emitted_points<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32))>(
+        &mut self,
+        brush: &mut BrushRenderer,
+        brush_settings: &EngineBrushSettings,
+        layer_view: &wgpu::TextureView,
+        emitted: &[(Point2D, f32)],
+        canvas_width: u32,
+        canvas_height: u32,
+        before_draw: &mut F,
+    ) -> bool {
+        let (drew_any, dirty_union) = draw_emitted_points_internal(
+            brush,
+            brush_settings,
+            layer_view,
+            emitted,
+            canvas_width,
+            canvas_height,
+            before_draw,
+        );
+        self.last_tick_dirty = dirty_union;
+        drew_any
+    }
+}
 
-        let hollow_enabled = brush_settings.hollow_enabled
-            && !brush_settings.erase
-            && brush_settings.hollow_ratio > 0.0001;
-        let hollow_ratio = if hollow_enabled {
-            brush_settings.hollow_ratio
+fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32))>(
+    brush: &mut BrushRenderer,
+    brush_settings: &EngineBrushSettings,
+    layer_view: &wgpu::TextureView,
+    emitted: &[(Point2D, f32)],
+    canvas_width: u32,
+    canvas_height: u32,
+    before_draw: &mut F,
+) -> (bool, Option<(i32, i32, i32, i32)>) {
+    if emitted.is_empty() {
+        return (false, None);
+    }
+
+    brush.set_canvas_size(canvas_width, canvas_height);
+
+    let hollow_enabled = brush_settings.hollow_enabled
+        && !brush_settings.erase
+        && brush_settings.hollow_ratio > 0.0001;
+    let hollow_ratio = if hollow_enabled {
+        brush_settings.hollow_ratio
+    } else {
+        0.0
+    };
+    let hollow_erase = hollow_enabled && brush_settings.hollow_erase_occluded;
+
+    let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
+    let mut drew_any = false;
+    let dirty_scale = 1.0;
+
+    if emitted.len() == 1 {
+        let (p0, pres0) = emitted[0];
+        let r0 = brush_settings.radius_from_pressure(pres0);
+        let dirty_r0 = r0 * dirty_scale;
+        let dirty = compute_dirty_rect_i32(&[p0], &[dirty_r0], canvas_width, canvas_height);
+        before_draw(brush, dirty);
+        let rotation = if brush_settings.random_rotation
+            && !matches!(brush_settings.shape, BrushShape::Circle)
+        {
+            brush_random_rotation_radians(p0, brush_settings.rotation_seed)
         } else {
             0.0
         };
-        let hollow_erase = hollow_enabled && brush_settings.hollow_erase_occluded;
-
-        let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
-        let mut drew_any = false;
-        let dirty_scale = 1.0;
-
-        if emitted.len() == 1 {
-            let (p0, pres0) = emitted[0];
-            let r0 = brush_settings.radius_from_pressure(pres0);
-            let dirty_r0 = r0 * dirty_scale;
-            let dirty = compute_dirty_rect_i32(&[p0], &[dirty_r0], canvas_width, canvas_height);
-            before_draw(brush, dirty);
-            let rotation = if brush_settings.random_rotation
-                && !matches!(brush_settings.shape, BrushShape::Circle)
-            {
-                brush_random_rotation_radians(p0, brush_settings.rotation_seed)
-            } else {
-                0.0
-            };
-            match brush.draw_stroke(
-                layer_view,
-                &[p0],
-                &[r0],
-                Color {
-                    argb: brush_settings.color_argb,
-                },
-                brush_settings.shape,
-                brush_settings.erase,
-                brush_settings.antialias_level,
-                rotation,
-                hollow_enabled,
-                hollow_ratio,
-                hollow_erase,
-                hollow_enabled,
-                false,
-            ) {
-                Ok(()) => {
-                    drew_any = true;
-                    dirty_union = union_dirty_rect_i32(dirty_union, dirty);
-                }
-                Err(err) => {
-                    debug::log(
-                        LogLevel::Warn,
-                        format_args!("Brush draw_stroke failed: {err}"),
-                    );
-                }
+        match brush.draw_stroke(
+            layer_view,
+            &[p0],
+            &[r0],
+            Color {
+                argb: brush_settings.color_argb,
+            },
+            brush_settings.shape,
+            brush_settings.erase,
+            brush_settings.antialias_level,
+            rotation,
+            hollow_enabled,
+            hollow_ratio,
+            hollow_erase,
+            hollow_enabled,
+            false,
+        ) {
+            Ok(()) => {
+                drew_any = true;
+                dirty_union = union_dirty_rect_i32(dirty_union, dirty);
             }
-        } else if hollow_enabled {
-            let mut points: Vec<Point2D> = Vec::with_capacity(emitted.len());
-            let mut radii: Vec<f32> = Vec::with_capacity(emitted.len());
-            for (p, pres) in &emitted {
-                points.push(*p);
-                radii.push(brush_settings.radius_from_pressure(*pres));
+            Err(err) => {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Brush draw_stroke failed: {err}"),
+                );
             }
-            let dirty_radii: Vec<f32> = radii.iter().map(|r| r * dirty_scale).collect();
-            let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
-            before_draw(brush, dirty);
-            let rotation = if brush_settings.random_rotation
-                && !matches!(brush_settings.shape, BrushShape::Circle)
-            {
-                brush_random_rotation_radians(points[0], brush_settings.rotation_seed)
-            } else {
-                0.0
-            };
-            match brush.draw_stroke(
-                layer_view,
-                &points,
-                &radii,
-                Color {
-                    argb: brush_settings.color_argb,
-                },
-                brush_settings.shape,
-                brush_settings.erase,
-                brush_settings.antialias_level,
-                rotation,
-                hollow_enabled,
-                hollow_ratio,
-                hollow_erase,
-                hollow_enabled,
-                false,
-            ) {
-                Ok(()) => {
-                    drew_any = true;
-                    dirty_union = union_dirty_rect_i32(dirty_union, dirty);
-                }
-                Err(err) => {
-                    debug::log(
-                        LogLevel::Warn,
-                        format_args!("Brush draw_stroke failed: {err}"),
-                    );
+        }
+    } else if hollow_enabled {
+        let mut points: Vec<Point2D> = Vec::with_capacity(emitted.len());
+        let mut radii: Vec<f32> = Vec::with_capacity(emitted.len());
+        for (p, pres) in emitted {
+            points.push(*p);
+            radii.push(brush_settings.radius_from_pressure(*pres));
+        }
+        let dirty_radii: Vec<f32> = radii.iter().map(|r| r * dirty_scale).collect();
+        let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
+        before_draw(brush, dirty);
+        let rotation = if brush_settings.random_rotation
+            && !matches!(brush_settings.shape, BrushShape::Circle)
+        {
+            brush_random_rotation_radians(points[0], brush_settings.rotation_seed)
+        } else {
+            0.0
+        };
+        match brush.draw_stroke(
+            layer_view,
+            &points,
+            &radii,
+            Color {
+                argb: brush_settings.color_argb,
+            },
+            brush_settings.shape,
+            brush_settings.erase,
+            brush_settings.antialias_level,
+            rotation,
+            hollow_enabled,
+            hollow_ratio,
+            hollow_erase,
+            hollow_enabled,
+            false,
+        ) {
+            Ok(()) => {
+                drew_any = true;
+                dirty_union = union_dirty_rect_i32(dirty_union, dirty);
+            }
+            Err(err) => {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Brush draw_stroke failed: {err}"),
+                );
+            }
+        }
+    } else {
+        let needs_per_segment_rotation =
+            brush_settings.random_rotation && !matches!(brush_settings.shape, BrushShape::Circle);
+        let color = Color {
+            argb: brush_settings.color_argb,
+        };
+        if needs_per_segment_rotation {
+            for i in 0..emitted.len().saturating_sub(1) {
+                let (p0, pres0) = emitted[i];
+                let (p1, pres1) = emitted[i + 1];
+                let r0 = brush_settings.radius_from_pressure(pres0);
+                let r1 = brush_settings.radius_from_pressure(pres1);
+                let pts = [p0, p1];
+                let radii = [r0, r1];
+                let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
+                let dirty = compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
+                before_draw(brush, dirty);
+                let rotation = brush_random_rotation_radians(p0, brush_settings.rotation_seed);
+                match brush.draw_stroke(
+                    layer_view,
+                    &pts,
+                    &radii,
+                    color,
+                    brush_settings.shape,
+                    brush_settings.erase,
+                    brush_settings.antialias_level,
+                    rotation,
+                    hollow_enabled,
+                    hollow_ratio,
+                    hollow_erase,
+                    hollow_enabled,
+                    false,
+                ) {
+                    Ok(()) => {
+                        drew_any = true;
+                        dirty_union = union_dirty_rect_i32(dirty_union, dirty);
+                    }
+                    Err(err) => {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("Brush draw_stroke failed: {err}"),
+                        );
+                    }
                 }
             }
         } else {
-            let needs_per_segment_rotation = brush_settings.random_rotation
-                && !matches!(brush_settings.shape, BrushShape::Circle);
-            let color = Color {
-                argb: brush_settings.color_argb,
-            };
-            if needs_per_segment_rotation {
-                for i in 0..emitted.len().saturating_sub(1) {
-                    let (p0, pres0) = emitted[i];
-                    let (p1, pres1) = emitted[i + 1];
-                    let r0 = brush_settings.radius_from_pressure(pres0);
-                    let r1 = brush_settings.radius_from_pressure(pres1);
-                    let pts = [p0, p1];
-                    let radii = [r0, r1];
-                    let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
-                    let dirty =
-                        compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
-                    before_draw(brush, dirty);
-                    let rotation = brush_random_rotation_radians(p0, brush_settings.rotation_seed);
-                    match brush.draw_stroke(
-                        layer_view,
-                        &pts,
-                        &radii,
-                        color,
-                        brush_settings.shape,
-                        brush_settings.erase,
-                        brush_settings.antialias_level,
-                        rotation,
-                        hollow_enabled,
-                        hollow_ratio,
-                        hollow_erase,
-                        hollow_enabled,
-                        false,
-                    ) {
-                        Ok(()) => {
-                            drew_any = true;
-                            dirty_union = union_dirty_rect_i32(dirty_union, dirty);
-                        }
-                        Err(err) => {
-                            debug::log(
-                                LogLevel::Warn,
-                                format_args!("Brush draw_stroke failed: {err}"),
-                            );
-                        }
-                    }
+            const MAX_BATCH_POINTS: usize = 128;
+            let mut batch_points: Vec<Point2D> = Vec::with_capacity(MAX_BATCH_POINTS + 1);
+            let mut batch_radii: Vec<f32> = Vec::with_capacity(MAX_BATCH_POINTS + 1);
+            let mut batch_dirty_union: Option<(i32, i32, i32, i32)> = None;
+
+            for i in 0..emitted.len().saturating_sub(1) {
+                let (p0, pres0) = emitted[i];
+                let (p1, pres1) = emitted[i + 1];
+                let r0 = brush_settings.radius_from_pressure(pres0);
+                let r1 = brush_settings.radius_from_pressure(pres1);
+                let pts = [p0, p1];
+                let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
+                let dirty = compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
+                before_draw(brush, dirty);
+                batch_dirty_union = union_dirty_rect_i32(batch_dirty_union, dirty);
+
+                if batch_points.is_empty() {
+                    batch_points.push(p0);
+                    batch_radii.push(r0);
                 }
-            } else {
-                const MAX_BATCH_POINTS: usize = 128;
-                let mut batch_points: Vec<Point2D> = Vec::with_capacity(MAX_BATCH_POINTS + 1);
-                let mut batch_radii: Vec<f32> = Vec::with_capacity(MAX_BATCH_POINTS + 1);
-                let mut batch_dirty_union: Option<(i32, i32, i32, i32)> = None;
+                batch_points.push(p1);
+                batch_radii.push(r1);
 
-                for i in 0..emitted.len().saturating_sub(1) {
-                    let (p0, pres0) = emitted[i];
-                    let (p1, pres1) = emitted[i + 1];
-                    let r0 = brush_settings.radius_from_pressure(pres0);
-                    let r1 = brush_settings.radius_from_pressure(pres1);
-                    let pts = [p0, p1];
-                    let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
-                    let dirty =
-                        compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
-                    before_draw(brush, dirty);
-                    batch_dirty_union = union_dirty_rect_i32(batch_dirty_union, dirty);
-
-                    if batch_points.is_empty() {
-                        batch_points.push(p0);
-                        batch_radii.push(r0);
-                    }
-                    batch_points.push(p1);
-                    batch_radii.push(r1);
-
-                    if batch_points.len() >= MAX_BATCH_POINTS {
-                        match brush.draw_stroke(
-                            layer_view,
-                            &batch_points,
-                            &batch_radii,
-                            color,
-                            brush_settings.shape,
-                            brush_settings.erase,
-                            brush_settings.antialias_level,
-                            0.0,
-                            hollow_enabled,
-                            hollow_ratio,
-                            hollow_erase,
-                            hollow_enabled,
-                            true,
-                        ) {
-                            Ok(()) => {
-                                drew_any = true;
-                                if let Some(batch_dirty) = batch_dirty_union {
-                                    dirty_union = union_dirty_rect_i32(dirty_union, batch_dirty);
-                                }
-                            }
-                            Err(err) => {
-                                debug::log(
-                                    LogLevel::Warn,
-                                    format_args!("Brush draw_stroke failed: {err}"),
-                                );
-                            }
-                        }
-                        let last_point = *batch_points.last().expect("batch points not empty");
-                        let last_radius = *batch_radii.last().expect("batch radii not empty");
-                        batch_points.clear();
-                        batch_radii.clear();
-                        batch_points.push(last_point);
-                        batch_radii.push(last_radius);
-                        batch_dirty_union = None;
-                    }
-                }
-
-                if batch_points.len() > 1 {
+                if batch_points.len() >= MAX_BATCH_POINTS {
                     match brush.draw_stroke(
                         layer_view,
                         &batch_points,
@@ -408,13 +481,50 @@ impl StrokeResampler {
                             );
                         }
                     }
+                    let last_point = *batch_points.last().expect("batch points not empty");
+                    let last_radius = *batch_radii.last().expect("batch radii not empty");
+                    batch_points.clear();
+                    batch_radii.clear();
+                    batch_points.push(last_point);
+                    batch_radii.push(last_radius);
+                    batch_dirty_union = None;
+                }
+            }
+
+            if batch_points.len() > 1 {
+                match brush.draw_stroke(
+                    layer_view,
+                    &batch_points,
+                    &batch_radii,
+                    color,
+                    brush_settings.shape,
+                    brush_settings.erase,
+                    brush_settings.antialias_level,
+                    0.0,
+                    hollow_enabled,
+                    hollow_ratio,
+                    hollow_erase,
+                    hollow_enabled,
+                    true,
+                ) {
+                    Ok(()) => {
+                        drew_any = true;
+                        if let Some(batch_dirty) = batch_dirty_union {
+                            dirty_union = union_dirty_rect_i32(dirty_union, batch_dirty);
+                        }
+                    }
+                    Err(err) => {
+                        debug::log(
+                            LogLevel::Warn,
+                            format_args!("Brush draw_stroke failed: {err}"),
+                        );
+                    }
                 }
             }
         }
-
-        self.last_tick_dirty = dirty_union;
-        drew_any
     }
+
+    (drew_any, dirty_union)
 }
 
 const RUST_PRESSURE_MIN_FACTOR: f32 = 0.09;
@@ -451,6 +561,42 @@ fn fit_and_resample_points(points: Vec<(Point2D, f32)>) -> Vec<(Point2D, f32)> {
         return points;
     }
     adaptive_resample_spline(&points, target_count)
+}
+
+pub(crate) fn apply_streamline(
+    points: &[(Point2D, f32)],
+    strength: f32,
+) -> Vec<(Point2D, f32)> {
+    let strength = if strength.is_finite() {
+        strength.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    if strength <= 0.0001 || points.len() < 3 {
+        return points.to_vec();
+    }
+    let eased = strength.powf(0.7);
+    let passes = ((eased * 2.0).ceil() as usize).clamp(1, 3);
+    let mut smoothed = adaptive_resample_spline(points, points.len());
+    for _ in 1..passes {
+        smoothed = adaptive_resample_spline(&smoothed, smoothed.len());
+    }
+    if smoothed.len() != points.len() {
+        return points.to_vec();
+    }
+    let mut output: Vec<(Point2D, f32)> = Vec::with_capacity(points.len());
+    for (orig, smooth) in points.iter().zip(smoothed.iter()) {
+        let x = orig.0.x + (smooth.0.x - orig.0.x) * eased;
+        let y = orig.0.y + (smooth.0.y - orig.0.y) * eased;
+        let blended = orig.1 + (smooth.1 - orig.1) * (eased * 0.5);
+        let pres = if blended.is_finite() {
+            blended.clamp(0.0, 1.0)
+        } else {
+            orig.1
+        };
+        output.push((Point2D { x, y }, pres));
+    }
+    output
 }
 
 fn adaptive_resample_spline(points: &[(Point2D, f32)], target_count: usize) -> Vec<(Point2D, f32)> {

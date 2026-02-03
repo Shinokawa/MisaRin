@@ -16,6 +16,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   int _rustLayerSnapshotWidth = 0;
   int _rustLayerSnapshotHeight = 0;
   int? _rustLayerSnapshotHandle;
+  int? _rustPixelsSyncedHandle;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -32,6 +33,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
+  double _streamlineStrength = AppPreferences.defaultStreamlineStrength;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
   int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
@@ -949,6 +951,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
 
   void _handleRustCanvasEngineInfoChanged(int? handle, Size? engineSize) {
     final bool handleChanged = _rustCanvasEngineHandle != handle;
+    final bool sizeChanged = _rustCanvasEngineSize != engineSize;
     if (handleChanged && handle != null) {
       final String sizeText = engineSize == null
           ? 'null'
@@ -958,8 +961,9 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
         'size=$sizeText',
       );
     }
-    if (handleChanged) {
+    if (handleChanged || sizeChanged) {
       _rustCanvasSyncedLayerCount = 0;
+      _rustPixelsSyncedHandle = null;
       _purgeRustHistoryActions();
       if (_rustLayerSnapshots.isNotEmpty) {
         _rustLayerSnapshotPendingRestore = true;
@@ -970,6 +974,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _syncRustCanvasLayersToEngine();
     _syncRustCanvasViewFlags();
     _restoreRustLayerSnapshotIfNeeded();
+    _syncRustCanvasPixelsIfNeeded();
     _notifyBoardReadyIfNeeded();
   }
 
@@ -1148,6 +1153,28 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       mirror: _viewMirrorOverlay,
       blackWhite: _viewBlackWhiteOverlay,
     );
+  }
+
+  void _syncRustCanvasPixelsIfNeeded() {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_rustLayerSnapshotPendingRestore) {
+      return;
+    }
+    if (_rustLayerSnapshotDirty) {
+      return;
+    }
+    if (_rustLayerSnapshots.isNotEmpty) {
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    if (_rustPixelsSyncedHandle == handle) {
+      return;
+    }
+    if (_syncAllLayerPixelsToRust()) {
+      _rustPixelsSyncedHandle = handle;
+    }
   }
 
   Future<void> _captureRustLayerSnapshotIfNeeded() async {

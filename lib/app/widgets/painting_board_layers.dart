@@ -257,10 +257,6 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerReorder(int oldIndex, int newIndex) async {
-    if (widget.useRustCanvas) {
-      _showRustCanvasMessage('Rust 画布目前暂不支持图层重排。');
-      return;
-    }
     final int length = _layers.length;
     if (length <= 1) {
       return;
@@ -274,8 +270,30 @@ mixin _PaintingBoardLayerMixin
     if (actualOldIndex == actualNewIndex) {
       return;
     }
-    await _pushUndoSnapshot();
+    if (widget.useRustCanvas) {
+      if (!_canUseRustCanvasEngine()) {
+        _showRustCanvasMessage('Rust 画布尚未准备好。');
+        return;
+      }
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return;
+      }
+    }
+    await _pushUndoSnapshot(rustPixelsSynced: widget.useRustCanvas);
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
+    if (widget.useRustCanvas) {
+      CanvasEngineFfi.instance.reorderLayer(
+        handle: _rustCanvasEngineHandle!,
+        fromIndex: actualOldIndex,
+        toIndex: actualNewIndex,
+      );
+      final String? activeLayerId = _activeLayerId;
+      if (activeLayerId != null) {
+        _rustCanvasSetActiveLayerById(activeLayerId);
+      }
+    }
     setState(() {});
     _markDirty();
   }

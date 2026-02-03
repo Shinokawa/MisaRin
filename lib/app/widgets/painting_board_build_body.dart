@@ -219,15 +219,17 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
           onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
           hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
-		          onHollowStrokeEraseOccludedPartsChanged:
-		              _updateHollowStrokeEraseOccludedParts,
-		          strokeStabilizerStrength: _strokeStabilizerStrength,
-		          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
-		          stylusPressureEnabled: _stylusPressureEnabled,
-		          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
-		          simulatePenPressure: _simulatePenPressure,
-		          onSimulatePenPressureChanged: _updatePenPressureSimulation,
-		          penPressureProfile: _penPressureProfile,
+          onHollowStrokeEraseOccludedPartsChanged:
+              _updateHollowStrokeEraseOccludedParts,
+          strokeStabilizerStrength: _strokeStabilizerStrength,
+          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
+          streamlineStrength: _streamlineStrength,
+          onStreamlineChanged: _updateStreamlineStrength,
+          stylusPressureEnabled: _stylusPressureEnabled,
+          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+          simulatePenPressure: _simulatePenPressure,
+          onSimulatePenPressureChanged: _updatePenPressureSimulation,
+          penPressureProfile: _penPressureProfile,
           onPenPressureProfileChanged: _updatePenPressureProfile,
           brushAntialiasLevel: _penAntialiasLevel,
           onBrushAntialiasChanged: _updatePenAntialiasLevel,
@@ -554,6 +556,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                           _stylusPressureEnabled ||
                                                           _simulatePenPressure ||
                                                           _autoSharpPeakEnabled,
+                                                      streamlineStrength:
+                                                          _streamlineStrength,
                                                       onStrokeBegin: _markDirty,
                                                       onEngineInfoChanged:
                                                           _handleRustCanvasEngineInfoChanged,

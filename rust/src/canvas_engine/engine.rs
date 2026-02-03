@@ -28,7 +28,7 @@ use super::present::{
 };
 #[cfg(target_os = "windows")]
 use super::present::create_dxgi_shared_present_target;
-use super::stroke::{map_brush_shape, EngineBrushSettings, StrokeResampler};
+use super::stroke::{apply_streamline, map_brush_shape, EngineBrushSettings, StrokeResampler};
 use super::transform::LayerTransformRenderer;
 use super::types::EnginePoint;
 use super::undo::UndoManager;
@@ -90,6 +90,10 @@ pub(crate) enum EngineCommand {
         layer_index: u32,
         blend_mode_index: u32,
     },
+    ReorderLayer {
+        from_index: u32,
+        to_index: u32,
+    },
     SetViewFlags {
         view_flags: u32,
     },
@@ -105,6 +109,7 @@ pub(crate) enum EngineCommand {
         hollow_enabled: bool,
         hollow_ratio: f32,
         hollow_erase_occluded: bool,
+        streamline_strength: f32,
     },
     ApplyFilter {
         layer_index: u32,
@@ -566,40 +571,109 @@ fn render_thread_main(
 
                         if is_up {
                             let layer_idx = active_layer_index as u32;
-                            let use_hollow_base = brush_settings.hollow_enabled
+                            let use_hollow_mask = brush_settings.hollow_enabled
                                 && !brush_settings.erase
-                                && brush_settings.hollow_ratio > 0.0001
-                                && !brush_settings.hollow_erase_occluded;
-                            let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
-                                undo_manager.capture_before_for_dirty_rect(
-                                    device.as_ref(),
-                                    queue.as_ref(),
-                                    layer_texture,
-                                    layer_idx,
-                                    dirty_rect,
-                                );
-                                if use_hollow_base {
-                                    if let Err(err) = brush.capture_stroke_base_region(
-                                        layer_texture,
-                                        layer_idx,
-                                        dirty_rect,
-                                    ) {
-                                        debug::log(
-                                            LogLevel::Warn,
-                                            format_args!("Brush stroke base capture failed: {err}"),
+                                && brush_settings.hollow_ratio > 0.0001;
+                            let use_hollow_base =
+                                use_hollow_mask && !brush_settings.hollow_erase_occluded;
+                            drawn_any |= {
+                                let mut before_draw =
+                                    |brush: &mut BrushRenderer, dirty_rect| {
+                                        undo_manager.capture_before_for_dirty_rect(
+                                            device.as_ref(),
+                                            queue.as_ref(),
+                                            layer_texture,
+                                            layer_idx,
+                                            dirty_rect,
                                         );
+                                        if use_hollow_base {
+                                            if let Err(err) = brush.capture_stroke_base_region(
+                                                layer_texture,
+                                                layer_idx,
+                                                dirty_rect,
+                                            ) {
+                                                debug::log(
+                                                    LogLevel::Warn,
+                                                    format_args!(
+                                                        "Brush stroke base capture failed: {err}"
+                                                    ),
+                                                );
+                                            }
+                                        }
+                                    };
+                                stroke.consume_and_draw(
+                                    brush_ref,
+                                    &brush_settings,
+                                    active_layer_view,
+                                    std::mem::take(&mut segment),
+                                    canvas_width,
+                                    canvas_height,
+                                    &mut before_draw,
+                                )
+                            };
+
+                            if let Some(payload) = stroke.take_streamline_payload() {
+                                if payload.points.len() > 2 && payload.strength > 0.0001 {
+                                    let smoothed =
+                                        apply_streamline(&payload.points, payload.strength);
+                                    if !smoothed.is_empty()
+                                        && undo_manager.restore_current_before(
+                                            device.as_ref(),
+                                            queue.as_ref(),
+                                            layer_texture,
+                                        )
+                                    {
+                                        if use_hollow_mask {
+                                            if let Err(err) = brush_ref.clear_stroke_mask() {
+                                                debug::log(
+                                                    LogLevel::Warn,
+                                                    format_args!(
+                                                        "Brush stroke mask clear failed: {err}"
+                                                    ),
+                                                );
+                                            }
+                                            brush_ref.begin_stroke_base_capture();
+                                        }
+                                        drawn_any |= {
+                                            let mut before_draw =
+                                                |brush: &mut BrushRenderer, dirty_rect| {
+                                                    undo_manager.capture_before_for_dirty_rect(
+                                                        device.as_ref(),
+                                                        queue.as_ref(),
+                                                        layer_texture,
+                                                        layer_idx,
+                                                        dirty_rect,
+                                                    );
+                                                    if use_hollow_base {
+                                                        if let Err(err) =
+                                                            brush.capture_stroke_base_region(
+                                                                layer_texture,
+                                                                layer_idx,
+                                                                dirty_rect,
+                                                            )
+                                                        {
+                                                            debug::log(
+                                                                LogLevel::Warn,
+                                                                format_args!(
+                                                                    "Brush stroke base capture failed: {err}"
+                                                                ),
+                                                            );
+                                                        }
+                                                    }
+                                                };
+                                            stroke.draw_emitted_points(
+                                                brush_ref,
+                                                &brush_settings,
+                                                active_layer_view,
+                                                &smoothed,
+                                                canvas_width,
+                                                canvas_height,
+                                                &mut before_draw,
+                                            )
+                                        };
                                     }
                                 }
-                            };
-                            drawn_any |= stroke.consume_and_draw(
-                                brush_ref,
-                                &brush_settings,
-                                active_layer_view,
-                                std::mem::take(&mut segment),
-                                canvas_width,
-                                canvas_height,
-                                &mut before_draw,
-                            );
+                            }
                             undo_manager.end_stroke(device.as_ref(), queue.as_ref(), layer_texture);
                         }
                     }
@@ -1302,6 +1376,88 @@ fn handle_engine_command(
                 };
             }
         }
+        EngineCommand::ReorderLayer {
+            from_index,
+            to_index,
+        } => {
+            let len = *layer_count;
+            if len <= 1 {
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            let from = from_index as usize;
+            if from >= len {
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            let mut target = to_index as usize;
+            if target > len {
+                target = len;
+            }
+            if target > from {
+                target = target.saturating_sub(1);
+            }
+            if target >= len {
+                target = len.saturating_sub(1);
+            }
+            if target == from {
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+
+            reorder_vec(layer_opacity, from, target);
+            reorder_vec(layer_visible, from, target);
+            reorder_vec(layer_clipping_mask, from, target);
+            reorder_vec(layer_blend_mode, from, target);
+            reorder_vec(layer_uniform, from, target);
+
+            reorder_layer_textures(
+                device.as_ref(),
+                queue.as_ref(),
+                layers.texture(),
+                canvas_width,
+                canvas_height,
+                from,
+                target,
+            );
+
+            *active_layer_index = remap_layer_index(*active_layer_index, from, target);
+            if (*transform_layer_index as usize) < *layer_count {
+                *transform_layer_index =
+                    remap_layer_index(*transform_layer_index as usize, from, target) as u32;
+            } else {
+                *transform_layer_index = 0;
+            }
+            undo.reorder_layers(from as u32, target as u32);
+
+            write_present_config(
+                queue,
+                present_config_buffer,
+                present_params_buffer,
+                *layer_count,
+                *present_view_flags,
+                *transform_layer_index,
+                *transform_flags,
+                layer_opacity,
+                layer_visible,
+                layer_clipping_mask,
+                layer_blend_mode,
+            );
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: present.is_some(),
+                new_canvas_size: None,
+            };
+        }
         EngineCommand::SetViewFlags { view_flags } => {
             let sanitized = view_flags & (VIEW_FLAG_MIRROR | VIEW_FLAG_BLACK_WHITE);
             if *present_view_flags != sanitized {
@@ -1338,6 +1494,7 @@ fn handle_engine_command(
             hollow_enabled,
             hollow_ratio,
             hollow_erase_occluded,
+            streamline_strength,
         } => {
             brush_settings.color_argb = color_argb;
             brush_settings.base_radius = base_radius;
@@ -1350,6 +1507,7 @@ fn handle_engine_command(
             brush_settings.hollow_enabled = hollow_enabled;
             brush_settings.hollow_ratio = hollow_ratio;
             brush_settings.hollow_erase_occluded = hollow_erase_occluded;
+            brush_settings.streamline_strength = streamline_strength;
             brush_settings.sanitize();
             if brush.is_none() {
                 if let Err(err) = ensure_brush(brush, device, queue, canvas_width, canvas_height) {
@@ -2901,6 +3059,125 @@ struct EngineCommandOutcome {
     stop: bool,
     needs_render: bool,
     new_canvas_size: Option<(u32, u32)>,
+}
+
+fn remap_layer_index(index: usize, from: usize, to: usize) -> usize {
+    if from == to {
+        return index;
+    }
+    if index == from {
+        return to;
+    }
+    if from < to {
+        if index > from && index <= to {
+            return index - 1;
+        }
+    } else if from > to {
+        if index >= to && index < from {
+            return index + 1;
+        }
+    }
+    index
+}
+
+fn reorder_vec<T>(vec: &mut Vec<T>, from: usize, to: usize) {
+    if from == to || from >= vec.len() {
+        return;
+    }
+    let item = vec.remove(from);
+    let insert_at = to.min(vec.len());
+    vec.insert(insert_at, item);
+}
+
+fn reorder_layer_textures(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+    from: usize,
+    to: usize,
+) {
+    if from == to || width == 0 || height == 0 {
+        return;
+    }
+
+    let scratch = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("misa-rin layer reorder scratch"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::R32Uint,
+        usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("misa-rin layer reorder encoder"),
+    });
+    let extent = wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    };
+    let copy_layer = |encoder: &mut wgpu::CommandEncoder,
+                      src_texture: &wgpu::Texture,
+                      src_layer: u32,
+                      dst_texture: &wgpu::Texture,
+                      dst_layer: u32| {
+        encoder.copy_texture_to_texture(
+            wgpu::ImageCopyTexture {
+                texture: src_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: src_layer,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyTexture {
+                texture: dst_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: dst_layer,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            extent,
+        );
+    };
+
+    copy_layer(&mut encoder, texture, from as u32, &scratch, 0);
+    if from < to {
+        for idx in from..to {
+            copy_layer(
+                &mut encoder,
+                texture,
+                (idx + 1) as u32,
+                texture,
+                idx as u32,
+            );
+        }
+    } else {
+        for idx in (to..from).rev() {
+            copy_layer(
+                &mut encoder,
+                texture,
+                idx as u32,
+                texture,
+                (idx + 1) as u32,
+            );
+        }
+    }
+    copy_layer(&mut encoder, &scratch, 0, texture, to as u32);
+    queue.submit(Some(encoder.finish()));
 }
 
 fn ensure_brush<'a>(

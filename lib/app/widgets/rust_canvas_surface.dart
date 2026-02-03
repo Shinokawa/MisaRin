@@ -304,6 +304,7 @@ class RustCanvasSurface extends StatefulWidget {
     this.antialiasLevel = 1,
     this.backgroundColorArgb = 0xFFFFFFFF,
     this.usePressure = true,
+    this.streamlineStrength = 0.0,
     this.onStrokeBegin,
     this.onEngineInfoChanged,
   });
@@ -355,6 +356,7 @@ class RustCanvasSurface extends StatefulWidget {
   final int antialiasLevel;
   final int backgroundColorArgb;
   final bool usePressure;
+  final double streamlineStrength;
   final VoidCallback? onStrokeBegin;
   final void Function(int? handle, Size? engineSize)? onEngineInfoChanged;
 
@@ -409,7 +411,8 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         oldWidget.hollowStrokeEnabled != widget.hollowStrokeEnabled ||
         (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
         oldWidget.hollowStrokeEraseOccludedParts !=
-            widget.hollowStrokeEraseOccludedParts;
+            widget.hollowStrokeEraseOccludedParts ||
+        (oldWidget.streamlineStrength - widget.streamlineStrength).abs() > 1e-6;
     if (brushChanged && _activeDrawingPointer == null) {
       final int? handle = _engineHandle;
       if (handle != null) {
@@ -597,6 +600,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       hollow: widget.hollowStrokeEnabled,
       hollowRatio: widget.hollowStrokeRatio,
       hollowEraseOccludedParts: widget.hollowStrokeEraseOccludedParts,
+      streamlineStrength: widget.streamlineStrength,
     );
   }
 

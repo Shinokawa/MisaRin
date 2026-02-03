@@ -56,6 +56,7 @@ class PaintingBoardState extends _PaintingBoardBase
     );
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
+    _streamlineStrength = prefs.streamlineStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
     _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
@@ -864,6 +865,7 @@ class PaintingBoardState extends _PaintingBoardBase
       hollowStrokeRatio: _hollowStrokeRatio,
       hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       strokeStabilizerStrength: _strokeStabilizerStrength,
+      streamlineStrength: _streamlineStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
       penPressureProfile: _penPressureProfile,
@@ -919,6 +921,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
     _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
+    _updateStreamlineStrength(snapshot.streamlineStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);
     _updatePenPressureProfile(snapshot.penPressureProfile);

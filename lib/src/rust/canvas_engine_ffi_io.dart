@@ -84,6 +84,11 @@ typedef _EngineSetLayerBlendModeNative =
 typedef _EngineSetLayerBlendModeDart =
     void Function(int handle, int layerIndex, int blendModeIndex);
 
+typedef _EngineReorderLayerNative =
+    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 fromIndex, ffi.Uint32 toIndex);
+typedef _EngineReorderLayerDart =
+    void Function(int handle, int fromIndex, int toIndex);
+
 typedef _EngineSetViewFlagsNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 viewFlags);
 typedef _EngineSetViewFlagsDart = void Function(int handle, int viewFlags);
@@ -294,6 +299,7 @@ typedef _EngineSetBrushNative =
       ffi.Uint8 hollow,
       ffi.Float hollowRatio,
       ffi.Uint8 hollowEraseOccludedParts,
+      ffi.Float streamlineStrength,
     );
 typedef _EngineSetBrushDart =
     void Function(
@@ -309,6 +315,7 @@ typedef _EngineSetBrushDart =
       int hollow,
       double hollowRatio,
       int hollowEraseOccludedParts,
+      double streamlineStrength,
     );
 
 typedef _EngineApplyFilterNative =
@@ -404,6 +411,15 @@ class CanvasEngineFfi {
             >('engine_set_layer_blend_mode');
       } catch (_) {
         _setLayerBlendMode = null;
+      }
+      try {
+        _reorderLayer = _lib
+            .lookupFunction<
+              _EngineReorderLayerNative,
+              _EngineReorderLayerDart
+            >('engine_reorder_layer');
+      } catch (_) {
+        _reorderLayer = null;
       }
       try {
         _setViewFlags = _lib
@@ -581,6 +597,7 @@ class CanvasEngineFfi {
   late final _EngineSetLayerVisibleDart? _setLayerVisible;
   late final _EngineSetLayerClippingMaskDart? _setLayerClippingMask;
   late final _EngineSetLayerBlendModeDart? _setLayerBlendMode;
+  late final _EngineReorderLayerDart? _reorderLayer;
   late final _EngineSetViewFlagsDart? _setViewFlags;
   late final _EngineClearLayerDart? _clearLayer;
   late final _EngineFillLayerDart? _fillLayer;
@@ -684,6 +701,21 @@ class CanvasEngineFfi {
       return;
     }
     fn(handle, layerIndex, blendModeIndex);
+  }
+
+  void reorderLayer({
+    required int handle,
+    required int fromIndex,
+    required int toIndex,
+  }) {
+    final fn = _reorderLayer;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    if (fromIndex < 0 || toIndex < 0) {
+      return;
+    }
+    fn(handle, fromIndex, toIndex);
   }
 
   void setViewFlags({
@@ -1069,6 +1101,7 @@ class CanvasEngineFfi {
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
+    double streamlineStrength = 0.0,
   }) {
     final fn = _setBrush;
     if (!isSupported || fn == null || handle == 0) {
@@ -1088,6 +1121,11 @@ class CanvasEngineFfi {
       ratio = 0.0;
     }
     ratio = ratio.clamp(0.0, 1.0);
+    double streamline = streamlineStrength;
+    if (!streamline.isFinite) {
+      streamline = 0.0;
+    }
+    streamline = streamline.clamp(0.0, 1.0);
     fn(
       handle,
       colorArgb,
@@ -1101,6 +1139,7 @@ class CanvasEngineFfi {
       hollow ? 1 : 0,
       ratio,
       hollowEraseOccludedParts ? 1 : 0,
+      streamline,
     );
   }
 
