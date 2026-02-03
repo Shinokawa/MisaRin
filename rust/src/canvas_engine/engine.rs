@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(target_os = "macos")]
 use metal::foreign_types::ForeignType;
@@ -36,6 +36,11 @@ use super::undo::UndoManager;
 const INITIAL_LAYER_CAPACITY: usize = 4;
 const VIEW_FLAG_MIRROR: u32 = 1;
 const VIEW_FLAG_BLACK_WHITE: u32 = 2;
+static PIXEL_SAMPLE_LAST_MS: AtomicU64 = AtomicU64::new(0);
+const RESAMPLE_BACKLOG_SMALL: u64 = 24;
+const RESAMPLE_BACKLOG_MEDIUM: u64 = 64;
+const RESAMPLE_BACKLOG_LARGE: u64 = 128;
+const RESAMPLE_BACKLOG_XL: u64 = 256;
 
 pub(crate) enum EngineCommand {
     AttachPresentTexture {
@@ -317,10 +322,190 @@ fn streamline_animation_duration(strength: f32) -> Duration {
     Duration::from_millis(ms.max(1))
 }
 
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn read_layer_pixel_u32(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layer_texture: &wgpu::Texture,
+    layer_index: u32,
+    x: u32,
+    y: u32,
+) -> Option<u32> {
+    if x == u32::MAX || y == u32::MAX {
+        return None;
+    }
+    let bytes_per_row: u32 = 256;
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("misa-rin layer sample buffer"),
+        size: bytes_per_row as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("misa-rin layer sample encoder"),
+    });
+    encoder.copy_texture_to_buffer(
+        wgpu::ImageCopyTexture {
+            texture: layer_texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d {
+                x,
+                y,
+                z: layer_index,
+            },
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::ImageCopyBuffer {
+            buffer: &buffer,
+            layout: wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(1),
+            },
+        },
+        wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(Some(encoder.finish()));
+    let slice = buffer.slice(..bytes_per_row as u64);
+    let (tx, rx) = mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx.send(res);
+    });
+    device.poll(wgpu::Maintain::Wait);
+    match rx.recv() {
+        Ok(Ok(())) => {}
+        _ => {
+            buffer.unmap();
+            return None;
+        }
+    }
+    let data = slice.get_mapped_range();
+    if data.len() < 4 {
+        drop(data);
+        buffer.unmap();
+        return None;
+    }
+    let pixel = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+    drop(data);
+    buffer.unmap();
+    Some(pixel)
+}
+
+fn maybe_log_layer_sample(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layer_texture: &wgpu::Texture,
+    layer_index: u32,
+    canvas_width: u32,
+    canvas_height: u32,
+    dirty: (i32, i32, i32, i32),
+    tag: &str,
+    sample_point: Option<Point2D>,
+) {
+    if debug::level() < LogLevel::Info {
+        return;
+    }
+    let now = now_ms();
+    let last = PIXEL_SAMPLE_LAST_MS.load(Ordering::Relaxed);
+    if now.saturating_sub(last) < 200 {
+        return;
+    }
+    PIXEL_SAMPLE_LAST_MS.store(now, Ordering::Relaxed);
+    let (left, top, width, height) = dirty;
+    if canvas_width == 0 || canvas_height == 0 {
+        return;
+    }
+    let (x_u, y_u, source) = if let Some(point) = sample_point {
+        if point.x.is_finite() && point.y.is_finite() {
+            let max_x = canvas_width.saturating_sub(1) as f32;
+            let max_y = canvas_height.saturating_sub(1) as f32;
+            let x = point.x.round().clamp(0.0, max_x) as u32;
+            let y = point.y.round().clamp(0.0, max_y) as u32;
+            (x, y, "point")
+        } else {
+            if width <= 0 || height <= 0 {
+                return;
+            }
+            let mut x = left + width / 2;
+            let mut y = top + height / 2;
+            if x < 0 {
+                x = 0;
+            }
+            if y < 0 {
+                y = 0;
+            }
+            let x_u = (x as u32).min(canvas_width.saturating_sub(1));
+            let y_u = (y as u32).min(canvas_height.saturating_sub(1));
+            (x_u, y_u, "dirty")
+        }
+    } else {
+        if width <= 0 || height <= 0 {
+            return;
+        }
+        let mut x = left + width / 2;
+        let mut y = top + height / 2;
+        if x < 0 {
+            x = 0;
+        }
+        if y < 0 {
+            y = 0;
+        }
+        let x_u = (x as u32).min(canvas_width.saturating_sub(1));
+        let y_u = (y as u32).min(canvas_height.saturating_sub(1));
+        (x_u, y_u, "dirty")
+    };
+    let Some(pixel) = read_layer_pixel_u32(
+        device,
+        queue,
+        layer_texture,
+        layer_index,
+        x_u,
+        y_u,
+    ) else {
+        debug::log(
+            LogLevel::Warn,
+            format_args!(
+                "layer sample failed tag={tag} layer={layer_index} x={x_u} y={y_u}"
+            ),
+        );
+        return;
+    };
+    debug::log(
+        LogLevel::Info,
+        format_args!(
+            "layer sample tag={tag} source={source} layer={layer_index} x={x_u} y={y_u} argb=0x{pixel:08X} dirty=({left},{top},{width},{height})"
+        ),
+    );
+}
+
 fn ease_out_cubic(t: f32) -> f32 {
     let t = t.clamp(0.0, 1.0);
     let inv = 1.0 - t;
     1.0 - inv * inv * inv
+}
+
+fn resample_scale_for_backlog(backlog_points: u64) -> f32 {
+    if backlog_points <= RESAMPLE_BACKLOG_SMALL {
+        1.0
+    } else if backlog_points <= RESAMPLE_BACKLOG_MEDIUM {
+        1.5
+    } else if backlog_points <= RESAMPLE_BACKLOG_LARGE {
+        2.0
+    } else if backlog_points <= RESAMPLE_BACKLOG_XL {
+        3.0
+    } else {
+        4.0
+    }
 }
 
 fn interpolate_streamline_points(
@@ -449,6 +634,19 @@ fn render_streamline_frame(
     if drawn_any {
         if let Some(entry) = layer_uniform.get_mut(layer_idx) {
             *entry = None;
+        }
+        if let Some(dirty) = stroke.last_tick_dirty() {
+            maybe_log_layer_sample(
+                device.as_ref(),
+                queue.as_ref(),
+                layer_texture,
+                animation.layer_index,
+                canvas_width,
+                canvas_height,
+                dirty,
+                "streamline",
+                stroke.last_tick_point(),
+            );
         }
     }
     drawn_any
@@ -734,6 +932,9 @@ fn render_thread_main(
                     for batch in batches {
                         raw_points.extend(batch.points);
                     }
+                    let backlog_points =
+                        raw_points.len() as u64 + input_queue_len.load(Ordering::Relaxed);
+                    stroke.set_resample_scale(resample_scale_for_backlog(backlog_points));
                     let has_down = raw_points.iter().any(|p| (p.flags & FLAG_DOWN) != 0);
                     if has_down {
                         if let Some(mut animation) = streamline_animation.take() {
@@ -820,7 +1021,7 @@ fn render_thread_main(
                             let use_hollow_base =
                                 use_hollow_mask && !brush_settings.hollow_erase_occluded;
                             let mut defer_end_stroke = false;
-                            drawn_any |= {
+                            let segment_drawn = {
                                 let mut before_draw =
                                     |brush: &mut BrushRenderer, dirty_rect| {
                                         undo_manager.capture_before_for_dirty_rect(
@@ -855,6 +1056,22 @@ fn render_thread_main(
                                     &mut before_draw,
                                 )
                             };
+                            if segment_drawn && brush_settings.streamline_strength > 0.0001 {
+                                if let Some(dirty) = stroke.last_tick_dirty() {
+                                    maybe_log_layer_sample(
+                                        device.as_ref(),
+                                        queue.as_ref(),
+                                        layer_texture,
+                                        layer_idx,
+                                        canvas_width,
+                                        canvas_height,
+                                        dirty,
+                                        "stroke",
+                                        stroke.last_tick_point(),
+                                    );
+                                }
+                            }
+                            drawn_any |= segment_drawn;
 
                             if let Some(payload) = stroke.take_streamline_payload() {
                                 let points = payload.points;
@@ -931,7 +1148,7 @@ fn render_thread_main(
                                 }
                             }
                         };
-                        drawn_any |= stroke.consume_and_draw(
+                        let segment_drawn = stroke.consume_and_draw(
                             brush_ref,
                             &brush_settings,
                             active_layer_view,
@@ -940,6 +1157,22 @@ fn render_thread_main(
                             canvas_height,
                             &mut before_draw,
                         );
+                        if segment_drawn && brush_settings.streamline_strength > 0.0001 {
+                            if let Some(dirty) = stroke.last_tick_dirty() {
+                                maybe_log_layer_sample(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    layer_texture,
+                                    layer_idx,
+                                    canvas_width,
+                                    canvas_height,
+                                    dirty,
+                                    "stroke",
+                                    stroke.last_tick_point(),
+                                );
+                            }
+                        }
+                        drawn_any |= segment_drawn;
                     }
 
                     if drawn_any {

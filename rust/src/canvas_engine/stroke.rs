@@ -73,9 +73,11 @@ pub(crate) struct StrokeResampler {
     last_emitted: Option<Point2D>,
     last_pressure: f32,
     last_tick_dirty: Option<(i32, i32, i32, i32)>,
+    last_tick_point: Option<Point2D>,
     streamline_points: Vec<(Point2D, f32)>,
     streamline_active: bool,
     streamline_strength: f32,
+    resample_scale: f32,
 }
 
 impl StrokeResampler {
@@ -84,10 +86,29 @@ impl StrokeResampler {
             last_emitted: None,
             last_pressure: 1.0,
             last_tick_dirty: None,
+            last_tick_point: None,
             streamline_points: Vec::new(),
             streamline_active: false,
             streamline_strength: 0.0,
+            resample_scale: 1.0,
         }
+    }
+
+    pub(crate) fn last_tick_dirty(&self) -> Option<(i32, i32, i32, i32)> {
+        self.last_tick_dirty
+    }
+
+    pub(crate) fn last_tick_point(&self) -> Option<Point2D> {
+        self.last_tick_point
+    }
+
+    pub(crate) fn set_resample_scale(&mut self, scale: f32) {
+        let scale = if scale.is_finite() {
+            scale.clamp(1.0, 8.0)
+        } else {
+            1.0
+        };
+        self.resample_scale = scale;
     }
 
     pub(crate) fn take_streamline_payload(&mut self) -> Option<StreamlinePayload> {
@@ -155,6 +176,7 @@ impl StrokeResampler {
                 );
             }
             self.last_tick_dirty = None;
+            self.last_tick_point = None;
             return false;
         }
 
@@ -210,7 +232,11 @@ impl StrokeResampler {
 
             let radius_prev = brush_settings.radius_from_pressure(self.last_pressure);
             let radius_next = brush_settings.radius_from_pressure(pressure);
-            let step = resample_step_from_radius((radius_prev + radius_next) * 0.5);
+            let mut step = resample_step_from_radius(
+                (radius_prev + radius_next) * 0.5,
+                self.resample_scale,
+            );
+            step = cap_resample_step_for_segment(dist, step);
 
             let dir_x = dx / dist;
             let dir_y = dy / dist;
@@ -236,6 +262,23 @@ impl StrokeResampler {
             }
         }
 
+        let emitted = if emitted.len() > MAX_EMITTED_POINTS {
+            let original_len = emitted.len();
+            let reduced = downsample_emitted(&emitted, MAX_EMITTED_POINTS);
+            if debug::level() >= LogLevel::Info {
+                debug::log(
+                    LogLevel::Info,
+                    format_args!(
+                        "stroke resample cap emitted={} -> {}",
+                        original_len, MAX_EMITTED_POINTS
+                    ),
+                );
+            }
+            reduced
+        } else {
+            emitted
+        };
+
         let emitted = if emitted.len() > 2 {
             fit_and_resample_points(emitted)
         } else {
@@ -254,6 +297,7 @@ impl StrokeResampler {
                 );
             }
             self.last_tick_dirty = None;
+            self.last_tick_point = None;
             return false;
         }
         let drawn = self.draw_emitted_points(
@@ -296,6 +340,7 @@ impl StrokeResampler {
         canvas_height: u32,
         before_draw: &mut F,
     ) -> bool {
+        self.last_tick_point = emitted.last().map(|(point, _)| *point);
         let (drew_any, dirty_union) = draw_emitted_points_internal(
             brush,
             brush_settings,
@@ -306,6 +351,9 @@ impl StrokeResampler {
             before_draw,
         );
         self.last_tick_dirty = dirty_union;
+        if !drew_any {
+            self.last_tick_point = None;
+        }
         drew_any
     }
 }
@@ -570,6 +618,8 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
 }
 
 const RUST_PRESSURE_MIN_FACTOR: f32 = 0.09;
+const MAX_SEGMENT_SAMPLES: usize = 64;
+const MAX_EMITTED_POINTS: usize = 4096;
 
 fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: bool) -> f32 {
     let base = if base_radius.is_finite() {
@@ -588,13 +638,48 @@ fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: boo
     base * (RUST_PRESSURE_MIN_FACTOR + (1.0 - RUST_PRESSURE_MIN_FACTOR) * p)
 }
 
-fn resample_step_from_radius(radius: f32) -> f32 {
+fn resample_step_from_radius(radius: f32, scale: f32) -> f32 {
     let r = if radius.is_finite() {
         radius.max(0.0)
     } else {
         0.0
     };
-    (r * 0.1).clamp(0.25, 0.5)
+    let base = (r * 0.1).clamp(0.25, 0.5);
+    let scale = if scale.is_finite() {
+        scale.clamp(1.0, 8.0)
+    } else {
+        1.0
+    };
+    (base * scale).clamp(base, base * 8.0)
+}
+
+fn cap_resample_step_for_segment(dist: f32, step: f32) -> f32 {
+    if !dist.is_finite() || dist <= 0.0 || !step.is_finite() || step <= 0.0 {
+        return step;
+    }
+    let max_samples = MAX_SEGMENT_SAMPLES as f32;
+    if dist / step > max_samples {
+        dist / max_samples
+    } else {
+        step
+    }
+}
+
+fn downsample_emitted(points: &[(Point2D, f32)], target_count: usize) -> Vec<(Point2D, f32)> {
+    let len = points.len();
+    if len <= target_count {
+        return points.to_vec();
+    }
+    if target_count <= 1 {
+        return vec![points[len.saturating_sub(1)]];
+    }
+    let last = len - 1;
+    let mut output = Vec::with_capacity(target_count);
+    for i in 0..target_count {
+        let idx = (i * last) / (target_count - 1);
+        output.push(points[idx]);
+    }
+    output
 }
 
 fn fit_and_resample_points(points: Vec<(Point2D, f32)>) -> Vec<(Point2D, f32)> {

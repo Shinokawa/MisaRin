@@ -139,6 +139,11 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
   private var presentPollCount: UInt64 = 0
   private var presentPollReadyCount: UInt64 = 0
   private var presentTickCount: UInt64 = 0
+  private var presentMainDispatchCount: UInt64 = 0
+  private var presentMainDirectCount: UInt64 = 0
+  private var presentMainExecCount: UInt64 = 0
+  private var presentMainDelaySumMs: UInt64 = 0
+  private var presentMainDelayMaxMs: UInt64 = 0
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     if didRegister {
@@ -694,23 +699,50 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       }
       if ready {
         readyCount += 1
-        textureRegistry.textureFrameAvailable(textureId)
+        if Thread.isMainThread {
+          presentMainDirectCount &+= 1
+          textureRegistry.textureFrameAvailable(textureId)
+        } else {
+          presentMainDispatchCount &+= 1
+          let queuedAt = nowMs()
+          DispatchQueue.main.async { [weak self, textureRegistry] in
+            guard let self else {
+              return
+            }
+            let delay = self.nowMs() &- queuedAt
+            self.presentMainExecCount &+= 1
+            self.presentMainDelaySumMs &+= delay
+            if delay > self.presentMainDelayMaxMs {
+              self.presentMainDelayMaxMs = delay
+            }
+            textureRegistry.textureFrameAvailable(textureId)
+          }
+        }
       }
     }
     if presentLogEnabled {
       presentTickCount &+= 1
       if readyCount > 0 {
-        presentLog("displayLink ready=\(readyCount) entries=\(entries.count)")
+        let threadTag = Thread.isMainThread ? "main" : "bg"
+        presentLog("displayLink ready=\(readyCount) entries=\(entries.count) thread=\(threadTag)")
       }
       let now = nowMs()
       if now &- presentLogLastMs >= 1000 {
+        let avgDelay = presentMainExecCount == 0
+          ? 0
+          : presentMainDelaySumMs / presentMainExecCount
         presentLog(
-          "displayLink summary ticks=\(presentTickCount) polls=\(presentPollCount) ready=\(presentPollReadyCount) entries=\(entries.count)"
+          "displayLink summary ticks=\(presentTickCount) polls=\(presentPollCount) ready=\(presentPollReadyCount) entries=\(entries.count) main_direct=\(presentMainDirectCount) main_dispatch=\(presentMainDispatchCount) main_exec=\(presentMainExecCount) main_delay_avg_ms=\(avgDelay) main_delay_max_ms=\(presentMainDelayMaxMs)"
         )
         presentLogLastMs = now
         presentTickCount = 0
         presentPollCount = 0
         presentPollReadyCount = 0
+        presentMainDispatchCount = 0
+        presentMainDirectCount = 0
+        presentMainExecCount = 0
+        presentMainDelaySumMs = 0
+        presentMainDelayMaxMs = 0
       }
     }
   }
