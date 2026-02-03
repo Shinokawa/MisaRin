@@ -997,9 +997,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _canUseRustCanvasEngine() {
-    return widget.useRustCanvas &&
-        CanvasEngineFfi.instance.isSupported &&
-        _rustCanvasEngineHandle != null;
+    return CanvasEngineFfi.instance.isSupported && _rustCanvasEngineHandle != null;
   }
 
   bool get _isRustVectorPreviewActive =>
@@ -1072,7 +1070,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _rustVectorPreviewHiddenLayerVisible = false;
   }
 
-  bool get _useCombinedHistory => widget.useRustCanvas;
+  bool get _useCombinedHistory => true;
 
   void _recordDartHistoryAction() {
     _recordHistoryAction(_HistoryActionKind.dart);

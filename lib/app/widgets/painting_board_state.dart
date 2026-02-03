@@ -82,8 +82,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(_primaryColor);
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
-    final bool enableRasterOutput =
-        !(widget.useRustCanvas && CanvasEngineFfi.instance.isSupported);
+    const bool enableRasterOutput = false;
     _controller = BitmapCanvasController(
       width: widget.settings.width.round(),
       height: widget.settings.height.round(),
@@ -103,7 +102,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _syncRasterizeMenuAvailability();
     _notifyViewInfoChanged();
     RustCanvasTimeline.mark(
-      'paintingBoard: initState useRust=${widget.useRustCanvas} '
+      'paintingBoard: initState '
       'size=${widget.settings.width.round()}x${widget.settings.height.round()}',
     );
   }
@@ -791,8 +790,7 @@ class PaintingBoardState extends _PaintingBoardBase
       }
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
-      final bool enableRasterOutput =
-          !(widget.useRustCanvas && CanvasEngineFfi.instance.isSupported);
+      const bool enableRasterOutput = false;
       _controller = BitmapCanvasController(
         width: widget.settings.width.round(),
         height: widget.settings.height.round(),
@@ -860,7 +858,7 @@ class PaintingBoardState extends _PaintingBoardBase
     }
     final BitmapCanvasFrame? frame = _controller.frame;
     if (frame == null) {
-      if (!(widget.useRustCanvas && _rustCanvasEngineHandle != null)) {
+      if (_rustCanvasEngineHandle == null) {
         return;
       }
       RustCanvasTimeline.mark(

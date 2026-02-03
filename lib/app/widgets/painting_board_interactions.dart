@@ -527,9 +527,6 @@ mixin _PaintingBoardInteractionMixin
   }
 
   bool _canStartRustStroke({required bool pointerInsideBoard}) {
-    if (!widget.useRustCanvas) {
-      return false;
-    }
     if (!pointerInsideBoard) {
       return false;
     }
@@ -1103,21 +1100,13 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
       case CanvasTool.eraser:
         _focusNode.requestFocus();
-        if (widget.useRustCanvas) {
-          if (!_canStartRustStroke(pointerInsideBoard: pointerInsideBoard)) {
-            return;
-          }
-          if (!isPointInsideSelection(boardLocal)) {
-            return;
-          }
-          _beginRustStroke(event);
-          break;
+        if (!_canStartRustStroke(pointerInsideBoard: pointerInsideBoard)) {
+          return;
         }
         if (!isPointInsideSelection(boardLocal)) {
           return;
         }
-        _refreshStylusPreferencesIfNeeded();
-        await _startStroke(boardLocal, event.timeStamp, event);
+        _beginRustStroke(event);
         break;
       case CanvasTool.perspectivePen:
         _focusNode.requestFocus();
@@ -1217,8 +1206,7 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
-    final bool rustStrokeActive =
-        widget.useRustCanvas && _rustActivePointer == event.pointer;
+    final bool rustStrokeActive = _rustActivePointer == event.pointer;
     if (!_isPrimaryPointer(event) && !rustStrokeActive) {
       return;
     }
@@ -1333,7 +1321,7 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
-        if (widget.useRustCanvas && _rustActivePointer == event.pointer) {
+        if (_rustActivePointer == event.pointer) {
           _endRustStroke(event);
           break;
         }
@@ -1411,7 +1399,7 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
-        if (widget.useRustCanvas && _rustActivePointer == event.pointer) {
+        if (_rustActivePointer == event.pointer) {
           _endRustStroke(event);
           break;
         }

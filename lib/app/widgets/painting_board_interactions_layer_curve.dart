@@ -58,13 +58,10 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _focusNode.requestFocus();
     _layerAdjustUsingRustPreview = false;
     _layerAdjustRustPreviewLayerIndex = null;
-    if (widget.useRustCanvas) {
-      _layerAdjustRustSynced = _syncActiveLayerFromRustForAdjust(layer);
-    } else {
-      _layerAdjustRustSynced = false;
-    }
+    _layerAdjustRustSynced =
+        _canUseRustCanvasEngine() && _syncActiveLayerFromRustForAdjust(layer);
     _controller.translateActiveLayer(0, 0);
-    if (widget.useRustCanvas && _controller.isActiveLayerTransforming) {
+    if (_canUseRustCanvasEngine() && _controller.isActiveLayerTransforming) {
       if (!_startRustLayerAdjustPreview(layer)) {
         _hideRustLayerForAdjust(layer);
       }
@@ -127,7 +124,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _layerDragAppliedDy = 0;
     if (!moved) {
       _clearRustLayerAdjustPreview();
-      if (widget.useRustCanvas) {
+      if (_canUseRustCanvasEngine()) {
         _restoreRustLayerAfterAdjust();
       }
       _layerAdjustRustSynced = false;
@@ -136,7 +133,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
     await _pushUndoSnapshot();
     _controller.commitActiveLayerTranslation();
-    if (widget.useRustCanvas) {
+    if (_canUseRustCanvasEngine()) {
       _applyRustLayerTranslation(dx, dy);
       _clearRustLayerAdjustPreview();
       _restoreRustLayerAfterAdjust();
@@ -325,7 +322,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     );
     _focusNode.requestFocus();
     final bool insideCanvas = _isWithinCanvasBounds(snapped);
-    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     if (_curveAnchor == null) {
       if (insideCanvas && !isPointInsideSelection(snapped)) {
         return;
@@ -417,7 +414,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_isCurvePlacingSegment) {
       return;
     }
-    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;
     if (start == null || end == null) {
@@ -529,7 +526,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   void _refreshCurveRasterPreview() {
-    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;
@@ -608,7 +605,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   Future<void> _updateCurvePreviewRasterImage() async {
-    if (!(widget.useRustCanvas && _canUseRustCanvasEngine())) {
+    if (!_canUseRustCanvasEngine()) {
       return;
     }
     if (_curvePreviewPath == null) {

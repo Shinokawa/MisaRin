@@ -991,6 +991,17 @@ fn render_thread_main(
 
                 if needs_render {
                     if let Some(target) = &present {
+                        if debug::level() >= LogLevel::Info {
+                            debug::log(
+                                LogLevel::Info,
+                                format_args!(
+                                    "present render call seq={} active_layer={} streamline_active={}",
+                                    debug::next_seq(),
+                                    active_layer_index,
+                                    streamline_animation.is_some()
+                                ),
+                            );
+                        }
                         present_renderer.render(
                             device.as_ref(),
                             queue.as_ref(),

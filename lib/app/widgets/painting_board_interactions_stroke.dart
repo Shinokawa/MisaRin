@@ -246,26 +246,21 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (anchor == null || snapped == null) {
       return;
     }
-    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
-    if (useRustCanvas) {
-      if (!_syncActiveLayerPixelsFromRust()) {
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        _clearPerspectivePenPreview();
-        return;
-      }
-      await _startStroke(anchor, timestamp, rawEvent, skipUndo: true);
-      _appendPoint(snapped, timestamp, rawEvent);
-      _finishStroke(timestamp);
-      await _controller.waitForPendingWorkerTasks();
-      if (!_commitActiveLayerToRust()) {
-        _showRustCanvasMessage('Rust 画布写入图层失败。');
-      }
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (!_syncActiveLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
       _clearPerspectivePenPreview();
       return;
     }
-    await _startStroke(anchor, timestamp, rawEvent);
+    await _startStroke(anchor, timestamp, rawEvent, skipUndo: true);
     _appendPoint(snapped, timestamp, rawEvent);
     _finishStroke(timestamp);
+    await _controller.waitForPendingWorkerTasks();
+    if (!_commitActiveLayerToRust()) {
+      _showRustCanvasMessage('Rust 画布写入图层失败。');
+    }
     _clearPerspectivePenPreview();
   }
 

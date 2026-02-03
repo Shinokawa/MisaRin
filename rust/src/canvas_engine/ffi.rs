@@ -7,9 +7,15 @@ use super::engine::{create_engine, lookup_engine, remove_engine, EngineCommand, 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::gpu::debug::{self, LogLevel};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::collections::HashMap;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::sync::atomic::Ordering;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::sync::{Mutex, OnceLock};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::sync::mpsc;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 #[no_mangle]
@@ -131,12 +137,60 @@ pub extern "C" fn engine_dispose(handle: u64) {
 pub extern "C" fn engine_dispose(_handle: u64) {}
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
+#[derive(Default)]
+struct FrameReadyPollStats {
+    last_log_ms: u64,
+    poll_count: u64,
+    ready_count: u64,
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+static FRAME_READY_STATS: OnceLock<Mutex<HashMap<u64, FrameReadyPollStats>>> = OnceLock::new();
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn frame_ready_stats() -> &'static Mutex<HashMap<u64, FrameReadyPollStats>> {
+    FRAME_READY_STATS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 #[no_mangle]
 pub extern "C" fn engine_poll_frame_ready(handle: u64) -> bool {
     let Some(entry) = lookup_engine(handle) else {
         return false;
     };
-    entry.frame_ready.swap(false, Ordering::AcqRel)
+    let ready = entry.frame_ready.swap(false, Ordering::AcqRel);
+    if debug::level() >= LogLevel::Info {
+        let now = now_ms();
+        let mut guard = frame_ready_stats()
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        let stats = guard.entry(handle).or_default();
+        stats.poll_count = stats.poll_count.saturating_add(1);
+        if ready {
+            stats.ready_count = stats.ready_count.saturating_add(1);
+        }
+        if now.saturating_sub(stats.last_log_ms) >= 1000 {
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "frame_ready poll handle={handle} polls={} ready={}",
+                    stats.poll_count, stats.ready_count
+                ),
+            );
+            stats.last_log_ms = now;
+            stats.poll_count = 0;
+            stats.ready_count = 0;
+        }
+    }
+    ready
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]

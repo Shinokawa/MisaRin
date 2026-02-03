@@ -363,18 +363,15 @@ class AppMenuActions {
     if (kIsWeb) {
       loadingOverlay = _showWebCanvasLoadingOverlay(context);
     }
-    final bool useRustCanvas = !kIsWeb;
     final CanvasPageState? canvasState = context.findAncestorStateOfType<CanvasPageState>();
-    if (useRustCanvas) {
-      try {
-        await RustCanvasSurface.prewarm(
-          surfaceKey: document.id,
-          canvasSize: document.settings.size,
-          layerCount: document.layers.length,
-          backgroundColorArgb: document.settings.backgroundColor.value,
-        );
-      } catch (_) {}
-    }
+    try {
+      await RustCanvasSurface.prewarm(
+        surfaceKey: document.id,
+        canvasSize: document.settings.size,
+        layerCount: document.layers.length,
+        backgroundColorArgb: document.settings.backgroundColor.value,
+      );
+    } catch (_) {}
     try {
       if (canvasState != null) {
         await canvasState.openDocument(document);
@@ -387,7 +384,6 @@ class AppMenuActions {
             pageBuilder: (_, __, ___) => CanvasPage(
               document: document,
               onInitialBoardReady: kIsWeb ? hideLoadingOverlay : null,
-              useRustCanvas: useRustCanvas,
             ),
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,

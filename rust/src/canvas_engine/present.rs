@@ -343,8 +343,11 @@ impl PresentRenderer {
         }
 
         queue.submit(Some(encoder.finish()));
+        // Mark a frame ready immediately so UI can update even if the GPU queue is busy.
+        frame_ready.store(true, Ordering::Release);
+        let frame_ready_done = Arc::clone(&frame_ready);
         queue.on_submitted_work_done(move || {
-            frame_ready.store(true, Ordering::Release);
+            frame_ready_done.store(true, Ordering::Release);
         });
     }
 }

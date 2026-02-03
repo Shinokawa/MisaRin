@@ -134,6 +134,11 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
   private let maxIdleSurfacesPerSize = 0
   private var displayLink: CVDisplayLink?
   private let engineInitQueue = DispatchQueue(label: "misarin.canvas.engine-init", qos: .userInitiated)
+  private let presentLogEnabled: Bool
+  private var presentLogLastMs: UInt64 = 0
+  private var presentPollCount: UInt64 = 0
+  private var presentPollReadyCount: UInt64 = 0
+  private var presentTickCount: UInt64 = 0
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     if didRegister {
@@ -149,6 +154,7 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
 
   private init(textureRegistry: FlutterTextureRegistry) {
     self.textureRegistry = textureRegistry
+    self.presentLogEnabled = RustLibMisaRinPlugin.isPresentLogEnabled()
     super.init()
   }
 
@@ -207,6 +213,33 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  private static func isPresentLogEnabled() -> Bool {
+    guard let raw = ProcessInfo.processInfo.environment["MISA_RIN_RUST_GPU_LOG"] else {
+      return false
+    }
+    let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if normalized.isEmpty {
+      return false
+    }
+    switch normalized {
+    case "0", "off", "false", "no", "warn", "warning":
+      return false
+    default:
+      return true
+    }
+  }
+
+  private func nowMs() -> UInt64 {
+    DispatchTime.now().uptimeNanoseconds / 1_000_000
+  }
+
+  private func presentLog(_ message: String) {
+    guard presentLogEnabled else {
+      return
+    }
+    NSLog("[misa-rin][rust][present] \(message)")
   }
 
   private func parseRequestedTextureInfo(
@@ -650,9 +683,34 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       }
     }
     engineStateLock.unlock()
+    var readyCount = 0
     for (handle, textureId) in entries {
-      if engine_poll_frame_ready(handle) {
+      let ready = engine_poll_frame_ready(handle)
+      if presentLogEnabled {
+        presentPollCount &+= 1
+        if ready {
+          presentPollReadyCount &+= 1
+        }
+      }
+      if ready {
+        readyCount += 1
         textureRegistry.textureFrameAvailable(textureId)
+      }
+    }
+    if presentLogEnabled {
+      presentTickCount &+= 1
+      if readyCount > 0 {
+        presentLog("displayLink ready=\(readyCount) entries=\(entries.count)")
+      }
+      let now = nowMs()
+      if now &- presentLogLastMs >= 1000 {
+        presentLog(
+          "displayLink summary ticks=\(presentTickCount) polls=\(presentPollCount) ready=\(presentPollReadyCount) entries=\(entries.count)"
+        )
+        presentLogLastMs = now
+        presentTickCount = 0
+        presentPollCount = 0
+        presentPollReadyCount = 0
       }
     }
   }

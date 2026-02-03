@@ -206,21 +206,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   Future<Uint8List?> _computeMagicWandMask(Offset position) async {
-    if (!widget.useRustCanvas) {
-      return _controller.computeMagicWandMask(
-        position,
-        sampleAllLayers: true,
-        tolerance: _magicWandTolerance,
-      );
+    if (!_canUseRustCanvasEngine()) {
+      return null;
     }
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return _controller.computeMagicWandMask(
-        position,
-        sampleAllLayers: true,
-        tolerance: _magicWandTolerance,
-      );
-    }
+    final int handle = _rustCanvasEngineHandle!;
     final String? activeLayerId = _controller.activeLayerId;
     final int? layerIndex =
         activeLayerId != null ? _rustCanvasLayerIndexForId(activeLayerId) : null;

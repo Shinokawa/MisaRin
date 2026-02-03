@@ -411,15 +411,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 	                                        child: AnimatedBuilder(
 	                                          animation: _controller,
 	                                          builder: (context, _) {
-                                            final BitmapCanvasFrame? frame =
-                                                _controller.frame;
-                                            if (frame == null &&
-                                                !widget.useRustCanvas) {
-                                              return ColoredBox(
-                                                color:
-                                                    _controller.backgroundColor,
-                                              );
-                                            }
                                             final bool isTransforming =
                                                 _controller
                                                     .isActiveLayerTransforming;
@@ -440,7 +431,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                       .activeLayerTransformBlendMode,
                                                 );
                                             final bool suppressLayerAdjustOverlay =
-                                                widget.useRustCanvas &&
                                                 _layerAdjustUsingRustPreview;
                                             final bool hasSelectionOverlay =
                                                 selectionPath != null ||
@@ -514,66 +504,51 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               return child;
                                             }
 
-                                            final Widget canvasSurface = widget.useRustCanvas
-                                                ? IgnorePointer(
-                                                    ignoring: true,
-                                                    child: RustCanvasSurface(
-                                                      surfaceKey: widget.surfaceKey,
-                                                      canvasSize: _canvasSize,
-                                                      enableDrawing:
-                                                          canPreviewStroke &&
-                                                          !activeLayerLocked &&
-                                                          !_layerTransformModeActive &&
-                                                          !_isLayerFreeTransformActive &&
-                                                          !_controller
-                                                              .isActiveLayerTransforming,
-                                                      layerCount:
-                                                          _controller.layers.length,
-                                                      brushColorArgb:
-                                                          _isBrushEraserEnabled
-                                                              ? 0xFFFFFFFF
-                                                              : _primaryColor
-                                                                  .value,
-                                                      brushRadius:
-                                                          _penStrokeWidth / 2,
-                                                      erase: _isBrushEraserEnabled,
-                                                      brushShape: _brushShape,
-                                                      brushRandomRotationEnabled:
-                                                          _brushRandomRotationEnabled,
-                                                      brushRotationSeed:
-                                                          _brushRandomRotationPreviewSeed,
-                                                      hollowStrokeEnabled:
-                                                          _hollowStrokeEnabled,
-                                                      hollowStrokeRatio:
-                                                          _hollowStrokeRatio,
-                                                      hollowStrokeEraseOccludedParts:
-                                                          _hollowStrokeEraseOccludedParts,
-                                                      antialiasLevel:
-                                                          _penAntialiasLevel,
-                                                      backgroundColorArgb:
-                                                          widget.settings.backgroundColor.toARGB32(),
-                                                      usePressure:
-                                                          _stylusPressureEnabled ||
-                                                          _simulatePenPressure ||
-                                                          _autoSharpPeakEnabled,
-                                                      streamlineStrength:
-                                                          _streamlineStrength,
-                                                      onStrokeBegin: _markDirty,
-                                                      onEngineInfoChanged:
-                                                          _handleRustCanvasEngineInfoChanged,
-                                                    ),
-                                                  )
-                                                : _filterSession != null &&
-                                                        _previewActiveLayerImage !=
-                                                            null
-                                                ? _buildFilterPreviewStack()
-                                                : _layerOpacityPreviewActive &&
-                                                        _layerOpacityPreviewActiveLayerImage !=
-                                                            null
-                                                ? _buildLayerOpacityPreviewStack()
-                                                : BitmapCanvasSurface(
-                                                    frame: frame,
-                                                  );
+                                            final Widget canvasSurface = IgnorePointer(
+                                              ignoring: true,
+                                              child: RustCanvasSurface(
+                                                surfaceKey: widget.surfaceKey,
+                                                canvasSize: _canvasSize,
+                                                enableDrawing:
+                                                    canPreviewStroke &&
+                                                    !activeLayerLocked &&
+                                                    !_layerTransformModeActive &&
+                                                    !_isLayerFreeTransformActive &&
+                                                    !_controller
+                                                        .isActiveLayerTransforming,
+                                                layerCount:
+                                                    _controller.layers.length,
+                                                brushColorArgb:
+                                                    _isBrushEraserEnabled
+                                                        ? 0xFFFFFFFF
+                                                        : _primaryColor.value,
+                                                brushRadius: _penStrokeWidth / 2,
+                                                erase: _isBrushEraserEnabled,
+                                                brushShape: _brushShape,
+                                                brushRandomRotationEnabled:
+                                                    _brushRandomRotationEnabled,
+                                                brushRotationSeed:
+                                                    _brushRandomRotationPreviewSeed,
+                                                hollowStrokeEnabled:
+                                                    _hollowStrokeEnabled,
+                                                hollowStrokeRatio:
+                                                    _hollowStrokeRatio,
+                                                hollowStrokeEraseOccludedParts:
+                                                    _hollowStrokeEraseOccludedParts,
+                                                antialiasLevel: _penAntialiasLevel,
+                                                backgroundColorArgb:
+                                                    widget.settings.backgroundColor.toARGB32(),
+                                                usePressure:
+                                                    _stylusPressureEnabled ||
+                                                    _simulatePenPressure ||
+                                                    _autoSharpPeakEnabled,
+                                                streamlineStrength:
+                                                    _streamlineStrength,
+                                                onStrokeBegin: _markDirty,
+                                                onEngineInfoChanged:
+                                                    _handleRustCanvasEngineInfoChanged,
+                                              ),
+                                            );
 
                                             final _FilterSession? filterSession =
                                                 _filterSession;

@@ -52,12 +52,10 @@ class CanvasPage extends StatefulWidget {
     super.key,
     required this.document,
     this.onInitialBoardReady,
-    this.useRustCanvas = false,
   });
 
   final ProjectDocument document;
   final VoidCallback? onInitialBoardReady;
-  final bool useRustCanvas;
 
   @override
   State<CanvasPage> createState() => CanvasPageState();
@@ -491,7 +489,6 @@ class CanvasPageState extends State<CanvasPage> {
     _document = widget.document;
     RustCanvasTimeline.mark(
       'canvasPage: initState '
-      'useRust=${widget.useRustCanvas} '
       'size=${_document.settings.width.round()}x${_document.settings.height.round()}',
     );
     _workspace.open(_document, activate: true);
@@ -975,8 +972,7 @@ class CanvasPageState extends State<CanvasPage> {
     debugPrint(
       'canvasPage: resizeImage request '
       'doc=${_document.settings.width.round()}x${_document.settings.height.round()} '
-      'target=${config.width}x${config.height} sampling=${config.sampling} '
-      'useRust=${widget.useRustCanvas}',
+      'target=${config.width}x${config.height} sampling=${config.sampling}',
     );
     final CanvasResizeResult? result = await board.resizeImage(
       config.width,
@@ -1040,8 +1036,7 @@ class CanvasPageState extends State<CanvasPage> {
     debugPrint(
       'canvasPage: resizeCanvas request '
       'doc=${_document.settings.width.round()}x${_document.settings.height.round()} '
-      'target=${config.width}x${config.height} anchor=${config.anchor} '
-      'useRust=${widget.useRustCanvas}',
+      'target=${config.width}x${config.height} anchor=${config.anchor}',
     );
     final CanvasResizeResult? result = await board.resizeCanvas(
       config.width,
@@ -1772,7 +1767,6 @@ class CanvasPageState extends State<CanvasPage> {
       key: _ensureBoardKey(id),
       surfaceKey: id,
       settings: entry.document.settings,
-      useRustCanvas: widget.useRustCanvas,
       onRequestExit: _handleExitRequest,
       isActive: isActive,
       onDirtyChanged: (dirty) => _handleDirtyChanged(id, dirty),

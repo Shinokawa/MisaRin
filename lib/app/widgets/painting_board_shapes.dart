@@ -52,7 +52,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     _resetPerspectiveLock();
-    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
       _showRustCanvasMessage('Rust 画布同步图层失败。');
       return;
@@ -122,7 +122,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
 
-    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     if (!_shapeUndoCapturedForPreview && !useRustCanvas) {
       await _pushUndoSnapshot();
     }
@@ -348,7 +348,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
-    final bool useRustCanvas = widget.useRustCanvas && _canUseRustCanvasEngine();
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {
       _clearShapePreviewOverlay();
@@ -419,7 +419,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   Future<void> _updateShapePreviewRasterImage() async {
-    if (!(widget.useRustCanvas && _canUseRustCanvasEngine())) {
+    if (!_canUseRustCanvasEngine()) {
       return;
     }
     if (_shapePreviewPath == null) {
