@@ -927,6 +927,9 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
+    final ProjectDocument historySnapshot = _document.copyWith(
+      layers: await board.snapshotLayersForExport(),
+    );
     final CanvasRotationResult? result = await board.rotateCanvas(rotation);
     if (result == null) {
       _showInfoBar(
@@ -936,7 +939,7 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
 
-    _pushDocumentHistorySnapshot();
+    _pushDocumentHistorySnapshot(snapshot: historySnapshot);
     final CanvasSettings updatedSettings = _document.settings.copyWith(
       width: result.width.toDouble(),
       height: result.height.toDouble(),
@@ -961,6 +964,9 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
+    final ProjectDocument historySnapshot = _document.copyWith(
+      layers: await board.snapshotLayersForExport(),
+    );
     final CanvasRotationResult? result = await board.flipCanvas(flip);
     if (result == null) {
       _showInfoBar(
@@ -970,7 +976,7 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
 
-    _pushDocumentHistorySnapshot();
+    _pushDocumentHistorySnapshot(snapshot: historySnapshot);
     final DateTime now = DateTime.now();
     final ProjectDocument updated = _document.copyWith(
       updatedAt: now,

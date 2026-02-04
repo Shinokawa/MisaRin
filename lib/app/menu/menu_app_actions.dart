@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/widgets.dart' show StatefulElement, State, StatefulWidget;
 import 'package:path/path.dart' as p;
 
 import '../dialogs/about_dialog.dart';
@@ -363,7 +364,20 @@ class AppMenuActions {
     if (kIsWeb) {
       loadingOverlay = _showWebCanvasLoadingOverlay(context);
     }
-    final CanvasPageState? canvasState = context.findAncestorStateOfType<CanvasPageState>();
+    final CanvasPageState? canvasState = () {
+      final CanvasPageState? ancestor =
+          context.findAncestorStateOfType<CanvasPageState>();
+      if (ancestor != null) {
+        return ancestor;
+      }
+      if (context is StatefulElement) {
+        final State<StatefulWidget> state = context.state;
+        if (state is CanvasPageState) {
+          return state;
+        }
+      }
+      return null;
+    }();
     try {
       await RustCanvasSurface.prewarm(
         surfaceKey: document.id,

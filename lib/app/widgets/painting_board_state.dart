@@ -780,7 +780,9 @@ class PaintingBoardState extends _PaintingBoardBase
         widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
     final bool logicChanged =
         widget.settings.creationLogic != oldWidget.settings.creationLogic;
-    if (sizeChanged || backgroundChanged || logicChanged) {
+    final bool layersChanged =
+        !identical(widget.initialLayers, oldWidget.initialLayers);
+    if (sizeChanged || backgroundChanged || logicChanged || layersChanged) {
       if (sizeChanged) {
         debugPrint(
           'paintingBoard: size changed '
