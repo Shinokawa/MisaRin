@@ -69,6 +69,13 @@ pub(crate) struct StreamlinePayload {
     pub(crate) strength: f32,
 }
 
+struct ConsumedStrokePoints {
+    points_len: usize,
+    down_count: usize,
+    up_count: usize,
+    emitted: Vec<(Point2D, f32)>,
+}
+
 pub(crate) struct StrokeResampler {
     last_emitted: Option<Point2D>,
     last_pressure: f32,
@@ -155,16 +162,11 @@ impl StrokeResampler {
         }
     }
 
-    pub(crate) fn consume_and_draw<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32))>(
+    fn consume_points_internal(
         &mut self,
-        brush: &mut BrushRenderer,
         brush_settings: &EngineBrushSettings,
-        layer_view: &wgpu::TextureView,
         points: Vec<EnginePoint>,
-        canvas_width: u32,
-        canvas_height: u32,
-        before_draw: &mut F,
-    ) -> bool {
+    ) -> Option<ConsumedStrokePoints> {
         const FLAG_DOWN: u32 = 1;
         const FLAG_UP: u32 = 4;
 
@@ -177,7 +179,7 @@ impl StrokeResampler {
             }
             self.last_tick_dirty = None;
             self.last_tick_point = None;
-            return false;
+            return None;
         }
 
         let points_len = points.len();
@@ -298,8 +300,49 @@ impl StrokeResampler {
             }
             self.last_tick_dirty = None;
             self.last_tick_point = None;
-            return false;
+            return None;
         }
+
+        self.last_tick_point = emitted.last().map(|(point, _)| *point);
+        self.last_tick_dirty = None;
+        Some(ConsumedStrokePoints {
+            points_len,
+            down_count,
+            up_count,
+            emitted,
+        })
+    }
+
+    pub(crate) fn consume_points(
+        &mut self,
+        brush_settings: &EngineBrushSettings,
+        points: Vec<EnginePoint>,
+    ) -> Vec<(Point2D, f32)> {
+        self.consume_points_internal(brush_settings, points)
+            .map(|out| out.emitted)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn consume_and_draw<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32))>(
+        &mut self,
+        brush: &mut BrushRenderer,
+        brush_settings: &EngineBrushSettings,
+        layer_view: &wgpu::TextureView,
+        points: Vec<EnginePoint>,
+        canvas_width: u32,
+        canvas_height: u32,
+        before_draw: &mut F,
+    ) -> bool {
+        let Some(consumed) = self.consume_points_internal(brush_settings, points) else {
+            return false;
+        };
+        let ConsumedStrokePoints {
+            points_len,
+            down_count,
+            up_count,
+            emitted,
+        } = consumed;
+
         let drawn = self.draw_emitted_points(
             brush,
             brush_settings,
@@ -860,7 +903,7 @@ pub(crate) fn map_brush_shape(index: u32) -> BrushShape {
     }
 }
 
-fn brush_random_rotation_radians(center: Point2D, seed: u32) -> f32 {
+pub(crate) fn brush_random_rotation_radians(center: Point2D, seed: u32) -> f32 {
     let x = (center.x * 256.0).round() as i32;
     let y = (center.y * 256.0).round() as i32;
 

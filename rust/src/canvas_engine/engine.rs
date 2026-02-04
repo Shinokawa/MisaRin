@@ -12,7 +12,7 @@ use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
 use crate::gpu::blend_modes::map_canvas_blend_mode_index;
-use crate::gpu::brush_renderer::{BrushRenderer, Point2D};
+use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Point2D};
 use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::debug::{self, LogLevel};
 use crate::gpu::filter_renderer::{
@@ -24,11 +24,16 @@ use crate::gpu::filter_renderer::{
 use super::layers::LayerTextures;
 use super::present::{
     attach_present_texture, create_present_params_buffer, create_present_transform_buffer,
-    write_present_config, write_present_transform, PresentRenderer, PresentTarget,
+    signal_frame_ready, write_present_config, write_present_transform, PresentRenderer,
+    PresentTarget,
 };
+use super::preview::{PreviewConfig, PreviewRenderer, PreviewSegment};
 #[cfg(target_os = "windows")]
 use super::present::create_dxgi_shared_present_target;
-use super::stroke::{apply_streamline, map_brush_shape, EngineBrushSettings, StrokeResampler};
+use super::stroke::{
+    apply_streamline, brush_random_rotation_radians, map_brush_shape, EngineBrushSettings,
+    StrokeResampler,
+};
 use super::transform::LayerTransformRenderer;
 use super::types::EnginePoint;
 use super::undo::UndoManager;
@@ -286,11 +291,20 @@ struct StreamlineAnimation {
     pending_first_frame: bool,
     from_points: Vec<(Point2D, f32)>,
     to_points: Vec<(Point2D, f32)>,
+    preview_from_points: Option<Vec<(Point2D, f32)>>,
+    preview_to_points: Option<Vec<(Point2D, f32)>>,
     scratch: Vec<(Point2D, f32)>,
     layer_index: u32,
     brush_settings: EngineBrushSettings,
     use_hollow_mask: bool,
     use_hollow_base: bool,
+}
+
+struct PreviewStrokeState {
+    layer_index: u32,
+    brush_settings: EngineBrushSettings,
+    points: Vec<(Point2D, f32)>,
+    use_accumulate: bool,
 }
 
 impl StreamlineAnimation {
@@ -508,6 +522,187 @@ fn resample_scale_for_backlog(backlog_points: u64) -> f32 {
     }
 }
 
+const STREAMLINE_PREVIEW_MAX_POINTS: usize = 512;
+
+fn downsample_streamline_points(
+    points: &[(Point2D, f32)],
+    target_count: usize,
+) -> Vec<(Point2D, f32)> {
+    let len = points.len();
+    if len <= target_count {
+        return points.to_vec();
+    }
+    if target_count <= 1 {
+        return vec![points[len.saturating_sub(1)]];
+    }
+    let last = len - 1;
+    let mut output = Vec::with_capacity(target_count);
+    for i in 0..target_count {
+        let idx = (i * last) / (target_count - 1);
+        output.push(points[idx]);
+    }
+    output
+}
+
+fn build_streamline_preview(
+    from: &[(Point2D, f32)],
+    to: &[(Point2D, f32)],
+) -> Option<(Vec<(Point2D, f32)>, Vec<(Point2D, f32)>)> {
+    if from.len() != to.len() || from.len() <= STREAMLINE_PREVIEW_MAX_POINTS {
+        return None;
+    }
+    let preview_from = downsample_streamline_points(from, STREAMLINE_PREVIEW_MAX_POINTS);
+    let preview_to = downsample_streamline_points(to, preview_from.len());
+    if preview_from.len() != preview_to.len() || preview_from.len() < 2 {
+        return None;
+    }
+    Some((preview_from, preview_to))
+}
+
+fn has_visible_layer_above(
+    active_layer_index: usize,
+    layer_visible: &[bool],
+    layer_opacity: &[f32],
+    layer_count: usize,
+) -> bool {
+    let count = layer_count
+        .min(layer_visible.len())
+        .min(layer_opacity.len());
+    if active_layer_index + 1 >= count {
+        return false;
+    }
+    for idx in (active_layer_index + 1)..count {
+        if !layer_visible.get(idx).copied().unwrap_or(true) {
+            continue;
+        }
+        let opacity = layer_opacity.get(idx).copied().unwrap_or(1.0);
+        if opacity > 0.0001 {
+            return true;
+        }
+    }
+    false
+}
+
+fn brush_shape_index(shape: BrushShape) -> u32 {
+    match shape {
+        BrushShape::Circle => 0,
+        BrushShape::Triangle => 1,
+        BrushShape::Square => 2,
+        BrushShape::Star => 3,
+    }
+}
+
+fn can_use_vector_preview(
+    brush_settings: &EngineBrushSettings,
+    selection_mask_active: bool,
+    layer_blend_mode: u32,
+    view_flags: u32,
+    has_visible_above: bool,
+) -> bool {
+    if brush_settings.streamline_strength <= 0.0001 {
+        return false;
+    }
+    if selection_mask_active {
+        return false;
+    }
+    if layer_blend_mode != 0 {
+        return false;
+    }
+    if (view_flags & VIEW_FLAG_BLACK_WHITE) != 0 {
+        return false;
+    }
+    if has_visible_above {
+        return false;
+    }
+    true
+}
+
+fn preview_use_accumulate(brush_settings: &EngineBrushSettings) -> bool {
+    let needs_per_segment_rotation =
+        brush_settings.random_rotation && !matches!(brush_settings.shape, BrushShape::Circle);
+    let hollow_enabled = brush_settings.hollow_enabled
+        && !brush_settings.erase
+        && brush_settings.hollow_ratio > 0.0001;
+    !(needs_per_segment_rotation || hollow_enabled)
+}
+
+fn build_preview_config(
+    brush_settings: &EngineBrushSettings,
+    canvas_width: u32,
+    canvas_height: u32,
+    view_flags: u32,
+    layer_opacity: f32,
+) -> PreviewConfig {
+    let hollow_ratio = if brush_settings.hollow_enabled {
+        brush_settings.hollow_ratio
+    } else {
+        0.0
+    };
+    PreviewConfig {
+        canvas_width,
+        canvas_height,
+        brush_shape: brush_shape_index(brush_settings.shape),
+        antialias_level: brush_settings.antialias_level,
+        color_argb: brush_settings.color_argb,
+        erase_mode: brush_settings.erase as u32,
+        mirror_x: ((view_flags & VIEW_FLAG_MIRROR) != 0) as u32,
+        _pad0: 0,
+        hollow_ratio,
+        softness: 0.0,
+        layer_opacity: layer_opacity.clamp(0.0, 1.0),
+        _pad1: 0.0,
+    }
+}
+
+fn build_preview_segments(
+    points: &[(Point2D, f32)],
+    brush_settings: &EngineBrushSettings,
+) -> Vec<PreviewSegment> {
+    if points.is_empty() {
+        return Vec::new();
+    }
+    let needs_rotation =
+        brush_settings.random_rotation && !matches!(brush_settings.shape, BrushShape::Circle);
+    let mut segments: Vec<PreviewSegment> = Vec::with_capacity(points.len());
+    if points.len() == 1 {
+        let (p0, pres0) = points[0];
+        let radius = brush_settings.radius_from_pressure(pres0);
+        let rotation = if needs_rotation {
+            brush_random_rotation_radians(p0, brush_settings.rotation_seed)
+        } else {
+            0.0
+        };
+        return vec![PreviewSegment {
+            p0: [p0.x, p0.y],
+            p1: [p0.x, p0.y],
+            r0: radius,
+            r1: radius,
+            rot_sin: rotation.sin(),
+            rot_cos: rotation.cos(),
+        }];
+    }
+    for i in 0..points.len().saturating_sub(1) {
+        let (p0, pres0) = points[i];
+        let (p1, pres1) = points[i + 1];
+        let r0 = brush_settings.radius_from_pressure(pres0);
+        let r1 = brush_settings.radius_from_pressure(pres1);
+        let rotation = if needs_rotation {
+            brush_random_rotation_radians(p0, brush_settings.rotation_seed)
+        } else {
+            0.0
+        };
+        segments.push(PreviewSegment {
+            p0: [p0.x, p0.y],
+            p1: [p1.x, p1.y],
+            r0,
+            r1,
+            rot_sin: rotation.sin(),
+            rot_cos: rotation.cos(),
+        });
+    }
+    segments
+}
+
 fn interpolate_streamline_points(
     from: &[(Point2D, f32)],
     to: &[(Point2D, f32)],
@@ -583,12 +778,17 @@ fn render_streamline_frame(
         }
         brush_ref.begin_stroke_base_capture();
     }
-    interpolate_streamline_points(
-        &animation.from_points,
-        &animation.to_points,
-        t,
-        &mut animation.scratch,
-    );
+    let (from_points, to_points) = if t >= 0.999 {
+        (&animation.from_points, &animation.to_points)
+    } else if let (Some(preview_from), Some(preview_to)) = (
+        animation.preview_from_points.as_ref(),
+        animation.preview_to_points.as_ref(),
+    ) {
+        (preview_from, preview_to)
+    } else {
+        (&animation.from_points, &animation.to_points)
+    };
+    interpolate_streamline_points(from_points, to_points, t, &mut animation.scratch);
     if animation.scratch.is_empty() {
         return false;
     }
@@ -647,6 +847,92 @@ fn render_streamline_frame(
                 "streamline",
                 stroke.last_tick_point(),
             );
+        }
+    }
+    drawn_any
+}
+
+fn commit_preview_stroke(
+    stroke: &mut StrokeResampler,
+    brush: &mut Option<BrushRenderer>,
+    brush_settings: &EngineBrushSettings,
+    points: &[(Point2D, f32)],
+    layer_index: u32,
+    layers: &LayerTextures,
+    undo_manager: &mut UndoManager,
+    layer_uniform: &mut Vec<Option<u32>>,
+    device: &Arc<wgpu::Device>,
+    queue: &Arc<wgpu::Queue>,
+    canvas_width: u32,
+    canvas_height: u32,
+) -> bool {
+    if points.is_empty() {
+        return false;
+    }
+    let brush_ref = match ensure_brush(brush, device, queue, canvas_width, canvas_height) {
+        Ok(brush_ref) => brush_ref,
+        Err(err) => {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("BrushRenderer init failed: {err}"),
+            );
+            return false;
+        }
+    };
+    let layer_idx = layer_index as usize;
+    let Some(active_layer_view) = layers
+        .layer_view(layer_idx)
+        .or_else(|| layers.layer_view(0))
+    else {
+        return false;
+    };
+    let layer_texture = layers.texture();
+    undo_manager.begin_stroke(layer_index);
+    let use_hollow_mask = brush_settings.hollow_enabled
+        && !brush_settings.erase
+        && brush_settings.hollow_ratio > 0.0001;
+    if use_hollow_mask {
+        if let Err(err) = brush_ref.clear_stroke_mask() {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("Brush stroke mask clear failed: {err}"),
+            );
+        }
+        brush_ref.begin_stroke_base_capture();
+    }
+    let use_hollow_base = use_hollow_mask && !brush_settings.hollow_erase_occluded;
+    let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+        undo_manager.capture_before_for_dirty_rect(
+            device.as_ref(),
+            queue.as_ref(),
+            layer_texture,
+            layer_index,
+            dirty_rect,
+        );
+        if use_hollow_base {
+            if let Err(err) =
+                brush.capture_stroke_base_region(layer_texture, layer_index, dirty_rect)
+            {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Brush stroke base capture failed: {err}"),
+                );
+            }
+        }
+    };
+    let drawn_any = stroke.draw_emitted_points(
+        brush_ref,
+        brush_settings,
+        active_layer_view,
+        points,
+        canvas_width,
+        canvas_height,
+        &mut before_draw,
+    );
+    undo_manager.end_stroke(device.as_ref(), queue.as_ref(), layer_texture);
+    if drawn_any {
+        if let Some(entry) = layer_uniform.get_mut(layer_idx) {
+            *entry = None;
         }
     }
     drawn_any
@@ -768,6 +1054,9 @@ fn render_thread_main(
     let mut undo_manager = UndoManager::new(canvas_width, canvas_height);
     let mut transform_renderer: Option<LayerTransformRenderer> = None;
     let mut streamline_animation: Option<StreamlineAnimation> = None;
+    let mut preview_renderer: Option<PreviewRenderer> = None;
+    let mut preview_state: Option<PreviewStrokeState> = None;
+    let mut selection_mask_active = false;
 
     loop {
         match &present {
@@ -801,6 +1090,7 @@ fn render_thread_main(
                         &mut transform_renderer,
                         &mut brush,
                         &mut brush_settings,
+                        &mut selection_mask_active,
                         &mut undo_manager,
                         canvas_width,
                         canvas_height,
@@ -835,25 +1125,46 @@ fn render_thread_main(
                 let mut needs_render = false;
                 while let Ok(cmd) = cmd_rx.try_recv() {
                     if let Some(mut animation) = streamline_animation.take() {
-                        let frame_drawn = render_streamline_frame(
-                            &mut animation,
-                            1.0,
-                            &mut stroke,
-                            &mut brush,
-                            &device,
-                            &queue,
-                            &layers,
-                            &mut undo_manager,
-                            &mut layer_uniform,
-                            canvas_width,
-                            canvas_height,
-                        );
-                        undo_manager.end_stroke(device.as_ref(), queue.as_ref(), layers.texture());
-                        if frame_drawn {
-                            if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
-                                *entry = None;
+                        if let Some(state) = preview_state.take() {
+                            let committed = commit_preview_stroke(
+                                &mut stroke,
+                                &mut brush,
+                                &state.brush_settings,
+                                &animation.to_points,
+                                state.layer_index,
+                                &layers,
+                                &mut undo_manager,
+                                &mut layer_uniform,
+                                &device,
+                                &queue,
+                                canvas_width,
+                                canvas_height,
+                            );
+                            if committed {
+                                needs_render = true;
                             }
-                            needs_render = true;
+                        } else {
+                            let frame_drawn = render_streamline_frame(
+                                &mut animation,
+                                1.0,
+                                &mut stroke,
+                                &mut brush,
+                                &device,
+                                &queue,
+                                &layers,
+                                &mut undo_manager,
+                                &mut layer_uniform,
+                                canvas_width,
+                                canvas_height,
+                            );
+                            undo_manager
+                                .end_stroke(device.as_ref(), queue.as_ref(), layers.texture());
+                            if frame_drawn {
+                                if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
+                                    *entry = None;
+                                }
+                                needs_render = true;
+                            }
                         }
                     }
                     let outcome = handle_engine_command(
@@ -884,6 +1195,7 @@ fn render_thread_main(
                         &mut transform_renderer,
                         &mut brush,
                         &mut brush_settings,
+                        &mut selection_mask_active,
                         &mut undo_manager,
                         canvas_width,
                         canvas_height,
@@ -935,127 +1247,411 @@ fn render_thread_main(
                     let backlog_points =
                         raw_points.len() as u64 + input_queue_len.load(Ordering::Relaxed);
                     stroke.set_resample_scale(resample_scale_for_backlog(backlog_points));
+                    let layer_blend_mode_value =
+                        layer_blend_mode.get(active_layer_index).copied().unwrap_or(0);
+                    let has_visible_above = has_visible_layer_above(
+                        active_layer_index,
+                        &layer_visible,
+                        &layer_opacity,
+                        layer_count,
+                    );
+                    let preview_allowed = can_use_vector_preview(
+                        &brush_settings,
+                        selection_mask_active,
+                        layer_blend_mode_value,
+                        view_flags,
+                        has_visible_above,
+                    );
+                    let preview_active = preview_state.is_some() || preview_allowed;
                     let has_down = raw_points.iter().any(|p| (p.flags & FLAG_DOWN) != 0);
                     if has_down {
                         if let Some(mut animation) = streamline_animation.take() {
-                            let _ = render_streamline_frame(
-                                &mut animation,
-                                1.0,
-                                &mut stroke,
-                                &mut brush,
-                                &device,
-                                &queue,
-                                &layers,
-                                &mut undo_manager,
-                                &mut layer_uniform,
-                                canvas_width,
-                                canvas_height,
-                            );
-                            undo_manager.end_stroke(
-                                device.as_ref(),
-                                queue.as_ref(),
-                                layers.texture(),
-                            );
-                            if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
-                                *entry = None;
+                            if let Some(state) = preview_state.take() {
+                                let committed = commit_preview_stroke(
+                                    &mut stroke,
+                                    &mut brush,
+                                    &state.brush_settings,
+                                    &animation.to_points,
+                                    state.layer_index,
+                                    &layers,
+                                    &mut undo_manager,
+                                    &mut layer_uniform,
+                                    &device,
+                                    &queue,
+                                    canvas_width,
+                                    canvas_height,
+                                );
+                                if committed {
+                                    needs_render = true;
+                                }
+                            } else {
+                                let _ = render_streamline_frame(
+                                    &mut animation,
+                                    1.0,
+                                    &mut stroke,
+                                    &mut brush,
+                                    &device,
+                                    &queue,
+                                    &layers,
+                                    &mut undo_manager,
+                                    &mut layer_uniform,
+                                    canvas_width,
+                                    canvas_height,
+                                );
+                                undo_manager.end_stroke(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    layers.texture(),
+                                );
+                                if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
+                                    *entry = None;
+                                }
+                                needs_render = true;
                             }
-                            needs_render = true;
                         }
                     }
 
-                    let brush_ref = match ensure_brush(
-                        &mut brush,
-                        &device,
-                        &queue,
-                        canvas_width,
-                        canvas_height,
-                    ) {
-                        Ok(brush_ref) => brush_ref,
-                        Err(err) => {
-                            debug::log(
-                                LogLevel::Warn,
-                                format_args!("BrushRenderer init failed: {err}"),
-                            );
-                            stroke = StrokeResampler::new();
-                            continue;
-                        }
-                    };
+                    if preview_active {
+                        let mut segment: Vec<EnginePoint> = Vec::new();
+                        let mut preview_updated = false;
+                        for p in raw_points {
+                            let is_down = (p.flags & FLAG_DOWN) != 0;
+                            let is_up = (p.flags & FLAG_UP) != 0;
 
-                    let active_layer_view = layers
-                        .layer_view(active_layer_index)
-                        .or_else(|| layers.layer_view(0))
-                        .expect("layers non-empty");
-                    let layer_texture = layers.texture();
-                    let mut segment: Vec<EnginePoint> = Vec::new();
-                    let mut drawn_any = false;
-
-                    for p in raw_points {
-                        let is_down = (p.flags & FLAG_DOWN) != 0;
-                        let is_up = (p.flags & FLAG_UP) != 0;
-
-                        if is_down {
-                            undo_manager.begin_stroke(active_layer_index as u32);
-                            let use_hollow_mask = brush_settings.hollow_enabled
-                                && !brush_settings.erase
-                                && brush_settings.hollow_ratio > 0.0001;
-                            if use_hollow_mask {
-                                if let Err(err) = brush_ref.clear_stroke_mask() {
-                                    debug::log(
-                                        LogLevel::Warn,
-                                        format_args!("Brush stroke mask clear failed: {err}"),
-                                    );
-                                }
-                                brush_ref.begin_stroke_base_capture();
+                            if is_down && preview_state.is_none() && preview_allowed {
+                                preview_state = Some(PreviewStrokeState {
+                                    layer_index: active_layer_index as u32,
+                                    brush_settings,
+                                    points: Vec::new(),
+                                    use_accumulate: preview_use_accumulate(&brush_settings),
+                                });
                             }
-                        } else {
-                            undo_manager.begin_stroke_if_needed(active_layer_index as u32);
+
+                            segment.push(p);
+
+                            if is_up {
+                                if let Some(state) = preview_state.as_mut() {
+                                    let emitted = stroke.consume_points(
+                                        &state.brush_settings,
+                                        std::mem::take(&mut segment),
+                                    );
+                                    if !emitted.is_empty() {
+                                        state.points.extend(emitted);
+                                        preview_updated = true;
+                                    }
+                                } else {
+                                    segment.clear();
+                                }
+
+                                if let Some(payload) = stroke.take_streamline_payload() {
+                                    let points = payload.points;
+                                    let strength = payload.strength;
+                                    if points.len() > 2 && strength > 0.0001 {
+                                        let smoothed = apply_streamline(&points, strength);
+                                        if !smoothed.is_empty()
+                                            && smoothed.len() == points.len()
+                                        {
+                                            let duration =
+                                                streamline_animation_duration(strength);
+                                            let (preview_from, preview_to, preview_len) =
+                                                match build_streamline_preview(
+                                                    &points, &smoothed,
+                                                ) {
+                                                    Some((preview_from, preview_to)) => {
+                                                        let len = preview_from.len();
+                                                        (
+                                                            Some(preview_from),
+                                                            Some(preview_to),
+                                                            len,
+                                                        )
+                                                    }
+                                                    None => (None, None, points.len()),
+                                                };
+                                            if debug::level() >= LogLevel::Info {
+                                                debug::log(
+                                                    LogLevel::Info,
+                                                    format_args!(
+                                                        "streamline start points={} preview_points={} strength={:.3} duration_ms={}",
+                                                        points.len(),
+                                                        preview_len,
+                                                        strength,
+                                                        duration.as_millis()
+                                                    ),
+                                                );
+                                            }
+                                            let now = Instant::now();
+                                            streamline_animation = Some(StreamlineAnimation {
+                                                start: now,
+                                                duration,
+                                                next_frame_at: now,
+                                                frame_interval: Duration::from_millis(16),
+                                                pending_first_frame: false,
+                                                from_points: points,
+                                                to_points: smoothed,
+                                                preview_from_points: preview_from,
+                                                preview_to_points: preview_to,
+                                                scratch: Vec::new(),
+                                                layer_index: active_layer_index as u32,
+                                                brush_settings,
+                                                use_hollow_mask: false,
+                                                use_hollow_base: false,
+                                            });
+                                        }
+                                    }
+                                } else if let Some(state) = preview_state.take() {
+                                    let committed = commit_preview_stroke(
+                                        &mut stroke,
+                                        &mut brush,
+                                        &state.brush_settings,
+                                        &state.points,
+                                        state.layer_index,
+                                        &layers,
+                                        &mut undo_manager,
+                                        &mut layer_uniform,
+                                        &device,
+                                        &queue,
+                                        canvas_width,
+                                        canvas_height,
+                                    );
+                                    if committed {
+                                        needs_render = true;
+                                    }
+                                }
+                            }
                         }
 
-                        segment.push(p);
+                        if !segment.is_empty() {
+                            if let Some(state) = preview_state.as_mut() {
+                                let emitted =
+                                    stroke.consume_points(&state.brush_settings, segment);
+                                if !emitted.is_empty() {
+                                    state.points.extend(emitted);
+                                    preview_updated = true;
+                                }
+                            }
+                        }
 
-                        if is_up {
-                            let layer_idx = active_layer_index as u32;
-                            let use_hollow_mask = brush_settings.hollow_enabled
-                                && !brush_settings.erase
-                                && brush_settings.hollow_ratio > 0.0001;
-                            let use_hollow_base =
-                                use_hollow_mask && !brush_settings.hollow_erase_occluded;
-                            let mut defer_end_stroke = false;
-                            let segment_drawn = {
-                                let mut before_draw =
-                                    |brush: &mut BrushRenderer, dirty_rect| {
-                                        undo_manager.capture_before_for_dirty_rect(
+                        if preview_updated {
+                            needs_render = true;
+                        }
+                    } else {
+                        let brush_ref = match ensure_brush(
+                            &mut brush,
+                            &device,
+                            &queue,
+                            canvas_width,
+                            canvas_height,
+                        ) {
+                            Ok(brush_ref) => brush_ref,
+                            Err(err) => {
+                                debug::log(
+                                    LogLevel::Warn,
+                                    format_args!("BrushRenderer init failed: {err}"),
+                                );
+                                stroke = StrokeResampler::new();
+                                continue;
+                            }
+                        };
+
+                        let active_layer_view = layers
+                            .layer_view(active_layer_index)
+                            .or_else(|| layers.layer_view(0))
+                            .expect("layers non-empty");
+                        let layer_texture = layers.texture();
+                        let mut segment: Vec<EnginePoint> = Vec::new();
+                        let mut drawn_any = false;
+
+                        for p in raw_points {
+                            let is_down = (p.flags & FLAG_DOWN) != 0;
+                            let is_up = (p.flags & FLAG_UP) != 0;
+
+                            if is_down {
+                                undo_manager.begin_stroke(active_layer_index as u32);
+                                let use_hollow_mask = brush_settings.hollow_enabled
+                                    && !brush_settings.erase
+                                    && brush_settings.hollow_ratio > 0.0001;
+                                if use_hollow_mask {
+                                    if let Err(err) = brush_ref.clear_stroke_mask() {
+                                        debug::log(
+                                            LogLevel::Warn,
+                                            format_args!("Brush stroke mask clear failed: {err}"),
+                                        );
+                                    }
+                                    brush_ref.begin_stroke_base_capture();
+                                }
+                            } else {
+                                undo_manager.begin_stroke_if_needed(active_layer_index as u32);
+                            }
+
+                            segment.push(p);
+
+                            if is_up {
+                                let layer_idx = active_layer_index as u32;
+                                let use_hollow_mask = brush_settings.hollow_enabled
+                                    && !brush_settings.erase
+                                    && brush_settings.hollow_ratio > 0.0001;
+                                let use_hollow_base =
+                                    use_hollow_mask && !brush_settings.hollow_erase_occluded;
+                                let mut defer_end_stroke = false;
+                                let segment_drawn = {
+                                    let mut before_draw =
+                                        |brush: &mut BrushRenderer, dirty_rect| {
+                                            undo_manager.capture_before_for_dirty_rect(
+                                                device.as_ref(),
+                                                queue.as_ref(),
+                                                layer_texture,
+                                                layer_idx,
+                                                dirty_rect,
+                                            );
+                                            if use_hollow_base {
+                                                if let Err(err) =
+                                                    brush.capture_stroke_base_region(
+                                                        layer_texture,
+                                                        layer_idx,
+                                                        dirty_rect,
+                                                    )
+                                                {
+                                                    debug::log(
+                                                        LogLevel::Warn,
+                                                        format_args!(
+                                                            "Brush stroke base capture failed: {err}"
+                                                        ),
+                                                    );
+                                                }
+                                            }
+                                        };
+                                    stroke.consume_and_draw(
+                                        brush_ref,
+                                        &brush_settings,
+                                        active_layer_view,
+                                        std::mem::take(&mut segment),
+                                        canvas_width,
+                                        canvas_height,
+                                        &mut before_draw,
+                                    )
+                                };
+                                if segment_drawn && brush_settings.streamline_strength > 0.0001 {
+                                    if let Some(dirty) = stroke.last_tick_dirty() {
+                                        maybe_log_layer_sample(
                                             device.as_ref(),
                                             queue.as_ref(),
                                             layer_texture,
                                             layer_idx,
-                                            dirty_rect,
+                                            canvas_width,
+                                            canvas_height,
+                                            dirty,
+                                            "stroke",
+                                            stroke.last_tick_point(),
                                         );
-                                        if use_hollow_base {
-                                            if let Err(err) = brush.capture_stroke_base_region(
-                                                layer_texture,
-                                                layer_idx,
-                                                dirty_rect,
-                                            ) {
+                                    }
+                                }
+                                drawn_any |= segment_drawn;
+
+                                if let Some(payload) = stroke.take_streamline_payload() {
+                                    let points = payload.points;
+                                    let strength = payload.strength;
+                                    if points.len() > 2 && strength > 0.0001 {
+                                        let smoothed = apply_streamline(&points, strength);
+                                        if !smoothed.is_empty()
+                                            && smoothed.len() == points.len()
+                                        {
+                                            let duration =
+                                                streamline_animation_duration(strength);
+                                            let (preview_from, preview_to, preview_len) =
+                                                match build_streamline_preview(
+                                                    &points, &smoothed,
+                                                ) {
+                                                    Some((preview_from, preview_to)) => {
+                                                        let len = preview_from.len();
+                                                        (
+                                                            Some(preview_from),
+                                                            Some(preview_to),
+                                                            len,
+                                                        )
+                                                    }
+                                                    None => (None, None, points.len()),
+                                                };
+                                            if debug::level() >= LogLevel::Info {
                                                 debug::log(
-                                                    LogLevel::Warn,
+                                                    LogLevel::Info,
                                                     format_args!(
-                                                        "Brush stroke base capture failed: {err}"
+                                                        "streamline start points={} preview_points={} strength={:.3} duration_ms={}",
+                                                        points.len(),
+                                                        preview_len,
+                                                        strength,
+                                                        duration.as_millis()
                                                     ),
                                                 );
                                             }
+                                            let now = Instant::now();
+                                            streamline_animation = Some(StreamlineAnimation {
+                                                start: now,
+                                                duration,
+                                                next_frame_at: now,
+                                                frame_interval: Duration::from_millis(16),
+                                                pending_first_frame: false,
+                                                from_points: points,
+                                                to_points: smoothed,
+                                                preview_from_points: preview_from,
+                                                preview_to_points: preview_to,
+                                                scratch: Vec::new(),
+                                                layer_index: layer_idx,
+                                                brush_settings,
+                                                use_hollow_mask,
+                                                use_hollow_base,
+                                            });
+                                            defer_end_stroke = true;
                                         }
-                                    };
-                                stroke.consume_and_draw(
-                                    brush_ref,
-                                    &brush_settings,
-                                    active_layer_view,
-                                    std::mem::take(&mut segment),
-                                    canvas_width,
-                                    canvas_height,
-                                    &mut before_draw,
-                                )
+                                    }
+                                }
+                                if !defer_end_stroke {
+                                    undo_manager.end_stroke(
+                                        device.as_ref(),
+                                        queue.as_ref(),
+                                        layer_texture,
+                                    );
+                                }
+                            }
+                        }
+
+                        if !segment.is_empty() {
+                            let layer_idx = active_layer_index as u32;
+                            let use_hollow_base = brush_settings.hollow_enabled
+                                && !brush_settings.erase
+                                && brush_settings.hollow_ratio > 0.0001
+                                && !brush_settings.hollow_erase_occluded;
+                            let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+                                undo_manager.capture_before_for_dirty_rect(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    layer_texture,
+                                    layer_idx,
+                                    dirty_rect,
+                                );
+                                if use_hollow_base {
+                                    if let Err(err) = brush.capture_stroke_base_region(
+                                        layer_texture,
+                                        layer_idx,
+                                        dirty_rect,
+                                    ) {
+                                        debug::log(
+                                            LogLevel::Warn,
+                                            format_args!(
+                                                "Brush stroke base capture failed: {err}"
+                                            ),
+                                        );
+                                    }
+                                }
                             };
+                            let segment_drawn = stroke.consume_and_draw(
+                                brush_ref,
+                                &brush_settings,
+                                active_layer_view,
+                                segment,
+                                canvas_width,
+                                canvas_height,
+                                &mut before_draw,
+                            );
                             if segment_drawn && brush_settings.streamline_strength > 0.0001 {
                                 if let Some(dirty) = stroke.last_tick_dirty() {
                                     maybe_log_layer_sample(
@@ -1072,117 +1668,18 @@ fn render_thread_main(
                                 }
                             }
                             drawn_any |= segment_drawn;
+                        }
 
-                            if let Some(payload) = stroke.take_streamline_payload() {
-                                let points = payload.points;
-                                let strength = payload.strength;
-                                if points.len() > 2 && strength > 0.0001 {
-                                    let smoothed = apply_streamline(&points, strength);
-                                    if !smoothed.is_empty() && smoothed.len() == points.len() {
-                                        if debug::level() >= LogLevel::Info {
-                                            let duration =
-                                                streamline_animation_duration(strength);
-                                            debug::log(
-                                                LogLevel::Info,
-                                                format_args!(
-                                                    "streamline start points={} strength={:.3} duration_ms={}",
-                                                    points.len(),
-                                                    strength,
-                                                    duration.as_millis()
-                                                ),
-                                            );
-                                        }
-                                        let now = Instant::now();
-                                        streamline_animation = Some(StreamlineAnimation {
-                                            start: now,
-                                            duration: streamline_animation_duration(strength),
-                                            next_frame_at: now,
-                                            frame_interval: Duration::from_millis(16),
-                                            pending_first_frame: false,
-                                            from_points: points,
-                                            to_points: smoothed,
-                                            scratch: Vec::new(),
-                                            layer_index: layer_idx,
-                                            brush_settings,
-                                            use_hollow_mask,
-                                            use_hollow_base,
-                                        });
-                                        defer_end_stroke = true;
-                                    }
-                                }
-                            }
-                            if !defer_end_stroke {
-                                undo_manager.end_stroke(
-                                    device.as_ref(),
-                                    queue.as_ref(),
-                                    layer_texture,
-                                );
+                        if drawn_any {
+                            if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
+                                *entry = None;
                             }
                         }
+                        needs_render |= drawn_any;
                     }
-
-                    if !segment.is_empty() {
-                        let layer_idx = active_layer_index as u32;
-                        let use_hollow_base = brush_settings.hollow_enabled
-                            && !brush_settings.erase
-                            && brush_settings.hollow_ratio > 0.0001
-                            && !brush_settings.hollow_erase_occluded;
-                        let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
-                            undo_manager.capture_before_for_dirty_rect(
-                                device.as_ref(),
-                                queue.as_ref(),
-                                layer_texture,
-                                layer_idx,
-                                dirty_rect,
-                            );
-                            if use_hollow_base {
-                                if let Err(err) = brush.capture_stroke_base_region(
-                                    layer_texture,
-                                    layer_idx,
-                                    dirty_rect,
-                                ) {
-                                    debug::log(
-                                        LogLevel::Warn,
-                                        format_args!("Brush stroke base capture failed: {err}"),
-                                    );
-                                }
-                            }
-                        };
-                        let segment_drawn = stroke.consume_and_draw(
-                            brush_ref,
-                            &brush_settings,
-                            active_layer_view,
-                            segment,
-                            canvas_width,
-                            canvas_height,
-                            &mut before_draw,
-                        );
-                        if segment_drawn && brush_settings.streamline_strength > 0.0001 {
-                            if let Some(dirty) = stroke.last_tick_dirty() {
-                                maybe_log_layer_sample(
-                                    device.as_ref(),
-                                    queue.as_ref(),
-                                    layer_texture,
-                                    layer_idx,
-                                    canvas_width,
-                                    canvas_height,
-                                    dirty,
-                                    "stroke",
-                                    stroke.last_tick_point(),
-                                );
-                            }
-                        }
-                        drawn_any |= segment_drawn;
-                    }
-
-                    if drawn_any {
-                        if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
-                            *entry = None;
-                        }
-                    }
-                    needs_render |= drawn_any;
                 }
 
+                let mut clear_animation = false;
                 if let Some(animation) = streamline_animation.as_mut() {
                     let now = Instant::now();
                     if animation.pending_first_frame {
@@ -1195,31 +1692,88 @@ fn render_thread_main(
                         if done {
                             t = 1.0;
                         }
-                        let frame_drawn = render_streamline_frame(
-                            animation,
-                            t,
-                            &mut stroke,
-                            &mut brush,
-                            &device,
-                            &queue,
-                            &layers,
-                            &mut undo_manager,
-                            &mut layer_uniform,
-                            canvas_width,
-                            canvas_height,
-                        );
-                        if frame_drawn {
-                            needs_render = true;
-                        }
-                        if done {
-                            undo_manager.end_stroke(
-                                device.as_ref(),
-                                queue.as_ref(),
-                                layers.texture(),
+                        if preview_state.is_some() {
+                            let (from_points, to_points) = if t >= 0.999 {
+                                (&animation.from_points, &animation.to_points)
+                            } else if let (Some(preview_from), Some(preview_to)) = (
+                                animation.preview_from_points.as_ref(),
+                                animation.preview_to_points.as_ref(),
+                            ) {
+                                (preview_from, preview_to)
+                            } else {
+                                (&animation.from_points, &animation.to_points)
+                            };
+                            interpolate_streamline_points(
+                                from_points,
+                                to_points,
+                                t,
+                                &mut animation.scratch,
                             );
-                            streamline_animation = None;
+                            if debug::level() >= LogLevel::Info {
+                                debug::log(
+                                    LogLevel::Info,
+                                    format_args!(
+                                        "streamline preview t={:.3} points={}",
+                                        t,
+                                        animation.scratch.len()
+                                    ),
+                                );
+                            }
+                            if !animation.scratch.is_empty() {
+                                needs_render = true;
+                            }
+                            if done {
+                                if let Some(state) = preview_state.take() {
+                                    let committed = commit_preview_stroke(
+                                        &mut stroke,
+                                        &mut brush,
+                                        &state.brush_settings,
+                                        &animation.to_points,
+                                        state.layer_index,
+                                        &layers,
+                                        &mut undo_manager,
+                                        &mut layer_uniform,
+                                        &device,
+                                        &queue,
+                                        canvas_width,
+                                        canvas_height,
+                                    );
+                                    if committed {
+                                        needs_render = true;
+                                    }
+                                }
+                                clear_animation = true;
+                            }
+                        } else {
+                            let frame_drawn = render_streamline_frame(
+                                animation,
+                                t,
+                                &mut stroke,
+                                &mut brush,
+                                &device,
+                                &queue,
+                                &layers,
+                                &mut undo_manager,
+                                &mut layer_uniform,
+                                canvas_width,
+                                canvas_height,
+                            );
+                            if frame_drawn {
+                                needs_render = true;
+                            }
+                            if done {
+                                undo_manager.end_stroke(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    layers.texture(),
+                                );
+                                clear_animation = true;
+                            }
                         }
                     }
+                }
+                if clear_animation {
+                    streamline_animation = None;
                 }
 
                 if needs_render {
@@ -1235,13 +1789,65 @@ fn render_thread_main(
                                 ),
                             );
                         }
-                        present_renderer.render(
-                            device.as_ref(),
-                            queue.as_ref(),
-                            &present_bind_group,
-                            &target.view,
-                            Arc::clone(&frame_ready),
-                        );
+                        if let Some(state) = preview_state.as_ref() {
+                            present_renderer.render_base(
+                                device.as_ref(),
+                                queue.as_ref(),
+                                &present_bind_group,
+                                &target.view,
+                            );
+                            let layer_idx = state.layer_index as usize;
+                            let layer_visible_value =
+                                layer_visible.get(layer_idx).copied().unwrap_or(true);
+                            let layer_opacity_value =
+                                layer_opacity.get(layer_idx).copied().unwrap_or(1.0);
+                            if layer_visible_value && layer_opacity_value > 0.0001 {
+                                let preview_points: &[(
+                                    Point2D,
+                                    f32,
+                                )] = if let Some(animation) = streamline_animation.as_ref() {
+                                    if animation.scratch.is_empty() {
+                                        state.points.as_slice()
+                                    } else {
+                                        animation.scratch.as_slice()
+                                    }
+                                } else {
+                                    state.points.as_slice()
+                                };
+                                if !preview_points.is_empty() {
+                                    let segments =
+                                        build_preview_segments(preview_points, &state.brush_settings);
+                                    if !segments.is_empty() {
+                                        let preview = preview_renderer
+                                            .get_or_insert_with(|| PreviewRenderer::new(device.as_ref()));
+                                        let config = build_preview_config(
+                                            &state.brush_settings,
+                                            canvas_width,
+                                            canvas_height,
+                                            view_flags,
+                                            layer_opacity_value,
+                                        );
+                                        preview.render(
+                                            device.as_ref(),
+                                            queue.as_ref(),
+                                            &target.view,
+                                            config,
+                                            &segments,
+                                            state.use_accumulate,
+                                        );
+                                    }
+                                }
+                            }
+                            signal_frame_ready(queue.as_ref(), Arc::clone(&frame_ready));
+                        } else {
+                            present_renderer.render(
+                                device.as_ref(),
+                                queue.as_ref(),
+                                &present_bind_group,
+                                &target.view,
+                                Arc::clone(&frame_ready),
+                            );
+                        }
                     }
                 }
             }
@@ -1279,6 +1885,7 @@ fn handle_engine_command(
     transform_renderer: &mut Option<LayerTransformRenderer>,
     brush: &mut Option<BrushRenderer>,
     brush_settings: &mut EngineBrushSettings,
+    selection_mask_active: &mut bool,
     undo: &mut UndoManager,
     canvas_width: u32,
     canvas_height: u32,
@@ -3512,6 +4119,7 @@ fn handle_engine_command(
                 }
                 None => None,
             };
+            *selection_mask_active = valid_mask.is_some();
             match ensure_brush(brush, device, queue, canvas_width, canvas_height) {
                 Ok(brush_ref) => {
                     if let Err(err) = brush_ref.set_selection_mask(valid_mask.as_deref()) {

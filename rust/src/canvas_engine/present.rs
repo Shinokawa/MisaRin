@@ -319,6 +319,17 @@ impl PresentRenderer {
         present_view: &wgpu::TextureView,
         frame_ready: Arc<AtomicBool>,
     ) {
+        self.render_base(device, queue, bind_group, present_view);
+        signal_frame_ready(queue, frame_ready);
+    }
+
+    pub(crate) fn render_base(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        bind_group: &wgpu::BindGroup,
+        present_view: &wgpu::TextureView,
+    ) {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("misa-rin present renderer encoder"),
         });
@@ -341,15 +352,16 @@ impl PresentRenderer {
             pass.set_bind_group(0, bind_group, &[]);
             pass.draw(0..3, 0..1);
         }
-
         queue.submit(Some(encoder.finish()));
-        // Mark a frame ready immediately so UI can update even if the GPU queue is busy.
-        frame_ready.store(true, Ordering::Release);
-        let frame_ready_done = Arc::clone(&frame_ready);
-        queue.on_submitted_work_done(move || {
-            frame_ready_done.store(true, Ordering::Release);
-        });
     }
+}
+
+pub(crate) fn signal_frame_ready(queue: &wgpu::Queue, frame_ready: Arc<AtomicBool>) {
+    frame_ready.store(true, Ordering::Release);
+    let frame_ready_done = Arc::clone(&frame_ready);
+    queue.on_submitted_work_done(move || {
+        frame_ready_done.store(true, Ordering::Release);
+    });
 }
 
 pub(crate) fn attach_present_texture(
