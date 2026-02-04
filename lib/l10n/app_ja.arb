@@ -188,6 +188,8 @@
   "menuRotate90CCW": "90\u00b0 左回転",
   "menuRotate180CW": "180\u00b0 右回転",
   "menuRotate180CCW": "180\u00b0 左回転",
+  "menuFlipHorizontal": "左右反転",
+  "menuFlipVertical": "上下反転",
   "menuImageSizeEllipsis": "画像サイズ\u2026",
   "menuCanvasSizeEllipsis": "キャンバスサイズ\u2026",
 

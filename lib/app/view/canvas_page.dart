@@ -918,7 +918,7 @@ class CanvasPageState extends State<CanvasPage> {
     }
   }
 
-  void _applyCanvasRotation(CanvasRotation rotation) {
+  Future<void> _applyCanvasRotation(CanvasRotation rotation) async {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
       _showInfoBar(
@@ -927,7 +927,7 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
-    final CanvasRotationResult? result = board.rotateCanvas(rotation);
+    final CanvasRotationResult? result = await board.rotateCanvas(rotation);
     if (result == null) {
       _showInfoBar(
         context.l10n.canvasSizeErrorTransform,
@@ -944,6 +944,35 @@ class CanvasPageState extends State<CanvasPage> {
     final DateTime now = DateTime.now();
     final ProjectDocument updated = _document.copyWith(
       settings: updatedSettings,
+      updatedAt: now,
+      layers: result.layers,
+      previewBytes: null,
+    );
+
+    _applyDocumentState(updated);
+  }
+
+  Future<void> _applyCanvasFlip(CanvasFlip flip) async {
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null) {
+      _showInfoBar(
+        context.l10n.canvasNotReadyTransform,
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    final CanvasRotationResult? result = await board.flipCanvas(flip);
+    if (result == null) {
+      _showInfoBar(
+        context.l10n.canvasSizeErrorTransform,
+        severity: InfoBarSeverity.error,
+      );
+      return;
+    }
+
+    _pushDocumentHistorySnapshot();
+    final DateTime now = DateTime.now();
+    final ProjectDocument updated = _document.copyWith(
       updatedAt: now,
       layers: result.layers,
       previewBytes: null,
@@ -1918,17 +1947,23 @@ class CanvasPageState extends State<CanvasPage> {
       perspectiveMode:
           _activeBoard?.perspectiveGuideMode ?? PerspectiveGuideMode.off,
       perspectiveVisible: _activeBoard?.isPerspectiveGuideVisible ?? false,
-      rotateCanvas90Clockwise: () {
-        _applyCanvasRotation(CanvasRotation.clockwise90);
+      rotateCanvas90Clockwise: () async {
+        await _applyCanvasRotation(CanvasRotation.clockwise90);
       },
-      rotateCanvas90CounterClockwise: () {
-        _applyCanvasRotation(CanvasRotation.counterClockwise90);
+      rotateCanvas90CounterClockwise: () async {
+        await _applyCanvasRotation(CanvasRotation.counterClockwise90);
       },
-      rotateCanvas180Clockwise: () {
-        _applyCanvasRotation(CanvasRotation.clockwise180);
+      rotateCanvas180Clockwise: () async {
+        await _applyCanvasRotation(CanvasRotation.clockwise180);
       },
-      rotateCanvas180CounterClockwise: () {
-        _applyCanvasRotation(CanvasRotation.counterClockwise180);
+      rotateCanvas180CounterClockwise: () async {
+        await _applyCanvasRotation(CanvasRotation.counterClockwise180);
+      },
+      flipCanvasHorizontal: () async {
+        await _applyCanvasFlip(CanvasFlip.horizontal);
+      },
+      flipCanvasVertical: () async {
+        await _applyCanvasFlip(CanvasFlip.vertical);
       },
       export: () async {
         await _exportProject();

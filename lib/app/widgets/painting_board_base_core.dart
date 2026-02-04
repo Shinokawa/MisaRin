@@ -949,30 +949,37 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
 
   ValueListenable<CanvasViewInfo> get viewInfoListenable => _viewInfoNotifier;
 
-  void _handleRustCanvasEngineInfoChanged(int? handle, Size? engineSize) {
+  void _handleRustCanvasEngineInfoChanged(
+    int? handle,
+    Size? engineSize,
+    bool isNewEngine,
+  ) {
     final bool handleChanged = _rustCanvasEngineHandle != handle;
     final bool sizeChanged = _rustCanvasEngineSize != engineSize;
-    if (handleChanged && handle != null) {
+    final bool engineReset = handleChanged || sizeChanged || isNewEngine;
+    if ((handleChanged || isNewEngine) && handle != null) {
       final String sizeText = engineSize == null
           ? 'null'
           : '${engineSize.width.round()}x${engineSize.height.round()}';
       RustCanvasTimeline.mark(
         'paintingBoard: rust engine handle=$handle '
-        'size=$sizeText',
+        'size=$sizeText newEngine=$isNewEngine',
       );
     }
-    if (handleChanged || sizeChanged) {
+    if (engineReset) {
       final String sizeText = engineSize == null
           ? 'null'
           : '${engineSize.width.round()}x${engineSize.height.round()}';
       debugPrint(
-        'paintingBoard: rust engine info handle=$handle size=$sizeText',
+        'paintingBoard: rust engine info handle=$handle '
+        'size=$sizeText newEngine=$isNewEngine',
       );
     }
-    if (handleChanged || sizeChanged) {
+    if (engineReset) {
       _rustCanvasSyncedLayerCount = 0;
       _rustPixelsSyncedHandle = null;
       _purgeRustHistoryActions();
+      _rustLayerSnapshotDirty = false;
       if (_rustLayerSnapshots.isNotEmpty) {
         _rustLayerSnapshotPendingRestore = true;
       }

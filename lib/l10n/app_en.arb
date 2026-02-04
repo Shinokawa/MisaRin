@@ -188,6 +188,8 @@
   "menuRotate90CCW": "Rotate 90\u00b0 CCW",
   "menuRotate180CW": "Rotate 180\u00b0 CW",
   "menuRotate180CCW": "Rotate 180\u00b0 CCW",
+  "menuFlipHorizontal": "Flip Horizontal",
+  "menuFlipVertical": "Flip Vertical",
   "menuImageSizeEllipsis": "Image Size\u2026",
   "menuCanvasSizeEllipsis": "Canvas Size\u2026",
 

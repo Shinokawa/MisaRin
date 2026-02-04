@@ -758,6 +758,18 @@ abstract class AppLocalizations {
   /// **'Rotate 180° CCW'**
   String get menuRotate180CCW;
 
+  /// No description provided for @menuFlipHorizontal.
+  ///
+  /// In en, this message translates to:
+  /// **'Flip Horizontal'**
+  String get menuFlipHorizontal;
+
+  /// No description provided for @menuFlipVertical.
+  ///
+  /// In en, this message translates to:
+  /// **'Flip Vertical'**
+  String get menuFlipVertical;
+
   /// No description provided for @menuImageSizeEllipsis.
   ///
   /// In en, this message translates to:

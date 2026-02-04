@@ -90,6 +90,7 @@ class _RustSurfaceInfo {
     required this.engineHeight,
     required this.backgroundColorArgb,
     required this.fromWarmup,
+    required this.isNewEngine,
   });
 
   final int? textureId;
@@ -98,6 +99,7 @@ class _RustSurfaceInfo {
   final int? engineHeight;
   final int backgroundColorArgb;
   final bool fromWarmup;
+  final bool isNewEngine;
 
   bool get isValid => textureId != null && engineHandle != null;
 }
@@ -275,6 +277,10 @@ Future<_RustSurfaceInfo> _requestTextureInfo({
   final int? engineHandle = (info?['engineHandle'] as num?)?.toInt();
   final int? engineWidth = (info?['width'] as num?)?.toInt();
   final int? engineHeight = (info?['height'] as num?)?.toInt();
+  final Object? rawIsNewEngine = info?['isNewEngine'];
+  final bool isNewEngine =
+      rawIsNewEngine == true ||
+      (rawIsNewEngine is num && rawIsNewEngine.toInt() != 0);
   return _RustSurfaceInfo(
     textureId: textureId,
     engineHandle: engineHandle,
@@ -282,6 +288,7 @@ Future<_RustSurfaceInfo> _requestTextureInfo({
     engineHeight: engineHeight,
     backgroundColorArgb: backgroundColorArgb,
     fromWarmup: fromWarmup,
+    isNewEngine: isNewEngine,
   );
 }
 
@@ -358,7 +365,11 @@ class RustCanvasSurface extends StatefulWidget {
   final bool usePressure;
   final double streamlineStrength;
   final VoidCallback? onStrokeBegin;
-  final void Function(int? handle, Size? engineSize)? onEngineInfoChanged;
+  final void Function(
+    int? handle,
+    Size? engineSize,
+    bool isNewEngine,
+  )? onEngineInfoChanged;
 
   @override
   State<RustCanvasSurface> createState() => _RustCanvasSurfaceState();
@@ -497,12 +508,14 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       });
       debugPrint(
         'rustSurface: ready textureId=$textureId handle=$engineHandle '
-        'engine=${engineWidth}x${engineHeight} id=$_surfaceId',
+        'engine=${engineWidth}x${engineHeight} '
+        'newEngine=${info.isNewEngine} id=$_surfaceId',
       );
       RustCanvasTimeline.mark(
         'rustSurface: texture ready '
         'textureId=$textureId handle=$engineHandle '
         'engine=${engineWidth}x${engineHeight} '
+        'newEngine=${info.isNewEngine} '
         'source=${info.fromWarmup ? 'warmup' : 'direct'}',
       );
 
@@ -513,7 +526,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
           _applyBackground(handle);
         }
       }
-      _notifyEngineInfoChanged();
+      _notifyEngineInfoChanged(isNewEngine: info.isNewEngine);
     } catch (error) {
       if (!mounted) {
         return;
@@ -531,16 +544,17 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     }
   }
 
-  void _notifyEngineInfoChanged() {
+  void _notifyEngineInfoChanged({bool isNewEngine = false}) {
     final int? handle = _engineHandle;
     final Size? size = _engineSize;
-    if (_lastNotifiedEngineHandle == handle &&
+    if (!isNewEngine &&
+        _lastNotifiedEngineHandle == handle &&
         _lastNotifiedEngineSize == size) {
       return;
     }
     _lastNotifiedEngineHandle = handle;
     _lastNotifiedEngineSize = size;
-    widget.onEngineInfoChanged?.call(handle, size);
+    widget.onEngineInfoChanged?.call(handle, size, isNewEngine);
   }
 
   @override
@@ -548,7 +562,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     _RustSurfaceWarmupCache.instance.drop(_surfaceId);
     unawaited(_disposeSurface());
     if (_lastNotifiedEngineHandle != null || _lastNotifiedEngineSize != null) {
-      widget.onEngineInfoChanged?.call(null, null);
+      widget.onEngineInfoChanged?.call(null, null, false);
     }
     super.dispose();
   }

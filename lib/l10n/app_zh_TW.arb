@@ -191,6 +191,8 @@
   "menuRotate90CCW": "\u9006\u6642\u91dd 90 \u5ea6",
   "menuRotate180CW": "\u9806\u6642\u91dd 180 \u5ea6",
   "menuRotate180CCW": "\u9006\u6642\u91dd 180 \u5ea6",
+  "menuFlipHorizontal": "\u6c34\u5e73\u7ffb\u8f49",
+  "menuFlipVertical": "\u5782\u76f4\u7ffb\u8f49",
   "menuImageSizeEllipsis": "\u5f71\u50cf\u5927\u5c0f\u2026",
   "menuCanvasSizeEllipsis": "\u756b\u5e03\u5927\u5c0f\u2026",
 

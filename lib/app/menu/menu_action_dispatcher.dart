@@ -39,6 +39,8 @@ class MenuActionHandler {
     this.rotateCanvas90CounterClockwise,
     this.rotateCanvas180Clockwise,
     this.rotateCanvas180CounterClockwise,
+    this.flipCanvasHorizontal,
+    this.flipCanvasVertical,
     this.cut,
     this.copy,
     this.paste,
@@ -110,6 +112,8 @@ class MenuActionHandler {
       rotateCanvas90CounterClockwise = null,
       rotateCanvas180Clockwise = null,
       rotateCanvas180CounterClockwise = null,
+      flipCanvasHorizontal = null,
+      flipCanvasVertical = null,
       cut = null,
       copy = null,
       paste = null,
@@ -179,6 +183,8 @@ class MenuActionHandler {
   final MenuAsyncAction? rotateCanvas90CounterClockwise;
   final MenuAsyncAction? rotateCanvas180Clockwise;
   final MenuAsyncAction? rotateCanvas180CounterClockwise;
+  final MenuAsyncAction? flipCanvasHorizontal;
+  final MenuAsyncAction? flipCanvasVertical;
   final MenuAsyncAction? cut;
   final MenuAsyncAction? copy;
   final MenuAsyncAction? paste;

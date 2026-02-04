@@ -188,6 +188,8 @@
   "menuRotate90CCW": "逆时针 90 度",
   "menuRotate180CW": "顺时针 180 度",
   "menuRotate180CCW": "逆时针 180 度",
+  "menuFlipHorizontal": "水平翻转",
+  "menuFlipVertical": "垂直翻转",
   "menuImageSizeEllipsis": "图像大小…",
   "menuCanvasSizeEllipsis": "画布大小…",
 

@@ -188,6 +188,8 @@
   "menuRotate90CCW": "\ubc18\uc2dc\uacc4 \ubc29\ud5a5 90\ub3c4",
   "menuRotate180CW": "\uc2dc\uacc4 \ubc29\ud5a5 180\ub3c4",
   "menuRotate180CCW": "\ubc18\uc2dc\uacc4 \ubc29\ud5a5 180\ub3c4",
+  "menuFlipHorizontal": "\uc218\ud3c9 \ub4a4\uc9d1\uae30",
+  "menuFlipVertical": "\uc218\uc9c1 \ub4a4\uc9d1\uae30",
   "menuImageSizeEllipsis": "\uc774\ubbf8\uc9c0 \ud06c\uae30\u2026",
   "menuCanvasSizeEllipsis": "\uce94\ubc84\uc2a4 \ud06c\uae30\u2026",
 

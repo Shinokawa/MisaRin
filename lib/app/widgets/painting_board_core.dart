@@ -39,6 +39,11 @@ enum CanvasRotation {
   counterClockwise180,
 }
 
+enum CanvasFlip {
+  horizontal,
+  vertical,
+}
+
 class CanvasRotationResult {
   const CanvasRotationResult({
     required this.layers,

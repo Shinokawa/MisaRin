@@ -372,6 +372,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuRotate180CCW => '반시계 방향 180도';
 
   @override
+  String get menuFlipHorizontal => '수평 뒤집기';
+
+  @override
+  String get menuFlipVertical => '수직 뒤집기';
+
+  @override
   String get menuImageSizeEllipsis => '이미지 크기…';
 
   @override

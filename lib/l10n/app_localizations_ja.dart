@@ -371,6 +371,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuRotate180CCW => '180° 左回転';
 
   @override
+  String get menuFlipHorizontal => '左右反転';
+
+  @override
+  String get menuFlipVertical => '上下反転';
+
+  @override
   String get menuImageSizeEllipsis => '画像サイズ…';
 
   @override

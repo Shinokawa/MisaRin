@@ -370,6 +370,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuRotate180CCW => '逆时针 180 度';
 
   @override
+  String get menuFlipHorizontal => '水平翻转';
+
+  @override
+  String get menuFlipVertical => '垂直翻转';
+
+  @override
   String get menuImageSizeEllipsis => '图像大小…';
 
   @override
@@ -2356,6 +2362,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuRotate180CCW => '逆时针 180 度';
 
   @override
+  String get menuFlipHorizontal => '水平翻转';
+
+  @override
+  String get menuFlipVertical => '垂直翻转';
+
+  @override
   String get menuImageSizeEllipsis => '图像大小…';
 
   @override
@@ -3190,6 +3202,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuRotate180CCW => '逆時針 180 度';
+
+  @override
+  String get menuFlipHorizontal => '水平翻轉';
+
+  @override
+  String get menuFlipVertical => '垂直翻轉';
 
   @override
   String get menuImageSizeEllipsis => '影像大小…';

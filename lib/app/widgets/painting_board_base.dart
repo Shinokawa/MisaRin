@@ -117,13 +117,21 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     return _controller.snapshotLayers();
   }
 
-  CanvasRotationResult? rotateCanvas(CanvasRotation rotation) {
+  Future<CanvasRotationResult?> rotateCanvas(CanvasRotation rotation) async {
     final int width = _controller.width;
     final int height = _controller.height;
     if (width <= 0 || height <= 0) {
       return null;
     }
     _controller.commitActiveLayerTranslation();
+    if (_canUseRustCanvasEngine()) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        debugPrint('rotateCanvas: rust sync failed');
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return null;
+      }
+    }
     final List<CanvasLayerData> original = snapshotLayers();
     if (original.isEmpty) {
       return CanvasRotationResult(
@@ -134,7 +142,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     }
     final List<CanvasLayerData> rotated = <CanvasLayerData>[
       for (final CanvasLayerData layer in original)
-        _rotateLayerData(layer, rotation),
+        _rotateLayerData(layer, rotation, width, height),
     ];
     setSelectionState(path: null, mask: null);
     clearSelectionArtifacts();
@@ -145,12 +153,55 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       _resetHistory();
       setState(() {});
       _syncRustCanvasLayersToEngine();
+      if (_canUseRustCanvasEngine() && !_syncAllLayerPixelsToRust()) {
+        _showRustCanvasMessage('Rust 画布写入图层失败。');
+      }
     }
     return CanvasRotationResult(
       layers: rotated,
       width: swaps ? height : width,
       height: swaps ? width : height,
     );
+  }
+
+  Future<CanvasRotationResult?> flipCanvas(CanvasFlip flip) async {
+    final int width = _controller.width;
+    final int height = _controller.height;
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    _controller.commitActiveLayerTranslation();
+    if (_canUseRustCanvasEngine()) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        debugPrint('flipCanvas: rust sync failed');
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return null;
+      }
+    }
+    final List<CanvasLayerData> original = snapshotLayers();
+    if (original.isEmpty) {
+      return CanvasRotationResult(
+        layers: const <CanvasLayerData>[],
+        width: width,
+        height: height,
+      );
+    }
+    final List<CanvasLayerData> flipped = <CanvasLayerData>[
+      for (final CanvasLayerData layer in original)
+        _flipLayerData(layer, flip, width, height),
+    ];
+    setSelectionState(path: null, mask: null);
+    clearSelectionArtifacts();
+    resetSelectionUndoFlag();
+    _controller.loadLayers(flipped, _controller.backgroundColor);
+    _resetHistory();
+    setState(() {});
+    _syncRustCanvasLayersToEngine();
+    if (_canUseRustCanvasEngine() && !_syncAllLayerPixelsToRust()) {
+      _showRustCanvasMessage('Rust 画布写入图层失败。');
+    }
+    return CanvasRotationResult(layers: flipped, width: width, height: height);
   }
 
   void markSaved() {
@@ -164,6 +215,8 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   CanvasLayerData _rotateLayerData(
     CanvasLayerData layer,
     CanvasRotation rotation,
+    int canvasWidth,
+    int canvasHeight,
   ) {
     final Uint8List? bitmap = layer.bitmap;
     final int? bitmapWidth = layer.bitmapWidth;
@@ -172,6 +225,25 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       final bool swaps = _rotationSwapsDimensions(rotation);
       final int targetWidth = swaps ? bitmapHeight : bitmapWidth;
       final int targetHeight = swaps ? bitmapWidth : bitmapHeight;
+      final int left = layer.bitmapLeft ?? 0;
+      final int top = layer.bitmapTop ?? 0;
+      late int nextLeft;
+      late int nextTop;
+      switch (rotation) {
+        case CanvasRotation.clockwise90:
+          nextLeft = canvasHeight - top - bitmapHeight;
+          nextTop = left;
+          break;
+        case CanvasRotation.counterClockwise90:
+          nextLeft = top;
+          nextTop = canvasWidth - left - bitmapWidth;
+          break;
+        case CanvasRotation.clockwise180:
+        case CanvasRotation.counterClockwise180:
+          nextLeft = canvasWidth - left - bitmapWidth;
+          nextTop = canvasHeight - top - bitmapHeight;
+          break;
+      }
       final Uint8List rotated = _rotateBitmapRgba(
         bitmap,
         bitmapWidth,
@@ -189,6 +261,61 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
         bitmap: rotated,
         bitmapWidth: targetWidth,
         bitmapHeight: targetHeight,
+        bitmapLeft: nextLeft,
+        bitmapTop: nextTop,
+        fillColor: layer.fillColor,
+      );
+    }
+
+    return CanvasLayerData(
+      id: layer.id,
+      name: layer.name,
+      visible: layer.visible,
+      opacity: layer.opacity,
+      locked: layer.locked,
+      clippingMask: layer.clippingMask,
+      blendMode: layer.blendMode,
+      fillColor: layer.fillColor,
+    );
+  }
+
+  CanvasLayerData _flipLayerData(
+    CanvasLayerData layer,
+    CanvasFlip flip,
+    int canvasWidth,
+    int canvasHeight,
+  ) {
+    final Uint8List? bitmap = layer.bitmap;
+    final int? bitmapWidth = layer.bitmapWidth;
+    final int? bitmapHeight = layer.bitmapHeight;
+    if (bitmap != null && bitmapWidth != null && bitmapHeight != null) {
+      final Uint8List flipped = _flipBitmapRgba(
+        bitmap,
+        bitmapWidth,
+        bitmapHeight,
+        flip,
+      );
+      final int left = layer.bitmapLeft ?? 0;
+      final int top = layer.bitmapTop ?? 0;
+      final int nextLeft = flip == CanvasFlip.horizontal
+          ? canvasWidth - left - bitmapWidth
+          : left;
+      final int nextTop = flip == CanvasFlip.vertical
+          ? canvasHeight - top - bitmapHeight
+          : top;
+      return CanvasLayerData(
+        id: layer.id,
+        name: layer.name,
+        visible: layer.visible,
+        opacity: layer.opacity,
+        locked: layer.locked,
+        clippingMask: layer.clippingMask,
+        blendMode: layer.blendMode,
+        bitmap: flipped,
+        bitmapWidth: bitmapWidth,
+        bitmapHeight: bitmapHeight,
+        bitmapLeft: nextLeft,
+        bitmapTop: nextTop,
         fillColor: layer.fillColor,
       );
     }
@@ -244,6 +371,33 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
             break;
         }
         final int destIndex = (destY * targetWidth + destX) * 4;
+        output[destIndex] = source[srcIndex];
+        output[destIndex + 1] = source[srcIndex + 1];
+        output[destIndex + 2] = source[srcIndex + 2];
+        output[destIndex + 3] = source[srcIndex + 3];
+      }
+    }
+    return output;
+  }
+
+  static Uint8List _flipBitmapRgba(
+    Uint8List source,
+    int width,
+    int height,
+    CanvasFlip flip,
+  ) {
+    if (source.length != width * height * 4) {
+      return Uint8List.fromList(source);
+    }
+    final Uint8List output = Uint8List(width * height * 4);
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final int srcIndex = (y * width + x) * 4;
+        final int destX =
+            flip == CanvasFlip.horizontal ? width - 1 - x : x;
+        final int destY =
+            flip == CanvasFlip.vertical ? height - 1 - y : y;
+        final int destIndex = (destY * width + destX) * 4;
         output[destIndex] = source[srcIndex];
         output[destIndex + 1] = source[srcIndex + 1];
         output[destIndex + 2] = source[srcIndex + 2];

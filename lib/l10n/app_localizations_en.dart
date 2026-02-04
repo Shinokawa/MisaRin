@@ -380,6 +380,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuRotate180CCW => 'Rotate 180° CCW';
 
   @override
+  String get menuFlipHorizontal => 'Flip Horizontal';
+
+  @override
+  String get menuFlipVertical => 'Flip Vertical';
+
+  @override
   String get menuImageSizeEllipsis => 'Image Size…';
 
   @override

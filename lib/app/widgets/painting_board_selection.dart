@@ -790,8 +790,12 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   @override
-  void _handleRustCanvasEngineInfoChanged(int? handle, Size? engineSize) {
-    super._handleRustCanvasEngineInfoChanged(handle, engineSize);
+  void _handleRustCanvasEngineInfoChanged(
+    int? handle,
+    Size? engineSize,
+    bool isNewEngine,
+  ) {
+    super._handleRustCanvasEngineInfoChanged(handle, engineSize, isNewEngine);
     _syncRustSelectionMask();
   }
 
