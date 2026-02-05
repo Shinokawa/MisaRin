@@ -260,15 +260,16 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
     int textureWidth = 0;
     int textureHeight = 0;
     final ui.Image? texture = widget.texture;
-    if (texture != null && !texture.debugDisposed) {
-      if (identical(_textureSource, texture) && _textureRgba != null) {
+    final ui.Image? safeTexture = _isImageUsable(texture) ? texture : null;
+    if (safeTexture != null) {
+      if (identical(_textureSource, safeTexture) && _textureRgba != null) {
         textureRgba = _textureRgba;
         textureWidth = _textureWidth;
         textureHeight = _textureHeight;
       } else {
         try {
           final _BedrockTextureBytes? bytes =
-              await _BedrockModelZBufferViewState._loadTextureBytes(texture);
+              await _BedrockModelZBufferViewState._loadTextureBytes(safeTexture);
           if (bytes != null) {
             textureRgba = bytes.rgba;
             textureWidth = bytes.width;
@@ -352,9 +353,7 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
               ),
             );
           } finally {
-            if (!image.debugDisposed) {
-              image.dispose();
-            }
+            _disposeImageSafely(image);
           }
         } catch (error, stackTrace) {
           debugPrint('Failed to render procedural skybox: $error\n$stackTrace');
@@ -396,9 +395,7 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
           ),
         );
       } finally {
-        if (!image.debugDisposed) {
-          image.dispose();
-        }
+        _disposeImageSafely(image);
       }
     }
 
@@ -505,13 +502,9 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
           'Failed to render procedural skybox overlay: $error\n$stackTrace',
         );
       } finally {
-        if (!modelImage.debugDisposed) {
-          modelImage.dispose();
-        }
+        _disposeImageSafely(modelImage);
         picture?.dispose();
-        if (finalImage != null && !finalImage.debugDisposed) {
-          finalImage.dispose();
-        }
+        _disposeImageSafely(finalImage);
       }
     }
 
@@ -552,31 +545,30 @@ extension _BedrockModelZBufferViewStateRender on _BedrockModelZBufferViewState {
         ),
       );
     } finally {
-      if (!image.debugDisposed) {
-        image.dispose();
-      }
+      _disposeImageSafely(image);
     }
   }
 
   Future<void> _ensureTextureBytes(int generation) async {
     final ui.Image? image = widget.texture;
-    if (image == null || image.debugDisposed) {
+    if (!_isImageUsable(image)) {
       _textureSource = null;
       _textureRgba = null;
       _textureWidth = 0;
       _textureHeight = 0;
       return;
     }
+    final ui.Image safeImage = image!;
     if (identical(_textureSource, image) && _textureRgba != null) {
       return;
     }
-    _textureSource = image;
+    _textureSource = safeImage;
     _textureRgba = null;
-    _textureWidth = image.width;
-    _textureHeight = image.height;
+    _textureWidth = safeImage.width;
+    _textureHeight = safeImage.height;
 
     final _BedrockTextureBytes? bytes =
-        await _BedrockModelZBufferViewState._loadTextureBytes(image);
+        await _BedrockModelZBufferViewState._loadTextureBytes(safeImage);
     if (!mounted || generation != _renderGeneration) {
       return;
     }

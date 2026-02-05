@@ -910,6 +910,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get antialiasingBeforeExport => 'Antialiasing before export';
 
   @override
+  String get brushAntialiasing => 'Brush antialiasing';
+
+  @override
+  String get bucketAntialiasing => 'Fill antialiasing';
+
+  @override
   String get antialiasingDesc =>
       'Smoothens edges while preserving line density, a tribute to the texture of Retas animation software.';
 

@@ -461,5 +461,7 @@
   "rendererCinematic": "宣傳片",
   "rendererCinematicDesc": "還原 Minecraft 官方宣傳片風格，包含柔和陰影與高對比度光效。",
   "rendererCycles": "寫實",
-  "rendererCyclesDesc": "模擬路徑追蹤風格，極其逼真的光照效果。"
+  "rendererCyclesDesc": "模擬路徑追蹤風格，極其逼真的光照效果。",
+  "brushAntialiasing": "筆刷抗鋸齒",
+  "bucketAntialiasing": "填充抗鋸齒"
 }

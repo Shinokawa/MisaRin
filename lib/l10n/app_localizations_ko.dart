@@ -894,6 +894,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get antialiasingBeforeExport => '내보내기 전 안티앨리어싱 적용';
 
   @override
+  String get brushAntialiasing => '브러시 안티앨리어싱';
+
+  @override
+  String get bucketAntialiasing => '채우기 안티앨리어싱';
+
+  @override
   String get antialiasingDesc =>
       '선의 밀도를 유지하면서 가장자리를 부드럽게 합니다. Retas 애니메이션 소프트웨어의 질감을 재현합니다.';
 

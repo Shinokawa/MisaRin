@@ -450,6 +450,8 @@
   "exampleScale": "如：1.0",
   "enterPositiveValue": "请输入大于 0 的数值",
   "antialiasingBeforeExport": "边缘柔化",
+  "brushAntialiasing": "笔刷抗锯齿",
+  "bucketAntialiasing": "填充抗锯齿",
   "antialiasingDesc": "在平滑边缘的同时保留线条密度，致敬日本动画软件 Retas 的质感。",
   "levelLabel": "等级 {level}",
   "@levelLabel": {

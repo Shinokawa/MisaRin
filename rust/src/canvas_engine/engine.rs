@@ -634,13 +634,8 @@ fn can_use_vector_preview(
     true
 }
 
-fn preview_use_accumulate(brush_settings: &EngineBrushSettings) -> bool {
-    let needs_per_segment_rotation =
-        brush_settings.random_rotation && !matches!(brush_settings.shape, BrushShape::Circle);
-    let hollow_enabled = brush_settings.hollow_enabled
-        && !brush_settings.erase
-        && brush_settings.hollow_ratio > 0.0001;
-    !(needs_per_segment_rotation || hollow_enabled)
+fn preview_use_accumulate(_brush_settings: &EngineBrushSettings) -> bool {
+    false
 }
 
 fn build_preview_config(

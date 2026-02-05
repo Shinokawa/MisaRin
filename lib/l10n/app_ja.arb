@@ -450,6 +450,8 @@
   "exampleScale": "例: 1.0",
   "enterPositiveValue": "0 より大きい値を入力してください",
   "antialiasingBeforeExport": "書き出し前にアンチエイリアスを適用",
+  "brushAntialiasing": "ブラシのアンチエイリアス",
+  "bucketAntialiasing": "塗りつぶしのアンチエイリアス",
   "antialiasingDesc": "線の密度を保ちつつエッジを滑らかにします。Retas アニメーションソフトの質感を再現します。",
   "levelLabel": "レベル {level}",
   "@levelLabel": {

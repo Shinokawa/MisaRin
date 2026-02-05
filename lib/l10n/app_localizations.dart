@@ -1742,6 +1742,18 @@ abstract class AppLocalizations {
   /// **'Antialiasing before export'**
   String get antialiasingBeforeExport;
 
+  /// No description provided for @brushAntialiasing.
+  ///
+  /// In en, this message translates to:
+  /// **'Brush antialiasing'**
+  String get brushAntialiasing;
+
+  /// No description provided for @bucketAntialiasing.
+  ///
+  /// In en, this message translates to:
+  /// **'Fill antialiasing'**
+  String get bucketAntialiasing;
+
   /// No description provided for @antialiasingDesc.
   ///
   /// In en, this message translates to:

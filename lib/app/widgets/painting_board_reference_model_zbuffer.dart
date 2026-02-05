@@ -270,9 +270,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
   void dispose() {
     widget.animationController?.removeListener(_handleTick);
     final ui.Image? rendered = _rendered;
-    if (rendered != null && !rendered.debugDisposed) {
-      rendered.dispose();
-    }
+    _disposeImageSafely(rendered);
     super.dispose();
   }
 
@@ -350,18 +348,14 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         _renderHeight,
       );
       if (!mounted || generation != _renderGeneration) {
-        if (!image.debugDisposed) {
-          image.dispose();
-        }
+        _disposeImageSafely(image);
         return;
       }
       final ui.Image? previous = _rendered;
       setState(() {
         _rendered = image;
       });
-      if (previous != null && !previous.debugDisposed) {
-        previous.dispose();
-      }
+      _disposeImageSafely(previous);
       widget.onRendered?.call(renderKey);
     } catch (error, stackTrace) {
       debugPrint('Failed to render reference model: $error\n$stackTrace');
@@ -411,7 +405,7 @@ class _BedrockModelZBufferViewState extends State<_BedrockModelZBufferView> {
         }
 
         final ui.Image? image = _rendered;
-        if (image == null || image.debugDisposed) {
+        if (!_isImageUsable(image)) {
           return CustomPaint(
             painter: _BedrockModelPainter(
               baseModel: widget.baseModel,

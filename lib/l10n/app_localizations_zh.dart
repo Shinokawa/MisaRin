@@ -890,6 +890,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get antialiasingBeforeExport => '边缘柔化';
 
   @override
+  String get brushAntialiasing => '笔刷抗锯齿';
+
+  @override
+  String get bucketAntialiasing => '填充抗锯齿';
+
+  @override
   String get antialiasingDesc => '在平滑边缘的同时保留线条密度，致敬日本动画软件 Retas 的质感。';
 
   @override
@@ -2560,6 +2566,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuInvertColors => '颜色反转';
 
   @override
+  String get brushAntialiasing => '笔刷抗锯齿';
+
+  @override
+  String get bucketAntialiasing => '填充抗锯齿';
+
+  @override
   String get hollowStroke => '空心描边';
 
   @override
@@ -3364,6 +3376,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuInvertColors => '顏色反轉';
+
+  @override
+  String get brushAntialiasing => '筆刷抗鋸齒';
+
+  @override
+  String get bucketAntialiasing => '填充抗鋸齒';
 
   @override
   String get swallowBlueColorLine => '吞併藍色線';

@@ -450,6 +450,8 @@
   "exampleScale": "e.g. 1.0",
   "enterPositiveValue": "Please enter a value > 0",
   "antialiasingBeforeExport": "Antialiasing before export",
+  "brushAntialiasing": "Brush antialiasing",
+  "bucketAntialiasing": "Fill antialiasing",
   "antialiasingDesc": "Smoothens edges while preserving line density, a tribute to the texture of Retas animation software.",
   "levelLabel": "Level {level}",
   "@levelLabel": {

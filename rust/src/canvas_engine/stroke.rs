@@ -599,7 +599,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
                         hollow_ratio,
                         hollow_erase,
                         hollow_enabled,
-                        true,
+                        false,
                     ) {
                         Ok(()) => {
                             drew_any = true;
@@ -638,7 +638,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
                     hollow_ratio,
                     hollow_erase,
                     hollow_enabled,
-                    true,
+                    false,
                 ) {
                     Ok(()) => {
                         drew_any = true;

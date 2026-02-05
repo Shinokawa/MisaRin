@@ -1264,7 +1264,7 @@ mixin _PaintingBoardInteractionMixin
         }
         final BitmapLayerState? targetLayer = _hitTestTextLayer(boardLocal);
         if (targetLayer != null) {
-          _beginEditExistingTextLayer(targetLayer);
+          await _beginEditExistingTextLayer(targetLayer);
         } else {
           _beginNewTextSession(boardLocal);
         }

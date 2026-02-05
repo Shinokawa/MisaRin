@@ -1601,6 +1601,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final l10n = context.l10n;
     return _buildAntialiasRow(
       theme,
+      label: l10n.brushAntialiasing,
       value: widget.brushAntialiasLevel,
       onChanged: widget.onBrushAntialiasChanged,
       detail: l10n.antialiasingSliderDesc,
@@ -1611,6 +1612,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final l10n = context.l10n;
     return _buildAntialiasRow(
       theme,
+      label: l10n.bucketAntialiasing,
       value: widget.bucketAntialiasLevel,
       onChanged: widget.onBucketAntialiasChanged,
       detail: l10n.antialiasingSliderDesc,
@@ -1619,6 +1621,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
   Widget _buildAntialiasRow(
     FluentThemeData theme, {
+    required String label,
     required int value,
     required ValueChanged<int> onChanged,
     required String detail,
@@ -1634,7 +1637,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final String levelLabel = l10n.levelLabel(value);
     if (!widget.compactLayout) {
       final Widget sliderControl = _wrapSliderTooltip(
-        label: l10n.antialiasingBeforeExport,
+        label: label,
         detail: detail,
         valueText: levelLabel,
         child: SizedBox(width: _defaultSliderWidth, child: slider),
@@ -1642,7 +1645,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.antialiasingBeforeExport, style: theme.typography.bodyStrong),
+          Text(label, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
           sliderControl,
           const SizedBox(width: 8),
@@ -1659,10 +1662,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     }
     return _buildSliderSection(
       theme,
-      label: l10n.antialiasingBeforeExport,
+      label: label,
       valueText: levelLabel,
       slider: slider,
-      tooltipText: '${l10n.antialiasingBeforeExport}: $levelLabel',
+      tooltipText: '$label: $levelLabel',
       detail: detail,
     );
   }

@@ -892,6 +892,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get antialiasingBeforeExport => '書き出し前にアンチエイリアスを適用';
 
   @override
+  String get brushAntialiasing => 'ブラシのアンチエイリアス';
+
+  @override
+  String get bucketAntialiasing => '塗りつぶしのアンチエイリアス';
+
+  @override
   String get antialiasingDesc =>
       '線の密度を保ちつつエッジを滑らかにします。Retas アニメーションソフトの質感を再現します。';
 
