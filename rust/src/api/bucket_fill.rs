@@ -275,7 +275,7 @@ fn flood_fill_bounds(
 
     let tol = tolerance.clamp(0, 255) as u8;
     let gap = fill_gap.clamp(0, 64) as u8;
-    let antialias_level = antialias_level.clamp(0, 3) as u8;
+    let antialias_level = antialias_level.clamp(0, 9) as u8;
     let swallow_colors = swallow_colors
         .unwrap_or_default()
         .into_iter()
@@ -1220,6 +1220,12 @@ fn apply_antialias_to_mask(
         1 => &[0.35, 0.35],
         2 => &[0.45, 0.5, 0.5],
         3 => &[0.6, 0.65, 0.7, 0.75],
+        4 => &[0.6, 0.65, 0.7, 0.75, 0.8],
+        5 => &[0.65, 0.7, 0.75, 0.8, 0.85],
+        6 => &[0.7, 0.75, 0.8, 0.85, 0.9],
+        7 => &[0.7, 0.75, 0.8, 0.85, 0.9, 0.9],
+        8 => &[0.75, 0.8, 0.85, 0.9, 0.9, 0.9],
+        9 => &[0.8, 0.85, 0.9, 0.9, 0.9, 0.9],
         _ => &[],
     };
     if profile.is_empty() {

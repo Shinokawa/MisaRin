@@ -231,14 +231,18 @@ class _ColorIndicatorButton extends StatefulWidget {
     required this.borderColor,
     required this.backgroundColor,
     required this.isDark,
-    required this.onTap,
+    required this.eraserActive,
+    required this.onColorTap,
+    required this.onEraserTap,
   });
 
   final Color color;
   final Color borderColor;
   final Color backgroundColor;
   final bool isDark;
-  final VoidCallback onTap;
+  final bool eraserActive;
+  final VoidCallback onColorTap;
+  final VoidCallback onEraserTap;
 
   @override
   State<_ColorIndicatorButton> createState() => _ColorIndicatorButtonState();
@@ -252,6 +256,35 @@ class _ColorIndicatorButtonState extends State<_ColorIndicatorButton> {
       return;
     }
     setState(() => _hovered = hovered);
+  }
+
+  Widget _buildSwatch({
+    required double size,
+    required BorderRadius radius,
+    required Color borderColor,
+    required List<BoxShadow>? shadow,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(color: borderColor, width: 1),
+              boxShadow: shadow,
+            ),
+            child: ClipRRect(borderRadius: radius, child: child),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -278,39 +311,125 @@ class _ColorIndicatorButtonState extends State<_ColorIndicatorButton> {
             ),
           ]
         : null;
+    const Color swatchBorder = Colors.black;
+    final Color checkerLight = widget.isDark
+        ? const Color(0xFF363636)
+        : const Color(0xFFF5F5F5);
+    final Color checkerDark = widget.isDark
+        ? const Color(0xFF2A2A2A)
+        : const Color(0xFFE0E0E0);
+    final List<BoxShadow> frontShadow = [
+      BoxShadow(
+        color: Colors.black.withOpacity(widget.isDark ? 0.35 : 0.2),
+        blurRadius: 4,
+        offset: const Offset(0, 1),
+      ),
+    ];
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => _setHover(true),
       onExit: (_) => _setHover(false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-          width: CanvasToolbar.buttonSize,
-          height: CanvasToolbar.buttonSize,
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: border, width: 1.5),
-            boxShadow: shadows,
-          ),
-          padding: const EdgeInsets.all(6),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: SizedBox.expand(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: widget.color,
-                  border: Border.all(color: Colors.black.withOpacity(0.1)),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        width: CanvasToolbar.buttonSize,
+        height: CanvasToolbar.buttonSize,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: border, width: 1.5),
+          boxShadow: shadows,
+        ),
+        padding: const EdgeInsets.all(6),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final double size = constraints.biggest.shortestSide;
+            if (size <= 0) {
+              return const SizedBox();
+            }
+            final double swatchSize = size * 2 / 3;
+            final double offset = size - swatchSize;
+            final BorderRadius radius = BorderRadius.circular(4);
+            final bool eraserFront = widget.eraserActive;
+            final Widget colorSwatch = Positioned(
+              left: 0,
+              top: 0,
+              child: _buildSwatch(
+                size: swatchSize,
+                radius: radius,
+                borderColor: swatchBorder,
+                shadow: eraserFront ? null : frontShadow,
+                onTap: widget.onColorTap,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(color: widget.color),
                 ),
               ),
-            ),
-          ),
+            );
+            final Widget eraserSwatch = Positioned(
+              left: offset,
+              top: offset,
+              child: _buildSwatch(
+                size: swatchSize,
+                radius: radius,
+                borderColor: swatchBorder,
+                shadow: eraserFront ? frontShadow : null,
+                onTap: widget.onEraserTap,
+                child: CustomPaint(
+                  painter: _TwoByTwoCheckerPainter(
+                    light: checkerLight,
+                    dark: checkerDark,
+                  ),
+                ),
+              ),
+            );
+            return Stack(
+              children: eraserFront
+                  ? <Widget>[colorSwatch, eraserSwatch]
+                  : <Widget>[eraserSwatch, colorSwatch],
+            );
+          },
         ),
       ),
     );
+  }
+}
+
+class _TwoByTwoCheckerPainter extends CustomPainter {
+  const _TwoByTwoCheckerPainter({
+    required this.light,
+    required this.dark,
+  });
+
+  final Color light;
+  final Color dark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double cellWidth = size.width / 2;
+    final double cellHeight = size.height / 2;
+    final Paint lightPaint = Paint()..color = light;
+    final Paint darkPaint = Paint()..color = dark;
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, cellWidth, cellHeight),
+      lightPaint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(cellWidth, 0, cellWidth, cellHeight),
+      darkPaint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, cellHeight, cellWidth, cellHeight),
+      darkPaint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(cellWidth, cellHeight, cellWidth, cellHeight),
+      lightPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TwoByTwoCheckerPainter oldDelegate) {
+    return oldDelegate.light != light || oldDelegate.dark != dark;
   }
 }
 

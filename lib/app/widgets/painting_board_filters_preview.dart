@@ -228,7 +228,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         break;
     }
     if (applied) {
-      _recordRustHistoryAction();
+      _recordRustHistoryAction(layerId: session.activeLayerId);
       if (mounted) {
         setState(() {});
       }

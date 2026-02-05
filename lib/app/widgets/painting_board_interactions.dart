@@ -434,7 +434,7 @@ mixin _PaintingBoardInteractionMixin
 
   @override
   void _updatePenAntialiasLevel(int value) {
-    final int clamped = value.clamp(0, 3);
+    final int clamped = value.clamp(0, 9);
     if (_penAntialiasLevel == clamped) {
       return;
     }
@@ -912,6 +912,7 @@ mixin _PaintingBoardInteractionMixin
         boardLocal,
         isInitialSample: false,
       );
+      _lastBrushLineAnchor = sanitized;
       final Offset enginePos = _rustToEngineSpace(sanitized);
       final double pressure = _resolveRustPressure(
         event: event,
@@ -1009,7 +1010,10 @@ mixin _PaintingBoardInteractionMixin
       }
       _scheduleRustFlush();
       if (canRecordHistory) {
-        _recordRustHistoryAction();
+        _recordRustHistoryAction(
+          layerId: _activeLayerId,
+          deferPreview: true,
+        );
         if (mounted) {
           setState(() {});
         }
@@ -1034,6 +1038,61 @@ mixin _PaintingBoardInteractionMixin
     _resetPerspectiveLock();
   }
 
+  bool _drawRustStraightLine({
+    required Offset start,
+    required Offset end,
+    required PointerDownEvent event,
+  }) {
+    final int? handle = _rustCanvasEngineHandle;
+    if (!_canUseRustCanvasEngine() || handle == null) {
+      return false;
+    }
+    final Offset startClamped = _clampToCanvas(start);
+    final Offset endClamped = _clampToCanvas(end);
+    final Offset startEngine = _rustToEngineSpace(startClamped);
+    final Offset endEngine = _rustToEngineSpace(endClamped);
+    final int startTimestampUs = event.timeStamp.inMicroseconds;
+    final int endTimestampUs = startTimestampUs + 1000;
+    final double pressure =
+        (_normalizePointerPressure(event) ?? 1.0).clamp(0.0, 1.0);
+
+    _rustLastEnginePoint = null;
+    _rustLastMovementUnit = null;
+    _rustLastMovementDistance = 0.0;
+    _rustLastStylusPressure = null;
+    _rustLastResolvedPressure = 1.0;
+    _rustWaitingForFirstMove = false;
+    _rustStrokeStartPoint = null;
+    _rustStrokeStartPressure = 1.0;
+    _rustStrokeStartIndex = 0;
+
+    _appendRustPoint(
+      enginePos: startEngine,
+      pressure: pressure,
+      timestampUs: startTimestampUs,
+      flags: _kRustPointFlagDown,
+      pointerId: event.pointer,
+    );
+    _appendRustPoint(
+      enginePos: endEngine,
+      pressure: pressure,
+      timestampUs: endTimestampUs,
+      flags: _kRustPointFlagUp,
+      pointerId: event.pointer,
+    );
+    _scheduleRustFlush();
+    _recordRustHistoryAction(
+      layerId: _activeLayerId,
+      deferPreview: true,
+    );
+    if (mounted) {
+      setState(() {});
+    }
+    _markDirty();
+    _resetPerspectiveLock();
+    return true;
+  }
+
   void _handlePointerDown(PointerDownEvent event) async {
     if (!_isPrimaryPointer(event)) {
       return;
@@ -1055,13 +1114,15 @@ mixin _PaintingBoardInteractionMixin
     final Offset boardLocal = _toBoardLocal(pointer);
     final Set<LogicalKeyboardKey> pressedKeys =
         HardwareKeyboard.instance.logicalKeysPressed;
+    final bool shiftPressed =
+        pressedKeys.contains(LogicalKeyboardKey.shiftLeft) ||
+        pressedKeys.contains(LogicalKeyboardKey.shiftRight) ||
+        pressedKeys.contains(LogicalKeyboardKey.shift);
     final bool preferNearestPerspectiveHandle =
         _perspectiveVisible &&
         _perspectiveMode != PerspectiveGuideMode.off &&
         tool == CanvasTool.hand &&
-        (pressedKeys.contains(LogicalKeyboardKey.shiftLeft) ||
-            pressedKeys.contains(LogicalKeyboardKey.shiftRight) ||
-            pressedKeys.contains(LogicalKeyboardKey.shift));
+        shiftPressed;
     if (_handlePerspectivePointerDown(
       boardLocal,
       allowNearest: preferNearestPerspectiveHandle,
@@ -1105,6 +1166,18 @@ mixin _PaintingBoardInteractionMixin
         }
         if (!isPointInsideSelection(boardLocal)) {
           return;
+        }
+        if (shiftPressed) {
+          final Offset? anchor = _lastBrushLineAnchor;
+          if (anchor != null &&
+              _drawRustStraightLine(
+                start: anchor,
+                end: boardLocal,
+                event: event,
+              )) {
+            _lastBrushLineAnchor = _clampToCanvas(boardLocal);
+            return;
+          }
         }
         _beginRustStroke(event);
         break;

@@ -304,7 +304,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       recordUndo: true,
     );
     if (applied) {
-      _recordRustHistoryAction();
+      _recordRustHistoryAction(layerId: activeLayerId);
       if (mounted) {
         setState(() {});
       }
@@ -351,7 +351,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       recordUndo: true,
     );
     if (applied) {
-      _recordRustHistoryAction();
+      _recordRustHistoryAction(layerId: activeLayerId);
       if (mounted) {
         setState(() {});
       }
@@ -388,7 +388,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       recordUndo: true,
     );
     if (applied) {
-      _recordRustHistoryAction();
+      _recordRustHistoryAction(layerId: layerId);
       if (mounted) {
         setState(() {});
       }

@@ -110,7 +110,7 @@ extension _PaintingBoardInteractionPreferencesExtension on _PaintingBoardInterac
   }
 
   void _updateBucketAntialiasLevel(int value) {
-    final int clamped = value.clamp(0, 3);
+    final int clamped = value.clamp(0, 9);
     if (_bucketAntialiasLevel == clamped) {
       return;
     }

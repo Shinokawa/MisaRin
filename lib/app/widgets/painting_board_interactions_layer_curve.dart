@@ -265,7 +265,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       );
     }
     if (applied) {
-      _recordRustHistoryAction();
+      _recordRustHistoryAction(layerId: layer.id);
       if (mounted) {
         setState(() {});
       }

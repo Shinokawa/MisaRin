@@ -56,7 +56,7 @@ impl EngineBrushSettings {
         } else {
             self.streamline_strength = self.streamline_strength.clamp(0.0, 1.0);
         }
-        self.antialias_level = self.antialias_level.clamp(0, 3);
+        self.antialias_level = self.antialias_level.clamp(0, 9);
     }
 
     pub(crate) fn radius_from_pressure(&self, pressure: f32) -> f32 {

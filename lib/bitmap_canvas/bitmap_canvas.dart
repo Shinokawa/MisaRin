@@ -199,7 +199,7 @@ class BitmapSurface {
     final int maxX = math.min(width - 1, (center.dx + extent).ceil());
     final int minY = math.max(0, (center.dy - extent).floor());
     final int maxY = math.min(height - 1, (center.dy + extent).ceil());
-    final int level = antialiasLevel.clamp(0, 3);
+    final int level = antialiasLevel.clamp(0, 9);
     final double feather = _featherForLevel(level);
     final int baseColor = color.toARGB32();
     final int baseAlpha = (baseColor >> 24) & 0xff;
@@ -262,7 +262,7 @@ class BitmapSurface {
       endRadius: radius,
       color: color,
       mask: mask,
-      antialiasLevel: antialiasLevel.clamp(0, 3),
+      antialiasLevel: antialiasLevel.clamp(0, 9),
       includeStartCap: includeStartCap,
       erase: erase,
     );
@@ -287,7 +287,7 @@ class BitmapSurface {
       endRadius: endRadius,
       color: color,
       mask: mask,
-      antialiasLevel: antialiasLevel.clamp(0, 3),
+      antialiasLevel: antialiasLevel.clamp(0, 9),
       includeStartCap: includeStartCap,
       erase: erase,
     );
@@ -367,7 +367,7 @@ class BitmapSurface {
     if (minX.isNaN || maxX.isNaN || minY.isNaN || maxY.isNaN) {
       return;
     }
-    final int level = antialiasLevel.clamp(0, 3);
+    final int level = antialiasLevel.clamp(0, 9);
     final double padding = _featherForLevel(level) + 1.5;
     final Rect bounds = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
     final double longestSide = math.max(
@@ -398,7 +398,7 @@ class BitmapSurface {
     bool randomRotation = false,
     int rotationSeed = 0,
   }) {
-    final int level = antialiasLevel.clamp(0, 3);
+    final int level = antialiasLevel.clamp(0, 9);
     if (shape == BrushShape.circle) {
       drawCircle(
         center: center,
@@ -488,7 +488,18 @@ class BitmapSurface {
   }
 
   double _featherForLevel(int level) {
-    const List<double> feather = <double>[0.0, 0.7, 1.1, 1.6];
+    const List<double> feather = <double>[
+      0.0,
+      0.7,
+      1.1,
+      1.6,
+      1.9,
+      2.2,
+      2.5,
+      2.8,
+      3.1,
+      3.4,
+    ];
     return feather[level.clamp(0, feather.length - 1)];
   }
 

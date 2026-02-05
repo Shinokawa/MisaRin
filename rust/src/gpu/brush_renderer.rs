@@ -26,12 +26,18 @@ pub enum BrushShape {
     Star,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum BrushStrokeMode {
+    Segments,
+    Points,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct ShaderStrokePoint {
     pos: [f32; 2],
     radius: f32,
-    _pad0: f32,
+    alpha: f32,
 }
 
 #[repr(C)]
@@ -57,6 +63,7 @@ struct BrushShaderConfig {
     stroke_mask_mode: u32,
     stroke_base_mode: u32,
     stroke_accumulate_mode: u32,
+    stroke_mode: u32,
     selection_mask_mode: u32,
 }
 
@@ -69,7 +76,7 @@ struct DirtyRect {
 }
 
 const WORKGROUP_SIZE: u32 = 16;
-const MAX_POINTS: usize = 8192;
+pub(crate) const MAX_POINTS: usize = 8192;
 const STROKE_BASE_TILE_SIZE: u32 = 256;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -459,6 +466,78 @@ impl BrushRenderer {
         use_stroke_mask: bool,
         accumulate_segments: bool,
     ) -> Result<(), String> {
+        self.draw_stroke_internal(
+            layer_view,
+            points,
+            radii,
+            None,
+            color,
+            brush_shape,
+            erase,
+            antialias_level,
+            rotation_radians,
+            hollow_enabled,
+            hollow_ratio,
+            hollow_erase_occluded,
+            use_stroke_mask,
+            accumulate_segments,
+            self.softness,
+            BrushStrokeMode::Segments,
+        )
+    }
+
+    pub fn draw_points(
+        &mut self,
+        layer_view: &wgpu::TextureView,
+        points: &[Point2D],
+        radii: &[f32],
+        alphas: Option<&[f32]>,
+        color: Color,
+        brush_shape: BrushShape,
+        erase: bool,
+        antialias_level: u32,
+        softness: f32,
+        accumulate: bool,
+    ) -> Result<(), String> {
+        self.draw_stroke_internal(
+            layer_view,
+            points,
+            radii,
+            alphas,
+            color,
+            brush_shape,
+            erase,
+            antialias_level,
+            0.0,
+            false,
+            0.0,
+            false,
+            false,
+            accumulate,
+            softness,
+            BrushStrokeMode::Points,
+        )
+    }
+
+    fn draw_stroke_internal(
+        &mut self,
+        layer_view: &wgpu::TextureView,
+        points: &[Point2D],
+        radii: &[f32],
+        point_alphas: Option<&[f32]>,
+        color: Color,
+        brush_shape: BrushShape,
+        erase: bool,
+        antialias_level: u32,
+        rotation_radians: f32,
+        hollow_enabled: bool,
+        hollow_ratio: f32,
+        hollow_erase_occluded: bool,
+        use_stroke_mask: bool,
+        accumulate_segments: bool,
+        softness: f32,
+        stroke_mode: BrushStrokeMode,
+    ) -> Result<(), String> {
         if points.is_empty() {
             return Ok(());
         }
@@ -474,6 +553,15 @@ impl BrushRenderer {
                 "too many stroke points: {} (max {MAX_POINTS})",
                 points.len()
             ));
+        }
+        if let Some(alphas) = point_alphas {
+            if alphas.len() != points.len() {
+                return Err(format!(
+                    "points/alphas length mismatch: {} vs {}",
+                    points.len(),
+                    alphas.len()
+                ));
+            }
         }
         if self.canvas_width == 0 || self.canvas_height == 0 {
             return Err("brush renderer canvas size not set".to_string());
@@ -517,13 +605,19 @@ impl BrushRenderer {
         } else {
             0
         };
-        let radius_scale = 1.0;
+        let softness = if softness.is_finite() {
+            softness.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let radius_scale = if softness > 0.0001 { 1.0 + softness } else { 1.0 };
         let dirty = compute_dirty_rect(
             points,
             radii,
             self.canvas_width,
             self.canvas_height,
             radius_scale,
+            antialias_level,
         )?;
         if dirty.width == 0 || dirty.height == 0 {
             return Ok(());
@@ -552,12 +646,22 @@ impl BrushRenderer {
             .ok_or_else(|| "wgpu points buffer not initialized".to_string())?;
 
         let mut shader_points: Vec<ShaderStrokePoint> = Vec::with_capacity(points.len());
-        for (p, &r) in points.iter().zip(radii.iter()) {
+        for (idx, (p, &r)) in points.iter().zip(radii.iter()).enumerate() {
             let radius = if r.is_finite() { r.max(0.0) } else { 0.0 };
+            let alpha = if let Some(alphas) = point_alphas {
+                let value = alphas[idx];
+                if value.is_finite() {
+                    value.clamp(0.0, 1.0)
+                } else {
+                    0.0
+                }
+            } else {
+                1.0
+            };
             shader_points.push(ShaderStrokePoint {
                 pos: [finite_f32(p.x), finite_f32(p.y)],
                 radius,
-                _pad0: 0.0,
+                alpha,
             });
         }
 
@@ -579,9 +683,9 @@ impl BrushRenderer {
                 BrushShape::Star => 3,
             },
             erase_mode: if erase { 1 } else { 0 },
-            antialias_level: antialias_level.clamp(0, 3),
+            antialias_level: antialias_level.clamp(0, 9),
             color_argb: color.argb,
-            softness: self.softness,
+            softness,
             rotation_sin: rotation.sin(),
             rotation_cos: rotation.cos(),
             hollow_mode,
@@ -590,6 +694,10 @@ impl BrushRenderer {
             stroke_mask_mode,
             stroke_base_mode,
             stroke_accumulate_mode: if accumulate_segments { 1 } else { 0 },
+            stroke_mode: match stroke_mode {
+                BrushStrokeMode::Segments => 0,
+                BrushStrokeMode::Points => 1,
+            },
             selection_mask_mode: if self.selection_mask_enabled { 1 } else { 0 },
         };
         self.queue
@@ -847,12 +955,28 @@ fn create_selection_mask(
     (texture, view)
 }
 
+fn antialias_feather(level: u32) -> f32 {
+    match level {
+        0 => 0.0,
+        1 => 0.7,
+        2 => 1.1,
+        3 => 1.6,
+        4 => 1.9,
+        5 => 2.2,
+        6 => 2.5,
+        7 => 2.8,
+        8 => 3.1,
+        _ => 3.4,
+    }
+}
+
 fn compute_dirty_rect(
     points: &[Point2D],
     radii: &[f32],
     canvas_width: u32,
     canvas_height: u32,
     radius_scale: f32,
+    antialias_level: u32,
 ) -> Result<DirtyRect, String> {
     if canvas_width == 0 || canvas_height == 0 {
         return Ok(DirtyRect {
@@ -916,7 +1040,8 @@ fn compute_dirty_rect(
         });
     }
 
-    let pad: f32 = max_r + 2.0;
+    let aa = antialias_feather(antialias_level);
+    let pad: f32 = max_r + aa + 2.0;
     let left = ((min_x - pad).floor() as i64).clamp(0, canvas_width as i64);
     let top = ((min_y - pad).floor() as i64).clamp(0, canvas_height as i64);
     let right = ((max_x + pad).ceil() as i64).clamp(0, canvas_width as i64);

@@ -12,7 +12,7 @@ use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
 use crate::gpu::blend_modes::map_canvas_blend_mode_index;
-use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Point2D};
+use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Color, Point2D, MAX_POINTS};
 use crate::gpu::bucket_fill_renderer::BucketFillRenderer;
 use crate::gpu::debug::{self, LogLevel};
 use crate::gpu::filter_renderer::{
@@ -35,7 +35,7 @@ use super::stroke::{
     StrokeResampler,
 };
 use super::transform::LayerTransformRenderer;
-use super::types::EnginePoint;
+use super::types::{EnginePoint, SprayPoint};
 use super::undo::UndoManager;
 
 const INITIAL_LAYER_CAPACITY: usize = 4;
@@ -121,6 +121,17 @@ pub(crate) enum EngineCommand {
         hollow_erase_occluded: bool,
         streamline_strength: f32,
     },
+    BeginSpray,
+    DrawSpray {
+        points: Vec<SprayPoint>,
+        color_argb: u32,
+        brush_shape: u32,
+        erase: bool,
+        antialias_level: u32,
+        softness: f32,
+        accumulate: bool,
+    },
+    EndSpray,
     ApplyFilter {
         layer_index: u32,
         filter_type: u32,
@@ -161,6 +172,12 @@ pub(crate) enum EngineCommand {
     ReadLayer {
         layer_index: u32,
         reply: mpsc::Sender<Option<Vec<u32>>>,
+    },
+    ReadLayerPreview {
+        layer_index: u32,
+        width: u32,
+        height: u32,
+        reply: mpsc::Sender<Option<Vec<u8>>>,
     },
     ReadPresent {
         reply: mpsc::Sender<Option<Vec<u8>>>,
@@ -703,6 +720,76 @@ fn build_preview_segments(
     segments
 }
 
+fn antialias_feather(level: u32) -> f32 {
+    match level {
+        0 => 0.0,
+        1 => 0.7,
+        2 => 1.1,
+        3 => 1.6,
+        4 => 1.9,
+        5 => 2.2,
+        6 => 2.5,
+        7 => 2.8,
+        8 => 3.1,
+        _ => 3.4,
+    }
+}
+
+fn compute_spray_dirty_rect(
+    points: &[SprayPoint],
+    canvas_width: u32,
+    canvas_height: u32,
+    softness: f32,
+    antialias_level: u32,
+) -> (i32, i32, i32, i32) {
+    if canvas_width == 0 || canvas_height == 0 || points.is_empty() {
+        return (0, 0, 0, 0);
+    }
+
+    let mut min_x: f32 = f32::INFINITY;
+    let mut min_y: f32 = f32::INFINITY;
+    let mut max_x: f32 = f32::NEG_INFINITY;
+    let mut max_y: f32 = f32::NEG_INFINITY;
+    let mut max_r: f32 = 0.0;
+
+    for p in points {
+        let x = if p.x.is_finite() { p.x } else { 0.0 };
+        let y = if p.y.is_finite() { p.y } else { 0.0 };
+        let radius = if p.radius.is_finite() {
+            p.radius.max(0.0)
+        } else {
+            0.0
+        };
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+        max_r = max_r.max(radius);
+    }
+
+    if !min_x.is_finite() || !min_y.is_finite() || !max_x.is_finite() || !max_y.is_finite() {
+        return (0, 0, 0, 0);
+    }
+
+    let soft = if softness.is_finite() {
+        softness.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let aa = antialias_feather(antialias_level);
+    let extra = (max_r * soft).max(aa);
+    let pad = max_r + extra + 2.0;
+
+    let left = ((min_x - pad).floor() as i64).clamp(0, canvas_width as i64);
+    let top = ((min_y - pad).floor() as i64).clamp(0, canvas_height as i64);
+    let right = ((max_x + pad).ceil() as i64).clamp(0, canvas_width as i64);
+    let bottom = ((max_y + pad).ceil() as i64).clamp(0, canvas_height as i64);
+
+    let width = (right - left).max(0) as i32;
+    let height = (bottom - top).max(0) as i32;
+    (left as i32, top as i32, width, height)
+}
+
 fn interpolate_streamline_points(
     from: &[(Point2D, f32)],
     to: &[(Point2D, f32)],
@@ -1057,6 +1144,7 @@ fn render_thread_main(
     let mut preview_renderer: Option<PreviewRenderer> = None;
     let mut preview_state: Option<PreviewStrokeState> = None;
     let mut selection_mask_active = false;
+    let mut spray_active_layer: Option<u32> = None;
 
     loop {
         match &present {
@@ -1091,6 +1179,7 @@ fn render_thread_main(
                         &mut brush,
                         &mut brush_settings,
                         &mut selection_mask_active,
+                        &mut spray_active_layer,
                         &mut undo_manager,
                         canvas_width,
                         canvas_height,
@@ -1196,6 +1285,7 @@ fn render_thread_main(
                         &mut brush,
                         &mut brush_settings,
                         &mut selection_mask_active,
+                        &mut spray_active_layer,
                         &mut undo_manager,
                         canvas_width,
                         canvas_height,
@@ -1886,6 +1976,7 @@ fn handle_engine_command(
     brush: &mut Option<BrushRenderer>,
     brush_settings: &mut EngineBrushSettings,
     selection_mask_active: &mut bool,
+    spray_active_layer: &mut Option<u32>,
     undo: &mut UndoManager,
     canvas_width: u32,
     canvas_height: u32,
@@ -2633,6 +2724,156 @@ fn handle_engine_command(
                     );
                 }
             }
+        }
+        EngineCommand::BeginSpray => {
+            let layer_idx = *active_layer_index as u32;
+            *spray_active_layer = Some(layer_idx);
+            undo.begin_stroke(layer_idx);
+        }
+        EngineCommand::DrawSpray {
+            points,
+            color_argb,
+            brush_shape,
+            erase,
+            antialias_level,
+            softness,
+            accumulate,
+        } => {
+            if points.is_empty() {
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            let layer_idx = match *spray_active_layer {
+                Some(layer) => layer,
+                None => *active_layer_index as u32,
+            };
+            let idx = layer_idx as usize;
+            if !ensure_layer_index(layer_count, idx, *transform_layer_index, *transform_flags) {
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+
+            let brush_ref = match ensure_brush(brush, device, queue, canvas_width, canvas_height) {
+                Ok(brush_ref) => brush_ref,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("BrushRenderer init failed: {err}"),
+                    );
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                        new_canvas_size: None,
+                    };
+                }
+            };
+
+            let dirty = compute_spray_dirty_rect(
+                &points,
+                canvas_width,
+                canvas_height,
+                softness,
+                antialias_level,
+            );
+            undo.begin_stroke_if_needed(layer_idx);
+            undo.capture_before_for_dirty_rect(
+                device.as_ref(),
+                queue.as_ref(),
+                layers.texture(),
+                layer_idx,
+                dirty,
+            );
+
+            let shape = map_brush_shape(brush_shape);
+            let draw_softness = if softness.is_finite() {
+                softness.clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let mut positions: Vec<Point2D> = Vec::with_capacity(points.len());
+            let mut radii: Vec<f32> = Vec::with_capacity(points.len());
+            let mut alphas: Vec<f32> = Vec::with_capacity(points.len());
+            for p in &points {
+                let x = if p.x.is_finite() { p.x } else { 0.0 };
+                let y = if p.y.is_finite() { p.y } else { 0.0 };
+                let radius = if p.radius.is_finite() {
+                    p.radius.max(0.0)
+                } else {
+                    0.0
+                };
+                let alpha = if p.alpha.is_finite() {
+                    p.alpha.clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                positions.push(Point2D { x, y });
+                radii.push(radius);
+                alphas.push(alpha);
+            }
+
+            let layer_view = layers
+                .layer_view(idx)
+                .or_else(|| layers.layer_view(0))
+                .expect("layers non-empty");
+
+            let mut any_drawn = false;
+            let mut start = 0usize;
+            while start < positions.len() {
+                let end = (start + MAX_POINTS).min(positions.len());
+                let pts = &positions[start..end];
+                let rs = &radii[start..end];
+                let as_ = &alphas[start..end];
+                if let Err(err) = brush_ref.draw_points(
+                    layer_view,
+                    pts,
+                    rs,
+                    Some(as_),
+                    Color { argb: color_argb },
+                    shape,
+                    erase,
+                    antialias_level,
+                    draw_softness,
+                    accumulate,
+                ) {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("BrushRenderer spray draw failed: {err}"),
+                    );
+                } else {
+                    any_drawn = true;
+                }
+                start = end;
+            }
+
+            if any_drawn {
+                if let Some(entry) = layer_uniform.get_mut(idx) {
+                    *entry = None;
+                }
+            }
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: any_drawn && present.is_some(),
+                new_canvas_size: None,
+            };
+        }
+        EngineCommand::EndSpray => {
+            if spray_active_layer.is_some() {
+                undo.end_stroke(device.as_ref(), queue.as_ref(), layers.texture());
+            }
+            *spray_active_layer = None;
         }
         EngineCommand::ApplyFilter {
             layer_index,
@@ -3551,6 +3792,125 @@ fn handle_engine_command(
                     let _ = reply.send(None);
                 }
             }
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+                new_canvas_size: None,
+            };
+        }
+        EngineCommand::ReadLayerPreview {
+            layer_index,
+            width,
+            height,
+            reply,
+        } => {
+            let idx = layer_index as usize;
+            if idx >= *layer_count || width == 0 || height == 0 {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            if canvas_width == 0 || canvas_height == 0 {
+                let _ = reply.send(None);
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+
+            let preview_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("misa-rin layer preview target"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Bgra8Unorm,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            });
+            let preview_view = preview_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+            let layer_view = layers.texture().create_view(&wgpu::TextureViewDescriptor {
+                label: Some("misa-rin layer preview array view"),
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                base_array_layer: layer_index,
+                array_layer_count: Some(1),
+                ..Default::default()
+            });
+
+            let scale_x = canvas_width as f32 / width as f32;
+            let scale_y = canvas_height as f32 / height as f32;
+            let preview_matrix = [
+                scale_x, 0.0, 0.0, 0.0, 0.0, scale_y, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0,
+            ];
+            let preview_layer_opacity = [1.0f32];
+            let preview_layer_visible = [true];
+            let preview_layer_clipping = [false];
+            let preview_layer_blend_mode = [0u32];
+            let preview_transform_layer = 0u32;
+            let preview_transform_flags = 1u32;
+
+            write_present_transform(queue, present_transform_buffer, preview_matrix);
+            write_present_config(
+                queue,
+                present_config_buffer,
+                present_params_buffer,
+                1,
+                0,
+                preview_transform_layer,
+                preview_transform_flags,
+                &preview_layer_opacity,
+                &preview_layer_visible,
+                &preview_layer_clipping,
+                &preview_layer_blend_mode,
+            );
+
+            let preview_bind_group = present_renderer.create_bind_group(
+                device,
+                &layer_view,
+                present_config_buffer,
+                present_params_buffer,
+                present_transform_buffer,
+            );
+            present_renderer.render_base(device, queue, &preview_bind_group, &preview_view);
+
+            let preview_bytes = match read_bgra_texture(device, queue, &preview_texture, width, height)
+            {
+                Ok(bytes) => Some(bgra_to_rgba(bytes)),
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("layer preview readback failed: {err}"),
+                    );
+                    None
+                }
+            };
+
+            write_present_transform(queue, present_transform_buffer, *transform_matrix);
+            write_present_config(
+                queue,
+                present_config_buffer,
+                present_params_buffer,
+                *layer_count,
+                *present_view_flags,
+                *transform_layer_index,
+                *transform_flags,
+                layer_opacity,
+                layer_visible,
+                layer_clipping_mask,
+                layer_blend_mode,
+            );
+
+            let _ = reply.send(preview_bytes);
             return EngineCommandOutcome {
                 stop: false,
                 needs_render: false,
@@ -4613,6 +4973,15 @@ fn read_bgra_texture(
 
     map_status?;
     Ok(result.unwrap_or_default())
+}
+
+fn bgra_to_rgba(mut bytes: Vec<u8>) -> Vec<u8> {
+    for chunk in bytes.chunks_exact_mut(4) {
+        let b = chunk[0];
+        chunk[0] = chunk[2];
+        chunk[2] = b;
+    }
+    bytes
 }
 
 fn write_r32uint_region(

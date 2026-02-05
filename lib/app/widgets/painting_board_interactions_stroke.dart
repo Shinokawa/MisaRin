@@ -54,16 +54,6 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     unawaited(AppPreferences.save());
   }
 
-  void _updateBrushToolsEraserMode(bool value) {
-    if (_brushToolsEraserMode == value) {
-      return;
-    }
-    setState(() => _brushToolsEraserMode = value);
-    final AppPreferences prefs = AppPreferences.instance;
-    prefs.brushToolsEraserMode = value;
-    unawaited(AppPreferences.save());
-  }
-
   void _updateLayerAdjustCropOutside(bool value) {
     if (_layerAdjustCropOutside == value) {
       return;
@@ -284,6 +274,12 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     _activeStylusPressureMin = null;
     _activeStylusPressureMax = null;
     _lastStylusPressureValue = null;
+    final Offset? lastPoint = _lastStrokeBoardPosition;
+    if (lastPoint != null &&
+        (_effectiveActiveTool == CanvasTool.pen ||
+            _effectiveActiveTool == CanvasTool.eraser)) {
+      _lastBrushLineAnchor = lastPoint;
+    }
     _lastStrokeBoardPosition = null;
     _lastStylusDirection = null;
     _strokeStabilizer.reset();
@@ -327,7 +323,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       sampleInputColor: false,
       sampleBlend: 0.5,
       shape: BrushShape.circle,
-      minAntialiasLevel: _penAntialiasLevel.clamp(0, 3),
+      minAntialiasLevel: _penAntialiasLevel.clamp(0, 9),
     );
   }
 
@@ -353,7 +349,15 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _focusNode.requestFocus();
-    await _pushUndoSnapshot();
+    final int? handle = _rustCanvasEngineHandle;
+    final bool useRust = _canUseRustCanvasEngine() && handle != null;
+    if (!useRust) {
+      await _pushUndoSnapshot();
+    } else {
+      CanvasEngineFfi.instance.beginSpray(handle: handle);
+      _rustSprayActive = true;
+      _rustSprayHasDrawn = false;
+    }
     _sprayBoardPosition = boardLocal;
     _sprayCurrentPressure = _resolveSprayPressure(event);
     _sprayEmissionAccumulator = 0.0;
@@ -396,6 +400,23 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _sprayTicker?.stop();
+    if (_rustSprayActive) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (handle != null) {
+        CanvasEngineFfi.instance.endSpray(handle: handle);
+      }
+      if (_rustSprayHasDrawn) {
+        _recordRustHistoryAction(
+          layerId: _activeLayerId,
+          deferPreview: true,
+        );
+        if (mounted) {
+          setState(() {});
+        }
+      }
+      _rustSprayActive = false;
+      _rustSprayHasDrawn = false;
+    }
     setState(() {
       _isSpraying = false;
     });

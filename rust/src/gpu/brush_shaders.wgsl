@@ -3,7 +3,7 @@ const EPS: f32 = 0.000001;
 struct StrokePoint {
   pos: vec2<f32>,
   radius: f32,
-  _pad0: f32,
+  alpha: f32,
 };
 
 struct Config {
@@ -16,7 +16,7 @@ struct Config {
   point_count: u32,
   brush_shape: u32,        // 0: circle, 1: triangle, 2: square, 3: star
   erase_mode: u32,         // 0: paint, 1: erase
-  antialias_level: u32,    // 0..3
+  antialias_level: u32,    // 0..9
   color_argb: u32,         // straight alpha ARGB8888
   softness: f32,           // 0.0..1.0 (extra edge feather as fraction of radius)
   rotation_sin: f32,       // sin(theta) for brush rotation
@@ -27,6 +27,7 @@ struct Config {
   stroke_mask_mode: u32,  // 0: disabled, 1: use stroke hollow mask
   stroke_base_mode: u32,  // 0: disabled, 1: blend against stroke base
   stroke_accumulate_mode: u32, // 0: max coverage, 1: accumulate coverage
+  stroke_mode: u32,       // 0: segments, 1: points
   selection_mask_mode: u32, // 0: disabled, 1: clip by selection mask
 };
 
@@ -107,7 +108,25 @@ fn antialias_feather(level: u32) -> f32 {
   if (level == 2u) {
     return 1.1;
   }
-  return 1.6;
+  if (level == 3u) {
+    return 1.6;
+  }
+  if (level == 4u) {
+    return 1.9;
+  }
+  if (level == 5u) {
+    return 2.2;
+  }
+  if (level == 6u) {
+    return 2.5;
+  }
+  if (level == 7u) {
+    return 2.8;
+  }
+  if (level == 8u) {
+    return 3.1;
+  }
+  return 3.4;
 }
 
 fn brush_alpha(dist: f32, radius: f32, softness: f32) -> f32 {
@@ -290,7 +309,30 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
     let sp = stroke_points[0u];
     let radius = sp.radius * scale;
     let dist = shape_distance_to_point(sample_pos, sp.pos, radius);
-    return brush_alpha(dist, radius, cfg.softness);
+    return brush_alpha(dist, radius, cfg.softness) * clamp01(sp.alpha);
+  }
+
+  if (cfg.stroke_mode == 1u) {
+    var out_alpha = 0.0;
+    if (cfg.stroke_accumulate_mode == 0u) {
+      for (var i: u32 = 0u; i < count; i = i + 1u) {
+        let sp = stroke_points[i];
+        let radius = sp.radius * scale;
+        let dist = shape_distance_to_point(sample_pos, sp.pos, radius);
+        let a = brush_alpha(dist, radius, cfg.softness) * clamp01(sp.alpha);
+        out_alpha = max(out_alpha, a);
+      }
+      return out_alpha;
+    }
+    var remain = 1.0;
+    for (var i: u32 = 0u; i < count; i = i + 1u) {
+      let sp = stroke_points[i];
+      let radius = sp.radius * scale;
+      let dist = shape_distance_to_point(sample_pos, sp.pos, radius);
+      let a = clamp01(brush_alpha(dist, radius, cfg.softness) * clamp01(sp.alpha));
+      remain = remain * (1.0 - a);
+    }
+    return 1.0 - remain;
   }
 
   var out_alpha = 0.0;
@@ -300,8 +342,9 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
       let p1 = stroke_points[i + 1u];
       let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
       let radius = mix(p0.radius, p1.radius, t) * scale;
+      let alpha = mix(p0.alpha, p1.alpha, t);
       let dist = shape_distance_to_segment(sample_pos, p0.pos, p1.pos, radius);
-      let a = brush_alpha(dist, radius, cfg.softness);
+      let a = brush_alpha(dist, radius, cfg.softness) * clamp01(alpha);
       out_alpha = max(out_alpha, a);
     }
     return out_alpha;
@@ -312,8 +355,9 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
     let p1 = stroke_points[i + 1u];
     let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
     let radius = mix(p0.radius, p1.radius, t) * scale;
+    let alpha = mix(p0.alpha, p1.alpha, t);
     let dist = shape_distance_to_segment(sample_pos, p0.pos, p1.pos, radius);
-    let a = clamp01(brush_alpha(dist, radius, cfg.softness));
+    let a = clamp01(brush_alpha(dist, radius, cfg.softness) * clamp01(alpha));
     remain = remain * (1.0 - a);
   }
   return 1.0 - remain;

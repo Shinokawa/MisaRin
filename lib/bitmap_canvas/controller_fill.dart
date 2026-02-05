@@ -99,7 +99,7 @@ void _fillFloodFill(
 
   final int clampedTolerance = tolerance.clamp(0, 255);
   final int clampedFillGap = fillGap.clamp(0, 64);
-  final int clampedAntialias = antialiasLevel.clamp(0, 3);
+  final int clampedAntialias = antialiasLevel.clamp(0, 9);
   final Uint8List? selectionMask = controller._selectionMask;
   final Uint32List? swallowColorsU32 =
       swallowColors != null && swallowColors.isNotEmpty

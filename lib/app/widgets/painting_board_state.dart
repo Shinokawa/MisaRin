@@ -59,8 +59,8 @@ class PaintingBoardState extends _PaintingBoardBase
     _streamlineStrength = prefs.streamlineStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
-    _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
-    _bucketAntialiasLevel = prefs.bucketAntialiasLevel.clamp(0, 3);
+    _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 9);
+    _bucketAntialiasLevel = prefs.bucketAntialiasLevel.clamp(0, 9);
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;

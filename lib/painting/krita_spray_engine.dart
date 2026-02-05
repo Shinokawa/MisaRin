@@ -5,6 +5,13 @@ import '../bitmap_canvas/controller.dart';
 import '../canvas/canvas_tools.dart';
 
 typedef ClampToCanvas = Offset Function(Offset position);
+typedef KritaSprayParticleCallback =
+    void Function(
+      Offset position,
+      double radius,
+      double opacityScale,
+      Color baseColor,
+    );
 
 enum KritaRadialDistributionType { uniform, gaussian, cluster }
 
@@ -84,8 +91,62 @@ class KritaSprayEngine {
   KritaSprayEngineSettings _settings;
   double? _cachedGaussian;
 
+  bool get sampleInputColor => _settings.sampleInputColor;
+
   void updateSettings(KritaSprayEngineSettings value) {
     _settings = value;
+  }
+
+  int forEachParticle({
+    required Offset center,
+    required int particleBudget,
+    required double pressure,
+    required Color baseColor,
+    required KritaSprayParticleCallback onParticle,
+  }) {
+    if (particleBudget <= 0) {
+      return 0;
+    }
+    final double radius = _settings.radiusForPressure(pressure);
+    final int particleCount = math.max(
+      1,
+      (particleBudget * _settings.particleMultiplier).round(),
+    );
+    final bool jitter = _settings.jitterMovement && _settings.jitterAmount > 0;
+    final double jitterRadius =
+        jitter ? radius * _settings.jitterAmount : 0.0;
+    int emitted = 0;
+    for (int i = 0; i < particleCount; i++) {
+      final double angle = _random.nextDouble() * math.pi * 2.0;
+      final double radial = _sampleRadial();
+      final Offset offset = _transformOffset(
+        angle: angle,
+        radial: radial,
+        radius: radius,
+      );
+      final Offset jitterOffset = jitter
+          ? Offset(
+              _randomRange(-jitterRadius, jitterRadius),
+              _randomRange(-jitterRadius, jitterRadius),
+            )
+          : Offset.zero;
+      final Offset position = _clampToCanvas(center + offset + jitterOffset);
+      final double particleScale = _resolveParticleScale();
+      final double particleRadius = math.max(
+        _settings.minParticleRadius,
+        radius * particleScale,
+      );
+      final double opacityScale = _resolveParticleOpacity();
+      final Color base = _resolveColor(position, baseColor);
+      final double baseAlpha = base.alpha / 255.0;
+      final double finalAlpha = baseAlpha * opacityScale;
+      if (finalAlpha <= 0.0) {
+        continue;
+      }
+      onParticle(position, particleRadius, opacityScale, base);
+      emitted++;
+    }
+    return emitted;
   }
 
   void paintParticles({
@@ -99,53 +160,30 @@ class KritaSprayEngine {
     if (particleBudget <= 0) {
       return;
     }
-    final double radius = _settings.radiusForPressure(pressure);
-    final int particleCount = math.max(
-      1,
-      (particleBudget * _settings.particleMultiplier).round(),
-    );
-    final bool jitter = _settings.jitterMovement && _settings.jitterAmount > 0;
-    final double jitterRadius =
-        jitter ? radius * _settings.jitterAmount : 0.0;
     controller.runSynchronousRasterization(() {
-      for (int i = 0; i < particleCount; i++) {
-        final double angle = _random.nextDouble() * math.pi * 2.0;
-        final double radial = _sampleRadial();
-        final Offset offset = _transformOffset(
-          angle: angle,
-          radial: radial,
-          radius: radius,
-        );
-        final Offset jitterOffset = jitter
-            ? Offset(
-                _randomRange(-jitterRadius, jitterRadius),
-                _randomRange(-jitterRadius, jitterRadius),
-              )
-            : Offset.zero;
-        final Offset position = _clampToCanvas(center + offset + jitterOffset);
-        final double particleScale = _resolveParticleScale();
-        final double particleRadius = math.max(
-          _settings.minParticleRadius,
-          radius * particleScale,
-        );
-        final double opacityScale = _resolveParticleOpacity();
-        final Color base = _resolveColor(position, baseColor);
-        final int scaledAlpha =
-            (base.alpha * opacityScale).round().clamp(0, 255);
-        if (scaledAlpha <= 0) {
-          continue;
-        }
-        final Color color = base.withAlpha(scaledAlpha);
-        controller.drawBrushStamp(
-          center: position,
-          radius: particleRadius,
-          color: color,
-          brushShape: _settings.shape,
-          antialiasLevel:
-              math.max(antialiasLevel, _settings.minAntialiasLevel),
-          erase: erase,
-        );
-      }
+      forEachParticle(
+        center: center,
+        particleBudget: particleBudget,
+        pressure: pressure,
+        baseColor: baseColor,
+        onParticle: (position, particleRadius, opacityScale, base) {
+          final int scaledAlpha =
+              (base.alpha * opacityScale).round().clamp(0, 255);
+          if (scaledAlpha <= 0) {
+            return;
+          }
+          final Color color = base.withAlpha(scaledAlpha);
+          controller.drawBrushStamp(
+            center: position,
+            radius: particleRadius,
+            color: color,
+            brushShape: _settings.shape,
+            antialiasLevel:
+                math.max(antialiasLevel, _settings.minAntialiasLevel),
+            erase: erase,
+          );
+        },
+      );
     });
   }
 

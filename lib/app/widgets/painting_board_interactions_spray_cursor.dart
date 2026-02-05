@@ -137,6 +137,61 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     final bool erase = _isBrushEraserEnabled;
     final Color color =
         _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    if (_rustSprayActive && _canUseRustCanvasEngine() && !engine.sampleInputColor) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (handle == null) {
+        return;
+      }
+      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+      double sx = 1.0;
+      double sy = 1.0;
+      if (engineSize != _canvasSize &&
+          _canvasSize.width > 0 &&
+          _canvasSize.height > 0) {
+        sx = engineSize.width / _canvasSize.width;
+        sy = engineSize.height / _canvasSize.height;
+      }
+      final double scale = (sx.isFinite && sy.isFinite)
+          ? ((sx + sy) / 2.0)
+          : 1.0;
+      final List<double> packed = <double>[];
+      engine.forEachParticle(
+        center: center,
+        particleBudget: count,
+        pressure: _sprayCurrentPressure,
+        baseColor: color,
+        onParticle: (position, particleRadius, opacityScale, baseColor) {
+          if (opacityScale <= 0.0) {
+            return;
+          }
+          final Offset enginePos = Offset(
+            position.dx * sx,
+            position.dy * sy,
+          );
+          packed.add(enginePos.dx);
+          packed.add(enginePos.dy);
+          packed.add(particleRadius * scale);
+          packed.add(opacityScale);
+        },
+      );
+      final int pointCount = packed.length ~/ 4;
+      if (pointCount > 0) {
+        CanvasEngineFfi.instance.drawSpray(
+          handle: handle,
+          points: Float32List.fromList(packed),
+          pointCount: pointCount,
+          colorArgb: color.value,
+          brushShape: BrushShape.circle.index,
+          erase: erase,
+          antialiasLevel: _penAntialiasLevel,
+          softness: 0.0,
+          accumulate: true,
+        );
+        _rustSprayHasDrawn = true;
+        _markDirty();
+      }
+      return;
+    }
     engine.paintParticles(
       center: center,
       particleBudget: count,
@@ -203,6 +258,44 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       1.0,
     );
     if (opacityScale <= 0.0) {
+      return;
+    }
+    if (_rustSprayActive && _canUseRustCanvasEngine()) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (handle == null) {
+        return;
+      }
+      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+      double sx = 1.0;
+      double sy = 1.0;
+      if (engineSize != _canvasSize &&
+          _canvasSize.width > 0 &&
+          _canvasSize.height > 0) {
+        sx = engineSize.width / _canvasSize.width;
+        sy = engineSize.height / _canvasSize.height;
+      }
+      final double scale = (sx.isFinite && sy.isFinite)
+          ? ((sx + sy) / 2.0)
+          : 1.0;
+      final Offset enginePos = Offset(position.dx * sx, position.dy * sy);
+      final Float32List packed = Float32List(4)
+        ..[0] = enginePos.dx
+        ..[1] = enginePos.dy
+        ..[2] = radius * scale
+        ..[3] = opacityScale;
+      final int colorArgb = (0xFF000000 | (baseColor.value & 0x00FFFFFF));
+      CanvasEngineFfi.instance.drawSpray(
+        handle: handle,
+        points: packed,
+        pointCount: 1,
+        colorArgb: colorArgb,
+        brushShape: BrushShape.circle.index,
+        erase: erase,
+        antialiasLevel: 3,
+        softness: 1.0,
+        accumulate: true,
+      );
+      _rustSprayHasDrawn = true;
       return;
     }
     _controller.drawBrushStamp(
@@ -471,7 +564,14 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       boardLocal,
       sampleAllLayers: true,
     );
-    _setPrimaryColor(color, remember: remember);
+    if (color.alpha == 0) {
+      _updateBrushToolsEraserMode(true);
+      return;
+    }
+    if (_brushToolsEraserMode) {
+      _updateBrushToolsEraserMode(false);
+    }
+    _setPrimaryColor(color.withAlpha(0xFF), remember: remember);
   }
 
   void _updateToolCursorOverlay(Offset workspacePosition) {

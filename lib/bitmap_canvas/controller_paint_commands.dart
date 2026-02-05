@@ -36,7 +36,7 @@ _GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
   required bool eraseOccludedParts,
 }) {
   final bool erase = command.erase;
-  final int antialiasLevel = command.antialiasLevel.clamp(0, 3);
+  final int antialiasLevel = command.antialiasLevel.clamp(0, 9);
 
   switch (command.type) {
     case PaintingDrawCommandType.brushStamp: {
@@ -259,7 +259,7 @@ Future<void> _controllerDrawStrokeOnGpu(
 
     final int canvasWidth = controller._width;
     final int canvasHeight = controller._height;
-    final int aa = antialiasLevel.clamp(0, 3);
+    final int aa = antialiasLevel.clamp(0, 9);
     final Uint8List? mask = controller._selectionMask;
 
     Rect computeDirtyRect() {
@@ -698,7 +698,7 @@ Rect? _controllerDirtyRectForCommand(
         if (point.dy < minY) minY = point.dy;
         if (point.dy > maxY) maxY = point.dy;
       }
-      final double padding = 2.0 + command.antialiasLevel.clamp(0, 3) * 1.2;
+      final double padding = 2.0 + command.antialiasLevel.clamp(0, 9) * 1.2;
       return Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
   }
 }

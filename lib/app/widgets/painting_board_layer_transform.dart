@@ -306,7 +306,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         if (!applied) {
           throw StateError(context.l10n.applyTransformFailed);
         }
-        _recordRustHistoryAction();
+        _recordRustHistoryAction(layerId: activeLayer.id);
         _controller.disposeActiveLayerTransformSession();
         _clearRustLayerTransformPreview();
         if (!mounted) {
@@ -356,7 +356,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         if (!applied) {
           throw StateError(context.l10n.applyTransformFailed);
         }
-        _recordRustHistoryAction();
+        _recordRustHistoryAction(layerId: activeLayer.id);
       }
       await _pushUndoSnapshot(entry: undoEntry);
       final CanvasLayerData data = CanvasLayerData(

@@ -199,7 +199,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       selectionMask: selectionMaskForRust,
     );
     if (applied) {
-      _recordRustHistoryAction();
+      _recordRustHistoryAction(layerId: activeLayerId);
       if (mounted) {
         setState(() {});
       }
@@ -595,6 +595,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
         : const Color(0xFFD6D6D6);
     final Color background = isDark ? const Color(0xFF1B1B1F) : Colors.white;
     final l10n = context.l10n;
+    final bool eraserActive = _brushToolsEraserMode;
     return AppNotificationAnchor(
       child: HoverDetailTooltip(
         message: '${l10n.currentColor} ${_hexStringForColor(_primaryColor)}',
@@ -604,7 +605,19 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           borderColor: borderColor,
           backgroundColor: background,
           isDark: isDark,
-          onTap: _handleEditPrimaryColor,
+          eraserActive: eraserActive,
+          onColorTap: () {
+            if (eraserActive) {
+              _updateBrushToolsEraserMode(false);
+              return;
+            }
+            _handleEditPrimaryColor();
+          },
+          onEraserTap: () {
+            if (!eraserActive) {
+              _updateBrushToolsEraserMode(true);
+            }
+          },
         ),
       ),
     );

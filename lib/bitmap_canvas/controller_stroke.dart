@@ -97,7 +97,7 @@ void _strokeBegin(
       !controller._currentStrokeStylusPressureEnabled;
   controller._currentStylusCurve = controller._stylusCurve;
   controller._currentStylusLastPressure = null;
-  controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 3);
+  controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 9);
   controller._currentStrokeHasMoved = false;
   controller._currentBrushShape = brushShape;
   controller._currentStrokeRandomRotationEnabled = randomRotation;

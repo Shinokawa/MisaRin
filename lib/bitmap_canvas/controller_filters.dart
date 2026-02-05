@@ -279,7 +279,7 @@ bool _controllerApplyAntialiasToActiveLayerCpu(
     return false;
   }
   final List<double> profile = List<double>.from(
-    BitmapCanvasController._kAntialiasBlendProfiles[level.clamp(0, 3)] ??
+    BitmapCanvasController._kAntialiasBlendProfiles[level.clamp(0, 9)] ??
         const <double>[0.25],
   );
   if (profile.isEmpty) {

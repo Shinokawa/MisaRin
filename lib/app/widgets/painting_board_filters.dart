@@ -383,7 +383,7 @@ mixin _PaintingBoardFilterMixin
         _showFilterMessage(l10n.filterApplyFailed);
         return;
       }
-      _recordRustHistoryAction();
+      _recordRustHistoryAction(layerId: activeLayerId);
       if (mounted) {
         setState(() {});
       }
@@ -498,7 +498,7 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _handleAntialiasLevelChanged(int level) {
-    final int clamped = level.clamp(0, 3);
+    final int clamped = level.clamp(0, 9);
     if (_antialiasCardLevel == clamped) {
       return;
     }
@@ -971,7 +971,7 @@ mixin _PaintingBoardFilterMixin
         if (!applied) {
           throw StateError('Apply rust color range failed.');
         }
-        _recordRustHistoryAction();
+        _recordRustHistoryAction(layerId: session.layerId);
         _markDirty();
         setState(() {
           _colorRangeApplying = false;

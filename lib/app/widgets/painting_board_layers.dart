@@ -780,7 +780,7 @@ mixin _PaintingBoardLayerMixin
     if (layer == null || layer.locked) {
       return false;
     }
-    final int clamped = level.clamp(0, 3);
+    final int clamped = level.clamp(0, 9);
     if (_canUseRustCanvasEngine()) {
       final int? handle = _rustCanvasEngineHandle;
       final String? layerId = _activeLayerId;
@@ -797,7 +797,7 @@ mixin _PaintingBoardLayerMixin
         level: clamped,
       );
       if (applied) {
-        _recordRustHistoryAction();
+        _recordRustHistoryAction(layerId: layerId);
         setState(() {});
         _markDirty();
       }

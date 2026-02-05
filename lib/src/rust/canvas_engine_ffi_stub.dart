@@ -31,6 +31,22 @@ class CanvasEngineFfi {
     double streamlineStrength = 0.0,
   }) {}
 
+  void beginSpray({required int handle}) {}
+
+  void drawSpray({
+    required int handle,
+    required Float32List points,
+    required int pointCount,
+    required int colorArgb,
+    int brushShape = 0,
+    bool erase = false,
+    int antialiasLevel = 1,
+    double softness = 0.0,
+    bool accumulate = true,
+  }) {}
+
+  void endSpray({required int handle}) {}
+
   bool applyFilter({
     required int handle,
     required int layerIndex,
@@ -128,6 +144,15 @@ class CanvasEngineFfi {
   }
 
   Uint32List? readLayer({
+    required int handle,
+    required int layerIndex,
+    required int width,
+    required int height,
+  }) {
+    return null;
+  }
+
+  Uint8List? readLayerPreview({
     required int handle,
     required int layerIndex,
     required int width,

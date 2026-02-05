@@ -11,7 +11,7 @@ struct Config {
   canvas_width: u32,
   canvas_height: u32,
   brush_shape: u32,     // 0: circle, 1: triangle, 2: square, 3: star
-  antialias_level: u32, // 0..3
+  antialias_level: u32, // 0..9
   color_argb: u32,
   erase_mode: u32,      // 0: paint, 1: erase
   mirror_x: u32,
@@ -63,7 +63,25 @@ fn antialias_feather(level: u32) -> f32 {
   if (level == 2u) {
     return 1.1;
   }
-  return 1.6;
+  if (level == 3u) {
+    return 1.6;
+  }
+  if (level == 4u) {
+    return 1.9;
+  }
+  if (level == 5u) {
+    return 2.2;
+  }
+  if (level == 6u) {
+    return 2.5;
+  }
+  if (level == 7u) {
+    return 2.8;
+  }
+  if (level == 8u) {
+    return 3.1;
+  }
+  return 3.4;
 }
 
 fn brush_alpha(dist: f32, radius: f32, softness: f32) -> f32 {

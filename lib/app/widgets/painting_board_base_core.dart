@@ -78,6 +78,10 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   final Map<String, _LayerPreviewCacheEntry> _layerPreviewCache =
       <String, _LayerPreviewCacheEntry>{};
   int _layerPreviewRequestSerial = 0;
+  final Map<String, int> _rustLayerPreviewRevisions = <String, int>{};
+  final Set<String> _rustLayerPreviewPending = <String>{};
+  int _rustLayerPreviewSerial = 0;
+  bool _rustLayerPreviewRefreshScheduled = false;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
   bool _layerAdjustRustSynced = false;
@@ -121,9 +125,12 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   double? _activeStylusPressureMax;
   double? _lastStylusPressureValue;
   Offset? _lastStrokeBoardPosition;
+  Offset? _lastBrushLineAnchor;
   Offset? _lastStylusDirection;
   final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
   bool _isSpraying = false;
+  bool _rustSprayActive = false;
+  bool _rustSprayHasDrawn = false;
   Offset? _sprayBoardPosition;
   Ticker? _sprayTicker;
   Duration? _sprayTickerTimestamp;
@@ -164,6 +171,15 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   void _handlePrimaryColorChanged() {}
   @protected
   void _handleTextStrokeColorChanged(Color color) {}
+  void _updateBrushToolsEraserMode(bool value) {
+    if (_brushToolsEraserMode == value) {
+      return;
+    }
+    setState(() => _brushToolsEraserMode = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.brushToolsEraserMode = value;
+    unawaited(AppPreferences.save());
+  }
   @protected
   void _notifyBoardReadyIfNeeded();
   final List<Color> _recentColors = <Color>[];
@@ -399,7 +415,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       recordUndo: recordUndo,
     );
     if (applied) {
-      _recordRustHistoryAction();
+      _recordRustHistoryAction(layerId: layer.id);
       if (mounted) {
         setState(() {});
       }
@@ -442,7 +458,9 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       );
       if (!applied) {
         allOk = false;
+        continue;
       }
+      _bumpRustLayerPreviewRevision(layer.id);
     }
     return allOk;
   }
@@ -983,6 +1001,10 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       if (_rustLayerSnapshots.isNotEmpty) {
         _rustLayerSnapshotPendingRestore = true;
       }
+      _rustLayerPreviewRevisions.clear();
+      _rustLayerPreviewPending.clear();
+      _rustLayerPreviewSerial = 0;
+      _rustLayerPreviewRefreshScheduled = false;
     }
     _rustCanvasEngineHandle = handle;
     _rustCanvasEngineSize = engineSize;
@@ -1083,9 +1105,62 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _recordHistoryAction(_HistoryActionKind.dart);
   }
 
-  void _recordRustHistoryAction() {
+  void _recordRustHistoryAction({
+    String? layerId,
+    bool deferPreview = false,
+  }) {
     _rustLayerSnapshotDirty = true;
     _recordHistoryAction(_HistoryActionKind.rust);
+    if (layerId == null) {
+      return;
+    }
+    if (deferPreview) {
+      _scheduleRustLayerPreviewRefresh(layerId);
+    } else {
+      _bumpRustLayerPreviewRevision(layerId);
+    }
+  }
+
+  void _bumpRustLayerPreviewRevision(String layerId) {
+    _rustLayerPreviewSerial += 1;
+    _rustLayerPreviewRevisions[layerId] = _rustLayerPreviewSerial;
+  }
+
+  void _scheduleRustLayerPreviewRefresh(String layerId) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    _rustLayerPreviewPending.add(layerId);
+    if (_rustLayerPreviewRefreshScheduled) {
+      return;
+    }
+    _rustLayerPreviewRefreshScheduled = true;
+    unawaited(_runRustLayerPreviewRefresh());
+  }
+
+  Future<void> _runRustLayerPreviewRefresh() async {
+    while (mounted && _rustLayerPreviewPending.isNotEmpty) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (!_canUseRustCanvasEngine() || handle == null) {
+        _rustLayerPreviewPending.clear();
+        break;
+      }
+      final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+      if (queued > 0) {
+        await Future.delayed(const Duration(milliseconds: 16));
+        continue;
+      }
+      await Future.delayed(const Duration(milliseconds: 16));
+      final List<String> pending = _rustLayerPreviewPending.toList(growable: false);
+      _rustLayerPreviewPending.clear();
+      for (final String layerId in pending) {
+        _bumpRustLayerPreviewRevision(layerId);
+      }
+      if (mounted) {
+        setState(() {});
+      }
+    }
+    _rustLayerPreviewRefreshScheduled = false;
   }
 
   void _recordHistoryAction(_HistoryActionKind action) {
@@ -1277,6 +1352,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
         pixels: pixels,
         recordUndo: false,
       );
+      _bumpRustLayerPreviewRevision(layers[i].id);
     }
     _rustLayerSnapshotPendingRestore = false;
     _rustLayerSnapshotHandle = handle;

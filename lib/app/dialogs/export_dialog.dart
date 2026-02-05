@@ -66,6 +66,10 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
           l10n.antialiasMedium,
           l10n.antialiasHigh,
         ];
+        final String antialiasDescription = antialiasLevel <
+                antialiasDescriptions.length
+            ? antialiasDescriptions[antialiasLevel]
+            : l10n.antialiasingDesc;
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -215,8 +219,8 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 const SizedBox(height: 12),
                 Slider(
                   min: 0,
-                  max: 3,
-                  divisions: 3,
+                  max: 9,
+                  divisions: 9,
                   value: antialiasLevel.toDouble(),
                   label: l10n.levelLabel(antialiasLevel),
                   onChanged: (value) {
@@ -227,7 +231,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  antialiasDescriptions[antialiasLevel],
+                  antialiasDescription,
                   style: theme.typography.caption,
                 ),
               ],
@@ -307,7 +311,7 @@ Future<CanvasExportOptions?> showCanvasExportDialog({
             edgeSofteningEnabled:
                 exportMode == CanvasExportMode.bitmap && antialiasEnabled,
             edgeSofteningLevel:
-                exportMode == CanvasExportMode.bitmap ? antialiasLevel.clamp(0, 3) : 0,
+                exportMode == CanvasExportMode.bitmap ? antialiasLevel.clamp(0, 9) : 0,
             vectorMaxColors:
                 exportMode == CanvasExportMode.vector ? vectorMaxColors : null,
             vectorSimplifyEpsilon: exportMode == CanvasExportMode.vector

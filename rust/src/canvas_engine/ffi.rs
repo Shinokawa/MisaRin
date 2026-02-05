@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use super::types::EnginePoint;
+use super::types::{EnginePoint, SprayPoint};
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use super::engine::{create_engine, lookup_engine, remove_engine, EngineCommand, EngineInputBatch};
@@ -455,6 +455,96 @@ pub extern "C" fn engine_set_brush(
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 #[no_mangle]
+pub extern "C" fn engine_spray_begin(handle: u64) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::BeginSpray);
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[no_mangle]
+pub extern "C" fn engine_spray_begin(_handle: u64) {}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[no_mangle]
+pub extern "C" fn engine_spray_draw(
+    handle: u64,
+    points: *const f32,
+    len: usize,
+    color_argb: u32,
+    brush_shape: u32,
+    erase: u8,
+    antialias_level: u32,
+    softness: f32,
+    accumulate: u8,
+) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    if points.is_null() || len == 0 {
+        return;
+    }
+    let float_len = match len.checked_mul(4) {
+        Some(value) => value,
+        None => return,
+    };
+    let slice = unsafe { std::slice::from_raw_parts(points, float_len) };
+    let mut owned: Vec<SprayPoint> = Vec::with_capacity(len);
+    for i in 0..len {
+        let base = i * 4;
+        let x = slice[base];
+        let y = slice[base + 1];
+        let radius = slice[base + 2];
+        let alpha = slice[base + 3];
+        owned.push(SprayPoint {
+            x,
+            y,
+            radius,
+            alpha,
+        });
+    }
+    let _ = entry.cmd_tx.send(EngineCommand::DrawSpray {
+        points: owned,
+        color_argb,
+        brush_shape,
+        erase: erase != 0,
+        antialias_level,
+        softness,
+        accumulate: accumulate != 0,
+    });
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[no_mangle]
+pub extern "C" fn engine_spray_draw(
+    _handle: u64,
+    _points: *const f32,
+    _len: usize,
+    _color_argb: u32,
+    _brush_shape: u32,
+    _erase: u8,
+    _antialias_level: u32,
+    _softness: f32,
+    _accumulate: u8,
+) {
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[no_mangle]
+pub extern "C" fn engine_spray_end(handle: u64) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::EndSpray);
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[no_mangle]
+pub extern "C" fn engine_spray_end(_handle: u64) {}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[no_mangle]
 pub extern "C" fn engine_apply_filter(
     handle: u64,
     layer_index: u32,
@@ -616,7 +706,7 @@ pub extern "C" fn engine_bucket_fill(
             sample_all_layers: sample_all_layers != 0,
             tolerance: tolerance.min(255) as u8,
             fill_gap: fill_gap.min(64) as u8,
-            antialias_level: antialias_level.min(3) as u8,
+            antialias_level: antialias_level.min(9) as u8,
             swallow_colors,
             selection_mask,
             reply: tx,
@@ -782,6 +872,70 @@ pub extern "C" fn engine_read_layer(
     _handle: u64,
     _layer_index: u32,
     _out_pixels_ptr: *mut u32,
+    _out_pixels_len: usize,
+) -> u8 {
+    0
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[no_mangle]
+pub extern "C" fn engine_read_layer_preview(
+    handle: u64,
+    layer_index: u32,
+    width: u32,
+    height: u32,
+    out_pixels_ptr: *mut u8,
+    out_pixels_len: usize,
+) -> u8 {
+    if out_pixels_ptr.is_null() || out_pixels_len == 0 {
+        return 0;
+    }
+    let Some(entry) = lookup_engine(handle) else {
+        return 0;
+    };
+    let expected_len = (width as usize)
+        .saturating_mul(height as usize)
+        .saturating_mul(4);
+    if expected_len == 0 || out_pixels_len != expected_len {
+        return 0;
+    }
+
+    let (tx, rx) = mpsc::channel();
+    if entry
+        .cmd_tx
+        .send(EngineCommand::ReadLayerPreview {
+            layer_index,
+            width,
+            height,
+            reply: tx,
+        })
+        .is_err()
+    {
+        return 0;
+    }
+
+    match rx.recv() {
+        Ok(Some(pixels)) => {
+            if pixels.len() != out_pixels_len {
+                return 0;
+            }
+            unsafe {
+                std::ptr::copy_nonoverlapping(pixels.as_ptr(), out_pixels_ptr, pixels.len());
+            }
+            1
+        }
+        _ => 0,
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[no_mangle]
+pub extern "C" fn engine_read_layer_preview(
+    _handle: u64,
+    _layer_index: u32,
+    _width: u32,
+    _height: u32,
+    _out_pixels_ptr: *mut u8,
     _out_pixels_len: usize,
 ) -> u8 {
     0

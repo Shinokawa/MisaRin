@@ -283,7 +283,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         content = _buildSprayControls(theme);
         break;
       case CanvasTool.eraser:
-        content = _buildBrushControls(theme, includeEraserToggle: false);
+        content = _buildBrushControls(theme);
         break;
       case CanvasTool.shape:
         content = Column(
@@ -516,10 +516,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
-  Widget _buildBrushControls(
-    FluentThemeData theme, {
-    bool includeEraserToggle = true,
-  }) {
+  Widget _buildBrushControls(FluentThemeData theme) {
     final l10n = context.l10n;
     final bool isPenTool = widget.activeTool == CanvasTool.pen ||
         widget.activeTool == CanvasTool.perspectivePen;
@@ -628,17 +625,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           onChanged: widget.onSimulatePenPressureChanged,
         ),
       );
-      if (includeEraserToggle) {
-        wrapChildren.add(
-          _buildToggleSwitchRow(
-            theme,
-            label: l10n.switchToEraser,
-            detail: l10n.switchToEraserDesc,
-            value: widget.brushToolsEraserMode,
-            onChanged: widget.onBrushToolsEraserModeChanged,
-          ),
-        );
-      }
       if (widget.simulatePenPressure) {
         wrapChildren.add(
           SizedBox(
@@ -673,17 +659,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   }
 
   Widget _buildSprayControls(FluentThemeData theme) {
-    final l10n = context.l10n;
     final List<Widget> children = <Widget>[
       _buildBrushSizeRow(theme),
       _buildSprayModeSelector(theme),
-      _buildToggleSwitchRow(
-        theme,
-        label: l10n.switchToEraser,
-        detail: l10n.switchToEraserDesc,
-        value: widget.brushToolsEraserMode,
-        onChanged: widget.onBrushToolsEraserModeChanged,
-      ),
     ];
     if (widget.sprayMode == SprayMode.splatter) {
       children.add(_buildBrushAntialiasRow(theme));
@@ -1649,8 +1627,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final Slider slider = Slider(
       value: value.toDouble(),
       min: 0,
-      max: 3,
-      divisions: 3,
+      max: 9,
+      divisions: 9,
       onChanged: (raw) => onChanged(raw.round()),
     );
     final String levelLabel = l10n.levelLabel(value);

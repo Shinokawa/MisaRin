@@ -1552,8 +1552,8 @@ class AppPreferences {
     if (value < 0) {
       return 0;
     }
-    if (value > 3) {
-      return 3;
+    if (value > 9) {
+      return 9;
     }
     return value;
   }
@@ -1562,8 +1562,8 @@ class AppPreferences {
     if (value < 0) {
       return 0;
     }
-    if (value > 3) {
-      return 3;
+    if (value > 9) {
+      return 9;
     }
     return value;
   }

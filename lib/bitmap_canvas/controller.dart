@@ -146,6 +146,12 @@ class BitmapCanvasController extends ChangeNotifier {
         1: <double>[0.35, 0.35],
         2: <double>[0.45, 0.5, 0.5],
         3: <double>[0.6, 0.65, 0.7, 0.75],
+        4: <double>[0.6, 0.65, 0.7, 0.75, 0.8],
+        5: <double>[0.65, 0.7, 0.75, 0.8, 0.85],
+        6: <double>[0.7, 0.75, 0.8, 0.85, 0.9],
+        7: <double>[0.7, 0.75, 0.8, 0.85, 0.9, 0.9],
+        8: <double>[0.75, 0.8, 0.85, 0.9, 0.9, 0.9],
+        9: <double>[0.8, 0.85, 0.9, 0.9, 0.9, 0.9],
       };
   static const double _kEdgeDetectMin = 0.015;
   static const double _kEdgeDetectMax = 0.4;
@@ -566,7 +572,7 @@ class BitmapCanvasController extends ChangeNotifier {
     final PaintingDrawCommand command = PaintingDrawCommand.filledPolygon(
       points: List<Offset>.from(points),
       colorValue: color.value,
-      antialiasLevel: antialiasLevel.clamp(0, 3),
+      antialiasLevel: antialiasLevel.clamp(0, 9),
       erase: erase,
     );
     _dispatchDirectPaintCommand(command);
@@ -589,7 +595,7 @@ class BitmapCanvasController extends ChangeNotifier {
       radius: radius,
       colorValue: color.value,
       shapeIndex: brushShape.index,
-      antialiasLevel: antialiasLevel.clamp(0, 3),
+      antialiasLevel: antialiasLevel.clamp(0, 9),
       erase: erase,
       softness: softness.clamp(0.0, 1.0),
     );

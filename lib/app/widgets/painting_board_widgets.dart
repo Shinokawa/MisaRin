@@ -15,7 +15,7 @@ void _paintStrokeOverlay({
   if (points.isEmpty) {
     return;
   }
-  final int clampedAntialias = antialiasLevel.clamp(0, 3);
+  final int clampedAntialias = antialiasLevel.clamp(0, 9);
   final Paint paint = Paint()
     ..color = color
     ..style = PaintingStyle.fill

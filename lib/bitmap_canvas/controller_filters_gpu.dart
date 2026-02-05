@@ -6,7 +6,7 @@ Future<bool> _controllerApplyAntialiasToActiveLayer(
   int level, {
   bool previewOnly = false,
 }) async {
-  final int clamped = level.clamp(0, 3);
+  final int clamped = level.clamp(0, 9);
   if (previewOnly) {
     return _canApplyAntialias(controller, clamped);
   }

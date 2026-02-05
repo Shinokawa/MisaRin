@@ -183,6 +183,25 @@ typedef _EngineReadLayerDart =
       int outPixelsLen,
     );
 
+typedef _EngineReadLayerPreviewNative =
+    ffi.Uint8 Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 layerIndex,
+      ffi.Uint32 width,
+      ffi.Uint32 height,
+      ffi.Pointer<ffi.Uint8> outPixels,
+      ffi.UintPtr outPixelsLen,
+    );
+typedef _EngineReadLayerPreviewDart =
+    int Function(
+      int handle,
+      int layerIndex,
+      int width,
+      int height,
+      ffi.Pointer<ffi.Uint8> outPixels,
+      int outPixelsLen,
+    );
+
 typedef _EngineWriteLayerNative =
     ffi.Uint8 Function(
       ffi.Uint64 handle,
@@ -317,6 +336,37 @@ typedef _EngineSetBrushDart =
       int hollowEraseOccludedParts,
       double streamlineStrength,
     );
+
+typedef _EngineSprayBeginNative = ffi.Void Function(ffi.Uint64 handle);
+typedef _EngineSprayBeginDart = void Function(int handle);
+
+typedef _EngineSprayDrawNative =
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Pointer<ffi.Float> points,
+      ffi.UintPtr pointCount,
+      ffi.Uint32 colorArgb,
+      ffi.Uint32 brushShape,
+      ffi.Uint8 erase,
+      ffi.Uint32 antialiasLevel,
+      ffi.Float softness,
+      ffi.Uint8 accumulate,
+    );
+typedef _EngineSprayDrawDart =
+    void Function(
+      int handle,
+      ffi.Pointer<ffi.Float> points,
+      int pointCount,
+      int colorArgb,
+      int brushShape,
+      int erase,
+      int antialiasLevel,
+      double softness,
+      int accumulate,
+    );
+
+typedef _EngineSprayEndNative = ffi.Void Function(ffi.Uint64 handle);
+typedef _EngineSprayEndDart = void Function(int handle);
 
 typedef _EngineApplyFilterNative =
     ffi.Uint8 Function(
@@ -471,6 +521,15 @@ class CanvasEngineFfi {
         _readLayer = null;
       }
       try {
+        _readLayerPreview = _lib
+            .lookupFunction<
+              _EngineReadLayerPreviewNative,
+              _EngineReadLayerPreviewDart
+            >('engine_read_layer_preview');
+      } catch (_) {
+        _readLayerPreview = null;
+      }
+      try {
         _writeLayer = _lib
             .lookupFunction<_EngineWriteLayerNative, _EngineWriteLayerDart>(
               'engine_write_layer',
@@ -558,6 +617,30 @@ class CanvasEngineFfi {
         _setBrush = null;
       }
       try {
+        _sprayBegin =
+            _lib.lookupFunction<_EngineSprayBeginNative, _EngineSprayBeginDart>(
+              'engine_spray_begin',
+            );
+      } catch (_) {
+        _sprayBegin = null;
+      }
+      try {
+        _sprayDraw =
+            _lib.lookupFunction<_EngineSprayDrawNative, _EngineSprayDrawDart>(
+              'engine_spray_draw',
+            );
+      } catch (_) {
+        _sprayDraw = null;
+      }
+      try {
+        _sprayEnd =
+            _lib.lookupFunction<_EngineSprayEndNative, _EngineSprayEndDart>(
+              'engine_spray_end',
+            );
+      } catch (_) {
+        _sprayEnd = null;
+      }
+      try {
         _applyFilter = _lib
             .lookupFunction<_EngineApplyFilterNative, _EngineApplyFilterDart>(
               'engine_apply_filter',
@@ -604,6 +687,7 @@ class CanvasEngineFfi {
   late final _EngineBucketFillDart? _bucketFill;
   late final _EngineMagicWandMaskDart? _magicWandMask;
   late final _EngineReadLayerDart? _readLayer;
+  late final _EngineReadLayerPreviewDart? _readLayerPreview;
   late final _EngineWriteLayerDart? _writeLayer;
   late final _EngineTranslateLayerDart? _translateLayer;
   late final _EngineSetLayerTransformPreviewDart? _setLayerTransformPreview;
@@ -614,6 +698,9 @@ class CanvasEngineFfi {
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
   late final _EngineSetBrushDart? _setBrush;
+  late final _EngineSprayBeginDart? _sprayBegin;
+  late final _EngineSprayDrawDart? _sprayDraw;
+  late final _EngineSprayEndDart? _sprayEnd;
   late final _EngineApplyFilterDart? _applyFilter;
   late final _EngineApplyAntialiasDart? _applyAntialias;
 
@@ -777,7 +864,7 @@ class CanvasEngineFfi {
     }
     final int clampedTolerance = tolerance.clamp(0, 255);
     final int clampedFillGap = fillGap.clamp(0, 64);
-    final int clampedAntialias = antialiasLevel.clamp(0, 3);
+    final int clampedAntialias = antialiasLevel.clamp(0, 9);
 
     ffi.Pointer<ffi.Uint32> swallowPtr = ffi.nullptr;
     int swallowLen = 0;
@@ -911,6 +998,35 @@ class CanvasEngineFfi {
         return null;
       }
       return Uint32List.fromList(outPtr.asTypedList(pixelCount));
+    } finally {
+      malloc.free(outPtr);
+    }
+  }
+
+  Uint8List? readLayerPreview({
+    required int handle,
+    required int layerIndex,
+    required int width,
+    required int height,
+  }) {
+    final fn = _readLayerPreview;
+    if (!isSupported || fn == null || handle == 0) {
+      return null;
+    }
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    final int byteCount = width * height * 4;
+    if (byteCount <= 0) {
+      return null;
+    }
+    final ffi.Pointer<ffi.Uint8> outPtr = malloc.allocate<ffi.Uint8>(byteCount);
+    try {
+      final int result = fn(handle, layerIndex, width, height, outPtr, byteCount);
+      if (result == 0) {
+        return null;
+      }
+      return Uint8List.fromList(outPtr.asTypedList(byteCount));
     } finally {
       malloc.free(outPtr);
     }
@@ -1132,7 +1248,7 @@ class CanvasEngineFfi {
       radius,
       usePressure ? 1 : 0,
       erase ? 1 : 0,
-      antialiasLevel.clamp(0, 3),
+      antialiasLevel.clamp(0, 9),
       shape,
       randomRotation ? 1 : 0,
       seed,
@@ -1141,6 +1257,62 @@ class CanvasEngineFfi {
       hollowEraseOccludedParts ? 1 : 0,
       streamline,
     );
+  }
+
+  void beginSpray({required int handle}) {
+    final fn = _sprayBegin;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle);
+  }
+
+  void drawSpray({
+    required int handle,
+    required Float32List points,
+    required int pointCount,
+    required int colorArgb,
+    int brushShape = 0,
+    bool erase = false,
+    int antialiasLevel = 1,
+    double softness = 0.0,
+    bool accumulate = true,
+  }) {
+    final fn = _sprayDraw;
+    if (!isSupported || fn == null || handle == 0 || pointCount <= 0) {
+      return;
+    }
+    final int floatCount = pointCount * 4;
+    if (points.length < floatCount) {
+      return;
+    }
+    final ffi.Pointer<ffi.Float> ptr = malloc.allocate<ffi.Float>(
+      floatCount * ffi.sizeOf<ffi.Float>(),
+    );
+    ptr.asTypedList(floatCount).setRange(0, floatCount, points, 0);
+    try {
+      fn(
+        handle,
+        ptr,
+        pointCount,
+        colorArgb,
+        brushShape,
+        erase ? 1 : 0,
+        antialiasLevel.clamp(0, 9),
+        softness.clamp(0.0, 1.0),
+        accumulate ? 1 : 0,
+      );
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  void endSpray({required int handle}) {
+    final fn = _sprayEnd;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle);
   }
 
   bool applyFilter({

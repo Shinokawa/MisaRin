@@ -891,7 +891,7 @@ void _paintingWorkerApplyCommand({
       )];
   final Color color = Color(command['color'] as int? ?? 0);
   final bool erase = command['erase'] as bool? ?? false;
-  final int antialias = (command['antialias'] as int? ?? 0).clamp(0, 3);
+  final int antialias = (command['antialias'] as int? ?? 0).clamp(0, 9);
   switch (type) {
     case PaintingDrawCommandType.brushStamp:
       final List<double>? centerData = (command['center'] as List<dynamic>?)
