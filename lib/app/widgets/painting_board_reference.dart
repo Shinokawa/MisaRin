@@ -62,7 +62,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     }
     _isCreatingReferenceCard = true;
     try {
-      final List<CanvasLayerData> snapshot = _controller.snapshotLayers();
+      final List<CanvasLayerData> snapshot = await snapshotLayersForExport();
       if (snapshot.isEmpty) {
         AppNotifications.show(
           context,
