@@ -368,8 +368,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (_sprayMode == SprayMode.smudge) {
       _softSprayLastPoint = boardLocal;
       _softSprayResidual = 0.0;
-      _stampSoftSpray(
-        boardLocal,
+      _stampSoftSprayBatch(
+        <Offset>[boardLocal],
         _resolveSoftSprayRadius(),
         _sprayCurrentPressure,
       );

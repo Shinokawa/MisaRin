@@ -364,8 +364,11 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
 }
 
 fn antialias_samples_per_axis(level: u32) -> u32 {
-  let clamped = min(level, 3u);
-  return 1u << clamped;
+  let clamped = min(level, 9u);
+  if (clamped <= 3u) {
+    return 1u << clamped;
+  }
+  return 8u + (clamped - 3u) * 2u;
 }
 
 fn blend_paint(dst: u32, src_rgb: vec3<f32>, src_a: f32) -> u32 {

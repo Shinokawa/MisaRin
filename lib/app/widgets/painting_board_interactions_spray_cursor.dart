@@ -209,7 +209,11 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     final double spacing = _softSpraySpacingForRadius(radius);
     if (last == null) {
       _softSprayLastPoint = boardLocal;
-      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+      _stampSoftSprayBatch(
+        <Offset>[boardLocal],
+        radius,
+        _sprayCurrentPressure,
+      );
       _markDirty();
       return;
     }
@@ -230,14 +234,16 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (_softSprayResidual <= 1e-4) {
       cursor = spacing;
     }
+    final List<Offset> stamps = <Offset>[];
     while (cursor <= distance) {
       final Offset sample = last + direction * cursor;
-      _stampSoftSpray(sample, radius, _sprayCurrentPressure);
+      stamps.add(sample);
       cursor += spacing;
     }
     _softSprayResidual = distance - (cursor - spacing);
     _softSprayLastPoint = boardLocal;
-    _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+    stamps.add(boardLocal);
+    _stampSoftSprayBatch(stamps, radius, _sprayCurrentPressure);
     _markDirty();
   }
 
@@ -249,7 +255,14 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     return math.max(normalized * 0.5, 0.5);
   }
 
-  void _stampSoftSpray(Offset position, double radius, double pressure) {
+  void _stampSoftSprayBatch(
+    List<Offset> positions,
+    double radius,
+    double pressure,
+  ) {
+    if (positions.isEmpty) {
+      return;
+    }
     final bool erase = _isBrushEraserEnabled;
     final Color baseColor =
         _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
@@ -277,36 +290,51 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       final double scale = (sx.isFinite && sy.isFinite)
           ? ((sx + sy) / 2.0)
           : 1.0;
-      final Offset enginePos = Offset(position.dx * sx, position.dy * sy);
-      final Float32List packed = Float32List(4)
-        ..[0] = enginePos.dx
-        ..[1] = enginePos.dy
-        ..[2] = radius * scale
-        ..[3] = opacityScale;
       final int colorArgb = (0xFF000000 | (baseColor.value & 0x00FFFFFF));
-      CanvasEngineFfi.instance.drawSpray(
-        handle: handle,
-        points: packed,
-        pointCount: 1,
-        colorArgb: colorArgb,
-        brushShape: BrushShape.circle.index,
-        erase: erase,
-        antialiasLevel: 3,
-        softness: 1.0,
-        accumulate: true,
-      );
-      _rustSprayHasDrawn = true;
+      const int kMaxBatchPoints = 1024;
+      int start = 0;
+      while (start < positions.length) {
+        final int end = math.min(start + kMaxBatchPoints, positions.length);
+        final int batchCount = end - start;
+        final Float32List packed = Float32List(batchCount * 4);
+        int offset = 0;
+        for (int i = start; i < end; i++) {
+          final Offset position = positions[i];
+          final Offset enginePos = Offset(position.dx * sx, position.dy * sy);
+          packed[offset] = enginePos.dx;
+          packed[offset + 1] = enginePos.dy;
+          packed[offset + 2] = radius * scale;
+          packed[offset + 3] = opacityScale;
+          offset += 4;
+        }
+        CanvasEngineFfi.instance.drawSpray(
+          handle: handle,
+          points: packed,
+          pointCount: batchCount,
+          colorArgb: colorArgb,
+          brushShape: BrushShape.circle.index,
+          erase: erase,
+          antialiasLevel: 3,
+          softness: 1.0,
+          accumulate: true,
+        );
+        _rustSprayHasDrawn = true;
+        start = end;
+      }
       return;
     }
-    _controller.drawBrushStamp(
-      center: position,
-      radius: radius,
-      color: baseColor.withOpacity(opacityScale),
-      brushShape: BrushShape.circle,
-      antialiasLevel: 3,
-      erase: erase,
-      softness: 1.0,
-    );
+    final Color color = baseColor.withOpacity(opacityScale);
+    for (final Offset position in positions) {
+      _controller.drawBrushStamp(
+        center: position,
+        radius: radius,
+        color: color,
+        brushShape: BrushShape.circle,
+        antialiasLevel: 3,
+        erase: erase,
+        softness: 1.0,
+      );
+    }
   }
 
   double _softSpraySpacingForRadius(double radius) {
