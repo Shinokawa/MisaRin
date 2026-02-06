@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -9,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app/preferences/app_preferences.dart';
 import '../canvas/canvas_tools.dart';
+import '../l10n/app_localizations.dart';
 import 'brush_preset.dart';
 
 class BrushLibrary extends ChangeNotifier {
@@ -18,7 +20,7 @@ class BrushLibrary extends ChangeNotifier {
   })  : _presets = presets,
         _selectedId = selectedId;
 
-  static const int _version = 1;
+  static const int _version = 2;
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'brush_presets.json';
   static const String _storageKey = 'misa_rin.brush_presets';
@@ -51,12 +53,20 @@ class BrushLibrary extends ChangeNotifier {
     if (_instance != null) {
       return _instance!;
     }
+    final AppLocalizations l10n = _resolveL10n(prefs);
     final Map<String, dynamic>? payload = await _readPayload();
     BrushLibrary library;
     if (payload != null) {
       library = _fromPayload(payload);
+      final int payloadVersion = (payload['version'] as num?)?.toInt() ?? 0;
+      if (payloadVersion < _version) {
+        final bool renamed = _renameDefaultPresetNames(library, l10n);
+        if (renamed) {
+          unawaited(library.save());
+        }
+      }
     } else {
-      library = _defaultLibrary(prefs);
+      library = _defaultLibrary(prefs, l10n);
       await library.save();
     }
     _instance = library;
@@ -121,7 +131,10 @@ class BrushLibrary extends ChangeNotifier {
         .map(BrushPreset.fromJson)
         .toList();
     if (presets.isEmpty) {
-      return _defaultLibrary(null);
+      return _defaultLibrary(
+        null,
+        lookupAppLocalizations(const ui.Locale('en')),
+      );
     }
     String selectedId = payload['selectedId'] as String? ?? presets.first.id;
     if (presets.indexWhere((BrushPreset preset) => preset.id == selectedId) <
@@ -137,10 +150,14 @@ class BrushLibrary extends ChangeNotifier {
         'presets': _presets.map((BrushPreset preset) => preset.toJson()).toList(),
       };
 
-  static BrushLibrary _defaultLibrary(AppPreferences? prefs) {
+  static BrushLibrary _defaultLibrary(
+    AppPreferences? prefs,
+    AppLocalizations l10n,
+  ) {
+    final _DefaultPresetNames names = _DefaultPresetNames.fromL10n(l10n);
     final BrushPreset pencil = BrushPreset(
       id: 'pencil',
-      name: 'Pencil',
+      name: names.pencil,
       shape: prefs?.brushShape ?? BrushShape.circle,
       spacing: 0.12,
       hardness: 0.65,
@@ -160,7 +177,7 @@ class BrushLibrary extends ChangeNotifier {
       pencil,
       BrushPreset(
         id: 'pen',
-        name: 'Pen',
+        name: names.pen,
         shape: BrushShape.circle,
         spacing: 0.08,
         hardness: 0.9,
@@ -177,7 +194,7 @@ class BrushLibrary extends ChangeNotifier {
       ),
       BrushPreset(
         id: 'pixel',
-        name: 'Pixel',
+        name: names.pixel,
         shape: BrushShape.square,
         spacing: 1.0,
         hardness: 1.0,
@@ -194,7 +211,7 @@ class BrushLibrary extends ChangeNotifier {
       ),
       BrushPreset(
         id: 'triangle',
-        name: 'Triangle',
+        name: names.triangle,
         shape: BrushShape.triangle,
         spacing: 0.15,
         hardness: 0.85,
@@ -211,7 +228,7 @@ class BrushLibrary extends ChangeNotifier {
       ),
       BrushPreset(
         id: 'square',
-        name: 'Square',
+        name: names.square,
         shape: BrushShape.square,
         spacing: 0.15,
         hardness: 0.85,
@@ -228,7 +245,7 @@ class BrushLibrary extends ChangeNotifier {
       ),
       BrushPreset(
         id: 'star',
-        name: 'Star',
+        name: names.star,
         shape: BrushShape.star,
         spacing: 0.18,
         hardness: 0.8,
@@ -246,6 +263,37 @@ class BrushLibrary extends ChangeNotifier {
     ];
 
     return BrushLibrary._(presets: presets, selectedId: pencil.id);
+  }
+
+  static AppLocalizations _resolveL10n(AppPreferences? prefs) {
+    final ui.Locale locale =
+        prefs?.localeOverride ?? ui.PlatformDispatcher.instance.locale;
+    try {
+      return lookupAppLocalizations(locale);
+    } catch (_) {
+      return lookupAppLocalizations(const ui.Locale('en'));
+    }
+  }
+
+  static bool _renameDefaultPresetNames(
+    BrushLibrary library,
+    AppLocalizations l10n,
+  ) {
+    final _DefaultPresetNames target = _DefaultPresetNames.fromL10n(l10n);
+    const _DefaultPresetNames legacy = _DefaultPresetNames.legacyEnglish();
+    bool updated = false;
+    for (final BrushPreset preset in library._presets) {
+      final String? desired = target.nameForId(preset.id);
+      final String? expectedLegacy = legacy.nameForId(preset.id);
+      if (desired == null || expectedLegacy == null) {
+        continue;
+      }
+      if (preset.name == expectedLegacy && preset.name != desired) {
+        preset.name = desired;
+        updated = true;
+      }
+    }
+    return updated;
   }
 
   static Future<Map<String, dynamic>?> _readPayload() async {
@@ -293,5 +341,60 @@ class BrushLibrary extends ChangeNotifier {
       await directory.create(recursive: true);
     }
     return File(p.join(directory.path, _fileName));
+  }
+}
+
+class _DefaultPresetNames {
+  const _DefaultPresetNames({
+    required this.pencil,
+    required this.pen,
+    required this.pixel,
+    required this.triangle,
+    required this.square,
+    required this.star,
+  });
+
+  final String pencil;
+  final String pen;
+  final String pixel;
+  final String triangle;
+  final String square;
+  final String star;
+
+  static _DefaultPresetNames fromL10n(AppLocalizations l10n) {
+    return _DefaultPresetNames(
+      pencil: l10n.brushPresetPencil,
+      pen: l10n.brushPresetPen,
+      pixel: l10n.brushPresetPixel,
+      triangle: l10n.triangle,
+      square: l10n.square,
+      star: l10n.star,
+    );
+  }
+
+  const _DefaultPresetNames.legacyEnglish()
+      : pencil = 'Pencil',
+        pen = 'Pen',
+        pixel = 'Pixel',
+        triangle = 'Triangle',
+        square = 'Square',
+        star = 'Star';
+
+  String? nameForId(String id) {
+    switch (id) {
+      case 'pencil':
+        return pencil;
+      case 'pen':
+        return pen;
+      case 'pixel':
+        return pixel;
+      case 'triangle':
+        return triangle;
+      case 'square':
+        return square;
+      case 'star':
+        return star;
+    }
+    return null;
   }
 }

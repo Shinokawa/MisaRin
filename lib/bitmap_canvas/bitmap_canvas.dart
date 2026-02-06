@@ -405,8 +405,8 @@ class BitmapSurface {
     double resolvedRadius = radius;
     if (snapToPixel) {
       resolvedCenter = Offset(
-        resolvedCenter.dx.roundToDouble() + 0.5,
-        resolvedCenter.dy.roundToDouble() + 0.5,
+        resolvedCenter.dx.floorToDouble() + 0.5,
+        resolvedCenter.dy.floorToDouble() + 0.5,
       );
       if (resolvedRadius.isFinite) {
         resolvedRadius = (resolvedRadius * 2.0).roundToDouble() / 2.0;

@@ -1988,6 +1988,24 @@ abstract class AppLocalizations {
   /// **'Preset Name'**
   String get brushPresetNameLabel;
 
+  /// No description provided for @brushPresetPencil.
+  ///
+  /// In en, this message translates to:
+  /// **'Pencil'**
+  String get brushPresetPencil;
+
+  /// No description provided for @brushPresetPen.
+  ///
+  /// In en, this message translates to:
+  /// **'Pen'**
+  String get brushPresetPen;
+
+  /// No description provided for @brushPresetPixel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pixel'**
+  String get brushPresetPixel;
+
   /// No description provided for @brushSpacing.
   ///
   /// In en, this message translates to:

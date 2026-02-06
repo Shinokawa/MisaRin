@@ -1029,6 +1029,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushPresetNameLabel => '프리셋 이름';
 
   @override
+  String get brushPresetPencil => '연필';
+
+  @override
+  String get brushPresetPen => '펜';
+
+  @override
+  String get brushPresetPixel => '픽셀';
+
+  @override
   String get brushSpacing => '간격';
 
   @override

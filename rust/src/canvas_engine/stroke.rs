@@ -817,8 +817,8 @@ fn apply_flow_to_argb(color_argb: u32, flow: f32) -> u32 {
 
 fn snap_point_to_pixel(point: Point2D) -> Point2D {
     Point2D {
-        x: point.x.round() + 0.5,
-        y: point.y.round() + 0.5,
+        x: point.x.floor() + 0.5,
+        y: point.y.floor() + 0.5,
     }
 }
 

@@ -1025,6 +1025,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushPresetNameLabel => 'プリセット名';
 
   @override
+  String get brushPresetPencil => '鉛筆';
+
+  @override
+  String get brushPresetPen => 'ペン';
+
+  @override
+  String get brushPresetPixel => 'ピクセル';
+
+  @override
   String get brushSpacing => '間隔';
 
   @override

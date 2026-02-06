@@ -1047,6 +1047,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushPresetNameLabel => 'Preset Name';
 
   @override
+  String get brushPresetPencil => 'Pencil';
+
+  @override
+  String get brushPresetPen => 'Pen';
+
+  @override
+  String get brushPresetPixel => 'Pixel';
+
+  @override
   String get brushSpacing => 'Spacing';
 
   @override
