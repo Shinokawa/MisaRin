@@ -315,6 +315,12 @@ typedef _EngineSetBrushNative =
       ffi.Uint32 brushShape,
       ffi.Uint8 randomRotation,
       ffi.Uint32 rotationSeed,
+      ffi.Float spacing,
+      ffi.Float hardness,
+      ffi.Float flow,
+      ffi.Float scatter,
+      ffi.Float rotationJitter,
+      ffi.Uint8 snapToPixel,
       ffi.Uint8 hollow,
       ffi.Float hollowRatio,
       ffi.Uint8 hollowEraseOccludedParts,
@@ -331,6 +337,12 @@ typedef _EngineSetBrushDart =
       int brushShape,
       int randomRotation,
       int rotationSeed,
+      double spacing,
+      double hardness,
+      double flow,
+      double scatter,
+      double rotationJitter,
+      int snapToPixel,
       int hollow,
       double hollowRatio,
       int hollowEraseOccludedParts,
@@ -1214,6 +1226,12 @@ class CanvasEngineFfi {
     int brushShape = 0,
     bool randomRotation = false,
     int rotationSeed = 0,
+    double spacing = 0.15,
+    double hardness = 0.8,
+    double flow = 1.0,
+    double scatter = 0.0,
+    double rotationJitter = 1.0,
+    bool snapToPixel = false,
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
@@ -1232,6 +1250,31 @@ class CanvasEngineFfi {
     }
     final int shape = brushShape < 0 ? 0 : brushShape;
     final int seed = rotationSeed & 0xffffffff;
+    double spacingValue = spacing;
+    if (!spacingValue.isFinite) {
+      spacingValue = 0.15;
+    }
+    spacingValue = spacingValue.clamp(0.02, 2.5);
+    double hardnessValue = hardness;
+    if (!hardnessValue.isFinite) {
+      hardnessValue = 0.8;
+    }
+    hardnessValue = hardnessValue.clamp(0.0, 1.0);
+    double flowValue = flow;
+    if (!flowValue.isFinite) {
+      flowValue = 1.0;
+    }
+    flowValue = flowValue.clamp(0.0, 1.0);
+    double scatterValue = scatter;
+    if (!scatterValue.isFinite) {
+      scatterValue = 0.0;
+    }
+    scatterValue = scatterValue.clamp(0.0, 1.0);
+    double rotationValue = rotationJitter;
+    if (!rotationValue.isFinite) {
+      rotationValue = 1.0;
+    }
+    rotationValue = rotationValue.clamp(0.0, 1.0);
     double ratio = hollowRatio;
     if (!ratio.isFinite) {
       ratio = 0.0;
@@ -1252,6 +1295,12 @@ class CanvasEngineFfi {
       shape,
       randomRotation ? 1 : 0,
       seed,
+      spacingValue,
+      hardnessValue,
+      flowValue,
+      scatterValue,
+      rotationValue,
+      snapToPixel ? 1 : 0,
       hollow ? 1 : 0,
       ratio,
       hollowEraseOccludedParts ? 1 : 0,

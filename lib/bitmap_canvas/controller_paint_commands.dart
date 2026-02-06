@@ -897,6 +897,8 @@ void _controllerApplyPaintingCommandsSynchronously(
           softness: command.softness ?? 0.0,
           randomRotation: command.randomRotation ?? false,
           rotationSeed: command.rotationSeed ?? 0,
+          rotationJitter: command.rotationJitter ?? 1.0,
+          snapToPixel: command.snapToPixel ?? false,
         );
         anyChange = true;
         break;
@@ -974,6 +976,11 @@ void _controllerApplyPaintingCommandsSynchronously(
           erase: erase,
           randomRotation: command.randomRotation ?? false,
           rotationSeed: command.rotationSeed ?? 0,
+          rotationJitter: command.rotationJitter ?? 1.0,
+          spacing: command.spacing ?? 0.15,
+          scatter: command.scatter ?? 0.0,
+          softness: command.softness ?? 0.0,
+          snapToPixel: command.snapToPixel ?? false,
         );
         anyChange = true;
         break;
@@ -1020,6 +1027,11 @@ void _controllerApplyStampSegmentFallback({
   required bool erase,
   bool randomRotation = false,
   int rotationSeed = 0,
+  double rotationJitter = 1.0,
+  double spacing = 0.15,
+  double scatter = 0.0,
+  double softness = 0.0,
+  bool snapToPixel = false,
 }) {
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
@@ -1031,8 +1043,11 @@ void _controllerApplyStampSegmentFallback({
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
     return;
   }
@@ -1040,24 +1055,37 @@ void _controllerApplyStampSegmentFallback({
     math.max(startRadius.abs(), endRadius.abs()),
     0.01,
   );
-  final double spacing = _strokeStampSpacing(maxRadius);
-  final int samples = math.max(1, (distance / spacing).ceil());
+  final double step = _strokeStampSpacing(maxRadius, spacing);
+  final int samples = math.max(1, (distance / step).ceil());
   final int startIndex = includeStart ? 0 : 1;
   for (int i = startIndex; i <= samples; i++) {
     final double t = samples == 0 ? 1.0 : (i / samples);
     final double radius = ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
     final double sampleX = ui.lerpDouble(start.dx, end.dx, t) ?? end.dx;
     final double sampleY = ui.lerpDouble(start.dy, end.dy, t) ?? end.dy;
+    final Offset baseCenter = Offset(sampleX, sampleY);
+    final double scatterRadius = maxRadius * scatter.clamp(0.0, 1.0) * 2.0;
+    final Offset jitter = scatterRadius > 0
+        ? brushScatterOffset(
+            center: baseCenter,
+            seed: rotationSeed,
+            radius: scatterRadius,
+            salt: i,
+          )
+        : Offset.zero;
     surface.drawBrushStamp(
-      center: Offset(sampleX, sampleY),
+      center: baseCenter + jitter,
       radius: radius,
       color: color,
       shape: shape,
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
   }
 }

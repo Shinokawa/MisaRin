@@ -76,6 +76,7 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4, Vector3;
 import 'package:file_picker/file_picker.dart';
 
 import '../dialogs/misarin_dialog.dart';
+import '../dialogs/brush_preset_editor_dialog.dart';
 import '../l10n/l10n.dart';
 import '../debug/rust_canvas_timeline.dart';
 
@@ -84,6 +85,8 @@ import '../../minecraft/bedrock_animation.dart';
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/raster_frame.dart';
 import '../../bitmap_canvas/controller.dart';
+import '../../brushes/brush_library.dart';
+import '../../brushes/brush_preset.dart';
 import '../../bitmap_canvas/stroke_dynamics.dart'
     show StrokeDynamics, StrokePressureProfile, StrokeSampleMetrics;
 import '../../bitmap_canvas/stroke_sample.dart';

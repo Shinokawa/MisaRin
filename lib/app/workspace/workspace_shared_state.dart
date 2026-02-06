@@ -3,7 +3,7 @@ import 'dart:ui';
 
 import '../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../canvas/canvas_tools.dart'
-    show BrushShape, CanvasTool, SelectionShape, ShapeToolVariant, SprayMode;
+    show CanvasTool, SelectionShape, ShapeToolVariant, SprayMode;
 import '../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../preferences/app_preferences.dart'
     show BucketSwallowColorLineMode, PenStrokeSliderRange;
@@ -62,18 +62,13 @@ class ToolSettingsSnapshot {
     required this.sprayStrokeWidth,
     required this.sprayMode,
     required this.penStrokeSliderRange,
-    required this.brushShape,
-    required this.hollowStrokeEnabled,
-    required this.hollowStrokeRatio,
-    required this.hollowStrokeEraseOccludedParts,
+    required this.brushPresetId,
     required this.strokeStabilizerStrength,
     required this.streamlineStrength,
     required this.stylusPressureEnabled,
     required this.simulatePenPressure,
     required this.penPressureProfile,
-    required this.penAntialiasLevel,
     required this.bucketAntialiasLevel,
-    required this.autoSharpPeakEnabled,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.bucketSwallowColorLine,
@@ -105,18 +100,13 @@ class ToolSettingsSnapshot {
   final double sprayStrokeWidth;
   final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
-  final BrushShape brushShape;
-  final bool hollowStrokeEnabled;
-  final double hollowStrokeRatio;
-  final bool hollowStrokeEraseOccludedParts;
+  final String brushPresetId;
   final double strokeStabilizerStrength;
   final double streamlineStrength;
   final bool stylusPressureEnabled;
   final bool simulatePenPressure;
   final StrokePressureProfile penPressureProfile;
-  final int penAntialiasLevel;
   final int bucketAntialiasLevel;
-  final bool autoSharpPeakEnabled;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final bool bucketSwallowColorLine;

@@ -71,6 +71,8 @@ class PaintingBoardState extends _PaintingBoardBase
     _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
     _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
     _hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
+    _brushLibrary = BrushLibrary.instance;
+    _brushLibrary!.addListener(_handleBrushLibraryChanged);
     _colorLineColor = prefs.colorLineColor;
     _primaryColor = prefs.primaryColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
@@ -92,6 +94,9 @@ class PaintingBoardState extends _PaintingBoardBase
       enableRasterOutput: enableRasterOutput,
     );
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
+    if (_brushLibrary != null) {
+      _applyBrushPreset(_brushLibrary!.selectedPreset, notify: false);
+    }
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
     _boardReadyNotified = _controller.frame != null;
@@ -146,6 +151,7 @@ class PaintingBoardState extends _PaintingBoardBase
     AppPreferences.pixelGridVisibleNotifier.removeListener(
       _handlePixelGridPreferenceChanged,
     );
+    _brushLibrary?.removeListener(_handleBrushLibraryChanged);
     _curvePreviewRasterImage?.dispose();
     _curvePreviewRasterImage = null;
     _shapePreviewRasterImage?.dispose();
@@ -901,18 +907,14 @@ class PaintingBoardState extends _PaintingBoardBase
       sprayStrokeWidth: _sprayStrokeWidth,
       sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
-      brushShape: _brushShape,
-      hollowStrokeEnabled: _hollowStrokeEnabled,
-      hollowStrokeRatio: _hollowStrokeRatio,
-      hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
+      brushPresetId:
+          _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
       strokeStabilizerStrength: _strokeStabilizerStrength,
       streamlineStrength: _streamlineStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
       penPressureProfile: _penPressureProfile,
-      penAntialiasLevel: _penAntialiasLevel,
       bucketAntialiasLevel: _bucketAntialiasLevel,
-      autoSharpPeakEnabled: _autoSharpPeakEnabled,
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -957,18 +959,13 @@ class PaintingBoardState extends _PaintingBoardBase
     if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
       setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
     }
-    _updateBrushShape(snapshot.brushShape);
-    _updateHollowStrokeEnabled(snapshot.hollowStrokeEnabled);
-    _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
-    _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
+    _selectBrushPreset(snapshot.brushPresetId);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
     _updateStreamlineStrength(snapshot.streamlineStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);
     _updatePenPressureProfile(snapshot.penPressureProfile);
-    _updatePenAntialiasLevel(snapshot.penAntialiasLevel);
     _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
-    _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);
@@ -987,6 +984,79 @@ class PaintingBoardState extends _PaintingBoardBase
     final Color targetColorLine = Color(snapshot.colorLineColor);
     if (_colorLineColor.value != targetColorLine.value) {
       setState(() => _colorLineColor = targetColorLine);
+    }
+  }
+
+  void _handleBrushLibraryChanged() {
+    final BrushLibrary? library = _brushLibrary;
+    if (library == null) {
+      return;
+    }
+    _applyBrushPreset(library.selectedPreset);
+  }
+
+  void _selectBrushPreset(String id) {
+    final BrushLibrary? library = _brushLibrary;
+    if (library == null) {
+      return;
+    }
+    if (library.selectedId == id) {
+      _applyBrushPreset(library.selectedPreset);
+      return;
+    }
+    library.selectPreset(id);
+  }
+
+  Future<void> _openBrushPresetEditor() async {
+    final BrushPreset? preset =
+        _activeBrushPreset ?? _brushLibrary?.selectedPreset;
+    if (preset == null) {
+      return;
+    }
+    final BrushPreset? updated = await showBrushPresetEditorDialog(
+      context,
+      preset: preset,
+    );
+    if (!mounted || updated == null) {
+      return;
+    }
+    _brushLibrary?.updatePreset(updated);
+  }
+
+  void _applyBrushPreset(BrushPreset preset, {bool notify = true}) {
+    final BrushPreset sanitized = preset.sanitized();
+    final bool presetChanged = _activeBrushPreset?.id != sanitized.id;
+    final bool randomRotationChanged =
+        _brushRandomRotationEnabled != sanitized.randomRotation;
+    final bool autoSharpChanged = _autoSharpPeakEnabled != sanitized.autoSharpTaper;
+    final void Function() update = () {
+      _activeBrushPreset = sanitized;
+      _brushShape = sanitized.shape;
+      _brushRandomRotationEnabled = sanitized.randomRotation;
+      if (sanitized.randomRotation &&
+          (randomRotationChanged || presetChanged)) {
+        _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+      }
+      _brushSpacing = sanitized.spacing;
+      _brushHardness = sanitized.hardness;
+      _brushFlow = sanitized.flow;
+      _brushScatter = sanitized.scatter;
+      _brushRotationJitter = sanitized.rotationJitter;
+      _brushSnapToPixel = sanitized.snapToPixel;
+      _penAntialiasLevel = sanitized.antialiasLevel;
+      _hollowStrokeEnabled = sanitized.hollowEnabled;
+      _hollowStrokeRatio = sanitized.hollowRatio;
+      _hollowStrokeEraseOccludedParts = sanitized.hollowEraseOccludedParts;
+      _autoSharpPeakEnabled = sanitized.autoSharpTaper;
+    };
+    if (notify) {
+      setState(update);
+    } else {
+      update();
+    }
+    if (autoSharpChanged) {
+      _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+      _applyStylusSettingsToController();
     }
   }
 }

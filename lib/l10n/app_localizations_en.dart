@@ -642,6 +642,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get colorBlack => 'Black';
 
   @override
+  String get colorTransparent => 'Transparent';
+
+  @override
   String get create => 'Create';
 
   @override
@@ -882,6 +885,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get customResolution => 'Custom Resolution';
 
   @override
+  String get swapDimensions => 'Swap Width/Height';
+
+  @override
   String finalSizePreview(Object width, Object height, Object ratio) {
     return 'Final Size: $width x $height px (Ratio $ratio)';
   }
@@ -1019,6 +1025,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sprayEffect => 'Spray Effect';
+
+  @override
+  String get brushPreset => 'Brush Preset';
+
+  @override
+  String get brushPresetDesc =>
+      'Select a brush preset for spacing, flow, and shape.';
+
+  @override
+  String get editBrushPreset => 'Edit Preset';
+
+  @override
+  String get editBrushPresetDesc =>
+      'Adjust the current preset\'s internal parameters.';
+
+  @override
+  String get brushPresetDialogTitle => 'Edit Brush Preset';
+
+  @override
+  String get brushPresetNameLabel => 'Preset Name';
+
+  @override
+  String get brushSpacing => 'Spacing';
+
+  @override
+  String get brushHardness => 'Hardness';
+
+  @override
+  String get brushFlow => 'Flow';
+
+  @override
+  String get brushScatter => 'Scatter';
+
+  @override
+  String get brushRotationJitter => 'Rotation Jitter';
+
+  @override
+  String get brushSnapToPixel => 'Snap to Pixel';
 
   @override
   String get brushShape => 'Brush Shape';

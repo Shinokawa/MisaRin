@@ -31,8 +31,8 @@ use super::preview::{PreviewConfig, PreviewRenderer, PreviewSegment};
 #[cfg(target_os = "windows")]
 use super::present::create_dxgi_shared_present_target;
 use super::stroke::{
-    apply_streamline, brush_random_rotation_radians, map_brush_shape, EngineBrushSettings,
-    StrokeResampler,
+    apply_streamline, brush_random_rotation_radians, map_brush_shape, prepare_brush_samples,
+    EngineBrushSettings, StrokeResampler,
 };
 use super::transform::LayerTransformRenderer;
 use super::types::{EnginePoint, SprayPoint};
@@ -116,6 +116,12 @@ pub(crate) enum EngineCommand {
         brush_shape: u32,
         random_rotation: bool,
         rotation_seed: u32,
+        spacing: f32,
+        hardness: f32,
+        flow: f32,
+        scatter: f32,
+        rotation_jitter: f32,
+        snap_to_pixel: bool,
         hollow_enabled: bool,
         hollow_ratio: f32,
         hollow_erase_occluded: bool,
@@ -650,6 +656,7 @@ fn build_preview_config(
     } else {
         0.0
     };
+    let softness = brush_settings.softness();
     PreviewConfig {
         canvas_width,
         canvas_height,
@@ -660,27 +667,33 @@ fn build_preview_config(
         mirror_x: ((view_flags & VIEW_FLAG_MIRROR) != 0) as u32,
         _pad0: 0,
         hollow_ratio,
-        softness: 0.0,
+        softness,
         layer_opacity: layer_opacity.clamp(0.0, 1.0),
         _pad1: 0.0,
     }
 }
 
 fn build_preview_segments(
-    points: &[(Point2D, f32)],
+    samples: &[(Point2D, f32)],
     brush_settings: &EngineBrushSettings,
 ) -> Vec<PreviewSegment> {
-    if points.is_empty() {
+    if samples.is_empty() {
         return Vec::new();
     }
-    let needs_rotation =
-        brush_settings.random_rotation && !matches!(brush_settings.shape, BrushShape::Circle);
+    let (points, radii) = prepare_brush_samples(brush_settings, samples);
+    if points.is_empty() || points.len() != radii.len() {
+        return Vec::new();
+    }
+    let needs_rotation = brush_settings.random_rotation
+        && brush_settings.rotation_jitter > 0.0001
+        && !matches!(brush_settings.shape, BrushShape::Circle);
     let mut segments: Vec<PreviewSegment> = Vec::with_capacity(points.len());
     if points.len() == 1 {
-        let (p0, pres0) = points[0];
-        let radius = brush_settings.radius_from_pressure(pres0);
+        let p0 = points[0];
+        let radius = radii[0];
         let rotation = if needs_rotation {
             brush_random_rotation_radians(p0, brush_settings.rotation_seed)
+                * brush_settings.rotation_jitter
         } else {
             0.0
         };
@@ -694,12 +707,13 @@ fn build_preview_segments(
         }];
     }
     for i in 0..points.len().saturating_sub(1) {
-        let (p0, pres0) = points[i];
-        let (p1, pres1) = points[i + 1];
-        let r0 = brush_settings.radius_from_pressure(pres0);
-        let r1 = brush_settings.radius_from_pressure(pres1);
+        let p0 = points[i];
+        let p1 = points[i + 1];
+        let r0 = radii[i];
+        let r1 = radii[i + 1];
         let rotation = if needs_rotation {
             brush_random_rotation_radians(p0, brush_settings.rotation_seed)
+                * brush_settings.rotation_jitter
         } else {
             0.0
         };
@@ -2693,6 +2707,12 @@ fn handle_engine_command(
             brush_shape,
             random_rotation,
             rotation_seed,
+            spacing,
+            hardness,
+            flow,
+            scatter,
+            rotation_jitter,
+            snap_to_pixel,
             hollow_enabled,
             hollow_ratio,
             hollow_erase_occluded,
@@ -2706,6 +2726,12 @@ fn handle_engine_command(
             brush_settings.shape = map_brush_shape(brush_shape);
             brush_settings.random_rotation = random_rotation;
             brush_settings.rotation_seed = rotation_seed;
+            brush_settings.spacing = spacing;
+            brush_settings.hardness = hardness;
+            brush_settings.flow = flow;
+            brush_settings.scatter = scatter;
+            brush_settings.rotation_jitter = rotation_jitter;
+            brush_settings.snap_to_pixel = snap_to_pixel;
             brush_settings.hollow_enabled = hollow_enabled;
             brush_settings.hollow_ratio = hollow_ratio;
             brush_settings.hollow_erase_occluded = hollow_erase_occluded;
@@ -2836,11 +2862,16 @@ fn handle_engine_command(
                     pts,
                     rs,
                     Some(as_),
+                    None,
                     Color { argb: color_argb },
                     shape,
                     erase,
                     antialias_level,
                     draw_softness,
+                    false,
+                    0.0,
+                    false,
+                    false,
                     accumulate,
                 ) {
                     debug::log(

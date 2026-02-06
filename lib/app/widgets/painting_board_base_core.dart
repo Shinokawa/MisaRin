@@ -45,6 +45,14 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       AppPreferences.defaultBrushRandomRotationEnabled;
   final math.Random _brushRotationRandom = math.Random();
   int _brushRandomRotationPreviewSeed = 0;
+  BrushLibrary? _brushLibrary;
+  BrushPreset? _activeBrushPreset;
+  double _brushSpacing = 0.15;
+  double _brushHardness = 0.8;
+  double _brushFlow = 1.0;
+  double _brushScatter = 0.0;
+  double _brushRotationJitter = 1.0;
+  bool _brushSnapToPixel = false;
   bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
   double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
   bool _hollowStrokeEraseOccludedParts =

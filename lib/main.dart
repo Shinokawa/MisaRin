@@ -11,6 +11,7 @@ import 'package:misa_rin/l10n/app_localizations.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
+import 'brushes/brush_library.dart';
 import 'app/l10n/l10n.dart';
 import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
@@ -61,6 +62,7 @@ Future<void> main() async {
 
 Future<void> _preloadCoreServices() async {
   await AppPreferences.load();
+  await BrushLibrary.load(prefs: AppPreferences.instance);
   if (!kIsWeb) {
     await _initializePerformancePulse();
   }

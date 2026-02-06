@@ -12,6 +12,9 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
+  void _selectBrushPreset(String id);
+  Future<void> _openBrushPresetEditor();
+
   OverlayEntry? _workspaceCardsOverlayEntry;
   bool _workspaceCardsOverlaySyncScheduled = false;
 

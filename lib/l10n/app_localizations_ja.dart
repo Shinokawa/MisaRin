@@ -628,6 +628,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get colorBlack => '黒';
 
   @override
+  String get colorTransparent => '透明';
+
+  @override
   String get create => '作成';
 
   @override
@@ -865,6 +868,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get customResolution => 'カスタム解像度';
 
   @override
+  String get swapDimensions => '幅と高さを入れ替え';
+
+  @override
   String finalSizePreview(Object width, Object height, Object ratio) {
     return '最終サイズ: $width x $height px (比率 $ratio)';
   }
@@ -999,6 +1005,42 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get sprayEffect => 'スプレー効果';
+
+  @override
+  String get brushPreset => 'ブラシプリセット';
+
+  @override
+  String get brushPresetDesc => '間隔・流量・形状などを含むプリセットを選択します。';
+
+  @override
+  String get editBrushPreset => 'プリセットを編集';
+
+  @override
+  String get editBrushPresetDesc => '現在のプリセットの内部パラメータを調整します。';
+
+  @override
+  String get brushPresetDialogTitle => 'ブラシプリセットを編集';
+
+  @override
+  String get brushPresetNameLabel => 'プリセット名';
+
+  @override
+  String get brushSpacing => '間隔';
+
+  @override
+  String get brushHardness => '硬さ';
+
+  @override
+  String get brushFlow => '流量';
+
+  @override
+  String get brushScatter => '散布';
+
+  @override
+  String get brushRotationJitter => '回転ジッター';
+
+  @override
+  String get brushSnapToPixel => 'ピクセルにスナップ';
 
   @override
   String get brushShape => 'ブラシ形状';

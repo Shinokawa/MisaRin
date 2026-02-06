@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui'; // Keep dart:ui for Color, but DO NOT use Canvas/PictureRecorder here.
 
 import '../bitmap_canvas/bitmap_canvas.dart';
+import '../canvas/brush_random_rotation.dart';
 import '../canvas/canvas_tools.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket;
 import '../src/rust/rust_init.dart';
@@ -30,6 +31,10 @@ class PaintingDrawCommand {
     this.shapeIndex,
     this.randomRotation,
     this.rotationSeed,
+    this.rotationJitter,
+    this.snapToPixel,
+    this.spacing,
+    this.scatter,
     this.start,
     this.end,
     this.startRadius,
@@ -53,6 +58,8 @@ class PaintingDrawCommand {
     double softness = 0.0,
     bool randomRotation = false,
     int rotationSeed = 0,
+    double rotationJitter = 1.0,
+    bool snapToPixel = false,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.brushStamp,
@@ -65,6 +72,8 @@ class PaintingDrawCommand {
       softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
   }
 
@@ -124,6 +133,11 @@ class PaintingDrawCommand {
     required bool erase,
     bool randomRotation = false,
     int rotationSeed = 0,
+    double rotationJitter = 1.0,
+    double spacing = 0.15,
+    double scatter = 0.0,
+    double softness = 0.0,
+    bool snapToPixel = false,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.stampSegment,
@@ -138,6 +152,11 @@ class PaintingDrawCommand {
       shapeIndex: shapeIndex,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
+      spacing: spacing,
+      scatter: scatter,
+      softness: softness,
     );
   }
 
@@ -194,6 +213,10 @@ class PaintingDrawCommand {
   final int? shapeIndex;
   final bool? randomRotation;
   final int? rotationSeed;
+  final double? rotationJitter;
+  final bool? snapToPixel;
+  final double? spacing;
+  final double? scatter;
   final Offset? start;
   final Offset? end;
   final double? startRadius;
@@ -217,7 +240,11 @@ class PaintingDrawCommand {
       'shape': shapeIndex,
       'randomRotation': randomRotation,
       'rotationSeed': rotationSeed,
+      'rotationJitter': rotationJitter,
+      'snapToPixel': snapToPixel,
       'softness': softness,
+      'spacing': spacing,
+      'scatter': scatter,
       'start': start == null ? null : <double>[start!.dx, start!.dy],
       'end': end == null ? null : <double>[end!.dx, end!.dy],
       'startRadius': startRadius,
@@ -900,6 +927,9 @@ void _paintingWorkerApplyCommand({
       final int shapeIndex = command['shape'] as int? ?? 0;
       final bool randomRotation = command['randomRotation'] as bool? ?? false;
       final int rotationSeed = command['rotationSeed'] as int? ?? 0;
+      final double rotationJitter =
+          (command['rotationJitter'] as num? ?? 1.0).toDouble();
+      final bool snapToPixel = command['snapToPixel'] as bool? ?? false;
       final double softness =
           (command['softness'] as num? ?? 0).toDouble().clamp(0.0, 1.0);
       final BrushShape shape =
@@ -915,6 +945,8 @@ void _paintingWorkerApplyCommand({
         softness: softness,
         randomRotation: randomRotation,
         rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+        snapToPixel: snapToPixel,
       );
       break;
     case PaintingDrawCommandType.line:
@@ -968,6 +1000,13 @@ void _paintingWorkerApplyCommand({
       final int shapeIndex = command['shape'] as int? ?? 0;
       final bool randomRotation = command['randomRotation'] as bool? ?? false;
       final int rotationSeed = command['rotationSeed'] as int? ?? 0;
+      final double rotationJitter =
+          (command['rotationJitter'] as num? ?? 1.0).toDouble();
+      final double spacing = (command['spacing'] as num? ?? 0.15).toDouble();
+      final double scatter = (command['scatter'] as num? ?? 0.0).toDouble();
+      final double softness =
+          (command['softness'] as num? ?? 0.0).toDouble().clamp(0.0, 1.0);
+      final bool snapToPixel = command['snapToPixel'] as bool? ?? false;
       final BrushShape shape =
           BrushShape.values[shapeIndex.clamp(0, BrushShape.values.length - 1)];
       _paintingWorkerStampSegment(
@@ -984,6 +1023,11 @@ void _paintingWorkerApplyCommand({
         erase: erase,
         randomRotation: randomRotation,
         rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+        spacing: spacing,
+        scatter: scatter,
+        softness: softness,
+        snapToPixel: snapToPixel,
       );
       break;
     case PaintingDrawCommandType.vectorStroke:
@@ -1220,19 +1264,28 @@ void _paintingWorkerStampSegment({
   required bool erase,
   required bool randomRotation,
   required int rotationSeed,
+  required double rotationJitter,
+  required double spacing,
+  required double scatter,
+  required double softness,
+  required bool snapToPixel,
 }) {
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
+    final double sampleRadius = endRadius.isFinite ? endRadius : 0.01;
     surface.drawBrushStamp(
       center: end,
-      radius: endRadius,
+      radius: sampleRadius,
       color: color,
       shape: shape,
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
     return;
   }
@@ -1240,40 +1293,47 @@ void _paintingWorkerStampSegment({
     math.max(startRadius.abs(), endRadius.abs()),
     0.01,
   );
-  final double spacing = _paintingWorkerStampSpacing(maxRadius);
-  final int samples = math.max(1, (distance / spacing).ceil());
+  final double step = _paintingWorkerStampSpacing(maxRadius, spacing);
+  final int samples = math.max(1, (distance / step).ceil());
   final int startIndex = includeStart ? 0 : 1;
   for (int i = startIndex; i <= samples; i++) {
     final double t = samples == 0 ? 1.0 : (i / samples);
     final double radius = lerpDouble(startRadius, endRadius, t) ?? endRadius;
     final double sampleX = lerpDouble(start.dx, end.dx, t) ?? end.dx;
     final double sampleY = lerpDouble(start.dy, end.dy, t) ?? end.dy;
+    final Offset baseCenter = Offset(sampleX, sampleY);
+    final double scatterRadius = maxRadius * scatter.clamp(0.0, 1.0) * 2.0;
+    final Offset jitter = scatterRadius > 0
+        ? brushScatterOffset(
+            center: baseCenter,
+            seed: rotationSeed,
+            radius: scatterRadius,
+            salt: i,
+          )
+        : Offset.zero;
     surface.drawBrushStamp(
-      center: Offset(sampleX, sampleY),
+      center: baseCenter + jitter,
       radius: radius,
       color: color,
       shape: shape,
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
   }
 }
 
-double _paintingWorkerStampSpacing(double radius) {
-  if (!radius.isFinite) {
-    return 0.5;
-  }
-  const double minSpacing = 0.45;
-  const double maxSpacing = 0.98;
-  const double minRadius = 0.01;
-  const double maxRadius = 28.0;
-  final double normalized = ((radius - minRadius) / (maxRadius - minRadius))
-      .clamp(0.0, 1.0);
-  final double spacing = minSpacing + (maxSpacing - minSpacing) * normalized;
-  return math.max(spacing, minSpacing);
+double _paintingWorkerStampSpacing(double radius, double spacing) {
+  double r = radius.isFinite ? radius.abs() : 0.0;
+  double s = spacing.isFinite ? spacing : 0.15;
+  s = s.clamp(0.02, 2.5);
+  final double base = math.max(r * 2.0 * s, 0.1);
+  return base;
 }
 void _paintingWorkerFloodMask({
   required Uint32List pixels,

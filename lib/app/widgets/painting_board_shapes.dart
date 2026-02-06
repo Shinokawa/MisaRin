@@ -501,6 +501,12 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       brushShape: _brushShape,
       randomRotation: _brushRandomRotationEnabled,
       rotationSeed: _brushRandomRotationPreviewSeed,
+      spacing: _brushSpacing,
+      hardness: _brushHardness,
+      flow: _brushFlow,
+      scatter: _brushScatter,
+      rotationJitter: _brushRotationJitter,
+      snapToPixel: _brushSnapToPixel,
       erase: erase,
     );
     if (simulatePressure) {

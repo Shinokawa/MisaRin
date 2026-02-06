@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart' show StatefulElement, State, StatefulWidget;
 import 'package:path/path.dart' as p;
 
+import '../../canvas/canvas_settings.dart';
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
@@ -23,7 +24,16 @@ class AppMenuActions {
   const AppMenuActions._();
 
   static Future<void> createProject(BuildContext context) async {
-    final NewProjectConfig? config = await showCanvasSettingsDialog(context);
+    final AppPreferences prefs = AppPreferences.instance;
+    final CanvasSettings initialSettings = CanvasSettings(
+      width: prefs.newCanvasWidth.toDouble(),
+      height: prefs.newCanvasHeight.toDouble(),
+      backgroundColor: prefs.newCanvasBackgroundColor,
+    );
+    final NewProjectConfig? config = await showCanvasSettingsDialog(
+      context,
+      initialSettings: initialSettings,
+    );
     if (config == null || !context.mounted) {
       return;
     }

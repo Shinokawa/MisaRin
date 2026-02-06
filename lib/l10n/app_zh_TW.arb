@@ -462,6 +462,20 @@
   "rendererCinematicDesc": "還原 Minecraft 官方宣傳片風格，包含柔和陰影與高對比度光效。",
   "rendererCycles": "寫實",
   "rendererCyclesDesc": "模擬路徑追蹤風格，極其逼真的光照效果。",
+  "brushPreset": "筆刷預設",
+  "brushPresetDesc": "選擇筆刷預設以控制間距、流量與形狀。",
+  "editBrushPreset": "編輯預設",
+  "editBrushPresetDesc": "調整目前預設的內部參數。",
+  "brushPresetDialogTitle": "編輯筆刷預設",
+  "brushPresetNameLabel": "預設名稱",
+  "brushSpacing": "間距",
+  "brushHardness": "硬度",
+  "brushFlow": "流量",
+  "brushScatter": "散佈",
+  "brushRotationJitter": "旋轉抖動",
+  "brushSnapToPixel": "像素對齊",
   "brushAntialiasing": "筆刷抗鋸齒",
-  "bucketAntialiasing": "填充抗鋸齒"
+  "bucketAntialiasing": "填充抗鋸齒",
+  "colorTransparent": "透明",
+  "swapDimensions": "交換寬高"
 }

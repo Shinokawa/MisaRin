@@ -19,6 +19,7 @@ import '../backend/rgba_utils.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
+import '../canvas/brush_random_rotation.dart';
 import '../canvas/text_renderer.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
 import '../src/rust/api/gpu_brush.dart' as rust_gpu_brush;
@@ -101,6 +102,11 @@ class BitmapCanvasController extends ChangeNotifier {
       <PaintingDrawCommand>[]; // Strokes being rasterized
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
+  double _currentStrokeSpacing = 0.15;
+  double _currentStrokeSoftness = 0.0;
+  double _currentStrokeScatter = 0.0;
+  double _currentStrokeRotationJitter = 1.0;
+  bool _currentStrokeSnapToPixel = false;
   bool _currentStrokeStylusPressureEnabled = false;
   double _currentStylusCurve = 1.0;
   double? _currentStylusLastPressure;
@@ -508,6 +514,12 @@ class BitmapCanvasController extends ChangeNotifier {
     bool enableNeedleTips = false,
     bool randomRotation = false,
     int? rotationSeed,
+    double spacing = 0.15,
+    double hardness = 0.8,
+    double flow = 1.0,
+    double scatter = 0.0,
+    double rotationJitter = 1.0,
+    bool snapToPixel = false,
     bool erase = false,
     bool hollow = false,
     double hollowRatio = 0.0,
@@ -530,6 +542,12 @@ class BitmapCanvasController extends ChangeNotifier {
     enableNeedleTips: enableNeedleTips,
     randomRotation: randomRotation,
     rotationSeed: rotationSeed,
+    spacing: spacing,
+    hardness: hardness,
+    flow: flow,
+    scatter: scatter,
+    rotationJitter: rotationJitter,
+    snapToPixel: snapToPixel,
     erase: erase,
     hollow: hollow,
     hollowRatio: hollowRatio,

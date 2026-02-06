@@ -57,12 +57,15 @@ class AppPreferences {
     this.sai2LayerPanelWidthSplit = _defaultSai2LayerPanelSplit,
     this.sprayStrokeWidth = _defaultSprayStrokeWidth,
     this.sprayMode = _defaultSprayMode,
+    this.newCanvasWidth = _defaultNewCanvasWidth,
+    this.newCanvasHeight = _defaultNewCanvasHeight,
+    this.newCanvasBackgroundColor = _defaultNewCanvasBackgroundColor,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 38;
+  static const int _version = 39;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -106,6 +109,11 @@ class AppPreferences {
       WorkspaceLayoutPreference.floating;
   static const double _defaultSai2ToolPanelSplit = 0.5;
   static const double _defaultSai2LayerPanelSplit = 0.5;
+  static const int _defaultNewCanvasWidth = 1920;
+  static const int _defaultNewCanvasHeight = 1080;
+  static const Color _defaultNewCanvasBackgroundColor = Color(0xFFFFFFFF);
+  static const int _minNewCanvasDimension = 1;
+  static const int _maxNewCanvasDimension = 16000;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -178,6 +186,9 @@ class AppPreferences {
   bool hollowStrokeEraseOccludedParts;
   double sprayStrokeWidth;
   SprayMode sprayMode;
+  int newCanvasWidth;
+  int newCanvasHeight;
+  Color newCanvasBackgroundColor;
   bool layerAdjustCropOutside;
   Color colorLineColor;
   bool bucketSwallowColorLine;
@@ -299,6 +310,28 @@ class AppPreferences {
                   version >= 30 && bytes.length >= 45
                   ? _decodeLocaleOverride(bytes[44])
                   : _defaultLocaleOverride;
+              final bool hasNewCanvasDefaults =
+                  version >= 39 && bytes.length >= 61;
+              final int decodedNewCanvasWidth = hasNewCanvasDefaults
+                  ? _decodeNewCanvasDimension(
+                      bytes[53] | (bytes[54] << 8),
+                      _defaultNewCanvasWidth,
+                    )
+                  : _defaultNewCanvasWidth;
+              final int decodedNewCanvasHeight = hasNewCanvasDefaults
+                  ? _decodeNewCanvasDimension(
+                      bytes[55] | (bytes[56] << 8),
+                      _defaultNewCanvasHeight,
+                    )
+                  : _defaultNewCanvasHeight;
+              final Color decodedNewCanvasBackgroundColor = hasNewCanvasDefaults
+                  ? Color(
+                      bytes[57] |
+                          (bytes[58] << 8) |
+                          (bytes[59] << 16) |
+                          (bytes[60] << 24),
+                    )
+                  : _defaultNewCanvasBackgroundColor;
               final bool decodedHollowStrokeEnabled;
               final double decodedHollowStrokeRatio;
               final bool decodedHollowStrokeEraseOccludedParts;
@@ -365,6 +398,9 @@ class AppPreferences {
                 sprayMode: decodedSprayMode,
                 pixelGridVisible: decodedPixelGridVisible,
                 primaryColor: decodedPrimaryColor,
+                newCanvasWidth: decodedNewCanvasWidth,
+                newCanvasHeight: decodedNewCanvasHeight,
+                newCanvasBackgroundColor: decodedNewCanvasBackgroundColor,
               );
               return _finalizeLoadedPreferences();
             } else if (version >= 27 && bytes.length >= 42) {
@@ -1201,6 +1237,18 @@ class AppPreferences {
     final int bucketSwallowColorLineModeEncoded =
         _encodeBucketSwallowColorLineMode(prefs.bucketSwallowColorLineMode);
     final int bucketFillGapEncoded = _clampFillGapValue(prefs.bucketFillGap);
+    final int newCanvasWidth = _clampNewCanvasDimension(
+      prefs.newCanvasWidth <= 0 ? _defaultNewCanvasWidth : prefs.newCanvasWidth,
+    );
+    final int newCanvasHeight = _clampNewCanvasDimension(
+      prefs.newCanvasHeight <= 0
+          ? _defaultNewCanvasHeight
+          : prefs.newCanvasHeight,
+    );
+    prefs.newCanvasWidth = newCanvasWidth;
+    prefs.newCanvasHeight = newCanvasHeight;
+    final int newCanvasBackgroundColorValue =
+        prefs.newCanvasBackgroundColor.value;
 
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
@@ -1256,6 +1304,14 @@ class AppPreferences {
       prefs.brushRandomRotationEnabled ? 1 : 0,
       streamlineEncoded,
       0,
+      newCanvasWidth & 0xff,
+      (newCanvasWidth >> 8) & 0xff,
+      newCanvasHeight & 0xff,
+      (newCanvasHeight >> 8) & 0xff,
+      newCanvasBackgroundColorValue & 0xff,
+      (newCanvasBackgroundColorValue >> 8) & 0xff,
+      (newCanvasBackgroundColorValue >> 16) & 0xff,
+      (newCanvasBackgroundColorValue >> 24) & 0xff,
     ]);
     await _writePreferencesPayload(payload);
   }
@@ -1268,6 +1324,23 @@ class AppPreferences {
       return maxHistoryLimit;
     }
     return value;
+  }
+
+  static int _clampNewCanvasDimension(int value) {
+    if (value < _minNewCanvasDimension) {
+      return _minNewCanvasDimension;
+    }
+    if (value > _maxNewCanvasDimension) {
+      return _maxNewCanvasDimension;
+    }
+    return value;
+  }
+
+  static int _decodeNewCanvasDimension(int value, int fallback) {
+    if (value <= 0) {
+      return fallback;
+    }
+    return _clampNewCanvasDimension(value);
   }
 
   static int _clampToleranceValue(int value) {

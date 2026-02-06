@@ -19,6 +19,12 @@ pub struct Color {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub(crate) struct PointRotation {
+    pub(crate) sin: f32,
+    pub(crate) cos: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum BrushShape {
     Circle,
     Triangle,
@@ -38,6 +44,8 @@ struct ShaderStrokePoint {
     pos: [f32; 2],
     radius: f32,
     alpha: f32,
+    rot_sin: f32,
+    rot_cos: f32,
 }
 
 #[repr(C)]
@@ -471,6 +479,7 @@ impl BrushRenderer {
             points,
             radii,
             None,
+            None,
             color,
             brush_shape,
             erase,
@@ -492,11 +501,16 @@ impl BrushRenderer {
         points: &[Point2D],
         radii: &[f32],
         alphas: Option<&[f32]>,
+        point_rotations: Option<&[PointRotation]>,
         color: Color,
         brush_shape: BrushShape,
         erase: bool,
         antialias_level: u32,
         softness: f32,
+        hollow_enabled: bool,
+        hollow_ratio: f32,
+        hollow_erase_occluded: bool,
+        use_stroke_mask: bool,
         accumulate: bool,
     ) -> Result<(), String> {
         self.draw_stroke_internal(
@@ -504,15 +518,16 @@ impl BrushRenderer {
             points,
             radii,
             alphas,
+            point_rotations,
             color,
             brush_shape,
             erase,
             antialias_level,
             0.0,
-            false,
-            0.0,
-            false,
-            false,
+            hollow_enabled,
+            hollow_ratio,
+            hollow_erase_occluded,
+            use_stroke_mask,
             accumulate,
             softness,
             BrushStrokeMode::Points,
@@ -525,6 +540,7 @@ impl BrushRenderer {
         points: &[Point2D],
         radii: &[f32],
         point_alphas: Option<&[f32]>,
+        point_rotations: Option<&[PointRotation]>,
         color: Color,
         brush_shape: BrushShape,
         erase: bool,
@@ -560,6 +576,15 @@ impl BrushRenderer {
                     "points/alphas length mismatch: {} vs {}",
                     points.len(),
                     alphas.len()
+                ));
+            }
+        }
+        if let Some(rotations) = point_rotations {
+            if rotations.len() != points.len() {
+                return Err(format!(
+                    "points/rotations length mismatch: {} vs {}",
+                    points.len(),
+                    rotations.len()
                 ));
             }
         }
@@ -646,6 +671,9 @@ impl BrushRenderer {
             .ok_or_else(|| "wgpu points buffer not initialized".to_string())?;
 
         let mut shader_points: Vec<ShaderStrokePoint> = Vec::with_capacity(points.len());
+        let use_point_rotation = matches!(stroke_mode, BrushStrokeMode::Points);
+        let default_sin = rotation.sin();
+        let default_cos = rotation.cos();
         for (idx, (p, &r)) in points.iter().zip(radii.iter()).enumerate() {
             let radius = if r.is_finite() { r.max(0.0) } else { 0.0 };
             let alpha = if let Some(alphas) = point_alphas {
@@ -658,10 +686,22 @@ impl BrushRenderer {
             } else {
                 1.0
             };
+            let (rot_sin, rot_cos) = if use_point_rotation {
+                if let Some(rotations) = point_rotations {
+                    let rot = rotations[idx];
+                    (finite_f32(rot.sin), finite_f32(rot.cos))
+                } else {
+                    (default_sin, default_cos)
+                }
+            } else {
+                (default_sin, default_cos)
+            };
             shader_points.push(ShaderStrokePoint {
                 pos: [finite_f32(p.x), finite_f32(p.y)],
                 radius,
                 alpha,
+                rot_sin,
+                rot_cos,
             });
         }
 

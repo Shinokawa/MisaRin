@@ -209,18 +209,11 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onPenStrokeWidthChanged: _updatePenStrokeWidth,
           onSprayStrokeWidthChanged: _updateSprayStrokeWidth,
           onSprayModeChanged: _updateSprayMode,
-          brushShape: _brushShape,
-          onBrushShapeChanged: _updateBrushShape,
-          brushRandomRotationEnabled: _brushRandomRotationEnabled,
-          onBrushRandomRotationEnabledChanged:
-              _updateBrushRandomRotationEnabled,
-          hollowStrokeEnabled: _hollowStrokeEnabled,
-          hollowStrokeRatio: _hollowStrokeRatio,
-          onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
-          onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
-          hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
-          onHollowStrokeEraseOccludedPartsChanged:
-              _updateHollowStrokeEraseOccludedParts,
+          brushPresets: _brushLibrary?.presets ?? const <BrushPreset>[],
+          activeBrushPresetId:
+              _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
+          onBrushPresetChanged: _selectBrushPreset,
+          onEditBrushPreset: _openBrushPresetEditor,
           strokeStabilizerStrength: _strokeStabilizerStrength,
           onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
           streamlineStrength: _streamlineStrength,
@@ -231,10 +224,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onSimulatePenPressureChanged: _updatePenPressureSimulation,
           penPressureProfile: _penPressureProfile,
           onPenPressureProfileChanged: _updatePenPressureProfile,
-          brushAntialiasLevel: _penAntialiasLevel,
-          onBrushAntialiasChanged: _updatePenAntialiasLevel,
-          autoSharpPeakEnabled: _autoSharpPeakEnabled,
-          onAutoSharpPeakChanged: _updateAutoSharpPeakEnabled,
           bucketSampleAllLayers: _bucketSampleAllLayers,
           bucketContiguous: _bucketContiguous,
           bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -528,6 +517,14 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _brushRandomRotationEnabled,
                                                 brushRotationSeed:
                                                     _brushRandomRotationPreviewSeed,
+                                                brushSpacing: _brushSpacing,
+                                                brushHardness: _brushHardness,
+                                                brushFlow: _brushFlow,
+                                                brushScatter: _brushScatter,
+                                                brushRotationJitter:
+                                                    _brushRotationJitter,
+                                                brushSnapToPixel:
+                                                    _brushSnapToPixel,
                                                 hollowStrokeEnabled:
                                                     _hollowStrokeEnabled,
                                                 hollowStrokeRatio:

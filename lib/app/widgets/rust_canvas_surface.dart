@@ -307,6 +307,12 @@ class RustCanvasSurface extends StatefulWidget {
     required this.brushShape,
     required this.brushRandomRotationEnabled,
     required this.brushRotationSeed,
+    required this.brushSpacing,
+    required this.brushHardness,
+    required this.brushFlow,
+    required this.brushScatter,
+    required this.brushRotationJitter,
+    required this.brushSnapToPixel,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
     this.hollowStrokeEraseOccludedParts = false,
@@ -360,6 +366,12 @@ class RustCanvasSurface extends StatefulWidget {
   final BrushShape brushShape;
   final bool brushRandomRotationEnabled;
   final int brushRotationSeed;
+  final double brushSpacing;
+  final double brushHardness;
+  final double brushFlow;
+  final double brushScatter;
+  final double brushRotationJitter;
+  final bool brushSnapToPixel;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
@@ -423,6 +435,13 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         oldWidget.brushRandomRotationEnabled !=
             widget.brushRandomRotationEnabled ||
         oldWidget.brushRotationSeed != widget.brushRotationSeed ||
+        (oldWidget.brushSpacing - widget.brushSpacing).abs() > 1e-6 ||
+        (oldWidget.brushHardness - widget.brushHardness).abs() > 1e-6 ||
+        (oldWidget.brushFlow - widget.brushFlow).abs() > 1e-6 ||
+        (oldWidget.brushScatter - widget.brushScatter).abs() > 1e-6 ||
+        (oldWidget.brushRotationJitter - widget.brushRotationJitter).abs() >
+            1e-6 ||
+        oldWidget.brushSnapToPixel != widget.brushSnapToPixel ||
         oldWidget.hollowStrokeEnabled != widget.hollowStrokeEnabled ||
         (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
         oldWidget.hollowStrokeEraseOccludedParts !=
@@ -623,6 +642,12 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       brushShape: widget.brushShape.index,
       randomRotation: widget.brushRandomRotationEnabled,
       rotationSeed: widget.brushRotationSeed,
+      spacing: widget.brushSpacing,
+      hardness: widget.brushHardness,
+      flow: widget.brushFlow,
+      scatter: widget.brushScatter,
+      rotationJitter: widget.brushRotationJitter,
+      snapToPixel: widget.brushSnapToPixel,
       hollow: widget.hollowStrokeEnabled,
       hollowRatio: widget.hollowStrokeRatio,
       hollowEraseOccludedParts: widget.hollowStrokeEraseOccludedParts,

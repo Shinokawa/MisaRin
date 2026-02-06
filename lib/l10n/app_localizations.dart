@@ -1268,6 +1268,12 @@ abstract class AppLocalizations {
   /// **'Black'**
   String get colorBlack;
 
+  /// No description provided for @colorTransparent.
+  ///
+  /// In en, this message translates to:
+  /// **'Transparent'**
+  String get colorTransparent;
+
   /// No description provided for @create.
   ///
   /// In en, this message translates to:
@@ -1694,6 +1700,12 @@ abstract class AppLocalizations {
   /// **'Custom Resolution'**
   String get customResolution;
 
+  /// No description provided for @swapDimensions.
+  ///
+  /// In en, this message translates to:
+  /// **'Swap Width/Height'**
+  String get swapDimensions;
+
   /// No description provided for @finalSizePreview.
   ///
   /// In en, this message translates to:
@@ -1939,6 +1951,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Spray Effect'**
   String get sprayEffect;
+
+  /// No description provided for @brushPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Brush Preset'**
+  String get brushPreset;
+
+  /// No description provided for @brushPresetDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a brush preset for spacing, flow, and shape.'**
+  String get brushPresetDesc;
+
+  /// No description provided for @editBrushPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Preset'**
+  String get editBrushPreset;
+
+  /// No description provided for @editBrushPresetDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust the current preset\'s internal parameters.'**
+  String get editBrushPresetDesc;
+
+  /// No description provided for @brushPresetDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Brush Preset'**
+  String get brushPresetDialogTitle;
+
+  /// No description provided for @brushPresetNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset Name'**
+  String get brushPresetNameLabel;
+
+  /// No description provided for @brushSpacing.
+  ///
+  /// In en, this message translates to:
+  /// **'Spacing'**
+  String get brushSpacing;
+
+  /// No description provided for @brushHardness.
+  ///
+  /// In en, this message translates to:
+  /// **'Hardness'**
+  String get brushHardness;
+
+  /// No description provided for @brushFlow.
+  ///
+  /// In en, this message translates to:
+  /// **'Flow'**
+  String get brushFlow;
+
+  /// No description provided for @brushScatter.
+  ///
+  /// In en, this message translates to:
+  /// **'Scatter'**
+  String get brushScatter;
+
+  /// No description provided for @brushRotationJitter.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotation Jitter'**
+  String get brushRotationJitter;
+
+  /// No description provided for @brushSnapToPixel.
+  ///
+  /// In en, this message translates to:
+  /// **'Snap to Pixel'**
+  String get brushSnapToPixel;
 
   /// No description provided for @brushShape.
   ///

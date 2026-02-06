@@ -629,6 +629,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get colorBlack => '검은색';
 
   @override
+  String get colorTransparent => '투명';
+
+  @override
   String get create => '생성';
 
   @override
@@ -866,6 +869,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get customResolution => '사용자 정의 해상도';
 
   @override
+  String get swapDimensions => '너비/높이 바꾸기';
+
+  @override
   String finalSizePreview(Object width, Object height, Object ratio) {
     return '최종 크기: $width x $height px (비율 $ratio)';
   }
@@ -1003,6 +1009,42 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get sprayEffect => '스프레이 효과';
+
+  @override
+  String get brushPreset => '브러시 프리셋';
+
+  @override
+  String get brushPresetDesc => '간격, 흐름, 형태 등을 포함한 프리셋을 선택합니다.';
+
+  @override
+  String get editBrushPreset => '프리셋 편집';
+
+  @override
+  String get editBrushPresetDesc => '현재 프리셋의 내부 파라미터를 조정합니다.';
+
+  @override
+  String get brushPresetDialogTitle => '브러시 프리셋 편집';
+
+  @override
+  String get brushPresetNameLabel => '프리셋 이름';
+
+  @override
+  String get brushSpacing => '간격';
+
+  @override
+  String get brushHardness => '경도';
+
+  @override
+  String get brushFlow => '흐름';
+
+  @override
+  String get brushScatter => '산포';
+
+  @override
+  String get brushRotationJitter => '회전 지터';
+
+  @override
+  String get brushSnapToPixel => '픽셀 스냅';
 
   @override
   String get brushShape => '브러시 모양';

@@ -1,4 +1,6 @@
-use crate::gpu::brush_renderer::{BrushRenderer, BrushShape, Color, Point2D};
+use crate::gpu::brush_renderer::{
+    BrushRenderer, BrushShape, Color, Point2D, PointRotation, MAX_POINTS,
+};
 use crate::gpu::debug::{self, LogLevel};
 
 use super::types::EnginePoint;
@@ -13,6 +15,12 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) shape: BrushShape,
     pub(crate) random_rotation: bool,
     pub(crate) rotation_seed: u32,
+    pub(crate) spacing: f32,
+    pub(crate) hardness: f32,
+    pub(crate) flow: f32,
+    pub(crate) scatter: f32,
+    pub(crate) rotation_jitter: f32,
+    pub(crate) snap_to_pixel: bool,
     pub(crate) hollow_enabled: bool,
     pub(crate) hollow_ratio: f32,
     pub(crate) hollow_erase_occluded: bool,
@@ -30,6 +38,12 @@ impl Default for EngineBrushSettings {
             shape: BrushShape::Circle,
             random_rotation: false,
             rotation_seed: 0,
+            spacing: 0.15,
+            hardness: 0.8,
+            flow: 1.0,
+            scatter: 0.0,
+            rotation_jitter: 1.0,
+            snap_to_pixel: false,
             hollow_enabled: false,
             hollow_ratio: 0.0,
             hollow_erase_occluded: false,
@@ -46,6 +60,31 @@ impl EngineBrushSettings {
         if self.base_radius < 0.0 {
             self.base_radius = 0.0;
         }
+        if !self.spacing.is_finite() {
+            self.spacing = 0.15;
+        } else {
+            self.spacing = self.spacing.clamp(0.02, 2.5);
+        }
+        if !self.hardness.is_finite() {
+            self.hardness = 0.8;
+        } else {
+            self.hardness = self.hardness.clamp(0.0, 1.0);
+        }
+        if !self.flow.is_finite() {
+            self.flow = 1.0;
+        } else {
+            self.flow = self.flow.clamp(0.0, 1.0);
+        }
+        if !self.scatter.is_finite() {
+            self.scatter = 0.0;
+        } else {
+            self.scatter = self.scatter.clamp(0.0, 1.0);
+        }
+        if !self.rotation_jitter.is_finite() {
+            self.rotation_jitter = 1.0;
+        } else {
+            self.rotation_jitter = self.rotation_jitter.clamp(0.0, 1.0);
+        }
         if !self.hollow_ratio.is_finite() {
             self.hollow_ratio = 0.0;
         } else {
@@ -57,10 +96,15 @@ impl EngineBrushSettings {
             self.streamline_strength = self.streamline_strength.clamp(0.0, 1.0);
         }
         self.antialias_level = self.antialias_level.clamp(0, 9);
+        self.color_argb = apply_flow_to_argb(self.color_argb, self.flow);
     }
 
     pub(crate) fn radius_from_pressure(&self, pressure: f32) -> f32 {
         brush_radius_from_pressure(pressure, self.base_radius, self.use_pressure)
+    }
+
+    pub(crate) fn softness(&self) -> f32 {
+        (1.0 - self.hardness).clamp(0.0, 1.0)
     }
 }
 
@@ -236,6 +280,7 @@ impl StrokeResampler {
             let radius_next = brush_settings.radius_from_pressure(pressure);
             let mut step = resample_step_from_radius(
                 (radius_prev + radius_next) * 0.5,
+                brush_settings.spacing,
                 self.resample_scale,
             );
             step = cap_resample_step_for_segment(dist, step);
@@ -415,6 +460,8 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
     }
 
     brush.set_canvas_size(canvas_width, canvas_height);
+    let softness = brush_settings.softness();
+    brush.set_softness(softness);
 
     let hollow_enabled = brush_settings.hollow_enabled
         && !brush_settings.erase
@@ -428,18 +475,95 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
 
     let mut dirty_union: Option<(i32, i32, i32, i32)> = None;
     let mut drew_any = false;
-    let dirty_scale = 1.0;
+    let dirty_scale = if softness > 0.0001 { 1.0 + softness } else { 1.0 };
+    let (points, radii) = prepare_brush_samples(brush_settings, emitted);
+    if points.is_empty() || points.len() != radii.len() {
+        return (false, None);
+    }
 
-    if emitted.len() == 1 {
-        let (p0, pres0) = emitted[0];
-        let r0 = brush_settings.radius_from_pressure(pres0);
+    let use_point_mode = true;
+    if use_point_mode {
+        let dirty_radii: Vec<f32> = radii.iter().map(|r| r * dirty_scale).collect();
+        let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
+        before_draw(brush, dirty);
+
+        let needs_rotation = brush_settings.random_rotation
+            && brush_settings.rotation_jitter > 0.0001
+            && !matches!(brush_settings.shape, BrushShape::Circle);
+        let rotations = if needs_rotation {
+            let mut rotations: Vec<PointRotation> = Vec::with_capacity(points.len());
+            for point in &points {
+                let angle =
+                    brush_random_rotation_radians(*point, brush_settings.rotation_seed)
+                        * brush_settings.rotation_jitter;
+                rotations.push(PointRotation {
+                    sin: angle.sin(),
+                    cos: angle.cos(),
+                });
+            }
+            Some(rotations)
+        } else {
+            None
+        };
+
+        let color = Color {
+            argb: brush_settings.color_argb,
+        };
+        let mut start = 0usize;
+        let mut any_drawn = false;
+        while start < points.len() {
+            let end = (start + MAX_POINTS).min(points.len());
+            let pts = &points[start..end];
+            let rs = &radii[start..end];
+            let rot_slice = rotations.as_ref().map(|rots| &rots[start..end]);
+            match brush.draw_points(
+                layer_view,
+                pts,
+                rs,
+                None,
+                rot_slice,
+                color,
+                brush_settings.shape,
+                brush_settings.erase,
+                brush_settings.antialias_level,
+                softness,
+                hollow_enabled,
+                hollow_ratio,
+                hollow_erase,
+                hollow_enabled,
+                true,
+            ) {
+                Ok(()) => {
+                    any_drawn = true;
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("Brush draw_points failed: {err}"),
+                    );
+                }
+            }
+            start = end;
+        }
+        if any_drawn {
+            drew_any = true;
+            dirty_union = union_dirty_rect_i32(dirty_union, dirty);
+        }
+        return (drew_any, dirty_union);
+    }
+
+    if points.len() == 1 {
+        let p0 = points[0];
+        let r0 = radii[0];
         let dirty_r0 = r0 * dirty_scale;
         let dirty = compute_dirty_rect_i32(&[p0], &[dirty_r0], canvas_width, canvas_height);
         before_draw(brush, dirty);
         let rotation = if brush_settings.random_rotation
+            && brush_settings.rotation_jitter > 0.0001
             && !matches!(brush_settings.shape, BrushShape::Circle)
         {
             brush_random_rotation_radians(p0, brush_settings.rotation_seed)
+                * brush_settings.rotation_jitter
         } else {
             0.0
         };
@@ -472,19 +596,15 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
             }
         }
     } else if hollow_enabled {
-        let mut points: Vec<Point2D> = Vec::with_capacity(emitted.len());
-        let mut radii: Vec<f32> = Vec::with_capacity(emitted.len());
-        for (p, pres) in emitted {
-            points.push(*p);
-            radii.push(brush_settings.radius_from_pressure(*pres));
-        }
         let dirty_radii: Vec<f32> = radii.iter().map(|r| r * dirty_scale).collect();
         let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
         before_draw(brush, dirty);
         let rotation = if brush_settings.random_rotation
+            && brush_settings.rotation_jitter > 0.0001
             && !matches!(brush_settings.shape, BrushShape::Circle)
         {
             brush_random_rotation_radians(points[0], brush_settings.rotation_seed)
+                * brush_settings.rotation_jitter
         } else {
             0.0
         };
@@ -518,22 +638,26 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         }
     } else {
         let needs_per_segment_rotation =
-            brush_settings.random_rotation && !matches!(brush_settings.shape, BrushShape::Circle);
+            brush_settings.random_rotation
+                && brush_settings.rotation_jitter > 0.0001
+                && !matches!(brush_settings.shape, BrushShape::Circle);
         let color = Color {
             argb: brush_settings.color_argb,
         };
         if needs_per_segment_rotation {
-            for i in 0..emitted.len().saturating_sub(1) {
-                let (p0, pres0) = emitted[i];
-                let (p1, pres1) = emitted[i + 1];
-                let r0 = brush_settings.radius_from_pressure(pres0);
-                let r1 = brush_settings.radius_from_pressure(pres1);
+            for i in 0..points.len().saturating_sub(1) {
+                let p0 = points[i];
+                let p1 = points[i + 1];
+                let r0 = radii[i];
+                let r1 = radii[i + 1];
                 let pts = [p0, p1];
                 let radii = [r0, r1];
                 let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
                 let dirty = compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
                 before_draw(brush, dirty);
-                let rotation = brush_random_rotation_radians(p0, brush_settings.rotation_seed);
+                let rotation =
+                    brush_random_rotation_radians(p0, brush_settings.rotation_seed)
+                        * brush_settings.rotation_jitter;
                 match brush.draw_stroke(
                     layer_view,
                     &pts,
@@ -567,11 +691,11 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
             let mut batch_radii: Vec<f32> = Vec::with_capacity(MAX_BATCH_POINTS + 1);
             let mut batch_dirty_union: Option<(i32, i32, i32, i32)> = None;
 
-            for i in 0..emitted.len().saturating_sub(1) {
-                let (p0, pres0) = emitted[i];
-                let (p1, pres1) = emitted[i + 1];
-                let r0 = brush_settings.radius_from_pressure(pres0);
-                let r1 = brush_settings.radius_from_pressure(pres1);
+            for i in 0..points.len().saturating_sub(1) {
+                let p0 = points[i];
+                let p1 = points[i + 1];
+                let r0 = radii[i];
+                let r1 = radii[i + 1];
                 let pts = [p0, p1];
                 let dirty_radii = [r0 * dirty_scale, r1 * dirty_scale];
                 let dirty = compute_dirty_rect_i32(&pts, &dirty_radii, canvas_width, canvas_height);
@@ -681,13 +805,87 @@ fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: boo
     base * (RUST_PRESSURE_MIN_FACTOR + (1.0 - RUST_PRESSURE_MIN_FACTOR) * p)
 }
 
-fn resample_step_from_radius(radius: f32, scale: f32) -> f32 {
+fn apply_flow_to_argb(color_argb: u32, flow: f32) -> u32 {
+    if !flow.is_finite() || flow >= 0.9999 {
+        return color_argb;
+    }
+    let clamped = flow.clamp(0.0, 1.0);
+    let alpha = ((color_argb >> 24) & 0xFF) as f32;
+    let scaled = (alpha * clamped).round().clamp(0.0, 255.0) as u32;
+    (color_argb & 0x00FF_FFFF) | (scaled << 24)
+}
+
+fn snap_point_to_pixel(point: Point2D) -> Point2D {
+    Point2D {
+        x: point.x.round() + 0.5,
+        y: point.y.round() + 0.5,
+    }
+}
+
+fn snap_radius_to_pixel(radius: f32) -> f32 {
+    if !radius.is_finite() {
+        return radius;
+    }
+    (radius * 2.0).round() * 0.5
+}
+
+pub(crate) fn prepare_brush_samples(
+    brush_settings: &EngineBrushSettings,
+    emitted: &[(Point2D, f32)],
+) -> (Vec<Point2D>, Vec<f32>) {
+    let mut points: Vec<Point2D> = Vec::with_capacity(emitted.len());
+    let mut radii: Vec<f32> = Vec::with_capacity(emitted.len());
+    let scatter = brush_settings.scatter;
+    let snap = brush_settings.snap_to_pixel;
+    let scatter_seed = if brush_settings.random_rotation {
+        brush_settings.rotation_seed
+    } else {
+        0
+    };
+    for (idx, (p, pres)) in emitted.iter().enumerate() {
+        let mut radius = brush_settings.radius_from_pressure(*pres);
+        if !radius.is_finite() || radius <= 0.0 {
+            radius = 0.01;
+        }
+        let mut point = *p;
+        if scatter > 0.0001 {
+            let scatter_radius = radius.abs().max(0.01) * 2.0 * scatter;
+            if scatter_radius > 0.0001 {
+                let jitter = brush_scatter_offset(
+                    point,
+                    scatter_seed,
+                    scatter_radius,
+                    idx as u32,
+                );
+                point.x += jitter.x;
+                point.y += jitter.y;
+            }
+        }
+        if snap {
+            point = snap_point_to_pixel(point);
+            radius = snap_radius_to_pixel(radius);
+        }
+        if !radius.is_finite() || radius <= 0.0 {
+            radius = 0.01;
+        }
+        points.push(point);
+        radii.push(radius);
+    }
+    (points, radii)
+}
+
+fn resample_step_from_radius(radius: f32, spacing: f32, scale: f32) -> f32 {
     let r = if radius.is_finite() {
         radius.max(0.0)
     } else {
         0.0
     };
-    let base = (r * 0.1).clamp(0.25, 0.5);
+    let spacing = if spacing.is_finite() {
+        spacing.clamp(0.02, 2.5)
+    } else {
+        0.15
+    };
+    let base = (r * 2.0 * spacing).max(0.1);
     let scale = if scale.is_finite() {
         scale.clamp(1.0, 8.0)
     } else {
@@ -915,6 +1113,34 @@ pub(crate) fn brush_random_rotation_radians(center: Point2D, seed: u32) -> f32 {
 
     let unit = (h as f64) / 4294967296.0;
     (unit * std::f64::consts::PI * 2.0) as f32
+}
+
+fn brush_random_unit(center: Point2D, seed: u32, salt: u32) -> f32 {
+    let x = (center.x * 256.0).round() as i32;
+    let y = (center.y * 256.0).round() as i32;
+
+    let mut h: u32 = 0;
+    h ^= seed;
+    h ^= salt;
+    h ^= (x as u32).wrapping_mul(0x9e3779b1);
+    h ^= (y as u32).wrapping_mul(0x85ebca77);
+    h = mix32(h);
+
+    (h as f64 / 4294967296.0) as f32
+}
+
+fn brush_scatter_offset(center: Point2D, seed: u32, radius: f32, salt: u32) -> Point2D {
+    if !radius.is_finite() || radius <= 0.0 {
+        return Point2D { x: 0.0, y: 0.0 };
+    }
+    let u = brush_random_unit(center, seed, salt);
+    let v = brush_random_unit(center, seed, salt.wrapping_add(1));
+    let dist = u.sqrt() * radius;
+    let angle = v * std::f32::consts::PI * 2.0;
+    Point2D {
+        x: angle.cos() * dist,
+        y: angle.sin() * dist,
+    }
 }
 
 fn mix32(mut h: u32) -> u32 {

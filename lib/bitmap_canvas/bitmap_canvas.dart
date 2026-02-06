@@ -382,6 +382,7 @@ class BitmapSurface {
       color: color,
       mask: mask,
       antialiasLevel: level,
+      softness: 0.0,
       erase: erase,
     );
   }
@@ -397,12 +398,28 @@ class BitmapSurface {
     double softness = 0.0,
     bool randomRotation = false,
     int rotationSeed = 0,
+    double rotationJitter = 1.0,
+    bool snapToPixel = false,
   }) {
+    Offset resolvedCenter = center;
+    double resolvedRadius = radius;
+    if (snapToPixel) {
+      resolvedCenter = Offset(
+        resolvedCenter.dx.roundToDouble() + 0.5,
+        resolvedCenter.dy.roundToDouble() + 0.5,
+      );
+      if (resolvedRadius.isFinite) {
+        resolvedRadius = (resolvedRadius * 2.0).roundToDouble() / 2.0;
+      }
+    }
+    if (!resolvedRadius.isFinite || resolvedRadius <= 0.0) {
+      resolvedRadius = 0.01;
+    }
     final int level = antialiasLevel.clamp(0, 9);
     if (shape == BrushShape.circle) {
       drawCircle(
-        center: center,
-        radius: radius,
+        center: resolvedCenter,
+        radius: resolvedRadius,
         color: color,
         mask: mask,
         antialiasLevel: level,
@@ -411,15 +428,15 @@ class BitmapSurface {
       );
       return;
     }
-    final double effectiveRadius = math.max(radius.abs(), 0.01);
+    final double effectiveRadius = math.max(resolvedRadius.abs(), 0.01);
     List<Offset> vertices = BrushShapeGeometry.polygonFor(
       shape,
-      center,
+      resolvedCenter,
       effectiveRadius,
     );
     if (vertices.length < 3) {
       drawCircle(
-        center: center,
+        center: resolvedCenter,
         radius: effectiveRadius,
         color: color,
         mask: mask,
@@ -428,11 +445,14 @@ class BitmapSurface {
       return;
     }
     if (randomRotation) {
+      final double jitter = rotationJitter.isFinite
+          ? rotationJitter.clamp(0.0, 1.0)
+          : 1.0;
       final double rotation = brushRandomRotationRadians(
-        center: center,
+        center: resolvedCenter,
         seed: rotationSeed,
       );
-      vertices = _rotateVertices(vertices, center, rotation);
+      vertices = _rotateVertices(vertices, resolvedCenter, rotation * jitter);
     }
     final List<Offset> sanitized = _sanitizePolygonVertices(vertices);
     if (sanitized.length < 3) {
@@ -461,6 +481,7 @@ class BitmapSurface {
       color: color,
       mask: mask,
       antialiasLevel: level,
+      softness: softness,
       erase: erase,
     );
   }
@@ -536,15 +557,18 @@ class BitmapSurface {
     required Color color,
     Uint8List? mask,
     required int antialiasLevel,
+    double softness = 0.0,
     bool erase = false,
   }) {
     if (vertices.length < 3) {
       return;
     }
     final double baseFeather = _featherForLevel(antialiasLevel);
+    final double soft = softness.clamp(0.0, 1.0);
+    final double softnessFeather = radius * soft;
     final double feather = antialiasLevel > 0
-        ? math.max(baseFeather, 0.35)
-        : 0.0;
+        ? math.max(baseFeather, softnessFeather)
+        : softnessFeather;
     final Rect coverageBounds = bounds.inflate(feather + 1.5);
     final int minX = math.max(0, coverageBounds.left.floor());
     final int maxX = math.min(width - 1, coverageBounds.right.ceil());
