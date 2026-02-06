@@ -406,9 +406,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 	                                        width: 1,
 	                                      ),
 	                                    ),
-	                                    child: ClipRect(
-	                                      child: RepaintBoundary(
-	                                        child: AnimatedBuilder(
+	                                    child: RepaintBoundary(
+	                                      child: AnimatedBuilder(
 	                                          animation: _controller,
 	                                          builder: (context, _) {
                                             final bool isTransforming =
@@ -694,8 +693,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     ),
                                                   ),
                                                 ),
-                                              if (transformHandlesOverlay != null)
-                                                transformHandlesOverlay,
                                               if (hasSelectionOverlay)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
@@ -747,14 +744,31 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 applyViewToCanvas
                                                 ? applyViewOverlay(canvasLayer)
                                                 : canvasLayer;
+                                            final Widget? transformHandlesViewOverlay =
+                                                transformHandlesOverlay == null
+                                                ? null
+                                                : applyViewOverlay(
+                                                    transformHandlesOverlay,
+                                                  );
+                                            final Widget clippedContent = ClipRect(
+                                              child: Stack(
+                                                fit: StackFit.expand,
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  canvasWithView,
+                                                  if (overlayChildren.isNotEmpty)
+                                                    applyViewOverlay(overlayLayer),
+                                                ],
+                                              ),
+                                            );
 
                                             return Stack(
                                               fit: StackFit.expand,
                                               clipBehavior: Clip.none,
                                               children: [
-                                                canvasWithView,
-                                                if (overlayChildren.isNotEmpty)
-                                                  applyViewOverlay(overlayLayer),
+                                                clippedContent,
+                                                if (transformHandlesViewOverlay != null)
+                                                  transformHandlesViewOverlay,
                                               ],
                                             );
 	                                          },
@@ -765,7 +779,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 	                                ),
 	                              ),
 	                            ),
-	                          ),
 	                          ),
 	                          if (_perspectivePenAnchor != null)
 	                            Positioned.fill(

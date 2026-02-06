@@ -563,6 +563,7 @@ mixin _PaintingBoardInteractionMixin
       boardLocal,
       isInitialSample: isInitialSample,
       anchor: _lastStrokeBoardPosition,
+      clampToCanvas: false,
     );
     _lastStrokeBoardPosition = sanitized;
     return sanitized;

@@ -1078,21 +1078,29 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (state == null) {
       return null;
     }
-    final double hitRadius = (_kLayerTransformHandleHitSize / _viewport.scale)
-        .clamp(8.0, 48.0);
+    final double boardScale = _viewport.scale;
+    final double hitRadius = _layerTransformHandleHitRadius(state, boardScale);
+    final double rotationDistance =
+        _layerTransformRotationHandleDistance(state, boardScale);
     final List<Offset> corners = state.corners;
+    Offset handlePosition(_LayerTransformHandle handle) {
+      return state.handlePosition(
+        handle,
+        rotationHandleDistance: rotationDistance,
+      );
+    }
     _LayerTransformHandle? pickHandle(_LayerTransformHandle handle) {
       if (handle == _LayerTransformHandle.translate) {
         return null;
       }
       if (handle == _LayerTransformHandle.rotation) {
-        final Offset position = state.handlePosition(handle);
+        final Offset position = handlePosition(handle);
         if ((boardLocal - position).distance <= hitRadius) {
           return handle;
         }
         return null;
       }
-      final Offset position = state.handlePosition(handle);
+      final Offset position = handlePosition(handle);
       if ((boardLocal - position).distance <= hitRadius) {
         return handle;
       }
@@ -1121,14 +1129,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       return _LayerTransformHandle.translate;
     }
     final double distance = _distanceToPolygon(boardLocal, corners);
-    final double baseRadius = math.max(
-      _kLayerTransformHandleHitSize * 2.4,
-      _kLayerTransformRotationHandleDistance * 1.1,
-    );
-    final double rotationHitRadius = (baseRadius / _viewport.scale).clamp(
-      24.0,
-      96.0,
-    );
+    final double rotationHitRadius =
+        _layerTransformRotationHitRadius(state, boardScale);
     if (distance <= rotationHitRadius) {
       return _LayerTransformHandle.rotation;
     }

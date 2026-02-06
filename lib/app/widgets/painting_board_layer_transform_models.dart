@@ -4,8 +4,12 @@ const double _kLayerTransformPanelWidth = 280;
 const double _kLayerTransformPanelMinHeight = 108;
 const double _kLayerTransformHandleVisualSize = 12;
 const double _kLayerTransformHandleHitSize = 24;
+const double _kLayerTransformHandleMaxFraction = 0.25;
+const double _kLayerTransformHandleHitMaxFraction = 0.45;
 const double _kLayerTransformRotationHandleDistance = 36;
+const double _kLayerTransformRotationHandleDistanceMaxFraction = 0.6;
 const double _kLayerTransformRotationHandleRadius = 6;
+const double _kLayerTransformRotationHitMaxFraction = 0.75;
 const double _kLayerTransformMinScale = 0.02;
 const double _kLayerTransformMaxScale = 64;
 const Color _kLayerTransformOverlayColor = Color(0xFF2B2B2B);
@@ -22,6 +26,81 @@ enum _LayerTransformHandle {
   bottomLeft,
   left,
   rotation,
+}
+
+double _layerTransformMinExtent(_LayerTransformStateModel state) {
+  return math
+      .min(state.imageSize.width, state.imageSize.height)
+      .clamp(1.0, double.infinity);
+}
+
+double _capLayerTransformSize(
+  double value,
+  _LayerTransformStateModel state,
+  double fraction,
+) {
+  final double maxValue = _layerTransformMinExtent(state) * fraction;
+  return value <= maxValue ? value : maxValue;
+}
+
+double _layerTransformHandleVisualSize(
+  _LayerTransformStateModel state,
+  double boardScale,
+) {
+  return _capLayerTransformSize(
+    _kLayerTransformHandleVisualSize / boardScale,
+    state,
+    _kLayerTransformHandleMaxFraction,
+  );
+}
+
+double _layerTransformHandleHitRadius(
+  _LayerTransformStateModel state,
+  double boardScale,
+) {
+  return _capLayerTransformSize(
+    _kLayerTransformHandleHitSize / boardScale,
+    state,
+    _kLayerTransformHandleHitMaxFraction,
+  );
+}
+
+double _layerTransformRotationHandleDistance(
+  _LayerTransformStateModel state,
+  double boardScale,
+) {
+  return _capLayerTransformSize(
+    _kLayerTransformRotationHandleDistance / boardScale,
+    state,
+    _kLayerTransformRotationHandleDistanceMaxFraction,
+  );
+}
+
+double _layerTransformRotationHandleRadius(
+  double boardScale,
+  double handleSize,
+) {
+  final double radius = _kLayerTransformRotationHandleRadius / boardScale;
+  final double maxRadius = handleSize / 2;
+  return radius <= maxRadius ? radius : maxRadius;
+}
+
+double _layerTransformRotationHitRadius(
+  _LayerTransformStateModel state,
+  double boardScale,
+) {
+  final double hitRadius = _layerTransformHandleHitRadius(state, boardScale);
+  final double rotationDistance =
+      _layerTransformRotationHandleDistance(state, boardScale);
+  final double baseRadius = math.max(
+    hitRadius * 2.4,
+    rotationDistance * 1.1,
+  );
+  return _capLayerTransformSize(
+    baseRadius,
+    state,
+    _kLayerTransformRotationHitMaxFraction,
+  );
 }
 
 class _LayerTransformStateModel {
@@ -167,9 +246,14 @@ class _LayerTransformStateModel {
     }
   }
 
-  Offset handlePosition(_LayerTransformHandle handle) {
+  Offset handlePosition(
+    _LayerTransformHandle handle, {
+    double? rotationHandleDistance,
+  }) {
     switch (handle) {
       case _LayerTransformHandle.rotation:
+        final double distance =
+            rotationHandleDistance ?? _kLayerTransformRotationHandleDistance;
         final Offset topLeft = transformPoint(Offset.zero);
         final Offset topRight = transformPoint(Offset(imageSize.width, 0));
         final Offset topCenter = transformPoint(Offset(imageSize.width / 2, 0));
@@ -181,7 +265,7 @@ class _LayerTransformStateModel {
         } else {
           normal = const Offset(0, -1);
         }
-        return topCenter + normal * _kLayerTransformRotationHandleDistance;
+        return topCenter + normal * distance;
       case _LayerTransformHandle.translate:
         return translation + pivotLocal;
       default:
@@ -246,8 +330,13 @@ class _LayerTransformOverlayPainter extends CustomPainter {
     final Path path = Path()..addPolygon(points, true);
     canvas.drawPath(path, outlinePaint);
 
-    final double handleSize = (_kLayerTransformHandleVisualSize / boardScale)
-        .clamp(6.0, 24.0);
+    final double handleSize = _layerTransformHandleVisualSize(state, boardScale);
+    final double rotationDistance =
+        _layerTransformRotationHandleDistance(state, boardScale);
+    final double rotationRadius = _layerTransformRotationHandleRadius(
+      boardScale,
+      handleSize,
+    );
     final Paint handlePaint = Paint()..isAntiAlias = true;
     for (final _LayerTransformHandle handle in _LayerTransformHandle.values) {
       if (handle == _LayerTransformHandle.translate ||
@@ -272,6 +361,7 @@ class _LayerTransformOverlayPainter extends CustomPainter {
     // Rotation handle
     final Offset rotateHandle = state.handlePosition(
       _LayerTransformHandle.rotation,
+      rotationHandleDistance: rotationDistance,
     );
     final Offset topCenter = state.handlePosition(_LayerTransformHandle.top);
     final Paint rotationPaint = Paint()
@@ -290,7 +380,7 @@ class _LayerTransformOverlayPainter extends CustomPainter {
       ..isAntiAlias = true;
     canvas.drawCircle(
       rotateHandle,
-      (_kLayerTransformRotationHandleRadius / boardScale).clamp(3.0, 18.0),
+      rotationRadius,
       rotationFill,
     );
   }
