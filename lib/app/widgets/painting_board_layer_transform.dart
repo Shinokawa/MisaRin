@@ -62,6 +62,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     }
   }
 
+  bool _shouldUseTransformBilinear() {
+    return _penAntialiasLevel > 0;
+  }
+
   void toggleLayerFreeTransform() {
     if (_layerTransformModeActive) {
       _cancelLayerFreeTransform();
@@ -521,8 +525,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       0.0,
     )..multiply(state.matrix);
     canvas.transform(drawMatrix.storage);
+    final bool useBilinear = _shouldUseTransformBilinear();
     final Paint paint = Paint()
-      ..filterQuality = FilterQuality.high
+      ..filterQuality =
+          useBilinear ? FilterQuality.high : FilterQuality.none
       ..isAntiAlias = false;
     final Rect localBounds = Rect.fromLTWH(
       0.0,
@@ -678,7 +684,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       layerIndex: layerIndex,
       matrix: matrix,
       enabled: enabled,
-      bilinear: true,
+      bilinear: _shouldUseTransformBilinear(),
     );
   }
 
@@ -735,7 +741,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       handle: handle,
       layerIndex: layerIndex,
       matrix: matrix,
-      bilinear: true,
+      bilinear: _shouldUseTransformBilinear(),
     );
   }
 
@@ -1190,9 +1196,12 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     final ui.BlendMode? blendMode = _flutterBlendMode(
       _controller.activeLayerTransformBlendMode,
     );
+    final FilterQuality filterQuality = _shouldUseTransformBilinear()
+        ? FilterQuality.high
+        : FilterQuality.none;
     Widget content = RawImage(
       image: image,
-      filterQuality: FilterQuality.high,
+      filterQuality: filterQuality,
       fit: BoxFit.none,
       alignment: Alignment.topLeft,
       colorBlendMode: blendMode,
