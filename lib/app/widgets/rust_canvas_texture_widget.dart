@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
@@ -7,6 +8,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
+
+import '../utils/tablet_input_bridge.dart';
 
 class _UndoIntent extends Intent {
   const _UndoIntent();
@@ -78,9 +81,11 @@ class RustCanvasTextureWidget extends StatefulWidget {
   const RustCanvasTextureWidget({
     super.key,
     this.canvasSize = const Size(512, 512),
+    this.stylusCurve = 1.0,
   });
 
   final Size canvasSize;
+  final double stylusCurve;
 
   @override
   State<RustCanvasTextureWidget> createState() =>
@@ -209,8 +214,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   }
 
   bool _isDrawingPointer(PointerEvent event) {
-    if (event.kind == PointerDeviceKind.stylus ||
-        event.kind == PointerDeviceKind.invertedStylus) {
+    if (TabletInputBridge.instance.isTabletPointer(event)) {
       return true;
     }
     if (event.kind == PointerDeviceKind.mouse) {
@@ -293,9 +297,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       return;
     }
     final Offset canvasPos = _toCanvasSpace(event.localPosition, _viewSize);
-    final double pressure = event.pressure.isFinite
-        ? event.pressure.clamp(0.0, 1.0)
-        : 1.0;
+    final double pressure = _normalizeStylusPressure(event) ?? 1.0;
     final int timestampUs = event.timeStamp.inMicroseconds;
     _points.add(
       x: canvasPos.dx,
@@ -306,6 +308,29 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       pointerId: event.pointer,
     );
     _scheduleFlush();
+  }
+
+  double? _normalizeStylusPressure(PointerEvent event) {
+    final double? pressure = TabletInputBridge.instance.pressureForEvent(event);
+    if (pressure == null || !pressure.isFinite) {
+      return null;
+    }
+    double lower = event.pressureMin;
+    double upper = event.pressureMax;
+    if (!lower.isFinite) {
+      lower = 0.0;
+    }
+    if (!upper.isFinite || upper <= lower) {
+      upper = lower + 1.0;
+    }
+    final double normalized = (pressure - lower) / (upper - lower);
+    if (!normalized.isFinite) {
+      return null;
+    }
+    final double curve = widget.stylusCurve.isFinite ? widget.stylusCurve : 1.0;
+    final double curved =
+        math.pow(normalized.clamp(0.0, 1.0), curve).toDouble();
+    return curved.clamp(0.0, 1.0);
   }
 
   void _scheduleFlush() {

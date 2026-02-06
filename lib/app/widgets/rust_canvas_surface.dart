@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
@@ -9,6 +10,7 @@ import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
 
 import '../debug/rust_canvas_timeline.dart';
 import '../../canvas/canvas_tools.dart';
+import '../utils/tablet_input_bridge.dart';
 
 const MethodChannel _rustCanvasChannel = MethodChannel(
   'misarin/rust_canvas_texture',
@@ -311,6 +313,7 @@ class RustCanvasSurface extends StatefulWidget {
     this.antialiasLevel = 1,
     this.backgroundColorArgb = 0xFFFFFFFF,
     this.usePressure = true,
+    this.stylusCurve = 1.0,
     this.streamlineStrength = 0.0,
     this.onStrokeBegin,
     this.onEngineInfoChanged,
@@ -363,6 +366,7 @@ class RustCanvasSurface extends StatefulWidget {
   final int antialiasLevel;
   final int backgroundColorArgb;
   final bool usePressure;
+  final double stylusCurve;
   final double streamlineStrength;
   final VoidCallback? onStrokeBegin;
   final void Function(
@@ -627,8 +631,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   }
 
   bool _isDrawingPointer(PointerEvent event) {
-    if (event.kind == PointerDeviceKind.stylus ||
-        event.kind == PointerDeviceKind.invertedStylus) {
+    if (TabletInputBridge.instance.isTabletPointer(event)) {
       return true;
     }
     if (event.kind == PointerDeviceKind.mouse) {
@@ -654,8 +657,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       );
     }
     final bool supportsPressure =
-        event.kind == PointerDeviceKind.stylus ||
-        event.kind == PointerDeviceKind.invertedStylus;
+        TabletInputBridge.instance.isTabletPointer(event);
     _activeStrokeUsesPressure = widget.usePressure && supportsPressure;
     _applyBrushSettings(handle, usePressureOverride: _activeStrokeUsesPressure);
     _activeDrawingPointer = event.pointer;
@@ -745,7 +747,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
     final Offset canvasPos = _toEngineSpace(event.localPosition);
     final double pressure = !_activeStrokeUsesPressure
         ? 1.0
-        : (event.pressure.isFinite ? event.pressure.clamp(0.0, 1.0) : 1.0);
+        : (_normalizeStylusPressure(event) ?? 1.0);
     final int timestampUs = event.timeStamp.inMicroseconds;
     _points.add(
       x: canvasPos.dx,
@@ -772,6 +774,29 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       pointCount: count,
     );
     _points.clear();
+  }
+
+  double? _normalizeStylusPressure(PointerEvent event) {
+    final double? pressure = TabletInputBridge.instance.pressureForEvent(event);
+    if (pressure == null || !pressure.isFinite) {
+      return null;
+    }
+    double lower = event.pressureMin;
+    double upper = event.pressureMax;
+    if (!lower.isFinite) {
+      lower = 0.0;
+    }
+    if (!upper.isFinite || upper <= lower) {
+      upper = lower + 1.0;
+    }
+    final double normalized = (pressure - lower) / (upper - lower);
+    if (!normalized.isFinite) {
+      return null;
+    }
+    final double curve = widget.stylusCurve.isFinite ? widget.stylusCurve : 1.0;
+    final double curved =
+        math.pow(normalized.clamp(0.0, 1.0), curve).toDouble();
+    return curved.clamp(0.0, 1.0);
   }
 
   @override

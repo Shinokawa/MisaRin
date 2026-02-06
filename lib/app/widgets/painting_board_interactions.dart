@@ -503,8 +503,7 @@ mixin _PaintingBoardInteractionMixin
   }
 
   bool _isRustDrawingPointer(PointerEvent event) {
-    if (event.kind == PointerDeviceKind.stylus ||
-        event.kind == PointerDeviceKind.invertedStylus) {
+    if (_isStylusEvent(event)) {
       return true;
     }
     if (event.kind == PointerDeviceKind.mouse) {
@@ -570,11 +569,26 @@ mixin _PaintingBoardInteractionMixin
   }
 
   double? _normalizePointerPressure(PointerEvent event) {
-    final double pressure = event.pressure;
-    if (!pressure.isFinite) {
+    final double? pressure = _stylusPressureValue(event);
+    if (pressure == null || !pressure.isFinite) {
       return null;
     }
-    return pressure.clamp(0.0, 1.0);
+    double lower = event.pressureMin;
+    double upper = event.pressureMax;
+    if (!lower.isFinite) {
+      lower = 0.0;
+    }
+    if (!upper.isFinite || upper <= lower) {
+      upper = lower + 1.0;
+    }
+    final double normalized = (pressure - lower) / (upper - lower);
+    if (!normalized.isFinite) {
+      return null;
+    }
+    final double curve = _stylusCurve.isFinite ? _stylusCurve : 1.0;
+    final double curved =
+        math.pow(normalized.clamp(0.0, 1.0), curve).toDouble();
+    return curved.clamp(0.0, 1.0);
   }
 
   double _resolveRustPressure({
@@ -887,9 +901,7 @@ mixin _PaintingBoardInteractionMixin
     _rustStrokeStartPoint = null;
     _rustStrokeStartPressure = 1.0;
     _rustStrokeStartIndex = 0;
-    final bool supportsPressure =
-        event.kind == PointerDeviceKind.stylus ||
-        event.kind == PointerDeviceKind.invertedStylus;
+    final bool supportsPressure = _isStylusEvent(event);
     _rustPressureSimulator.resetTracking();
     _rustSimulatePressure = _simulatePenPressure;
     _rustUseStylusPressure = _stylusPressureEnabled && supportsPressure;

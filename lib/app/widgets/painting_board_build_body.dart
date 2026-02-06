@@ -542,6 +542,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _stylusPressureEnabled ||
                                                     _simulatePenPressure ||
                                                     _autoSharpPeakEnabled,
+                                                stylusCurve: _stylusCurve,
                                                 streamlineStrength:
                                                     _streamlineStrength,
                                                 onStrokeBegin: _markDirty,
