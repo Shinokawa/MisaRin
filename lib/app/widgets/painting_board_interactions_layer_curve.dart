@@ -56,7 +56,16 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       return;
     }
     _focusNode.requestFocus();
+    _layerAdjustUsingRustPreview = false;
+    _layerAdjustRustPreviewLayerIndex = null;
+    _layerAdjustRustSynced =
+        _canUseRustCanvasEngine() && _syncActiveLayerFromRustForAdjust(layer);
     _controller.translateActiveLayer(0, 0);
+    if (_canUseRustCanvasEngine() && _controller.isActiveLayerTransforming) {
+      if (!_startRustLayerAdjustPreview(layer)) {
+        _hideRustLayerForAdjust(layer);
+      }
+    }
     _isLayerDragging = true;
     _layerDragStart = boardLocal;
     _layerDragAppliedDx = 0;
@@ -81,6 +90,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _layerDragAppliedDx = moveX;
     _layerDragAppliedDy = moveY;
     _controller.translateActiveLayer(moveX, moveY);
+    if (_layerAdjustUsingRustPreview) {
+      _updateRustLayerAdjustPreview(moveX, moveY);
+    }
     _markDirty();
   }
 
@@ -103,21 +115,203 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_isLayerDragging) {
       return;
     }
-    final bool moved = _layerDragAppliedDx != 0 || _layerDragAppliedDy != 0;
+    final int dx = _layerDragAppliedDx;
+    final int dy = _layerDragAppliedDy;
+    final bool moved = dx != 0 || dy != 0;
     _isLayerDragging = false;
     _layerDragStart = null;
     _layerDragAppliedDx = 0;
     _layerDragAppliedDy = 0;
     if (!moved) {
+      _clearRustLayerAdjustPreview();
+      if (_canUseRustCanvasEngine()) {
+        _restoreRustLayerAfterAdjust();
+      }
+      _layerAdjustRustSynced = false;
       _controller.disposeActiveLayerTransformSession();
       return;
     }
     await _pushUndoSnapshot();
     _controller.commitActiveLayerTranslation();
+    if (_canUseRustCanvasEngine()) {
+      _applyRustLayerTranslation(dx, dy);
+      _clearRustLayerAdjustPreview();
+      _restoreRustLayerAfterAdjust();
+    }
+    _layerAdjustRustSynced = false;
   }
 
   void _finishLayerAdjustDrag() {
     unawaited(_finalizeLayerAdjustDrag());
+  }
+
+  Float32List _buildLayerAdjustTransformMatrix(int dx, int dy) {
+    final Float32List matrix = Float32List(16);
+    matrix[0] = 1.0;
+    matrix[5] = 1.0;
+    matrix[10] = 1.0;
+    matrix[15] = 1.0;
+    matrix[12] = -dx.toDouble();
+    matrix[13] = -dy.toDouble();
+    return matrix;
+  }
+
+  bool _startRustLayerAdjustPreview(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Float32List matrix = _buildLayerAdjustTransformMatrix(0, 0);
+    final bool ok = CanvasEngineFfi.instance.setLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      enabled: true,
+      bilinear: false,
+    );
+    if (ok) {
+      _layerAdjustUsingRustPreview = true;
+      _layerAdjustRustPreviewLayerIndex = layerIndex;
+    }
+    return ok;
+  }
+
+  void _updateRustLayerAdjustPreview(int dx, int dy) {
+    if (!_layerAdjustUsingRustPreview) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerAdjustRustPreviewLayerIndex;
+    if (!_canUseRustCanvasEngine() || handle == null || layerIndex == null) {
+      return;
+    }
+    final Float32List matrix = _buildLayerAdjustTransformMatrix(dx, dy);
+    CanvasEngineFfi.instance.setLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      enabled: true,
+      bilinear: false,
+    );
+  }
+
+  void _clearRustLayerAdjustPreview() {
+    if (!_layerAdjustUsingRustPreview) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerAdjustRustPreviewLayerIndex;
+    if (_canUseRustCanvasEngine() && handle != null && layerIndex != null) {
+      final Float32List matrix = _buildLayerAdjustTransformMatrix(0, 0);
+      CanvasEngineFfi.instance.setLayerTransformPreview(
+        handle: handle,
+        layerIndex: layerIndex,
+        matrix: matrix,
+        enabled: false,
+        bilinear: false,
+      );
+    }
+    _layerAdjustUsingRustPreview = false;
+    _layerAdjustRustPreviewLayerIndex = null;
+  }
+
+  void _applyRustLayerTranslation(int dx, int dy) {
+    if (dx == 0 && dy == 0) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (!_canUseRustCanvasEngine() || handle == null) {
+      return;
+    }
+    final BitmapLayerState? layer = _activeLayerForAdjustment();
+    if (layer == null) {
+      return;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    bool applied = false;
+    if (!_controller.clipLayerOverflow &&
+        _layerAdjustRustSynced &&
+        layer.surface.width == width &&
+        layer.surface.height == height &&
+        layer.surface.pixels.length == width * height) {
+      applied = CanvasEngineFfi.instance.writeLayer(
+        handle: handle,
+        layerIndex: layerIndex,
+        pixels: layer.surface.pixels,
+        recordUndo: true,
+      );
+    } else {
+      applied = CanvasEngineFfi.instance.translateLayer(
+        handle: handle,
+        layerIndex: layerIndex,
+        deltaX: dx,
+        deltaY: dy,
+      );
+    }
+    if (applied) {
+      _recordRustHistoryAction(layerId: layer.id);
+      if (mounted) {
+        setState(() {});
+      }
+      _markDirty();
+    }
+  }
+
+  void _hideRustLayerForAdjust(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return;
+    }
+    _layerAdjustRustHiddenLayerIndex = layerIndex;
+    _layerAdjustRustHiddenVisible = layer.visible;
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: handle,
+      layerIndex: layerIndex,
+      visible: false,
+    );
+  }
+
+  void _restoreRustLayerAfterAdjust() {
+    final int? handle = _rustCanvasEngineHandle;
+    final int? layerIndex = _layerAdjustRustHiddenLayerIndex;
+    if (handle == null || layerIndex == null) {
+      _layerAdjustRustHiddenLayerIndex = null;
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: handle,
+      layerIndex: layerIndex,
+      visible: _layerAdjustRustHiddenVisible,
+    );
+    _layerAdjustRustHiddenLayerIndex = null;
+    _layerAdjustRustHiddenVisible = false;
+  }
+
+  bool _syncActiveLayerFromRustForAdjust(BitmapLayerState layer) {
+    return _syncLayerPixelsFromRust(layer);
   }
 
   Future<void> _handleCurvePenPointerDown(Offset boardLocal) async {
@@ -128,12 +322,19 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     );
     _focusNode.requestFocus();
     final bool insideCanvas = _isWithinCanvasBounds(snapped);
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     if (_curveAnchor == null) {
       if (insideCanvas && !isPointInsideSelection(snapped)) {
         return;
       }
       if (insideCanvas) {
-        await _pushUndoSnapshot();
+        if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
+          _showRustCanvasMessage('Rust 画布同步图层失败。');
+          return;
+        }
+        if (!useRustCanvas) {
+          await _pushUndoSnapshot();
+        }
         final bool erase = _isBrushEraserEnabled;
         final Color strokeColor = erase
             ? const Color(0xFFFFFFFF)
@@ -148,6 +349,12 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
           brushShape: _brushShape,
           randomRotation: _brushRandomRotationEnabled,
           rotationSeed: _brushRandomRotationPreviewSeed,
+          spacing: _brushSpacing,
+          hardness: _brushHardness,
+          flow: _brushFlow,
+          scatter: _brushScatter,
+          rotationJitter: _brushRotationJitter,
+          snapToPixel: _brushSnapToPixel,
           erase: erase,
           hollow: _hollowStrokeEnabled && !erase,
           hollowRatio: _hollowStrokeRatio,
@@ -157,6 +364,12 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
         if (_brushRandomRotationEnabled) {
           _brushRandomRotationPreviewSeed =
               _brushRotationRandom.nextInt(1 << 31);
+        }
+        if (useRustCanvas) {
+          await _controller.waitForPendingWorkerTasks();
+          if (!_commitActiveLayerToRust()) {
+            _showRustCanvasMessage('Rust 画布写入图层失败。');
+          }
         }
         _markDirty();
       }
@@ -172,6 +385,10 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (insideCanvas && !isPointInsideSelection(snapped)) {
       return;
     }
+    if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
+      return;
+    }
     setState(() {
       _curvePendingEnd = snapped;
       _curveDragOrigin = snapped;
@@ -179,10 +396,8 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _isCurvePlacingSegment = true;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    if (!_vectorDrawingEnabled) {
-      await _prepareCurveRasterPreview();
-      _refreshCurveRasterPreview();
-    }
+    await _prepareCurveRasterPreview(captureUndo: !useRustCanvas);
+    _refreshCurveRasterPreview();
   }
 
   void _handleCurvePenPointerMove(Offset boardLocal) {
@@ -197,9 +412,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _curveDragDelta = snapped - _curveDragOrigin!;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    if (!_vectorDrawingEnabled) {
-      _refreshCurveRasterPreview();
-    }
+    _refreshCurveRasterPreview();
   }
 
   Future<void> _handleCurvePenPointerUp() async {
@@ -207,13 +420,14 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_isCurvePlacingSegment) {
       return;
     }
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;
     if (start == null || end == null) {
       _cancelCurvePenSegment();
       return;
     }
-    if (!_curveUndoCapturedForPreview) {
+    if (!_curveUndoCapturedForPreview && !useRustCanvas) {
       await _pushUndoSnapshot();
     }
     final Offset control = _computeCurveControlPoint(
@@ -221,17 +435,28 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       end,
       _curveDragDelta,
     );
-    if (!_vectorDrawingEnabled && _curveRasterPreviewSnapshot != null) {
+    if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
+      _cancelCurvePenSegment();
+      return;
+    }
+    if (_curveRasterPreviewSnapshot != null) {
       _clearCurvePreviewOverlay();
     }
-    if (_vectorDrawingEnabled) {
+    _controller.runSynchronousRasterization(() {
       _drawQuadraticCurve(start, control, end);
-    } else {
-      _controller.runSynchronousRasterization(() {
-        _drawQuadraticCurve(start, control, end);
-      });
+    });
+    _disposeCurveRasterPreview(
+      restoreLayer: false,
+      clearPreviewImage: !useRustCanvas,
+    );
+    if (useRustCanvas) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_commitActiveLayerToRust()) {
+        _showRustCanvasMessage('Rust 画布写入图层失败。');
+      }
+      _clearCurvePreviewRasterImage(notify: false);
     }
-    _disposeCurveRasterPreview(restoreLayer: false);
     setState(() {
       _curveAnchor = end;
       _curvePendingEnd = null;
@@ -274,11 +499,15 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
   }
 
-  Future<void> _prepareCurveRasterPreview() async {
+  Future<void> _prepareCurveRasterPreview({bool captureUndo = true}) async {
     if (_curveUndoCapturedForPreview) {
       return;
     }
-    await _pushUndoSnapshot();
+    if (captureUndo) {
+      await _pushUndoSnapshot();
+    } else {
+      _clearCurvePreviewRasterImage(notify: false);
+    }
     _curveUndoCapturedForPreview = true;
     final String? activeLayerId = _controller.activeLayerId;
     if (activeLayerId == null) {
@@ -303,11 +532,15 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   void _refreshCurveRasterPreview() {
+    final bool useRustCanvas = _canUseRustCanvasEngine();
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;
     if (snapshot == null || start == null || end == null) {
       _clearCurvePreviewOverlay();
+      if (useRustCanvas) {
+        _clearCurvePreviewRasterImage();
+      }
       return;
     }
     final Rect? previous = _curvePreviewDirtyRect;
@@ -340,9 +573,15 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (restoredRegion != null) {
       _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
     }
+    if (useRustCanvas) {
+      unawaited(_updateCurvePreviewRasterImage());
+    }
   }
 
-  void _disposeCurveRasterPreview({required bool restoreLayer}) {
+  void _disposeCurveRasterPreview({
+    required bool restoreLayer,
+    bool clearPreviewImage = true,
+  }) {
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     if (snapshot != null && restoreLayer) {
       _clearCurvePreviewOverlay();
@@ -351,6 +590,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _curveUndoCapturedForPreview = false;
     _curvePreviewDirtyRect = null;
     _curveRasterPreviewPixels = null;
+    if (clearPreviewImage) {
+      _clearCurvePreviewRasterImage(notify: false);
+    }
   }
 
   void _clearCurvePreviewOverlay() {
@@ -366,6 +608,64 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       pixelCache: _curveRasterPreviewPixels,
     );
     _curvePreviewDirtyRect = null;
+  }
+
+  Future<void> _updateCurvePreviewRasterImage() async {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_curvePreviewPath == null) {
+      _clearCurvePreviewRasterImage();
+      return;
+    }
+    final BitmapLayerState layer = _controller.activeLayer;
+    if (!layer.visible) {
+      _clearCurvePreviewRasterImage();
+      return;
+    }
+    final int width = layer.surface.width;
+    final int height = layer.surface.height;
+    if (width <= 0 || height <= 0) {
+      _clearCurvePreviewRasterImage();
+      return;
+    }
+    final int token = ++_curvePreviewRasterToken;
+    await _controller.waitForPendingWorkerTasks();
+    if (!mounted ||
+        token != _curvePreviewRasterToken ||
+        _curvePreviewPath == null) {
+      return;
+    }
+    final Uint32List pixels = layer.surface.pixels;
+    if (pixels.length != width * height) {
+      _clearCurvePreviewRasterImage();
+      return;
+    }
+    final Uint8List rgba = _argbPixelsToRgbaForPreview(pixels);
+    final ui.Image image = await _decodeImage(rgba, width, height);
+    if (!mounted ||
+        token != _curvePreviewRasterToken ||
+        _curvePreviewPath == null) {
+      image.dispose();
+      return;
+    }
+    _curvePreviewRasterImage?.dispose();
+    _curvePreviewRasterImage = image;
+    setState(() {});
+    _hideRustLayerForVectorPreview(layer.id);
+  }
+
+  void _clearCurvePreviewRasterImage({bool notify = true}) {
+    _curvePreviewRasterToken++;
+    final bool hadImage = _curvePreviewRasterImage != null;
+    _curvePreviewRasterImage?.dispose();
+    _curvePreviewRasterImage = null;
+    if (!_isRustVectorPreviewActive) {
+      _restoreRustLayerAfterVectorPreview();
+    }
+    if (notify && hadImage && mounted) {
+      setState(() {});
+    }
   }
 
   Rect? _curvePreviewDirtyRectForCurrentPath() {
@@ -420,15 +720,21 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       simulatePressure: simulatePressure,
       profile: _penPressureProfile,
       timestampMillis: initialTimestamp,
-        antialiasLevel: _penAntialiasLevel,
-        brushShape: _brushShape,
-        enableNeedleTips: enableNeedleTips,
-        randomRotation: _brushRandomRotationEnabled,
-        rotationSeed: _brushRandomRotationPreviewSeed,
-        erase: erase,
-        hollow: hollow,
-        hollowRatio: _hollowStrokeRatio,
-        eraseOccludedParts: _hollowStrokeEraseOccludedParts,
+      antialiasLevel: _penAntialiasLevel,
+      brushShape: _brushShape,
+      enableNeedleTips: enableNeedleTips,
+      randomRotation: _brushRandomRotationEnabled,
+      rotationSeed: _brushRandomRotationPreviewSeed,
+      spacing: _brushSpacing,
+      hardness: _brushHardness,
+      flow: _brushFlow,
+      scatter: _brushScatter,
+      rotationJitter: _brushRotationJitter,
+      snapToPixel: _brushSnapToPixel,
+      erase: erase,
+      hollow: hollow,
+      hollowRatio: _hollowStrokeRatio,
+      eraseOccludedParts: _hollowStrokeEraseOccludedParts,
     );
     final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
       strokeStart,

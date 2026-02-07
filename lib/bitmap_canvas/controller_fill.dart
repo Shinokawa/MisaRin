@@ -8,6 +8,72 @@ void _fillSetSelectionMask(BitmapCanvasController controller, Uint8List? mask) {
   controller._paintingWorkerSelectionDirty = true;
 }
 
+BitmapLayerState? _fillFindSingleVisibleLayerForComposite(
+  BitmapCanvasController controller,
+) {
+  final String? translatingLayerId = controller._translatingLayerIdForComposite;
+  BitmapLayerState? candidate;
+  for (final BitmapLayerState layer in controller._layers) {
+    if (!layer.visible) {
+      continue;
+    }
+    if (translatingLayerId != null && layer.id == translatingLayerId) {
+      continue;
+    }
+    if (candidate != null) {
+      return null;
+    }
+    candidate = layer;
+  }
+  return candidate;
+}
+
+Uint32List _fillBuildSingleLayerCompositePixels(BitmapLayerState layer) {
+  final Uint32List source = layer.surface.pixels;
+  final Uint32List composite = Uint32List(source.length);
+  if (composite.isEmpty) {
+    return composite;
+  }
+
+  if (layer.clippingMask) {
+    return composite;
+  }
+
+  final double opacity = BitmapCanvasController._clampUnit(layer.opacity);
+  if (opacity <= 0) {
+    return composite;
+  }
+  if (opacity >= 1.0) {
+    composite.setAll(0, source);
+    return composite;
+  }
+
+  for (int i = 0; i < source.length; i++) {
+    final int src = source[i];
+    final int srcA = (src >> 24) & 0xff;
+    if (srcA == 0) {
+      continue;
+    }
+    int effectiveA = (srcA * opacity).round();
+    if (effectiveA <= 0) {
+      continue;
+    }
+    effectiveA = effectiveA.clamp(0, 255);
+    composite[i] = (effectiveA << 24) | (src & 0x00FFFFFF);
+  }
+  return composite;
+}
+
+bool _fillAllPixelsMatchColor(Uint32List pixels, int color) {
+  final int length = pixels.length;
+  for (int i = 0; i < length; i++) {
+    if (pixels[i] != color) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void _fillFloodFill(
   BitmapCanvasController controller,
   Offset position, {
@@ -31,109 +97,107 @@ void _fillFloodFill(
     return;
   }
 
-  final bool shouldSwallow = swallowColors != null && swallowColors.isNotEmpty;
-  final List<int>? swallowArgb = shouldSwallow
-      ? swallowColors!
-            .map((color) => BitmapSurface.encodeColor(color))
-            .toList(growable: false)
-      : null;
   final int clampedTolerance = tolerance.clamp(0, 255);
   final int clampedFillGap = fillGap.clamp(0, 64);
-  final int clampedAntialias = antialiasLevel.clamp(0, 3);
-  final bool hasAntialias = clampedAntialias > 0;
-  // Tolerance is now supported by worker, so we don't need to force mask fill for it alone.
-  final bool requiresMaskFill = shouldSwallow || hasAntialias;
-  final bool needsRegionMask = shouldSwallow || hasAntialias;
-
-  Uint8List? regionMask;
+  final int clampedAntialias = antialiasLevel.clamp(0, 9);
+  final Uint8List? selectionMask = controller._selectionMask;
+  final Uint32List? swallowColorsU32 =
+      swallowColors != null && swallowColors.isNotEmpty
+      ? Uint32List.fromList(
+          swallowColors
+              .map((it) => BitmapSurface.encodeColor(it))
+              .toList(growable: false),
+        )
+      : null;
+  Uint32List? samplePixels;
   if (sampleAllLayers) {
-    regionMask = _fillFloodFillAcrossLayers(
-      controller,
-      x,
-      y,
-      color,
-      contiguous,
-      tolerance: clampedTolerance,
-      fillGap: clampedFillGap,
-      collectMask: needsRegionMask,
-    );
-    if (needsRegionMask && regionMask == null) {
-      return;
-    }
-  } else {
-    final Color baseColor = _fillColorAtSurface(
-      controller,
-      controller._activeSurface,
-      x,
-      y,
-    );
-    if (!requiresMaskFill) {
-      if (controller.isMultithreaded) {
-        controller._enqueueWorkerPatchFuture(
-          controller._executeFloodFill(
-            start: Offset(x.toDouble(), y.toDouble()),
-            color: color,
-            targetColor: baseColor,
-            contiguous: contiguous,
-            tolerance: clampedTolerance,
-            fillGap: clampedFillGap,
-          ),
-          onError: () {
-            controller._activeSurface.floodFill(
-              start: Offset(x.toDouble(), y.toDouble()),
-              color: color,
-              targetColor: baseColor,
-              contiguous: contiguous,
-              mask: controller._selectionMask,
-              fillGap: clampedFillGap,
-            );
-            controller._resetWorkerSurfaceSync();
-            controller._markDirty(
-              layerId: controller._activeLayer.id,
-              pixelsDirty: true,
-            );
-          },
-        );
+    final BitmapLayerState? singleVisibleLayer =
+        _fillFindSingleVisibleLayerForComposite(controller);
+    if (singleVisibleLayer != null) {
+      final double layerOpacity = BitmapCanvasController._clampUnit(
+        singleVisibleLayer.opacity,
+      );
+      if (!singleVisibleLayer.clippingMask && layerOpacity >= 1.0) {
+        if (!identical(singleVisibleLayer, controller._activeLayer)) {
+          samplePixels = singleVisibleLayer.surface.pixels;
+        }
       } else {
-        controller._activeSurface.floodFill(
-          start: Offset(x.toDouble(), y.toDouble()),
-          color: color,
-          targetColor: baseColor,
-          contiguous: contiguous,
-          mask: controller._selectionMask,
-          fillGap: clampedFillGap,
-        );
-        controller._markDirty(
-          layerId: controller._activeLayer.id,
-          pixelsDirty: true,
-        );
+        final Uint32List resolvedSamplePixels =
+            _fillBuildSingleLayerCompositePixels(singleVisibleLayer);
+        if (resolvedSamplePixels.isEmpty) {
+          return;
+        }
+        samplePixels = resolvedSamplePixels;
       }
-      return;
-    }
-    if (baseColor.value == color.value && !shouldSwallow) {
-      return;
-    }
-    regionMask = _fillFloodFillSingleLayerWithMask(
-      controller,
-      x,
-      y,
-      color,
-      baseColor,
-      contiguous,
-      tolerance: clampedTolerance,
-      fillGap: clampedFillGap,
-    );
-    if (regionMask == null) {
-      return;
+    } else {
+      controller._updateComposite(requiresFullSurface: true, region: null);
+      final Uint32List? compositePixels = controller._compositePixels;
+      final bool compositeReady =
+          compositePixels != null &&
+          compositePixels.isNotEmpty &&
+          !controller._rasterBackend.isCompositeDirty;
+      final Uint32List resolvedSamplePixels = compositeReady
+          ? compositePixels
+          : _fillBuildCompositePixelsFallback(controller);
+      if (resolvedSamplePixels.isEmpty) {
+        return;
+      }
+      samplePixels = resolvedSamplePixels;
     }
   }
 
-  if (shouldSwallow && regionMask != null && swallowArgb != null) {
-    _fillSwallowColorLines(controller, regionMask, swallowArgb, color);
+  final BitmapSurface surface = controller._activeSurface;
+  final String layerId = controller._activeLayer.id;
+  final int ptrAddress = surface.pointerAddress;
+  final Pointer<Void> ptr = Pointer<Void>.fromAddress(ptrAddress);
+  if (ptr == nullptr) {
+    return;
   }
-  if (hasAntialias && regionMask != null) {
-    _fillApplyAntialiasToMask(controller, regionMask, clampedAntialias);
-  }
+  final int generation = controller._paintingWorkerGeneration;
+  final int colorValue = BitmapSurface.encodeColor(color);
+  final int width = controller._width;
+  final int height = controller._height;
+  controller._enqueueWorkerPatchFuture(
+    rust_bucket_fill
+        .floodFillInPlace(
+          ptr: BigInt.from(ptr.address),
+          width: width,
+          height: height,
+          samplePixels: samplePixels,
+          startX: x,
+          startY: y,
+          colorValue: colorValue,
+          targetColorValue: null,
+          contiguous: contiguous,
+          tolerance: clampedTolerance,
+          fillGap: clampedFillGap,
+          selectionMask: selectionMask,
+          swallowColors: swallowColorsU32,
+          antialiasLevel: clampedAntialias,
+        )
+        .then<PaintingWorkerPatch?>((rect) {
+          if (generation != controller._paintingWorkerGeneration) {
+            return null;
+          }
+          if (rect.width <= 0 || rect.height <= 0) {
+            return null;
+          }
+          if (surface.isClean && (colorValue & 0xff000000) != 0) {
+            surface.markDirty();
+          }
+          controller._markDirty(
+            region: Rect.fromLTWH(
+              rect.left.toDouble(),
+              rect.top.toDouble(),
+              rect.width.toDouble(),
+              rect.height.toDouble(),
+            ),
+            layerId: layerId,
+            pixelsDirty: true,
+          );
+          return null;
+        }),
+  );
 }
 
 Future<Uint8List?> _fillComputeMagicWandMask(
@@ -220,11 +284,7 @@ Color _fillSampleColor(
     return const Color(0x00000000);
   }
   if (sampleAllLayers) {
-    return _fillColorAtComposite(
-      controller,
-      position,
-      preferRealtime: true,
-    );
+    return _fillColorAtComposite(controller, position, preferRealtime: true);
   }
   return _fillColorAtSurface(controller, controller._activeSurface, x, y);
 }
@@ -280,8 +340,34 @@ Uint8List? _fillFloodFillAcrossLayers(
   }
   final int target = compositePixels[index];
   final int replacement = BitmapSurface.encodeColor(color);
-  final Uint32List surfacePixels = controller._activeSurface.pixels;
+  final BitmapSurface surface = controller._activeSurface;
+  final Uint32List surfacePixels = surface.pixels;
   final Uint8List? selectionMask = controller._selectionMask;
+
+  if (selectionMask == null &&
+      compositePixels.length == controller._width * controller._height &&
+      _fillAllPixelsMatchColor(compositePixels, target)) {
+    surfacePixels.fillRange(0, surfacePixels.length, replacement);
+    if (surface.isClean && (replacement & 0xff000000) != 0) {
+      surface.markDirty();
+    }
+    controller._markDirty(
+      region: Rect.fromLTWH(
+        0,
+        0,
+        controller._width.toDouble(),
+        controller._height.toDouble(),
+      ),
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
+    );
+    if (!collectMask) {
+      return null;
+    }
+    final Uint8List mask = Uint8List(controller._width * controller._height);
+    mask.fillRange(0, mask.length, 1);
+    return mask;
+  }
 
   if (!contiguous) {
     final Uint8List? swallowMask = collectMask
@@ -418,7 +504,9 @@ Uint8List? _fillFloodFillAcrossLayers(
   return collectMask ? finalMask : null;
 }
 
-Uint32List _fillBuildCompositePixelsFallback(BitmapCanvasController controller) {
+Uint32List _fillBuildCompositePixelsFallback(
+  BitmapCanvasController controller,
+) {
   final int width = controller._width;
   final int height = controller._height;
   final Uint32List composite = Uint32List(width * height);
@@ -590,12 +678,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
   // into line art now that the fill no longer keeps an inner safety margin.
   Uint8List finalMask = mask;
   if (tolerance > 0 && fillGap <= 0) {
-    finalMask = _fillExpandMask(
-      mask,
-      width,
-      height,
-      radius: 1,
-    );
+    finalMask = _fillExpandMask(mask, width, height, radius: 1);
   }
 
   int minX = width;
@@ -855,10 +938,7 @@ bool _fillRunMaskedAntialiasPass(
   return maskChanged;
 }
 
-Rect? _fillMaskBounds(
-  BitmapCanvasController controller,
-  Uint8List mask,
-) {
+Rect? _fillMaskBounds(BitmapCanvasController controller, Uint8List mask) {
   if (mask.isEmpty) {
     return null;
   }
@@ -1282,7 +1362,9 @@ bool _fillFloodFillMask(
     int head = 0;
     int processed = 0;
     for (final int index in queue) {
-      if (targetMask[index] == 1 && outsideOpen[index] == 0 && mask[index] == 0) {
+      if (targetMask[index] == 1 &&
+          outsideOpen[index] == 0 &&
+          mask[index] == 0) {
         mask[index] = 1;
         processed += 1;
       }
@@ -1514,7 +1596,11 @@ int? _fillFindNearestFillableStartIndex({
         if (selectionMask != null && selectionMask[neighbor] == 0) {
           return;
         }
-        if (!_fillColorsWithinTolerance(pixels[neighbor], targetColor, tolerance)) {
+        if (!_fillColorsWithinTolerance(
+          pixels[neighbor],
+          targetColor,
+          tolerance,
+        )) {
           return;
         }
         queue.add(neighbor);

@@ -6,7 +6,7 @@ import 'dart:ui' as ui;
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/widgets.dart'
     show
         StatefulBuilder,
@@ -30,6 +30,7 @@ import '../menu/menu_app_actions.dart';
 import '../models/canvas_resize_anchor.dart';
 import '../models/canvas_view_info.dart';
 import '../models/workspace_layout.dart';
+import '../debug/rust_canvas_timeline.dart';
 import '../palette/palette_importer.dart';
 import '../preferences/app_preferences.dart';
 import '../project/project_binary_codec.dart';
@@ -134,10 +135,11 @@ class CanvasPageState extends State<CanvasPage> {
     _documentRedoStacks.remove(id);
   }
 
-  void _pushDocumentHistorySnapshot() {
+  void _pushDocumentHistorySnapshot({ProjectDocument? snapshot}) {
     final String id = _document.id;
     final List<ProjectDocument> undoStack = _undoStackFor(id);
-    undoStack.add(_document.copyWith());
+    final ProjectDocument entry = (snapshot ?? _document).copyWith();
+    undoStack.add(entry);
     _documentRedoStacks[id]?.clear();
     _trimDocumentHistoryStacks(id);
   }
@@ -326,6 +328,9 @@ class CanvasPageState extends State<CanvasPage> {
       _updateMenuOverlay();
     }
     if (!_initialBoardReadyDispatched && id == widget.document.id) {
+      RustCanvasTimeline.mark(
+        'canvasPage: board ready for active document id=$id',
+      );
       _initialBoardReadyDispatched = true;
       widget.onInitialBoardReady?.call();
     }
@@ -482,6 +487,10 @@ class CanvasPageState extends State<CanvasPage> {
   void initState() {
     super.initState();
     _document = widget.document;
+    RustCanvasTimeline.mark(
+      'canvasPage: initState '
+      'size=${_document.settings.width.round()}x${_document.settings.height.round()}',
+    );
     _workspace.open(_document, activate: true);
     _workspace.markDirty(_document.id, false);
     _ensureBoardKey(_document.id);
@@ -537,7 +546,7 @@ class CanvasPageState extends State<CanvasPage> {
     }
     setState(() => _isAutoSaving = true);
     try {
-      final layers = board.snapshotLayers();
+      final layers = await board.snapshotLayersForExport();
       final preview = await _exporter.exportToPng(
         settings: _document.settings,
         layers: layers,
@@ -654,7 +663,7 @@ class CanvasPageState extends State<CanvasPage> {
 
     setState(() => _isSaving = true);
     try {
-      final layers = board.snapshotLayers();
+      final layers = await board.snapshotLayersForExport();
       final perspective = board.snapshotPerspectiveGuide();
       final preview = await _exporter.exportToPng(
         settings: _document.settings,
@@ -721,7 +730,7 @@ class CanvasPageState extends State<CanvasPage> {
     setState(() => _isSaving = true);
     final l10n = context.l10n;
     try {
-      final layers = board.snapshotLayers();
+      final layers = await board.snapshotLayersForExport();
       final perspective = board.snapshotPerspectiveGuide();
       final Uint8List preview = await _exporter.exportToPng(
         settings: _document.settings,
@@ -862,7 +871,7 @@ class CanvasPageState extends State<CanvasPage> {
 
     try {
       setState(() => _isSaving = true);
-      final layers = board.snapshotLayers();
+      final layers = await board.snapshotLayersForExport();
       final Uint8List bytes = exportVector
           ? await _exporter.exportToSvg(
               settings: _document.settings,
@@ -909,7 +918,7 @@ class CanvasPageState extends State<CanvasPage> {
     }
   }
 
-  void _applyCanvasRotation(CanvasRotation rotation) {
+  Future<void> _applyCanvasRotation(CanvasRotation rotation) async {
     final PaintingBoardState? board = _activeBoard;
     if (board == null) {
       _showInfoBar(
@@ -918,7 +927,10 @@ class CanvasPageState extends State<CanvasPage> {
       );
       return;
     }
-    final CanvasRotationResult? result = board.rotateCanvas(rotation);
+    final ProjectDocument historySnapshot = _document.copyWith(
+      layers: await board.snapshotLayersForExport(),
+    );
+    final CanvasRotationResult? result = await board.rotateCanvas(rotation);
     if (result == null) {
       _showInfoBar(
         context.l10n.canvasSizeErrorTransform,
@@ -927,7 +939,7 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
 
-    _pushDocumentHistorySnapshot();
+    _pushDocumentHistorySnapshot(snapshot: historySnapshot);
     final CanvasSettings updatedSettings = _document.settings.copyWith(
       width: result.width.toDouble(),
       height: result.height.toDouble(),
@@ -935,6 +947,38 @@ class CanvasPageState extends State<CanvasPage> {
     final DateTime now = DateTime.now();
     final ProjectDocument updated = _document.copyWith(
       settings: updatedSettings,
+      updatedAt: now,
+      layers: result.layers,
+      previewBytes: null,
+    );
+
+    _applyDocumentState(updated);
+  }
+
+  Future<void> _applyCanvasFlip(CanvasFlip flip) async {
+    final PaintingBoardState? board = _activeBoard;
+    if (board == null) {
+      _showInfoBar(
+        context.l10n.canvasNotReadyTransform,
+        severity: InfoBarSeverity.warning,
+      );
+      return;
+    }
+    final ProjectDocument historySnapshot = _document.copyWith(
+      layers: await board.snapshotLayersForExport(),
+    );
+    final CanvasRotationResult? result = await board.flipCanvas(flip);
+    if (result == null) {
+      _showInfoBar(
+        context.l10n.canvasSizeErrorTransform,
+        severity: InfoBarSeverity.error,
+      );
+      return;
+    }
+
+    _pushDocumentHistorySnapshot(snapshot: historySnapshot);
+    final DateTime now = DateTime.now();
+    final ProjectDocument updated = _document.copyWith(
       updatedAt: now,
       layers: result.layers,
       previewBytes: null,
@@ -960,18 +1004,32 @@ class CanvasPageState extends State<CanvasPage> {
     if (config == null) {
       return;
     }
+    debugPrint(
+      'canvasPage: resizeImage request '
+      'doc=${_document.settings.width.round()}x${_document.settings.height.round()} '
+      'target=${config.width}x${config.height} sampling=${config.sampling}',
+    );
     final CanvasResizeResult? result = await board.resizeImage(
       config.width,
       config.height,
       config.sampling,
     );
     if (result == null) {
+      debugPrint('canvasPage: resizeImage result=null');
       _showInfoBar(
         context.l10n.resizeImageFailed,
         severity: InfoBarSeverity.error,
       );
       return;
     }
+    final ProjectDocument historySnapshot = _document.copyWith(
+      layers: await board.snapshotLayersForExport(),
+    );
+    _pushDocumentHistorySnapshot(snapshot: historySnapshot);
+    debugPrint(
+      'canvasPage: resizeImage result '
+      '${result.width}x${result.height} layers=${result.layers.length}',
+    );
     _applyCanvasResizeResult(result);
   }
 
@@ -1010,18 +1068,32 @@ class CanvasPageState extends State<CanvasPage> {
       return;
     }
     _lastCanvasAnchor = config.anchor;
+    debugPrint(
+      'canvasPage: resizeCanvas request '
+      'doc=${_document.settings.width.round()}x${_document.settings.height.round()} '
+      'target=${config.width}x${config.height} anchor=${config.anchor}',
+    );
     final CanvasResizeResult? result = await board.resizeCanvas(
       config.width,
       config.height,
       config.anchor,
     );
     if (result == null) {
+      debugPrint('canvasPage: resizeCanvas result=null');
       _showInfoBar(
         context.l10n.resizeCanvasFailed,
         severity: InfoBarSeverity.error,
       );
       return;
     }
+    final ProjectDocument historySnapshot = _document.copyWith(
+      layers: await board.snapshotLayersForExport(),
+    );
+    _pushDocumentHistorySnapshot(snapshot: historySnapshot);
+    debugPrint(
+      'canvasPage: resizeCanvas result '
+      '${result.width}x${result.height} layers=${result.layers.length}',
+    );
     _applyCanvasResizeResult(result);
   }
 
@@ -1297,7 +1369,10 @@ class CanvasPageState extends State<CanvasPage> {
   }
 
   void _applyCanvasResizeResult(CanvasResizeResult result) {
-    _pushDocumentHistorySnapshot();
+    debugPrint(
+      'canvasPage: applyCanvasResize '
+      '${result.width}x${result.height} layers=${result.layers.length}',
+    );
     final CanvasSettings updatedSettings = _document.settings.copyWith(
       width: result.width.toDouble(),
       height: result.height.toDouble(),
@@ -1725,6 +1800,7 @@ class CanvasPageState extends State<CanvasPage> {
     final String id = entry.id;
     return PaintingBoard(
       key: _ensureBoardKey(id),
+      surfaceKey: id,
       settings: entry.document.settings,
       onRequestExit: _handleExitRequest,
       isActive: isActive,
@@ -1877,17 +1953,23 @@ class CanvasPageState extends State<CanvasPage> {
       perspectiveMode:
           _activeBoard?.perspectiveGuideMode ?? PerspectiveGuideMode.off,
       perspectiveVisible: _activeBoard?.isPerspectiveGuideVisible ?? false,
-      rotateCanvas90Clockwise: () {
-        _applyCanvasRotation(CanvasRotation.clockwise90);
+      rotateCanvas90Clockwise: () async {
+        await _applyCanvasRotation(CanvasRotation.clockwise90);
       },
-      rotateCanvas90CounterClockwise: () {
-        _applyCanvasRotation(CanvasRotation.counterClockwise90);
+      rotateCanvas90CounterClockwise: () async {
+        await _applyCanvasRotation(CanvasRotation.counterClockwise90);
       },
-      rotateCanvas180Clockwise: () {
-        _applyCanvasRotation(CanvasRotation.clockwise180);
+      rotateCanvas180Clockwise: () async {
+        await _applyCanvasRotation(CanvasRotation.clockwise180);
       },
-      rotateCanvas180CounterClockwise: () {
-        _applyCanvasRotation(CanvasRotation.counterClockwise180);
+      rotateCanvas180CounterClockwise: () async {
+        await _applyCanvasRotation(CanvasRotation.counterClockwise180);
+      },
+      flipCanvasHorizontal: () async {
+        await _applyCanvasFlip(CanvasFlip.horizontal);
+      },
+      flipCanvasVertical: () async {
+        await _applyCanvasFlip(CanvasFlip.vertical);
       },
       export: () async {
         await _exportProject();

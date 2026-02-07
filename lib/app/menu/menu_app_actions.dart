@@ -4,9 +4,10 @@ import 'dart:typed_data';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' show StatefulElement, State, StatefulWidget;
 import 'package:path/path.dart' as p;
 
+import '../../canvas/canvas_settings.dart';
 import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
@@ -17,12 +18,22 @@ import '../project/project_repository.dart';
 import '../utils/clipboard_image_reader.dart';
 import '../view/canvas_page.dart';
 import '../widgets/app_notification.dart';
+import '../widgets/rust_canvas_surface.dart';
 
 class AppMenuActions {
   const AppMenuActions._();
 
   static Future<void> createProject(BuildContext context) async {
-    final NewProjectConfig? config = await showCanvasSettingsDialog(context);
+    final AppPreferences prefs = AppPreferences.instance;
+    final CanvasSettings initialSettings = CanvasSettings(
+      width: prefs.newCanvasWidth.toDouble(),
+      height: prefs.newCanvasHeight.toDouble(),
+      backgroundColor: prefs.newCanvasBackgroundColor,
+    );
+    final NewProjectConfig? config = await showCanvasSettingsDialog(
+      context,
+      initialSettings: initialSettings,
+    );
     if (config == null || !context.mounted) {
       return;
     }
@@ -30,6 +41,16 @@ class AppMenuActions {
       _applyWorkspacePreset(config.workspacePreset);
       ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
+      if (!kIsWeb) {
+        unawaited(
+          RustCanvasSurface.prewarm(
+            surfaceKey: document.id,
+            canvasSize: config.settings.size,
+            layerCount: document.layers.length,
+            backgroundColorArgb: config.settings.backgroundColor.value,
+          ).catchError((_) {}),
+        );
+      }
       document = _applyNewProjectPresetDefaults(document, config);
       if (!context.mounted) {
         return;
@@ -111,13 +132,6 @@ class AppMenuActions {
       }
     }
 
-    void setVectorDrawingEnabled(bool value) {
-      if (prefs.vectorDrawingEnabled != value) {
-        prefs.vectorDrawingEnabled = value;
-        changed = true;
-      }
-    }
-
     void setStrokeStabilizerStrength(double value) {
       if (prefs.strokeStabilizerStrength != value) {
         prefs.strokeStabilizerStrength = value;
@@ -125,17 +139,9 @@ class AppMenuActions {
       }
     }
 
-    void setStreamlineEnabled(bool value) {
-      if (prefs.streamlineEnabled != value) {
-        prefs.streamlineEnabled = value;
-        changed = true;
-      }
-    }
-
     switch (preset) {
       case WorkspacePreset.illustration:
         setPenAntialias(1);
-        setStreamlineEnabled(true);
         break;
       case WorkspacePreset.celShading:
         setPenAntialias(0);
@@ -147,7 +153,6 @@ class AppMenuActions {
         setBucketAntialias(0);
         setStrokeStabilizerStrength(0.0);
         setPixelGridVisible(true);
-        setVectorDrawingEnabled(false);
         break;
       default:
         break;
@@ -369,8 +374,28 @@ class AppMenuActions {
     if (kIsWeb) {
       loadingOverlay = _showWebCanvasLoadingOverlay(context);
     }
-    final CanvasPageState? canvasState = context
-        .findAncestorStateOfType<CanvasPageState>();
+    final CanvasPageState? canvasState = () {
+      final CanvasPageState? ancestor =
+          context.findAncestorStateOfType<CanvasPageState>();
+      if (ancestor != null) {
+        return ancestor;
+      }
+      if (context is StatefulElement) {
+        final State<StatefulWidget> state = context.state;
+        if (state is CanvasPageState) {
+          return state;
+        }
+      }
+      return null;
+    }();
+    try {
+      await RustCanvasSurface.prewarm(
+        surfaceKey: document.id,
+        canvasSize: document.settings.size,
+        layerCount: document.layers.length,
+        backgroundColorArgb: document.settings.backgroundColor.value,
+      );
+    } catch (_) {}
     try {
       if (canvasState != null) {
         await canvasState.openDocument(document);

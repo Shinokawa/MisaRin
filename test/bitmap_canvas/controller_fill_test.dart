@@ -10,17 +10,22 @@ import 'package:misa_rin/canvas/canvas_settings.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('bucket fill uses composite colors for contiguous cross-layer fills', () {
+  test('bucket fill uses composite colors for contiguous cross-layer fills', () async {
     final BitmapCanvasController controller = BitmapCanvasController(
       width: 3,
       height: 1,
       backgroundColor: Colors.white,
+      creationLogic: CanvasCreationLogic.singleThread,
     );
     final BitmapLayerState backgroundLayer = controller.layers.first;
     final Uint32List pixels = backgroundLayer.surface.pixels;
     pixels[0] = BitmapSurface.encodeColor(const Color(0xFFFF0000));
     pixels[1] = BitmapSurface.encodeColor(const Color(0xFF0000FF));
     pixels[2] = BitmapSurface.encodeColor(const Color(0xFFFF0000));
+    controller.markLayerRegionDirty(
+      backgroundLayer.id,
+      const Rect.fromLTWH(0, 0, 3, 1),
+    );
 
     controller.floodFill(
       const Offset(0, 0),
@@ -28,6 +33,7 @@ void main() {
       contiguous: true,
       sampleAllLayers: true,
     );
+    await controller.waitForPendingWorkerTasks();
 
     final BitmapLayerState activeLayer = controller.layers.last;
     expect(activeLayer.surface.pixelAt(0, 0), const Color(0xFF00FF00));

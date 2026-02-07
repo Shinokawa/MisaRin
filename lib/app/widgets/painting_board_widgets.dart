@@ -2,6 +2,194 @@ part of 'painting_board.dart';
 
 const Color _kVectorEraserPreviewColor = _kSelectionPreviewFillColor;
 
+void _paintStrokeOverlay({
+  required Canvas canvas,
+  required List<Offset> points,
+  required List<double> radii,
+  required Color color,
+  required BrushShape shape,
+  required int antialiasLevel,
+  bool hollow = false,
+  double hollowRatio = 0.0,
+}) {
+  if (points.isEmpty) {
+    return;
+  }
+  final int clampedAntialias = antialiasLevel.clamp(0, 9);
+  final Paint paint = Paint()
+    ..color = color
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = clampedAntialias > 0;
+
+  final bool useHollow = hollow && hollowRatio > 0.0001;
+  final Paint? clearPaint = useHollow
+      ? (Paint()
+        ..blendMode = BlendMode.clear
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = clampedAntialias > 0)
+      : null;
+
+  switch (shape) {
+    case BrushShape.circle:
+      _paintCircleStrokeOverlay(canvas, points, radii, paint, radiusScale: 1.0);
+      if (clearPaint != null) {
+        _paintCircleStrokeOverlay(
+          canvas,
+          points,
+          radii,
+          clearPaint,
+          radiusScale: hollowRatio.clamp(0.0, 1.0),
+        );
+      }
+      return;
+    case BrushShape.square:
+      _paintSquareStrokeOverlay(canvas, points, radii, paint, radiusScale: 1.0);
+      if (clearPaint != null) {
+        _paintSquareStrokeOverlay(
+          canvas,
+          points,
+          radii,
+          clearPaint,
+          radiusScale: hollowRatio.clamp(0.0, 1.0),
+        );
+      }
+      return;
+    case BrushShape.triangle:
+    case BrushShape.star:
+      // GPU 笔刷目前仅保证圆/方形；预览这里用圆形回退，避免 UI 报错。
+      _paintCircleStrokeOverlay(canvas, points, radii, paint, radiusScale: 1.0);
+      if (clearPaint != null) {
+        _paintCircleStrokeOverlay(
+          canvas,
+          points,
+          radii,
+          clearPaint,
+          radiusScale: hollowRatio.clamp(0.0, 1.0),
+        );
+      }
+      return;
+  }
+}
+
+void _paintCircleStrokeOverlay(
+  Canvas canvas,
+  List<Offset> points,
+  List<double> radii,
+  Paint paint, {
+  double radiusScale = 1.0,
+}) {
+  for (int i = 0; i < points.length; i++) {
+    final Offset p = points[i];
+    final double r =
+        (i < radii.length) ? radii[i] : (radii.isNotEmpty ? radii.last : 1.0);
+    canvas.drawCircle(p, r * radiusScale, paint);
+  }
+
+  for (int i = 0; i < points.length - 1; i++) {
+    final Offset p1 = points[i];
+    final Offset p2 = points[i + 1];
+    final double rawR1 =
+        (i < radii.length) ? radii[i] : (radii.isNotEmpty ? radii.last : 1.0);
+    final double rawR2 = (i + 1 < radii.length) ? radii[i + 1] : rawR1;
+    final double r1 = rawR1 * radiusScale;
+    final double r2 = rawR2 * radiusScale;
+
+    final double dist = (p2 - p1).distance;
+    if (dist < 0.5 || dist <= (r1 - r2).abs()) {
+      continue;
+    }
+
+    final Offset direction = (p2 - p1) / dist;
+    final double angle = direction.direction;
+
+    final double sinAlpha = (r1 - r2) / dist;
+    final double alpha = math.asin(sinAlpha.clamp(-1.0, 1.0));
+
+    final double angle1 = angle + math.pi / 2 + alpha;
+    final double angle2 = angle - math.pi / 2 - alpha;
+
+    final Offset startL =
+        p1 + Offset(math.cos(angle1), math.sin(angle1)) * r1;
+    final Offset startR =
+        p1 + Offset(math.cos(angle2), math.sin(angle2)) * r1;
+    final Offset endL = p2 + Offset(math.cos(angle1), math.sin(angle1)) * r2;
+    final Offset endR = p2 + Offset(math.cos(angle2), math.sin(angle2)) * r2;
+
+    final Path segment = Path()
+      ..moveTo(startL.dx, startL.dy)
+      ..lineTo(endL.dx, endL.dy)
+      ..lineTo(endR.dx, endR.dy)
+      ..lineTo(startR.dx, startR.dy)
+      ..close();
+
+    canvas.drawPath(segment, paint);
+  }
+}
+
+void _paintSquareStrokeOverlay(
+  Canvas canvas,
+  List<Offset> points,
+  List<double> radii,
+  Paint paint, {
+  double radiusScale = 1.0,
+}) {
+  if (points.isEmpty) {
+    return;
+  }
+
+  void drawSquareAt(Offset center, double radius) {
+    final double clamped = math.max(radius.abs(), 0.0);
+    final double halfSide = clamped <= 0 ? 0.0 : clamped / math.sqrt2;
+    final Rect rect = Rect.fromCenter(
+      center: center,
+      width: halfSide * 2,
+      height: halfSide * 2,
+    );
+    canvas.drawRect(rect, paint);
+  }
+
+  double radiusAt(int index) {
+    if (radii.isEmpty) {
+      return 1.0;
+    }
+    if (index < 0) {
+      return radii.first;
+    }
+    if (index >= radii.length) {
+      return radii.last;
+    }
+    final double value = radii[index];
+    if (value.isFinite && value >= 0) {
+      return value;
+    }
+    return radii.last >= 0 ? radii.last : 1.0;
+  }
+
+  drawSquareAt(points.first, radiusAt(0) * radiusScale);
+
+  for (int i = 0; i < points.length - 1; i++) {
+    final Offset p1 = points[i];
+    final Offset p2 = points[i + 1];
+    final double r1 = radiusAt(i) * radiusScale;
+    final double r2 = radiusAt(i + 1) * radiusScale;
+
+    final double dist = (p2 - p1).distance;
+    if (dist <= 0.1) {
+      continue;
+    }
+
+    final double maxRadius = math.max(r1, r2);
+    final double stepSize = math.max(0.5, maxRadius * 0.25);
+    final int steps = (dist / stepSize).ceil();
+    for (int s = 1; s <= steps; s++) {
+      final double t = s / steps;
+      final Offset pos = Offset.lerp(p1, p2, t)!;
+      final double r = (ui.lerpDouble(r1, r2, t) ?? r2);
+      drawSquareAt(pos, r);
+    }
+  }
+}
+
 class UndoIntent extends Intent {
   const UndoIntent();
 }
@@ -94,6 +282,10 @@ class CopyIntent extends Intent {
 
 class PasteIntent extends Intent {
   const PasteIntent();
+}
+
+class DeleteSelectionIntent extends Intent {
+  const DeleteSelectionIntent();
 }
 
 class ImportReferenceImageIntent extends Intent {
@@ -250,65 +442,6 @@ class _PixelGridPainter extends CustomPainter {
   }
 }
 
-class _PreviewPathPainter extends CustomPainter {
-  const _PreviewPathPainter({
-    required this.path,
-    required this.color,
-    required this.strokeWidth,
-    this.fill = false,
-  });
-
-  final Path path;
-  final Color color;
-  final double strokeWidth;
-  final bool fill;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (fill) {
-      final Paint fillPaint = Paint()
-        ..color = color
-        ..style = PaintingStyle.fill;
-      canvas.drawPath(path, fillPaint);
-    }
-    final Paint paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth.clamp(kPenStrokeMin, kPenStrokeMax)
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_PreviewPathPainter oldDelegate) {
-    return oldDelegate.path != path ||
-        oldDelegate.color != color ||
-        oldDelegate.strokeWidth != strokeWidth ||
-        oldDelegate.fill != fill;
-  }
-}
-
-class _ShapeFillOverlayPainter extends CustomPainter {
-  const _ShapeFillOverlayPainter({required this.path, required this.color});
-
-  final Path path;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint fillPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(path, fillPaint);
-  }
-
-  @override
-  bool shouldRepaint(_ShapeFillOverlayPainter oldDelegate) {
-    return oldDelegate.path != path || oldDelegate.color != color;
-  }
-}
-
 class _ActiveStrokeOverlayPainter extends CustomPainter {
   const _ActiveStrokeOverlayPainter({
     required this.points,
@@ -347,7 +480,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
           ? eraserPreviewColor
           : Color(command.color);
       final bool commandHollow = (command.hollow ?? false) && !command.erase;
-      VectorStrokePainter.paint(
+      _paintStrokeOverlay(
         canvas: canvas,
         points: command.points!,
         radii: command.radii!,
@@ -356,8 +489,6 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         antialiasLevel: command.antialiasLevel,
         hollow: commandHollow,
         hollowRatio: command.hollowRatio ?? 0.0,
-        randomRotation: command.randomRotation ?? false,
-        rotationSeed: command.rotationSeed ?? 0,
       );
     }
 
@@ -367,7 +498,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
           ? eraserPreviewColor
           : color;
       final bool activeHollow = hollowStrokeEnabled && !activeStrokeIsEraser;
-      VectorStrokePainter.paint(
+      _paintStrokeOverlay(
         canvas: canvas,
         points: points,
         radii: radii,
@@ -376,8 +507,6 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         antialiasLevel: antialiasLevel,
         hollow: activeHollow,
         hollowRatio: hollowStrokeRatio,
-        randomRotation: randomRotationEnabled,
-        rotationSeed: rotationSeed,
       );
     }
   }
@@ -399,122 +528,54 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   }
 }
 
-class _StreamlinePostStroke {
-  const _StreamlinePostStroke({
-    required this.fromPoints,
-    required this.fromRadii,
-    required this.toPoints,
-    required this.toRadii,
-    required this.color,
-    required this.shape,
-    required this.erase,
-    required this.antialiasLevel,
-    required this.hollowStrokeEnabled,
-    required this.hollowStrokeRatio,
-    required this.eraseOccludedParts,
-    required this.randomRotationEnabled,
-    required this.rotationSeed,
+class _PathPreviewPainter extends CustomPainter {
+  const _PathPreviewPainter({
+    required this.path,
+    required this.strokeColor,
+    required this.strokeWidth,
+    this.fillColor,
+    this.fill = false,
+    this.antialiasLevel = 1,
   });
 
-  final List<Offset> fromPoints;
-  final List<double> fromRadii;
-  final List<Offset> toPoints;
-  final List<double> toRadii;
-  final Color color;
-  final BrushShape shape;
-  final bool erase;
+  final Path path;
+  final Color strokeColor;
+  final double strokeWidth;
+  final Color? fillColor;
+  final bool fill;
   final int antialiasLevel;
-  final bool hollowStrokeEnabled;
-  final double hollowStrokeRatio;
-  final bool eraseOccludedParts;
-  final bool randomRotationEnabled;
-  final int rotationSeed;
-}
-
-class _StreamlinePostStrokeOverlayPainter extends CustomPainter {
-  _StreamlinePostStrokeOverlayPainter({
-    required this.stroke,
-    required this.progress,
-    this.curve = Curves.easeOutBack,
-    this.eraserPreviewColor = _kVectorEraserPreviewColor,
-  }) : super(repaint: progress);
-
-  final _StreamlinePostStroke stroke;
-  final AnimationController progress;
-  final Curve curve;
-  final Color eraserPreviewColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final List<Offset> from = stroke.fromPoints;
-    final List<Offset> to = stroke.toPoints;
-    if (from.isEmpty || to.isEmpty) {
-      return;
+    final bool aa = antialiasLevel > 0;
+    if (fill && fillColor != null) {
+      final Paint fillPaint = Paint()
+        ..color = fillColor!
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = aa;
+      canvas.drawPath(path, fillPaint);
     }
-
-    final int count = math.min(from.length, to.length);
-    if (count == 0) {
-      return;
-    }
-
-    final double t = curve.transform(progress.value);
-    final List<Offset> points = List<Offset>.filled(
-      count,
-      Offset.zero,
-      growable: false,
-    );
-    for (int i = 0; i < count; i++) {
-      final Offset p0 = from[i];
-      final Offset p1 = to[i];
-      points[i] = p0 + (p1 - p0) * t;
-    }
-
-    double radiusAt(List<double> radii, int index) {
-      if (radii.isEmpty) {
-        return 1.0;
-      }
-      if (index < 0) {
-        return radii.first;
-      }
-      if (index >= radii.length) {
-        return radii.last;
-      }
-      final double value = radii[index];
-      if (value.isFinite && value >= 0) {
-        return value;
-      }
-      return radii.last >= 0 ? radii.last : 1.0;
-    }
-
-    final List<double> radii = List<double>.filled(count, 1.0, growable: false);
-    for (int i = 0; i < count; i++) {
-      final double r0 = radiusAt(stroke.fromRadii, i);
-      final double r1 = radiusAt(stroke.toRadii, i);
-      radii[i] = (ui.lerpDouble(r0, r1, t) ?? r1).clamp(0.0, double.infinity);
-    }
-
-    final Color color = stroke.erase ? eraserPreviewColor : stroke.color;
-    final bool hollow = stroke.hollowStrokeEnabled && !stroke.erase;
-    VectorStrokePainter.paint(
-      canvas: canvas,
-      points: points,
-      radii: radii,
-      color: color,
-      shape: stroke.shape,
-      antialiasLevel: stroke.antialiasLevel,
-      hollow: hollow,
-      hollowRatio: stroke.hollowStrokeRatio,
-      randomRotation: stroke.randomRotationEnabled,
-      rotationSeed: stroke.rotationSeed,
-    );
+    final double width = strokeWidth.isFinite
+        ? strokeWidth.clamp(0.1, 4096.0)
+        : 1.0;
+    final Paint strokePaint = Paint()
+      ..color = strokeColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = aa;
+    canvas.drawPath(path, strokePaint);
   }
 
   @override
-  bool shouldRepaint(_StreamlinePostStrokeOverlayPainter oldDelegate) {
-    return oldDelegate.stroke != stroke ||
-        oldDelegate.progress != progress ||
-        oldDelegate.curve != curve ||
-        oldDelegate.eraserPreviewColor != eraserPreviewColor;
+  bool shouldRepaint(_PathPreviewPainter oldDelegate) {
+    return oldDelegate.path != path ||
+        oldDelegate.strokeColor != strokeColor ||
+        (oldDelegate.strokeWidth - strokeWidth).abs() > 1e-6 ||
+        oldDelegate.fillColor != fillColor ||
+        oldDelegate.fill != fill ||
+        oldDelegate.antialiasLevel != antialiasLevel;
   }
 }
 

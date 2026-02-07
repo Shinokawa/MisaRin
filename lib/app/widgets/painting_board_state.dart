@@ -17,13 +17,21 @@ class PaintingBoardState extends _PaintingBoardBase
         _PaintingBoardInteractionMixin,
         _PaintingBoardFilterMixin,
         _PaintingBoardBuildMixin {
+  bool _perfStressRunning = false;
+  bool _perfStressCancelRequested = false;
+  bool _perfStressTimingsAttached = false;
+  Ticker? _perfStressTicker;
+  final ListQueue<int> _perfStressPendingBatchMicros = ListQueue<int>();
+  final List<double> _perfStressLatencySamplesMs = <double>[];
+  final List<double> _perfStressUiBuildSamplesMs = <double>[];
+  int? _perfStressLastFrameGeneration;
+
   @override
   void initState() {
     super.initState();
     _viewInfoNotifier = ValueNotifier<CanvasViewInfo>(_buildViewInfo());
     initializeTextTool();
     initializeSelectionTicker(this);
-    initializeStreamlinePostProcessor(this);
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
     _pixelGridVisible = prefs.pixelGridVisible;
@@ -48,22 +56,23 @@ class PaintingBoardState extends _PaintingBoardBase
     );
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
-    _streamlineEnabled = prefs.streamlineEnabled;
     _streamlineStrength = prefs.streamlineStrength;
     _simulatePenPressure = prefs.simulatePenPressure;
     _penPressureProfile = prefs.penPressureProfile;
-    _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 3);
-    _bucketAntialiasLevel = prefs.bucketAntialiasLevel.clamp(0, 3);
+    _penAntialiasLevel = prefs.penAntialiasLevel.clamp(0, 9);
+    _bucketAntialiasLevel = prefs.bucketAntialiasLevel.clamp(0, 9);
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
-    _vectorDrawingEnabled = prefs.vectorDrawingEnabled;
+    _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
     _brushShape = prefs.brushShape;
     _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
     _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
     _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
     _hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
     _hollowStrokeEraseOccludedParts = prefs.hollowStrokeEraseOccludedParts;
+    _brushLibrary = BrushLibrary.instance;
+    _brushLibrary!.addListener(_handleBrushLibraryChanged);
     _colorLineColor = prefs.colorLineColor;
     _primaryColor = prefs.primaryColor;
     _primaryHsv = HSVColor.fromColor(_primaryColor);
@@ -75,15 +84,19 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(_primaryColor);
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
+    const bool enableRasterOutput = false;
     _controller = BitmapCanvasController(
       width: widget.settings.width.round(),
       height: widget.settings.height.round(),
       backgroundColor: widget.settings.backgroundColor,
       initialLayers: layers,
       creationLogic: widget.settings.creationLogic,
+      enableRasterOutput: enableRasterOutput,
     );
-    _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
+    if (_brushLibrary != null) {
+      _applyBrushPreset(_brushLibrary!.selectedPreset, notify: false);
+    }
     _applyStylusSettingsToController();
     _controller.addListener(_handleControllerChanged);
     _boardReadyNotified = _controller.frame != null;
@@ -93,10 +106,28 @@ class PaintingBoardState extends _PaintingBoardBase
     _resetHistory();
     _syncRasterizeMenuAvailability();
     _notifyViewInfoChanged();
+    RustCanvasTimeline.mark(
+      'paintingBoard: initState '
+      'size=${widget.settings.width.round()}x${widget.settings.height.round()}',
+    );
   }
 
   @override
   void dispose() {
+    _perfStressCancelRequested = true;
+    final Ticker? ticker = _perfStressTicker;
+    if (ticker != null) {
+      ticker.stop();
+      ticker.dispose();
+      _perfStressTicker = null;
+    }
+    if (_perfStressTimingsAttached) {
+      SchedulerBinding.instance.removeTimingsCallback(_perfStressOnTimings);
+      _perfStressTimingsAttached = false;
+    }
+    _perfStressPendingBatchMicros.clear();
+    _perfStressLatencySamplesMs.clear();
+    _perfStressUiBuildSamplesMs.clear();
     disposeTextTool();
     _removeFilterOverlay(restoreOriginal: false);
     _disposeReferenceCards();
@@ -120,7 +151,241 @@ class PaintingBoardState extends _PaintingBoardBase
     AppPreferences.pixelGridVisibleNotifier.removeListener(
       _handlePixelGridPreferenceChanged,
     );
+    _brushLibrary?.removeListener(_handleBrushLibraryChanged);
+    _curvePreviewRasterImage?.dispose();
+    _curvePreviewRasterImage = null;
+    _shapePreviewRasterImage?.dispose();
+    _shapePreviewRasterImage = null;
+    _restoreRustLayerAfterVectorPreview();
+    _rustLayerSnapshots.clear();
+    _rustLayerSnapshotHandle = null;
     super.dispose();
+  }
+
+  void _perfStressOnTimings(List<ui.FrameTiming> timings) {
+    if (!_perfStressRunning) {
+      return;
+    }
+    for (final ui.FrameTiming timing in timings) {
+      final double buildMs = timing.buildDuration.inMicroseconds / 1000.0;
+      if (!buildMs.isFinite || buildMs < 0) {
+        continue;
+      }
+      _perfStressUiBuildSamplesMs.add(buildMs);
+    }
+  }
+
+  void _perfStressMaybeRecordFrame(BitmapCanvasFrame? frame) {
+    if (!_perfStressRunning) {
+      return;
+    }
+    if (frame == null) {
+      return;
+    }
+    final int generation = frame.generation;
+    final int? lastGeneration = _perfStressLastFrameGeneration;
+    if (lastGeneration != null && lastGeneration == generation) {
+      return;
+    }
+    _perfStressLastFrameGeneration = generation;
+    if (_perfStressPendingBatchMicros.isEmpty) {
+      return;
+    }
+    final int startMicros = _perfStressPendingBatchMicros.removeFirst();
+    final int nowMicros = DateTime.now().microsecondsSinceEpoch;
+    final double elapsedMs = (nowMicros - startMicros) / 1000.0;
+    if (elapsedMs.isNaN || elapsedMs.isInfinite || elapsedMs < 0) {
+      return;
+    }
+    _perfStressLatencySamplesMs.add(elapsedMs);
+  }
+
+  Future<CanvasPerfStressReport> runCanvasPerfStressTest({
+    Duration duration = const Duration(seconds: 10),
+    int targetPointsPerSecond = 1000,
+  }) async {
+    if (_perfStressRunning) {
+      throw StateError('Perf stress test already running.');
+    }
+    if (!isBoardReady) {
+      throw StateError('Board not ready.');
+    }
+
+    _perfStressCancelRequested = false;
+    _perfStressRunning = true;
+    _perfStressPendingBatchMicros.clear();
+    _perfStressLatencySamplesMs.clear();
+    _perfStressUiBuildSamplesMs.clear();
+    _perfStressLastFrameGeneration = _controller.frame?.generation;
+
+    if (!_perfStressTimingsAttached) {
+      SchedulerBinding.instance.addTimingsCallback(_perfStressOnTimings);
+      _perfStressTimingsAttached = true;
+    }
+
+    final int width = widget.settings.width.round();
+    final int height = widget.settings.height.round();
+    final int layerCount = _layers.length;
+
+    final List<String> editableLayers = <String>[
+      for (int i = _layers.length - 1; i >= 0; i--)
+        if (!_layers[i].locked) _layers[i].id,
+    ];
+    if (editableLayers.isEmpty) {
+      throw StateError('No editable layers for perf stress test.');
+    }
+
+    final double w = width.toDouble();
+    final double h = height.toDouble();
+    const double margin = 8.0;
+    final double cx = w / 2.0;
+    final double cy = h / 2.0;
+    final double ampX = math.max(1.0, cx - margin);
+    final double ampY = math.max(1.0, cy - margin);
+
+    final Stopwatch stopwatch = Stopwatch()..start();
+    Duration actualDuration = Duration.zero;
+    final Completer<void> done = Completer<void>();
+    int pointsGenerated = 0;
+    Duration lastElapsed = Duration.zero;
+    final double startTimestampMs =
+        DateTime.now().microsecondsSinceEpoch / 1000.0;
+
+    void stopTicker() {
+      final Ticker? ticker = _perfStressTicker;
+      if (ticker == null) {
+        return;
+      }
+      ticker.stop();
+      ticker.dispose();
+      _perfStressTicker = null;
+    }
+
+    try {
+      _controller.setActiveLayer(editableLayers.first);
+      _controller.beginStroke(
+        Offset(cx, cy),
+        color: const Color(0xFF000000),
+        radius: 3.0,
+        simulatePressure: false,
+        useDevicePressure: false,
+        profile: StrokePressureProfile.auto,
+        timestampMillis: startTimestampMs,
+        antialiasLevel: 0,
+        brushShape: BrushShape.circle,
+        randomRotation: false,
+        erase: false,
+      );
+
+      double backlog = 0.0;
+      const int maxPointsPerFrame = 96;
+
+      _perfStressTicker = createTicker((elapsed) {
+        if (_perfStressCancelRequested) {
+          if (!done.isCompleted) {
+            done.complete();
+          }
+          return;
+        }
+        if (elapsed >= duration) {
+          if (!done.isCompleted) {
+            done.complete();
+          }
+          return;
+        }
+
+        final Duration delta = elapsed - lastElapsed;
+        lastElapsed = elapsed;
+        final double dtSeconds = delta.inMicroseconds / 1e6;
+        if (!dtSeconds.isFinite || dtSeconds <= 0) {
+          return;
+        }
+
+        backlog += dtSeconds * targetPointsPerSecond;
+        int pointsThisFrame = backlog.floor();
+        backlog -= pointsThisFrame;
+        if (pointsThisFrame <= 0) {
+          return;
+        }
+        if (pointsThisFrame > maxPointsPerFrame) {
+          pointsThisFrame = maxPointsPerFrame;
+          backlog = 0.0;
+        }
+
+        final int layerIndex = (elapsed.inMilliseconds ~/ 750) % editableLayers.length;
+        final String targetLayerId = editableLayers[layerIndex];
+        if (_controller.activeLayerId != targetLayerId) {
+          _controller.setActiveLayer(targetLayerId);
+        }
+
+        final int batchStartMicros = DateTime.now().microsecondsSinceEpoch;
+        _perfStressPendingBatchMicros.add(batchStartMicros);
+
+        final double elapsedSeconds = elapsed.inMicroseconds / 1e6;
+        final double perPointDt = dtSeconds / pointsThisFrame;
+        for (int i = 0; i < pointsThisFrame; i++) {
+          final double t = elapsedSeconds + (i * perPointDt);
+          double x = cx +
+              ampX * math.sin(t * math.pi * 2.0 * 0.97) +
+              ampX * 0.08 * math.sin(t * math.pi * 2.0 * 7.3);
+          double y = cy +
+              ampY * math.sin(t * math.pi * 2.0 * 1.31 + 1.0) +
+              ampY * 0.08 * math.sin(t * math.pi * 2.0 * 6.1);
+          x = x.clamp(0.0, w);
+          y = y.clamp(0.0, h);
+          final double timestampMs =
+              startTimestampMs + (elapsed.inMicroseconds / 1000.0);
+          _controller.extendStroke(
+            Offset(x, y),
+            deltaTimeMillis: perPointDt * 1000.0,
+            timestampMillis: timestampMs,
+          );
+          pointsGenerated++;
+        }
+      });
+      _perfStressTicker!.start();
+      await done.future;
+      stopwatch.stop();
+      actualDuration = stopwatch.elapsed;
+    } finally {
+      if (stopwatch.isRunning) {
+        stopwatch.stop();
+        actualDuration = stopwatch.elapsed;
+      }
+      stopTicker();
+      try {
+        _controller.endStroke();
+      } catch (_) {}
+
+      if (_perfStressTimingsAttached) {
+        SchedulerBinding.instance.removeTimingsCallback(_perfStressOnTimings);
+        _perfStressTimingsAttached = false;
+      }
+      _perfStressRunning = false;
+    }
+
+    final double seconds = actualDuration.inMicroseconds / 1e6;
+    final double pps = seconds <= 0 ? 0 : pointsGenerated / seconds;
+
+    final double latencyP50 = percentileMs(_perfStressLatencySamplesMs, 0.50);
+    final double latencyP95 = percentileMs(_perfStressLatencySamplesMs, 0.95);
+    final double uiBuildP95 = percentileMs(_perfStressUiBuildSamplesMs, 0.95);
+
+    final CanvasPerfStressReport report = CanvasPerfStressReport(
+      canvasWidth: width,
+      canvasHeight: height,
+      layerCount: layerCount,
+      duration: actualDuration,
+      pointsGenerated: pointsGenerated,
+      pointsPerSecond: pps,
+      presentLatencySampleCount: _perfStressLatencySamplesMs.length,
+      presentLatencyP50Ms: latencyP50,
+      presentLatencyP95Ms: latencyP95,
+      uiBuildSampleCount: _perfStressUiBuildSamplesMs.length,
+      uiBuildP95Ms: uiBuildP95,
+    );
+    debugPrint(report.toLogString());
+    return report;
   }
 
   void addLayerAboveActiveLayer() {
@@ -136,6 +401,14 @@ class PaintingBoardState extends _PaintingBoardBase
       return false;
     }
     try {
+      final bool rustSynced = _canUseRustCanvasEngine();
+      if (rustSynced) {
+        await _controller.waitForPendingWorkerTasks();
+        if (!_syncAllLayerPixelsFromRust()) {
+          _showRustCanvasMessage('Rust 画布同步图层失败。');
+          return false;
+        }
+      }
       final _ImportedImageData decoded = await _decodeExternalImage(bytes);
       final int canvasWidth = widget.settings.width.round();
       final int canvasHeight = widget.settings.height.round();
@@ -152,9 +425,15 @@ class PaintingBoardState extends _PaintingBoardBase
         bitmapTop: offsetY,
         cloneBitmap: false,
       );
-      await _pushUndoSnapshot();
+      await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
       _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
       _controller.setActiveLayer(layerData.id);
+      if (_canUseRustCanvasEngine()) {
+        _syncRustCanvasLayersToEngine();
+        if (!_syncAllLayerPixelsToRust()) {
+          _showRustCanvasMessage('Rust 画布写入图层失败。');
+        }
+      }
       setState(() {});
       _markDirty();
       return true;
@@ -402,16 +681,31 @@ class PaintingBoardState extends _PaintingBoardBase
     int width,
     int height,
     ImageResizeSampling sampling,
-  ) {
+  ) async {
     if (width <= 0 || height <= 0) {
-      return Future.value(null);
+      debugPrint('resizeImage: invalid target=${width}x$height');
+      return null;
     }
     _controller.commitActiveLayerTranslation();
+    if (_canUseRustCanvasEngine()) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        debugPrint('resizeImage: rust sync failed');
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return null;
+      }
+    }
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
     if (sourceWidth <= 0 || sourceHeight <= 0) {
-      return Future.value(null);
+      debugPrint('resizeImage: invalid source=${sourceWidth}x$sourceHeight');
+      return null;
     }
+    debugPrint(
+      'resizeImage: source=${sourceWidth}x$sourceHeight '
+      'target=${width}x$height sampling=$sampling '
+      'rust=${_canUseRustCanvasEngine()}',
+    );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
       for (final CanvasLayerData layer in layers)
@@ -424,8 +718,10 @@ class PaintingBoardState extends _PaintingBoardBase
           sampling,
         ),
     ];
-    return Future.value(
-      CanvasResizeResult(layers: resizedLayers, width: width, height: height),
+    return CanvasResizeResult(
+      layers: resizedLayers,
+      width: width,
+      height: height,
     );
   }
 
@@ -433,16 +729,31 @@ class PaintingBoardState extends _PaintingBoardBase
     int width,
     int height,
     CanvasResizeAnchor anchor,
-  ) {
+  ) async {
     if (width <= 0 || height <= 0) {
-      return Future.value(null);
+      debugPrint('resizeCanvas: invalid target=${width}x$height');
+      return null;
     }
     _controller.commitActiveLayerTranslation();
+    if (_canUseRustCanvasEngine()) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        debugPrint('resizeCanvas: rust sync failed');
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return null;
+      }
+    }
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
     if (sourceWidth <= 0 || sourceHeight <= 0) {
-      return Future.value(null);
+      debugPrint('resizeCanvas: invalid source=${sourceWidth}x$sourceHeight');
+      return null;
     }
+    debugPrint(
+      'resizeCanvas: source=${sourceWidth}x$sourceHeight '
+      'target=${width}x$height anchor=$anchor '
+      'rust=${_canUseRustCanvasEngine()}',
+    );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
       for (final CanvasLayerData layer in layers)
@@ -455,30 +766,47 @@ class PaintingBoardState extends _PaintingBoardBase
           anchor,
         ),
     ];
-    return Future.value(
-      CanvasResizeResult(layers: resizedLayers, width: width, height: height),
+    return CanvasResizeResult(
+      layers: resizedLayers,
+      width: width,
+      height: height,
     );
   }
 
   @override
   void didUpdateWidget(covariant PaintingBoard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive && !widget.isActive) {
+      unawaited(_captureRustLayerSnapshotIfNeeded());
+    } else if (!oldWidget.isActive && widget.isActive) {
+      _restoreRustLayerSnapshotIfNeeded();
+    }
     final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
     final bool backgroundChanged =
         widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
     final bool logicChanged =
         widget.settings.creationLogic != oldWidget.settings.creationLogic;
-    if (sizeChanged || backgroundChanged || logicChanged) {
+    final bool layersChanged =
+        !identical(widget.initialLayers, oldWidget.initialLayers);
+    if (sizeChanged || backgroundChanged || logicChanged || layersChanged) {
+      if (sizeChanged) {
+        debugPrint(
+          'paintingBoard: size changed '
+          'old=${oldWidget.settings.width}x${oldWidget.settings.height} '
+          'new=${widget.settings.width}x${widget.settings.height}',
+        );
+      }
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
+      const bool enableRasterOutput = false;
       _controller = BitmapCanvasController(
         width: widget.settings.width.round(),
         height: widget.settings.height.round(),
         backgroundColor: widget.settings.backgroundColor,
         initialLayers: _buildInitialLayers(),
         creationLogic: widget.settings.creationLogic,
+        enableRasterOutput: enableRasterOutput,
       );
-      _controller.setVectorDrawingEnabled(_vectorDrawingEnabled);
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
       _boardReadyNotified = _controller.frame != null;
@@ -486,6 +814,13 @@ class PaintingBoardState extends _PaintingBoardBase
         widget.onReadyChanged?.call(true);
       }
       _resetHistory();
+      _rustLayerSnapshots.clear();
+      _rustLayerSnapshotDirty = false;
+      _rustLayerSnapshotPendingRestore = false;
+      _rustLayerSnapshotInFlight = false;
+      _rustLayerSnapshotWidth = 0;
+      _rustLayerSnapshotHeight = 0;
+      _rustLayerSnapshotHandle = null;
       setState(() {
         if (sizeChanged) {
           _viewport.reset();
@@ -495,11 +830,13 @@ class PaintingBoardState extends _PaintingBoardBase
         }
       });
       _notifyViewInfoChanged();
+      _syncRustCanvasLayersToEngine();
     }
   }
 
   void _handleControllerChanged() {
     final BitmapCanvasFrame? frame = _controller.frame;
+    _perfStressMaybeRecordFrame(frame);
     final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
     if (awaitedGeneration != null &&
         frame != null &&
@@ -511,36 +848,34 @@ class PaintingBoardState extends _PaintingBoardBase
       }
     }
     _handleFilterApplyFrameProgress(frame);
-    final bool shouldClearVectorFillOverlay =
-        _shapeVectorFillOverlayPath != null &&
-        _controller.committingStrokes.isEmpty;
     if (_maybeInitializeLayerTransformStateFromController()) {
-      if (shouldClearVectorFillOverlay) {
-        setState(() {
-          _shapeVectorFillOverlayPath = null;
-          _shapeVectorFillOverlayColor = null;
-        });
-      }
       _scheduleReferenceModelTextureRefresh();
+      _syncRustCanvasLayersToEngine();
       return;
     }
-    setState(() {
-      if (shouldClearVectorFillOverlay) {
-        _shapeVectorFillOverlayPath = null;
-        _shapeVectorFillOverlayColor = null;
-      }
-    });
     _syncRasterizeMenuAvailability();
     _notifyBoardReadyIfNeeded();
     _scheduleReferenceModelTextureRefresh();
+    _syncRustCanvasLayersToEngine();
   }
 
+  @override
   void _notifyBoardReadyIfNeeded() {
     if (_boardReadyNotified) {
       return;
     }
-    if (_controller.frame == null) {
-      return;
+    final BitmapCanvasFrame? frame = _controller.frame;
+    if (frame == null) {
+      if (_rustCanvasEngineHandle == null) {
+        return;
+      }
+      RustCanvasTimeline.mark(
+        'paintingBoard: board ready rustEngine=${_rustCanvasEngineHandle}',
+      );
+    } else {
+      RustCanvasTimeline.mark(
+        'paintingBoard: board ready generation=${frame.generation}',
+      );
     }
     _boardReadyNotified = true;
     widget.onReadyChanged?.call(true);
@@ -572,20 +907,14 @@ class PaintingBoardState extends _PaintingBoardBase
       sprayStrokeWidth: _sprayStrokeWidth,
       sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
-      brushShape: _brushShape,
-      hollowStrokeEnabled: _hollowStrokeEnabled,
-      hollowStrokeRatio: _hollowStrokeRatio,
-      hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
+      brushPresetId:
+          _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
       strokeStabilizerStrength: _strokeStabilizerStrength,
-      streamlineEnabled: _streamlineEnabled,
       streamlineStrength: _streamlineStrength,
       stylusPressureEnabled: _stylusPressureEnabled,
       simulatePenPressure: _simulatePenPressure,
       penPressureProfile: _penPressureProfile,
-      penAntialiasLevel: _penAntialiasLevel,
       bucketAntialiasLevel: _bucketAntialiasLevel,
-      autoSharpPeakEnabled: _autoSharpPeakEnabled,
-      vectorDrawingEnabled: _vectorDrawingEnabled,
       bucketSampleAllLayers: _bucketSampleAllLayers,
       bucketContiguous: _bucketContiguous,
       bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -630,20 +959,13 @@ class PaintingBoardState extends _PaintingBoardBase
     if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
       setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
     }
-    _updateBrushShape(snapshot.brushShape);
-    _updateHollowStrokeEnabled(snapshot.hollowStrokeEnabled);
-    _updateHollowStrokeRatio(snapshot.hollowStrokeRatio);
-    _updateHollowStrokeEraseOccludedParts(snapshot.hollowStrokeEraseOccludedParts);
+    _selectBrushPreset(snapshot.brushPresetId);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
-    _updateStreamlineEnabled(snapshot.streamlineEnabled);
     _updateStreamlineStrength(snapshot.streamlineStrength);
     _updateStylusPressureEnabled(snapshot.stylusPressureEnabled);
     _updatePenPressureSimulation(snapshot.simulatePenPressure);
     _updatePenPressureProfile(snapshot.penPressureProfile);
-    _updatePenAntialiasLevel(snapshot.penAntialiasLevel);
     _updateBucketAntialiasLevel(snapshot.bucketAntialiasLevel);
-    _updateAutoSharpPeakEnabled(snapshot.autoSharpPeakEnabled);
-    _updateVectorDrawingEnabled(snapshot.vectorDrawingEnabled);
     _updateBucketSampleAllLayers(snapshot.bucketSampleAllLayers);
     _updateBucketContiguous(snapshot.bucketContiguous);
     _updateBucketSwallowColorLine(snapshot.bucketSwallowColorLine);
@@ -664,6 +986,79 @@ class PaintingBoardState extends _PaintingBoardBase
       setState(() => _colorLineColor = targetColorLine);
     }
   }
+
+  void _handleBrushLibraryChanged() {
+    final BrushLibrary? library = _brushLibrary;
+    if (library == null) {
+      return;
+    }
+    _applyBrushPreset(library.selectedPreset);
+  }
+
+  void _selectBrushPreset(String id) {
+    final BrushLibrary? library = _brushLibrary;
+    if (library == null) {
+      return;
+    }
+    if (library.selectedId == id) {
+      _applyBrushPreset(library.selectedPreset);
+      return;
+    }
+    library.selectPreset(id);
+  }
+
+  Future<void> _openBrushPresetEditor() async {
+    final BrushPreset? preset =
+        _activeBrushPreset ?? _brushLibrary?.selectedPreset;
+    if (preset == null) {
+      return;
+    }
+    final BrushPreset? updated = await showBrushPresetEditorDialog(
+      context,
+      preset: preset,
+    );
+    if (!mounted || updated == null) {
+      return;
+    }
+    _brushLibrary?.updatePreset(updated);
+  }
+
+  void _applyBrushPreset(BrushPreset preset, {bool notify = true}) {
+    final BrushPreset sanitized = preset.sanitized();
+    final bool presetChanged = _activeBrushPreset?.id != sanitized.id;
+    final bool randomRotationChanged =
+        _brushRandomRotationEnabled != sanitized.randomRotation;
+    final bool autoSharpChanged = _autoSharpPeakEnabled != sanitized.autoSharpTaper;
+    final void Function() update = () {
+      _activeBrushPreset = sanitized;
+      _brushShape = sanitized.shape;
+      _brushRandomRotationEnabled = sanitized.randomRotation;
+      if (sanitized.randomRotation &&
+          (randomRotationChanged || presetChanged)) {
+        _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+      }
+      _brushSpacing = sanitized.spacing;
+      _brushHardness = sanitized.hardness;
+      _brushFlow = sanitized.flow;
+      _brushScatter = sanitized.scatter;
+      _brushRotationJitter = sanitized.rotationJitter;
+      _brushSnapToPixel = sanitized.snapToPixel;
+      _penAntialiasLevel = sanitized.antialiasLevel;
+      _hollowStrokeEnabled = sanitized.hollowEnabled;
+      _hollowStrokeRatio = sanitized.hollowRatio;
+      _hollowStrokeEraseOccludedParts = sanitized.hollowEraseOccludedParts;
+      _autoSharpPeakEnabled = sanitized.autoSharpTaper;
+    };
+    if (notify) {
+      setState(update);
+    } else {
+      update();
+    }
+    if (autoSharpChanged) {
+      _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+      _applyStylusSettingsToController();
+    }
+  }
 }
 
 class _CanvasHistoryEntry {
@@ -674,6 +1069,7 @@ class _CanvasHistoryEntry {
     required this.selectionShape,
     this.selectionMask,
     this.selectionPath,
+    this.rustPixelsSynced = false,
   });
 
   final List<CanvasLayerData> layers;
@@ -682,6 +1078,7 @@ class _CanvasHistoryEntry {
   final SelectionShape selectionShape;
   final Uint8List? selectionMask;
   final Path? selectionPath;
+  final bool rustPixelsSynced;
 }
 
 StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;

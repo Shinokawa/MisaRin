@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
   desktop_drop
   pasteboard
+  rust_lib_misa_rin
   screen_retriever
   window_manager
 )

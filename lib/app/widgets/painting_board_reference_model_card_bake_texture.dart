@@ -4,9 +4,11 @@ extension _ReferenceModelCardBakeDialogTexture on _ReferenceModelCardState {
   Future<ui.Image?> _prepareBakeDialogTexture() async {
     ui.Image? bakeTexture;
     final ui.Image? sourceTexture = widget.texture;
-    if (sourceTexture != null && !sourceTexture.debugDisposed) {
+    final ui.Image? safeTexture =
+        _isImageUsable(sourceTexture) ? sourceTexture : null;
+    if (safeTexture != null) {
       final _BedrockTextureBytes? bytes =
-          await _BedrockModelZBufferViewState._loadTextureBytes(sourceTexture);
+          await _BedrockModelZBufferViewState._loadTextureBytes(safeTexture);
       if (!mounted) {
         return null;
       }
@@ -21,9 +23,7 @@ extension _ReferenceModelCardBakeDialogTexture on _ReferenceModelCardState {
         );
         bakeTexture = await textureCompleter.future;
         if (!mounted) {
-          if (!bakeTexture.debugDisposed) {
-            bakeTexture.dispose();
-          }
+          _disposeImageSafely(bakeTexture);
           return null;
         }
         _BedrockModelZBufferViewState._textureBytesCache[bakeTexture] =

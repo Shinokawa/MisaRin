@@ -712,7 +712,7 @@ class _ReferenceImageCardState extends State<_ReferenceImageCard> {
                     alignment: Alignment.topLeft,
                     child: RawImage(
                       image: widget.image,
-                      filterQuality: FilterQuality.high,
+                      filterQuality: FilterQuality.none,
                     ),
                   ),
                 ),

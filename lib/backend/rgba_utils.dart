@@ -3,38 +3,35 @@ import 'dart:typed_data';
 /// 对 RGBA8888 像素进行就地预乘，以满足 Flutter 对预乘 alpha 的要求。
 void premultiplyRgbaInPlace(Uint8List pixels) {
   for (int i = 0; i < pixels.length; i += 4) {
-    final int alpha = pixels[i + 3];
-    if (alpha == 0) {
+    final int a = pixels[i + 3];
+    if (a == 255) continue;
+    if (a == 0) {
       pixels[i] = 0;
       pixels[i + 1] = 0;
       pixels[i + 2] = 0;
       continue;
     }
-    if (alpha == 255) {
-      continue;
-    }
-    pixels[i] = ((pixels[i] * alpha) + 127) ~/ 255;
-    pixels[i + 1] = ((pixels[i + 1] * alpha) + 127) ~/ 255;
-    pixels[i + 2] = ((pixels[i + 2] * alpha) + 127) ~/ 255;
+    // Fast approximation of (x * a) / 255: (x * a + 128) * 257 >> 16
+    pixels[i] = (pixels[i] * a * 32897 + 8388608) >> 23;
+    pixels[i + 1] = (pixels[i + 1] * a * 32897 + 8388608) >> 23;
+    pixels[i + 2] = (pixels[i + 2] * a * 32897 + 8388608) >> 23;
   }
 }
 
 /// 对 BGRA8888 像素进行就地预乘（B,G,R,A），以满足 Flutter 对预乘 alpha 的要求。
 void premultiplyBgraInPlace(Uint8List pixels) {
   for (int i = 0; i < pixels.length; i += 4) {
-    final int alpha = pixels[i + 3];
-    if (alpha == 0) {
+    final int a = pixels[i + 3];
+    if (a == 255) continue;
+    if (a == 0) {
       pixels[i] = 0;
       pixels[i + 1] = 0;
       pixels[i + 2] = 0;
       continue;
     }
-    if (alpha == 255) {
-      continue;
-    }
-    pixels[i] = ((pixels[i] * alpha) + 127) ~/ 255;
-    pixels[i + 1] = ((pixels[i + 1] * alpha) + 127) ~/ 255;
-    pixels[i + 2] = ((pixels[i + 2] * alpha) + 127) ~/ 255;
+    pixels[i] = (pixels[i] * a * 32897 + 8388608) >> 23;
+    pixels[i + 1] = (pixels[i + 1] * a * 32897 + 8388608) >> 23;
+    pixels[i + 2] = (pixels[i + 2] * a * 32897 + 8388608) >> 23;
   }
 }
 

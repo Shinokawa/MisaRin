@@ -1,36 +1,6 @@
 part of 'painting_board.dart';
 
 extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionMixin {
-  void _finalizeStreamlinePostProcessing({required bool commitFinalStroke}) {
-    final _StreamlinePostStroke? stroke = _streamlinePostStroke;
-    if (stroke == null) {
-      return;
-    }
-    _streamlinePostController?.stop(canceled: true);
-    _streamlinePostStroke = null;
-    if (commitFinalStroke) {
-      unawaited(
-        _controller.commitVectorStroke(
-          points: stroke.toPoints,
-          radii: stroke.toRadii,
-          color: stroke.color,
-          brushShape: stroke.shape,
-          applyVectorSmoothing: false,
-          erase: stroke.erase,
-          antialiasLevel: stroke.antialiasLevel,
-          hollow: stroke.hollowStrokeEnabled,
-          hollowRatio: stroke.hollowStrokeRatio,
-          eraseOccludedParts: stroke.eraseOccludedParts,
-          randomRotation: stroke.randomRotationEnabled,
-          rotationSeed: stroke.rotationSeed,
-        ),
-      );
-    }
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   void _updateBucketSwallowColorLine(bool value) {
     if (_bucketSwallowColorLine == value) {
       return;
@@ -84,16 +54,6 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     unawaited(AppPreferences.save());
   }
 
-  void _updateBrushToolsEraserMode(bool value) {
-    if (_brushToolsEraserMode == value) {
-      return;
-    }
-    setState(() => _brushToolsEraserMode = value);
-    final AppPreferences prefs = AppPreferences.instance;
-    prefs.brushToolsEraserMode = value;
-    unawaited(AppPreferences.save());
-  }
-
   void _updateLayerAdjustCropOutside(bool value) {
     if (_layerAdjustCropOutside == value) {
       return;
@@ -123,9 +83,9 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
   Future<void> _startStroke(
     Offset position,
     Duration timestamp,
-    PointerEvent? rawEvent,
-  ) async {
-    _finalizeStreamlinePostProcessing(commitFinalStroke: true);
+    PointerEvent? rawEvent, {
+    bool skipUndo = false,
+  }) async {
     _resetPerspectiveLock();
     final Offset start = _sanitizeStrokePosition(
       position,
@@ -154,7 +114,9 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     _lastStylusDirection = null;
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
     _lastStylusPressureValue = stylusPressure?.clamp(0.0, 1.0);
-    await _pushUndoSnapshot();
+    if (!skipUndo) {
+      await _pushUndoSnapshot();
+    }
     StrokeLatencyMonitor.instance.recordStrokeStart();
     _lastPenSampleTimestamp = timestamp;
     setState(() {
@@ -175,6 +137,12 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
         brushShape: _brushShape,
         randomRotation: _brushRandomRotationEnabled,
         rotationSeed: _brushRandomRotationPreviewSeed,
+        spacing: _brushSpacing,
+        hardness: _brushHardness,
+        flow: _brushFlow,
+        scatter: _brushScatter,
+        rotationJitter: _brushRotationJitter,
+        snapToPixel: _brushSnapToPixel,
         erase: erase,
         hollow: hollow,
         hollowRatio: _hollowStrokeRatio,
@@ -274,9 +242,21 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (anchor == null || snapped == null) {
       return;
     }
-    await _startStroke(anchor, timestamp, rawEvent);
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (!_syncActiveLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
+      _clearPerspectivePenPreview();
+      return;
+    }
+    await _startStroke(anchor, timestamp, rawEvent, skipUndo: true);
     _appendPoint(snapped, timestamp, rawEvent);
     _finishStroke(timestamp);
+    await _controller.waitForPendingWorkerTasks();
+    if (!_commitActiveLayerToRust()) {
+      _showRustCanvasMessage('Rust 画布写入图层失败。');
+    }
     _clearPerspectivePenPreview();
   }
 
@@ -300,168 +280,15 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     _activeStylusPressureMin = null;
     _activeStylusPressureMax = null;
     _lastStylusPressureValue = null;
+    final Offset? lastPoint = _lastStrokeBoardPosition;
+    if (lastPoint != null &&
+        (_effectiveActiveTool == CanvasTool.pen ||
+            _effectiveActiveTool == CanvasTool.eraser)) {
+      _lastBrushLineAnchor = lastPoint;
+    }
     _lastStrokeBoardPosition = null;
     _lastStylusDirection = null;
     _strokeStabilizer.reset();
-    _streamlineStabilizer.reset();
-  }
-
-  bool _shouldApplyStreamlinePostProcessingForCurrentStroke() {
-    if (!_streamlineEnabled) {
-      return false;
-    }
-    if (_streamlineStrength <= 0.0001) {
-      return false;
-    }
-    // StreamLine 后处理需要矢量预览路径，否则笔画在绘制过程中已经被栅格化，无法“抬笔后重算”。
-    if (!_vectorDrawingEnabled) {
-      return false;
-    }
-    return _streamlinePostController != null;
-  }
-
-  void _finishStrokeWithStreamlinePostProcessing(Duration timestamp) {
-    if (!_isDrawing) {
-      return;
-    }
-
-    _finalizeStreamlinePostProcessing(commitFinalStroke: true);
-    _registerPenSample(timestamp);
-
-    final List<Offset> rawPoints = List<Offset>.from(
-      _controller.activeStrokePoints,
-    );
-    final List<double> rawRadii = List<double>.from(
-      _controller.activeStrokeRadii,
-    );
-    final Color strokeColor = _controller.activeStrokeColor;
-    final BrushShape strokeShape = _controller.activeStrokeShape;
-    final bool erase = _controller.activeStrokeEraseMode;
-    final int antialiasLevel = _controller.activeStrokeAntialiasLevel;
-    final bool hollowStrokeEnabled = _controller.activeStrokeHollowEnabled;
-    final double hollowStrokeRatio = _controller.activeStrokeHollowRatio;
-    final bool eraseOccludedParts = _controller.activeStrokeEraseOccludedParts;
-    final bool randomRotationEnabled =
-        _controller.activeStrokeRandomRotationEnabled;
-    final int rotationSeed = _controller.activeStrokeRotationSeed;
-
-    final double strength = _streamlineStrength.clamp(0.0, 1.0);
-    final _StreamlinePathData target = _buildStreamlinePostProcessTarget(
-      rawPoints,
-      rawRadii,
-      strength,
-    );
-    final List<double> ratios = _strokeProgressRatios(target.points);
-    final _StreamlinePathData from = _resampleStrokeAtRatios(
-      rawPoints,
-      rawRadii,
-      ratios,
-    );
-
-    final _StreamlinePostStroke stroke = _StreamlinePostStroke(
-      fromPoints: from.points,
-      fromRadii: from.radii,
-      toPoints: target.points,
-      toRadii: target.radii,
-      color: strokeColor,
-      shape: strokeShape,
-      erase: erase,
-      antialiasLevel: antialiasLevel,
-      hollowStrokeEnabled: hollowStrokeEnabled,
-      hollowStrokeRatio: hollowStrokeRatio,
-      eraseOccludedParts: eraseOccludedParts,
-      randomRotationEnabled: randomRotationEnabled,
-      rotationSeed: rotationSeed,
-    );
-
-    _controller.cancelStroke();
-
-    final bool needsAnimation =
-        _streamlineMaxDelta(from.points, target.points) >= 0.45;
-    if (!needsAnimation) {
-      setState(() {
-        _isDrawing = false;
-        if (_brushRandomRotationEnabled) {
-          _brushRandomRotationPreviewSeed =
-              _brushRotationRandom.nextInt(1 << 31);
-        }
-      });
-      _resetPerspectiveLock();
-      _lastPenSampleTimestamp = null;
-      _activeStrokeUsesStylus = false;
-      _activeStylusPressureMin = null;
-      _activeStylusPressureMax = null;
-      _lastStylusPressureValue = null;
-      _lastStrokeBoardPosition = null;
-      _lastStylusDirection = null;
-      _strokeStabilizer.reset();
-      _streamlineStabilizer.reset();
-      unawaited(
-        _controller.commitVectorStroke(
-          points: stroke.toPoints,
-          radii: stroke.toRadii,
-          color: stroke.color,
-          brushShape: stroke.shape,
-          applyVectorSmoothing: false,
-          erase: stroke.erase,
-          antialiasLevel: stroke.antialiasLevel,
-          hollow: stroke.hollowStrokeEnabled,
-          hollowRatio: stroke.hollowStrokeRatio,
-          eraseOccludedParts: stroke.eraseOccludedParts,
-          randomRotation: stroke.randomRotationEnabled,
-          rotationSeed: stroke.rotationSeed,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isDrawing = false;
-      if (_brushRandomRotationEnabled) {
-        _brushRandomRotationPreviewSeed =
-            _brushRotationRandom.nextInt(1 << 31);
-      }
-      _streamlinePostStroke = stroke;
-    });
-    _resetPerspectiveLock();
-    _lastPenSampleTimestamp = null;
-    _activeStrokeUsesStylus = false;
-    _activeStylusPressureMin = null;
-    _activeStylusPressureMax = null;
-    _lastStylusPressureValue = null;
-    _lastStrokeBoardPosition = null;
-    _lastStylusDirection = null;
-    _strokeStabilizer.reset();
-    _streamlineStabilizer.reset();
-
-    final AnimationController? controller = _streamlinePostController;
-    if (controller == null) {
-      _streamlinePostStroke = null;
-      unawaited(
-        _controller.commitVectorStroke(
-          points: stroke.toPoints,
-          radii: stroke.toRadii,
-          color: stroke.color,
-          brushShape: stroke.shape,
-          applyVectorSmoothing: false,
-          erase: stroke.erase,
-          antialiasLevel: stroke.antialiasLevel,
-          hollow: stroke.hollowStrokeEnabled,
-          hollowRatio: stroke.hollowStrokeRatio,
-          eraseOccludedParts: stroke.eraseOccludedParts,
-          randomRotation: stroke.randomRotationEnabled,
-          rotationSeed: stroke.rotationSeed,
-        ),
-      );
-      setState(() {});
-      return;
-    }
-
-    controller
-      ..stop(canceled: true)
-      ..value = 0.0
-      ..duration = _streamlinePostDurationForStrength(strength);
-    unawaited(controller.forward(from: 0.0));
   }
 
   double _resolveSprayPressure(PointerEvent? event) {
@@ -502,7 +329,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       sampleInputColor: false,
       sampleBlend: 0.5,
       shape: BrushShape.circle,
-      minAntialiasLevel: _penAntialiasLevel.clamp(0, 3),
+      minAntialiasLevel: _penAntialiasLevel.clamp(0, 9),
     );
   }
 
@@ -528,7 +355,15 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _focusNode.requestFocus();
-    await _pushUndoSnapshot();
+    final int? handle = _rustCanvasEngineHandle;
+    final bool useRust = _canUseRustCanvasEngine() && handle != null;
+    if (!useRust) {
+      await _pushUndoSnapshot();
+    } else {
+      CanvasEngineFfi.instance.beginSpray(handle: handle);
+      _rustSprayActive = true;
+      _rustSprayHasDrawn = false;
+    }
     _sprayBoardPosition = boardLocal;
     _sprayCurrentPressure = _resolveSprayPressure(event);
     _sprayEmissionAccumulator = 0.0;
@@ -539,8 +374,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (_sprayMode == SprayMode.smudge) {
       _softSprayLastPoint = boardLocal;
       _softSprayResidual = 0.0;
-      _stampSoftSpray(
-        boardLocal,
+      _stampSoftSprayBatch(
+        <Offset>[boardLocal],
         _resolveSoftSprayRadius(),
         _sprayCurrentPressure,
       );
@@ -571,6 +406,23 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _sprayTicker?.stop();
+    if (_rustSprayActive) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (handle != null) {
+        CanvasEngineFfi.instance.endSpray(handle: handle);
+      }
+      if (_rustSprayHasDrawn) {
+        _recordRustHistoryAction(
+          layerId: _activeLayerId,
+          deferPreview: true,
+        );
+        if (mounted) {
+          setState(() {});
+        }
+      }
+      _rustSprayActive = false;
+      _rustSprayHasDrawn = false;
+    }
     setState(() {
       _isSpraying = false;
     });

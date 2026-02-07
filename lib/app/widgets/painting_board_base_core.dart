@@ -1,9 +1,22 @@
 part of 'painting_board.dart';
 
+enum _HistoryActionKind { dart, rust }
+
 abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   late BitmapCanvasController _controller;
   final FocusNode _focusNode = FocusNode();
   bool _boardReadyNotified = false;
+  int? _rustCanvasEngineHandle;
+  Size? _rustCanvasEngineSize;
+  int _rustCanvasSyncedLayerCount = 0;
+  final Map<String, Uint32List> _rustLayerSnapshots = <String, Uint32List>{};
+  bool _rustLayerSnapshotDirty = false;
+  bool _rustLayerSnapshotPendingRestore = false;
+  bool _rustLayerSnapshotInFlight = false;
+  int _rustLayerSnapshotWidth = 0;
+  int _rustLayerSnapshotHeight = 0;
+  int? _rustLayerSnapshotHandle;
+  int? _rustPixelsSyncedHandle;
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
@@ -20,7 +33,6 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
-  bool _streamlineEnabled = AppPreferences.defaultStreamlineEnabled;
   double _streamlineStrength = AppPreferences.defaultStreamlineStrength;
   bool _simulatePenPressure = false;
   int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
@@ -28,12 +40,19 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
-  bool _vectorDrawingEnabled = AppPreferences.defaultVectorDrawingEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   bool _brushRandomRotationEnabled =
       AppPreferences.defaultBrushRandomRotationEnabled;
   final math.Random _brushRotationRandom = math.Random();
   int _brushRandomRotationPreviewSeed = 0;
+  BrushLibrary? _brushLibrary;
+  BrushPreset? _activeBrushPreset;
+  double _brushSpacing = 0.15;
+  double _brushHardness = 0.8;
+  double _brushFlow = 1.0;
+  double _brushScatter = 0.0;
+  double _brushRotationJitter = 1.0;
+  bool _brushSnapToPixel = false;
   bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
   double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
   bool _hollowStrokeEraseOccludedParts =
@@ -67,8 +86,19 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   final Map<String, _LayerPreviewCacheEntry> _layerPreviewCache =
       <String, _LayerPreviewCacheEntry>{};
   int _layerPreviewRequestSerial = 0;
+  final Map<String, int> _rustLayerPreviewRevisions = <String, int>{};
+  final Set<String> _rustLayerPreviewPending = <String>{};
+  int _rustLayerPreviewSerial = 0;
+  bool _rustLayerPreviewRefreshScheduled = false;
   bool _spacePanOverrideActive = false;
   bool _isLayerDragging = false;
+  bool _layerAdjustRustSynced = false;
+  bool _layerAdjustUsingRustPreview = false;
+  int? _layerAdjustRustPreviewLayerIndex;
+  int? _layerAdjustRustHiddenLayerIndex;
+  bool _layerAdjustRustHiddenVisible = false;
+  int? _layerTransformRustHiddenLayerIndex;
+  bool _layerTransformRustHiddenVisible = false;
   Future<void>? _layerAdjustFinalizeTask;
   Offset? _layerDragStart;
   int _layerDragAppliedDx = 0;
@@ -84,6 +114,13 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _curveUndoCapturedForPreview = false;
   Rect? _curvePreviewDirtyRect;
   Uint32List? _curveRasterPreviewPixels;
+  ui.Image? _curvePreviewRasterImage;
+  int _curvePreviewRasterToken = 0;
+  ui.Image? _shapePreviewRasterImage;
+  int _shapePreviewRasterToken = 0;
+  String? _rustVectorPreviewHiddenLayerId;
+  bool _rustVectorPreviewHiddenLayerVisible = false;
+  int _rustVectorPreviewHideToken = 0;
   bool _isEyedropperSampling = false;
   bool _eyedropperOverrideActive = false;
   Offset? _lastEyedropperSample;
@@ -96,10 +133,12 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   double? _activeStylusPressureMax;
   double? _lastStylusPressureValue;
   Offset? _lastStrokeBoardPosition;
+  Offset? _lastBrushLineAnchor;
   Offset? _lastStylusDirection;
   final _StrokeStabilizer _strokeStabilizer = _StrokeStabilizer();
-  final _StreamlineStabilizer _streamlineStabilizer = _StreamlineStabilizer();
   bool _isSpraying = false;
+  bool _rustSprayActive = false;
+  bool _rustSprayHasDrawn = false;
   Offset? _sprayBoardPosition;
   Ticker? _sprayTicker;
   Duration? _sprayTickerTimestamp;
@@ -140,10 +179,23 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   void _handlePrimaryColorChanged() {}
   @protected
   void _handleTextStrokeColorChanged(Color color) {}
+  void _updateBrushToolsEraserMode(bool value) {
+    if (_brushToolsEraserMode == value) {
+      return;
+    }
+    setState(() => _brushToolsEraserMode = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.brushToolsEraserMode = value;
+    unawaited(AppPreferences.save());
+  }
+  @protected
+  void _notifyBoardReadyIfNeeded();
   final List<Color> _recentColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
   final List<_CanvasHistoryEntry> _redoStack = <_CanvasHistoryEntry>[];
+  final List<_HistoryActionKind> _historyUndoStack = <_HistoryActionKind>[];
+  final List<_HistoryActionKind> _historyRedoStack = <_HistoryActionKind>[];
   bool _historyLocked = false;
   int _historyLimit = AppPreferences.instance.historyLimit;
   final List<_PaletteCardEntry> _paletteCards = <_PaletteCardEntry>[];
@@ -253,6 +305,172 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       curve: _stylusCurve,
     );
     _controller.configureSharpTips(enabled: _autoSharpPeakEnabled);
+  }
+
+  void _markDirty() {
+    if (_isDirty) {
+      return;
+    }
+    _isDirty = true;
+    widget.onDirtyChanged?.call(true);
+  }
+
+  BitmapLayerState? _activeLayerStateForRustSync() {
+    final String? activeId = _controller.activeLayerId;
+    if (activeId == null) {
+      return null;
+    }
+    for (final BitmapLayerState layer in _controller.layers) {
+      if (layer.id == activeId) {
+        return layer;
+      }
+    }
+    return null;
+  }
+
+  bool _syncLayerPixelsFromRust(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    if (layer.surface.width != width || layer.surface.height != height) {
+      return false;
+    }
+    final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+    if (pixels == null || pixels.length != layer.surface.pixels.length) {
+      return false;
+    }
+    layer.surface.pixels.setAll(0, pixels);
+    layer.surface.markDirty();
+    return true;
+  }
+
+  bool _syncActiveLayerPixelsFromRust() {
+    final BitmapLayerState? layer = _activeLayerStateForRustSync();
+    if (layer == null) {
+      return false;
+    }
+    return _syncLayerPixelsFromRust(layer);
+  }
+
+  bool _syncAllLayerPixelsFromRust() {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final List<BitmapLayerState> layers = _controller.layers;
+    if (layers.isEmpty) {
+      return true;
+    }
+    bool allOk = true;
+    for (final BitmapLayerState layer in layers) {
+      if (!_syncLayerPixelsFromRust(layer)) {
+        allOk = false;
+      }
+    }
+    return allOk;
+  }
+
+  bool _commitActiveLayerToRust({bool recordUndo = true}) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final BitmapLayerState? layer = _activeLayerStateForRustSync();
+    if (layer == null) {
+      return false;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    if (layer.surface.width != width || layer.surface.height != height) {
+      return false;
+    }
+    if (layer.surface.pixels.length != width * height) {
+      return false;
+    }
+    final bool applied = CanvasEngineFfi.instance.writeLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      pixels: layer.surface.pixels,
+      recordUndo: recordUndo,
+    );
+    if (applied) {
+      _recordRustHistoryAction(layerId: layer.id);
+      if (mounted) {
+        setState(() {});
+      }
+      _markDirty();
+    }
+    return applied;
+  }
+
+  bool _syncAllLayerPixelsToRust({bool recordUndo = false}) {
+    if (!_canUseRustCanvasEngine()) {
+      return false;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    final List<BitmapLayerState> layers = _controller.layers;
+    bool allOk = true;
+    for (int i = 0; i < layers.length; i++) {
+      final BitmapLayerState layer = layers[i];
+      if (layer.surface.width != width || layer.surface.height != height) {
+        allOk = false;
+        continue;
+      }
+      if (layer.surface.pixels.length != width * height) {
+        allOk = false;
+        continue;
+      }
+      final bool applied = CanvasEngineFfi.instance.writeLayer(
+        handle: handle,
+        layerIndex: i,
+        pixels: layer.surface.pixels,
+        recordUndo: recordUndo,
+      );
+      if (!applied) {
+        allOk = false;
+        continue;
+      }
+      _bumpRustLayerPreviewRevision(layer.id);
+    }
+    return allOk;
   }
 
   List<_SyntheticStrokeSample> _buildSyntheticStrokeSamples(
@@ -756,6 +974,560 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   ValueListenable<CanvasViewInfo> get viewInfoListenable => _viewInfoNotifier;
+
+  void _handleRustCanvasEngineInfoChanged(
+    int? handle,
+    Size? engineSize,
+    bool isNewEngine,
+  ) {
+    final bool handleChanged = _rustCanvasEngineHandle != handle;
+    final bool sizeChanged = _rustCanvasEngineSize != engineSize;
+    final bool engineReset = handleChanged || sizeChanged || isNewEngine;
+    if ((handleChanged || isNewEngine) && handle != null) {
+      final String sizeText = engineSize == null
+          ? 'null'
+          : '${engineSize.width.round()}x${engineSize.height.round()}';
+      RustCanvasTimeline.mark(
+        'paintingBoard: rust engine handle=$handle '
+        'size=$sizeText newEngine=$isNewEngine',
+      );
+    }
+    if (engineReset) {
+      final String sizeText = engineSize == null
+          ? 'null'
+          : '${engineSize.width.round()}x${engineSize.height.round()}';
+      debugPrint(
+        'paintingBoard: rust engine info handle=$handle '
+        'size=$sizeText newEngine=$isNewEngine',
+      );
+    }
+    if (engineReset) {
+      _rustCanvasSyncedLayerCount = 0;
+      _rustPixelsSyncedHandle = null;
+      _purgeRustHistoryActions();
+      _rustLayerSnapshotDirty = false;
+      if (_rustLayerSnapshots.isNotEmpty) {
+        _rustLayerSnapshotPendingRestore = true;
+      }
+      _rustLayerPreviewRevisions.clear();
+      _rustLayerPreviewPending.clear();
+      _rustLayerPreviewSerial = 0;
+      _rustLayerPreviewRefreshScheduled = false;
+    }
+    _rustCanvasEngineHandle = handle;
+    _rustCanvasEngineSize = engineSize;
+    _syncRustCanvasLayersToEngine();
+    _syncRustCanvasViewFlags();
+    _restoreRustLayerSnapshotIfNeeded();
+    _syncRustCanvasPixelsIfNeeded();
+    _notifyBoardReadyIfNeeded();
+  }
+
+  int? _rustCanvasLayerIndexForId(String layerId) {
+    final int index = _controller.layers.indexWhere(
+      (BitmapLayerState layer) => layer.id == layerId,
+    );
+    if (index < 0) {
+      return null;
+    }
+    return index;
+  }
+
+  bool _canUseRustCanvasEngine() {
+    return CanvasEngineFfi.instance.isSupported && _rustCanvasEngineHandle != null;
+  }
+
+  bool get _isRustVectorPreviewActive =>
+      _curvePreviewRasterImage != null || _shapePreviewRasterImage != null;
+
+  Uint8List _argbPixelsToRgbaForPreview(Uint32List pixels) {
+    final Uint8List rgba = Uint8List(pixels.length * 4);
+    for (int i = 0; i < pixels.length; i++) {
+      final int argb = pixels[i];
+      final int offset = i * 4;
+      rgba[offset] = (argb >> 16) & 0xff;
+      rgba[offset + 1] = (argb >> 8) & 0xff;
+      rgba[offset + 2] = argb & 0xff;
+      rgba[offset + 3] = (argb >> 24) & 0xff;
+    }
+    return rgba;
+  }
+
+  void _hideRustLayerForVectorPreview(String layerId) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_rustVectorPreviewHiddenLayerId == layerId) {
+      return;
+    }
+    _restoreRustLayerAfterVectorPreview();
+    final int token = ++_rustVectorPreviewHideToken;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      if (!mounted || token != _rustVectorPreviewHideToken) {
+        return;
+      }
+      if (!_isRustVectorPreviewActive) {
+        return;
+      }
+      final BitmapLayerState layer = _controller.activeLayer;
+      if (layer.id != layerId || !layer.visible) {
+        return;
+      }
+      final int? index = _rustCanvasLayerIndexForId(layerId);
+      if (index == null) {
+        return;
+      }
+      _rustVectorPreviewHiddenLayerId = layerId;
+      _rustVectorPreviewHiddenLayerVisible = layer.visible;
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: _rustCanvasEngineHandle!,
+        layerIndex: index,
+        visible: false,
+      );
+    });
+  }
+
+  void _restoreRustLayerAfterVectorPreview() {
+    _rustVectorPreviewHideToken++;
+    final String? layerId = _rustVectorPreviewHiddenLayerId;
+    if (layerId == null) {
+      return;
+    }
+    if (_canUseRustCanvasEngine()) {
+      final int? index = _rustCanvasLayerIndexForId(layerId);
+      if (index != null) {
+        CanvasEngineFfi.instance.setLayerVisible(
+          handle: _rustCanvasEngineHandle!,
+          layerIndex: index,
+          visible: _rustVectorPreviewHiddenLayerVisible,
+        );
+      }
+    }
+    _rustVectorPreviewHiddenLayerId = null;
+    _rustVectorPreviewHiddenLayerVisible = false;
+  }
+
+  bool get _useCombinedHistory => true;
+
+  void _recordDartHistoryAction() {
+    _recordHistoryAction(_HistoryActionKind.dart);
+  }
+
+  void _recordRustHistoryAction({
+    String? layerId,
+    bool deferPreview = false,
+  }) {
+    _rustLayerSnapshotDirty = true;
+    _recordHistoryAction(_HistoryActionKind.rust);
+    if (layerId == null) {
+      return;
+    }
+    if (deferPreview) {
+      _scheduleRustLayerPreviewRefresh(layerId);
+    } else {
+      _bumpRustLayerPreviewRevision(layerId);
+    }
+  }
+
+  void _bumpRustLayerPreviewRevision(String layerId) {
+    _rustLayerPreviewSerial += 1;
+    _rustLayerPreviewRevisions[layerId] = _rustLayerPreviewSerial;
+  }
+
+  void _scheduleRustLayerPreviewRefresh(String layerId) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    _rustLayerPreviewPending.add(layerId);
+    if (_rustLayerPreviewRefreshScheduled) {
+      return;
+    }
+    _rustLayerPreviewRefreshScheduled = true;
+    unawaited(_runRustLayerPreviewRefresh());
+  }
+
+  Future<void> _runRustLayerPreviewRefresh() async {
+    while (mounted && _rustLayerPreviewPending.isNotEmpty) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (!_canUseRustCanvasEngine() || handle == null) {
+        _rustLayerPreviewPending.clear();
+        break;
+      }
+      final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+      if (queued > 0) {
+        await Future.delayed(const Duration(milliseconds: 16));
+        continue;
+      }
+      await Future.delayed(const Duration(milliseconds: 16));
+      final List<String> pending = _rustLayerPreviewPending.toList(growable: false);
+      _rustLayerPreviewPending.clear();
+      for (final String layerId in pending) {
+        _bumpRustLayerPreviewRevision(layerId);
+      }
+      if (mounted) {
+        setState(() {});
+      }
+    }
+    _rustLayerPreviewRefreshScheduled = false;
+  }
+
+  void _recordHistoryAction(_HistoryActionKind action) {
+    if (!_useCombinedHistory) {
+      return;
+    }
+    _historyUndoStack.add(action);
+    _historyRedoStack.clear();
+    _redoStack.clear();
+    _trimHistoryActionStacks();
+  }
+
+  _HistoryActionKind? _peekHistoryUndoAction() {
+    if (!_useCombinedHistory || _historyUndoStack.isEmpty) {
+      return null;
+    }
+    return _historyUndoStack.last;
+  }
+
+  _HistoryActionKind? _peekHistoryRedoAction() {
+    if (!_useCombinedHistory || _historyRedoStack.isEmpty) {
+      return null;
+    }
+    return _historyRedoStack.last;
+  }
+
+  _HistoryActionKind? _commitHistoryUndoAction() {
+    if (!_useCombinedHistory || _historyUndoStack.isEmpty) {
+      return null;
+    }
+    final _HistoryActionKind action = _historyUndoStack.removeLast();
+    _historyRedoStack.add(action);
+    _trimHistoryActionStacks();
+    return action;
+  }
+
+  _HistoryActionKind? _commitHistoryRedoAction() {
+    if (!_useCombinedHistory || _historyRedoStack.isEmpty) {
+      return null;
+    }
+    final _HistoryActionKind action = _historyRedoStack.removeLast();
+    _historyUndoStack.add(action);
+    _trimHistoryActionStacks();
+    return action;
+  }
+
+  void _trimHistoryActionStacks() {
+    if (!_useCombinedHistory) {
+      return;
+    }
+    while (_historyUndoStack.length > _historyLimit) {
+      _historyUndoStack.removeAt(0);
+    }
+    while (_historyRedoStack.length > _historyLimit) {
+      _historyRedoStack.removeAt(0);
+    }
+  }
+
+  void _purgeRustHistoryActions() {
+    if (!_useCombinedHistory) {
+      return;
+    }
+    _historyUndoStack.removeWhere(
+      (_HistoryActionKind action) => action == _HistoryActionKind.rust,
+    );
+    _historyRedoStack.removeWhere(
+      (_HistoryActionKind action) => action == _HistoryActionKind.rust,
+    );
+  }
+
+  void _syncRustCanvasViewFlags() {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    CanvasEngineFfi.instance.setViewFlags(
+      handle: handle,
+      mirror: _viewMirrorOverlay,
+      blackWhite: _viewBlackWhiteOverlay,
+    );
+  }
+
+  void _syncRustCanvasPixelsIfNeeded() {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_rustLayerSnapshotPendingRestore) {
+      return;
+    }
+    if (_rustLayerSnapshotDirty) {
+      return;
+    }
+    if (_rustLayerSnapshots.isNotEmpty) {
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    if (_rustPixelsSyncedHandle == handle) {
+      return;
+    }
+    if (_syncAllLayerPixelsToRust()) {
+      _rustPixelsSyncedHandle = handle;
+    }
+  }
+
+  Future<void> _captureRustLayerSnapshotIfNeeded() async {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (!_rustLayerSnapshotDirty || _rustLayerSnapshotInFlight) {
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    _rustLayerSnapshotInFlight = true;
+    bool allOk = true;
+    final Map<String, Uint32List> next = <String, Uint32List>{};
+    final List<BitmapLayerState> layers = _controller.layers;
+    for (int i = 0; i < layers.length; i++) {
+      final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
+        handle: handle,
+        layerIndex: i,
+        width: width,
+        height: height,
+      );
+      if (pixels == null) {
+        allOk = false;
+        continue;
+      }
+      next[layers[i].id] = pixels;
+    }
+    if (next.isNotEmpty) {
+      _rustLayerSnapshots
+        ..clear()
+        ..addAll(next);
+      _rustLayerSnapshotWidth = width;
+      _rustLayerSnapshotHeight = height;
+      _rustLayerSnapshotHandle = handle;
+      _rustLayerSnapshotPendingRestore = true;
+      if (allOk) {
+        _rustLayerSnapshotDirty = false;
+      }
+    }
+    _rustLayerSnapshotInFlight = false;
+    if (mounted && widget.isActive) {
+      _restoreRustLayerSnapshotIfNeeded();
+    }
+  }
+
+  void _restoreRustLayerSnapshotIfNeeded() {
+    if (!_rustLayerSnapshotPendingRestore) {
+      return;
+    }
+    if (_rustLayerSnapshotInFlight) {
+      return;
+    }
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    if (_rustLayerSnapshots.isEmpty) {
+      _rustLayerSnapshotPendingRestore = false;
+      _rustLayerSnapshotHandle = null;
+      return;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width != _rustLayerSnapshotWidth || height != _rustLayerSnapshotHeight) {
+      _rustLayerSnapshots.clear();
+      _rustLayerSnapshotPendingRestore = false;
+      _rustLayerSnapshotDirty = false;
+      _rustLayerSnapshotHandle = null;
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    final List<BitmapLayerState> layers = _controller.layers;
+    for (int i = 0; i < layers.length; i++) {
+      final Uint32List? pixels = _rustLayerSnapshots[layers[i].id];
+      if (pixels == null) {
+        continue;
+      }
+      CanvasEngineFfi.instance.writeLayer(
+        handle: handle,
+        layerIndex: i,
+        pixels: pixels,
+        recordUndo: false,
+      );
+      _bumpRustLayerPreviewRevision(layers[i].id);
+    }
+    _rustLayerSnapshotPendingRestore = false;
+    _rustLayerSnapshotHandle = handle;
+  }
+
+  void _showRustCanvasMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    AppNotifications.show(
+      context,
+      message: message,
+      severity: InfoBarSeverity.warning,
+    );
+  }
+
+  void _syncRustCanvasLayersToEngine() {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    final List<BitmapLayerState> layers = _controller.layers;
+    final int currentCount = layers.length;
+    final int? hiddenAdjustIndex = _layerAdjustRustHiddenLayerIndex;
+    final int? hiddenTransformIndex = _layerTransformRustHiddenLayerIndex;
+    for (int i = 0; i < currentCount; i++) {
+      final BitmapLayerState layer = layers[i];
+      final bool hideForAdjust =
+          (hiddenAdjustIndex != null && hiddenAdjustIndex == i) ||
+          (hiddenTransformIndex != null && hiddenTransformIndex == i);
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: handle,
+        layerIndex: i,
+        visible: hideForAdjust ? false : layer.visible,
+      );
+      CanvasEngineFfi.instance.setLayerOpacity(
+        handle: handle,
+        layerIndex: i,
+        opacity: layer.opacity.clamp(0.0, 1.0),
+      );
+      CanvasEngineFfi.instance.setLayerClippingMask(
+        handle: handle,
+        layerIndex: i,
+        clippingMask: layer.clippingMask,
+      );
+      CanvasEngineFfi.instance.setLayerBlendMode(
+        handle: handle,
+        layerIndex: i,
+        blendModeIndex: layer.blendMode.index,
+      );
+    }
+    for (int i = currentCount; i < _rustCanvasSyncedLayerCount; i++) {
+      CanvasEngineFfi.instance.setLayerVisible(
+        handle: handle,
+        layerIndex: i,
+        visible: false,
+      );
+      CanvasEngineFfi.instance.setLayerOpacity(
+        handle: handle,
+        layerIndex: i,
+        opacity: 1.0,
+      );
+      CanvasEngineFfi.instance.setLayerClippingMask(
+        handle: handle,
+        layerIndex: i,
+        clippingMask: false,
+      );
+      CanvasEngineFfi.instance.setLayerBlendMode(
+        handle: handle,
+        layerIndex: i,
+        blendModeIndex: CanvasLayerBlendMode.normal.index,
+      );
+      CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: i);
+    }
+    _rustCanvasSyncedLayerCount = currentCount;
+
+    final String? activeLayerId = _controller.activeLayerId;
+    int? activeIndex =
+        activeLayerId != null ? _rustCanvasLayerIndexForId(activeLayerId) : null;
+    if (activeIndex == null && layers.isNotEmpty) {
+      activeIndex = layers.length - 1;
+      final String fallbackLayerId = layers[activeIndex].id;
+      if (fallbackLayerId != activeLayerId) {
+        _controller.setActiveLayer(fallbackLayerId);
+      }
+    }
+    if (activeIndex != null) {
+      CanvasEngineFfi.instance.setActiveLayer(handle: handle, layerIndex: activeIndex);
+    }
+  }
+
+  void _rustCanvasSetActiveLayerById(String layerId) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.setActiveLayer(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+    );
+  }
+
+  void _rustCanvasSetLayerVisibleById(String layerId, bool visible) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerVisible(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+      visible: visible,
+    );
+  }
+
+  void _rustCanvasSetLayerClippingById(String layerId, bool clippingMask) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerClippingMask(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+      clippingMask: clippingMask,
+    );
+  }
+
+  void _rustCanvasSetLayerOpacityById(String layerId, double opacity) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerOpacity(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+      opacity: opacity.clamp(0.0, 1.0),
+    );
+  }
+
+  void _rustCanvasSetLayerBlendModeById(
+    String layerId,
+    CanvasLayerBlendMode blendMode,
+  ) {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? index = _rustCanvasLayerIndexForId(layerId);
+    if (index == null) {
+      return;
+    }
+    CanvasEngineFfi.instance.setLayerBlendMode(
+      handle: _rustCanvasEngineHandle!,
+      layerIndex: index,
+      blendModeIndex: blendMode.index,
+    );
+  }
 
   CanvasTool get activeTool => _activeTool;
   CanvasTool get _effectiveActiveTool {

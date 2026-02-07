@@ -7,7 +7,7 @@ void _layerManagerSetActiveLayer(BitmapCanvasController controller, String id) {
   }
   controller._activeIndex = index;
   controller._resetWorkerSurfaceSync();
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerUpdateVisibility(
@@ -45,7 +45,7 @@ void _layerManagerSetOpacity(
   }
   layer.opacity = clamped;
   controller._markDirty(pixelsDirty: false);
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerSetLocked(
@@ -62,7 +62,7 @@ void _layerManagerSetLocked(
     return;
   }
   layer.locked = locked;
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerSetClippingMask(
@@ -80,7 +80,7 @@ void _layerManagerSetClippingMask(
   }
   layer.clippingMask = clippingMask;
   controller._markDirty(pixelsDirty: false);
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerSetBlendMode(
@@ -98,7 +98,7 @@ void _layerManagerSetBlendMode(
   }
   layer.blendMode = mode;
   controller._markDirty(pixelsDirty: false);
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerRenameLayer(
@@ -111,7 +111,7 @@ void _layerManagerRenameLayer(
     return;
   }
   controller._layers[index].name = name;
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _layerManagerAddLayer(
@@ -153,6 +153,13 @@ void _layerManagerRemoveLayer(BitmapCanvasController controller, String id) {
   }
   controller._layers.removeAt(index);
   controller._layerOverflowStores.remove(id);
+  controller._gpuBrushSyncedRevisions.remove(id);
+  unawaited(() async {
+    try {
+      await ensureRustInitialized();
+      rust_gpu_brush.gpuRemoveLayer(layerId: id);
+    } catch (_) {}
+  }());
   if (controller._activeIndex >= controller._layers.length) {
     controller._activeIndex = controller._layers.length - 1;
   }
@@ -690,7 +697,7 @@ String _layerManagerInsertFromData(
     height: controller._height,
   );
   _LayerOverflowStore overflowStore = _LayerOverflowStore();
-  if (data.bitmap != null) {
+  if (data.rawPixels != null || data.bitmap != null) {
     overflowStore = _applyBitmapToSurface(controller, surface, data);
   } else if (data.fillColor != null) {
     surface.fill(data.fillColor!);
@@ -754,7 +761,7 @@ void _layerManagerReplaceLayer(
     ..blendMode = data.blendMode;
   layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
   _LayerOverflowStore overflowStore = _LayerOverflowStore();
-  if (data.bitmap != null) {
+  if (data.rawPixels != null || data.bitmap != null) {
     overflowStore = _applyBitmapToSurface(controller, layer.surface, data);
   } else if (data.fillColor != null) {
     layer.surface.fill(data.fillColor!);
@@ -806,22 +813,30 @@ List<CanvasLayerData> _layerManagerSnapshotLayers(
       layer.surface,
     );
     final bool hasOverflow = !overflowStore.isEmpty;
-    Uint8List? bitmap;
+    Uint32List? rawPixels;
     int? bitmapWidth;
     int? bitmapHeight;
     int? bitmapLeft;
     int? bitmapTop;
     if (hasSurface || hasOverflow) {
-      final _LayerTransformSnapshot snapshot = _buildOverflowTransformSnapshot(
-        controller,
-        layer,
-        overflowStore,
-      );
-      bitmap = BitmapCanvasController._pixelsToRgba(snapshot.pixels);
-      bitmapWidth = snapshot.width;
-      bitmapHeight = snapshot.height;
-      bitmapLeft = snapshot.originX;
-      bitmapTop = snapshot.originY;
+      if (!hasOverflow) {
+        rawPixels = Uint32List.fromList(layer.surface.pixels);
+        bitmapWidth = controller._width;
+        bitmapHeight = controller._height;
+        bitmapLeft = 0;
+        bitmapTop = 0;
+      } else {
+        final _LayerTransformSnapshot snapshot = _buildOverflowTransformSnapshot(
+          controller,
+          layer,
+          overflowStore,
+        );
+        rawPixels = snapshot.pixels;
+        bitmapWidth = snapshot.width;
+        bitmapHeight = snapshot.height;
+        bitmapLeft = snapshot.originX;
+        bitmapTop = snapshot.originY;
+      }
     }
     result.add(
       CanvasLayerData(
@@ -833,12 +848,14 @@ List<CanvasLayerData> _layerManagerSnapshotLayers(
         clippingMask: layer.clippingMask,
         blendMode: layer.blendMode,
         fillColor: i == 0 ? controller._backgroundColor : null,
-        bitmap: bitmap,
+        bitmap: null,
+        rawPixels: rawPixels,
         bitmapWidth: bitmapWidth,
         bitmapHeight: bitmapHeight,
         bitmapLeft: bitmapLeft,
         bitmapTop: bitmapTop,
         text: layer.text,
+        cloneRawPixels: false,
       ),
     );
   }
@@ -976,7 +993,7 @@ void _loadFromCanvasLayers(
       height: controller._height,
     );
     _LayerOverflowStore overflowStore = _LayerOverflowStore();
-    if (layer.bitmap != null) {
+    if (layer.rawPixels != null || layer.bitmap != null) {
       overflowStore = _applyBitmapToSurface(controller, surface, layer);
     } else if (layer.fillColor != null) {
       surface.fill(layer.fillColor!);
@@ -1018,6 +1035,52 @@ _LayerOverflowStore _applyBitmapToSurface(
   BitmapSurface surface,
   CanvasLayerData data,
 ) {
+  final Uint32List? rawPixels = data.rawPixels;
+  if (rawPixels != null) {
+    final int canvasWidth = controller._width;
+    final int canvasHeight = controller._height;
+    final int srcWidth = data.bitmapWidth ?? canvasWidth;
+    final int srcHeight = data.bitmapHeight ?? canvasHeight;
+    final int offsetX = data.bitmapLeft ?? 0;
+    final int offsetY = data.bitmapTop ?? 0;
+    if (offsetX == 0 &&
+        offsetY == 0 &&
+        srcWidth == canvasWidth &&
+        srcHeight == canvasHeight &&
+        rawPixels.length == canvasWidth * canvasHeight) {
+      surface.pixels.setAll(0, rawPixels);
+      surface.markDirty();
+      return _LayerOverflowStore();
+    }
+
+    final _LayerOverflowBuilder builder = _LayerOverflowBuilder();
+    for (int y = 0; y < srcHeight; y++) {
+      final int canvasY = offsetY + y;
+      final bool insideY = canvasY >= 0 && canvasY < canvasHeight;
+      final int rowOffset = y * srcWidth;
+      if (rowOffset >= rawPixels.length) {
+        break;
+      }
+      final int rowEnd = rowOffset + srcWidth;
+      final int safeRowEnd = math.min(rowEnd, rawPixels.length);
+      for (int x = 0; x < safeRowEnd - rowOffset; x++) {
+        final int canvasX = offsetX + x;
+        final int color = rawPixels[rowOffset + x];
+        if ((color >> 24) == 0) {
+          continue;
+        }
+        if (insideY && canvasX >= 0 && canvasX < canvasWidth) {
+          final int destIndex = canvasY * canvasWidth + canvasX;
+          surface.pixels[destIndex] = color;
+        } else {
+          builder.addPixel(canvasX, canvasY, color);
+        }
+      }
+    }
+    surface.markDirty();
+    return builder.build();
+  }
+
   final Uint8List bitmap = data.bitmap!;
   final int srcWidth = data.bitmapWidth ?? controller._width;
   final int srcHeight = data.bitmapHeight ?? controller._height;

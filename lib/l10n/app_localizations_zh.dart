@@ -370,6 +370,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuRotate180CCW => '逆时针 180 度';
 
   @override
+  String get menuFlipHorizontal => '水平翻转';
+
+  @override
+  String get menuFlipVertical => '垂直翻转';
+
+  @override
   String get menuImageSizeEllipsis => '图像大小…';
 
   @override
@@ -621,6 +627,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get colorBlack => '黑色';
 
   @override
+  String get colorTransparent => '透明';
+
+  @override
   String get create => '创建';
 
   @override
@@ -858,6 +867,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get customResolution => '自定义分辨率';
 
   @override
+  String get swapDimensions => '交换宽高';
+
+  @override
   String finalSizePreview(Object width, Object height, Object ratio) {
     return '最终尺寸：$width x $height 像素（比例 $ratio）';
   }
@@ -882,6 +894,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get antialiasingBeforeExport => '边缘柔化';
+
+  @override
+  String get brushAntialiasing => '笔刷抗锯齿';
+
+  @override
+  String get bucketAntialiasing => '填充抗锯齿';
 
   @override
   String get antialiasingDesc => '在平滑边缘的同时保留线条密度，致敬日本动画软件 Retas 的质感。';
@@ -981,6 +999,51 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sprayEffect => '喷枪效果';
+
+  @override
+  String get brushPreset => '笔刷预设';
+
+  @override
+  String get brushPresetDesc => '选择笔刷预设以控制间距、流量与形状。';
+
+  @override
+  String get editBrushPreset => '编辑预设';
+
+  @override
+  String get editBrushPresetDesc => '调整当前预设的内部参数。';
+
+  @override
+  String get brushPresetDialogTitle => '编辑笔刷预设';
+
+  @override
+  String get brushPresetNameLabel => '预设名称';
+
+  @override
+  String get brushPresetPencil => '铅笔';
+
+  @override
+  String get brushPresetPen => '钢笔';
+
+  @override
+  String get brushPresetPixel => '像素笔';
+
+  @override
+  String get brushSpacing => '间距';
+
+  @override
+  String get brushHardness => '硬度';
+
+  @override
+  String get brushFlow => '流量';
+
+  @override
+  String get brushScatter => '散布';
+
+  @override
+  String get brushRotationJitter => '旋转抖动';
+
+  @override
+  String get brushSnapToPixel => '像素对齐';
 
   @override
   String get brushShape => '笔刷形状';
@@ -2356,6 +2419,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuRotate180CCW => '逆时针 180 度';
 
   @override
+  String get menuFlipHorizontal => '水平翻转';
+
+  @override
+  String get menuFlipVertical => '垂直翻转';
+
+  @override
   String get menuImageSizeEllipsis => '图像大小…';
 
   @override
@@ -2548,6 +2617,18 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuInvertColors => '颜色反转';
 
   @override
+  String get colorTransparent => '透明';
+
+  @override
+  String get swapDimensions => '交换宽高';
+
+  @override
+  String get brushAntialiasing => '笔刷抗锯齿';
+
+  @override
+  String get bucketAntialiasing => '填充抗锯齿';
+
+  @override
   String get hollowStroke => '空心描边';
 
   @override
@@ -2555,6 +2636,51 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get eraseOccludedParts => '擦除被遮挡部分';
+
+  @override
+  String get brushPreset => '笔刷预设';
+
+  @override
+  String get brushPresetDesc => '选择笔刷预设以控制间距、流量与形状。';
+
+  @override
+  String get editBrushPreset => '编辑预设';
+
+  @override
+  String get editBrushPresetDesc => '调整当前预设的内部参数。';
+
+  @override
+  String get brushPresetDialogTitle => '编辑笔刷预设';
+
+  @override
+  String get brushPresetNameLabel => '预设名称';
+
+  @override
+  String get brushPresetPencil => '铅笔';
+
+  @override
+  String get brushPresetPen => '钢笔';
+
+  @override
+  String get brushPresetPixel => '像素笔';
+
+  @override
+  String get brushSpacing => '间距';
+
+  @override
+  String get brushHardness => '硬度';
+
+  @override
+  String get brushFlow => '流量';
+
+  @override
+  String get brushScatter => '散布';
+
+  @override
+  String get brushRotationJitter => '旋转抖动';
+
+  @override
+  String get brushSnapToPixel => '像素对齐';
 
   @override
   String get hollowStrokeDesc => '将笔画中心挖空，形成空心描边效果。';
@@ -3192,6 +3318,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuRotate180CCW => '逆時針 180 度';
 
   @override
+  String get menuFlipHorizontal => '水平翻轉';
+
+  @override
+  String get menuFlipVertical => '垂直翻轉';
+
+  @override
   String get menuImageSizeEllipsis => '影像大小…';
 
   @override
@@ -3348,6 +3480,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuInvertColors => '顏色反轉';
 
   @override
+  String get colorTransparent => '透明';
+
+  @override
+  String get swapDimensions => '交換寬高';
+
+  @override
+  String get brushAntialiasing => '筆刷抗鋸齒';
+
+  @override
+  String get bucketAntialiasing => '填充抗鋸齒';
+
+  @override
   String get swallowBlueColorLine => '吞併藍色線';
 
   @override
@@ -3367,6 +3511,51 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get eraseOccludedParts => '擦除被遮擋部分';
+
+  @override
+  String get brushPreset => '筆刷預設';
+
+  @override
+  String get brushPresetDesc => '選擇筆刷預設以控制間距、流量與形狀。';
+
+  @override
+  String get editBrushPreset => '編輯預設';
+
+  @override
+  String get editBrushPresetDesc => '調整目前預設的內部參數。';
+
+  @override
+  String get brushPresetDialogTitle => '編輯筆刷預設';
+
+  @override
+  String get brushPresetNameLabel => '預設名稱';
+
+  @override
+  String get brushPresetPencil => '鉛筆';
+
+  @override
+  String get brushPresetPen => '鋼筆';
+
+  @override
+  String get brushPresetPixel => '像素筆';
+
+  @override
+  String get brushSpacing => '間距';
+
+  @override
+  String get brushHardness => '硬度';
+
+  @override
+  String get brushFlow => '流量';
+
+  @override
+  String get brushScatter => '散佈';
+
+  @override
+  String get brushRotationJitter => '旋轉抖動';
+
+  @override
+  String get brushSnapToPixel => '像素對齊';
 
   @override
   String get randomRotation => '隨機旋轉';

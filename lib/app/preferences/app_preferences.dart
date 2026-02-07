@@ -31,7 +31,6 @@ class AppPreferences {
     required this.autoSharpPeakEnabled,
     required this.penStrokeSliderRange,
     required this.strokeStabilizerStrength,
-    this.streamlineEnabled = _defaultStreamlineEnabled,
     this.streamlineStrength = _defaultStreamlineStrength,
     required this.brushShape,
     this.brushRandomRotationEnabled = _defaultBrushRandomRotationEnabled,
@@ -49,10 +48,6 @@ class AppPreferences {
     this.bucketFillGap = _defaultBucketFillGap,
     this.magicWandTolerance = _defaultMagicWandTolerance,
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
-    this.vectorDrawingEnabled = _defaultVectorDrawingEnabled,
-    this.showDisableVectorDrawingConfirmDialog =
-        _defaultShowDisableVectorDrawingConfirmDialog,
-    this.vectorStrokeSmoothingEnabled = _defaultVectorStrokeSmoothingEnabled,
     this.showFpsOverlay = _defaultShowFpsOverlay,
     this.pixelGridVisible = _defaultPixelGridVisible,
     this.workspaceLayout = _defaultWorkspaceLayout,
@@ -62,12 +57,15 @@ class AppPreferences {
     this.sai2LayerPanelWidthSplit = _defaultSai2LayerPanelSplit,
     this.sprayStrokeWidth = _defaultSprayStrokeWidth,
     this.sprayMode = _defaultSprayMode,
+    this.newCanvasWidth = _defaultNewCanvasWidth,
+    this.newCanvasHeight = _defaultNewCanvasHeight,
+    this.newCanvasBackgroundColor = _defaultNewCanvasBackgroundColor,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 37;
+  static const int _version = 39;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -85,9 +83,8 @@ class AppPreferences {
   static const bool _defaultAutoSharpPeakEnabled = false;
   static const PenStrokeSliderRange _defaultPenStrokeSliderRange =
       PenStrokeSliderRange.compact;
-  static const double _defaultStrokeStabilizerStrength = 0.0;
-  static const bool _defaultStreamlineEnabled = true;
-  static const double _defaultStreamlineStrength = 0.5; // 15/30
+  static const double _defaultStrokeStabilizerStrength = 10.0 / 30.0;
+  static const double _defaultStreamlineStrength = 0.0;
   static const BrushShape _defaultBrushShape = BrushShape.circle;
   static const bool _defaultBrushRandomRotationEnabled = false;
   static const bool _defaultHollowStrokeEnabled = false;
@@ -104,9 +101,6 @@ class AppPreferences {
   static const int _defaultBucketFillGap = 0;
   static const int _defaultMagicWandTolerance = 0;
   static const bool _defaultBrushToolsEraserMode = false;
-  static const bool _defaultVectorDrawingEnabled = true;
-  static const bool _defaultShowDisableVectorDrawingConfirmDialog = true;
-  static const bool _defaultVectorStrokeSmoothingEnabled = false;
   static const bool _defaultShapeToolFillEnabled = false;
   static const int _defaultBucketAntialiasLevel = 0;
   static const bool _defaultShowFpsOverlay = false;
@@ -115,6 +109,11 @@ class AppPreferences {
       WorkspaceLayoutPreference.floating;
   static const double _defaultSai2ToolPanelSplit = 0.5;
   static const double _defaultSai2LayerPanelSplit = 0.5;
+  static const int _defaultNewCanvasWidth = 1920;
+  static const int _defaultNewCanvasHeight = 1080;
+  static const Color _defaultNewCanvasBackgroundColor = Color(0xFFFFFFFF);
+  static const int _minNewCanvasDimension = 1;
+  static const int _maxNewCanvasDimension = 16000;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -130,7 +129,6 @@ class AppPreferences {
       _defaultPenStrokeSliderRange;
   static const double defaultStrokeStabilizerStrength =
       _defaultStrokeStabilizerStrength;
-  static const bool defaultStreamlineEnabled = _defaultStreamlineEnabled;
   static const double defaultStreamlineStrength = _defaultStreamlineStrength;
   static const BrushShape defaultBrushShape = _defaultBrushShape;
   static const bool defaultBrushRandomRotationEnabled =
@@ -152,9 +150,6 @@ class AppPreferences {
   static const int defaultBucketFillGap = _defaultBucketFillGap;
   static const int defaultMagicWandTolerance = _defaultMagicWandTolerance;
   static const bool defaultBrushToolsEraserMode = _defaultBrushToolsEraserMode;
-  static const bool defaultVectorDrawingEnabled = _defaultVectorDrawingEnabled;
-  static const bool defaultVectorStrokeSmoothingEnabled =
-      _defaultVectorStrokeSmoothingEnabled;
   static const bool defaultShapeToolFillEnabled = _defaultShapeToolFillEnabled;
   static const int defaultBucketAntialiasLevel = _defaultBucketAntialiasLevel;
   static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
@@ -183,7 +178,6 @@ class AppPreferences {
   bool autoSharpPeakEnabled;
   PenStrokeSliderRange penStrokeSliderRange;
   double strokeStabilizerStrength;
-  bool streamlineEnabled;
   double streamlineStrength;
   BrushShape brushShape;
   bool brushRandomRotationEnabled;
@@ -192,6 +186,9 @@ class AppPreferences {
   bool hollowStrokeEraseOccludedParts;
   double sprayStrokeWidth;
   SprayMode sprayMode;
+  int newCanvasWidth;
+  int newCanvasHeight;
+  Color newCanvasBackgroundColor;
   bool layerAdjustCropOutside;
   Color colorLineColor;
   bool bucketSwallowColorLine;
@@ -202,9 +199,6 @@ class AppPreferences {
   int bucketFillGap;
   int magicWandTolerance;
   bool brushToolsEraserMode;
-  bool vectorDrawingEnabled;
-  bool showDisableVectorDrawingConfirmDialog;
-  bool vectorStrokeSmoothingEnabled;
   int bucketAntialiasLevel;
   bool showFpsOverlay;
   bool pixelGridVisible;
@@ -267,13 +261,9 @@ class AppPreferences {
               version >= 35 && bytes.length >= 51
                   ? bytes[50] != 0
                   : _defaultBrushRandomRotationEnabled;
-          final bool decodedStreamlineEnabled =
-              version >= 36 && bytes.length >= 52
-                  ? bytes[51] != 0
-                  : _defaultStreamlineEnabled;
           final double decodedStreamlineStrength =
-              version >= 37 && bytes.length >= 53
-                  ? _decodeStrokeStabilizerStrength(bytes[52])
+              version >= 38 && bytes.length >= 52
+                  ? _decodeStreamlineStrength(bytes[51])
                   : _defaultStreamlineStrength;
           if (version >= 20 && bytes.length >= 26) {
             final bool hasWorkspaceSplitPayload =
@@ -290,10 +280,6 @@ class AppPreferences {
             final double decodedSai2LayerSplit = hasWorkspaceSplitPayload
                 ? _decodeRatioByte(bytes[31])
                 : _defaultSai2LayerPanelSplit;
-            final bool decodedVectorDrawingEnabled =
-                version >= 22 && bytes.length >= 33
-                ? bytes[32] != 0
-                : _defaultVectorDrawingEnabled;
             final bool decodedShapeToolFillEnabled =
                 version >= 23 &&
                     ((version >= 28 && bytes.length >= 35) ||
@@ -310,7 +296,6 @@ class AppPreferences {
                   )
                 : _defaultSprayStrokeWidth;
             if (version >= 28 && bytes.length >= 43) {
-              final bool decodedVectorStrokeSmoothingEnabled = bytes[33] != 0;
               final SprayMode decodedSprayMode = _decodeSprayMode(bytes[37]);
               final bool decodedPixelGridVisible = bytes[38] != 0;
               final int primaryColorValue =
@@ -321,14 +306,32 @@ class AppPreferences {
               final Color decodedPrimaryColor = Color(primaryColorValue);
               final int rawHistory = bytes[3] | (bytes[4] << 8);
               final int rawStroke = bytes[6] | (bytes[7] << 8);
-              final bool decodedShowDisableVectorDrawingConfirmDialog =
-                  version >= 29 && bytes.length >= 44
-                  ? bytes[43] != 0
-                  : _defaultShowDisableVectorDrawingConfirmDialog;
               final Locale? decodedLocaleOverride =
                   version >= 30 && bytes.length >= 45
                   ? _decodeLocaleOverride(bytes[44])
                   : _defaultLocaleOverride;
+              final bool hasNewCanvasDefaults =
+                  version >= 39 && bytes.length >= 61;
+              final int decodedNewCanvasWidth = hasNewCanvasDefaults
+                  ? _decodeNewCanvasDimension(
+                      bytes[53] | (bytes[54] << 8),
+                      _defaultNewCanvasWidth,
+                    )
+                  : _defaultNewCanvasWidth;
+              final int decodedNewCanvasHeight = hasNewCanvasDefaults
+                  ? _decodeNewCanvasDimension(
+                      bytes[55] | (bytes[56] << 8),
+                      _defaultNewCanvasHeight,
+                    )
+                  : _defaultNewCanvasHeight;
+              final Color decodedNewCanvasBackgroundColor = hasNewCanvasDefaults
+                  ? Color(
+                      bytes[57] |
+                          (bytes[58] << 8) |
+                          (bytes[59] << 16) |
+                          (bytes[60] << 24),
+                    )
+                  : _defaultNewCanvasBackgroundColor;
               final bool decodedHollowStrokeEnabled;
               final double decodedHollowStrokeRatio;
               final bool decodedHollowStrokeEraseOccludedParts;
@@ -368,7 +371,6 @@ class AppPreferences {
                 strokeStabilizerStrength: _decodeStrokeStabilizerStrength(
                   bytes[15],
                 ),
-                streamlineEnabled: decodedStreamlineEnabled,
                 streamlineStrength: decodedStreamlineStrength,
                 brushShape: _decodeBrushShape(bytes[16]),
                 brushRandomRotationEnabled: decodedBrushRandomRotationEnabled,
@@ -386,11 +388,6 @@ class AppPreferences {
                 magicWandTolerance: _clampToleranceValue(bytes[21]),
                 brushToolsEraserMode: bytes[22] != 0,
                 bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
-                vectorDrawingEnabled: decodedVectorDrawingEnabled,
-                showDisableVectorDrawingConfirmDialog:
-                    decodedShowDisableVectorDrawingConfirmDialog,
-                vectorStrokeSmoothingEnabled:
-                    decodedVectorStrokeSmoothingEnabled,
                 showFpsOverlay: bytes[24] != 0,
                 workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
                 floatingColorPanelHeight: decodedFloatingColorHeight,
@@ -401,6 +398,9 @@ class AppPreferences {
                 sprayMode: decodedSprayMode,
                 pixelGridVisible: decodedPixelGridVisible,
                 primaryColor: decodedPrimaryColor,
+                newCanvasWidth: decodedNewCanvasWidth,
+                newCanvasHeight: decodedNewCanvasHeight,
+                newCanvasBackgroundColor: decodedNewCanvasBackgroundColor,
               );
               return _finalizeLoadedPreferences();
             } else if (version >= 27 && bytes.length >= 42) {
@@ -443,7 +443,6 @@ class AppPreferences {
                 magicWandTolerance: _clampToleranceValue(bytes[21]),
                 brushToolsEraserMode: bytes[22] != 0,
                 bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
-                vectorDrawingEnabled: decodedVectorDrawingEnabled,
                 showFpsOverlay: bytes[24] != 0,
                 workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
                 floatingColorPanelHeight: decodedFloatingColorHeight,
@@ -490,7 +489,6 @@ class AppPreferences {
                 magicWandTolerance: _clampToleranceValue(bytes[21]),
                 brushToolsEraserMode: bytes[22] != 0,
                 bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
-                vectorDrawingEnabled: decodedVectorDrawingEnabled,
                 showFpsOverlay: bytes[24] != 0,
                 workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
                 floatingColorPanelHeight: decodedFloatingColorHeight,
@@ -535,7 +533,6 @@ class AppPreferences {
                 magicWandTolerance: _clampToleranceValue(bytes[21]),
                 brushToolsEraserMode: bytes[22] != 0,
                 bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
-                vectorDrawingEnabled: decodedVectorDrawingEnabled,
                 showFpsOverlay: bytes[24] != 0,
                 workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
                 floatingColorPanelHeight: decodedFloatingColorHeight,
@@ -579,7 +576,6 @@ class AppPreferences {
                 magicWandTolerance: _clampToleranceValue(bytes[21]),
                 brushToolsEraserMode: bytes[22] != 0,
                 bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
-                vectorDrawingEnabled: decodedVectorDrawingEnabled,
                 showFpsOverlay: bytes[24] != 0,
                 workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),
                 floatingColorPanelHeight: decodedFloatingColorHeight,
@@ -1158,13 +1154,10 @@ class AppPreferences {
       autoSharpPeakEnabled: _defaultAutoSharpPeakEnabled,
       penStrokeSliderRange: _defaultPenStrokeSliderRange,
       strokeStabilizerStrength: _defaultStrokeStabilizerStrength,
-      streamlineEnabled: _defaultStreamlineEnabled,
       brushShape: _defaultBrushShape,
       layerAdjustCropOutside: false,
       colorLineColor: _defaultColorLineColor,
       bucketSwallowColorLine: _defaultBucketSwallowColorLine,
-      vectorDrawingEnabled: _defaultVectorDrawingEnabled,
-      vectorStrokeSmoothingEnabled: _defaultVectorStrokeSmoothingEnabled,
       workspaceLayout: _defaultWorkspaceLayout,
       floatingColorPanelHeight: null,
       sai2ColorPanelHeight: null,
@@ -1206,7 +1199,9 @@ class AppPreferences {
     prefs.strokeStabilizerStrength = _clampStrokeStabilizerStrength(
       prefs.strokeStabilizerStrength,
     );
-    prefs.streamlineStrength = _clampStreamlineStrength(prefs.streamlineStrength);
+    prefs.streamlineStrength = _clampStreamlineStrength(
+      prefs.streamlineStrength,
+    );
 
     final int stylusCurveEncoded = _encodeStylusFactor(
       stylusCurve,
@@ -1219,7 +1214,7 @@ class AppPreferences {
     final int stabilizerEncoded = _encodeStrokeStabilizerStrength(
       prefs.strokeStabilizerStrength,
     );
-    final int streamlineStrengthEncoded = _encodeStreamlineStrength(
+    final int streamlineEncoded = _encodeStreamlineStrength(
       prefs.streamlineStrength,
     );
     final int colorLineEncoded = _encodeColorLineColor(prefs.colorLineColor);
@@ -1242,6 +1237,18 @@ class AppPreferences {
     final int bucketSwallowColorLineModeEncoded =
         _encodeBucketSwallowColorLineMode(prefs.bucketSwallowColorLineMode);
     final int bucketFillGapEncoded = _clampFillGapValue(prefs.bucketFillGap);
+    final int newCanvasWidth = _clampNewCanvasDimension(
+      prefs.newCanvasWidth <= 0 ? _defaultNewCanvasWidth : prefs.newCanvasWidth,
+    );
+    final int newCanvasHeight = _clampNewCanvasDimension(
+      prefs.newCanvasHeight <= 0
+          ? _defaultNewCanvasHeight
+          : prefs.newCanvasHeight,
+    );
+    prefs.newCanvasWidth = newCanvasWidth;
+    prefs.newCanvasHeight = newCanvasHeight;
+    final int newCanvasBackgroundColorValue =
+        prefs.newCanvasBackgroundColor.value;
 
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
@@ -1276,8 +1283,8 @@ class AppPreferences {
       (sai2ColorEncoded >> 8) & 0xff,
       sai2ToolSplitEncoded,
       sai2LayerSplitEncoded,
-      prefs.vectorDrawingEnabled ? 1 : 0,
-      prefs.vectorStrokeSmoothingEnabled ? 1 : 0,
+      0,
+      0,
       prefs.shapeToolFillEnabled ? 1 : 0,
       sprayWidth & 0xff,
       (sprayWidth >> 8) & 0xff,
@@ -1287,7 +1294,7 @@ class AppPreferences {
       (primaryColorValue >> 8) & 0xff,
       (primaryColorValue >> 16) & 0xff,
       (primaryColorValue >> 24) & 0xff,
-      prefs.showDisableVectorDrawingConfirmDialog ? 1 : 0,
+      0,
       localeOverrideEncoded,
       prefs.hollowStrokeEnabled ? 1 : 0,
       hollowStrokeRatioEncoded,
@@ -1295,8 +1302,16 @@ class AppPreferences {
       bucketSwallowColorLineModeEncoded,
       bucketFillGapEncoded,
       prefs.brushRandomRotationEnabled ? 1 : 0,
-      prefs.streamlineEnabled ? 1 : 0,
-      streamlineStrengthEncoded,
+      streamlineEncoded,
+      0,
+      newCanvasWidth & 0xff,
+      (newCanvasWidth >> 8) & 0xff,
+      newCanvasHeight & 0xff,
+      (newCanvasHeight >> 8) & 0xff,
+      newCanvasBackgroundColorValue & 0xff,
+      (newCanvasBackgroundColorValue >> 8) & 0xff,
+      (newCanvasBackgroundColorValue >> 16) & 0xff,
+      (newCanvasBackgroundColorValue >> 24) & 0xff,
     ]);
     await _writePreferencesPayload(payload);
   }
@@ -1309,6 +1324,23 @@ class AppPreferences {
       return maxHistoryLimit;
     }
     return value;
+  }
+
+  static int _clampNewCanvasDimension(int value) {
+    if (value < _minNewCanvasDimension) {
+      return _minNewCanvasDimension;
+    }
+    if (value > _maxNewCanvasDimension) {
+      return _maxNewCanvasDimension;
+    }
+    return value;
+  }
+
+  static int _decodeNewCanvasDimension(int value, int fallback) {
+    if (value <= 0) {
+      return fallback;
+    }
+    return _clampNewCanvasDimension(value);
   }
 
   static int _clampToleranceValue(int value) {
@@ -1593,8 +1625,8 @@ class AppPreferences {
     if (value < 0) {
       return 0;
     }
-    if (value > 3) {
-      return 3;
+    if (value > 9) {
+      return 9;
     }
     return value;
   }
@@ -1603,8 +1635,8 @@ class AppPreferences {
     if (value < 0) {
       return 0;
     }
-    if (value > 3) {
-      return 3;
+    if (value > 9) {
+      return 9;
     }
     return value;
   }
@@ -1641,6 +1673,11 @@ class AppPreferences {
   static int _encodeStrokeStabilizerStrength(double value) {
     final double clamped = _clampStrokeStabilizerStrength(value);
     return (clamped * 255.0).round().clamp(0, 255);
+  }
+
+  static double _decodeStreamlineStrength(int value) {
+    final int clamped = value.clamp(0, 255);
+    return clamped / 255.0;
   }
 
   static int _encodeStreamlineStrength(double value) {

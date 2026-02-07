@@ -1203,9 +1203,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 	      timeTicker.dispose();
 	      widthController.dispose();
 	      heightController.dispose();
-	      if (bakeTexture != null && !bakeTexture.debugDisposed) {
-	        bakeTexture.dispose();
-	      }
+	      _disposeImageSafely(bakeTexture);
 	    }
   }
 

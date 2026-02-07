@@ -366,7 +366,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         bounds.height * scale,
       );
     }
-    void _beginEditExistingTextLayer(BitmapLayerState layer) {
+    Future<void> _beginEditExistingTextLayer(BitmapLayerState layer) async {
       _clearTextHoverHighlight();
       final CanvasTextData? existing = layer.text;
       if (existing == null) {
@@ -378,6 +378,16 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
           message: '请先解锁文字图层后再编辑。',
           severity: InfoBarSeverity.warning,
         );
+        return;
+      }
+      if (_canUseRustCanvasEngine()) {
+        await _controller.waitForPendingWorkerTasks();
+        if (!_syncAllLayerPixelsFromRust()) {
+          _showRustCanvasMessage('Rust 画布同步图层失败。');
+          return;
+        }
+      }
+      if (!mounted) {
         return;
       }
       _textFontFamily = existing.fontFamily;
@@ -398,7 +408,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       );
       _pendingTextLayerUpdate = null;
       final Future<_CanvasHistoryEntry> pendingHistory =
-          _createHistoryEntry();
+          _createHistoryEntry(rustPixelsSynced: _canUseRustCanvasEngine());
       final bool layerWasVisible = layer.visible;
       _textSession = _TextEditingSession(
         origin: existing.origin,
@@ -416,6 +426,55 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       setState(() {});
       _textEditingFocusNode.requestFocus();
     }
+    bool _commitTextLayerToRust(String layerId) {
+      if (!_canUseRustCanvasEngine()) {
+        return false;
+      }
+      final int? handle = _rustCanvasEngineHandle;
+      if (handle == null) {
+        return false;
+      }
+      BitmapLayerState? layer;
+      for (final BitmapLayerState candidate in _controller.layers) {
+        if (candidate.id == layerId) {
+          layer = candidate;
+          break;
+        }
+      }
+      if (layer == null) {
+        return false;
+      }
+      final int? layerIndex = _rustCanvasLayerIndexForId(layerId);
+      if (layerIndex == null) {
+        return false;
+      }
+      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+      final int width = engineSize.width.round();
+      final int height = engineSize.height.round();
+      if (width <= 0 || height <= 0) {
+        return false;
+      }
+      if (layer.surface.width != width || layer.surface.height != height) {
+        return false;
+      }
+      if (layer.surface.pixels.length != width * height) {
+        return false;
+      }
+      final bool applied = CanvasEngineFfi.instance.writeLayer(
+        handle: handle,
+        layerIndex: layerIndex,
+        pixels: layer.surface.pixels,
+        recordUndo: false,
+      );
+      if (applied) {
+        _bumpRustLayerPreviewRevision(layerId);
+        if (mounted) {
+          setState(() {});
+        }
+        _markDirty();
+      }
+      return applied;
+    }
     Future<void> _commitTextEditingSession() async {
       final _TextEditingSession? session = _textSession;
       if (session == null || session.isFinalizing) {
@@ -431,6 +490,13 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       final CanvasTextData data = baseData.copyWith(text: content);
       final CanvasTextLayout layout = _textOverlayRenderer.layout(data);
       await _waitForPendingTextLayerUpdate();
+      if (session.isNewLayer && _canUseRustCanvasEngine()) {
+        await _controller.waitForPendingWorkerTasks();
+        if (!_syncAllLayerPixelsFromRust()) {
+          _showRustCanvasMessage('Rust 画布同步图层失败。');
+          return;
+        }
+      }
       final int? initialFrameGeneration = _controller.frame?.generation;
       setState(() {
         session.isFinalizing = true;
@@ -439,8 +505,16 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       });
       try {
         if (session.isNewLayer) {
-          await _pushUndoSnapshot();
-          await _controller.createTextLayer(data);
+          final bool rustSynced = _canUseRustCanvasEngine();
+          await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
+          final String layerId = await _controller.createTextLayer(data);
+          _markDirty();
+          if (rustSynced) {
+            await _controller.waitForPendingWorkerTasks();
+            if (!_commitTextLayerToRust(layerId)) {
+              _showRustCanvasMessage('Rust 画布写入图层失败。');
+            }
+          }
           return;
         }
         if (session.layerId == null) {
@@ -459,6 +533,13 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
           await _pushUndoSnapshot();
         }
         await _controller.updateTextLayer(session.layerId!, data);
+        _markDirty();
+        if (_canUseRustCanvasEngine()) {
+          await _controller.waitForPendingWorkerTasks();
+          if (!_commitTextLayerToRust(session.layerId!)) {
+            _showRustCanvasMessage('Rust 画布写入图层失败。');
+          }
+        }
       } finally {
         await _finalizeTextEditingSessionCleanup(
           session,

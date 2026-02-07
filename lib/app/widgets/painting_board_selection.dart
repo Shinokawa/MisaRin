@@ -166,11 +166,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     Offset position, {
     required bool additive,
   }) async {
-    final Uint8List? mask = await _controller.computeMagicWandMask(
-      position,
-      sampleAllLayers: true,
-      tolerance: _magicWandTolerance,
-    );
+    final Uint8List? mask = await _computeMagicWandMask(position);
     if (!mounted) {
       return;
     }
@@ -207,6 +203,65 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
       }
     });
     _updateSelectionAnimation();
+  }
+
+  Future<Uint8List?> _computeMagicWandMask(Offset position) async {
+    if (!_canUseRustCanvasEngine()) {
+      return null;
+    }
+    final int handle = _rustCanvasEngineHandle!;
+    final String? activeLayerId = _controller.activeLayerId;
+    final int? layerIndex =
+        activeLayerId != null ? _rustCanvasLayerIndexForId(activeLayerId) : null;
+    if (layerIndex == null) {
+      return null;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int engineWidth = engineSize.width.round();
+    final int engineHeight = engineSize.height.round();
+    if (engineWidth <= 0 || engineHeight <= 0) {
+      return null;
+    }
+    final Offset enginePos = _rustToEngineSpace(position);
+    final int startX = enginePos.dx.floor();
+    final int startY = enginePos.dy.floor();
+    if (startX < 0 ||
+        startY < 0 ||
+        startX >= engineWidth ||
+        startY >= engineHeight) {
+      return null;
+    }
+    final int maskLength = engineWidth * engineHeight;
+    final Uint8List? selectionMaskForRust =
+        _resolveSelectionMaskForRust(engineWidth, engineHeight);
+    final Uint8List? mask = CanvasEngineFfi.instance.magicWandMask(
+      handle: handle,
+      layerIndex: layerIndex,
+      startX: startX,
+      startY: startY,
+      maskLength: maskLength,
+      sampleAllLayers: true,
+      tolerance: _magicWandTolerance,
+      selectionMask: selectionMaskForRust,
+    );
+    if (mask == null) {
+      return null;
+    }
+    final int canvasWidth = _controller.width;
+    final int canvasHeight = _controller.height;
+    if (canvasWidth <= 0 || canvasHeight <= 0) {
+      return null;
+    }
+    if (engineWidth == canvasWidth && engineHeight == canvasHeight) {
+      return mask;
+    }
+    return _scaleSelectionMask(
+      mask,
+      engineWidth,
+      engineHeight,
+      canvasWidth,
+      canvasHeight,
+    );
   }
 
   @override
@@ -731,6 +786,88 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _selectionPath = path;
     _selectionMask = mask;
     _controller.setSelectionMask(mask);
+    _syncRustSelectionMask();
+  }
+
+  @override
+  void _handleRustCanvasEngineInfoChanged(
+    int? handle,
+    Size? engineSize,
+    bool isNewEngine,
+  ) {
+    super._handleRustCanvasEngineInfoChanged(handle, engineSize, isNewEngine);
+    _syncRustSelectionMask();
+  }
+
+  void _syncRustSelectionMask() {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle == null) {
+      return;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      CanvasEngineFfi.instance.setSelectionMask(handle: handle);
+      return;
+    }
+    final Uint8List? selectionMask = _resolveSelectionMaskForRust(width, height);
+    CanvasEngineFfi.instance.setSelectionMask(
+      handle: handle,
+      selectionMask: selectionMask,
+    );
+  }
+
+  @override
+  Uint8List? _resolveSelectionMaskForRust(int targetWidth, int targetHeight) {
+    final Uint8List? mask = _selectionMask;
+    if (mask == null) {
+      return null;
+    }
+    final int srcWidth = _controller.width;
+    final int srcHeight = _controller.height;
+    if (srcWidth <= 0 || srcHeight <= 0) {
+      return null;
+    }
+    if (mask.length != srcWidth * srcHeight) {
+      return null;
+    }
+    if (targetWidth <= 0 || targetHeight <= 0) {
+      return null;
+    }
+    if (srcWidth == targetWidth && srcHeight == targetHeight) {
+      return mask;
+    }
+    return _scaleSelectionMask(mask, srcWidth, srcHeight, targetWidth, targetHeight);
+  }
+
+  Uint8List _scaleSelectionMask(
+    Uint8List mask,
+    int srcWidth,
+    int srcHeight,
+    int targetWidth,
+    int targetHeight,
+  ) {
+    if (srcWidth <= 0 ||
+        srcHeight <= 0 ||
+        targetWidth <= 0 ||
+        targetHeight <= 0) {
+      return Uint8List(0);
+    }
+    final Uint8List scaled = Uint8List(targetWidth * targetHeight);
+    for (int y = 0; y < targetHeight; y++) {
+      final int srcY = (y * srcHeight) ~/ targetHeight;
+      final int dstRow = y * targetWidth;
+      final int srcRow = srcY * srcWidth;
+      for (int x = 0; x < targetWidth; x++) {
+        final int srcX = (x * srcWidth) ~/ targetWidth;
+        scaled[dstRow + x] = mask[srcRow + srcX];
+      }
+    }
+    return scaled;
   }
 
   @override

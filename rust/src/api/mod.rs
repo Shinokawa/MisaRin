@@ -1,0 +1,9 @@
+pub mod bucket_fill;
+pub mod gpu_brush;
+pub mod gpu_composite;
+pub mod image_ops;
+pub mod memory;
+pub mod psd;
+pub mod selection_path;
+pub mod simple;
+pub mod workspace;

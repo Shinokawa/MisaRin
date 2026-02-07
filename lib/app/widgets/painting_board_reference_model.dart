@@ -13,6 +13,44 @@ const double _referenceModelViewportHeight = 320;
 
 const String _kReferenceModelActionNone = '__none__';
 
+final Expando<bool> _imageDisposedCache = Expando<bool>('imageDisposed');
+
+bool _isImageDisposed(ui.Image? image) {
+  if (image == null) {
+    return true;
+  }
+  final bool? cached = _imageDisposedCache[image];
+  if (cached == true) {
+    return true;
+  }
+  bool disposed = false;
+  assert(() {
+    disposed = image.debugDisposed;
+    return true;
+  }());
+  if (disposed) {
+    _imageDisposedCache[image] = true;
+  }
+  return disposed;
+}
+
+bool _isImageUsable(ui.Image? image) => !_isImageDisposed(image);
+
+void _markImageDisposed(ui.Image image) {
+  _imageDisposedCache[image] = true;
+}
+
+void _disposeImageSafely(ui.Image? image) {
+  if (image == null) {
+    return;
+  }
+  if (_isImageDisposed(image)) {
+    return;
+  }
+  image.dispose();
+  _markImageDisposed(image);
+}
+
 enum _ReferenceModelActionType { none, pose, animation }
 
 class _ReferenceModelActionSeed {
@@ -344,6 +382,18 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   bool _referenceModelImportInProgress = false;
   bool _referenceModelBuiltinLoadInProgress = false;
 
+  @override
+  void _recordRustHistoryAction({
+    String? layerId,
+    bool deferPreview = false,
+  }) {
+    super._recordRustHistoryAction(
+      layerId: layerId,
+      deferPreview: deferPreview,
+    );
+    _scheduleReferenceModelTextureRefresh();
+  }
+
   Future<void> showSteveReferenceModelCard() async {
     await _openReferenceModelFromAsset(
       _kSteveReferenceModelAsset,
@@ -645,6 +695,37 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     await _refreshReferenceModelTexture(showSuccessToast: false, force: true);
   }
 
+  Future<void> _syncReferenceModelTextureFromRust({
+    required bool showWarning,
+  }) async {
+    if (!_canUseRustCanvasEngine()) {
+      return;
+    }
+    await _controller.waitForPendingWorkerTasks();
+    final int? handle = _rustCanvasEngineHandle;
+    if (handle != null) {
+      bool queueEmpty = false;
+      for (int attempt = 0; attempt < 6; attempt++) {
+        final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+        if (queued == 0) {
+          queueEmpty = true;
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 16));
+      }
+      if (queueEmpty) {
+        await Future.delayed(const Duration(milliseconds: 16));
+      }
+    }
+    final bool ok = _syncAllLayerPixelsFromRust();
+    if (!ok) {
+      debugPrint('referenceModel: rust sync failed');
+      if (showWarning) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+      }
+    }
+  }
+
   Future<void> _refreshReferenceModelTexture({
     bool showSuccessToast = true,
     bool force = false,
@@ -676,9 +757,12 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     _referenceModelTextureDirty = false;
     _referenceModelTextureLoading = true;
     try {
+      await _syncReferenceModelTextureFromRust(
+        showWarning: showSuccessToast,
+      );
       final ui.Image image = await _controller.snapshotImage();
       if (!mounted) {
-        image.dispose();
+        _disposeImageSafely(image);
         return;
       }
       final ui.Image? previous = _referenceModelTexture;
@@ -686,7 +770,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
         _referenceModelTexture = image;
       });
       _scheduleWorkspaceCardsOverlaySync();
-      if (previous != null && !previous.debugDisposed) {
+      if (previous != null) {
         _enqueueReferenceModelTextureDisposal(previous);
       }
       _referenceModelTextureLastAppliedGeneration = generation;
@@ -736,6 +820,9 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   }
 
   void _enqueueReferenceModelTextureDisposal(ui.Image image) {
+    if (_isImageDisposed(image)) {
+      return;
+    }
     _referenceModelTexturePendingDisposals.add(image);
     if (_referenceModelTextureDisposalScheduled) {
       return;
@@ -751,9 +838,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
       );
       _referenceModelTexturePendingDisposals.clear();
       for (final ui.Image image in pending) {
-        if (!image.debugDisposed) {
-          image.dispose();
-        }
+        _disposeImageSafely(image);
       }
     });
   }
@@ -804,7 +889,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
         _referenceModelTexture = null;
       }
     });
-    if (texture != null && !texture.debugDisposed) {
+    if (texture != null) {
       _enqueueReferenceModelTextureDisposal(texture);
     }
     _scheduleWorkspaceCardsOverlaySync();
@@ -881,16 +966,14 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
 
   void _disposeReferenceModelCards() {
     for (final ui.Image image in _referenceModelTexturePendingDisposals) {
-      if (!image.debugDisposed) {
-        image.dispose();
-      }
+      _disposeImageSafely(image);
     }
     _referenceModelTexturePendingDisposals.clear();
     _referenceModelTextureDisposalScheduled = false;
     _referenceModelTextureSyncScheduled = false;
     _referenceModelTextureDirty = false;
     _referenceModelTextureLastAppliedGeneration = null;
-    _referenceModelTexture?.dispose();
+    _disposeImageSafely(_referenceModelTexture);
     _referenceModelTexture = null;
     _referenceModelCards.clear();
   }

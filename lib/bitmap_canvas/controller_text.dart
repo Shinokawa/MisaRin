@@ -30,7 +30,7 @@ Future<String> _textLayerCreate(
   controller._resetWorkerSurfaceSync();
   await _textLayerRender(controller, layer, data);
   controller._markDirty(layerId: layer.id, pixelsDirty: true);
-  controller.notifyListeners();
+  controller._notify();
   return layer.id;
 }
 
@@ -50,7 +50,7 @@ Future<void> _textLayerUpdate(
     return;
   }
   await _textLayerRender(controller, layer, data);
-  controller.notifyListeners();
+  controller._notify();
 }
 
 Future<void> _textLayerRender(
@@ -93,7 +93,7 @@ void _textLayerRasterize(BitmapCanvasController controller, String id) {
   }
   layer.text = null;
   layer.textBounds = null;
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _textLayerApplyTranslation(

@@ -65,13 +65,43 @@ class CanvasToolbar extends StatelessWidget {
 
     final double singleColumnHeight =
         buttonSize * clampedToolCount + spacing * (clampedToolCount - 1);
-    final double height = effectiveHeight == double.infinity
-        ? singleColumnHeight
-        : math.max(buttonSize, math.min(singleColumnHeight, effectiveHeight));
+    if (!effectiveHeight.isFinite) {
+      return CanvasToolbarLayout(
+        columns: 1,
+        rows: clampedToolCount,
+        width: buttonSize,
+        height: singleColumnHeight,
+        buttonExtent: buttonSize,
+      );
+    }
+
+    final double rowExtent = buttonSize + spacing;
+    final int maxRows = math.max(
+      1,
+      ((effectiveHeight + spacing) / rowExtent).floor(),
+    );
+    if (maxRows >= clampedToolCount) {
+      final double height = math.max(
+        buttonSize,
+        math.min(singleColumnHeight, effectiveHeight),
+      );
+      return CanvasToolbarLayout(
+        columns: 1,
+        rows: clampedToolCount,
+        width: buttonSize,
+        height: height,
+        buttonExtent: buttonSize,
+      );
+    }
+
+    final int columns = (clampedToolCount / maxRows).ceil();
+    final double width = buttonSize * columns + spacing * (columns - 1);
+    final double height =
+        maxRows * buttonSize + spacing * (maxRows - 1);
     return CanvasToolbarLayout(
-      columns: 1,
-      rows: clampedToolCount,
-      width: buttonSize,
+      columns: columns,
+      rows: maxRows,
+      width: width,
       height: height,
       buttonExtent: buttonSize,
     );

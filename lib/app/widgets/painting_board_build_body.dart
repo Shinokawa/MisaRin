@@ -66,6 +66,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
         final bool hideCursorBecauseReferenceResize = _isReferenceCardResizing;
         final bool hideCursorBecauseLayerTransform =
             _shouldHideCursorForLayerTransform;
+        final bool suppressToolCursorOverlays = _layerTransformModeActive;
         final bool perspectiveCursorActive =
             _perspectiveVisible &&
             _perspectiveMode != PerspectiveGuideMode.off &&
@@ -208,34 +209,21 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onPenStrokeWidthChanged: _updatePenStrokeWidth,
           onSprayStrokeWidthChanged: _updateSprayStrokeWidth,
           onSprayModeChanged: _updateSprayMode,
-          brushShape: _brushShape,
-          onBrushShapeChanged: _updateBrushShape,
-          brushRandomRotationEnabled: _brushRandomRotationEnabled,
-          onBrushRandomRotationEnabledChanged:
-              _updateBrushRandomRotationEnabled,
-          hollowStrokeEnabled: _hollowStrokeEnabled,
-          hollowStrokeRatio: _hollowStrokeRatio,
-          onHollowStrokeEnabledChanged: _updateHollowStrokeEnabled,
-          onHollowStrokeRatioChanged: _updateHollowStrokeRatio,
-          hollowStrokeEraseOccludedParts: _hollowStrokeEraseOccludedParts,
-	          onHollowStrokeEraseOccludedPartsChanged:
-	              _updateHollowStrokeEraseOccludedParts,
-	          strokeStabilizerStrength: _strokeStabilizerStrength,
-	          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
-	          streamlineEnabled: _streamlineEnabled,
-	          onStreamlineEnabledChanged: _updateStreamlineEnabled,
-	          streamlineStrength: _streamlineStrength,
-	          onStreamlineStrengthChanged: _updateStreamlineStrength,
-	          stylusPressureEnabled: _stylusPressureEnabled,
-	          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
-	          simulatePenPressure: _simulatePenPressure,
-	          onSimulatePenPressureChanged: _updatePenPressureSimulation,
-	          penPressureProfile: _penPressureProfile,
+          brushPresets: _brushLibrary?.presets ?? const <BrushPreset>[],
+          activeBrushPresetId:
+              _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
+          onBrushPresetChanged: _selectBrushPreset,
+          onEditBrushPreset: _openBrushPresetEditor,
+          strokeStabilizerStrength: _strokeStabilizerStrength,
+          onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
+          streamlineStrength: _streamlineStrength,
+          onStreamlineChanged: _updateStreamlineStrength,
+          stylusPressureEnabled: _stylusPressureEnabled,
+          onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+          simulatePenPressure: _simulatePenPressure,
+          onSimulatePenPressureChanged: _updatePenPressureSimulation,
+          penPressureProfile: _penPressureProfile,
           onPenPressureProfileChanged: _updatePenPressureProfile,
-          brushAntialiasLevel: _penAntialiasLevel,
-          onBrushAntialiasChanged: _updatePenAntialiasLevel,
-          autoSharpPeakEnabled: _autoSharpPeakEnabled,
-          onAutoSharpPeakChanged: _updateAutoSharpPeakEnabled,
           bucketSampleAllLayers: _bucketSampleAllLayers,
           bucketContiguous: _bucketContiguous,
           bucketSwallowColorLine: _bucketSwallowColorLine,
@@ -263,8 +251,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onMagicWandToleranceChanged: _updateMagicWandTolerance,
           brushToolsEraserMode: _brushToolsEraserMode,
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
-          vectorDrawingEnabled: _vectorDrawingEnabled,
-          onVectorDrawingEnabledChanged: _updateVectorDrawingEnabled,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
           compactLayout: isSai2Layout,
           textFontSize: _textFontSize,
@@ -409,19 +395,10 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 	                                        width: 1,
 	                                      ),
 	                                    ),
-	                                    child: ClipRect(
-	                                      child: RepaintBoundary(
-	                                        child: AnimatedBuilder(
+	                                    child: RepaintBoundary(
+	                                      child: AnimatedBuilder(
 	                                          animation: _controller,
 	                                          builder: (context, _) {
-                                            final BitmapCanvasFrame? frame =
-                                                _controller.frame;
-                                            if (frame == null) {
-                                              return ColoredBox(
-                                                color:
-                                                    _controller.backgroundColor,
-                                              );
-                                            }
                                             final bool isTransforming =
                                                 _controller
                                                     .isActiveLayerTransforming;
@@ -441,6 +418,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   _controller
                                                       .activeLayerTransformBlendMode,
                                                 );
+                                            final bool suppressLayerAdjustOverlay =
+                                                _layerAdjustUsingRustPreview;
                                             final bool hasSelectionOverlay =
                                                 selectionPath != null ||
                                                 selectionPreviewPath != null ||
@@ -464,18 +443,26 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     CanvasTool.pen ||
                                                 _effectiveActiveTool ==
                                                     CanvasTool.eraser;
+                                            final bool activeLayerLocked = () {
+                                              final String? activeId =
+                                                  _controller.activeLayerId;
+                                              if (activeId == null) {
+                                                return false;
+                                              }
+                                              for (final BitmapLayerState layer
+                                                  in _controller.layers) {
+                                                if (layer.id == activeId) {
+                                                  return layer.locked;
+                                                }
+                                              }
+                                              return false;
+                                            }();
                                             final bool hasActiveStroke =
                                                 canPreviewStroke &&
                                                 _controller
                                                     .activeStrokePoints
                                                     .isNotEmpty;
                                             final bool showActiveStroke =
-                                                (_vectorDrawingEnabled ||
-                                                    _controller
-                                                        .activeStrokeHollowEnabled ||
-                                                    _controller
-                                                        .committingStrokes
-                                                        .isNotEmpty) &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&
@@ -486,68 +473,128 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             final bool activeStrokeIsEraser =
                                                 _controller
                                                     .activeStrokeEraseMode;
-                                            final Path? pendingFillOverlayPath =
-                                                shapeVectorFillOverlayPath;
-                                            final Color?
-                                            pendingFillOverlayColor =
-                                                shapeVectorFillOverlayColor;
 
-                                            Widget content = Stack(
-                                              fit: StackFit.expand,
-                                              clipBehavior: Clip.none,
-                                              children: [
-                                                const _CheckboardBackground(),
-                                                if (_filterSession != null &&
-                                                    _previewActiveLayerImage !=
-                                                        null)
-                                                  _buildFilterPreviewStack()
-                                                else if (_layerOpacityPreviewActive &&
-                                                    _layerOpacityPreviewActiveLayerImage !=
-                                                        null)
-                                                  _buildLayerOpacityPreviewStack()
-                                                else
-                                                  BitmapCanvasSurface(
-                                                    frame: frame,
-                                                  ),
-                                                if (_pixelGridVisible)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter:
-                                                            _PixelGridPainter(
-                                                              pixelWidth:
-                                                                  _controller
-                                                                      .width,
-                                                              pixelHeight:
-                                                                  _controller
-                                                                      .height,
-                                                              color:
-                                                              _pixelGridColor,
-                                                              scale: _viewport
-                                                                  .scale,
-                                                            ),
+                                            Widget applyViewOverlay(Widget child) {
+                                              if (_viewMirrorOverlay) {
+                                                child = Transform(
+                                                  transform: _kViewMirrorTransform,
+                                                  alignment: Alignment.center,
+                                                  transformHitTests: false,
+                                                  child: child,
+                                                );
+                                              }
+                                              if (_viewBlackWhiteOverlay) {
+                                                child = ColorFiltered(
+                                                  colorFilter: _kViewBlackWhiteColorFilter,
+                                                  child: child,
+                                                );
+                                              }
+                                              return child;
+                                            }
+
+                                            final Widget canvasSurface = IgnorePointer(
+                                              ignoring: true,
+                                              child: RustCanvasSurface(
+                                                surfaceKey: widget.surfaceKey,
+                                                canvasSize: _canvasSize,
+                                                enableDrawing:
+                                                    canPreviewStroke &&
+                                                    !activeLayerLocked &&
+                                                    !_layerTransformModeActive &&
+                                                    !_isLayerFreeTransformActive &&
+                                                    !_controller
+                                                        .isActiveLayerTransforming,
+                                                layerCount:
+                                                    _controller.layers.length,
+                                                brushColorArgb:
+                                                    _isBrushEraserEnabled
+                                                        ? 0xFFFFFFFF
+                                                        : _primaryColor.value,
+                                                brushRadius: _penStrokeWidth / 2,
+                                                erase: _isBrushEraserEnabled,
+                                                brushShape: _brushShape,
+                                                brushRandomRotationEnabled:
+                                                    _brushRandomRotationEnabled,
+                                                brushRotationSeed:
+                                                    _brushRandomRotationPreviewSeed,
+                                                brushSpacing: _brushSpacing,
+                                                brushHardness: _brushHardness,
+                                                brushFlow: _brushFlow,
+                                                brushScatter: _brushScatter,
+                                                brushRotationJitter:
+                                                    _brushRotationJitter,
+                                                brushSnapToPixel:
+                                                    _brushSnapToPixel,
+                                                hollowStrokeEnabled:
+                                                    _hollowStrokeEnabled,
+                                                hollowStrokeRatio:
+                                                    _hollowStrokeRatio,
+                                                hollowStrokeEraseOccludedParts:
+                                                    _hollowStrokeEraseOccludedParts,
+                                                antialiasLevel: _penAntialiasLevel,
+                                                backgroundColorArgb:
+                                                    widget.settings.backgroundColor.toARGB32(),
+                                                usePressure:
+                                                    _stylusPressureEnabled ||
+                                                    _simulatePenPressure ||
+                                                    _autoSharpPeakEnabled,
+                                                stylusCurve: _stylusCurve,
+                                                streamlineStrength:
+                                                    _streamlineStrength,
+                                                onStrokeBegin: _markDirty,
+                                                onEngineInfoChanged:
+                                                    _handleRustCanvasEngineInfoChanged,
+                                              ),
+                                            );
+
+                                            final _FilterSession? filterSession =
+                                                _filterSession;
+                                            final bool showRustFilterPreview =
+                                                filterSession != null &&
+                                                _shouldShowRustFilterPreviewOverlay(
+                                                  filterSession,
+                                                );
+                                            final bool showRustCurvePreview =
+                                                _canUseRustCanvasEngine() &&
+                                                _curvePreviewRasterImage != null;
+                                            final bool showRustShapePreview =
+                                                _canUseRustCanvasEngine() &&
+                                                _shapePreviewRasterImage != null;
+                                            final BitmapLayerState activeLayer =
+                                                _controller.activeLayer;
+                                            final ui.BlendMode?
+                                                rustPreviewBlendMode =
+                                                _flutterBlendMode(
+                                                  activeLayer.blendMode,
+                                                );
+                                            final double rustPreviewOpacity =
+                                                activeLayer.opacity
+                                                    .clamp(0.0, 1.0)
+                                                    .toDouble();
+                                            final List<Widget> overlayChildren =
+                                                <Widget>[
+                                              if (showRustFilterPreview)
+                                                _buildRustFilterPreviewOverlay(),
+                                              if (_pixelGridVisible)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child: CustomPaint(
+                                                      painter: _PixelGridPainter(
+                                                        pixelWidth:
+                                                            _controller.width,
+                                                        pixelHeight:
+                                                            _controller.height,
+                                                        color: _pixelGridColor,
+                                                        scale: _viewport.scale,
                                                       ),
                                                     ),
                                                   ),
-                                                if (_streamlinePostStroke != null &&
-                                                    _streamlinePostController != null)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter:
-                                                            _StreamlinePostStrokeOverlayPainter(
-                                                          stroke:
-                                                              _streamlinePostStroke!,
-                                                          progress:
-                                                              _streamlinePostController!,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (showActiveStroke)
-                                                  Positioned.fill(
+                                                ),
+                                              if (showActiveStroke)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
                                                     child: CustomPaint(
                                                       painter: _ActiveStrokeOverlayPainter(
                                                         points: _controller
@@ -571,9 +618,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                         hollowStrokeRatio:
                                                             _controller
                                                                 .activeStrokeHollowRatio,
-                                                        committingStrokes:
-                                                            _controller
-                                                                .committingStrokes,
+                                                        committingStrokes: _controller
+                                                            .committingStrokes,
                                                         activeStrokeIsEraser:
                                                             activeStrokeIsEraser,
                                                         eraserPreviewColor:
@@ -581,95 +627,73 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                       ),
                                                     ),
                                                   ),
-                                                if (transformImageOverlay !=
-                                                    null)
-                                                  transformImageOverlay
-                                                else if (!_isLayerFreeTransformActive &&
-                                                    isTransforming &&
-                                                    transformedActiveLayerImage !=
-                                                        null)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: OverflowBox(
-                                                        alignment:
-                                                            Alignment.topLeft,
-                                                        minWidth: 0,
-                                                        minHeight: 0,
-                                                        maxWidth:
-                                                            double.infinity,
-                                                        maxHeight:
-                                                            double.infinity,
-                                                        child: Transform
-                                                            .translate(
-                                                          offset:
-                                                              transformedLayerOffset,
-                                                          child:
-                                                              _buildTransformedLayerOverlay(
-                                                            image:
-                                                                transformedActiveLayerImage,
-                                                            opacity:
-                                                                transformedLayerOpacity,
-                                                            blendMode:
-                                                                transformedLayerBlendMode,
-                                                          ),
+                                                ),
+                                              if (showRustCurvePreview)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child:
+                                                        _buildTransformedLayerOverlay(
+                                                          image:
+                                                              _curvePreviewRasterImage!,
+                                                          opacity:
+                                                              rustPreviewOpacity,
+                                                          blendMode:
+                                                              rustPreviewBlendMode,
+                                                        ),
+                                                  ),
+                                                ),
+                                              if (showRustShapePreview)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child:
+                                                        _buildTransformedLayerOverlay(
+                                                          image:
+                                                              _shapePreviewRasterImage!,
+                                                          opacity:
+                                                              rustPreviewOpacity,
+                                                          blendMode:
+                                                              rustPreviewBlendMode,
+                                                        ),
+                                                  ),
+                                                ),
+                                              if (transformImageOverlay != null)
+                                                transformImageOverlay
+                                              else if (!_isLayerFreeTransformActive &&
+                                                  !suppressLayerAdjustOverlay &&
+                                                  isTransforming &&
+                                                  transformedActiveLayerImage !=
+                                                      null)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child: OverflowBox(
+                                                      alignment: Alignment.topLeft,
+                                                      minWidth: 0,
+                                                      minHeight: 0,
+                                                      maxWidth: double.infinity,
+                                                      maxHeight: double.infinity,
+                                                      child: Transform.translate(
+                                                        offset:
+                                                            transformedLayerOffset,
+                                                        child:
+                                                            _buildTransformedLayerOverlay(
+                                                          image:
+                                                              transformedActiveLayerImage,
+                                                          opacity:
+                                                              transformedLayerOpacity,
+                                                          blendMode:
+                                                              transformedLayerBlendMode,
                                                         ),
                                                       ),
                                                     ),
                                                   ),
-                                                if (transformHandlesOverlay !=
-                                                    null)
-                                                  transformHandlesOverlay,
-                                                if (_vectorDrawingEnabled &&
-                                                    _curvePreviewPath != null)
-                                                  Positioned.fill(
-                                                    child: CustomPaint(
-                                                      painter: _PreviewPathPainter(
-                                                        path:
-                                                            _curvePreviewPath!,
-                                                        color: _primaryColor,
-                                                        strokeWidth:
-                                                            _penStrokeWidth,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (_vectorDrawingEnabled &&
-                                                    shapePreviewPath != null)
-                                                  Positioned.fill(
-                                                    child: CustomPaint(
-                                                      painter: _PreviewPathPainter(
-                                                        path: shapePreviewPath!,
-                                                        color: _primaryColor,
-                                                        strokeWidth:
-                                                            _penStrokeWidth,
-                                                        fill:
-                                                            _shapeFillEnabled &&
-                                                            shapeToolVariant !=
-                                                                ShapeToolVariant
-                                                                    .line,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (_vectorDrawingEnabled &&
-                                                    pendingFillOverlayPath !=
-                                                        null &&
-                                                    pendingFillOverlayColor !=
-                                                        null)
-                                                  Positioned.fill(
-                                                    child: IgnorePointer(
-                                                      ignoring: true,
-                                                      child: CustomPaint(
-                                                        painter: _ShapeFillOverlayPainter(
-                                                          path:
-                                                              pendingFillOverlayPath,
-                                                          color:
-                                                              pendingFillOverlayColor,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (hasSelectionOverlay)
-                                                  Positioned.fill(
+                                                ),
+                                              if (hasSelectionOverlay)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
                                                     child: CustomPaint(
                                                       painter: _SelectionOverlayPainter(
                                                         selectionPath:
@@ -684,34 +708,66 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                             _viewport.scale,
                                                         showPreviewStroke:
                                                             _effectiveActiveTool !=
-                                                            CanvasTool
-                                                                .selectionPen,
+                                                                CanvasTool
+                                                                    .selectionPen,
                                                         fillSelectionPath:
                                                             _activeTool ==
-                                                            CanvasTool
-                                                                .selectionPen,
+                                                                CanvasTool
+                                                                    .selectionPen,
                                                       ),
                                                     ),
                                                   ),
+                                                ),
+                                            ];
+
+                                            final Widget canvasLayer = Stack(
+                                              fit: StackFit.expand,
+                                              clipBehavior: Clip.none,
+                                              children: [
+                                                const _CheckboardBackground(),
+                                                canvasSurface,
                                               ],
                                             );
-                                            if (_viewMirrorOverlay) {
-                                              content = Transform(
-                                                transform:
-                                                    _kViewMirrorTransform,
-                                                alignment: Alignment.center,
-                                                transformHitTests: false,
-                                                child: content,
-                                              );
-                                            }
-                                            if (_viewBlackWhiteOverlay) {
-                                              content = ColorFiltered(
-                                                colorFilter:
-                                                    _kViewBlackWhiteColorFilter,
-                                                child: content,
-                                              );
-                                            }
-	                                            return content;
+
+                                            final Widget overlayLayer = Stack(
+                                              fit: StackFit.expand,
+                                              clipBehavior: Clip.none,
+                                              children: overlayChildren,
+                                            );
+
+                                            final bool applyViewToCanvas =
+                                                !_canUseRustCanvasEngine();
+                                            final Widget canvasWithView =
+                                                applyViewToCanvas
+                                                ? applyViewOverlay(canvasLayer)
+                                                : canvasLayer;
+                                            final Widget? transformHandlesViewOverlay =
+                                                transformHandlesOverlay == null
+                                                ? null
+                                                : applyViewOverlay(
+                                                    transformHandlesOverlay,
+                                                  );
+                                            final Widget clippedContent = ClipRect(
+                                              child: Stack(
+                                                fit: StackFit.expand,
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  canvasWithView,
+                                                  if (overlayChildren.isNotEmpty)
+                                                    applyViewOverlay(overlayLayer),
+                                                ],
+                                              ),
+                                            );
+
+                                            return Stack(
+                                              fit: StackFit.expand,
+                                              clipBehavior: Clip.none,
+                                              children: [
+                                                clippedContent,
+                                                if (transformHandlesViewOverlay != null)
+                                                  transformHandlesViewOverlay,
+                                              ],
+                                            );
 	                                          },
 	                                        ),
 	                                      ),
@@ -720,7 +776,6 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 	                                ),
 	                              ),
 	                            ),
-	                          ),
 	                          ),
 	                          if (_perspectivePenAnchor != null)
 	                            Positioned.fill(
@@ -823,7 +878,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                           if (transformPanel != null) transformPanel,
                           if (transformCursorOverlay != null)
                             transformCursorOverlay,
-                          if (_toolCursorPosition != null &&
+                          if (!suppressToolCursorOverlays &&
+                              _toolCursorPosition != null &&
                               cursorStyle != null)
                             Positioned(
                               left:
@@ -842,7 +898,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                 ),
                               ),
                             ),
-                          if (_penRequiresOverlay &&
+                          if (!suppressToolCursorOverlays &&
+                              _penRequiresOverlay &&
                               _penCursorWorkspacePosition != null)
                             PenCursorOverlay(
                               position: _penCursorWorkspacePosition!,
@@ -861,7 +918,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                         )
                                       : 0.0,
                             ),
-                          if (_toolCursorPosition != null)
+                          if (!suppressToolCursorOverlays &&
+                              _toolCursorPosition != null)
                             Positioned(
                               left:
                                   _toolCursorPosition!.dx -

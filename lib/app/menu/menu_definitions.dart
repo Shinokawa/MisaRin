@@ -289,6 +289,16 @@ class MenuDefinitionBuilder {
           label: l10n.menuRotate180CCW,
           action: handler.rotateCanvas180CounterClockwise,
         ),
+      if (handler.flipCanvasHorizontal != null)
+        MenuActionEntry(
+          label: l10n.menuFlipHorizontal,
+          action: handler.flipCanvasHorizontal,
+        ),
+      if (handler.flipCanvasVertical != null)
+        MenuActionEntry(
+          label: l10n.menuFlipVertical,
+          action: handler.flipCanvasVertical,
+        ),
     ];
     if (transformEntries.isNotEmpty) {
       entries.add(

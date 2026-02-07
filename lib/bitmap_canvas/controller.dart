@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:ffi';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -8,15 +9,22 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+// ignore: unused_import
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 
+import '../app/debug/rust_canvas_timeline.dart';
 import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
 import '../backend/rgba_utils.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
+import '../canvas/brush_random_rotation.dart';
 import '../canvas/text_renderer.dart';
-import '../performance/stroke_latency_monitor.dart';
+import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
+import '../src/rust/api/gpu_brush.dart' as rust_gpu_brush;
+import '../src/rust/api/image_ops.dart' as rust_image_ops;
+import '../src/rust/rust_init.dart';
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
@@ -26,8 +34,6 @@ import 'raster_int_rect.dart';
 import 'soft_brush_profile.dart';
 import 'stroke_dynamics.dart';
 import 'stroke_pressure_simulator.dart';
-import '../canvas/brush_shape_geometry.dart';
-import '../canvas/vector_stroke_painter.dart';
 
 export 'bitmap_layer_state.dart';
 
@@ -49,18 +55,17 @@ class BitmapCanvasController extends ChangeNotifier {
     required Color backgroundColor,
     List<CanvasLayerData>? initialLayers,
     CanvasCreationLogic creationLogic = CanvasCreationLogic.multiThread,
+    bool enableRasterOutput = true,
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
        _isMultithreaded =
            CanvasSettings.supportsMultithreadedCanvas &&
            creationLogic == CanvasCreationLogic.multiThread,
+       _rasterOutputEnabled = enableRasterOutput,
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
-         multithreaded:
-             CanvasSettings.supportsMultithreadedCanvas &&
-             creationLogic == CanvasCreationLogic.multiThread,
        ) {
     if (creationLogic == CanvasCreationLogic.multiThread && !_isMultithreaded) {
       debugPrint('CanvasPaintingWorker 未启用：当前平台不支持多线程画布，已自动回退到单线程。');
@@ -75,7 +80,9 @@ class BitmapCanvasController extends ChangeNotifier {
     } else {
       _initializeDefaultLayers(this, backgroundColor);
     }
-    _scheduleCompositeRefresh();
+    if (_rasterOutputEnabled) {
+      _scheduleCompositeRefresh();
+    }
   }
 
   final int _width;
@@ -84,6 +91,7 @@ class BitmapCanvasController extends ChangeNotifier {
   final List<BitmapLayerState> _layers = <BitmapLayerState>[];
   int _activeIndex = 0;
   final bool _isMultithreaded;
+  bool _rasterOutputEnabled;
   bool _synchronousRasterOverride = false;
 
   final List<Offset> _currentStrokePoints = <Offset>[];
@@ -94,6 +102,11 @@ class BitmapCanvasController extends ChangeNotifier {
       <PaintingDrawCommand>[]; // Strokes being rasterized
   double _currentStrokeRadius = 0;
   double _currentStrokeLastRadius = 0;
+  double _currentStrokeSpacing = 0.15;
+  double _currentStrokeSoftness = 0.0;
+  double _currentStrokeScatter = 0.0;
+  double _currentStrokeRotationJitter = 1.0;
+  bool _currentStrokeSnapToPixel = false;
   bool _currentStrokeStylusPressureEnabled = false;
   double _currentStylusCurve = 1.0;
   double? _currentStylusLastPressure;
@@ -111,8 +124,6 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _currentStrokeEraseOccludedParts = false;
   bool _stylusPressureEnabled = true;
   double _stylusCurve = 0.85;
-  bool _vectorDrawingEnabled = true;
-  bool _vectorStrokeSmoothingEnabled = false;
   static const double _kStylusSmoothing = 0.55;
   CanvasPaintingWorker? _paintingWorker;
   _PendingWorkerDrawBatch? _pendingWorkerDrawBatch;
@@ -128,6 +139,8 @@ class BitmapCanvasController extends ChangeNotifier {
   String? _paintingWorkerSyncedLayerId;
   int _paintingWorkerSyncedRevision = -1;
   bool _paintingWorkerSelectionDirty = true;
+  final Map<String, int> _gpuBrushSyncedRevisions = <String, int>{};
+  Future<void> _gpuBrushQueue = Future<void>.value();
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -139,6 +152,12 @@ class BitmapCanvasController extends ChangeNotifier {
         1: <double>[0.35, 0.35],
         2: <double>[0.45, 0.5, 0.5],
         3: <double>[0.6, 0.65, 0.7, 0.75],
+        4: <double>[0.6, 0.65, 0.7, 0.75, 0.8],
+        5: <double>[0.65, 0.7, 0.75, 0.8, 0.85],
+        6: <double>[0.7, 0.75, 0.8, 0.85, 0.9],
+        7: <double>[0.7, 0.75, 0.8, 0.85, 0.9, 0.9],
+        8: <double>[0.75, 0.8, 0.85, 0.9, 0.9, 0.9],
+        9: <double>[0.8, 0.85, 0.9, 0.9, 0.9, 0.9],
       };
   static const double _kEdgeDetectMin = 0.015;
   static const double _kEdgeDetectMax = 0.4;
@@ -243,35 +262,6 @@ class BitmapCanvasController extends ChangeNotifier {
   void _flushDeferredStrokeCommands() =>
       _controllerFlushDeferredStrokeCommands(this);
 
-  Future<void> _rasterizeVectorStroke(
-    List<Offset> points,
-    List<double> radii,
-    Color color,
-    BrushShape shape,
-    Rect bounds,
-    bool erase,
-    int antialiasLevel, {
-    bool hollow = false,
-    double hollowRatio = 0.0,
-    bool eraseOccludedParts = false,
-    bool randomRotation = false,
-    int rotationSeed = 0,
-  }) => _controllerRasterizeVectorStroke(
-    this,
-    points,
-    radii,
-    color,
-    shape,
-    bounds,
-    erase,
-    antialiasLevel,
-    hollow: hollow,
-    hollowRatio: hollowRatio,
-    eraseOccludedParts: eraseOccludedParts,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
-  );
-
   void _flushRealtimeStrokeCommands() =>
       _controllerFlushRealtimeStrokeCommands(this);
 
@@ -291,6 +281,7 @@ class BitmapCanvasController extends ChangeNotifier {
       _controllerDirtyRectForCommand(this, command);
 
   BitmapCanvasFrame? get frame => _currentFrame;
+  bool get rasterOutputEnabled => _rasterOutputEnabled;
   Color get backgroundColor => _backgroundColor;
   int get width => _width;
   int get height => _height;
@@ -334,8 +325,13 @@ class BitmapCanvasController extends ChangeNotifier {
     return false;
   }
 
-  bool get vectorDrawingEnabled => _vectorDrawingEnabled;
-  bool get vectorStrokeSmoothingEnabled => _vectorStrokeSmoothingEnabled;
+  void _notify() => notifyListeners();
+
+  Future<T> _enqueueGpuBrushTask<T>(Future<T> Function() task) {
+    final Future<T> future = _gpuBrushQueue.then((_) => task());
+    _gpuBrushQueue = future.then((_) {}, onError: (_, __) {});
+    return future;
+  }
 
   void runSynchronousRasterization(VoidCallback action) {
     final bool previous = _synchronousRasterOverride;
@@ -347,21 +343,14 @@ class BitmapCanvasController extends ChangeNotifier {
     }
   }
 
-  void setVectorDrawingEnabled(bool enabled) {
-    if (_vectorDrawingEnabled == enabled) {
+  void setRasterOutputEnabled(bool enabled) {
+    if (_rasterOutputEnabled == enabled) {
       return;
     }
-    _vectorDrawingEnabled = enabled;
-    if (!_vectorDrawingEnabled && _deferredStrokeCommands.isNotEmpty) {
-      _commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
+    _rasterOutputEnabled = enabled;
+    if (enabled) {
+      _scheduleCompositeRefresh();
     }
-  }
-
-  void setVectorStrokeSmoothingEnabled(bool enabled) {
-    if (_vectorStrokeSmoothingEnabled == enabled) {
-      return;
-    }
-    _vectorStrokeSmoothingEnabled = enabled;
   }
 
   void configureStylusPressure({
@@ -525,6 +514,12 @@ class BitmapCanvasController extends ChangeNotifier {
     bool enableNeedleTips = false,
     bool randomRotation = false,
     int? rotationSeed,
+    double spacing = 0.15,
+    double hardness = 0.8,
+    double flow = 1.0,
+    double scatter = 0.0,
+    double rotationJitter = 1.0,
+    bool snapToPixel = false,
     bool erase = false,
     bool hollow = false,
     double hollowRatio = 0.0,
@@ -547,6 +542,12 @@ class BitmapCanvasController extends ChangeNotifier {
     enableNeedleTips: enableNeedleTips,
     randomRotation: randomRotation,
     rotationSeed: rotationSeed,
+    spacing: spacing,
+    hardness: hardness,
+    flow: flow,
+    scatter: scatter,
+    rotationJitter: rotationJitter,
+    snapToPixel: snapToPixel,
     erase: erase,
     hollow: hollow,
     hollowRatio: hollowRatio,
@@ -574,36 +575,6 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void cancelStroke() => _strokeCancel(this);
 
-  Future<void> commitVectorStroke({
-    required List<Offset> points,
-    required List<double> radii,
-    required Color color,
-    required BrushShape brushShape,
-    bool applyVectorSmoothing = true,
-    bool erase = false,
-    int antialiasLevel = 0,
-    bool hollow = false,
-    double hollowRatio = 0.0,
-    bool eraseOccludedParts = false,
-    bool randomRotation = false,
-    int rotationSeed = 0,
-  }) =>
-      _controllerCommitVectorStroke(
-        this,
-        points: points,
-        radii: radii,
-        color: color,
-        brushShape: brushShape,
-        applyVectorSmoothing: applyVectorSmoothing,
-        erase: erase,
-        antialiasLevel: antialiasLevel,
-        hollow: hollow,
-        hollowRatio: hollowRatio,
-        eraseOccludedParts: eraseOccludedParts,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-      );
-
   void drawFilledPolygon({
     required List<Offset> points,
     required Color color,
@@ -619,7 +590,7 @@ class BitmapCanvasController extends ChangeNotifier {
     final PaintingDrawCommand command = PaintingDrawCommand.filledPolygon(
       points: List<Offset>.from(points),
       colorValue: color.value,
-      antialiasLevel: antialiasLevel.clamp(0, 3),
+      antialiasLevel: antialiasLevel.clamp(0, 9),
       erase: erase,
     );
     _dispatchDirectPaintCommand(command);
@@ -642,7 +613,7 @@ class BitmapCanvasController extends ChangeNotifier {
       radius: radius,
       colorValue: color.value,
       shapeIndex: brushShape.index,
-      antialiasLevel: antialiasLevel.clamp(0, 3),
+      antialiasLevel: antialiasLevel.clamp(0, 9),
       erase: erase,
       softness: softness.clamp(0.0, 1.0),
     );
@@ -706,7 +677,10 @@ class BitmapCanvasController extends ChangeNotifier {
   );
 
   List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
-  Future<void> waitForPendingWorkerTasks() => _waitForPendingWorkerTasks();
+  Future<void> waitForPendingWorkerTasks() async {
+    await _waitForPendingWorkerTasks();
+    await _gpuBrushQueue;
+  }
 
   CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) =>
       _layerManagerBuildClipboardLayer(this, id, mask: mask);
@@ -743,7 +717,9 @@ class BitmapCanvasController extends ChangeNotifier {
     final BitmapLayerState layer = _layers[index];
     final BitmapSurface surface = layer.surface;
 
-    if (snapshot.bitmap == null ||
+    if ((snapshot.rawPixels == null &&
+            snapshot.bitmap == null &&
+            pixelCache == null) ||
         snapshot.bitmapWidth == null ||
         snapshot.bitmapHeight == null) {
       final Color fill = snapshot.fillColor ?? const Color(0x00000000);
@@ -771,7 +747,8 @@ class BitmapCanvasController extends ChangeNotifier {
     }
 
     final Uint32List srcPixels =
-        pixelCache ?? rgbaToPixels(snapshot.bitmap!, srcWidth, srcHeight);
+        snapshot.rawPixels ??
+        (pixelCache ?? rgbaToPixels(snapshot.bitmap!, srcWidth, srcHeight));
 
     final int startX = math.max(0, math.max(target.left.floor(), offsetX));
     final int startY = math.max(0, math.max(target.top.floor(), offsetY));
@@ -1069,6 +1046,9 @@ class BitmapCanvasController extends ChangeNotifier {
     bool contiguous = true,
     int tolerance = 0,
     int fillGap = 0,
+    Uint32List? samplePixels,
+    Uint32List? swallowColors,
+    int antialiasLevel = 0,
   }) => _controllerExecuteFloodFill(
     this,
     start: start,
@@ -1077,6 +1057,9 @@ class BitmapCanvasController extends ChangeNotifier {
     contiguous: contiguous,
     tolerance: tolerance,
     fillGap: fillGap,
+    samplePixels: samplePixels,
+    swallowColors: swallowColors,
+    antialiasLevel: antialiasLevel,
   );
 
   Future<Uint8List?> _executeSelectionMask({

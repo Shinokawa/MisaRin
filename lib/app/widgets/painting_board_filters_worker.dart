@@ -8,6 +8,8 @@ const int _kFilterTypeLeakRemoval = 4;
 const int _kFilterTypeLineNarrow = 5;
 const int _kFilterTypeFillExpand = 6;
 const int _kFilterTypeBinarize = 7;
+const int _kFilterTypeScanPaperDrawing = 8;
+const int _kFilterTypeInvert = 9;
 
 class _FilterPreviewWorker {
   _FilterPreviewWorker({

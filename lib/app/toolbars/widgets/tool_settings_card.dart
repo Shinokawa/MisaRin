@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
+import '../../../brushes/brush_preset.dart';
 import '../../../canvas/canvas_tools.dart';
 import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../../dialogs/font_family_picker_dialog.dart';
@@ -29,32 +30,20 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onPenStrokeWidthChanged,
     required this.onSprayStrokeWidthChanged,
     required this.onSprayModeChanged,
-    required this.brushShape,
-    required this.onBrushShapeChanged,
-    required this.brushRandomRotationEnabled,
-    required this.onBrushRandomRotationEnabledChanged,
-    required this.hollowStrokeEnabled,
-    required this.hollowStrokeRatio,
-    required this.onHollowStrokeEnabledChanged,
-    required this.onHollowStrokeRatioChanged,
-    required this.hollowStrokeEraseOccludedParts,
-    required this.onHollowStrokeEraseOccludedPartsChanged,
+    required this.brushPresets,
+    required this.activeBrushPresetId,
+    required this.onBrushPresetChanged,
+    required this.onEditBrushPreset,
     required this.strokeStabilizerStrength,
     required this.onStrokeStabilizerChanged,
-    required this.streamlineEnabled,
-    required this.onStreamlineEnabledChanged,
     required this.streamlineStrength,
-    required this.onStreamlineStrengthChanged,
+    required this.onStreamlineChanged,
     required this.stylusPressureEnabled,
     required this.onStylusPressureEnabledChanged,
     required this.simulatePenPressure,
     required this.onSimulatePenPressureChanged,
     required this.penPressureProfile,
     required this.onPenPressureProfileChanged,
-    required this.brushAntialiasLevel,
-    required this.onBrushAntialiasChanged,
-    required this.autoSharpPeakEnabled,
-    required this.onAutoSharpPeakChanged,
     required this.bucketSampleAllLayers,
     required this.bucketContiguous,
     required this.bucketSwallowColorLine,
@@ -82,8 +71,6 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onMagicWandToleranceChanged,
     required this.brushToolsEraserMode,
     required this.onBrushToolsEraserModeChanged,
-    required this.vectorDrawingEnabled,
-    required this.onVectorDrawingEnabledChanged,
     required this.strokeStabilizerMaxLevel,
     required this.textFontSize,
     required this.onTextFontSizeChanged,
@@ -121,32 +108,20 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<double> onPenStrokeWidthChanged;
   final ValueChanged<double> onSprayStrokeWidthChanged;
   final ValueChanged<SprayMode> onSprayModeChanged;
-  final BrushShape brushShape;
-  final ValueChanged<BrushShape> onBrushShapeChanged;
-  final bool brushRandomRotationEnabled;
-  final ValueChanged<bool> onBrushRandomRotationEnabledChanged;
-  final bool hollowStrokeEnabled;
-  final double hollowStrokeRatio;
-  final ValueChanged<bool> onHollowStrokeEnabledChanged;
-  final ValueChanged<double> onHollowStrokeRatioChanged;
-  final bool hollowStrokeEraseOccludedParts;
-  final ValueChanged<bool> onHollowStrokeEraseOccludedPartsChanged;
+  final List<BrushPreset> brushPresets;
+  final String activeBrushPresetId;
+  final ValueChanged<String> onBrushPresetChanged;
+  final VoidCallback onEditBrushPreset;
   final double strokeStabilizerStrength;
   final ValueChanged<double> onStrokeStabilizerChanged;
-  final bool streamlineEnabled;
-  final ValueChanged<bool> onStreamlineEnabledChanged;
   final double streamlineStrength;
-  final ValueChanged<double> onStreamlineStrengthChanged;
+  final ValueChanged<double> onStreamlineChanged;
   final bool stylusPressureEnabled;
   final ValueChanged<bool> onStylusPressureEnabledChanged;
   final bool simulatePenPressure;
   final ValueChanged<bool> onSimulatePenPressureChanged;
   final StrokePressureProfile penPressureProfile;
   final ValueChanged<StrokePressureProfile> onPenPressureProfileChanged;
-  final int brushAntialiasLevel;
-  final ValueChanged<int> onBrushAntialiasChanged;
-  final bool autoSharpPeakEnabled;
-  final ValueChanged<bool> onAutoSharpPeakChanged;
   final bool bucketSampleAllLayers;
   final bool bucketContiguous;
   final bool bucketSwallowColorLine;
@@ -175,8 +150,6 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<int> onMagicWandToleranceChanged;
   final bool brushToolsEraserMode;
   final ValueChanged<bool> onBrushToolsEraserModeChanged;
-  final bool vectorDrawingEnabled;
-  final ValueChanged<bool> onVectorDrawingEnabledChanged;
   final int strokeStabilizerMaxLevel;
   final bool compactLayout;
   final double textFontSize;
@@ -291,7 +264,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         content = _buildSprayControls(theme);
         break;
       case CanvasTool.eraser:
-        content = _buildBrushControls(theme, includeEraserToggle: false);
+        content = _buildBrushControls(theme);
         break;
       case CanvasTool.shape:
         content = Column(
@@ -524,10 +497,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
-  Widget _buildBrushControls(
-    FluentThemeData theme, {
-    bool includeEraserToggle = true,
-  }) {
+  Widget _buildBrushControls(FluentThemeData theme) {
     final l10n = context.l10n;
     final bool isPenTool = widget.activeTool == CanvasTool.pen ||
         widget.activeTool == CanvasTool.perspectivePen;
@@ -537,68 +507,16 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final bool showAdvancedBrushToggles =
         isPenTool || isCurvePenTool || isShapeTool || isEraserTool;
     final bool supportsStrokeStabilizer = isPenTool || isEraserTool;
-    final bool showStreamlineControls =
-        widget.vectorDrawingEnabled && supportsStrokeStabilizer;
-    final bool streamlineActive = showStreamlineControls && widget.streamlineEnabled;
 
     final List<Widget> wrapChildren = <Widget>[
       _buildBrushSizeRow(theme),
-      _buildBrushShapeRow(theme),
-      _buildToggleSwitchRow(
-        theme,
-        label: l10n.randomRotation,
-        detail: l10n.randomRotationDesc,
-        value: widget.brushRandomRotationEnabled,
-        onChanged: widget.onBrushRandomRotationEnabledChanged,
-      ),
+      _buildBrushPresetRow(theme),
     ];
 
     if (showAdvancedBrushToggles) {
-      if (supportsStrokeStabilizer && !streamlineActive) {
+      if (supportsStrokeStabilizer) {
         wrapChildren.add(_buildStrokeStabilizerRow(theme));
-      }
-      wrapChildren.add(_buildBrushAntialiasRow(theme));
-      final bool supportsHollowStroke = isPenTool || isCurvePenTool;
-      if (supportsHollowStroke) {
-        wrapChildren.add(
-          _buildToggleSwitchRow(
-            theme,
-            label: l10n.hollowStroke,
-            detail: l10n.hollowStrokeDesc,
-            value: widget.hollowStrokeEnabled,
-            onChanged: widget.onHollowStrokeEnabledChanged,
-          ),
-        );
-        if (widget.hollowStrokeEnabled) {
-          wrapChildren.add(
-            _buildLabeledSlider(
-              theme: theme,
-              label: l10n.hollowStrokeRatio,
-              detail: l10n.hollowStrokeRatioDesc,
-              value:
-                  (widget.hollowStrokeRatio.clamp(0.0, 1.0) * 100.0).clamp(
-                    0.0,
-                    100.0,
-                  ),
-              min: 0.0,
-              max: 100.0,
-              divisions: 100,
-              formatter: (value) => '${value.toStringAsFixed(0)}%',
-              onChanged: (value) => widget.onHollowStrokeRatioChanged(
-                (value / 100.0).clamp(0.0, 1.0),
-              ),
-            ),
-          );
-          wrapChildren.add(
-            _buildToggleSwitchRow(
-              theme,
-              label: l10n.eraseOccludedParts,
-              detail: l10n.eraseOccludedPartsDesc,
-              value: widget.hollowStrokeEraseOccludedParts,
-              onChanged: widget.onHollowStrokeEraseOccludedPartsChanged,
-            ),
-          );
-        }
+        wrapChildren.add(_buildStreamlineRow(theme));
       }
       if (isShapeTool) {
         wrapChildren.add(
@@ -611,15 +529,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           ),
         );
       }
-      wrapChildren.add(
-        _buildToggleSwitchRow(
-          theme,
-          label: l10n.autoSharpTaper,
-          detail: l10n.autoSharpTaperDesc,
-          value: widget.autoSharpPeakEnabled,
-          onChanged: widget.onAutoSharpPeakChanged,
-        ),
-      );
       wrapChildren.add(
         _buildToggleSwitchRow(
           theme,
@@ -636,26 +545,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           detail: l10n.simulatedPressureDesc,
           value: widget.simulatePenPressure,
           onChanged: widget.onSimulatePenPressureChanged,
-        ),
-      );
-      if (includeEraserToggle) {
-        wrapChildren.add(
-          _buildToggleSwitchRow(
-            theme,
-            label: l10n.switchToEraser,
-            detail: l10n.switchToEraserDesc,
-            value: widget.brushToolsEraserMode,
-            onChanged: widget.onBrushToolsEraserModeChanged,
-          ),
-        );
-      }
-      wrapChildren.add(
-        _buildToggleSwitchRow(
-          theme,
-          label: l10n.vectorDrawing,
-          detail: l10n.vectorDrawingDesc,
-          value: widget.vectorDrawingEnabled,
-          onChanged: widget.onVectorDrawingEnabledChanged,
         ),
       );
       if (widget.simulatePenPressure) {
@@ -681,21 +570,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           ),
         );
       }
-
-      if (widget.vectorDrawingEnabled && (isPenTool || isEraserTool)) {
-        wrapChildren.add(
-          _buildToggleSwitchRow(
-            theme,
-            label: l10n.streamline,
-            detail: l10n.streamlineDesc,
-            value: widget.streamlineEnabled,
-            onChanged: widget.onStreamlineEnabledChanged,
-          ),
-        );
-        if (widget.streamlineEnabled) {
-          wrapChildren.add(_buildStreamlineStrengthRow(theme));
-        }
-      }
     }
 
     return _buildControlsGroup(
@@ -707,21 +581,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   }
 
   Widget _buildSprayControls(FluentThemeData theme) {
-    final l10n = context.l10n;
     final List<Widget> children = <Widget>[
       _buildBrushSizeRow(theme),
       _buildSprayModeSelector(theme),
-      _buildToggleSwitchRow(
-        theme,
-        label: l10n.switchToEraser,
-        detail: l10n.switchToEraserDesc,
-        value: widget.brushToolsEraserMode,
-        onChanged: widget.onBrushToolsEraserModeChanged,
-      ),
     ];
-    if (widget.sprayMode == SprayMode.splatter) {
-      children.add(_buildBrushAntialiasRow(theme));
-    }
     return _buildControlsGroup(
       children,
       spacing: 16,
@@ -753,13 +616,47 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
-  Widget _buildBrushShapeRow(FluentThemeData theme) {
-    final Widget selector = Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: BrushShape.values
-          .map((shape) => _buildBrushShapeButton(theme, shape))
-          .toList(),
+  Widget _buildBrushPresetRow(FluentThemeData theme) {
+    final l10n = context.l10n;
+    final List<BrushPreset> presets = widget.brushPresets;
+    final String selectedId = presets.any(
+          (preset) => preset.id == widget.activeBrushPresetId,
+        )
+        ? widget.activeBrushPresetId
+        : (presets.isNotEmpty ? presets.first.id : '');
+    final List<ComboBoxItem<String>> items = presets
+        .map(
+          (preset) => ComboBoxItem<String>(
+            value: preset.id,
+            child: Text(preset.name),
+          ),
+        )
+        .toList(growable: false);
+
+    final Widget combo = _wrapComboTooltip(
+      label: l10n.brushPreset,
+      detail: l10n.brushPresetDesc,
+      child: SizedBox(
+        width: widget.compactLayout ? double.infinity : 180,
+        child: ComboBox<String>(
+          value: selectedId,
+          items: items,
+          onChanged: (value) {
+            if (value != null) {
+              widget.onBrushPresetChanged(value);
+            }
+          },
+        ),
+      ),
+    );
+
+    final Widget editButton = _wrapButtonTooltip(
+      label: l10n.editBrushPreset,
+      detail: l10n.editBrushPresetDesc,
+      child: IconButton(
+        icon: const Icon(FluentIcons.edit, size: 16),
+        onPressed: presets.isEmpty ? null : widget.onEditBrushPreset,
+      ),
     );
 
     if (!widget.compactLayout) {
@@ -767,9 +664,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(context.l10n.brushShape, style: theme.typography.bodyStrong),
+          Text(l10n.brushPreset, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
-          selector,
+          combo,
+          const SizedBox(width: 8),
+          editButton,
         ],
       );
     }
@@ -777,9 +676,15 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(context.l10n.brushShape, style: theme.typography.bodyStrong),
+        Text(l10n.brushPreset, style: theme.typography.bodyStrong),
         const SizedBox(height: 8),
-        selector,
+        Row(
+          children: [
+            Expanded(child: combo),
+            const SizedBox(width: 8),
+            editButton,
+          ],
+        ),
       ],
     );
   }
@@ -1356,84 +1261,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
-  Widget _buildBrushShapeButton(FluentThemeData theme, BrushShape shape) {
-    final l10n = context.l10n;
-    final bool isSelected = widget.brushShape == shape;
-    final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
-    final Color inactiveBackground = theme.resources.subtleFillColorSecondary;
-    final Color baseBackground = isSelected
-        ? accent.withOpacity(theme.brightness.isDark ? 0.35 : 0.2)
-        : inactiveBackground;
-    final Color hoverBackground =
-        Color.lerp(baseBackground, accent.withOpacity(0.6), 0.2) ??
-        baseBackground;
-    final Color pressedBackground =
-        Color.lerp(baseBackground, accent.withOpacity(0.8), 0.35) ??
-        baseBackground;
-    final Color borderColor = isSelected
-        ? accent
-        : theme.resources.controlStrokeColorDefault;
-    final TextStyle textStyle =
-        (theme.typography.body ?? const TextStyle(fontSize: 12)).copyWith(
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-        );
-
-    final String label = l10n.brushShapeLabel(shape);
-    return _wrapButtonTooltip(
-      label: label,
-      detail: l10n.brushShapeDesc(shape),
-      child: Button(
-        onPressed: () => widget.onBrushShapeChanged(shape),
-        style: ButtonStyle(
-          padding: WidgetStateProperty.all<EdgeInsets>(
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          ),
-          backgroundColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.pressed)) {
-              return pressedBackground;
-            }
-            if (states.contains(WidgetState.hovered)) {
-              return hoverBackground;
-            }
-            return baseBackground;
-          }),
-          shape: WidgetStateProperty.all<OutlinedBorder>(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: borderColor, width: 1),
-            ),
-          ),
-          foregroundColor: WidgetStateProperty.all<Color>(
-            theme.typography.body?.color ??
-                theme.resources.textFillColorPrimary,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _brushShapeIcon(shape),
-              size: 14,
-              color: isSelected
-                  ? accent
-                  : theme.typography.body?.color ??
-                        theme.resources.textFillColorPrimary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: textStyle.copyWith(
-                color:
-                    theme.typography.body?.color ??
-                    theme.resources.textFillColorPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildToleranceSlider(
     FluentThemeData theme, {
     required String label,
@@ -1653,20 +1480,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
-  Widget _buildBrushAntialiasRow(FluentThemeData theme) {
-    final l10n = context.l10n;
-    return _buildAntialiasRow(
-      theme,
-      value: widget.brushAntialiasLevel,
-      onChanged: widget.onBrushAntialiasChanged,
-      detail: l10n.antialiasingSliderDesc,
-    );
-  }
-
   Widget _buildBucketAntialiasRow(FluentThemeData theme) {
     final l10n = context.l10n;
     return _buildAntialiasRow(
       theme,
+      label: l10n.bucketAntialiasing,
       value: widget.bucketAntialiasLevel,
       onChanged: widget.onBucketAntialiasChanged,
       detail: l10n.antialiasingSliderDesc,
@@ -1675,6 +1493,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
   Widget _buildAntialiasRow(
     FluentThemeData theme, {
+    required String label,
     required int value,
     required ValueChanged<int> onChanged,
     required String detail,
@@ -1683,14 +1502,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final Slider slider = Slider(
       value: value.toDouble(),
       min: 0,
-      max: 3,
-      divisions: 3,
+      max: 9,
+      divisions: 9,
       onChanged: (raw) => onChanged(raw.round()),
     );
     final String levelLabel = l10n.levelLabel(value);
     if (!widget.compactLayout) {
       final Widget sliderControl = _wrapSliderTooltip(
-        label: l10n.antialiasingBeforeExport,
+        label: label,
         detail: detail,
         valueText: levelLabel,
         child: SizedBox(width: _defaultSliderWidth, child: slider),
@@ -1698,7 +1517,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.antialiasingBeforeExport, style: theme.typography.bodyStrong),
+          Text(label, style: theme.typography.bodyStrong),
           const SizedBox(width: 8),
           sliderControl,
           const SizedBox(width: 8),
@@ -1715,10 +1534,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     }
     return _buildSliderSection(
       theme,
-      label: l10n.antialiasingBeforeExport,
+      label: label,
       valueText: levelLabel,
       slider: slider,
-      tooltipText: '${l10n.antialiasingBeforeExport}: $levelLabel',
+      tooltipText: '$label: $levelLabel',
       detail: detail,
     );
   }
@@ -1780,7 +1599,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
-  Widget _buildStreamlineStrengthRow(FluentThemeData theme) {
+  Widget _buildStreamlineRow(FluentThemeData theme) {
     final l10n = context.l10n;
     final double value = widget.streamlineStrength.clamp(0.0, 1.0);
     final double projected = (value * widget.strokeStabilizerMaxLevel).clamp(
@@ -1798,7 +1617,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       min: 0,
       max: widget.strokeStabilizerMaxLevel.toDouble(),
       divisions: widget.strokeStabilizerMaxLevel,
-      onChanged: (raw) => widget.onStreamlineStrengthChanged(
+      onChanged: (raw) => widget.onStreamlineChanged(
         (raw / widget.strokeStabilizerMaxLevel).clamp(0.0, 1.0),
       ),
     );
@@ -2244,44 +2063,5 @@ extension on AppLocalizations {
       case ShapeToolVariant.line:
         return lineShapeDesc;
     }
-  }
-
-  String brushShapeLabel(BrushShape shape) {
-    switch (shape) {
-      case BrushShape.circle:
-        return circle;
-      case BrushShape.triangle:
-        return triangle;
-      case BrushShape.square:
-        return square;
-      case BrushShape.star:
-        return star;
-    }
-  }
-
-  String brushShapeDesc(BrushShape shape) {
-    switch (shape) {
-      case BrushShape.circle:
-        return circleTipDesc;
-      case BrushShape.triangle:
-        return triangleShapeDesc;
-      case BrushShape.square:
-        return squareTipDesc;
-      case BrushShape.star:
-        return starTipDesc;
-    }
-  }
-}
-
-IconData _brushShapeIcon(BrushShape shape) {
-  switch (shape) {
-    case BrushShape.circle:
-      return FluentIcons.circle_shape;
-    case BrushShape.triangle:
-      return FluentIcons.triangle_shape;
-    case BrushShape.square:
-      return FluentIcons.square_shape;
-    case BrushShape.star:
-      return FluentIcons.favorite_star;
   }
 }

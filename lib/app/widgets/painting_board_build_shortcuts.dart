@@ -164,6 +164,10 @@ extension _PaintingBoardBuildShortcutsExtension on _PaintingBoardBuildMixin {
                 const PasteIntent(),
             LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyV):
                 const PasteIntent(),
+            LogicalKeySet(LogicalKeyboardKey.delete):
+                const DeleteSelectionIntent(),
+            LogicalKeySet(LogicalKeyboardKey.backspace):
+                const DeleteSelectionIntent(),
     };
   }
 
@@ -218,6 +222,12 @@ extension _PaintingBoardBuildShortcutsExtension on _PaintingBoardBuildMixin {
               PasteIntent: CallbackAction<PasteIntent>(
                 onInvoke: (intent) {
                   unawaited(paste());
+                  return null;
+                },
+              ),
+              DeleteSelectionIntent: CallbackAction<DeleteSelectionIntent>(
+                onInvoke: (intent) {
+                  unawaited(deleteSelection());
                   return null;
                 },
               ),

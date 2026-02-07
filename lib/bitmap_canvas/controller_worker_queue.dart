@@ -73,9 +73,6 @@ void _controllerFlushPendingPaintingCommands(BitmapCanvasController controller) 
 Future<void> _controllerWaitForPendingWorkerTasks(
   BitmapCanvasController controller,
 ) {
-  if (!controller._isMultithreaded) {
-    return Future<void>.value();
-  }
   _controllerFlushPendingPaintingCommands(controller);
   if (controller._paintingWorkerPendingTasks == 0) {
     return Future<void>.value();
@@ -109,9 +106,6 @@ void _controllerNotifyWorkerIdle(BitmapCanvasController controller) {
 }
 
 void _controllerCancelPendingWorkerTasks(BitmapCanvasController controller) {
-  if (!controller._isMultithreaded) {
-    return;
-  }
   controller._pendingWorkerDrawBatch = null;
   controller._pendingWorkerDrawScheduled = false;
   controller._pendingWorkerPatches.clear();
@@ -354,7 +348,30 @@ Future<PaintingWorkerPatch?> _controllerExecuteFloodFill(
   bool contiguous = true,
   int tolerance = 0,
   int fillGap = 0,
+  Uint32List? samplePixels,
+  Uint32List? swallowColors,
+  int antialiasLevel = 0,
 }) async {
+  TransferableTypedData? sampleData;
+  if (samplePixels != null && samplePixels.isNotEmpty) {
+    sampleData = TransferableTypedData.fromList(<Uint8List>[
+      Uint8List.view(
+        samplePixels.buffer,
+        samplePixels.offsetInBytes,
+        samplePixels.lengthInBytes,
+      ),
+    ]);
+  }
+  TransferableTypedData? swallowData;
+  if (swallowColors != null && swallowColors.isNotEmpty) {
+    swallowData = TransferableTypedData.fromList(<Uint8List>[
+      Uint8List.view(
+        swallowColors.buffer,
+        swallowColors.offsetInBytes,
+        swallowColors.lengthInBytes,
+      ),
+    ]);
+  }
   await controller._ensureWorkerSurfaceSynced();
   await controller._ensureWorkerSelectionMaskSynced();
   final PaintingWorkerPatch patch = await controller
@@ -364,6 +381,7 @@ Future<PaintingWorkerPatch?> _controllerExecuteFloodFill(
           width: controller._width,
           height: controller._height,
           pixels: null,
+          samplePixels: sampleData,
           startX: start.dx.floor(),
           startY: start.dy.floor(),
           colorValue: color.value,
@@ -372,6 +390,8 @@ Future<PaintingWorkerPatch?> _controllerExecuteFloodFill(
           mask: null,
           tolerance: tolerance,
           fillGap: fillGap,
+          swallowColors: swallowData,
+          antialiasLevel: antialiasLevel,
         ),
       );
   return patch;
@@ -443,16 +463,7 @@ Uint32List _controllerRgbaToPixels(Uint8List rgba, int width, int height) {
 }
 
 Uint8List _controllerPixelsToRgba(Uint32List pixels) {
-  final Uint8List rgba = Uint8List(pixels.length * 4);
-  for (int i = 0; i < pixels.length; i++) {
-    final int argb = pixels[i];
-    final int offset = i * 4;
-    rgba[offset] = (argb >> 16) & 0xff;
-    rgba[offset + 1] = (argb >> 8) & 0xff;
-    rgba[offset + 2] = argb & 0xff;
-    rgba[offset + 3] = (argb >> 24) & 0xff;
-  }
-  return rgba;
+  return rust_image_ops.convertPixelsToRgba(pixels: pixels);
 }
 
 Rect _controllerUnionRects(Rect a, Rect b) {

@@ -5,8 +5,10 @@ import 'dart:typed_data';
 import 'dart:ui'; // Keep dart:ui for Color, but DO NOT use Canvas/PictureRecorder here.
 
 import '../bitmap_canvas/bitmap_canvas.dart';
+import '../canvas/brush_random_rotation.dart';
 import '../canvas/canvas_tools.dart';
-import '../canvas/brush_shape_geometry.dart';
+import '../src/rust/api/bucket_fill.dart' as rust_bucket;
+import '../src/rust/rust_init.dart';
 // Removed vector_stroke_painter import as we don't draw vectors in worker anymore.
 
 enum PaintingDrawCommandType {
@@ -29,6 +31,10 @@ class PaintingDrawCommand {
     this.shapeIndex,
     this.randomRotation,
     this.rotationSeed,
+    this.rotationJitter,
+    this.snapToPixel,
+    this.spacing,
+    this.scatter,
     this.start,
     this.end,
     this.startRadius,
@@ -52,6 +58,8 @@ class PaintingDrawCommand {
     double softness = 0.0,
     bool randomRotation = false,
     int rotationSeed = 0,
+    double rotationJitter = 1.0,
+    bool snapToPixel = false,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.brushStamp,
@@ -64,6 +72,8 @@ class PaintingDrawCommand {
       softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
   }
 
@@ -123,6 +133,11 @@ class PaintingDrawCommand {
     required bool erase,
     bool randomRotation = false,
     int rotationSeed = 0,
+    double rotationJitter = 1.0,
+    double spacing = 0.15,
+    double scatter = 0.0,
+    double softness = 0.0,
+    bool snapToPixel = false,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.stampSegment,
@@ -137,6 +152,11 @@ class PaintingDrawCommand {
       shapeIndex: shapeIndex,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
+      spacing: spacing,
+      scatter: scatter,
+      softness: softness,
     );
   }
 
@@ -193,6 +213,10 @@ class PaintingDrawCommand {
   final int? shapeIndex;
   final bool? randomRotation;
   final int? rotationSeed;
+  final double? rotationJitter;
+  final bool? snapToPixel;
+  final double? spacing;
+  final double? scatter;
   final Offset? start;
   final Offset? end;
   final double? startRadius;
@@ -216,7 +240,11 @@ class PaintingDrawCommand {
       'shape': shapeIndex,
       'randomRotation': randomRotation,
       'rotationSeed': rotationSeed,
+      'rotationJitter': rotationJitter,
+      'snapToPixel': snapToPixel,
       'softness': softness,
+      'spacing': spacing,
+      'scatter': scatter,
       'start': start == null ? null : <double>[start!.dx, start!.dy],
       'end': end == null ? null : <double>[end!.dx, end!.dy],
       'startRadius': startRadius,
@@ -267,31 +295,12 @@ class PaintingDrawRequest {
   final TransferableTypedData? mask;
 }
 
-class PaintingMergePatchRequest {
-  PaintingMergePatchRequest({
-    required this.left,
-    required this.top,
-    required this.width,
-    required this.height,
-    required this.pixels,
-    required this.erase,
-    this.eraseOccludedParts = false,
-  });
-
-  final int left;
-  final int top;
-  final int width;
-  final int height;
-  final TransferableTypedData pixels;
-  final bool erase;
-  final bool eraseOccludedParts;
-}
-
 class PaintingFloodFillRequest {
   PaintingFloodFillRequest({
     required this.width,
     required this.height,
     this.pixels,
+    this.samplePixels,
     required this.startX,
     required this.startY,
     required this.colorValue,
@@ -300,11 +309,14 @@ class PaintingFloodFillRequest {
     this.mask,
     this.tolerance = 0,
     this.fillGap = 0,
+    this.swallowColors,
+    this.antialiasLevel = 0,
   });
 
   final int width;
   final int height;
   final TransferableTypedData? pixels;
+  final TransferableTypedData? samplePixels;
   final int startX;
   final int startY;
   final int colorValue;
@@ -313,6 +325,8 @@ class PaintingFloodFillRequest {
   final TransferableTypedData? mask;
   final int tolerance;
   final int fillGap;
+  final TransferableTypedData? swallowColors;
+  final int antialiasLevel;
 }
 
 class PaintingSelectionMaskRequest {
@@ -435,29 +449,6 @@ class CanvasPaintingWorker {
     );
   }
 
-  Future<PaintingWorkerPatch> mergePatch(
-    PaintingMergePatchRequest request,
-  ) async {
-    await _ensureStarted();
-    final Object? response = await _sendRequest(<String, Object?>{
-      'kind': 'mergePatch',
-      'left': request.left,
-      'top': request.top,
-      'width': request.width,
-      'height': request.height,
-      'pixels': request.pixels,
-      'erase': request.erase,
-      'eraseOccludedParts': request.eraseOccludedParts,
-    });
-    return _parsePatchResponse(
-      response,
-      fallbackLeft: request.left,
-      fallbackTop: request.top,
-      fallbackWidth: request.width,
-      fallbackHeight: request.height,
-    );
-  }
-
   Future<PaintingWorkerPatch> floodFill(
     PaintingFloodFillRequest request,
   ) async {
@@ -467,6 +458,7 @@ class CanvasPaintingWorker {
       'width': request.width,
       'height': request.height,
       'pixels': request.pixels,
+      'samplePixels': request.samplePixels,
       'startX': request.startX,
       'startY': request.startY,
       'color': request.colorValue,
@@ -475,6 +467,8 @@ class CanvasPaintingWorker {
       'mask': request.mask,
       'tolerance': request.tolerance,
       'fillGap': request.fillGap,
+      'swallowColors': request.swallowColors,
+      'antialiasLevel': request.antialiasLevel,
     });
     return _parsePatchResponse(
       response,
@@ -652,6 +646,7 @@ Future<Object?> _paintingWorkerHandlePayload(
   _PaintingWorkerState state,
   Map<String, Object?> payload,
 ) async {
+  await ensureRustInitialized();
   final String kind = payload['kind'] as String? ?? '';
   switch (kind) {
     case 'setSurface':
@@ -662,8 +657,6 @@ Future<Object?> _paintingWorkerHandlePayload(
       return _paintingWorkerHandleSelection(state, payload);
     case 'draw':
       return _paintingWorkerHandleDraw(state, payload);
-    case 'mergePatch':
-      return _paintingWorkerHandleMergePatch(state, payload);
     case 'floodFill':
       return _paintingWorkerHandleFloodFill(state, payload);
     case 'selectionMask':
@@ -824,166 +817,6 @@ Object? _paintingWorkerHandleDraw(
   );
 }
 
-Object? _paintingWorkerHandleMergePatch(
-  _PaintingWorkerState state,
-  Map<String, Object?> payload,
-) {
-  final BitmapSurface? surface = state.surface;
-  final int left = payload['left'] as int? ?? 0;
-  final int top = payload['top'] as int? ?? 0;
-  final int width = payload['width'] as int? ?? 0;
-  final int height = payload['height'] as int? ?? 0;
-
-  if (surface == null) {
-    return _paintingWorkerEmptyPatch(left, top, width, height);
-  }
-
-  final bool erase = payload['erase'] as bool? ?? false;
-  final bool eraseOccludedParts =
-      payload['eraseOccludedParts'] as bool? ?? false;
-  final TransferableTypedData? pixelData =
-      payload['pixels'] as TransferableTypedData?;
-
-  if (width <= 0 || height <= 0 || pixelData == null) {
-    return _paintingWorkerEmptyPatch(left, top, width, height);
-  }
-
-  final int clampedLeft = left.clamp(0, surface.width);
-  final int clampedTop = top.clamp(0, surface.height);
-  final int clampedRight = math.min(clampedLeft + width, surface.width);
-  final int clampedBottom = math.min(clampedTop + height, surface.height);
-
-  if (clampedRight <= clampedLeft || clampedBottom <= clampedTop) {
-    return _paintingWorkerEmptyPatch(left, top, width, height);
-  }
-
-  final ByteBuffer buffer = pixelData.materialize();
-  final Uint8List sourceRgba = buffer.asUint8List();
-  final Uint8List? mask = state.selectionMask;
-
-  final Uint32List surfacePixels = surface.pixels;
-  final int surfaceWidth = surface.width;
-
-  // We need to blend the incoming premultiplied RGBA patch into the surface ARGB
-  for (int y = 0; y < height; y++) {
-    final int surfaceY = top + y;
-    if (surfaceY < 0 || surfaceY >= surface.height) continue;
-
-    final int rowOffset = y * width * 4;
-    final int surfaceRowOffset = surfaceY * surfaceWidth;
-
-    for (int x = 0; x < width; x++) {
-      final int surfaceX = left + x;
-      if (surfaceX < 0 || surfaceX >= surface.width) continue;
-
-      // Check mask
-      if (mask != null && mask[surfaceRowOffset + surfaceX] == 0) {
-        continue;
-      }
-
-      final int rgbaIndex = rowOffset + x * 4;
-      if (rgbaIndex + 3 >= sourceRgba.length) continue;
-
-      // Source is RGBA (from Picture.toImage)
-      final int r = sourceRgba[rgbaIndex];
-      final int g = sourceRgba[rgbaIndex + 1];
-      final int b = sourceRgba[rgbaIndex + 2];
-      final int a = sourceRgba[rgbaIndex + 3];
-
-      if (a == 0) continue;
-
-      final int surfaceIndex = surfaceRowOffset + surfaceX;
-      final int dstColor = surfacePixels[surfaceIndex];
-      final int dstA = (dstColor >> 24) & 0xff;
-      final int dstR = (dstColor >> 16) & 0xff;
-      final int dstG = (dstColor >> 8) & 0xff;
-      final int dstB = dstColor & 0xff;
-
-      if (erase) {
-        // Erase: dst * (1 - srcAlpha)
-        final double alphaFactor = 1.0 - (a / 255.0);
-        final int outA = (dstA * alphaFactor).round();
-        // Preserve color channels? Standard erasing usually does.
-        // But if we want "true" erasure where completely erased becomes transparent black:
-        // If outA becomes 0, color matters less.
-        // Let's just scale alpha.
-        surfacePixels[surfaceIndex] =
-            (outA << 24) | (dstR << 16) | (dstG << 8) | dstB;
-      } else {
-        final int srcR = _unpremultiplyChannel(r, a);
-        final int srcG = _unpremultiplyChannel(g, a);
-        final int srcB = _unpremultiplyChannel(b, a);
-
-        if (eraseOccludedParts) {
-          surfacePixels[surfaceIndex] =
-              (a << 24) |
-              (srcR.clamp(0, 255) << 16) |
-              (srcG.clamp(0, 255) << 8) |
-              srcB.clamp(0, 255);
-          continue;
-        }
-
-        // Normal blend (Src Over Dst)
-        final double srcAlpha = a / 255.0;
-        final double invSrcAlpha = 1.0 - srcAlpha;
-
-        final double outAlphaDouble = srcAlpha + (dstA / 255.0) * invSrcAlpha;
-        if (outAlphaDouble <= 0.001) {
-          // If roughly transparent, keep it that way?
-          // Or just set to 0.
-          continue;
-        }
-        final int outA = (outAlphaDouble * 255.0).round();
-
-        // Composite colors
-        // Result = (Src * SrcA + Dst * DstA * (1-SrcA)) / OutA
-        // Note: Src R,G,B from ByteData are NON-premultiplied (straight alpha).
-
-        final double outR =
-            (srcR * srcAlpha + dstR * (dstA / 255.0) * invSrcAlpha) /
-            outAlphaDouble;
-        final double outG =
-            (srcG * srcAlpha + dstG * (dstA / 255.0) * invSrcAlpha) /
-            outAlphaDouble;
-        final double outB =
-            (srcB * srcAlpha + dstB * (dstA / 255.0) * invSrcAlpha) /
-            outAlphaDouble;
-
-        surfacePixels[surfaceIndex] =
-            (outA.clamp(0, 255) << 24) |
-            (outR.round().clamp(0, 255) << 16) |
-            (outG.round().clamp(0, 255) << 8) |
-            outB.round().clamp(0, 255);
-      }
-    }
-  }
-
-  return _paintingWorkerExportPatch(
-    surface: surface,
-    left: clampedLeft,
-    top: clampedTop,
-    width: clampedRight - clampedLeft,
-    height: clampedBottom - clampedTop,
-  );
-}
-
-int _unpremultiplyChannel(int value, int alpha) {
-  if (alpha <= 0) {
-    return 0;
-  }
-  if (alpha >= 255) {
-    return value;
-  }
-  final int result = ((value * 255) + (alpha >> 1)) ~/ alpha;
-  if (result < 0) {
-    return 0;
-  }
-  if (result > 255) {
-    return 255;
-  }
-  return result;
-}
-
 Map<String, Object?> _paintingWorkerEmptyPatch(
   int left,
   int top,
@@ -1085,7 +918,7 @@ void _paintingWorkerApplyCommand({
       )];
   final Color color = Color(command['color'] as int? ?? 0);
   final bool erase = command['erase'] as bool? ?? false;
-  final int antialias = (command['antialias'] as int? ?? 0).clamp(0, 3);
+  final int antialias = (command['antialias'] as int? ?? 0).clamp(0, 9);
   switch (type) {
     case PaintingDrawCommandType.brushStamp:
       final List<double>? centerData = (command['center'] as List<dynamic>?)
@@ -1094,6 +927,9 @@ void _paintingWorkerApplyCommand({
       final int shapeIndex = command['shape'] as int? ?? 0;
       final bool randomRotation = command['randomRotation'] as bool? ?? false;
       final int rotationSeed = command['rotationSeed'] as int? ?? 0;
+      final double rotationJitter =
+          (command['rotationJitter'] as num? ?? 1.0).toDouble();
+      final bool snapToPixel = command['snapToPixel'] as bool? ?? false;
       final double softness =
           (command['softness'] as num? ?? 0).toDouble().clamp(0.0, 1.0);
       final BrushShape shape =
@@ -1109,6 +945,8 @@ void _paintingWorkerApplyCommand({
         softness: softness,
         randomRotation: randomRotation,
         rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+        snapToPixel: snapToPixel,
       );
       break;
     case PaintingDrawCommandType.line:
@@ -1162,6 +1000,13 @@ void _paintingWorkerApplyCommand({
       final int shapeIndex = command['shape'] as int? ?? 0;
       final bool randomRotation = command['randomRotation'] as bool? ?? false;
       final int rotationSeed = command['rotationSeed'] as int? ?? 0;
+      final double rotationJitter =
+          (command['rotationJitter'] as num? ?? 1.0).toDouble();
+      final double spacing = (command['spacing'] as num? ?? 0.15).toDouble();
+      final double scatter = (command['scatter'] as num? ?? 0.0).toDouble();
+      final double softness =
+          (command['softness'] as num? ?? 0.0).toDouble().clamp(0.0, 1.0);
+      final bool snapToPixel = command['snapToPixel'] as bool? ?? false;
       final BrushShape shape =
           BrushShape.values[shapeIndex.clamp(0, BrushShape.values.length - 1)];
       _paintingWorkerStampSegment(
@@ -1178,6 +1023,11 @@ void _paintingWorkerApplyCommand({
         erase: erase,
         randomRotation: randomRotation,
         rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+        spacing: spacing,
+        scatter: scatter,
+        softness: softness,
+        snapToPixel: snapToPixel,
       );
       break;
     case PaintingDrawCommandType.vectorStroke:
@@ -1233,77 +1083,141 @@ Object? _paintingWorkerHandleFloodFill(
 ) {
   final TransferableTypedData? pixelData =
       payload['pixels'] as TransferableTypedData?;
-  if (pixelData != null) {
-    return _paintingWorkerHandleLegacyFloodFill(payload, pixelData);
-  }
   final BitmapSurface? surface = state.surface;
-  if (surface == null) {
-    return _paintingWorkerEmptyPatch(0, 0, 0, 0);
+
+  BitmapSurface? surfaceToUpdate;
+  int width;
+  int height;
+  Uint32List pixels;
+  Uint8List? selectionMask = state.selectionMask;
+
+  if (pixelData != null) {
+    width = payload['width'] as int? ?? 0;
+    height = payload['height'] as int? ?? 0;
+    if (width <= 0 || height <= 0) {
+      return _paintingWorkerEmptyPatch(0, 0, 0, 0);
+    }
+    final ByteBuffer buffer = pixelData.materialize();
+    final int pixelCount = width * height;
+    if (buffer.lengthInBytes < pixelCount * Uint32List.bytesPerElement) {
+      return _paintingWorkerEmptyPatch(0, 0, 0, 0);
+    }
+    pixels = Uint32List.view(buffer, 0, pixelCount);
+    final TransferableTypedData? maskData =
+        payload['mask'] as TransferableTypedData?;
+    if (maskData != null) {
+      selectionMask = maskData.materialize().asUint8List();
+    }
+  } else {
+    if (surface == null) {
+      return _paintingWorkerEmptyPatch(0, 0, 0, 0);
+    }
+    surfaceToUpdate = surface;
+    width = surface.width;
+    height = surface.height;
+    pixels = surface.pixels;
   }
-  final _FloodFillResult result = _paintingWorkerFloodFillSurface(
-    surface: surface,
-    startX: payload['startX'] as int? ?? 0,
-    startY: payload['startY'] as int? ?? 0,
-    colorValue: payload['color'] as int? ?? 0,
-    targetColorValue: payload['targetColor'] as int?,
-    contiguous: payload['contiguous'] as bool? ?? true,
-    mask: state.selectionMask,
-    tolerance: payload['tolerance'] as int? ?? 0,
-    fillGap: payload['fillGap'] as int? ?? 0,
-  );
-  if (!result.changed) {
-    return _paintingWorkerEmptyPatch(0, 0, 0, 0);
-  }
-  return _paintingWorkerExportPatch(
-    surface: surface,
-    left: result.left,
-    top: result.top,
-    width: result.width,
-    height: result.height,
+
+  return _paintingWorkerHandleFloodFillWithRust(
+    surfaceToUpdate: surfaceToUpdate,
+    selectionMask: selectionMask,
+    payload: payload,
+    width: width,
+    height: height,
+    pixels: pixels,
   );
 }
 
-Map<String, Object?> _paintingWorkerHandleLegacyFloodFill(
-  Map<String, Object?> payload,
-  TransferableTypedData pixelData,
-) {
-  final int width = payload['width'] as int? ?? 0;
-  final int height = payload['height'] as int? ?? 0;
-  if (width <= 0 || height <= 0) {
-    return _paintingWorkerEmptyPatch(0, 0, 0, 0);
-  }
-  final ByteBuffer pixelBuffer = pixelData.materialize();
-  final Uint32List pixels = Uint32List.view(pixelBuffer, 0, width * height);
-  final BitmapSurface surface = BitmapSurface(width: width, height: height);
-  surface.pixels.setAll(0, pixels);
-  Uint8List? mask;
-  final TransferableTypedData? maskData =
-      payload['mask'] as TransferableTypedData?;
-  if (maskData != null) {
-    final ByteBuffer buffer = maskData.materialize();
-    mask = buffer.asUint8List();
-  }
+Future<Object?> _paintingWorkerHandleFloodFillWithRust({
+  required BitmapSurface? surfaceToUpdate,
+  required Uint8List? selectionMask,
+  required Map<String, Object?> payload,
+  required int width,
+  required int height,
+  required Uint32List pixels,
+}) async {
   final int startX = payload['startX'] as int? ?? 0;
   final int startY = payload['startY'] as int? ?? 0;
   final int colorValue = payload['color'] as int? ?? 0;
   final int? targetColorValue = payload['targetColor'] as int?;
   final bool contiguous = payload['contiguous'] as bool? ?? true;
+  final int tolerance = payload['tolerance'] as int? ?? 0;
   final int fillGap = payload['fillGap'] as int? ?? 0;
-  surface.floodFill(
-    start: Offset(startX.toDouble(), startY.toDouble()),
-    color: Color(colorValue),
-    targetColor: targetColorValue != null ? Color(targetColorValue) : null,
-    contiguous: contiguous,
-    mask: mask,
-    fillGap: fillGap,
+  final int antialiasLevel = (payload['antialiasLevel'] as int? ?? 0).clamp(
+    0,
+    3,
   );
-  return _paintingWorkerExportPatch(
-    surface: surface,
-    left: 0,
-    top: 0,
+
+  Uint32List? samplePixels;
+  final TransferableTypedData? sampleData =
+      payload['samplePixels'] as TransferableTypedData?;
+  if (sampleData != null) {
+    final ByteBuffer sampleBuffer = sampleData.materialize();
+    final int expectedLength = width * height;
+    if (sampleBuffer.lengthInBytes >= expectedLength * Uint32List.bytesPerElement) {
+      samplePixels = Uint32List.view(sampleBuffer, 0, expectedLength);
+    }
+  }
+
+  Uint32List? swallowColors;
+  final TransferableTypedData? swallowData =
+      payload['swallowColors'] as TransferableTypedData?;
+  if (swallowData != null) {
+    final ByteBuffer swallowBuffer = swallowData.materialize();
+    final int count = swallowBuffer.lengthInBytes ~/ Uint32List.bytesPerElement;
+    if (count > 0) {
+      swallowColors = Uint32List.view(swallowBuffer, 0, count);
+    }
+  }
+
+  await ensureRustInitialized();
+  final rust_bucket.FloodFillPatch patch = await rust_bucket.floodFillPatch(
     width: width,
     height: height,
+    pixels: pixels,
+    samplePixels: samplePixels,
+    startX: startX,
+    startY: startY,
+    colorValue: colorValue,
+    targetColorValue: targetColorValue,
+    contiguous: contiguous,
+    tolerance: tolerance,
+    fillGap: fillGap,
+    selectionMask: selectionMask,
+    swallowColors: swallowColors,
+    antialiasLevel: antialiasLevel,
   );
+
+  if (patch.width <= 0 || patch.height <= 0 || patch.pixels.isEmpty) {
+    return _paintingWorkerEmptyPatch(0, 0, 0, 0);
+  }
+
+  final Uint8List patchBytes = patch.pixels.buffer.asUint8List(
+    patch.pixels.offsetInBytes,
+    patch.pixels.lengthInBytes,
+  );
+  final Map<String, Object?> response = <String, Object?>{
+    'left': patch.left,
+    'top': patch.top,
+    'width': patch.width,
+    'height': patch.height,
+    'pixels': TransferableTypedData.fromList(<Uint8List>[
+      patchBytes,
+    ]),
+  };
+
+  if (surfaceToUpdate != null) {
+    _paintingWorkerBlitPatch(
+      surface: surfaceToUpdate,
+      left: patch.left,
+      top: patch.top,
+      width: patch.width,
+      height: patch.height,
+      pixels: patch.pixels,
+    );
+  }
+
+  return response;
 }
 
 TransferableTypedData _paintingWorkerHandleSelectionMask(
@@ -1350,19 +1264,28 @@ void _paintingWorkerStampSegment({
   required bool erase,
   required bool randomRotation,
   required int rotationSeed,
+  required double rotationJitter,
+  required double spacing,
+  required double scatter,
+  required double softness,
+  required bool snapToPixel,
 }) {
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
+    final double sampleRadius = endRadius.isFinite ? endRadius : 0.01;
     surface.drawBrushStamp(
       center: end,
-      radius: endRadius,
+      radius: sampleRadius,
       color: color,
       shape: shape,
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
     return;
   }
@@ -1370,775 +1293,48 @@ void _paintingWorkerStampSegment({
     math.max(startRadius.abs(), endRadius.abs()),
     0.01,
   );
-  final double spacing = _paintingWorkerStampSpacing(maxRadius);
-  final int samples = math.max(1, (distance / spacing).ceil());
+  final double step = _paintingWorkerStampSpacing(maxRadius, spacing);
+  final int samples = math.max(1, (distance / step).ceil());
   final int startIndex = includeStart ? 0 : 1;
   for (int i = startIndex; i <= samples; i++) {
     final double t = samples == 0 ? 1.0 : (i / samples);
     final double radius = lerpDouble(startRadius, endRadius, t) ?? endRadius;
     final double sampleX = lerpDouble(start.dx, end.dx, t) ?? end.dx;
     final double sampleY = lerpDouble(start.dy, end.dy, t) ?? end.dy;
+    final Offset baseCenter = Offset(sampleX, sampleY);
+    final double scatterRadius = maxRadius * scatter.clamp(0.0, 1.0) * 2.0;
+    final Offset jitter = scatterRadius > 0
+        ? brushScatterOffset(
+            center: baseCenter,
+            seed: rotationSeed,
+            radius: scatterRadius,
+            salt: i,
+          )
+        : Offset.zero;
     surface.drawBrushStamp(
-      center: Offset(sampleX, sampleY),
+      center: baseCenter + jitter,
       radius: radius,
       color: color,
       shape: shape,
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
   }
 }
 
-double _paintingWorkerStampSpacing(double radius) {
-  if (!radius.isFinite) {
-    return 0.5;
-  }
-  const double minSpacing = 0.45;
-  const double maxSpacing = 0.98;
-  const double minRadius = 0.01;
-  const double maxRadius = 28.0;
-  final double normalized = ((radius - minRadius) / (maxRadius - minRadius))
-      .clamp(0.0, 1.0);
-  final double spacing = minSpacing + (maxSpacing - minSpacing) * normalized;
-  return math.max(spacing, minSpacing);
+double _paintingWorkerStampSpacing(double radius, double spacing) {
+  double r = radius.isFinite ? radius.abs() : 0.0;
+  double s = spacing.isFinite ? spacing : 0.15;
+  s = s.clamp(0.02, 2.5);
+  final double base = math.max(r * 2.0 * s, 0.1);
+  return base;
 }
-
-class _FloodFillResult {
-  const _FloodFillResult._({
-    required this.left,
-    required this.top,
-    required this.width,
-    required this.height,
-    required this.changed,
-  });
-
-  factory _FloodFillResult.none() => const _FloodFillResult._(
-    left: 0,
-    top: 0,
-    width: 0,
-    height: 0,
-    changed: false,
-  );
-
-  factory _FloodFillResult.region({
-    required int left,
-    required int top,
-    required int width,
-    required int height,
-  }) => _FloodFillResult._(
-    left: left,
-    top: top,
-    width: width,
-    height: height,
-    changed: true,
-  );
-
-  final int left;
-  final int top;
-  final int width;
-  final int height;
-  final bool changed;
-}
-
-_FloodFillResult _paintingWorkerFloodFillSurface({
-  required BitmapSurface surface,
-  required int startX,
-  required int startY,
-  required int colorValue,
-  int? targetColorValue,
-  required bool contiguous,
-  Uint8List? mask,
-  int tolerance = 0,
-  int fillGap = 0,
-}) {
-  final int width = surface.width;
-  final int height = surface.height;
-  if (startX < 0 || startX >= width || startY < 0 || startY >= height) {
-    return _FloodFillResult.none();
-  }
-  final Uint32List pixels = surface.pixels;
-  final int startIndex = startY * width + startX;
-  final int baseColor = targetColorValue ?? pixels[startIndex];
-  final int replacement = colorValue;
-  if (baseColor == replacement) {
-    return _FloodFillResult.none();
-  }
-  if (!contiguous) {
-    return _paintingWorkerFloodFillNonContiguous(
-      pixels: pixels,
-      width: width,
-      height: height,
-      baseColor: baseColor,
-      replacement: replacement,
-      mask: mask,
-      tolerance: tolerance,
-    );
-  }
-  return _paintingWorkerFloodFillContiguous(
-    pixels: pixels,
-    width: width,
-    height: height,
-    baseColor: baseColor,
-    replacement: replacement,
-    startX: startX,
-    startY: startY,
-    mask: mask,
-    tolerance: tolerance,
-    fillGap: fillGap,
-  );
-}
-
-_FloodFillResult _paintingWorkerFloodFillNonContiguous({
-  required Uint32List pixels,
-  required int width,
-  required int height,
-  required int baseColor,
-  required int replacement,
-  Uint8List? mask,
-  int tolerance = 0,
-}) {
-  int minX = width;
-  int minY = height;
-  int maxX = -1;
-  int maxY = -1;
-  bool changed = false;
-  for (int i = 0; i < pixels.length; i++) {
-    if (!_colorsWithinTolerance(pixels[i], baseColor, tolerance)) {
-      continue;
-    }
-    if (mask != null && mask[i] == 0) {
-      continue;
-    }
-    pixels[i] = replacement;
-    changed = true;
-    final int px = i % width;
-    final int py = i ~/ width;
-    if (px < minX) {
-      minX = px;
-    }
-    if (py < minY) {
-      minY = py;
-    }
-    if (px > maxX) {
-      maxX = px;
-    }
-    if (py > maxY) {
-      maxY = py;
-    }
-  }
-  if (!changed) {
-    return _FloodFillResult.none();
-  }
-  return _FloodFillResult.region(
-    left: minX,
-    top: minY,
-    width: maxX - minX + 1,
-    height: maxY - minY + 1,
-  );
-}
-
-_FloodFillResult _paintingWorkerFloodFillContiguous({
-  required Uint32List pixels,
-  required int width,
-  required int height,
-  required int baseColor,
-  required int replacement,
-  required int startX,
-  required int startY,
-  Uint8List? mask,
-  int tolerance = 0,
-  int fillGap = 0,
-}) {
-  final int startIndex = startY * width + startX;
-  if (mask != null && mask[startIndex] == 0) {
-    return _FloodFillResult.none();
-  }
-
-  final Uint8List fillMask = Uint8List(width * height);
-  final int clampedFillGap = fillGap.clamp(0, 64);
-
-  int minX = width;
-  int minY = height;
-  int maxX = -1;
-  int maxY = -1;
-  bool changed = false;
-
-  if (clampedFillGap > 0) {
-    final Uint8List targetMask = Uint8List(width * height);
-    for (int i = 0; i < pixels.length; i++) {
-      if (mask != null && mask[i] == 0) {
-        continue;
-      }
-      if (_colorsWithinTolerance(pixels[i], baseColor, tolerance)) {
-        targetMask[i] = 1;
-      }
-    }
-    if (targetMask[startIndex] == 0) {
-      return _FloodFillResult.none();
-    }
-
-    final Uint8List openedTarget = _paintingWorkerOpenMask8(
-      Uint8List.fromList(targetMask),
-      width,
-      height,
-      clampedFillGap,
-    );
-
-    void fillFromTargetMask(int seedIndex) {
-      final List<int> stack = <int>[seedIndex];
-      while (stack.isNotEmpty) {
-        final int index = stack.removeLast();
-        if (index < 0 || index >= targetMask.length) {
-          continue;
-        }
-        if (targetMask[index] == 0) {
-          continue;
-        }
-        targetMask[index] = 0;
-        fillMask[index] = 1;
-
-        final int x = index % width;
-        final int y = index ~/ width;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-
-        if (x > 0) {
-          final int neighbor = index - 1;
-          if (targetMask[neighbor] == 1) {
-            stack.add(neighbor);
-          }
-        }
-        if (x < width - 1) {
-          final int neighbor = index + 1;
-          if (targetMask[neighbor] == 1) {
-            stack.add(neighbor);
-          }
-        }
-        if (y > 0) {
-          final int neighbor = index - width;
-          if (targetMask[neighbor] == 1) {
-            stack.add(neighbor);
-          }
-        }
-        if (y < height - 1) {
-          final int neighbor = index + width;
-          if (targetMask[neighbor] == 1) {
-            stack.add(neighbor);
-          }
-        }
-      }
-    }
-
-    final List<int> outsideSeeds = <int>[];
-    for (int x = 0; x < width; x++) {
-      final int topIndex = x;
-      if (topIndex < openedTarget.length && openedTarget[topIndex] == 1) {
-        outsideSeeds.add(topIndex);
-      }
-      final int bottomIndex = (height - 1) * width + x;
-      if (bottomIndex >= 0 &&
-          bottomIndex < openedTarget.length &&
-          openedTarget[bottomIndex] == 1) {
-        outsideSeeds.add(bottomIndex);
-      }
-    }
-    for (int y = 1; y < height - 1; y++) {
-      final int leftIndex = y * width;
-      if (leftIndex < openedTarget.length && openedTarget[leftIndex] == 1) {
-        outsideSeeds.add(leftIndex);
-      }
-      final int rightIndex = y * width + (width - 1);
-      if (rightIndex >= 0 &&
-          rightIndex < openedTarget.length &&
-          openedTarget[rightIndex] == 1) {
-        outsideSeeds.add(rightIndex);
-      }
-    }
-
-    if (outsideSeeds.isEmpty) {
-      fillFromTargetMask(startIndex);
-    } else {
-      final Uint8List outsideOpen = Uint8List(openedTarget.length);
-      final List<int> outsideQueue = List<int>.from(outsideSeeds);
-      int outsideHead = 0;
-      for (final int seed in outsideSeeds) {
-        outsideOpen[seed] = 1;
-      }
-      while (outsideHead < outsideQueue.length) {
-        final int index = outsideQueue[outsideHead++];
-        final int x = index % width;
-        final int y = index ~/ width;
-        if (x > 0) {
-          final int neighbor = index - 1;
-          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
-            outsideOpen[neighbor] = 1;
-            outsideQueue.add(neighbor);
-          }
-        }
-        if (x < width - 1) {
-          final int neighbor = index + 1;
-          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
-            outsideOpen[neighbor] = 1;
-            outsideQueue.add(neighbor);
-          }
-        }
-        if (y > 0) {
-          final int neighbor = index - width;
-          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
-            outsideOpen[neighbor] = 1;
-            outsideQueue.add(neighbor);
-          }
-        }
-        if (y < height - 1) {
-          final int neighbor = index + width;
-          if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
-            outsideOpen[neighbor] = 1;
-            outsideQueue.add(neighbor);
-          }
-        }
-      }
-
-      int effectiveStartIndex = startIndex;
-      if (openedTarget[effectiveStartIndex] == 0) {
-        final int? snappedStart = _paintingWorkerFindNearestFillableStartIndex(
-          startIndex: startIndex,
-          fillable: openedTarget,
-          pixels: pixels,
-          baseColor: baseColor,
-          width: width,
-          height: height,
-          tolerance: tolerance,
-          selectionMask: mask,
-          maxDepth: clampedFillGap + 1,
-        );
-        if (snappedStart == null) {
-          fillFromTargetMask(startIndex);
-          effectiveStartIndex = -1;
-        } else {
-          effectiveStartIndex = snappedStart;
-        }
-      }
-
-      if (effectiveStartIndex >= 0) {
-        final Uint8List seedVisited = Uint8List(openedTarget.length);
-        final List<int> seedQueue = <int>[effectiveStartIndex];
-        seedVisited[effectiveStartIndex] = 1;
-        int seedHead = 0;
-        bool touchesOutside = outsideOpen[effectiveStartIndex] == 1;
-        while (seedHead < seedQueue.length) {
-          final int index = seedQueue[seedHead++];
-          if (outsideOpen[index] == 1) {
-            touchesOutside = true;
-            break;
-          }
-          final int x = index % width;
-          final int y = index ~/ width;
-          if (x > 0) {
-            final int neighbor = index - 1;
-            if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
-              seedVisited[neighbor] = 1;
-              seedQueue.add(neighbor);
-            }
-          }
-          if (x < width - 1) {
-            final int neighbor = index + 1;
-            if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
-              seedVisited[neighbor] = 1;
-              seedQueue.add(neighbor);
-            }
-          }
-          if (y > 0) {
-            final int neighbor = index - width;
-            if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
-              seedVisited[neighbor] = 1;
-              seedQueue.add(neighbor);
-            }
-          }
-          if (y < height - 1) {
-            final int neighbor = index + width;
-            if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
-              seedVisited[neighbor] = 1;
-              seedQueue.add(neighbor);
-            }
-          }
-        }
-
-        if (touchesOutside) {
-          fillFromTargetMask(startIndex);
-        } else {
-          final List<int> queue = List<int>.from(seedQueue);
-          int head = 0;
-          for (final int index in queue) {
-            if (targetMask[index] == 1 && outsideOpen[index] == 0) {
-              targetMask[index] = 0;
-              fillMask[index] = 1;
-              final int x = index % width;
-              final int y = index ~/ width;
-              if (x < minX) minX = x;
-              if (y < minY) minY = y;
-              if (x > maxX) maxX = x;
-              if (y > maxY) maxY = y;
-            }
-          }
-          while (head < queue.length) {
-            final int index = queue[head++];
-            final int x = index % width;
-            final int y = index ~/ width;
-            if (x > 0) {
-              final int neighbor = index - 1;
-              if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
-                targetMask[neighbor] = 0;
-                fillMask[neighbor] = 1;
-                queue.add(neighbor);
-                final int nx = neighbor % width;
-                final int ny = neighbor ~/ width;
-                if (nx < minX) minX = nx;
-                if (ny < minY) minY = ny;
-                if (nx > maxX) maxX = nx;
-                if (ny > maxY) maxY = ny;
-              }
-            }
-            if (x < width - 1) {
-              final int neighbor = index + 1;
-              if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
-                targetMask[neighbor] = 0;
-                fillMask[neighbor] = 1;
-                queue.add(neighbor);
-                final int nx = neighbor % width;
-                final int ny = neighbor ~/ width;
-                if (nx < minX) minX = nx;
-                if (ny < minY) minY = ny;
-                if (nx > maxX) maxX = nx;
-                if (ny > maxY) maxY = ny;
-              }
-            }
-            if (y > 0) {
-              final int neighbor = index - width;
-              if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
-                targetMask[neighbor] = 0;
-                fillMask[neighbor] = 1;
-                queue.add(neighbor);
-                final int nx = neighbor % width;
-                final int ny = neighbor ~/ width;
-                if (nx < minX) minX = nx;
-                if (ny < minY) minY = ny;
-                if (nx > maxX) maxX = nx;
-                if (ny > maxY) maxY = ny;
-              }
-            }
-            if (y < height - 1) {
-              final int neighbor = index + width;
-              if (targetMask[neighbor] == 1 && outsideOpen[neighbor] == 0) {
-                targetMask[neighbor] = 0;
-                fillMask[neighbor] = 1;
-                queue.add(neighbor);
-                final int nx = neighbor % width;
-                final int ny = neighbor ~/ width;
-                if (nx < minX) minX = nx;
-                if (ny < minY) minY = ny;
-                if (nx > maxX) maxX = nx;
-                if (ny > maxY) maxY = ny;
-              }
-            }
-          }
-        }
-      }
-    }
-  } else {
-    final List<int> stack = <int>[startIndex];
-    // Phase 1: Standard Flood Fill to populate fillMask
-    while (stack.isNotEmpty) {
-      final int index = stack.removeLast();
-      if (index < 0 || index >= pixels.length) {
-        continue;
-      }
-      if (fillMask[index] == 1) {
-        continue;
-      }
-      if (!_colorsWithinTolerance(pixels[index], baseColor, tolerance)) {
-        continue;
-      }
-      if (mask != null && mask[index] == 0) {
-        continue;
-      }
-
-      fillMask[index] = 1;
-
-      final int x = index % width;
-      final int y = index ~/ width;
-
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
-
-      if (x > 0) stack.add(index - 1);
-      if (x < width - 1) stack.add(index + 1);
-      if (y > 0) stack.add(index - width);
-      if (y < height - 1) stack.add(index + width);
-    }
-  }
-
-  // Phase 2: Expand mask by 1 pixel (Dilation) to cover AA edges
-  // We iterate over the bounding box of the fill (expanded by 1px)
-  // Only perform expansion if tolerance > 0. Precise fill (tolerance 0) should not expand.
-  //
-  // When fillGap is enabled we avoid this extra expansion to prevent bleeding
-  // into line art now that the fill no longer keeps an inner safety margin.
-  if (tolerance > 0 && clampedFillGap <= 0) {
-    final int expandMinX = math.max(0, minX - 1);
-    final int expandMaxX = math.min(width - 1, maxX + 1);
-    final int expandMinY = math.max(0, minY - 1);
-    final int expandMaxY = math.min(height - 1, maxY + 1);
-
-    final List<int> expansionPixels = <int>[];
-
-    for (int y = expandMinY; y <= expandMaxY; y++) {
-      final int rowOffset = y * width;
-      for (int x = expandMinX; x <= expandMaxX; x++) {
-        final int index = rowOffset + x;
-        if (fillMask[index] == 1) {
-          continue; // Already filled
-        }
-        if (mask != null && mask[index] == 0) {
-          continue; // Respect selection mask
-        }
-
-        // Check neighbors for a filled pixel
-        bool hasFilledNeighbor = false;
-        if (x > 0 && fillMask[index - 1] == 1)
-          hasFilledNeighbor = true;
-        else if (x < width - 1 && fillMask[index + 1] == 1)
-          hasFilledNeighbor = true;
-        else if (y > 0 && fillMask[index - width] == 1)
-          hasFilledNeighbor = true;
-        else if (y < height - 1 && fillMask[index + width] == 1)
-          hasFilledNeighbor = true;
-
-        if (hasFilledNeighbor) {
-          expansionPixels.add(index);
-        }
-      }
-    }
-
-    // Update bounding box to include expansion
-    for (final int index in expansionPixels) {
-      fillMask[index] = 1;
-      final int x = index % width;
-      final int y = index ~/ width;
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
-    }
-  }
-
-  // Phase 3: Apply color
-  if (maxX >= minX && maxY >= minY) {
-    for (int y = minY; y <= maxY; y++) {
-      final int rowOffset = y * width;
-      for (int x = minX; x <= maxX; x++) {
-        final int index = rowOffset + x;
-        if (fillMask[index] == 1) {
-          pixels[index] = replacement;
-          changed = true;
-        }
-      }
-    }
-  }
-
-  if (!changed) {
-    return _FloodFillResult.none();
-  }
-  return _FloodFillResult.region(
-    left: minX,
-    top: minY,
-    width: maxX - minX + 1,
-    height: maxY - minY + 1,
-  );
-}
-
-Uint8List _paintingWorkerOpenMask8(
-  Uint8List mask,
-  int width,
-  int height,
-  int radius,
-) {
-  if (mask.isEmpty || width <= 0 || height <= 0 || radius <= 0) {
-    return mask;
-  }
-
-  final Uint8List buffer = Uint8List(mask.length);
-  final List<int> queue = <int>[];
-
-  void dilateFromMaskValue(Uint8List source, Uint8List out, int seedValue) {
-    queue.clear();
-    out.fillRange(0, out.length, 0);
-    for (int i = 0; i < source.length; i++) {
-      if (source[i] != seedValue) {
-        continue;
-      }
-      out[i] = 1;
-      queue.add(i);
-    }
-    if (queue.isEmpty) {
-      return;
-    }
-
-    int head = 0;
-    final int lastRowStart = (height - 1) * width;
-    for (int step = 0; step < radius; step++) {
-      final int levelEnd = queue.length;
-      while (head < levelEnd) {
-        final int index = queue[head++];
-        final int x = index % width;
-        final bool hasLeft = x > 0;
-        final bool hasRight = x < width - 1;
-        final bool hasUp = index >= width;
-        final bool hasDown = index < lastRowStart;
-
-        void tryAdd(int neighbor) {
-          if (neighbor < 0 || neighbor >= out.length) {
-            return;
-          }
-          if (out[neighbor] != 0) {
-            return;
-          }
-          out[neighbor] = 1;
-          queue.add(neighbor);
-        }
-
-        if (hasLeft) {
-          tryAdd(index - 1);
-        }
-        if (hasRight) {
-          tryAdd(index + 1);
-        }
-        if (hasUp) {
-          tryAdd(index - width);
-          if (hasLeft) {
-            tryAdd(index - width - 1);
-          }
-          if (hasRight) {
-            tryAdd(index - width + 1);
-          }
-        }
-        if (hasDown) {
-          tryAdd(index + width);
-          if (hasLeft) {
-            tryAdd(index + width - 1);
-          }
-          if (hasRight) {
-            tryAdd(index + width + 1);
-          }
-        }
-      }
-    }
-  }
-
-  // Phase 1 (Erosion): erode by dilating the inverse and then inverting.
-  dilateFromMaskValue(mask, buffer, 0);
-  for (int i = 0; i < mask.length; i++) {
-    mask[i] = buffer[i] == 0 ? 1 : 0;
-  }
-
-  // Phase 2 (Dilation): dilate eroded mask.
-  dilateFromMaskValue(mask, buffer, 1);
-  return buffer;
-}
-
-int? _paintingWorkerFindNearestFillableStartIndex({
-  required int startIndex,
-  required Uint8List fillable,
-  required Uint32List pixels,
-  required int baseColor,
-  required int width,
-  required int height,
-  required int tolerance,
-  required Uint8List? selectionMask,
-  required int maxDepth,
-}) {
-  if (startIndex < 0 || startIndex >= fillable.length) {
-    return null;
-  }
-  if (fillable[startIndex] == 1) {
-    return startIndex;
-  }
-
-  final Set<int> visited = <int>{startIndex};
-  final List<int> queue = <int>[startIndex];
-  int head = 0;
-
-  for (int depth = 0; depth <= maxDepth; depth++) {
-    final int levelEnd = queue.length;
-    while (head < levelEnd) {
-      final int index = queue[head++];
-      if (fillable[index] == 1) {
-        return index;
-      }
-
-      final int x = index % width;
-      final int y = index ~/ width;
-
-      void tryNeighbor(int nx, int ny) {
-        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
-          return;
-        }
-        final int neighbor = ny * width + nx;
-        if (!visited.add(neighbor)) {
-          return;
-        }
-        if (selectionMask != null && selectionMask[neighbor] == 0) {
-          return;
-        }
-        if (!_colorsWithinTolerance(pixels[neighbor], baseColor, tolerance)) {
-          return;
-        }
-        queue.add(neighbor);
-      }
-
-      tryNeighbor(x - 1, y);
-      tryNeighbor(x + 1, y);
-      tryNeighbor(x, y - 1);
-      tryNeighbor(x, y + 1);
-    }
-    if (head >= queue.length) {
-      break;
-    }
-  }
-  return null;
-}
-
-bool _colorsWithinTolerance(int a, int b, int tolerance) {
-  if (tolerance <= 0) {
-    return a == b;
-  }
-  final int aa = (a >> 24) & 0xff;
-  final int ar = (a >> 16) & 0xff;
-  final int ag = (a >> 8) & 0xff;
-  final int ab = a & 0xff;
-
-  final int ba = (b >> 24) & 0xff;
-  final int br = (b >> 16) & 0xff;
-  final int bg = (b >> 8) & 0xff;
-  final int bb = b & 0xff;
-
-  final int deltaA = (aa - ba).abs();
-  final int deltaR = (ar - br).abs();
-  final int deltaG = (ag - bg).abs();
-  final int deltaB = (ab - bb).abs();
-
-  return deltaA <= tolerance &&
-      deltaR <= tolerance &&
-      deltaG <= tolerance &&
-      deltaB <= tolerance;
-}
-
 void _paintingWorkerFloodMask({
   required Uint32List pixels,
   required int targetColor,

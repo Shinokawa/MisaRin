@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import rust_lib_misa_rin
 
 private final class LoggingFlutterViewController: FlutterViewController {
   private var tabletChannel: FlutterMethodChannel?
@@ -103,6 +104,9 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    RustLibMisaRinPlugin.register(
+      with: flutterViewController.registrar(forPlugin: "RustLibMisaRinPlugin")
+    )
 
     super.awakeFromNib()
   }

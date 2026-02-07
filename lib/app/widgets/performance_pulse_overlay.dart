@@ -9,14 +9,31 @@ import 'package:flutter_performance_pulse/flutter_performance_pulse.dart';
 
 import '../../performance/stroke_latency_monitor.dart';
 
-class PerformancePulseOverlay extends StatelessWidget {
+class PerformancePulseOverlay extends StatefulWidget {
   const PerformancePulseOverlay({super.key});
+
+  @override
+  State<PerformancePulseOverlay> createState() => _PerformancePulseOverlayState();
+}
+
+class _PerformancePulseOverlayState extends State<PerformancePulseOverlay> {
+  double _offsetX = 16;
+  double _offsetY = 16;
+
+  void _handleDrag(DragUpdateDetails details) {
+    final Offset delta = details.delta;
+    final bool alignRight = defaultTargetPlatform == TargetPlatform.macOS;
+    setState(() {
+      _offsetY += delta.dy;
+      _offsetX += alignRight ? -delta.dx : delta.dx;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final bool alignRight = defaultTargetPlatform == TargetPlatform.macOS;
-    final double? right = alignRight ? 16 : null;
-    final double? left = alignRight ? null : 16;
+    final double? right = alignRight ? _offsetX : null;
+    final double? left = alignRight ? null : _offsetX;
     final FluentThemeData fluentTheme = FluentTheme.of(context);
 
     final bool isDarkMode = fluentTheme.brightness == Brightness.dark;
@@ -35,11 +52,12 @@ class PerformancePulseOverlay extends StatelessWidget {
     );
 
     return Positioned(
-      top: 16,
+      top: _offsetY,
       right: right,
       left: left,
-      child: IgnorePointer(
-        ignoring: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: _handleDrag,
         child: material.Theme(
           data: material.ThemeData(
             useMaterial3: true,

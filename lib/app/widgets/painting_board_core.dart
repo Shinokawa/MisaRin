@@ -39,6 +39,11 @@ enum CanvasRotation {
   counterClockwise180,
 }
 
+enum CanvasFlip {
+  horizontal,
+  vertical,
+}
+
 class CanvasRotationResult {
   const CanvasRotationResult({
     required this.layers,
@@ -78,6 +83,7 @@ class _ImportedImageData {
 class PaintingBoard extends StatefulWidget {
   const PaintingBoard({
     super.key,
+    required this.surfaceKey,
     required this.settings,
     required this.onRequestExit,
     this.isActive = true,
@@ -94,6 +100,7 @@ class PaintingBoard extends StatefulWidget {
     this.toolbarLayoutStyle = PaintingToolbarLayoutStyle.floating,
   });
 
+  final String surfaceKey;
   final CanvasSettings settings;
   final VoidCallback onRequestExit;
   final bool isActive;

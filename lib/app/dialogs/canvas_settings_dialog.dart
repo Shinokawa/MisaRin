@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../canvas/canvas_settings.dart';
 import '../l10n/l10n.dart';
+import '../preferences/app_preferences.dart';
 import 'misarin_dialog.dart';
 
 enum WorkspacePreset { none, illustration, celShading, pixel }
@@ -43,6 +45,18 @@ class _ResolutionPreset {
 
   @override
   int get hashCode => Object.hash(width, height, label);
+}
+
+class _BackgroundOption {
+  const _BackgroundOption({
+    required this.color,
+    required this.label,
+  });
+
+  final Color color;
+  final String label;
+
+  bool get isTransparent => color.alpha == 0;
 }
 
 class _WorkspacePresetOption {
@@ -151,7 +165,6 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         title: l10n.workspaceIllustration,
         changes: <String>[
           l10n.workspaceIllustrationDesc,
-          l10n.workspaceIllustrationDesc2,
         ],
       ),
       _WorkspacePresetOption(
@@ -169,7 +182,6 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         changes: <String>[
           l10n.workspacePixelDesc1,
           l10n.workspacePixelDesc2,
-          l10n.workspacePixelDesc3,
           l10n.workspacePixelDesc4,
         ],
       ),
@@ -214,6 +226,11 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     final String resolvedName =
         rawName.isEmpty ? l10n.untitledProject : rawName;
     setState(() => _errorMessage = null);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.newCanvasWidth = width;
+    prefs.newCanvasHeight = height;
+    prefs.newCanvasBackgroundColor = _selectedColor;
+    unawaited(AppPreferences.save());
     Navigator.of(context).pop(
       NewProjectConfig(
         name: resolvedName,
@@ -227,135 +244,174 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     );
   }
 
+  void _swapDimensions() {
+    final String width = _widthController.text;
+    final String height = _heightController.text;
+    _widthController.text = height;
+    _heightController.text = width;
+  }
+
+  List<_BackgroundOption> get _backgroundOptions {
+    final l10n = context.l10n;
+    return <_BackgroundOption>[
+      _BackgroundOption(
+        color: const Color(0x00000000),
+        label: l10n.colorTransparent,
+      ),
+      _BackgroundOption(
+        color: const Color(0xFFFFFFFF),
+        label: l10n.colorWhite,
+      ),
+      _BackgroundOption(
+        color: const Color(0xFFF5F5F5),
+        label: l10n.colorLightGray,
+      ),
+      _BackgroundOption(
+        color: const Color(0xFF000000),
+        label: l10n.colorBlack,
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final l10n = context.l10n;
     return MisarinDialog(
       title: Text(l10n.newCanvasSettingsTitle),
-      contentWidth: 420,
-      maxWidth: 520,
+      contentWidth: 820,
+      maxWidth: 980,
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 620),
+        constraints: const BoxConstraints(maxHeight: 680),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              InfoLabel(
-                label: l10n.projectName,
-                child: TextBox(
-                  controller: _nameController,
-                  placeholder: l10n.untitledProject,
-                ),
-              ),
-              const SizedBox(height: 12),
-              InfoLabel(
-                label: l10n.workspacePreset,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.workspacePresetDesc,
-                      style:
-                          theme.typography.caption ??
-                          const TextStyle(fontSize: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InfoLabel(
+                          label: l10n.projectName,
+                          child: TextBox(
+                            controller: _nameController,
+                            placeholder: l10n.untitledProject,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: l10n.workspacePreset,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.workspacePresetDesc,
+                                style:
+                                    theme.typography.caption ??
+                                    const TextStyle(fontSize: 12),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _workspacePresets
+                                    .map(
+                                      (option) =>
+                                          _buildPresetButton(theme, option),
+                                    )
+                                    .toList(),
+                              ),
+                              const SizedBox(height: 8),
+                              _buildPresetDescription(theme),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: l10n.resolutionPreset,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _presets
+                                .map(
+                                  (preset) =>
+                                      _buildResolutionPresetButton(
+                                        theme,
+                                        preset,
+                                      ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _workspacePresets
-                          .map((option) => _buildPresetButton(theme, option))
-                          .toList(),
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InfoLabel(
+                          label: l10n.customResolution,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextFormBox(
+                                  controller: _widthController,
+                                  placeholder: l10n.widthPx,
+                                  inputFormatters: <TextInputFormatter>[
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                ),
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8),
+                                child: Text('×'),
+                              ),
+                              Expanded(
+                                child: TextFormBox(
+                                  controller: _heightController,
+                                  placeholder: l10n.heightPx,
+                                  inputFormatters: <TextInputFormatter>[
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Tooltip(
+                                message: l10n.swapDimensions,
+                                child: IconButton(
+                                  icon: const Icon(FluentIcons.rotate),
+                                  onPressed: _swapDimensions,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildCanvasPreview(theme),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: l10n.backgroundColor,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _backgroundOptions
+                                .map(
+                                  (option) =>
+                                      _buildBackgroundOption(theme, option),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    _buildPresetDescription(theme),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              InfoLabel(
-                label: l10n.resolutionPreset,
-                child: ComboBox<_ResolutionPreset?>(
-                  isExpanded: true,
-                  value: _selectedPreset,
-                  items: [
-                    ComboBoxItem<_ResolutionPreset?>(
-                      value: null,
-                      child: Text(l10n.custom),
-                    ),
-                    ..._presets.map(
-                      (preset) => ComboBoxItem<_ResolutionPreset?>(
-                        value: preset,
-                        child: Text(preset.label),
-                      ),
-                    ),
-                  ],
-                  onChanged: (value) => _applyPreset(value),
-                ),
-              ),
-              const SizedBox(height: 12),
-              InfoLabel(
-                label: l10n.customResolution,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextFormBox(
-                        controller: _widthController,
-                        placeholder: l10n.widthPx,
-                        inputFormatters: <TextInputFormatter>[
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('×'),
-                    ),
-                    Expanded(
-                      child: TextFormBox(
-                        controller: _heightController,
-                        placeholder: l10n.heightPx,
-                        inputFormatters: <TextInputFormatter>[
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _sizePreviewText(),
-                style:
-                    theme.typography.caption ?? const TextStyle(fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-              InfoLabel(
-                label: l10n.backgroundColor,
-                child: ComboBox<Color>(
-                  isExpanded: true,
-                  icon: const Icon(FluentIcons.color),
-                  value: _selectedColor,
-                  items: [
-                    ComboBoxItem(
-                        value: const Color(0xFFFFFFFF),
-                        child: Text(l10n.colorWhite)),
-                    ComboBoxItem(
-                        value: const Color(0xFFF5F5F5),
-                        child: Text(l10n.colorLightGray)),
-                    ComboBoxItem(
-                        value: const Color(0xFF000000),
-                        child: Text(l10n.colorBlack)),
-                  ],
-                  onChanged: (color) {
-                    if (color == null) {
-                      return;
-                    }
-                    setState(() => _selectedColor = color);
-                  },
-                ),
+                  ),
+                ],
               ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 12),
@@ -375,6 +431,225 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         ),
         FilledButton(onPressed: _handleSubmit, child: Text(l10n.create)),
       ],
+    );
+  }
+
+  Widget _buildResolutionPresetButton(
+    FluentThemeData theme,
+    _ResolutionPreset preset,
+  ) {
+    final bool selected = _selectedPreset == preset;
+    final ButtonStyle style = ButtonStyle(
+      padding: WidgetStateProperty.all(const EdgeInsets.all(10)),
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (selected) {
+          return theme.accentColor.withOpacity(0.12);
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return theme.resources.controlFillColorSecondary;
+        }
+        return theme.resources.controlFillColorDefault;
+      }),
+      shape: WidgetStateProperty.all<OutlinedBorder>(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+          side: BorderSide(
+            color: selected
+                ? theme.accentColor
+                : theme.resources.controlStrokeColorDefault,
+          ),
+        ),
+      ),
+    );
+
+    return SizedBox(
+      width: 170,
+      child: Button(
+        style: style,
+        onPressed: () => _applyPreset(preset),
+        child: Text(
+          preset.label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: theme.typography.caption ?? const TextStyle(fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackgroundOption(
+    FluentThemeData theme,
+    _BackgroundOption option,
+  ) {
+    final bool selected = option.color.value == _selectedColor.value;
+    final ButtonStyle style = ButtonStyle(
+      padding: WidgetStateProperty.all(
+        const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+      ),
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (selected) {
+          return theme.accentColor.withOpacity(0.12);
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return theme.resources.controlFillColorSecondary;
+        }
+        return theme.resources.controlFillColorDefault;
+      }),
+      shape: WidgetStateProperty.all<OutlinedBorder>(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+          side: BorderSide(
+            color: selected
+                ? theme.accentColor
+                : theme.resources.controlStrokeColorDefault,
+          ),
+        ),
+      ),
+    );
+
+    return SizedBox(
+      width: 120,
+      child: Button(
+        style: style,
+        onPressed: () => setState(() => _selectedColor = option.color),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildColorSwatch(theme, option),
+            const SizedBox(height: 6),
+            Text(
+              option.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.typography.caption ?? const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorSwatch(FluentThemeData theme, _BackgroundOption option) {
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Color checkerLight = theme.resources.controlFillColorDefault;
+    final Color checkerDark = theme.resources.controlFillColorSecondary;
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: borderColor),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (option.isTransparent)
+                CustomPaint(
+                  painter: _CheckerboardPainter(
+                    light: checkerLight,
+                    dark: checkerDark,
+                  ),
+                ),
+              Container(color: option.color),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCanvasPreview(FluentThemeData theme) {
+    final int? width = int.tryParse(_widthController.text);
+    final int? height = int.tryParse(_heightController.text);
+    final bool valid =
+        width != null && height != null && width > 0 && height > 0;
+    final double aspectRatio =
+        valid ? width!.toDouble() / height!.toDouble() : 1.0;
+    final String ratioLabel = valid ? _formatAspectRatio(width!, height!) : '--';
+    final TextStyle caption =
+        theme.typography.caption ?? const TextStyle(fontSize: 12);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 180,
+          child: Center(
+            child: AspectRatio(
+              aspectRatio: aspectRatio,
+              child: _buildPreviewSurface(theme, ratioLabel, valid),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(_sizePreviewText(), style: caption),
+      ],
+    );
+  }
+
+  Widget _buildPreviewSurface(
+    FluentThemeData theme,
+    String ratioLabel,
+    bool showRatio,
+  ) {
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Color checkerLight = theme.resources.controlFillColorDefault;
+    final Color checkerDark = theme.resources.controlFillColorSecondary;
+    final Color labelColor =
+        theme.typography.caption?.color ?? theme.resources.textFillColorPrimary;
+    final Color labelBackground =
+        theme.resources.controlFillColorSecondary.withOpacity(0.85);
+    final TextStyle labelStyle =
+        (theme.typography.caption ?? const TextStyle(fontSize: 12))
+            .copyWith(color: labelColor);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_selectedColor.alpha < 0xFF)
+              CustomPaint(
+                painter: _CheckerboardPainter(
+                  light: checkerLight,
+                  dark: checkerDark,
+                ),
+              ),
+            Container(color: _selectedColor),
+            if (showRatio)
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: labelBackground,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        ratioLabel,
+                        style: labelStyle,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -531,5 +806,41 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         ),
       ),
     );
+  }
+}
+
+class _CheckerboardPainter extends CustomPainter {
+  const _CheckerboardPainter({
+    required this.light,
+    required this.dark,
+    this.squareSize = 8,
+  });
+
+  final Color light;
+  final Color dark;
+  final double squareSize;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint();
+    for (double y = 0; y < size.height; y += squareSize) {
+      for (double x = 0; x < size.width; x += squareSize) {
+        final int xi = (x / squareSize).floor();
+        final int yi = (y / squareSize).floor();
+        final bool useLight = (xi + yi) % 2 == 0;
+        paint.color = useLight ? light : dark;
+        canvas.drawRect(
+          Rect.fromLTWH(x, y, squareSize, squareSize),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CheckerboardPainter oldDelegate) {
+    return oldDelegate.light != light ||
+        oldDelegate.dark != dark ||
+        oldDelegate.squareSize != squareSize;
   }
 }

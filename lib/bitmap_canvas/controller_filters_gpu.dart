@@ -6,7 +6,7 @@ Future<bool> _controllerApplyAntialiasToActiveLayer(
   int level, {
   bool previewOnly = false,
 }) async {
-  final int clamped = level.clamp(0, 3);
+  final int clamped = level.clamp(0, 9);
   if (previewOnly) {
     return _canApplyAntialias(controller, clamped);
   }
@@ -102,7 +102,7 @@ Future<bool> _gpuApplyAntialiasToActiveLayer(
 
     layer.surface.markDirty();
     controller._markDirty(layerId: layer.id, pixelsDirty: true);
-    controller.notifyListeners();
+    controller._notify();
     return true;
   } on Object catch (error, stack) {
     debugPrint('GPU antialias failed, falling back to CPU: $error\n$stack');

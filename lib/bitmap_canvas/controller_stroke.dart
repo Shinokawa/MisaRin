@@ -4,11 +4,11 @@ const double _kStylusAbsoluteMinRadius = 0.005;
 const double _kSimulatedAbsoluteMinRadius = 0.01;
 const double _kAbsoluteMaxStrokeRadius = 512.0;
 
-double _strokeStampSpacing(double radius) {
-  if (!radius.isFinite) {
-    return 0.5;
-  }
-  return math.max(0.2, radius * 0.3);
+double _strokeStampSpacing(double radius, double spacing) {
+  double r = radius.isFinite ? radius.abs() : 0.0;
+  double s = spacing.isFinite ? spacing : 0.15;
+  s = s.clamp(0.02, 2.5);
+  return math.max(r * 2.0 * s, 0.1);
 }
 
 Rect _strokeDirtyRectForVariableLine(
@@ -65,6 +65,12 @@ void _strokeBegin(
   bool enableNeedleTips = false,
   bool randomRotation = false,
   int? rotationSeed,
+  double spacing = 0.15,
+  double hardness = 0.8,
+  double flow = 1.0,
+  double scatter = 0.0,
+  double rotationJitter = 1.0,
+  bool snapToPixel = false,
   bool erase = false,
   bool hollow = false,
   double hollowRatio = 0.0,
@@ -97,7 +103,7 @@ void _strokeBegin(
       !controller._currentStrokeStylusPressureEnabled;
   controller._currentStylusCurve = controller._stylusCurve;
   controller._currentStylusLastPressure = null;
-  controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 3);
+  controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 9);
   controller._currentStrokeHasMoved = false;
   controller._currentBrushShape = brushShape;
   controller._currentStrokeRandomRotationEnabled = randomRotation;
@@ -144,7 +150,9 @@ void _strokeBegin(
   }
   controller._currentStrokeRadii.add(startRadius);
   
-  controller._currentStrokeColor = color;
+  final double flowValue = flow.isFinite ? flow.clamp(0.0, 1.0) : 1.0;
+  final int flowAlpha = (color.alpha * flowValue).round().clamp(0, 255);
+  controller._currentStrokeColor = color.withAlpha(flowAlpha);
   controller._currentStrokeEraseMode = erase;
   final bool resolvedHollow = hollow && !erase;
   controller._currentStrokeHollowEnabled = resolvedHollow;
@@ -152,6 +160,16 @@ void _strokeBegin(
       resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0;
   controller._currentStrokeEraseOccludedParts =
       resolvedHollow && eraseOccludedParts;
+  final double spacingValue = spacing.isFinite ? spacing : 0.15;
+  controller._currentStrokeSpacing = spacingValue.clamp(0.02, 2.5);
+  final double hardnessValue = hardness.isFinite ? hardness : 0.8;
+  controller._currentStrokeSoftness = (1.0 - hardnessValue.clamp(0.0, 1.0))
+      .clamp(0.0, 1.0);
+  final double scatterValue = scatter.isFinite ? scatter : 0.0;
+  controller._currentStrokeScatter = scatterValue.clamp(0.0, 1.0);
+  final double rotationValue = rotationJitter.isFinite ? rotationJitter : 1.0;
+  controller._currentStrokeRotationJitter = rotationValue.clamp(0.0, 1.0);
+  controller._currentStrokeSnapToPixel = snapToPixel;
 }
 
 void _strokeExtend(
@@ -187,8 +205,6 @@ void _strokeExtend(
       stylusPressure = controller._currentStylusLastPressure;
     }
   }
-  final bool useCircularBrush =
-      controller._currentBrushShape == BrushShape.circle;
   if (controller._strokePressureSimulator.isSimulatingStroke) {
     final double? nextRadius = controller._strokePressureSimulator
         .sampleNextRadius(
@@ -242,59 +258,28 @@ void _strokeExtend(
         directionChanged;
     final double startRadius = restartCaps ? resolvedRadius : previousRadius;
     
-    if (useCircularBrush) {
-      controller._deferredStrokeCommands.add(
-        PaintingDrawCommand.variableLine(
-          start: last,
-          end: position,
-          startRadius: startRadius,
-          endRadius: resolvedRadius,
-          colorValue: controller._currentStrokeColor.value,
-          antialiasLevel: controller._currentStrokeAntialiasLevel,
-          includeStartCap: restartCaps,
-          erase: controller._currentStrokeEraseMode,
-        ),
-      );
-      controller._flushRealtimeStrokeCommands();
-    } else {
-      _strokeStampSegment(
-        controller,
-        last,
-        position,
-        startRadius: startRadius,
-        endRadius: resolvedRadius,
-        includeStart: restartCaps,
-      );
-    }
+    _strokeStampSegment(
+      controller,
+      last,
+      position,
+      startRadius: startRadius,
+      endRadius: resolvedRadius,
+      includeStart: restartCaps,
+    );
     controller._currentStrokeHasMoved = true;
     controller._currentStrokeLastRadius = resolvedRadius;
     return;
   }
 
   controller._currentStrokeRadii.add(controller._currentStrokeRadius);
-  if (useCircularBrush) {
-    controller._deferredStrokeCommands.add(
-      PaintingDrawCommand.line(
-        start: last,
-        end: position,
-        radius: controller._currentStrokeRadius,
-        colorValue: controller._currentStrokeColor.value,
-        antialiasLevel: controller._currentStrokeAntialiasLevel,
-        includeStartCap: firstSegment,
-        erase: controller._currentStrokeEraseMode,
-      ),
-    );
-    controller._flushRealtimeStrokeCommands();
-  } else {
-    _strokeStampSegment(
-      controller,
-      last,
-      position,
-      startRadius: controller._currentStrokeRadius,
-      endRadius: controller._currentStrokeRadius,
-      includeStart: firstSegment,
-    );
-  }
+  _strokeStampSegment(
+    controller,
+    last,
+    position,
+    startRadius: controller._currentStrokeRadius,
+    endRadius: controller._currentStrokeRadius,
+    includeStart: firstSegment,
+  );
   controller._currentStrokeHasMoved = true;
 }
 
@@ -348,10 +333,47 @@ void _strokeEnd(BitmapCanvasController controller) {
         // Append tail segment to vector stroke data
         controller._currentStrokePoints.add(end);
         controller._currentStrokeRadii.add(endRadius);
+        controller._deferredStrokeCommands.add(
+          PaintingDrawCommand.stampSegment(
+            start: lastPoint,
+            end: end,
+            startRadius: lastRadius,
+            endRadius: endRadius,
+            colorValue: controller._currentStrokeColor.value,
+            shapeIndex: controller._currentBrushShape.index,
+            randomRotation: controller._currentStrokeRandomRotationEnabled,
+            rotationSeed: controller._currentStrokeRotationSeed,
+            rotationJitter: controller._currentStrokeRotationJitter,
+            spacing: controller._currentStrokeSpacing,
+            scatter: controller._currentStrokeScatter,
+            softness: controller._currentStrokeSoftness,
+            snapToPixel: controller._currentStrokeSnapToPixel,
+            antialiasLevel: controller._currentStrokeAntialiasLevel,
+            includeStart: false,
+            erase: controller._currentStrokeEraseMode,
+          ),
+        );
       } else if (tailInstruction.isPoint) {
         // Append tail point to vector stroke data
-        controller._currentStrokePoints.add(tailInstruction.point!);
-        controller._currentStrokeRadii.add(tailInstruction.pointRadius!);
+        final Offset tailPoint = tailInstruction.point!;
+        final double tailRadius = tailInstruction.pointRadius!;
+        controller._currentStrokePoints.add(tailPoint);
+        controller._currentStrokeRadii.add(tailRadius);
+        controller._deferredStrokeCommands.add(
+          PaintingDrawCommand.brushStamp(
+            center: tailPoint,
+            radius: tailRadius,
+            colorValue: controller._currentStrokeColor.value,
+            shapeIndex: controller._currentBrushShape.index,
+            randomRotation: controller._currentStrokeRandomRotationEnabled,
+            rotationSeed: controller._currentStrokeRotationSeed,
+            rotationJitter: controller._currentStrokeRotationJitter,
+            snapToPixel: controller._currentStrokeSnapToPixel,
+            antialiasLevel: controller._currentStrokeAntialiasLevel,
+            softness: controller._currentStrokeSoftness,
+            erase: controller._currentStrokeEraseMode,
+          ),
+        );
       }
     }
   }
@@ -382,6 +404,11 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeEraseOccludedParts = false;
   controller._currentStrokeRandomRotationEnabled = false;
   controller._currentStrokeRotationSeed = 0;
+  controller._currentStrokeSpacing = 0.15;
+  controller._currentStrokeSoftness = 0.0;
+  controller._currentStrokeScatter = 0.0;
+  controller._currentStrokeRotationJitter = 1.0;
+  controller._currentStrokeSnapToPixel = false;
 }
 
 void _strokeCancel(BitmapCanvasController controller) {
@@ -401,6 +428,11 @@ void _strokeCancel(BitmapCanvasController controller) {
   controller._currentStrokeEraseOccludedParts = false;
   controller._currentStrokeRandomRotationEnabled = false;
   controller._currentStrokeRotationSeed = 0;
+  controller._currentStrokeSpacing = 0.15;
+  controller._currentStrokeSoftness = 0.0;
+  controller._currentStrokeScatter = 0.0;
+  controller._currentStrokeRotationJitter = 1.0;
+  controller._currentStrokeSnapToPixel = false;
 }
 
 void _strokeSetPressureProfile(
@@ -507,16 +539,29 @@ void _strokeDrawPoint(
   final double resolvedRadius = math.max(radius.abs(), 0.01);
   final BrushShape brushShape = controller._currentBrushShape;
   final bool erase = controller._currentStrokeEraseMode;
+  final double scatterRadius =
+      resolvedRadius * 2.0 * controller._currentStrokeScatter;
+  final Offset jitter = scatterRadius > 0
+      ? brushScatterOffset(
+          center: position,
+          seed: controller._currentStrokeRotationSeed,
+          radius: scatterRadius,
+          salt: controller._currentStrokePoints.length,
+        )
+      : Offset.zero;
 
   controller._deferredStrokeCommands.add(
     PaintingDrawCommand.brushStamp(
-      center: position,
+      center: position + jitter,
       radius: resolvedRadius,
       colorValue: controller._currentStrokeColor.value,
       shapeIndex: brushShape.index,
       randomRotation: controller._currentStrokeRandomRotationEnabled,
       rotationSeed: controller._currentStrokeRotationSeed,
+      rotationJitter: controller._currentStrokeRotationJitter,
+      snapToPixel: controller._currentStrokeSnapToPixel,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
+      softness: controller._currentStrokeSoftness,
       erase: erase,
     ),
   );
@@ -541,6 +586,11 @@ void _strokeStampSegment(
       shapeIndex: controller._currentBrushShape.index,
       randomRotation: controller._currentStrokeRandomRotationEnabled,
       rotationSeed: controller._currentStrokeRotationSeed,
+      rotationJitter: controller._currentStrokeRotationJitter,
+      spacing: controller._currentStrokeSpacing,
+      scatter: controller._currentStrokeScatter,
+      softness: controller._currentStrokeSoftness,
+      snapToPixel: controller._currentStrokeSnapToPixel,
       antialiasLevel: controller._currentStrokeAntialiasLevel,
       includeStart: includeStart,
       erase: controller._currentStrokeEraseMode,

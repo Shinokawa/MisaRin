@@ -12,6 +12,9 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         _PaintingBoardFilterMixin {
+  void _selectBrushPreset(String id);
+  Future<void> _openBrushPresetEditor();
+
   OverlayEntry? _workspaceCardsOverlayEntry;
   bool _workspaceCardsOverlaySyncScheduled = false;
 
@@ -353,6 +356,144 @@ mixin _PaintingBoardBuildMixin
             filterQuality: FilterQuality.none,
           ),
       ],
+    );
+  }
+
+  bool _shouldShowRustFilterPreviewOverlay(_FilterSession session) {
+    if (!_shouldUseRustFilterPreview(session)) {
+      return false;
+    }
+    if (_previewActiveLayerImage == null) {
+      return false;
+    }
+    return _filterRustHiddenLayerId == session.activeLayerId;
+  }
+
+  Widget _buildRustFilterPreviewOverlay() {
+    final _FilterSession? session = _filterSession;
+    if (session == null || !_shouldShowRustFilterPreviewOverlay(session)) {
+      return const SizedBox.shrink();
+    }
+
+    ui.Image? activeImage = _previewActiveLayerImage;
+    final bool useFilteredPreviewImage =
+        _previewFilteredImageType == session.type &&
+        _previewFilteredActiveLayerImage != null;
+    if (useFilteredPreviewImage) {
+      activeImage = _previewFilteredActiveLayerImage;
+    }
+    if (activeImage == null) {
+      return const SizedBox.shrink();
+    }
+    Widget activeLayerWidget = RawImage(
+      image: activeImage,
+      filterQuality: FilterQuality.none,
+    );
+
+    if (session.type == _FilterPanelType.gaussianBlur) {
+      final double sigma = _gaussianBlurSigmaForRadius(
+        session.gaussianBlur.radius,
+      );
+      if (sigma > 0) {
+        activeLayerWidget = ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          child: activeLayerWidget,
+        );
+      }
+    } else if (session.type == _FilterPanelType.hueSaturation) {
+      final double hue = session.hueSaturation.hue;
+      final double saturation = session.hueSaturation.saturation;
+      final double lightness = session.hueSaturation.lightness;
+      final bool requiresAdjustments =
+          hue != 0 || saturation != 0 || lightness != 0;
+      if (requiresAdjustments && !useFilteredPreviewImage) {
+        if (hue != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter: ColorFilter.matrix(ColorFilterGenerator.hue(hue)),
+            child: activeLayerWidget,
+          );
+        }
+        if (saturation != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter: ColorFilter.matrix(
+              ColorFilterGenerator.saturation(saturation),
+            ),
+            child: activeLayerWidget,
+          );
+        }
+        if (lightness != 0) {
+          activeLayerWidget = ColorFiltered(
+            colorFilter: ColorFilter.matrix(
+              ColorFilterGenerator.brightness(lightness),
+            ),
+            child: activeLayerWidget,
+          );
+        }
+      }
+    } else if (session.type == _FilterPanelType.brightnessContrast) {
+      final double brightness = session.brightnessContrast.brightness;
+      final double contrast = session.brightnessContrast.contrast;
+      if (brightness != 0 || contrast != 0) {
+        activeLayerWidget = ColorFiltered(
+          colorFilter: ColorFilter.matrix(
+            ColorFilterGenerator.brightnessContrast(brightness, contrast),
+          ),
+          child: activeLayerWidget,
+        );
+      }
+    } else if (session.type == _FilterPanelType.blackWhite) {
+      if (!useFilteredPreviewImage) {
+        final double black = session.blackWhite.blackPoint.clamp(0.0, 100.0);
+        final double white = session.blackWhite.whitePoint.clamp(0.0, 100.0);
+        final double clampedWhite = white <= black + _kBlackWhiteMinRange
+            ? math.min(100.0, black + _kBlackWhiteMinRange)
+            : white;
+        final double blackNorm = black / 100.0;
+        final double whiteNorm = math.max(
+          blackNorm + (_kBlackWhiteMinRange / 100.0),
+          clampedWhite / 100.0,
+        );
+        final double invRange = 1.0 / math.max(0.0001, whiteNorm - blackNorm);
+        final double offset = -blackNorm * 255.0 * invRange;
+        const double lwR = 0.299;
+        const double lwG = 0.587;
+        const double lwB = 0.114;
+        activeLayerWidget = ColorFiltered(
+          colorFilter: ColorFilter.matrix(<double>[
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            lwR * invRange,
+            lwG * invRange,
+            lwB * invRange,
+            0,
+            offset,
+            0,
+            0,
+            0,
+            1,
+            0,
+          ]),
+          child: activeLayerWidget,
+        );
+      }
+    }
+
+    final BitmapLayerState? layer = _layerById(session.activeLayerId);
+    final double opacity = (layer?.opacity ?? 1.0).clamp(0.0, 1.0);
+    if (opacity < 0.999) {
+      activeLayerWidget = Opacity(opacity: opacity, child: activeLayerWidget);
+    }
+
+    return Positioned.fill(
+      child: IgnorePointer(ignoring: true, child: activeLayerWidget),
     );
   }
 

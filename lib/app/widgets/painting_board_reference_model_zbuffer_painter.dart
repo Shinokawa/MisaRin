@@ -62,12 +62,13 @@ class _BedrockModelPainter extends CustomPainter {
     }
 
     final ui.Image? tex = texture;
-    final bool hasTexture = tex != null && !tex.debugDisposed;
+    final ui.Image? safeTex = _isImageUsable(tex) ? tex : null;
+    final bool hasTexture = safeTex != null;
     final double uScale = hasTexture && modelTextureWidth > 0
-        ? tex.width / modelTextureWidth
+        ? safeTex!.width / modelTextureWidth
         : 1.0;
     final double vScale = hasTexture && modelTextureHeight > 0
-        ? tex.height / modelTextureHeight
+        ? safeTex!.height / modelTextureHeight
         : 1.0;
 
     final Matrix4 rotation = Matrix4.identity()
@@ -385,4 +386,3 @@ class _ProjectedTriangle {
   final Color baseColor;
   final Color extraColor;
 }
-

@@ -38,18 +38,19 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     required CanvasLayerBlendMode mode,
     required bool isLocked,
   }) {
+    final bool isEnabled = !isLocked && rustLayerSupported;
     final TextStyle baseStyle =
         theme.typography.body ?? const TextStyle(fontSize: 14);
-    final Color textColor = isLocked
-        ? theme.resources.textFillColorDisabled
-        : baseStyle.color ?? theme.resources.textFillColorPrimary;
+    final Color textColor = isEnabled
+        ? (baseStyle.color ?? theme.resources.textFillColorPrimary)
+        : theme.resources.textFillColorDisabled;
     return FlyoutTarget(
       controller: _blendModeFlyoutController,
       child: Button(
         style: const ButtonStyle(
           padding: WidgetStatePropertyAll(EdgeInsets.zero),
         ),
-        onPressed: isLocked ? null : () => _toggleBlendModeFlyout(mode),
+        onPressed: isEnabled ? () => _toggleBlendModeFlyout(mode) : null,
         child: Container(
           padding: const EdgeInsetsDirectional.only(start: 11, end: 15),
           constraints: const BoxConstraints(minHeight: 32),
@@ -68,9 +69,9 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
               Icon(
                 FluentIcons.chevron_down,
                 size: 8,
-                color: isLocked
-                    ? theme.resources.textFillColorDisabled
-                    : theme.resources.textFillColorSecondary,
+                color: isEnabled
+                    ? theme.resources.textFillColorSecondary
+                    : theme.resources.textFillColorDisabled,
               ),
             ],
           ),
@@ -413,12 +414,15 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     for (final String id in stale) {
       final _LayerPreviewCacheEntry? entry = _layerPreviewCache.remove(id);
       entry?.dispose();
+      _rustLayerPreviewRevisions.remove(id);
+      _rustLayerPreviewPending.remove(id);
     }
   }
 
   void _ensureLayerPreviewImpl(BitmapLayerState layer) {
     final _LayerPreviewCacheEntry? entry = _layerPreviewCache[layer.id];
-    if (entry != null && entry.revision == layer.revision) {
+    final int revision = _layerPreviewRevisionForLayer(layer);
+    if (entry != null && entry.revision == revision) {
       return;
     }
     final int requestId = ++_layerPreviewRequestSerial;
@@ -430,7 +434,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       _captureLayerPreviewThumbnail(
         layerId: layer.id,
         surface: layer.surface,
-        revision: layer.revision,
+        revision: revision,
         requestId: requestId,
       ),
     );
@@ -446,7 +450,12 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     required int revision,
     required int requestId,
   }) async {
-    final _LayerPreviewPixels? pixels = _buildLayerPreviewPixels(surface);
+    final bool useRust = _canUseRustCanvasEngine();
+    _LayerPreviewPixels? pixels =
+        useRust ? await _buildRustLayerPreviewPixels(layerId) : null;
+    if (!useRust) {
+      pixels = _buildLayerPreviewPixels(surface);
+    }
     ui.Image? image;
     if (pixels != null) {
       try {
@@ -462,6 +471,53 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       revision: revision,
       requestId: requestId,
       image: image,
+    );
+  }
+
+  int _layerPreviewRevisionForLayer(BitmapLayerState layer) {
+    if (!_canUseRustCanvasEngine()) {
+      return layer.revision;
+    }
+    return _rustLayerPreviewRevisions[layer.id] ?? 0;
+  }
+
+  Future<_LayerPreviewPixels?> _buildRustLayerPreviewPixels(
+    String layerId,
+  ) async {
+    final int? handle = _rustCanvasEngineHandle;
+    if (!_canUseRustCanvasEngine() || handle == null) {
+      return null;
+    }
+    final int? layerIndex = _rustCanvasLayerIndexForId(layerId);
+    if (layerIndex == null) {
+      return null;
+    }
+    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    final int targetHeight = math.min(_layerPreviewRasterHeight, height);
+    final double scale = targetHeight / height;
+    final int targetWidth = math.max(1, (width * scale).round());
+    if (targetWidth <= 0 || targetHeight <= 0) {
+      return null;
+    }
+    final Uint8List? rgba = CanvasEngineFfi.instance.readLayerPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: targetWidth,
+      height: targetHeight,
+    );
+    if (rgba == null ||
+        rgba.length != targetWidth * targetHeight * 4) {
+      return null;
+    }
+    return _LayerPreviewPixels(
+      bytes: rgba,
+      width: targetWidth,
+      height: targetHeight,
     );
   }
 
@@ -537,6 +593,8 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       entry.dispose();
     }
     _layerPreviewCache.clear();
+    _rustLayerPreviewRevisions.clear();
+    _rustLayerPreviewPending.clear();
   }
 
   Widget _buildLayerPanelContentImpl(FluentThemeData theme) {
@@ -655,8 +713,10 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
-                      onChanged: (value) =>
-                          _handleLayerVisibilityChanged(layer.id, value),
+                      onChanged: rustLayerSupported
+                          ? (value) =>
+                              _handleLayerVisibilityChanged(layer.id, value)
+                          : null,
                     );
                     Widget leadingButtons = visibilityButton;
                     if (isSai2Layout) {
@@ -825,23 +885,24 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                     return material.ReorderableDragStartListener(
                       key: ValueKey(layer.id),
                       index: index,
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: layer.clippingMask ? 18 : 0,
-                          bottom: index == orderedLayers.length - 1 ? 0 : 8,
-                        ),
-                        child: _LayerTile(
-                          onTapDown: (_) => _handleLayerSelected(layer.id),
-                          onSecondaryTapDown: (details) =>
-                              _showLayerContextMenu(
-                                layer,
-                                details.globalPosition,
-                              ),
-                          backgroundColor: background,
-                          borderColor: tileBorder,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: layer.clippingMask ? 18 : 0,
+                            bottom: index == orderedLayers.length - 1 ? 0 : 8,
+                          ),
+                          child: _LayerTile(
+                            onTapDown: (_) => _handleLayerSelected(layer.id),
+                            onSecondaryTapDown: rustLayerSupported
+                                ? (details) => _showLayerContextMenu(
+                                      layer,
+                                      details.globalPosition,
+                                    )
+                                : null,
+                            backgroundColor: background,
+                            borderColor: tileBorder,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [

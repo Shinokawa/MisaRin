@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:ui' show FramePhase, FrameTiming;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart' as material;
+import 'package:flutter/scheduler.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:misa_rin/l10n/app_localizations.dart';
 
@@ -16,6 +19,12 @@ import 'theme/theme_controller.dart';
 import 'view/home_page.dart';
 import 'widgets/performance_pulse_overlay.dart';
 import 'workspace/canvas_workspace_controller.dart';
+import 'view/canvas_perf_stress_page.dart';
+
+const bool _kCanvasPerfStressMode = bool.fromEnvironment(
+  'MISA_RIN_CANVAS_PERF_STRESS',
+  defaultValue: false,
+);
 
 class MisarinApp extends StatefulWidget {
   const MisarinApp({
@@ -45,6 +54,7 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     _themeMode = AppPreferences.instance.themeMode;
     _locale = AppPreferences.instance.localeOverride;
     _initWindowCloseHandler();
+    _scheduleStartupDiagnostics();
   }
 
   void _handleThemeModeChanged(ThemeMode mode) {
@@ -74,6 +84,117 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     windowManager.addListener(this);
     _windowListenerAttached = true;
     unawaited(windowManager.setPreventClose(true));
+  }
+
+  void _scheduleStartupDiagnostics() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_logDisplayDiagnostics('first-frame'));
+      unawaited(
+        _logDisplayDiagnostics(
+          'post-settle',
+          delay: const Duration(milliseconds: 500),
+        ),
+      );
+      _startFrameTimingDiagnostics();
+    });
+  }
+
+  Future<void> _logDisplayDiagnostics(
+    String label, {
+    Duration delay = Duration.zero,
+  }) async {
+    if (delay > Duration.zero) {
+      await Future<void>.delayed(delay);
+    }
+    if (!mounted) {
+      return;
+    }
+    final view = View.of(context);
+    final Size logicalSize = Size(
+      view.physicalSize.width / view.devicePixelRatio,
+      view.physicalSize.height / view.devicePixelRatio,
+    );
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    String refreshRateText = 'unknown';
+    try {
+      refreshRateText = '${view.display.refreshRate.toStringAsFixed(1)}Hz';
+    } catch (error) {
+      debugPrint('[startup][$label] refreshRate unavailable: $error');
+    }
+    debugPrint(
+      '[startup][$label] viewCount=${views.length} refreshRate=$refreshRateText '
+      'logical=${logicalSize.width.toStringAsFixed(1)}x'
+      '${logicalSize.height.toStringAsFixed(1)} '
+      'physical=${view.physicalSize.width.toStringAsFixed(1)}x'
+      '${view.physicalSize.height.toStringAsFixed(1)} '
+      'dpr=${view.devicePixelRatio.toStringAsFixed(2)}',
+    );
+    if (_supportsDesktopWindowManagement) {
+      try {
+        final bounds = await windowManager.getBounds();
+        debugPrint(
+          '[startup][$label] windowBounds='
+          '${bounds.width.toStringAsFixed(1)}x'
+          '${bounds.height.toStringAsFixed(1)} '
+          '@(${bounds.left.toStringAsFixed(1)},'
+          '${bounds.top.toStringAsFixed(1)})',
+        );
+      } catch (error) {
+        debugPrint('[startup][$label] windowBounds failed: $error');
+      }
+    }
+  }
+
+  void _startFrameTimingDiagnostics() {
+    if (kIsWeb || !Platform.isWindows) {
+      return;
+    }
+    const int sampleTarget = 120;
+    final Stopwatch stopwatch = Stopwatch()..start();
+    int? lastVsyncStart;
+    final List<int> intervals = <int>[];
+    final List<int> buildDurations = <int>[];
+    final List<int> rasterDurations = <int>[];
+
+    void handler(List<FrameTiming> timings) {
+      for (final FrameTiming timing in timings) {
+        final int vsyncStart =
+            timing.timestampInMicroseconds(FramePhase.vsyncStart);
+        if (lastVsyncStart != null) {
+          intervals.add(vsyncStart - lastVsyncStart!);
+        }
+        lastVsyncStart = vsyncStart;
+        buildDurations.add(timing.buildDuration.inMicroseconds);
+        rasterDurations.add(timing.rasterDuration.inMicroseconds);
+      }
+      if (intervals.length < sampleTarget &&
+          stopwatch.elapsedMilliseconds < 2500) {
+        return;
+      }
+      SchedulerBinding.instance.removeTimingsCallback(handler);
+      if (intervals.isEmpty) {
+        debugPrint('[startup][timings] no frame intervals captured');
+        return;
+      }
+      final double avgIntervalUs =
+          intervals.reduce((a, b) => a + b) / intervals.length;
+      final double avgFps = avgIntervalUs > 0
+          ? 1000000.0 / avgIntervalUs
+          : 0;
+      final double avgBuildUs =
+          buildDurations.reduce((a, b) => a + b) / buildDurations.length;
+      final double avgRasterUs =
+          rasterDurations.reduce((a, b) => a + b) / rasterDurations.length;
+      debugPrint(
+        '[startup][timings] samples=${intervals.length} '
+        'avgInterval=${(avgIntervalUs / 1000).toStringAsFixed(2)}ms '
+        'avgFps=${avgFps.toStringAsFixed(1)} '
+        'build=${(avgBuildUs / 1000).toStringAsFixed(2)}ms '
+        'raster=${(avgRasterUs / 1000).toStringAsFixed(2)}ms',
+      );
+    }
+
+    SchedulerBinding.instance.addTimingsCallback(handler);
   }
 
   bool get _supportsDesktopWindowManagement =>
@@ -157,79 +278,161 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
   }
 
   @override
-	  Widget build(BuildContext context) {
-	    return ThemeController(
-	      themeMode: _themeMode,
-	      onThemeModeChanged: _handleThemeModeChanged,
-	      child: LocaleController(
-	        locale: _locale,
-	        onLocaleChanged: _handleLocaleChanged,
-	        child: FluentApp(
-        navigatorKey: _navigatorKey,
-        debugShowCheckedModeBanner: false,
-        title: 'Misa Rin',
+  Widget build(BuildContext context) {
+    final FluentThemeData lightFluentTheme = FluentThemeData(
+      brightness: Brightness.light,
+      accentColor: Colors.black.toAccentColor(),
+    );
+    final FluentThemeData darkFluentTheme = FluentThemeData(
+      brightness: Brightness.dark,
+      accentColor: Colors.white.toAccentColor(),
+    );
+    final material.ThemeData lightMaterialTheme =
+        _materialThemeFromFluent(lightFluentTheme);
+    final material.ThemeData darkMaterialTheme =
+        _materialThemeFromFluent(darkFluentTheme);
+    return ThemeController(
+      themeMode: _themeMode,
+      onThemeModeChanged: _handleThemeModeChanged,
+      child: LocaleController(
         locale: _locale,
-        localizationsDelegates: <LocalizationsDelegate<dynamic>>[
-          ...AppLocalizations.localizationsDelegates,
-          FluentLocalizations.delegate,
-        ],
-	        supportedLocales: AppLocalizations.supportedLocales,
-	        builder: (context, child) {
-	          Widget content = child ?? const SizedBox.shrink();
-	          if (widget.showCustomMenu && child != null) {
-	            content = CustomMenuShell(
-	              navigatorKey: _navigatorKey,
-	              showMenus: widget.showCustomMenuItems,
-	              child: child,
-	            );
-	          }
-	          Widget appBody = ValueListenableBuilder<bool>(
-	            valueListenable: AppPreferences.fpsOverlayEnabledNotifier,
-	            builder: (context, enabled, appChild) {
-	              final Widget resolvedChild = appChild ?? const SizedBox.shrink();
-	              if (!enabled) {
-	                return resolvedChild;
-	              }
-	              return Stack(
-	                fit: StackFit.passthrough,
-	                children: [resolvedChild, const PerformancePulseOverlay()],
-	              );
-	            },
-	            child: content,
-	          );
+        onLocaleChanged: _handleLocaleChanged,
+        child: material.MaterialApp(
+          navigatorKey: _navigatorKey,
+          debugShowCheckedModeBanner: false,
+          title: 'Misa Rin',
+          locale: _locale,
+          localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+            ...AppLocalizations.localizationsDelegates,
+            FluentLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          scrollBehavior: const FluentScrollBehavior(),
+          theme: lightMaterialTheme,
+          darkTheme: darkMaterialTheme,
+          themeMode: _themeMode,
+          builder: (context, child) {
+            final FluentThemeData resolvedFluentTheme = _resolveFluentTheme(
+              context,
+              lightTheme: lightFluentTheme,
+              darkTheme: darkFluentTheme,
+            );
+            return AnimatedFluentTheme(
+              curve: resolvedFluentTheme.animationCurve,
+              data: resolvedFluentTheme,
+              child: Builder(
+                builder: (context) {
+                  Widget content = child ?? const SizedBox.shrink();
+                  if (widget.showCustomMenu && child != null) {
+                    content = CustomMenuShell(
+                      navigatorKey: _navigatorKey,
+                      showMenus: widget.showCustomMenuItems,
+                      child: child,
+                    );
+                  }
+                  Widget appBody = ValueListenableBuilder<bool>(
+                    valueListenable: AppPreferences.fpsOverlayEnabledNotifier,
+                    builder: (context, enabled, appChild) {
+                      final Widget resolvedChild =
+                          appChild ?? const SizedBox.shrink();
+                      if (!enabled) {
+                        return resolvedChild;
+                      }
+                      return Stack(
+                        fit: StackFit.passthrough,
+                        children: [
+                          resolvedChild,
+                          const PerformancePulseOverlay(),
+                        ],
+                      );
+                    },
+                    child: content,
+                  );
 
-	          // PlatformMenuBar needs AppLocalizations, so build it inside FluentApp.
-	          if (!kIsWeb && Platform.isMacOS) {
-	            appBody = MacosMenuShell(child: appBody);
-	          }
+                  // PlatformMenuBar needs AppLocalizations, so build it inside the app.
+                  if (!kIsWeb && Platform.isMacOS) {
+                    appBody = MacosMenuShell(child: appBody);
+                  }
 
-	          final FluentThemeData theme = FluentTheme.of(context);
-	          final Color selectionColor =
-	              Color.lerp(
-	                theme.resources.controlFillColorInputActive,
-	                theme.resources.textFillColorPrimary,
-	                0.25,
-	              ) ??
-	              theme.resources.textFillColorPrimary.withOpacity(0.25);
+                  final FluentThemeData theme = FluentTheme.of(context);
+                  final Color selectionColor =
+                      Color.lerp(
+                        theme.resources.controlFillColorInputActive,
+                        theme.resources.textFillColorPrimary,
+                        0.25,
+                      ) ??
+                      theme.resources.textFillColorPrimary.withOpacity(0.25);
 
-	          return DefaultSelectionStyle(
-	            cursorColor:
-	                theme.accentColor.defaultBrushFor(theme.brightness),
-	            selectionColor: selectionColor,
-	            child: appBody,
-	          );
-	        },
-	        theme: FluentThemeData(
-	          brightness: Brightness.light,
-	          accentColor: Colors.black.toAccentColor(),
-	        ),
-        darkTheme: FluentThemeData(
-          brightness: Brightness.dark,
-          accentColor: Colors.white.toAccentColor(),
+                  return DefaultSelectionStyle(
+                    cursorColor:
+                        theme.accentColor.defaultBrushFor(theme.brightness),
+                    selectionColor: selectionColor,
+                    child: appBody,
+                  );
+                },
+              ),
+            );
+          },
+          home: (!_kCanvasPerfStressMode || kIsWeb)
+              ? const MisarinHomePage()
+              : const CanvasPerfStressPage(),
         ),
-        themeMode: _themeMode,
-        home: const MisarinHomePage(),
       ),
+    );
+  }
+
+  FluentThemeData _resolveFluentTheme(
+    BuildContext context, {
+    required FluentThemeData lightTheme,
+    required FluentThemeData darkTheme,
+  }) {
+    switch (_themeMode) {
+      case ThemeMode.light:
+        return lightTheme;
+      case ThemeMode.dark:
+        return darkTheme;
+      case ThemeMode.system:
+        final Brightness platformBrightness =
+            MediaQuery.platformBrightnessOf(context);
+        return platformBrightness == Brightness.dark ? darkTheme : lightTheme;
+    }
+  }
+
+  material.ThemeData _materialThemeFromFluent(FluentThemeData fluentTheme) {
+    final AccentColor accent = fluentTheme.accentColor;
+    final material.MaterialColor primarySwatch = material.MaterialColor(
+      accent.value,
+      <int, Color>{
+        50: accent.lightest,
+        100: accent.lighter,
+        200: accent.light,
+        300: accent.normal,
+        400: accent.normal,
+        500: accent.normal,
+        600: accent.dark,
+        700: accent.darker,
+        800: accent.darkest,
+        900: accent.darkest,
+      },
+    );
+    return material.ThemeData(
+      colorScheme: material.ColorScheme.fromSwatch(
+        primarySwatch: primarySwatch,
+        accentColor: accent.normal,
+        errorColor: fluentTheme.resources.systemFillColorCritical,
+        backgroundColor: fluentTheme.resources.controlFillColorDefault,
+        cardColor: fluentTheme.resources.cardBackgroundFillColorDefault,
+        brightness: fluentTheme.brightness,
+      ),
+      primaryColorDark: accent.darker,
+      extensions: fluentTheme.extensions.values,
+      brightness: fluentTheme.brightness,
+      canvasColor: fluentTheme.cardColor,
+      shadowColor: fluentTheme.shadowColor,
+      disabledColor: fluentTheme.resources.controlFillColorDisabled,
+      textSelectionTheme: material.TextSelectionThemeData(
+        selectionColor: fluentTheme.selectionColor,
+        cursorColor: fluentTheme.inactiveColor,
       ),
     );
   }

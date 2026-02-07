@@ -407,7 +407,8 @@ class _AntialiasPanelBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
-    final int safeLevel = level.clamp(0, 3).toInt();
+    final int maxLevel = kAntialiasLevelDescriptions.length - 1;
+    final int safeLevel = level.clamp(0, maxLevel).toInt();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -422,8 +423,8 @@ class _AntialiasPanelBody extends StatelessWidget {
         Slider(
           value: safeLevel.toDouble(),
           min: 0,
-          max: 3,
-          divisions: 3,
+          max: maxLevel.toDouble(),
+          divisions: maxLevel,
           label: '等级 $safeLevel',
           onChanged: (value) => onLevelChanged(value.round()),
         ),
@@ -436,7 +437,7 @@ class _AntialiasPanelBody extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: List<Widget>.generate(4, (index) {
+          children: List<Widget>.generate(maxLevel + 1, (index) {
             final bool selected = index == safeLevel;
             final Widget button = selected
                 ? FilledButton(
@@ -563,4 +564,3 @@ class _FilterSlider extends StatelessWidget {
     );
   }
 }
-

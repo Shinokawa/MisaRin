@@ -137,6 +137,61 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     final bool erase = _isBrushEraserEnabled;
     final Color color =
         _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
+    if (_rustSprayActive && _canUseRustCanvasEngine() && !engine.sampleInputColor) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (handle == null) {
+        return;
+      }
+      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+      double sx = 1.0;
+      double sy = 1.0;
+      if (engineSize != _canvasSize &&
+          _canvasSize.width > 0 &&
+          _canvasSize.height > 0) {
+        sx = engineSize.width / _canvasSize.width;
+        sy = engineSize.height / _canvasSize.height;
+      }
+      final double scale = (sx.isFinite && sy.isFinite)
+          ? ((sx + sy) / 2.0)
+          : 1.0;
+      final List<double> packed = <double>[];
+      engine.forEachParticle(
+        center: center,
+        particleBudget: count,
+        pressure: _sprayCurrentPressure,
+        baseColor: color,
+        onParticle: (position, particleRadius, opacityScale, baseColor) {
+          if (opacityScale <= 0.0) {
+            return;
+          }
+          final Offset enginePos = Offset(
+            position.dx * sx,
+            position.dy * sy,
+          );
+          packed.add(enginePos.dx);
+          packed.add(enginePos.dy);
+          packed.add(particleRadius * scale);
+          packed.add(opacityScale);
+        },
+      );
+      final int pointCount = packed.length ~/ 4;
+      if (pointCount > 0) {
+        CanvasEngineFfi.instance.drawSpray(
+          handle: handle,
+          points: Float32List.fromList(packed),
+          pointCount: pointCount,
+          colorArgb: color.value,
+          brushShape: BrushShape.circle.index,
+          erase: erase,
+          antialiasLevel: _penAntialiasLevel,
+          softness: 0.0,
+          accumulate: true,
+        );
+        _rustSprayHasDrawn = true;
+        _markDirty();
+      }
+      return;
+    }
     engine.paintParticles(
       center: center,
       particleBudget: count,
@@ -154,7 +209,11 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     final double spacing = _softSpraySpacingForRadius(radius);
     if (last == null) {
       _softSprayLastPoint = boardLocal;
-      _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+      _stampSoftSprayBatch(
+        <Offset>[boardLocal],
+        radius,
+        _sprayCurrentPressure,
+      );
       _markDirty();
       return;
     }
@@ -175,14 +234,16 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (_softSprayResidual <= 1e-4) {
       cursor = spacing;
     }
+    final List<Offset> stamps = <Offset>[];
     while (cursor <= distance) {
       final Offset sample = last + direction * cursor;
-      _stampSoftSpray(sample, radius, _sprayCurrentPressure);
+      stamps.add(sample);
       cursor += spacing;
     }
     _softSprayResidual = distance - (cursor - spacing);
     _softSprayLastPoint = boardLocal;
-    _stampSoftSpray(boardLocal, radius, _sprayCurrentPressure);
+    stamps.add(boardLocal);
+    _stampSoftSprayBatch(stamps, radius, _sprayCurrentPressure);
     _markDirty();
   }
 
@@ -194,7 +255,14 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     return math.max(normalized * 0.5, 0.5);
   }
 
-  void _stampSoftSpray(Offset position, double radius, double pressure) {
+  void _stampSoftSprayBatch(
+    List<Offset> positions,
+    double radius,
+    double pressure,
+  ) {
+    if (positions.isEmpty) {
+      return;
+    }
     final bool erase = _isBrushEraserEnabled;
     final Color baseColor =
         _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
@@ -205,15 +273,68 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (opacityScale <= 0.0) {
       return;
     }
-    _controller.drawBrushStamp(
-      center: position,
-      radius: radius,
-      color: baseColor.withOpacity(opacityScale),
-      brushShape: BrushShape.circle,
-      antialiasLevel: 3,
-      erase: erase,
-      softness: 1.0,
-    );
+    if (_rustSprayActive && _canUseRustCanvasEngine()) {
+      final int? handle = _rustCanvasEngineHandle;
+      if (handle == null) {
+        return;
+      }
+      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+      double sx = 1.0;
+      double sy = 1.0;
+      if (engineSize != _canvasSize &&
+          _canvasSize.width > 0 &&
+          _canvasSize.height > 0) {
+        sx = engineSize.width / _canvasSize.width;
+        sy = engineSize.height / _canvasSize.height;
+      }
+      final double scale = (sx.isFinite && sy.isFinite)
+          ? ((sx + sy) / 2.0)
+          : 1.0;
+      final int colorArgb = (0xFF000000 | (baseColor.value & 0x00FFFFFF));
+      const int kMaxBatchPoints = 1024;
+      int start = 0;
+      while (start < positions.length) {
+        final int end = math.min(start + kMaxBatchPoints, positions.length);
+        final int batchCount = end - start;
+        final Float32List packed = Float32List(batchCount * 4);
+        int offset = 0;
+        for (int i = start; i < end; i++) {
+          final Offset position = positions[i];
+          final Offset enginePos = Offset(position.dx * sx, position.dy * sy);
+          packed[offset] = enginePos.dx;
+          packed[offset + 1] = enginePos.dy;
+          packed[offset + 2] = radius * scale;
+          packed[offset + 3] = opacityScale;
+          offset += 4;
+        }
+        CanvasEngineFfi.instance.drawSpray(
+          handle: handle,
+          points: packed,
+          pointCount: batchCount,
+          colorArgb: colorArgb,
+          brushShape: BrushShape.circle.index,
+          erase: erase,
+          antialiasLevel: 3,
+          softness: 1.0,
+          accumulate: true,
+        );
+        _rustSprayHasDrawn = true;
+        start = end;
+      }
+      return;
+    }
+    final Color color = baseColor.withOpacity(opacityScale);
+    for (final Offset position in positions) {
+      _controller.drawBrushStamp(
+        center: position,
+        radius: radius,
+        color: color,
+        brushShape: BrushShape.circle,
+        antialiasLevel: 3,
+        erase: erase,
+        softness: 1.0,
+      );
+    }
   }
 
   double _softSpraySpacingForRadius(double radius) {
@@ -312,9 +433,9 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     Offset position, {
     bool isInitialSample = false,
     Offset? anchor,
+    bool clampToCanvas = true,
   }) {
-    final Offset clamped = _clampToCanvas(position);
-    final bool useStreamline = _streamlineEnabled && _vectorDrawingEnabled;
+    final Offset clamped = clampToCanvas ? _clampToCanvas(position) : position;
     final bool supportsStrokeStabilizer =
         _effectiveActiveTool == CanvasTool.pen ||
         _effectiveActiveTool == CanvasTool.eraser ||
@@ -322,14 +443,6 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (!supportsStrokeStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
-        _streamlineStabilizer.reset();
-      }
-      return _maybeSnapToPerspective(clamped, anchor: anchor);
-    }
-    if (useStreamline) {
-      if (isInitialSample) {
-        _strokeStabilizer.reset();
-        _streamlineStabilizer.reset();
       }
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
@@ -338,14 +451,12 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (!enableStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
-        _streamlineStabilizer.reset();
       }
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
 
     if (isInitialSample) {
       _strokeStabilizer.reset();
-      _streamlineStabilizer.reset();
       _strokeStabilizer.start(clamped);
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
@@ -482,7 +593,14 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       boardLocal,
       sampleAllLayers: true,
     );
-    _setPrimaryColor(color, remember: remember);
+    if (color.alpha == 0) {
+      _updateBrushToolsEraserMode(true);
+      return;
+    }
+    if (_brushToolsEraserMode) {
+      _updateBrushToolsEraserMode(false);
+    }
+    _setPrimaryColor(color.withAlpha(0xFF), remember: remember);
   }
 
   void _updateToolCursorOverlay(Offset workspacePosition) {

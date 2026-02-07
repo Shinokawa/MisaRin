@@ -1,422 +1,526 @@
 part of 'controller.dart';
 
+const bool _kDebugGpuBrushTiles = bool.fromEnvironment(
+  'MISA_RIN_DEBUG_GPU_BRUSH_TILES',
+  defaultValue: false,
+);
+
+class _GpuStrokeDrawData {
+  const _GpuStrokeDrawData({
+    required this.points,
+    required this.radii,
+    required this.color,
+    required this.brushShape,
+    required this.erase,
+    required this.antialiasLevel,
+    required this.hollow,
+    required this.hollowRatio,
+    required this.eraseOccludedParts,
+  });
+
+  final List<Offset> points;
+  final List<double> radii;
+  final Color color;
+  final BrushShape brushShape;
+  final bool erase;
+  final int antialiasLevel;
+  final bool hollow;
+  final double hollowRatio;
+  final bool eraseOccludedParts;
+}
+
+_GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
+  PaintingDrawCommand command, {
+  required bool hollow,
+  required double hollowRatio,
+  required bool eraseOccludedParts,
+}) {
+  final bool erase = command.erase;
+  final int antialiasLevel = command.antialiasLevel.clamp(0, 9);
+
+  switch (command.type) {
+    case PaintingDrawCommandType.brushStamp: {
+      final Offset? center = command.center;
+      final double? radius = command.radius;
+      final int? shapeIndex = command.shapeIndex;
+      if (center == null || radius == null || shapeIndex == null) {
+        return null;
+      }
+      final int clamped = shapeIndex.clamp(0, BrushShape.values.length - 1);
+      return _GpuStrokeDrawData(
+        points: <Offset>[center],
+        radii: <double>[radius.abs()],
+        color: Color(command.color),
+        brushShape: BrushShape.values[clamped],
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow && !erase,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: hollow && !erase && eraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.line: {
+      final Offset? start = command.start;
+      final Offset? end = command.end;
+      final double? radius = command.radius;
+      if (start == null || end == null || radius == null) {
+        return null;
+      }
+      final double resolved = radius.abs();
+      return _GpuStrokeDrawData(
+        points: <Offset>[start, end],
+        radii: <double>[resolved, resolved],
+        color: Color(command.color),
+        brushShape: BrushShape.circle,
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow && !erase,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: hollow && !erase && eraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.variableLine: {
+      final Offset? start = command.start;
+      final Offset? end = command.end;
+      final double? startRadius = command.startRadius;
+      final double? endRadius = command.endRadius;
+      if (start == null || end == null || startRadius == null || endRadius == null) {
+        return null;
+      }
+      return _GpuStrokeDrawData(
+        points: <Offset>[start, end],
+        radii: <double>[startRadius.abs(), endRadius.abs()],
+        color: Color(command.color),
+        brushShape: BrushShape.circle,
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow && !erase,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: hollow && !erase && eraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.stampSegment: {
+      final Offset? start = command.start;
+      final Offset? end = command.end;
+      final double? startRadius = command.startRadius;
+      final double? endRadius = command.endRadius;
+      final int? shapeIndex = command.shapeIndex;
+      if (start == null ||
+          end == null ||
+          startRadius == null ||
+          endRadius == null ||
+          shapeIndex == null) {
+        return null;
+      }
+      final int clamped = shapeIndex.clamp(0, BrushShape.values.length - 1);
+      return _GpuStrokeDrawData(
+        points: <Offset>[start, end],
+        radii: <double>[startRadius.abs(), endRadius.abs()],
+        color: Color(command.color),
+        brushShape: BrushShape.values[clamped],
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: hollow && !erase,
+        hollowRatio: hollowRatio,
+        eraseOccludedParts: hollow && !erase && eraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.vectorStroke: {
+      final List<Offset>? points = command.points;
+      final List<double>? radii = command.radii;
+      final int? shapeIndex = command.shapeIndex;
+      if (points == null || radii == null || shapeIndex == null) {
+        return null;
+      }
+      final int clamped = shapeIndex.clamp(0, BrushShape.values.length - 1);
+      final bool resolvedHollow = (command.hollow ?? false) && !erase;
+      final bool resolvedEraseOccludedParts =
+          resolvedHollow && (command.eraseOccludedParts ?? false);
+      return _GpuStrokeDrawData(
+        points: List<Offset>.from(points),
+        radii: List<double>.from(radii),
+        color: Color(command.color),
+        brushShape: BrushShape.values[clamped],
+        erase: erase,
+        antialiasLevel: antialiasLevel,
+        hollow: resolvedHollow,
+        hollowRatio: resolvedHollow ? (command.hollowRatio ?? 0.0) : 0.0,
+        eraseOccludedParts: resolvedEraseOccludedParts,
+      );
+    }
+    case PaintingDrawCommandType.filledPolygon:
+      return null;
+  }
+}
+
 void _controllerFlushDeferredStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  final bool usesVectorRasterization =
-      controller._vectorDrawingEnabled || controller._currentStrokeHollowEnabled;
-  if (!usesVectorRasterization) {
-    controller._commitDeferredStrokeCommandsAsRaster();
-    return;
-  }
-  if (controller._currentStrokePoints.isEmpty) {
-    controller._deferredStrokeCommands.clear();
-    return;
-  }
-
-  List<Offset> points =
-      List<Offset>.from(controller._currentStrokePoints);
-  List<double> radii =
-      List<double>.from(controller._currentStrokeRadii);
-  final Color color = controller._currentStrokeColor;
-  final BrushShape shape = controller._currentBrushShape;
-  final bool erase = controller._currentStrokeEraseMode;
-  final int antialiasLevel = controller._currentStrokeAntialiasLevel;
-  final bool hollow = controller._currentStrokeHollowEnabled;
-  final double hollowRatio = controller._currentStrokeHollowRatio;
-  final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
-  final bool randomRotation = controller._currentStrokeRandomRotationEnabled;
-  final int rotationSeed = controller._currentStrokeRotationSeed;
-
-  if (controller._vectorStrokeSmoothingEnabled && points.length >= 3) {
-    final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
-      points,
-      radii,
+  PaintingDrawCommand? committingOverlayCommand;
+  if (controller._currentStrokePoints.isNotEmpty &&
+      controller._currentStrokePoints.length ==
+          controller._currentStrokeRadii.length) {
+    final PaintingDrawCommand command = PaintingDrawCommand.vectorStroke(
+      points: List<Offset>.from(controller._currentStrokePoints),
+      radii: List<double>.from(controller._currentStrokeRadii),
+      colorValue: controller._currentStrokeColor.value,
+      shapeIndex: controller._currentBrushShape.index,
+      antialiasLevel: controller._currentStrokeAntialiasLevel,
+      erase: controller._currentStrokeEraseMode,
+      hollow: controller._currentStrokeHollowEnabled,
+      hollowRatio: controller._currentStrokeHollowRatio,
+      eraseOccludedParts: controller._currentStrokeEraseOccludedParts,
+      randomRotation: controller._currentStrokeRandomRotationEnabled,
+      rotationSeed: controller._currentStrokeRotationSeed,
     );
-    points = smoothed.points;
-    radii = smoothed.radii;
+    controller._committingStrokes.add(command);
+    controller._notify();
+    committingOverlayCommand = command;
   }
 
-  final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
-    points: points,
-    radii: radii,
-    colorValue: color.value,
-    shapeIndex: shape.index,
-    antialiasLevel: antialiasLevel,
-    erase: erase,
-    hollow: hollow,
-    hollowRatio: hollowRatio,
-    eraseOccludedParts: eraseOccludedParts,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
-  );
-  controller._committingStrokes.add(vectorCommand);
+  final PaintingDrawCommand? overlayCommand = committingOverlayCommand;
+  if (overlayCommand != null) {
+    final bool hollow = (overlayCommand.hollow ?? false) &&
+        !overlayCommand.erase &&
+        (overlayCommand.hollowRatio ?? 0.0) > 0.0001;
+    final bool eraseOccludedParts = overlayCommand.eraseOccludedParts ?? false;
 
-  controller._currentStrokePoints.clear();
-  controller._currentStrokeRadii.clear();
-  controller._deferredStrokeCommands.clear();
+    if (hollow && !eraseOccludedParts) {
+      controller._deferredStrokeCommands.clear();
+      controller._currentStrokePoints.clear();
+      controller._currentStrokeRadii.clear();
 
-  double minX = double.infinity;
-  double minY = double.infinity;
-  double maxX = double.negativeInfinity;
-  double maxY = double.negativeInfinity;
-  double maxRadius = 0.0;
-
-  for (int i = 0; i < points.length; i++) {
-    final Offset point = points[i];
-    final double radius = (i < radii.length) ? radii[i] : 1.0;
-    if (radius > maxRadius) {
-      maxRadius = radius;
+      unawaited(() async {
+        try {
+          await _controllerDrawStrokeOnGpu(
+            controller,
+            layerId: controller._activeLayer.id,
+            points: overlayCommand.points ?? const <Offset>[],
+            radii: overlayCommand.radii ?? const <double>[],
+            color: Color(overlayCommand.color),
+            brushShape: BrushShape.values[overlayCommand.shapeIndex ?? 0],
+            erase: overlayCommand.erase,
+            antialiasLevel: overlayCommand.antialiasLevel,
+            hollow: true,
+            hollowRatio: overlayCommand.hollowRatio ?? 0.0,
+            eraseOccludedParts: false,
+          );
+        } finally {
+          controller._committingStrokes.remove(overlayCommand);
+          controller._notify();
+        }
+      }());
+      return;
     }
-    if (point.dx < minX) minX = point.dx;
-    if (point.dx > maxX) maxX = point.dx;
-    if (point.dy < minY) minY = point.dy;
-    if (point.dy > maxY) maxY = point.dy;
   }
 
-  final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY)
-      .inflate(maxRadius + 2.0);
-
-  controller
-      ._rasterizeVectorStroke(
-        points,
-        radii,
-        color,
-        shape,
-        dirtyRegion,
-        erase,
-        antialiasLevel,
-        hollow: hollow,
-        hollowRatio: hollowRatio,
-        eraseOccludedParts: eraseOccludedParts,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-      )
-      .then((_) {
-        controller._committingStrokes.remove(vectorCommand);
-        controller.notifyListeners();
-      });
+  controller._commitDeferredStrokeCommandsAsRaster();
+  if (overlayCommand != null) {
+    unawaited(
+      controller._enqueueGpuBrushTask<void>(() async {}).whenComplete(() {
+        controller._committingStrokes.remove(overlayCommand);
+        controller._notify();
+      }),
+    );
+  }
 }
 
-Future<void> _controllerCommitVectorStroke(
+Future<void> _controllerDrawStrokeOnGpu(
   BitmapCanvasController controller, {
+  required String layerId,
   required List<Offset> points,
   required List<double> radii,
   required Color color,
   required BrushShape brushShape,
-  required bool applyVectorSmoothing,
   required bool erase,
   required int antialiasLevel,
+  bool eraseOccludedParts = false,
   bool hollow = false,
   double hollowRatio = 0.0,
-  bool eraseOccludedParts = false,
-  bool randomRotation = false,
-  int rotationSeed = 0,
 }) async {
-  if (controller._layers.isEmpty || controller._activeLayer.locked) {
-    return;
-  }
   if (points.isEmpty) {
     return;
   }
+  if (points.length != radii.length) {
+    throw StateError('GPU笔触 points/radii 长度不一致');
+  }
 
-  List<Offset> resolvedPoints = List<Offset>.from(points);
-  List<double> resolvedRadii = List<double>.from(radii);
-  if (applyVectorSmoothing &&
-      controller._vectorStrokeSmoothingEnabled &&
-      resolvedPoints.length >= 3) {
-    final _VectorStrokePathData smoothed = _smoothVectorStrokePath(
-      resolvedPoints,
-      resolvedRadii,
+  await controller._enqueueGpuBrushTask<void>(() async {
+    final int layerIndex = controller._layers.indexWhere(
+      (BitmapLayerState layer) => layer.id == layerId,
     );
-    resolvedPoints = smoothed.points;
-    resolvedRadii = smoothed.radii;
-  }
-
-  final bool resolvedHollow = hollow && !erase;
-  final PaintingDrawCommand vectorCommand = PaintingDrawCommand.vectorStroke(
-    points: resolvedPoints,
-    radii: resolvedRadii,
-    colorValue: color.value,
-    shapeIndex: brushShape.index,
-    antialiasLevel: antialiasLevel.clamp(0, 3),
-    erase: erase,
-    hollow: resolvedHollow,
-    hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
-    eraseOccludedParts: resolvedHollow && eraseOccludedParts,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
-  );
-
-  controller._committingStrokes.add(vectorCommand);
-  controller.notifyListeners();
-
-  double minX = double.infinity;
-  double minY = double.infinity;
-  double maxX = double.negativeInfinity;
-  double maxY = double.negativeInfinity;
-  double maxRadius = 0.0;
-
-  for (int i = 0; i < resolvedPoints.length; i++) {
-    final Offset point = resolvedPoints[i];
-    final double radius = _strokeRadiusAtIndex(resolvedRadii, i);
-    if (radius > maxRadius) {
-      maxRadius = radius;
+    if (layerIndex < 0) {
+      return;
     }
-    if (point.dx < minX) minX = point.dx;
-    if (point.dx > maxX) maxX = point.dx;
-    if (point.dy < minY) minY = point.dy;
-    if (point.dy > maxY) maxY = point.dy;
-  }
+    final BitmapLayerState layer = controller._layers[layerIndex];
+    if (layer.locked) {
+      return;
+    }
 
-  final Rect dirtyRegion = Rect.fromLTRB(minX, minY, maxX, maxY)
-      .inflate(maxRadius + 2.0);
+    final int canvasWidth = controller._width;
+    final int canvasHeight = controller._height;
+    final int aa = antialiasLevel.clamp(0, 9);
+    final Uint8List? mask = controller._selectionMask;
 
-  await controller._rasterizeVectorStroke(
-    resolvedPoints,
-    resolvedRadii,
-    color,
-    brushShape,
-    dirtyRegion,
-    erase,
-    antialiasLevel.clamp(0, 3),
-    hollow: resolvedHollow,
-    hollowRatio: resolvedHollow ? hollowRatio.clamp(0.0, 1.0) : 0.0,
-    eraseOccludedParts: resolvedHollow && eraseOccludedParts,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
-  );
-
-  controller._committingStrokes.remove(vectorCommand);
-  controller.notifyListeners();
-}
-
-Future<void> _controllerRasterizeVectorStroke(
-  BitmapCanvasController controller,
-  List<Offset> points,
-  List<double> radii,
-  Color color,
-  BrushShape shape,
-  Rect bounds,
-  bool erase,
-  int antialiasLevel,
-  {
-  bool hollow = false,
-  double hollowRatio = 0.0,
-  bool eraseOccludedParts = false,
-  bool randomRotation = false,
-  int rotationSeed = 0,
-}
-) async {
-  final bool applyHollowCutoutErase =
-      eraseOccludedParts && hollow && !erase && hollowRatio > 0.0001;
-  final int width = bounds.width.ceil().clamp(1, controller._width);
-  final int height = bounds.height.ceil().clamp(1, controller._height);
-  final int left = bounds.left.floor().clamp(0, controller._width);
-  final int top = bounds.top.floor().clamp(0, controller._height);
-  final int safeWidth = math.min(width, controller._width - left);
-  final int safeHeight = math.min(height, controller._height - top);
-
-  if (safeWidth <= 0 || safeHeight <= 0) {
-    return;
-  }
-
-  final ui.PictureRecorder recorder = ui.PictureRecorder();
-  final ui.Canvas canvas = ui.Canvas(
-    recorder,
-    Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
-  );
-  canvas.translate(-left.toDouble(), -top.toDouble());
-
-  VectorStrokePainter.paint(
-    canvas: canvas,
-    points: points,
-    radii: radii,
-    color: color,
-    shape: shape,
-    antialiasLevel: antialiasLevel,
-    hollow: hollow,
-    hollowRatio: hollowRatio,
-    randomRotation: randomRotation,
-    rotationSeed: rotationSeed,
-  );
-
-  final ui.Picture picture = recorder.endRecording();
-  final ui.Image image = await picture.toImage(safeWidth, safeHeight);
-  final ByteData? byteData =
-      await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-
-  if (byteData == null) {
-    image.dispose();
-    picture.dispose();
-    return;
-  }
-
-  final Uint8List pixels = byteData.buffer.asUint8List(
-    byteData.offsetInBytes,
-    byteData.lengthInBytes,
-  );
-  image.dispose();
-  picture.dispose();
-
-  if (controller._isMultithreaded) {
-    TransferableTypedData? cutoutMask;
-    if (applyHollowCutoutErase) {
-      final ui.PictureRecorder maskRecorder = ui.PictureRecorder();
-      final ui.Canvas maskCanvas = ui.Canvas(
-        maskRecorder,
-        Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
-      );
-      maskCanvas.translate(-left.toDouble(), -top.toDouble());
-
-      final List<double> scaledRadii = radii
-          .map((double radius) => radius * hollowRatio)
-          .toList(growable: false);
-      VectorStrokePainter.paint(
-        canvas: maskCanvas,
-        points: points,
-        radii: scaledRadii,
-        color: const Color(0xFFFFFFFF),
-        shape: shape,
-        antialiasLevel: antialiasLevel,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-      );
-
-      final ui.Picture maskPicture = maskRecorder.endRecording();
-      final ui.Image maskImage = await maskPicture.toImage(
-        safeWidth,
-        safeHeight,
-      );
-      final ByteData? maskData =
-          await maskImage.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (maskData != null) {
-        final Uint8List maskPixels = maskData.buffer.asUint8List(
-          maskData.offsetInBytes,
-          maskData.lengthInBytes,
-        );
-        cutoutMask = TransferableTypedData.fromList(<Uint8List>[maskPixels]);
+    Rect computeDirtyRect() {
+      if (points.isEmpty) {
+        return Rect.zero;
       }
-      maskImage.dispose();
-      maskPicture.dispose();
-    }
-
-    final TransferableTypedData transferablePixels =
-        TransferableTypedData.fromList(<Uint8List>[pixels]);
-    await controller._ensureWorkerSurfaceSynced();
-    await controller._ensureWorkerSelectionMaskSynced();
-    bool anyApplied = false;
-    if (cutoutMask != null) {
-      final PaintingWorkerPatch? cutoutPatch = await controller
-          ._ensurePaintingWorker()
-          .mergePatch(
-            PaintingMergePatchRequest(
-              left: left,
-              top: top,
-              width: safeWidth,
-              height: safeHeight,
-              pixels: cutoutMask,
-              erase: true,
-            ),
-          );
-      if (cutoutPatch != null) {
-        controller._applyWorkerPatch(cutoutPatch);
-        anyApplied = true;
+      if (points.length == 1) {
+        return _strokeDirtyRectForCircle(points[0], radii[0]);
       }
-    }
-
-    final PaintingWorkerPatch? patch = await controller
-        ._ensurePaintingWorker()
-        .mergePatch(
-          PaintingMergePatchRequest(
-            left: left,
-            top: top,
-            width: safeWidth,
-            height: safeHeight,
-            pixels: transferablePixels,
-            erase: erase,
-            eraseOccludedParts: eraseOccludedParts,
+      Rect dirty = _strokeDirtyRectForVariableLine(
+        points[0],
+        points[1],
+        radii[0],
+        radii[1],
+      );
+      for (int i = 1; i < points.length - 1; i++) {
+        dirty = BitmapCanvasController._unionRects(
+          dirty,
+          _strokeDirtyRectForVariableLine(
+            points[i],
+            points[i + 1],
+            radii[i],
+            radii[i + 1],
           ),
         );
-    if (patch != null) {
-      controller._applyWorkerPatch(patch);
-      anyApplied = true;
-    }
-    if (anyApplied) {
-      await controller._waitForNextFrame();
-    }
-  } else {
-    bool anyApplied = false;
-    if (applyHollowCutoutErase) {
-      final ui.PictureRecorder maskRecorder = ui.PictureRecorder();
-      final ui.Canvas maskCanvas = ui.Canvas(
-        maskRecorder,
-        Rect.fromLTWH(0, 0, safeWidth.toDouble(), safeHeight.toDouble()),
-      );
-      maskCanvas.translate(-left.toDouble(), -top.toDouble());
-      final List<double> scaledRadii = radii
-          .map((double radius) => radius * hollowRatio)
-          .toList(growable: false);
-      VectorStrokePainter.paint(
-        canvas: maskCanvas,
-        points: points,
-        radii: scaledRadii,
-        color: const Color(0xFFFFFFFF),
-        shape: shape,
-        antialiasLevel: antialiasLevel,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-      );
-      final ui.Picture maskPicture = maskRecorder.endRecording();
-      final ui.Image maskImage = await maskPicture.toImage(
-        safeWidth,
-        safeHeight,
-      );
-      final ByteData? maskData =
-          await maskImage.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (maskData != null) {
-        final Uint8List maskPixels = maskData.buffer.asUint8List(
-          maskData.offsetInBytes,
-          maskData.lengthInBytes,
-        );
-        anyApplied =
-            controller._mergeVectorPatchOnMainThread(
-              rgbaPixels: maskPixels,
-              left: left,
-              top: top,
-              width: safeWidth,
-              height: safeHeight,
-              erase: true,
-              eraseOccludedParts: false,
-            ) ||
-            anyApplied;
       }
-      maskImage.dispose();
-      maskPicture.dispose();
+      return dirty;
     }
 
-    anyApplied =
-        controller._mergeVectorPatchOnMainThread(
-          rgbaPixels: pixels,
-          left: left,
-          top: top,
-          width: safeWidth,
-          height: safeHeight,
-          erase: erase,
-          eraseOccludedParts: eraseOccludedParts,
-        ) ||
-        anyApplied;
-
-    if (anyApplied) {
-      await controller._waitForNextFrame();
+    final Rect dirty = computeDirtyRect();
+    if (dirty.isEmpty) {
+      return;
     }
-  }
+    final Rect canvasRect = Rect.fromLTWH(
+      0,
+      0,
+      canvasWidth.toDouble(),
+      canvasHeight.toDouble(),
+    );
+    final Rect clipped = dirty.intersect(canvasRect);
+    if (clipped.isEmpty) {
+      return;
+    }
+
+    final int outerLeft = clipped.left.floor().clamp(0, canvasWidth);
+    final int outerTop = clipped.top.floor().clamp(0, canvasHeight);
+    final int outerRight = clipped.right.ceil().clamp(0, canvasWidth);
+    final int outerBottom = clipped.bottom.ceil().clamp(0, canvasHeight);
+    final int copyW = outerRight - outerLeft;
+    final int copyH = outerBottom - outerTop;
+    if (copyW <= 0 || copyH <= 0) {
+      return;
+    }
+
+    final BitmapSurface surface = layer.surface;
+    final Uint32List destination = surface.pixels;
+
+    void drawStrokeOnCpu({
+      required Color strokeColor,
+      required List<double> strokeRadii,
+      required bool eraseMode,
+    }) {
+      if (points.length == 1) {
+        surface.drawBrushStamp(
+          center: points[0],
+          radius: strokeRadii[0],
+          color: strokeColor,
+          shape: brushShape,
+          mask: mask,
+          antialiasLevel: aa,
+          erase: eraseMode,
+        );
+        return;
+      }
+
+      for (int i = 0; i < points.length - 1; i++) {
+        _controllerApplyStampSegmentFallback(
+          surface: surface,
+          start: points[i],
+          end: points[i + 1],
+          startRadius: strokeRadii[i],
+          endRadius: strokeRadii[i + 1],
+          includeStart: i == 0,
+          shape: brushShape,
+          color: strokeColor,
+          mask: mask,
+          antialias: aa,
+          erase: eraseMode,
+        );
+      }
+    }
+
+    final bool resolvedHollow = hollow && !erase && hollowRatio > 0.0001;
+    final bool resolvedEraseOccludedParts =
+        resolvedHollow && eraseOccludedParts;
+
+    Uint32List? before;
+    if (resolvedHollow && !resolvedEraseOccludedParts) {
+      before = Uint32List(copyW * copyH);
+      for (int row = 0; row < copyH; row++) {
+        final int srcOffset = (outerTop + row) * canvasWidth + outerLeft;
+        final int dstOffset = row * copyW;
+        before.setRange(dstOffset, dstOffset + copyW, destination, srcOffset);
+      }
+    }
+
+    drawStrokeOnCpu(
+      strokeColor: color,
+      strokeRadii: radii,
+      eraseMode: erase,
+    );
+
+    if (!resolvedHollow) {
+      surface.markDirty();
+      controller._resetWorkerSurfaceSync();
+      controller._markDirty(
+        region: Rect.fromLTRB(
+          outerLeft.toDouble(),
+          outerTop.toDouble(),
+          outerRight.toDouble(),
+          outerBottom.toDouble(),
+        ),
+        layerId: layerId,
+        pixelsDirty: true,
+      );
+      controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+      return;
+    }
+
+    final List<double> scaledRadii = radii
+        .map((double radius) => radius * hollowRatio.clamp(0.0, 1.0))
+        .toList(growable: false);
+
+    if (resolvedEraseOccludedParts) {
+      drawStrokeOnCpu(
+        strokeColor: const Color(0xFFFFFFFF),
+        strokeRadii: scaledRadii,
+        eraseMode: true,
+      );
+      surface.markDirty();
+      controller._resetWorkerSurfaceSync();
+      controller._markDirty(
+        region: Rect.fromLTRB(
+          outerLeft.toDouble(),
+          outerTop.toDouble(),
+          outerRight.toDouble(),
+          outerBottom.toDouble(),
+        ),
+        layerId: layerId,
+        pixelsDirty: true,
+      );
+      controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+      return;
+    }
+
+    int lerpPremultiplied(int from, int to, double t) {
+      final double clamped = t.clamp(0.0, 1.0);
+      if (clamped <= 0.000001) {
+        return from;
+      }
+      if (clamped >= 0.999999) {
+        return to;
+      }
+
+      final int a0 = (from >> 24) & 0xff;
+      final int r0 = (from >> 16) & 0xff;
+      final int g0 = (from >> 8) & 0xff;
+      final int b0 = from & 0xff;
+      final int a1 = (to >> 24) & 0xff;
+      final int r1 = (to >> 16) & 0xff;
+      final int g1 = (to >> 8) & 0xff;
+      final int b1 = to & 0xff;
+
+      final double fa0 = a0 / 255.0;
+      final double fa1 = a1 / 255.0;
+      final double pr0 = (r0 / 255.0) * fa0;
+      final double pg0 = (g0 / 255.0) * fa0;
+      final double pb0 = (b0 / 255.0) * fa0;
+      final double pr1 = (r1 / 255.0) * fa1;
+      final double pg1 = (g1 / 255.0) * fa1;
+      final double pb1 = (b1 / 255.0) * fa1;
+
+      final double inv = 1.0 - clamped;
+      final double fa = fa0 * inv + fa1 * clamped;
+      final double pr = pr0 * inv + pr1 * clamped;
+      final double pg = pg0 * inv + pg1 * clamped;
+      final double pb = pb0 * inv + pb1 * clamped;
+
+      if (fa <= 0.000001) {
+        return 0;
+      }
+      final double invA = 1.0 / fa;
+      final int outA = (fa * 255.0).round().clamp(0, 255);
+      final int outR = ((pr * invA) * 255.0).round().clamp(0, 255);
+      final int outG = ((pg * invA) * 255.0).round().clamp(0, 255);
+      final int outB = ((pb * invA) * 255.0).round().clamp(0, 255);
+      return (outA << 24) | (outR << 16) | (outG << 8) | outB;
+    }
+
+    final Uint32List outerAfter = Uint32List(copyW * copyH);
+    for (int row = 0; row < copyH; row++) {
+      final int srcOffset = (outerTop + row) * canvasWidth + outerLeft;
+      final int dstOffset = row * copyW;
+      outerAfter.setRange(dstOffset, dstOffset + copyW, destination, srcOffset);
+    }
+
+    drawStrokeOnCpu(
+      strokeColor: const Color(0xFFFFFFFF),
+      strokeRadii: scaledRadii,
+      eraseMode: true,
+    );
+
+    final Uint32List beforeResolved = before ?? Uint32List(0);
+    for (int y = outerTop; y < outerBottom; y++) {
+      final int outerRow = (y - outerTop) * copyW;
+      final int destRow = y * canvasWidth;
+      for (int x = outerLeft; x < outerRight; x++) {
+        final int outerIndex = outerRow + (x - outerLeft);
+        final int destIndex = destRow + x;
+
+        final int o = outerAfter[outerIndex];
+        final int oa = (o >> 24) & 0xff;
+        if (oa == 0) {
+          continue;
+        }
+        final int e = destination[destIndex];
+        final int ea = (e >> 24) & 0xff;
+        if (ea >= oa) {
+          continue;
+        }
+
+        final double coverage = (1.0 - (ea / oa)).clamp(0.0, 1.0);
+        if (coverage <= 0.000001) {
+          continue;
+        }
+        final int b = beforeResolved[outerIndex];
+        destination[destIndex] = lerpPremultiplied(o, b, coverage);
+      }
+    }
+
+    surface.markDirty();
+    controller._resetWorkerSurfaceSync();
+    controller._markDirty(
+      region: Rect.fromLTRB(
+        outerLeft.toDouble(),
+        outerTop.toDouble(),
+        outerRight.toDouble(),
+        outerBottom.toDouble(),
+      ),
+      layerId: layerId,
+      pixelsDirty: true,
+    );
+    controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+  });
 }
 
 void _controllerFlushRealtimeStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  if (controller._vectorDrawingEnabled || controller._currentStrokeHollowEnabled) {
+  if (controller._currentStrokeHollowEnabled &&
+      !controller._currentStrokeEraseOccludedParts) {
     return;
   }
   controller._commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
@@ -437,36 +541,43 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
     controller._deferredStrokeCommands,
   );
   controller._deferredStrokeCommands.clear();
-  if (controller._useWorkerForRaster) {
-    for (final PaintingDrawCommand command in commands) {
+  final bool hollow = controller._currentStrokeHollowEnabled;
+  final double hollowRatio = controller._currentStrokeHollowRatio;
+  final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
+
+  for (final PaintingDrawCommand command in commands) {
+    final _GpuStrokeDrawData? stroke = _controllerGpuStrokeFromCommand(
+      command,
+      hollow: hollow,
+      hollowRatio: hollowRatio,
+      eraseOccludedParts: eraseOccludedParts,
+    );
+    if (stroke == null) {
       final Rect? bounds = controller._dirtyRectForCommand(command);
       if (bounds == null || bounds.isEmpty) {
         continue;
       }
-      controller._enqueuePaintingWorkerCommand(
-        region: bounds,
-        command: command,
+      controller._applyPaintingCommandsSynchronously(
+        bounds,
+        <PaintingDrawCommand>[command],
       );
+      continue;
     }
-  } else {
-    Rect? region;
-    for (final PaintingDrawCommand command in commands) {
-      final Rect? bounds = controller._dirtyRectForCommand(command);
-      if (bounds == null || bounds.isEmpty) {
-        continue;
-      }
-      region = region == null
-          ? bounds
-          : Rect.fromLTRB(
-              math.min(region.left, bounds.left),
-              math.min(region.top, bounds.top),
-              math.max(region.right, bounds.right),
-              math.max(region.bottom, bounds.bottom),
-            );
-    }
-    if (region != null) {
-      controller._applyPaintingCommandsSynchronously(region, commands);
-    }
+    unawaited(
+      _controllerDrawStrokeOnGpu(
+        controller,
+        layerId: controller._activeLayer.id,
+        points: stroke.points,
+        radii: stroke.radii,
+        color: stroke.color,
+        brushShape: stroke.brushShape,
+        erase: stroke.erase,
+        antialiasLevel: stroke.antialiasLevel,
+        hollow: stroke.hollow,
+        hollowRatio: stroke.hollowRatio,
+        eraseOccludedParts: stroke.eraseOccludedParts,
+      ),
+    );
   }
   if (!keepStrokeState) {
     controller._currentStrokePoints.clear();
@@ -482,13 +593,33 @@ void _controllerDispatchDirectPaintCommand(
   if (bounds == null || bounds.isEmpty) {
     return;
   }
-  if (controller._useWorkerForRaster) {
-    controller._enqueuePaintingWorkerCommand(region: bounds, command: command);
+  final _GpuStrokeDrawData? stroke = _controllerGpuStrokeFromCommand(
+    command,
+    hollow: false,
+    hollowRatio: 0.0,
+    eraseOccludedParts: false,
+  );
+  if (stroke == null) {
+    controller._applyPaintingCommandsSynchronously(
+      bounds,
+      <PaintingDrawCommand>[command],
+    );
     return;
   }
-  controller._applyPaintingCommandsSynchronously(
-    bounds,
-    <PaintingDrawCommand>[command],
+  unawaited(
+    _controllerDrawStrokeOnGpu(
+      controller,
+      layerId: controller._activeLayer.id,
+      points: stroke.points,
+      radii: stroke.radii,
+      color: stroke.color,
+      brushShape: stroke.brushShape,
+      erase: stroke.erase,
+      antialiasLevel: stroke.antialiasLevel,
+      eraseOccludedParts: stroke.eraseOccludedParts,
+      hollow: false,
+      hollowRatio: 0.0,
+    ),
   );
 }
 
@@ -567,9 +698,20 @@ Rect? _controllerDirtyRectForCommand(
         if (point.dy < minY) minY = point.dy;
         if (point.dy > maxY) maxY = point.dy;
       }
-      final double padding = 2.0 + command.antialiasLevel.clamp(0, 3) * 1.2;
+      final double padding = 2.0 + command.antialiasLevel.clamp(0, 9) * 1.2;
       return Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
   }
+}
+
+void _controllerApplyGpuStrokeResult(
+  BitmapCanvasController controller, {
+  required String layerId,
+  required rust_gpu_brush.GpuStrokeResult result,
+}) {
+  // Deprecated: GPU brush no longer returns pixel patches (Flow 5 hard ban).
+  // Keep the symbol to avoid large refactors; call sites have been removed.
+  // ignore: unused_local_variable
+  final _ = result;
 }
 
 int _controllerUnpremultiplyChannel(int value, int alpha) {
@@ -755,6 +897,8 @@ void _controllerApplyPaintingCommandsSynchronously(
           softness: command.softness ?? 0.0,
           randomRotation: command.randomRotation ?? false,
           rotationSeed: command.rotationSeed ?? 0,
+          rotationJitter: command.rotationJitter ?? 1.0,
+          snapToPixel: command.snapToPixel ?? false,
         );
         anyChange = true;
         break;
@@ -832,6 +976,11 @@ void _controllerApplyPaintingCommandsSynchronously(
           erase: erase,
           randomRotation: command.randomRotation ?? false,
           rotationSeed: command.rotationSeed ?? 0,
+          rotationJitter: command.rotationJitter ?? 1.0,
+          spacing: command.spacing ?? 0.15,
+          scatter: command.scatter ?? 0.0,
+          softness: command.softness ?? 0.0,
+          snapToPixel: command.snapToPixel ?? false,
         );
         anyChange = true;
         break;
@@ -878,6 +1027,11 @@ void _controllerApplyStampSegmentFallback({
   required bool erase,
   bool randomRotation = false,
   int rotationSeed = 0,
+  double rotationJitter = 1.0,
+  double spacing = 0.15,
+  double scatter = 0.0,
+  double softness = 0.0,
+  bool snapToPixel = false,
 }) {
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
@@ -889,8 +1043,11 @@ void _controllerApplyStampSegmentFallback({
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
     return;
   }
@@ -898,146 +1055,37 @@ void _controllerApplyStampSegmentFallback({
     math.max(startRadius.abs(), endRadius.abs()),
     0.01,
   );
-  final double spacing = _strokeStampSpacing(maxRadius);
-  final int samples = math.max(1, (distance / spacing).ceil());
+  final double step = _strokeStampSpacing(maxRadius, spacing);
+  final int samples = math.max(1, (distance / step).ceil());
   final int startIndex = includeStart ? 0 : 1;
   for (int i = startIndex; i <= samples; i++) {
     final double t = samples == 0 ? 1.0 : (i / samples);
     final double radius = ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
     final double sampleX = ui.lerpDouble(start.dx, end.dx, t) ?? end.dx;
     final double sampleY = ui.lerpDouble(start.dy, end.dy, t) ?? end.dy;
+    final Offset baseCenter = Offset(sampleX, sampleY);
+    final double scatterRadius = maxRadius * scatter.clamp(0.0, 1.0) * 2.0;
+    final Offset jitter = scatterRadius > 0
+        ? brushScatterOffset(
+            center: baseCenter,
+            seed: rotationSeed,
+            radius: scatterRadius,
+            salt: i,
+          )
+        : Offset.zero;
     surface.drawBrushStamp(
-      center: Offset(sampleX, sampleY),
+      center: baseCenter + jitter,
       radius: radius,
       color: color,
       shape: shape,
       mask: mask,
       antialiasLevel: antialias,
       erase: erase,
+      softness: softness,
       randomRotation: randomRotation,
       rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
     );
   }
-}
-
-const double _kVectorStrokeSmoothSampleSpacing = 4.0;
-const double _kVectorStrokeSmoothMinSegment = 0.5;
-const int _kVectorStrokeSmoothMaxSamplesPerSegment = 48;
-
-class _VectorStrokePathData {
-  const _VectorStrokePathData({
-    required this.points,
-    required this.radii,
-  });
-
-  final List<Offset> points;
-  final List<double> radii;
-}
-
-_VectorStrokePathData _smoothVectorStrokePath(
-  List<Offset> points,
-  List<double> radii,
-) {
-  if (points.length < 3) {
-    return _VectorStrokePathData(points: points, radii: radii);
-  }
-
-  final List<Offset> smoothedPoints = <Offset>[points.first];
-  final List<double> smoothedRadii = <double>[
-    _strokeRadiusAtIndex(radii, 0),
-  ];
-
-  for (int i = 0; i < points.length - 1; i++) {
-    final Offset p0 = i == 0 ? points[i] : points[i - 1];
-    final Offset p1 = points[i];
-    final Offset p2 = points[i + 1];
-    final Offset p3 = (i + 2 < points.length) ? points[i + 2] : points[i + 1];
-    final double r0 = i == 0
-        ? _strokeRadiusAtIndex(radii, i)
-        : _strokeRadiusAtIndex(radii, i - 1);
-    final double r1 = _strokeRadiusAtIndex(radii, i);
-    final double r2 = _strokeRadiusAtIndex(radii, i + 1);
-    final double r3 = (i + 2 < points.length)
-        ? _strokeRadiusAtIndex(radii, i + 2)
-        : _strokeRadiusAtIndex(radii, i + 1);
-
-    final double segmentLength = (p2 - p1).distance;
-    if (segmentLength < _kVectorStrokeSmoothMinSegment) {
-      continue;
-    }
-
-    final int samples = math.max(
-      2,
-      math.min(
-        _kVectorStrokeSmoothMaxSamplesPerSegment,
-        (segmentLength / _kVectorStrokeSmoothSampleSpacing).ceil() + 1,
-      ),
-    );
-
-    for (int s = 1; s < samples; s++) {
-      final double t = s / (samples - 1);
-      final Offset smoothedPoint = _catmullRomOffset(p0, p1, p2, p3, t);
-      final double smoothedRadius =
-          _catmullRomScalar(r0, r1, r2, r3, t).clamp(0.0, double.infinity);
-      smoothedPoints.add(smoothedPoint);
-      smoothedRadii.add(smoothedRadius);
-    }
-  }
-
-  if (smoothedPoints.length == 1) {
-    smoothedPoints.add(points.last);
-    smoothedRadii.add(_strokeRadiusAtIndex(radii, points.length - 1));
-  } else {
-    smoothedPoints[smoothedPoints.length - 1] = points.last;
-    smoothedRadii[smoothedRadii.length - 1] =
-        _strokeRadiusAtIndex(radii, points.length - 1);
-  }
-
-  return _VectorStrokePathData(points: smoothedPoints, radii: smoothedRadii);
-}
-
-double _strokeRadiusAtIndex(List<double> radii, int index) {
-  if (radii.isEmpty) {
-    return 1.0;
-  }
-  if (index < 0) {
-    return radii.first;
-  }
-  if (index >= radii.length) {
-    return radii.last;
-  }
-  final double value = radii[index];
-  if (value.isFinite && value >= 0) {
-    return value;
-  }
-  return radii.last >= 0 ? radii.last : 1.0;
-}
-
-Offset _catmullRomOffset(
-  Offset p0,
-  Offset p1,
-  Offset p2,
-  Offset p3,
-  double t,
-) {
-  return Offset(
-    _catmullRomScalar(p0.dx, p1.dx, p2.dx, p3.dx, t),
-    _catmullRomScalar(p0.dy, p1.dy, p2.dy, p3.dy, t),
-  );
-}
-
-double _catmullRomScalar(
-  double p0,
-  double p1,
-  double p2,
-  double p3,
-  double t,
-) {
-  final double t2 = t * t;
-  final double t3 = t2 * t;
-  return 0.5 *
-      ((2 * p1) +
-          (-p0 + p2) * t +
-          (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-          (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
 }

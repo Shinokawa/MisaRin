@@ -15,17 +15,23 @@ void _compositeMarkDirty(
 }
 
 void _compositeScheduleRefresh(BitmapCanvasController controller) {
+  if (!controller._rasterOutputEnabled) {
+    return;
+  }
   if (controller._refreshScheduled) {
     return;
   }
   controller._refreshScheduled = true;
   scheduleMicrotask(() => _compositeProcessScheduled(controller));
   SchedulerBinding.instance?.ensureVisualUpdate();
-  controller.notifyListeners();
+  controller._notify();
 }
 
 void _compositeProcessScheduled(BitmapCanvasController controller) {
   controller._refreshScheduled = false;
+  if (!controller._rasterOutputEnabled) {
+    return;
+  }
   if (controller._compositeProcessing) {
     return;
   }
@@ -35,26 +41,38 @@ void _compositeProcessScheduled(BitmapCanvasController controller) {
 
 Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
   try {
+    if (!controller._rasterOutputEnabled) {
+      return;
+    }
+    final Stopwatch sw = Stopwatch()..start();
     final RasterCompositeWork work = controller._rasterBackend
         .dequeueCompositeWork();
     if (!work.hasWork) {
       return;
     }
 
+    final int startComposite = sw.elapsedMilliseconds;
     await _compositeUpdate(
       controller,
       requiresFullSurface: work.requiresFullSurface,
       regions: work.regions,
     );
+    final int compositeDone = sw.elapsedMilliseconds;
+    RustCanvasTimeline.mark('composite: GPU composite took ${compositeDone - startComposite}ms');
 
     final List<RasterIntRect> dirtyRegions = work.requiresFullSurface
         ? controller._rasterBackend.fullSurfaceTileRects()
         : (work.regions ?? const <RasterIntRect>[]);
+    
+    final int startTiles = sw.elapsedMilliseconds;
     final BitmapCanvasFrame? frame = await controller._tileCache.updateTiles(
       backend: controller._rasterBackend,
       dirtyRegions: dirtyRegions,
       fullSurface: work.requiresFullSurface,
     );
+    final int tilesDone = sw.elapsedMilliseconds;
+    RustCanvasTimeline.mark('composite: Tile update took ${tilesDone - startTiles}ms (count: ${dirtyRegions.length})');
+
     if (frame != null) {
       controller._currentFrame = frame;
     }
@@ -75,7 +93,8 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
       _resetActiveLayerTranslationState(controller);
     }
     controller._rasterBackend.completeCompositePass();
-    controller.notifyListeners();
+    controller._notify();
+    RustCanvasTimeline.mark('composite: Total pass took ${sw.elapsedMilliseconds}ms');
   } finally {
     controller._compositeProcessing = false;
     if (controller._rasterBackend.isCompositeDirty &&

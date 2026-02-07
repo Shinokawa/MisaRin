@@ -14,6 +14,7 @@ mixin _PaintingBoardLayerMixin
   final FlyoutController _layerContextMenuController = FlyoutController();
   final FlyoutController _blendModeFlyoutController = FlyoutController();
   bool? _rasterizeMenuEnabled;
+  bool get rustLayerSupported => CanvasEngineFfi.instance.isSupported;
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
@@ -60,6 +61,7 @@ mixin _PaintingBoardLayerMixin
     }
     await _pushUndoSnapshot();
     _controller.updateLayerVisibility(id, visible);
+    _rustCanvasSetLayerVisibleById(id, visible);
     setState(() {});
     _markDirty();
   }
@@ -70,6 +72,7 @@ mixin _PaintingBoardLayerMixin
     }
     _layerOpacityPreviewReset(this);
     _controller.setActiveLayer(id);
+    _rustCanvasSetActiveLayerById(id);
     setState(() {});
     _syncRasterizeMenuAvailability();
   }
@@ -201,19 +204,37 @@ mixin _PaintingBoardLayerMixin
 
   void _handleAddLayer() async {
     await _pushUndoSnapshot();
-    _controller.addLayer(aboveLayerId: _activeLayerId);
+    final String? insertAbove =
+        _canUseRustCanvasEngine()
+            ? (_layers.isEmpty ? null : _layers.last.id)
+            : _activeLayerId;
+    _controller.addLayer(aboveLayerId: insertAbove);
     setState(() {});
     _markDirty();
+    _syncRustCanvasLayersToEngine();
   }
 
   void _handleRemoveLayer(String id) async {
     if (_layers.length <= 1) {
       return;
     }
-    await _pushUndoSnapshot();
+    if (_canUseRustCanvasEngine()) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return;
+      }
+    }
+    await _pushUndoSnapshot(rustPixelsSynced: _canUseRustCanvasEngine());
     _controller.removeLayer(id);
     setState(() {});
     _markDirty();
+    _syncRustCanvasLayersToEngine();
+    if (_canUseRustCanvasEngine()) {
+      if (!_syncAllLayerPixelsToRust()) {
+        _showRustCanvasMessage('Rust 画布写入图层失败。');
+      }
+    }
   }
 
   Widget _buildAddLayerButton() {
@@ -235,17 +256,45 @@ mixin _PaintingBoardLayerMixin
     if (length <= 1) {
       return;
     }
+    if (oldIndex < 0 || oldIndex >= length || newIndex < 0) {
+      return;
+    }
     int targetIndex = newIndex;
+    if (targetIndex > length) {
+      targetIndex = length;
+    }
     if (targetIndex > oldIndex) {
       targetIndex -= 1;
     }
+    targetIndex = targetIndex.clamp(0, length - 1);
     final int actualOldIndex = length - 1 - oldIndex;
-    final int actualNewIndex = length - 1 - targetIndex;
+    int actualNewIndex = length - 1 - targetIndex;
+    if (actualNewIndex > actualOldIndex) {
+      actualNewIndex += 1;
+    }
     if (actualOldIndex == actualNewIndex) {
       return;
     }
-    await _pushUndoSnapshot();
+    if (_canUseRustCanvasEngine()) {
+      await _controller.waitForPendingWorkerTasks();
+      if (!_syncAllLayerPixelsFromRust()) {
+        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        return;
+      }
+    }
+    await _pushUndoSnapshot(rustPixelsSynced: _canUseRustCanvasEngine());
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
+    if (_canUseRustCanvasEngine()) {
+      CanvasEngineFfi.instance.reorderLayer(
+        handle: _rustCanvasEngineHandle!,
+        fromIndex: actualOldIndex,
+        toIndex: actualNewIndex,
+      );
+      final String? activeLayerId = _activeLayerId;
+      if (activeLayerId != null) {
+        _rustCanvasSetActiveLayerById(activeLayerId);
+      }
+    }
     setState(() {});
     _markDirty();
   }
@@ -311,6 +360,10 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityGestureActive = true;
     _layerOpacityGestureLayerId = layer.id;
     _layerOpacityUndoOriginalValue = layer.opacity;
+    if (_canUseRustCanvasEngine()) {
+      _layerOpacityPreviewReset(this);
+      return;
+    }
     _ensureLayerOpacityPreview(layer);
   }
 
@@ -322,6 +375,12 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityUndoOriginalValue = null;
     final double clampedValue = value.clamp(0.0, 1.0);
     final bool applied = _applyLayerOpacityValue(targetLayerId, clampedValue);
+    if (_canUseRustCanvasEngine()) {
+      if (targetLayerId != null && originalValue != null) {
+        unawaited(_commitLayerOpacityUndoSnapshot(targetLayerId, originalValue));
+      }
+      return;
+    }
     final bool shouldHoldPreview =
         applied &&
         targetLayerId != null &&
@@ -350,6 +409,15 @@ mixin _PaintingBoardLayerMixin
     if (layer == null) {
       return;
     }
+    if (_canUseRustCanvasEngine()) {
+      if (!_layerOpacityGestureActive || _layerOpacityGestureLayerId != layer.id) {
+        _layerOpacityGestureActive = true;
+        _layerOpacityGestureLayerId = layer.id;
+        _layerOpacityUndoOriginalValue = layer.opacity;
+      }
+      _applyLayerOpacityValue(layer.id, value);
+      return;
+    }
     _ensureLayerOpacityPreview(layer);
     final double clamped = value.clamp(0.0, 1.0);
     if (_layerOpacityPreviewValue == null ||
@@ -373,6 +441,7 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     _controller.setLayerOpacity(layerId, clamped);
+    _rustCanvasSetLayerOpacityById(layerId, clamped);
     setState(() {});
     _markDirty();
     return true;
@@ -530,9 +599,22 @@ mixin _PaintingBoardLayerMixin
     if (!_canMergeLayerDown(layer)) {
       return;
     }
-    await _pushUndoSnapshot();
+    if (!_canUseRustCanvasEngine()) {
+      _showRustCanvasMessage('Rust 画布尚未准备好。');
+      return;
+    }
+    await _controller.waitForPendingWorkerTasks();
+    if (!_syncAllLayerPixelsFromRust()) {
+      _showRustCanvasMessage('Rust 画布同步图层失败。');
+      return;
+    }
+    await _pushUndoSnapshot(rustPixelsSynced: true);
     if (!_controller.mergeLayerDown(layer.id)) {
       return;
+    }
+    _syncRustCanvasLayersToEngine();
+    if (!_syncAllLayerPixelsToRust()) {
+      _showRustCanvasMessage('Rust 画布写入图层失败。');
     }
     setState(() {});
     _markDirty();
@@ -545,11 +627,16 @@ mixin _PaintingBoardLayerMixin
     final bool nextValue = !layer.clippingMask;
     await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, nextValue);
+    _rustCanvasSetLayerClippingById(layer.id, nextValue);
     setState(() {});
     _markDirty();
   }
 
   void _handleDuplicateLayer(BitmapLayerState layer) async {
+    if (_canUseRustCanvasEngine()) {
+      _showRustCanvasMessage('Rust 画布目前暂不支持复制图层。');
+      return;
+    }
     final CanvasLayerData? snapshot = _controller.buildClipboardLayer(layer.id);
     if (snapshot == null) {
       return;
@@ -657,6 +744,7 @@ mixin _PaintingBoardLayerMixin
     }
     await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, clipping);
+    _rustCanvasSetLayerClippingById(layer.id, clipping);
     setState(() {});
   }
 
@@ -667,6 +755,7 @@ mixin _PaintingBoardLayerMixin
     }
     await _pushUndoSnapshot();
     _controller.setLayerBlendMode(layer.id, mode);
+    _rustCanvasSetLayerBlendModeById(layer.id, mode);
     setState(() {});
   }
 
@@ -691,7 +780,29 @@ mixin _PaintingBoardLayerMixin
     if (layer == null || layer.locked) {
       return false;
     }
-    final int clamped = level.clamp(0, 3);
+    final int clamped = level.clamp(0, 9);
+    if (_canUseRustCanvasEngine()) {
+      final int? handle = _rustCanvasEngineHandle;
+      final String? layerId = _activeLayerId;
+      if (handle == null || layerId == null) {
+        return false;
+      }
+      final int? index = _rustCanvasLayerIndexForId(layerId);
+      if (index == null) {
+        return false;
+      }
+      final bool applied = CanvasEngineFfi.instance.applyAntialias(
+        handle: handle,
+        layerIndex: index,
+        level: clamped,
+      );
+      if (applied) {
+        _recordRustHistoryAction(layerId: layerId);
+        setState(() {});
+        _markDirty();
+      }
+      return applied;
+    }
     if (!await _controller.applyAntialiasToActiveLayer(
       clamped,
       previewOnly: true,
