@@ -20,7 +20,9 @@ class BrushLibrary extends ChangeNotifier {
   })  : _presets = presets,
         _selectedId = selectedId;
 
-  static const int _version = 2;
+  static const int _version = 3;
+  static const double _defaultPixelSpacing = 0.5;
+  static const double _legacyPixelSpacing = 1.0;
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'brush_presets.json';
   static const String _storageKey = 'misa_rin.brush_presets';
@@ -60,8 +62,8 @@ class BrushLibrary extends ChangeNotifier {
       library = _fromPayload(payload);
       final int payloadVersion = (payload['version'] as num?)?.toInt() ?? 0;
       if (payloadVersion < _version) {
-        final bool renamed = _renameDefaultPresetNames(library, l10n);
-        if (renamed) {
+        final bool migrated = _migrateDefaultPresets(library, l10n);
+        if (migrated) {
           unawaited(library.save());
         }
       }
@@ -196,7 +198,7 @@ class BrushLibrary extends ChangeNotifier {
         id: 'pixel',
         name: names.pixel,
         shape: BrushShape.square,
-        spacing: 1.0,
+        spacing: _defaultPixelSpacing,
         hardness: 1.0,
         flow: 1.0,
         scatter: 0.0,
@@ -275,7 +277,7 @@ class BrushLibrary extends ChangeNotifier {
     }
   }
 
-  static bool _renameDefaultPresetNames(
+  static bool _migrateDefaultPresets(
     BrushLibrary library,
     AppLocalizations l10n,
   ) {
@@ -292,8 +294,47 @@ class BrushLibrary extends ChangeNotifier {
         preset.name = desired;
         updated = true;
       }
+      if (_shouldMigratePixelSpacing(preset, target, legacy)) {
+        preset.spacing = _defaultPixelSpacing;
+        updated = true;
+      }
     }
     return updated;
+  }
+
+  static bool _shouldMigratePixelSpacing(
+    BrushPreset preset,
+    _DefaultPresetNames target,
+    _DefaultPresetNames legacy,
+  ) {
+    if (preset.id != 'pixel') {
+      return false;
+    }
+    final bool nameMatches =
+        preset.name == target.pixel || preset.name == legacy.pixel;
+    if (!nameMatches) {
+      return false;
+    }
+    if ((preset.spacing - _legacyPixelSpacing).abs() > 0.0001) {
+      return false;
+    }
+    if (preset.shape != BrushShape.square ||
+        preset.antialiasLevel != 0 ||
+        preset.snapToPixel != true ||
+        preset.randomRotation != false ||
+        preset.hollowEnabled != false ||
+        preset.hollowEraseOccludedParts != false ||
+        preset.autoSharpTaper != false) {
+      return false;
+    }
+    if ((preset.hardness - 1.0).abs() > 0.0001 ||
+        (preset.flow - 1.0).abs() > 0.0001 ||
+        preset.scatter.abs() > 0.0001 ||
+        preset.rotationJitter.abs() > 0.0001 ||
+        preset.hollowRatio.abs() > 0.0001) {
+      return false;
+    }
+    return true;
   }
 
   static Future<Map<String, dynamic>?> _readPayload() async {
