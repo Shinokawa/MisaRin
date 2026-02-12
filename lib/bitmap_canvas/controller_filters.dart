@@ -289,6 +289,25 @@ bool _controllerApplyAntialiasToActiveLayerCpu(
   if (pixels.isEmpty) {
     return false;
   }
+  if (CpuFiltersFfi.instance.isSupported && layer.surface.pointerAddress != 0) {
+    final bool ok = CpuFiltersFfi.instance.applyAntialias(
+      pixelsPtr: layer.surface.pointerAddress,
+      pixelsLen: pixels.length,
+      width: controller._width,
+      height: controller._height,
+      level: level.clamp(0, 9),
+      previewOnly: previewOnly,
+    );
+    if (ok) {
+      if (!previewOnly) {
+        layer.surface.markDirty();
+        controller._markDirty(layerId: layer.id, pixelsDirty: true);
+        controller._notify();
+      }
+      return true;
+    }
+    return false;
+  }
   final Uint32List temp = Uint32List(pixels.length);
   Uint32List src = pixels;
   Uint32List dest = temp;

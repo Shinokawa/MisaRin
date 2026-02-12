@@ -89,6 +89,31 @@ class BitmapSurface {
     if (radius <= 0) {
       return;
     }
+    if (CpuBrushFfi.instance.isSupported) {
+      final bool ok = CpuBrushFfi.instance.drawStamp(
+        pixelsPtr: pointerAddress,
+        pixelsLen: pixels.length,
+        width: width,
+        height: height,
+        centerX: center.dx,
+        centerY: center.dy,
+        radius: radius,
+        colorArgb: color.toARGB32(),
+        brushShape: BrushShape.circle.index,
+        antialiasLevel: antialiasLevel.clamp(0, 9),
+        softness: softness,
+        erase: erase,
+        randomRotation: false,
+        rotationSeed: 0,
+        rotationJitter: 0.0,
+        snapToPixel: false,
+        selectionMask: mask,
+      );
+      if (ok) {
+        _isClean = false;
+        return;
+      }
+    }
     final double softnessClamped = softness.clamp(0.0, 1.0);
 
     // Optimization: Use cached brush tip for soft brushes
@@ -256,6 +281,29 @@ class BitmapSurface {
     bool includeStartCap = true,
     bool erase = false,
   }) {
+    if (CpuBrushFfi.instance.isSupported) {
+      final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
+        pixelsPtr: pointerAddress,
+        pixelsLen: pixels.length,
+        width: width,
+        height: height,
+        ax: a.dx,
+        ay: a.dy,
+        bx: b.dx,
+        by: b.dy,
+        startRadius: radius,
+        endRadius: radius,
+        colorArgb: color.toARGB32(),
+        antialiasLevel: antialiasLevel.clamp(0, 9),
+        includeStartCap: includeStartCap,
+        erase: erase,
+        selectionMask: mask,
+      );
+      if (ok) {
+        _isClean = false;
+        return;
+      }
+    }
     _drawCapsuleSegment(
       a: a,
       b: b,
@@ -281,6 +329,29 @@ class BitmapSurface {
     bool includeStartCap = true,
     bool erase = false,
   }) {
+    if (CpuBrushFfi.instance.isSupported) {
+      final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
+        pixelsPtr: pointerAddress,
+        pixelsLen: pixels.length,
+        width: width,
+        height: height,
+        ax: a.dx,
+        ay: a.dy,
+        bx: b.dx,
+        by: b.dy,
+        startRadius: startRadius,
+        endRadius: endRadius,
+        colorArgb: color.toARGB32(),
+        antialiasLevel: antialiasLevel.clamp(0, 9),
+        includeStartCap: includeStartCap,
+        erase: erase,
+        selectionMask: mask,
+      );
+      if (ok) {
+        _isClean = false;
+        return;
+      }
+    }
     _drawCapsuleSegment(
       a: a,
       b: b,
@@ -346,6 +417,52 @@ class BitmapSurface {
     final List<Offset> sanitized = _sanitizePolygonVertices(vertices);
     if (sanitized.length < 3) {
       return;
+    }
+    if (CpuBrushFfi.instance.isSupported) {
+      final Float32List packed = Float32List(sanitized.length * 2);
+      for (int i = 0; i < sanitized.length; i++) {
+        final Offset v = sanitized[i];
+        packed[i * 2] = v.dx;
+        packed[i * 2 + 1] = v.dy;
+      }
+      double minX = sanitized.first.dx;
+      double maxX = sanitized.first.dx;
+      double minY = sanitized.first.dy;
+      double maxY = sanitized.first.dy;
+      for (final Offset vertex in sanitized) {
+        if (vertex.dx < minX) minX = vertex.dx;
+        if (vertex.dx > maxX) maxX = vertex.dx;
+        if (vertex.dy < minY) minY = vertex.dy;
+        if (vertex.dy > maxY) maxY = vertex.dy;
+      }
+      if (minX.isNaN || maxX.isNaN || minY.isNaN || maxY.isNaN) {
+        return;
+      }
+      final int level = antialiasLevel.clamp(0, 9);
+      final double padding = _featherForLevel(level) + 1.5;
+      final Rect bounds = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
+      final double longestSide = math.max(
+        bounds.width.abs(),
+        bounds.height.abs(),
+      );
+      final double radius = math.max(longestSide * 0.5, 0.01);
+      final bool ok = CpuBrushFfi.instance.fillPolygon(
+        pixelsPtr: pointerAddress,
+        pixelsLen: pixels.length,
+        width: width,
+        height: height,
+        vertices: packed,
+        radius: radius,
+        colorArgb: color.toARGB32(),
+        antialiasLevel: level,
+        softness: 0.0,
+        erase: erase,
+        selectionMask: mask,
+      );
+      if (ok) {
+        _isClean = false;
+        return;
+      }
     }
     double minX = sanitized.first.dx;
     double maxX = sanitized.first.dx;
