@@ -7,6 +7,7 @@ import 'dart:ui';
 import '../canvas/brush_random_rotation.dart';
 import '../canvas/brush_shape_geometry.dart';
 import '../canvas/canvas_tools.dart';
+import '../src/rust/cpu_brush_ffi.dart';
 import 'brush_tip_cache.dart';
 import 'memory/native_memory_manager.dart';
 import 'soft_brush_profile.dart';
@@ -416,6 +417,31 @@ class BitmapSurface {
       resolvedRadius = 0.01;
     }
     final int level = antialiasLevel.clamp(0, 9);
+    if (CpuBrushFfi.instance.isSupported) {
+      final bool ok = CpuBrushFfi.instance.drawStamp(
+        pixelsPtr: pointerAddress,
+        pixelsLen: pixels.length,
+        width: width,
+        height: height,
+        centerX: resolvedCenter.dx,
+        centerY: resolvedCenter.dy,
+        radius: resolvedRadius,
+        colorArgb: color.toARGB32(),
+        brushShape: shape.index,
+        antialiasLevel: level,
+        softness: softness,
+        erase: erase,
+        randomRotation: randomRotation,
+        rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+        snapToPixel: snapToPixel,
+        selectionMask: mask,
+      );
+      if (ok) {
+        _isClean = false;
+        return;
+      }
+    }
     if (shape == BrushShape.circle) {
       drawCircle(
         center: resolvedCenter,
