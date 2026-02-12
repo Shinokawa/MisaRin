@@ -376,6 +376,41 @@ void _applyClippedLayerTranslation(
   final int originY = controller._activeLayerTransformOriginY;
   final int dx = controller._activeLayerTranslationDx;
   final int dy = controller._activeLayerTranslationDy;
+  final int canvasPtr = target.surface.pointerAddress;
+  if (canvasPtr != 0 && CpuTransformFfi.instance.isSupported) {
+    final int expectedLen = snapshotWidth * snapshotHeight;
+    if (snapshotWidth > 0 &&
+        snapshotHeight > 0 &&
+        expectedLen == snapshot.length) {
+      final Pointer<Uint32> snapshotPtr = malloc.allocate<Uint32>(
+        sizeOf<Uint32>() * snapshot.length,
+      );
+      snapshotPtr.asTypedList(snapshot.length).setAll(0, snapshot);
+      try {
+        final bool ok = CpuTransformFfi.instance.translateLayer(
+          canvasPtr: canvasPtr,
+          canvasLen: pixels.length,
+          canvasWidth: canvasWidth,
+          canvasHeight: canvasHeight,
+          snapshotPtr: snapshotPtr.address,
+          snapshotLen: snapshot.length,
+          snapshotWidth: snapshotWidth,
+          snapshotHeight: snapshotHeight,
+          originX: originX,
+          originY: originY,
+          dx: dx,
+          dy: dy,
+        );
+        if (ok) {
+          controller._layerOverflowStores[layerId]?.clear();
+          _textLayerApplyTranslation(target, dx, dy);
+          return;
+        }
+      } finally {
+        malloc.free(snapshotPtr);
+      }
+    }
+  }
   pixels.fillRange(0, pixels.length, 0);
   for (int sy = 0; sy < snapshotHeight; sy++) {
     final int canvasY = originY + sy + dy;
@@ -422,6 +457,78 @@ void _applyOverflowLayerTranslation(
   final int canvasWidth = controller._width;
   final int canvasHeight = controller._height;
   final Uint32List pixels = target.surface.pixels;
+  final int canvasPtr = target.surface.pointerAddress;
+  if (canvasPtr != 0 && CpuTransformFfi.instance.isSupported) {
+    final int expectedLen = snapshotWidth * snapshotHeight;
+    if (snapshotWidth > 0 &&
+        snapshotHeight > 0 &&
+        expectedLen == snapshot.length) {
+      final int overflowCapacity = snapshot.length;
+      final Pointer<Uint32> snapshotPtr = malloc.allocate<Uint32>(
+        sizeOf<Uint32>() * snapshot.length,
+      );
+      final Pointer<Int32> overflowX = malloc.allocate<Int32>(
+        sizeOf<Int32>() * overflowCapacity,
+      );
+      final Pointer<Int32> overflowY = malloc.allocate<Int32>(
+        sizeOf<Int32>() * overflowCapacity,
+      );
+      final Pointer<Uint32> overflowColor = malloc.allocate<Uint32>(
+        sizeOf<Uint32>() * overflowCapacity,
+      );
+      final Pointer<Uint64> overflowCountPtr =
+          malloc.allocate<Uint64>(sizeOf<Uint64>());
+      snapshotPtr.asTypedList(snapshot.length).setAll(0, snapshot);
+      try {
+        final bool ok = CpuTransformFfi.instance.translateLayer(
+          canvasPtr: canvasPtr,
+          canvasLen: pixels.length,
+          canvasWidth: canvasWidth,
+          canvasHeight: canvasHeight,
+          snapshotPtr: snapshotPtr.address,
+          snapshotLen: snapshot.length,
+          snapshotWidth: snapshotWidth,
+          snapshotHeight: snapshotHeight,
+          originX: originX,
+          originY: originY,
+          dx: dx,
+          dy: dy,
+          overflowXPtr: overflowX.address,
+          overflowYPtr: overflowY.address,
+          overflowColorPtr: overflowColor.address,
+          overflowCapacity: overflowCapacity,
+          overflowCountPtr: overflowCountPtr.address,
+        );
+        if (ok) {
+          final int count = overflowCountPtr.value;
+          final _LayerOverflowBuilder overflowBuilder =
+              _LayerOverflowBuilder();
+          if (count > 0) {
+            final Int32List xs = overflowX.asTypedList(count);
+            final Int32List ys = overflowY.asTypedList(count);
+            final Uint32List colors = overflowColor.asTypedList(count);
+            for (int i = 0; i < count; i++) {
+              overflowBuilder.addPixel(xs[i], ys[i], colors[i]);
+            }
+          }
+          final _LayerOverflowStore overflowStore = overflowBuilder.build();
+          if (!overflowStore.isEmpty) {
+            controller._layerOverflowStores[layerId] = overflowStore;
+          } else if (controller._layerOverflowStores.containsKey(layerId)) {
+            controller._layerOverflowStores[layerId]!.clear();
+          }
+          _textLayerApplyTranslation(target, dx, dy);
+          return;
+        }
+      } finally {
+        malloc.free(snapshotPtr);
+        malloc.free(overflowX);
+        malloc.free(overflowY);
+        malloc.free(overflowColor);
+        malloc.free(overflowCountPtr);
+      }
+    }
+  }
   pixels.fillRange(0, pixels.length, 0);
   final _LayerOverflowBuilder overflowBuilder = _LayerOverflowBuilder();
   for (int sy = 0; sy < snapshotHeight; sy++) {

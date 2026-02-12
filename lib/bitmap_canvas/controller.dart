@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 // ignore: unused_import
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
+import 'package:ffi/ffi.dart';
 
 import '../app/debug/rust_canvas_timeline.dart';
 import '../backend/canvas_painting_worker.dart';
@@ -27,6 +28,7 @@ import '../src/rust/api/gpu_brush.dart' as rust_gpu_brush;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import '../src/rust/cpu_image_ffi.dart';
 import '../src/rust/cpu_filters_ffi.dart';
+import '../src/rust/cpu_transform_ffi.dart';
 import '../src/rust/rust_init.dart';
 import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
