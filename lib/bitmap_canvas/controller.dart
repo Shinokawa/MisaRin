@@ -26,6 +26,7 @@ import '../canvas/text_renderer.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
 import '../src/rust/api/gpu_brush.dart' as rust_gpu_brush;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
+import '../src/rust/cpu_blend_ffi.dart';
 import '../src/rust/cpu_image_ffi.dart';
 import '../src/rust/cpu_filters_ffi.dart';
 import '../src/rust/cpu_transform_ffi.dart';

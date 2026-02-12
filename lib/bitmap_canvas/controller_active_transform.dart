@@ -676,7 +676,72 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
   }
   final int snapshotWidth = math.max(1, resolvedMaxX - resolvedMinX);
   final int snapshotHeight = math.max(1, resolvedMaxY - resolvedMinY);
-  final Uint32List pixels = Uint32List(snapshotWidth * snapshotHeight);
+  final int snapshotLen = snapshotWidth * snapshotHeight;
+  final Uint32List pixels = Uint32List(snapshotLen);
+  final int canvasPtr = layer.surface.pointerAddress;
+  if (snapshotLen > 0 &&
+      canvasPtr != 0 &&
+      CpuTransformFfi.instance.isSupported) {
+    final Pointer<Uint32> snapshotPtr = malloc.allocate<Uint32>(
+      sizeOf<Uint32>() * snapshotLen,
+    );
+    Pointer<Int32>? overflowX;
+    Pointer<Int32>? overflowY;
+    Pointer<Uint32>? overflowColor;
+    int overflowCount = 0;
+    try {
+      overflowCount = _countOverflowPixels(store);
+      if (overflowCount > 0) {
+        overflowX = malloc.allocate<Int32>(sizeOf<Int32>() * overflowCount);
+        overflowY = malloc.allocate<Int32>(sizeOf<Int32>() * overflowCount);
+        overflowColor =
+            malloc.allocate<Uint32>(sizeOf<Uint32>() * overflowCount);
+        _fillOverflowArrays(
+          store,
+          overflowX.asTypedList(overflowCount),
+          overflowY.asTypedList(overflowCount),
+          overflowColor.asTypedList(overflowCount),
+        );
+      }
+      final bool ok = CpuTransformFfi.instance.buildOverflowSnapshot(
+        canvasPtr: canvasPtr,
+        canvasLen: layer.surface.pixels.length,
+        canvasWidth: controller._width,
+        canvasHeight: controller._height,
+        snapshotPtr: snapshotPtr.address,
+        snapshotLen: snapshotLen,
+        snapshotWidth: snapshotWidth,
+        snapshotHeight: snapshotHeight,
+        originX: resolvedMinX,
+        originY: resolvedMinY,
+        overflowXPtr: overflowX?.address ?? 0,
+        overflowYPtr: overflowY?.address ?? 0,
+        overflowColorPtr: overflowColor?.address ?? 0,
+        overflowLen: overflowCount,
+      );
+      if (ok) {
+        pixels.setAll(0, snapshotPtr.asTypedList(snapshotLen));
+        return _LayerTransformSnapshot(
+          pixels: pixels,
+          width: snapshotWidth,
+          height: snapshotHeight,
+          originX: resolvedMinX,
+          originY: resolvedMinY,
+        );
+      }
+    } finally {
+      malloc.free(snapshotPtr);
+      if (overflowX != null) {
+        malloc.free(overflowX);
+      }
+      if (overflowY != null) {
+        malloc.free(overflowY);
+      }
+      if (overflowColor != null) {
+        malloc.free(overflowColor);
+      }
+    }
+  }
   final int overlapLeft = math.max(0, resolvedMinX);
   final int overlapRight = math.min(controller._width, resolvedMaxX);
   final int overlapTop = math.max(0, resolvedMinY);
@@ -883,6 +948,40 @@ class _OverflowRowBuilder {
     _buffer.clear();
     _currentStart = null;
   }
+}
+
+int _countOverflowPixels(_LayerOverflowStore store) {
+  if (store.isEmpty) {
+    return 0;
+  }
+  int count = 0;
+  store.forEachSegment((int _, _LayerOverflowSegment segment) {
+    count += segment.length;
+  });
+  return count;
+}
+
+int _fillOverflowArrays(
+  _LayerOverflowStore store,
+  Int32List xs,
+  Int32List ys,
+  Uint32List colors,
+) {
+  int index = 0;
+  if (store.isEmpty) {
+    return index;
+  }
+  store.forEachSegment((int rowY, _LayerOverflowSegment segment) {
+    final int startX = segment.startX;
+    final Uint32List pixels = segment.pixels;
+    for (int i = 0; i < pixels.length; i++) {
+      xs[index] = startX + i;
+      ys[index] = rowY;
+      colors[index] = pixels[i];
+      index++;
+    }
+  });
+  return index;
 }
 
 void _restoreActiveLayerSnapshot(BitmapCanvasController controller) {

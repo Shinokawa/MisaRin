@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -596,6 +597,344 @@ fn blend_argb(dst: u32, src: u32, mode: u32, pixel_index: u32) -> u32 {
     let rb = ((fb * sa) + db * da * (1.0 - sa)) / out_a;
 
     pack_argb(out_a, rr, rg, rb)
+}
+
+fn color_with_opacity(src: u32, alpha: f32) -> u32 {
+    let a = (clamp01(alpha) * 255.0).round();
+    if a <= 0.0 {
+        return 0;
+    }
+    let a_u8 = if a < 0.0 {
+        0
+    } else if a > 255.0 {
+        255
+    } else {
+        a as u32
+    };
+    (a_u8 << 24) | (src & 0x00FF_FFFF)
+}
+
+fn overflow_key(x: i32, y: i32) -> i64 {
+    ((x as i64) << 32) | (y as u32 as i64)
+}
+
+#[no_mangle]
+pub extern "C" fn cpu_blend_on_canvas(
+    src: *const u32,
+    dst: *mut u32,
+    pixels_len: u64,
+    width: u32,
+    height: u32,
+    start_x: i32,
+    end_x: i32,
+    start_y: i32,
+    end_y: i32,
+    opacity: f32,
+    blend_mode: u32,
+    mask: *const u32,
+    mask_len: u64,
+    mask_opacity: f32,
+) -> u8 {
+    if src.is_null() || dst.is_null() {
+        return 0;
+    }
+    if pixels_len == 0 || width == 0 || height == 0 {
+        return 0;
+    }
+    let expected_len = width as u64 * height as u64;
+    if expected_len != pixels_len {
+        return 0;
+    }
+    let len = pixels_len as usize;
+    if len == 0 || len > isize::MAX as usize {
+        return 0;
+    }
+
+    let src_slice = unsafe { std::slice::from_raw_parts(src, len) };
+    let dst_slice = unsafe { std::slice::from_raw_parts_mut(dst, len) };
+
+    let mut opacity = if opacity.is_finite() { opacity } else { 0.0 };
+    opacity = clamp01(opacity);
+    if opacity <= 0.0 {
+        return 1;
+    }
+
+    let mut use_mask = false;
+    let mut mask_slice: &[u32] = &[];
+    let mut mask_opacity = if mask_opacity.is_finite() { mask_opacity } else { 0.0 };
+    mask_opacity = clamp01(mask_opacity);
+    if !mask.is_null() && mask_len == pixels_len && mask_opacity > 0.0 {
+        use_mask = true;
+        mask_slice = unsafe { std::slice::from_raw_parts(mask, len) };
+    }
+
+    let width_i32 = width as i32;
+    let height_i32 = height as i32;
+    let sx0 = start_x.max(0).min(width_i32) as i32;
+    let sx1 = end_x.max(0).min(width_i32) as i32;
+    let sy0 = start_y.max(0).min(height_i32) as i32;
+    let sy1 = end_y.max(0).min(height_i32) as i32;
+    if sx0 >= sx1 || sy0 >= sy1 {
+        return 1;
+    }
+
+    let width_usize = width as usize;
+    for y in sy0..sy1 {
+        let row_offset = y as usize * width_usize;
+        for x in sx0..sx1 {
+            let idx = row_offset + x as usize;
+            let src_color = src_slice[idx];
+            let src_a = ((src_color >> 24) & 0xFF) as u32;
+            if src_a == 0 {
+                continue;
+            }
+            let mut effective_alpha = (src_a as f32 / 255.0) * opacity;
+            if effective_alpha <= 0.0 {
+                continue;
+            }
+            if use_mask {
+                let mask_color = mask_slice[idx];
+                let mask_a = ((mask_color >> 24) & 0xFF) as u32;
+                if mask_a == 0 {
+                    continue;
+                }
+                let mask_alpha = (mask_a as f32 / 255.0) * mask_opacity;
+                if mask_alpha <= 0.0 {
+                    continue;
+                }
+                effective_alpha *= mask_alpha;
+                if effective_alpha <= 0.0 {
+                    continue;
+                }
+            }
+            let effective_color = color_with_opacity(src_color, effective_alpha);
+            if effective_color == 0 {
+                continue;
+            }
+            let blended = blend_argb(dst_slice[idx], effective_color, blend_mode, idx as u32);
+            dst_slice[idx] = blended;
+        }
+    }
+
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn cpu_blend_overflow(
+    canvas: *mut u32,
+    canvas_len: u64,
+    width: u32,
+    height: u32,
+    upper_x: *const i32,
+    upper_y: *const i32,
+    upper_color: *const u32,
+    upper_len: u64,
+    lower_x: *const i32,
+    lower_y: *const i32,
+    lower_color: *const u32,
+    lower_len: u64,
+    opacity: f32,
+    blend_mode: u32,
+    mask: *const u32,
+    mask_len: u64,
+    mask_opacity: f32,
+    mask_overflow_x: *const i32,
+    mask_overflow_y: *const i32,
+    mask_overflow_color: *const u32,
+    mask_overflow_len: u64,
+    out_x: *mut i32,
+    out_y: *mut i32,
+    out_color: *mut u32,
+    out_capacity: u64,
+    out_count: *mut u64,
+) -> u8 {
+    if canvas.is_null() || out_count.is_null() {
+        return 0;
+    }
+    if canvas_len == 0 || width == 0 || height == 0 {
+        return 0;
+    }
+    let expected_len = width as u64 * height as u64;
+    if expected_len != canvas_len {
+        return 0;
+    }
+    let len = canvas_len as usize;
+    if len == 0 || len > isize::MAX as usize {
+        return 0;
+    }
+    if upper_len > 0 {
+        if upper_x.is_null() || upper_y.is_null() || upper_color.is_null() {
+            return 0;
+        }
+        if upper_len as usize > isize::MAX as usize {
+            return 0;
+        }
+    }
+    if lower_len > 0 {
+        if lower_x.is_null() || lower_y.is_null() || lower_color.is_null() {
+            return 0;
+        }
+        if lower_len as usize > isize::MAX as usize {
+            return 0;
+        }
+    }
+
+    let canvas_slice = unsafe { std::slice::from_raw_parts_mut(canvas, len) };
+
+    let mut lower_map: HashMap<i64, u32> = HashMap::new();
+    if lower_len > 0 {
+        let l_len = lower_len as usize;
+        let xs = unsafe { std::slice::from_raw_parts(lower_x, l_len) };
+        let ys = unsafe { std::slice::from_raw_parts(lower_y, l_len) };
+        let colors = unsafe { std::slice::from_raw_parts(lower_color, l_len) };
+        lower_map.reserve(l_len);
+        for i in 0..l_len {
+            let color = colors[i];
+            if (color >> 24) == 0 {
+                continue;
+            }
+            let key = overflow_key(xs[i], ys[i]);
+            lower_map.insert(key, color);
+        }
+    }
+
+    let mut opacity = if opacity.is_finite() { opacity } else { 0.0 };
+    opacity = clamp01(opacity);
+
+    let mut use_mask = false;
+    let mut mask_slice: &[u32] = &[];
+    let mut mask_opacity = if mask_opacity.is_finite() { mask_opacity } else { 0.0 };
+    mask_opacity = clamp01(mask_opacity);
+    let mut mask_overflow_map: HashMap<i64, u32> = HashMap::new();
+    if !mask.is_null() && mask_len == canvas_len && mask_opacity > 0.0 {
+        use_mask = true;
+        mask_slice = unsafe { std::slice::from_raw_parts(mask, len) };
+        if mask_overflow_len > 0 {
+            if mask_overflow_x.is_null()
+                || mask_overflow_y.is_null()
+                || mask_overflow_color.is_null()
+            {
+                return 0;
+            }
+            if mask_overflow_len as usize > isize::MAX as usize {
+                return 0;
+            }
+            let m_len = mask_overflow_len as usize;
+            let xs = unsafe { std::slice::from_raw_parts(mask_overflow_x, m_len) };
+            let ys = unsafe { std::slice::from_raw_parts(mask_overflow_y, m_len) };
+            let colors = unsafe { std::slice::from_raw_parts(mask_overflow_color, m_len) };
+            mask_overflow_map.reserve(m_len);
+            for i in 0..m_len {
+                let color = colors[i];
+                if (color >> 24) == 0 {
+                    continue;
+                }
+                let key = overflow_key(xs[i], ys[i]);
+                mask_overflow_map.insert(key, color);
+            }
+        }
+    }
+
+    if upper_len > 0 && opacity > 0.0 {
+        let u_len = upper_len as usize;
+        let xs = unsafe { std::slice::from_raw_parts(upper_x, u_len) };
+        let ys = unsafe { std::slice::from_raw_parts(upper_y, u_len) };
+        let colors = unsafe { std::slice::from_raw_parts(upper_color, u_len) };
+        let width_i64 = width as i64;
+        let height_i64 = height as i64;
+        let width_usize = width as usize;
+        for i in 0..u_len {
+            let src_color = colors[i];
+            let src_a = ((src_color >> 24) & 0xFF) as u32;
+            if src_a == 0 {
+                continue;
+            }
+            let mut effective_alpha = (src_a as f32 / 255.0) * opacity;
+            if effective_alpha <= 0.0 {
+                continue;
+            }
+            let x = xs[i] as i64;
+            let y = ys[i] as i64;
+            if use_mask {
+                let mask_a = if x >= 0 && y >= 0 && x < width_i64 && y < height_i64 {
+                    let idx = y as usize * width_usize + x as usize;
+                    (mask_slice[idx] >> 24) & 0xFF
+                } else {
+                    let key = overflow_key(x as i32, y as i32);
+                    (mask_overflow_map.get(&key).copied().unwrap_or(0) >> 24) & 0xFF
+                };
+                if mask_a == 0 {
+                    continue;
+                }
+                let mask_alpha = (mask_a as f32 / 255.0) * mask_opacity;
+                if mask_alpha <= 0.0 {
+                    continue;
+                }
+                effective_alpha *= mask_alpha;
+                if effective_alpha <= 0.0 {
+                    continue;
+                }
+            }
+            let effective_color = color_with_opacity(src_color, effective_alpha);
+            if effective_color == 0 {
+                continue;
+            }
+            if x >= 0 && y >= 0 && x < width_i64 && y < height_i64 {
+                let idx = y as usize * width_usize + x as usize;
+                let blended = blend_argb(canvas_slice[idx], effective_color, blend_mode, idx as u32);
+                canvas_slice[idx] = blended;
+            } else {
+                let key = overflow_key(x as i32, y as i32);
+                let dst_color = lower_map.get(&key).copied().unwrap_or(0);
+                let pixel_index = (y * width_i64 + x) as u32;
+                let blended = blend_argb(dst_color, effective_color, blend_mode, pixel_index);
+                if (blended >> 24) == 0 {
+                    lower_map.remove(&key);
+                } else {
+                    lower_map.insert(key, blended);
+                }
+            }
+        }
+    }
+
+    let mut entries: Vec<(i32, i32, u32)> = Vec::with_capacity(lower_map.len());
+    for (key, color) in lower_map.into_iter() {
+        let x = (key >> 32) as i32;
+        let y = key as i32;
+        entries.push((x, y, color));
+    }
+    entries.sort_by(|a, b| {
+        let y_cmp = a.1.cmp(&b.1);
+        if y_cmp == std::cmp::Ordering::Equal {
+            a.0.cmp(&b.0)
+        } else {
+            y_cmp
+        }
+    });
+
+    let count = entries.len();
+    if count > out_capacity as usize {
+        return 0;
+    }
+    unsafe {
+        *out_count = count as u64;
+    }
+    if count == 0 {
+        return 1;
+    }
+    if out_x.is_null() || out_y.is_null() || out_color.is_null() {
+        return 0;
+    }
+    let out_x_slice = unsafe { std::slice::from_raw_parts_mut(out_x, count) };
+    let out_y_slice = unsafe { std::slice::from_raw_parts_mut(out_y, count) };
+    let out_color_slice = unsafe { std::slice::from_raw_parts_mut(out_color, count) };
+    for (i, (x, y, color)) in entries.into_iter().enumerate() {
+        out_x_slice[i] = x;
+        out_y_slice[i] = y;
+        out_color_slice[i] = color;
+    }
+
+    1
 }
 
 fn clamp_unit_f64_to_f32(value: f64) -> f32 {

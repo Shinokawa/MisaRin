@@ -26,4 +26,23 @@ class CpuTransformFfi {
   }) {
     return false;
   }
+
+  bool buildOverflowSnapshot({
+    required int canvasPtr,
+    required int canvasLen,
+    required int canvasWidth,
+    required int canvasHeight,
+    required int snapshotPtr,
+    required int snapshotLen,
+    required int snapshotWidth,
+    required int snapshotHeight,
+    required int originX,
+    required int originY,
+    int overflowXPtr = 0,
+    int overflowYPtr = 0,
+    int overflowColorPtr = 0,
+    int overflowLen = 0,
+  }) {
+    return false;
+  }
 }
