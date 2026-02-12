@@ -245,15 +245,19 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       return;
     }
     bool applied = false;
+    final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+    final Uint32List? pixels = _controller.readLayerPixels(layer.id);
     if (!_controller.clipLayerOverflow &&
         _layerAdjustRustSynced &&
-        layer.surface.width == width &&
-        layer.surface.height == height &&
-        layer.surface.pixels.length == width * height) {
+        surfaceSize != null &&
+        surfaceSize.width.round() == width &&
+        surfaceSize.height.round() == height &&
+        pixels != null &&
+        pixels.length == width * height) {
       applied = CanvasEngineFfi.instance.writeLayer(
         handle: handle,
         layerIndex: layerIndex,
-        pixels: layer.surface.pixels,
+        pixels: pixels,
         recordUndo: true,
       );
     } else {
@@ -623,8 +627,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _clearCurvePreviewRasterImage();
       return;
     }
-    final int width = layer.surface.width;
-    final int height = layer.surface.height;
+    final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+    final int width = surfaceSize?.width.round() ?? 0;
+    final int height = surfaceSize?.height.round() ?? 0;
     if (width <= 0 || height <= 0) {
       _clearCurvePreviewRasterImage();
       return;
@@ -636,8 +641,8 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
         _curvePreviewPath == null) {
       return;
     }
-    final Uint32List pixels = layer.surface.pixels;
-    if (pixels.length != width * height) {
+    final Uint32List? pixels = _controller.readLayerPixels(layer.id);
+    if (pixels == null || pixels.length != width * height) {
       _clearCurvePreviewRasterImage();
       return;
     }

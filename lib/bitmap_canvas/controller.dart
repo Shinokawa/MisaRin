@@ -21,6 +21,7 @@ import '../canvas/canvas_backend.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
+import '../canvas/canvas_tool_host.dart';
 import '../canvas/brush_random_rotation.dart';
 import '../canvas/text_renderer.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
@@ -54,7 +55,7 @@ part 'controller_filters_gpu.dart';
 part 'controller_worker_queue.dart';
 part 'controller_text.dart';
 
-class BitmapCanvasController extends ChangeNotifier {
+class BitmapCanvasController extends ChangeNotifier implements CanvasToolHost {
   BitmapCanvasController({
     required int width,
     required int height,
@@ -695,6 +696,50 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void clearLayerRegion(String id, {Uint8List? mask}) =>
       _layerManagerClearRegion(this, id, mask: mask);
+
+  Uint32List? readLayerPixels(String id) {
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id == id) {
+        return Uint32List.fromList(layer.surface.pixels);
+      }
+    }
+    return null;
+  }
+
+  Size? readLayerSurfaceSize(String id) {
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id == id) {
+        return Size(
+          layer.surface.width.toDouble(),
+          layer.surface.height.toDouble(),
+        );
+      }
+    }
+    return null;
+  }
+
+  bool writeLayerPixels(
+    String id,
+    Uint32List pixels, {
+    bool markDirty = true,
+  }) {
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id != id) {
+        continue;
+      }
+      if (layer.surface.pixels.length != pixels.length) {
+        return false;
+      }
+      layer.surface.pixels.setAll(0, pixels);
+      layer.surface.markDirty();
+      if (markDirty) {
+        _markDirty(layerId: id, pixelsDirty: true);
+        _notify();
+      }
+      return true;
+    }
+    return false;
+  }
 
   String insertLayerFromData(CanvasLayerData data, {String? aboveLayerId}) =>
       _layerManagerInsertFromData(this, data, aboveLayerId: aboveLayerId);

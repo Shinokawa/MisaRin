@@ -431,8 +431,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       _clearShapePreviewRasterImage();
       return;
     }
-    final int width = layer.surface.width;
-    final int height = layer.surface.height;
+    final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+    final int width = surfaceSize?.width.round() ?? 0;
+    final int height = surfaceSize?.height.round() ?? 0;
     if (width <= 0 || height <= 0) {
       _clearShapePreviewRasterImage();
       return;
@@ -444,8 +445,8 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
         _shapePreviewPath == null) {
       return;
     }
-    final Uint32List pixels = layer.surface.pixels;
-    if (pixels.length != width * height) {
+    final Uint32List? pixels = _controller.readLayerPixels(layer.id);
+    if (pixels == null || pixels.length != width * height) {
       _clearShapePreviewRasterImage();
       return;
     }

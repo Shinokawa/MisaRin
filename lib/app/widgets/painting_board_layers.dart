@@ -41,8 +41,8 @@ mixin _PaintingBoardLayerMixin
       return widget.settings.backgroundColor;
     }
     final BitmapLayerState baseLayer = _layers.first;
-    final Uint32List pixels = baseLayer.surface.pixels;
-    if (pixels.isNotEmpty && (pixels[0] >> 24) != 0) {
+    final Uint32List? pixels = _controller.readLayerPixels(baseLayer.id);
+    if (pixels != null && pixels.isNotEmpty && (pixels[0] >> 24) != 0) {
       return BitmapSurface.decodeColor(pixels[0]);
     }
     return widget.settings.backgroundColor;
@@ -859,13 +859,11 @@ mixin _PaintingBoardLayerMixin
 
   Future<void> _captureLayerPreviewThumbnail({
     required String layerId,
-    required BitmapSurface surface,
     required int revision,
     required int requestId,
   }) async {
     await _captureLayerPreviewThumbnailImpl(
       layerId: layerId,
-      surface: surface,
       revision: revision,
       requestId: requestId,
     );
@@ -885,8 +883,12 @@ mixin _PaintingBoardLayerMixin
     );
   }
 
-  _LayerPreviewPixels? _buildLayerPreviewPixels(BitmapSurface surface) {
-    return _buildLayerPreviewPixelsImpl(surface);
+  _LayerPreviewPixels? _buildLayerPreviewPixels(
+    Uint32List pixels,
+    int width,
+    int height,
+  ) {
+    return _buildLayerPreviewPixelsImpl(pixels, width, height);
   }
 
   void _disposeLayerPreviewCache() {

@@ -454,16 +454,20 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (width <= 0 || height <= 0) {
         return false;
       }
-      if (layer.surface.width != width || layer.surface.height != height) {
+      final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+      if (surfaceSize == null ||
+          surfaceSize.width.round() != width ||
+          surfaceSize.height.round() != height) {
         return false;
       }
-      if (layer.surface.pixels.length != width * height) {
+      final Uint32List? pixels = _controller.readLayerPixels(layer.id);
+      if (pixels == null || pixels.length != width * height) {
         return false;
       }
       final bool applied = CanvasEngineFfi.instance.writeLayer(
         handle: handle,
         layerIndex: layerIndex,
-        pixels: layer.surface.pixels,
+        pixels: pixels,
         recordUndo: false,
       );
       if (applied) {

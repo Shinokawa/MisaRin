@@ -433,7 +433,6 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     unawaited(
       _captureLayerPreviewThumbnail(
         layerId: layer.id,
-        surface: layer.surface,
         revision: revision,
         requestId: requestId,
       ),
@@ -446,7 +445,6 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
   Future<void> _captureLayerPreviewThumbnailImpl({
     required String layerId,
-    required BitmapSurface surface,
     required int revision,
     required int requestId,
   }) async {
@@ -454,7 +452,15 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     _LayerPreviewPixels? pixels =
         useRust ? await _buildRustLayerPreviewPixels(layerId) : null;
     if (!useRust) {
-      pixels = _buildLayerPreviewPixels(surface);
+      final Size? surfaceSize = _controller.readLayerSurfaceSize(layerId);
+      final Uint32List? layerPixels = _controller.readLayerPixels(layerId);
+      if (surfaceSize != null && layerPixels != null) {
+        pixels = _buildLayerPreviewPixels(
+          layerPixels,
+          surfaceSize.width.round(),
+          surfaceSize.height.round(),
+        );
+      }
     }
     ui.Image? image;
     if (pixels != null) {
@@ -550,9 +556,11 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     }
   }
 
-  _LayerPreviewPixels? _buildLayerPreviewPixelsImpl(BitmapSurface surface) {
-    final int width = surface.width;
-    final int height = surface.height;
+  _LayerPreviewPixels? _buildLayerPreviewPixelsImpl(
+    Uint32List pixels,
+    int width,
+    int height,
+  ) {
     if (width <= 0 || height <= 0) {
       return null;
     }
@@ -571,7 +579,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       final int rowBase = sourceY * width;
       for (int x = 0; x < targetWidth; x++) {
         final int sourceX = (x * stepX).floor().clamp(0, width - 1);
-        final int argb = surface.pixels[rowBase + sourceX];
+        final int argb = pixels[rowBase + sourceX];
         rgba[dest++] = (argb >> 16) & 0xFF;
         rgba[dest++] = (argb >> 8) & 0xFF;
         rgba[dest++] = argb & 0xFF;

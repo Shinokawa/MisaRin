@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
-import '../bitmap_canvas/controller.dart';
+import '../canvas/canvas_tool_host.dart';
 import '../canvas/canvas_tools.dart';
 
 typedef ClampToCanvas = Offset Function(Offset position);
@@ -85,7 +85,7 @@ class KritaSprayEngine {
             const KritaSprayEngineSettings(diameter: 120.0),
         _random = random ?? math.Random();
 
-  final BitmapCanvasController controller;
+  final CanvasToolHost controller;
   final ClampToCanvas _clampToCanvas;
   final math.Random _random;
   KritaSprayEngineSettings _settings;

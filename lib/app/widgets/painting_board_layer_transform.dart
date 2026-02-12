@@ -579,7 +579,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (width <= 0 || height <= 0) {
       return false;
     }
-    if (layer.surface.width != width || layer.surface.height != height) {
+    final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+    if (surfaceSize == null ||
+        surfaceSize.width.round() != width ||
+        surfaceSize.height.round() != height) {
       return false;
     }
     final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
@@ -588,12 +591,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       width: width,
       height: height,
     );
-    if (pixels == null || pixels.length != layer.surface.pixels.length) {
+    if (pixels == null || pixels.length != width * height) {
       return false;
     }
-    layer.surface.pixels.setAll(0, pixels);
-    layer.surface.markDirty();
-    return true;
+    return _controller.writeLayerPixels(layer.id, pixels);
   }
 
   void _hideRustLayerForTransform(BitmapLayerState layer) {
@@ -766,8 +767,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (canvasWidth <= 0 || canvasHeight <= 0) {
       return false;
     }
-    if (layer.surface.width != canvasWidth ||
-        layer.surface.height != canvasHeight) {
+    final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+    if (surfaceSize == null ||
+        surfaceSize.width.round() != canvasWidth ||
+        surfaceSize.height.round() != canvasHeight) {
       return false;
     }
     final Uint32List pixels = _buildRustTransformPixels(
