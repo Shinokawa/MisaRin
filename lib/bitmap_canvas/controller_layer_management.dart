@@ -285,6 +285,7 @@ void _mergeLayerIntoLower(
     opacity,
     upper.blendMode,
     clippingInfo,
+    srcPixelsPtr: upper.surface.pointerAddress,
   );
   if (!upperOverflow.isEmpty) {
     _blendOverflowPixels(
@@ -305,12 +306,14 @@ void _blendOnCanvasPixels(
   Uint32List dstPixels,
   double opacity,
   CanvasLayerBlendMode blendMode,
-  _ClippingMaskInfo? clippingInfo,
-) {
+  _ClippingMaskInfo? clippingInfo, {
+  int? srcPixelsPtr,
+}) {
   final Rect? bounds = _computePixelBounds(
     srcPixels,
     controller._width,
     controller._height,
+    pixelsPtr: srcPixelsPtr,
   );
   if (bounds == null) {
     return;

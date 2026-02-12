@@ -1220,9 +1220,9 @@ Future<Object?> _paintingWorkerHandleFloodFillWithRust({
   return response;
 }
 
-TransferableTypedData _paintingWorkerHandleSelectionMask(
+Future<TransferableTypedData> _paintingWorkerHandleSelectionMask(
   Map<String, Object?> payload,
-) {
+) async {
   final int width = payload['width'] as int? ?? 0;
   final int height = payload['height'] as int? ?? 0;
   final TransferableTypedData? pixelData =
@@ -1233,8 +1233,27 @@ TransferableTypedData _paintingWorkerHandleSelectionMask(
   if (width <= 0 || height <= 0 || pixelData == null) {
     return TransferableTypedData.fromList(const <Uint8List>[]);
   }
+  if (startX < 0 || startY < 0 || startX >= width || startY >= height) {
+    return TransferableTypedData.fromList(const <Uint8List>[]);
+  }
   final ByteBuffer pixelBuffer = pixelData.materialize();
   final Uint32List pixels = Uint32List.view(pixelBuffer, 0, width * height);
+  try {
+    await ensureRustInitialized();
+    final Uint8List? mask = await rust_bucket.magicWandMask(
+      width: width,
+      height: height,
+      pixels: pixels,
+      startX: startX,
+      startY: startY,
+      tolerance: tolerance,
+    );
+    if (mask != null && mask.length == width * height) {
+      return TransferableTypedData.fromList(<Uint8List>[mask]);
+    }
+  } catch (_) {
+    // Fall back to Dart implementation below.
+  }
   final Uint8List mask = Uint8List(width * height);
   final int target = pixels[startY * width + startX];
   _paintingWorkerFloodMask(

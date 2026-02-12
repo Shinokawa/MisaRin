@@ -118,6 +118,7 @@ void _startClippedLayerTransformSession(
     sourcePixels,
     canvasWidth,
     canvasHeight,
+    pixelsPtr: layer.surface.pointerAddress,
   );
   int originX = 0;
   int originY = 0;
@@ -166,6 +167,7 @@ void _startOverflowLayerTransformSession(
     layer.surface.pixels,
     controller._width,
     controller._height,
+    pixelsPtr: layer.surface.pointerAddress,
   );
   int minX = 0;
   int minY = 0;
@@ -227,7 +229,30 @@ void _startOverflowLayerTransformSession(
   _prepareActiveLayerTransformPreview(controller, layer, snapshot.pixels);
 }
 
-Rect? _computePixelBounds(Uint32List pixels, int width, int height) {
+Rect? _computePixelBounds(
+  Uint32List pixels,
+  int width,
+  int height, {
+  int? pixelsPtr,
+}) {
+  if (pixelsPtr != null &&
+      pixelsPtr != 0 &&
+      CpuImageFfi.instance.isSupported) {
+    final Int32List? bounds = CpuImageFfi.instance.computeBounds(
+      pixelsPtr: pixelsPtr,
+      pixelsLen: pixels.length,
+      width: width,
+      height: height,
+    );
+    if (bounds != null && bounds.length >= 4) {
+      return Rect.fromLTRB(
+        bounds[0].toDouble(),
+        bounds[1].toDouble(),
+        bounds[2].toDouble(),
+        bounds[3].toDouble(),
+      );
+    }
+  }
   int minX = width;
   int minY = height;
   int maxX = -1;
