@@ -127,6 +127,10 @@
       "max": {}
     }
   },
+  "canvasBackendLabel": "キャンバスバックエンド",
+  "canvasBackendGpu": "GPU（wgpu）",
+  "canvasBackendCpu": "CPU（Rust）",
+  "canvasBackendRestartHint": "バックエンドの切り替えは再起動後に反映されます。",
   "developerOptionsLabel": "開発者オプション",
   "performanceOverlayLabel": "パフォーマンス表示",
   "performanceOverlayDesc": "画面隅に Flutter Performance Pulse ダッシュボードを表示し、FPS、CPU、メモリ、ディスクなどをリアルタイムで確認できます。",

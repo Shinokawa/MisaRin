@@ -11,8 +11,10 @@ import '../l10n/l10n.dart';
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
 import '../utils/tablet_input_bridge.dart';
+import '../widgets/app_notification.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import 'misarin_dialog.dart';
+import '../../canvas/canvas_backend.dart';
 
 Future<void> showSettingsDialog(BuildContext context) {
   final GlobalKey<_SettingsDialogContentState> contentKey =
@@ -68,6 +70,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late double _stylusCurve;
   late PenStrokeSliderRange _penSliderRange;
   late bool _fpsOverlayEnabled;
+  late CanvasBackend _canvasBackend;
 
   @override
   void initState() {
@@ -78,6 +81,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
     _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
+    _canvasBackend = AppPreferences.instance.canvasBackend;
   }
 
   @override
@@ -257,6 +261,28 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         if (!kIsWeb) ...[
           const SizedBox(height: 16),
           InfoLabel(
+            label: l10n.canvasBackendLabel,
+            child: ComboBox<CanvasBackend>(
+              isExpanded: true,
+              value: _canvasBackend,
+              items: CanvasBackend.values
+                  .map(
+                    (backend) => ComboBoxItem<CanvasBackend>(
+                      value: backend,
+                      child: Text(_canvasBackendLabel(backend)),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (backend) {
+                if (backend == null || backend == _canvasBackend) {
+                  return;
+                }
+                _updateCanvasBackend(backend);
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          InfoLabel(
             label: l10n.developerOptionsLabel,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,6 +349,30 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     }
   }
 
+  void _updateCanvasBackend(CanvasBackend backend) {
+    setState(() => _canvasBackend = backend);
+    final AppPreferences prefs = AppPreferences.instance;
+    if (prefs.canvasBackend != backend) {
+      prefs.canvasBackend = backend;
+      unawaited(AppPreferences.save());
+      AppNotifications.show(
+        context,
+        message: context.l10n.canvasBackendRestartHint,
+        severity: InfoBarSeverity.warning,
+      );
+    }
+  }
+
+  String _canvasBackendLabel(CanvasBackend backend) {
+    final l10n = context.l10n;
+    switch (backend) {
+      case CanvasBackend.gpu:
+        return l10n.canvasBackendGpu;
+      case CanvasBackend.cpu:
+        return l10n.canvasBackendCpu;
+    }
+  }
+
   String _localeOptionLabel(_AppLocaleOption option) {
     final l10n = context.l10n;
     switch (option) {
@@ -381,6 +431,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     final int defaultHistory = AppPreferences.defaultHistoryLimit;
     final ThemeMode defaultTheme = AppPreferences.defaultThemeMode;
     final Locale? defaultLocale = AppPreferences.defaultLocaleOverride;
+    final CanvasBackend defaultBackend = AppPreferences.defaultCanvasBackend;
     controller.onThemeModeChanged(defaultTheme);
     localeController.onLocaleChanged(defaultLocale);
     setState(() {
@@ -390,6 +441,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _stylusCurve = AppPreferences.defaultStylusCurve;
       _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
       _fpsOverlayEnabled = AppPreferences.defaultShowFpsOverlay;
+      _canvasBackend = defaultBackend;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
@@ -398,6 +450,14 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     prefs.stylusPressureCurve = _stylusCurve;
     prefs.penStrokeSliderRange = _penSliderRange;
     prefs.updateShowFpsOverlay(_fpsOverlayEnabled);
+    if (prefs.canvasBackend != defaultBackend) {
+      prefs.canvasBackend = defaultBackend;
+      AppNotifications.show(
+        context,
+        message: context.l10n.canvasBackendRestartHint,
+        severity: InfoBarSeverity.warning,
+      );
+    }
     _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }

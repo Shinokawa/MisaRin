@@ -1,0 +1,484 @@
+import 'dart:typed_data';
+
+import '../src/rust/canvas_engine_ffi.dart' as gpu_engine;
+import 'canvas_backend.dart';
+import 'canvas_backend_state.dart';
+
+class CanvasEngineFfi {
+  CanvasEngineFfi._();
+
+  static final CanvasEngineFfi instance = CanvasEngineFfi._();
+  static final gpu_engine.CanvasEngineFfi _gpu =
+      gpu_engine.CanvasEngineFfi.instance;
+
+  bool get _useGpu => CanvasBackendState.backend == CanvasBackend.gpu;
+
+  bool get isSupported => _useGpu && _gpu.isSupported;
+
+  void pushPointsPacked({
+    required int handle,
+    required Uint8List bytes,
+    required int pointCount,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.pushPointsPacked(
+      handle: handle,
+      bytes: bytes,
+      pointCount: pointCount,
+    );
+  }
+
+  int getInputQueueLen(int handle) {
+    if (!isSupported) {
+      return 0;
+    }
+    return _gpu.getInputQueueLen(handle);
+  }
+
+  void setBrush({
+    required int handle,
+    required int colorArgb,
+    required double baseRadius,
+    bool usePressure = true,
+    bool erase = false,
+    int antialiasLevel = 1,
+    int brushShape = 0,
+    bool randomRotation = false,
+    int rotationSeed = 0,
+    double spacing = 0.15,
+    double hardness = 0.8,
+    double flow = 1.0,
+    double scatter = 0.0,
+    double rotationJitter = 1.0,
+    bool snapToPixel = false,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    bool hollowEraseOccludedParts = false,
+    double streamlineStrength = 0.0,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.setBrush(
+      handle: handle,
+      colorArgb: colorArgb,
+      baseRadius: baseRadius,
+      usePressure: usePressure,
+      erase: erase,
+      antialiasLevel: antialiasLevel,
+      brushShape: brushShape,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
+      spacing: spacing,
+      hardness: hardness,
+      flow: flow,
+      scatter: scatter,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
+      hollow: hollow,
+      hollowRatio: hollowRatio,
+      hollowEraseOccludedParts: hollowEraseOccludedParts,
+      streamlineStrength: streamlineStrength,
+    );
+  }
+
+  void beginSpray({required int handle}) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.beginSpray(handle: handle);
+  }
+
+  void drawSpray({
+    required int handle,
+    required Float32List points,
+    required int pointCount,
+    required int colorArgb,
+    int brushShape = 0,
+    bool erase = false,
+    int antialiasLevel = 1,
+    double softness = 0.0,
+    bool accumulate = true,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.drawSpray(
+      handle: handle,
+      points: points,
+      pointCount: pointCount,
+      colorArgb: colorArgb,
+      brushShape: brushShape,
+      erase: erase,
+      antialiasLevel: antialiasLevel,
+      softness: softness,
+      accumulate: accumulate,
+    );
+  }
+
+  void endSpray({required int handle}) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.endSpray(handle: handle);
+  }
+
+  bool applyFilter({
+    required int handle,
+    required int layerIndex,
+    required int filterType,
+    double param0 = 0.0,
+    double param1 = 0.0,
+    double param2 = 0.0,
+    double param3 = 0.0,
+  }) {
+    if (!isSupported) {
+      return false;
+    }
+    return _gpu.applyFilter(
+      handle: handle,
+      layerIndex: layerIndex,
+      filterType: filterType,
+      param0: param0,
+      param1: param1,
+      param2: param2,
+      param3: param3,
+    );
+  }
+
+  bool applyAntialias({
+    required int handle,
+    required int layerIndex,
+    required int level,
+  }) {
+    if (!isSupported) {
+      return false;
+    }
+    return _gpu.applyAntialias(
+      handle: handle,
+      layerIndex: layerIndex,
+      level: level,
+    );
+  }
+
+  void setActiveLayer({required int handle, required int layerIndex}) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.setActiveLayer(handle: handle, layerIndex: layerIndex);
+  }
+
+  void setLayerOpacity({
+    required int handle,
+    required int layerIndex,
+    required double opacity,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.setLayerOpacity(
+      handle: handle,
+      layerIndex: layerIndex,
+      opacity: opacity,
+    );
+  }
+
+  void setLayerVisible({
+    required int handle,
+    required int layerIndex,
+    required bool visible,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.setLayerVisible(
+      handle: handle,
+      layerIndex: layerIndex,
+      visible: visible,
+    );
+  }
+
+  void setLayerClippingMask({
+    required int handle,
+    required int layerIndex,
+    required bool clippingMask,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.setLayerClippingMask(
+      handle: handle,
+      layerIndex: layerIndex,
+      clippingMask: clippingMask,
+    );
+  }
+
+  void setLayerBlendMode({
+    required int handle,
+    required int layerIndex,
+    required int blendModeIndex,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.setLayerBlendMode(
+      handle: handle,
+      layerIndex: layerIndex,
+      blendModeIndex: blendModeIndex,
+    );
+  }
+
+  void reorderLayer({
+    required int handle,
+    required int fromIndex,
+    required int toIndex,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.reorderLayer(
+      handle: handle,
+      fromIndex: fromIndex,
+      toIndex: toIndex,
+    );
+  }
+
+  void setViewFlags({
+    required int handle,
+    required bool mirror,
+    required bool blackWhite,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.setViewFlags(
+      handle: handle,
+      mirror: mirror,
+      blackWhite: blackWhite,
+    );
+  }
+
+  void clearLayer({required int handle, required int layerIndex}) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.clearLayer(handle: handle, layerIndex: layerIndex);
+  }
+
+  void fillLayer({
+    required int handle,
+    required int layerIndex,
+    required int colorArgb,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.fillLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      colorArgb: colorArgb,
+    );
+  }
+
+  bool bucketFill({
+    required int handle,
+    required int layerIndex,
+    required int startX,
+    required int startY,
+    required int colorArgb,
+    bool contiguous = true,
+    bool sampleAllLayers = false,
+    int tolerance = 0,
+    int fillGap = 0,
+    int antialiasLevel = 0,
+    Uint32List? swallowColors,
+    Uint8List? selectionMask,
+  }) {
+    if (!isSupported) {
+      return false;
+    }
+    return _gpu.bucketFill(
+      handle: handle,
+      layerIndex: layerIndex,
+      startX: startX,
+      startY: startY,
+      colorArgb: colorArgb,
+      contiguous: contiguous,
+      sampleAllLayers: sampleAllLayers,
+      tolerance: tolerance,
+      fillGap: fillGap,
+      antialiasLevel: antialiasLevel,
+      swallowColors: swallowColors,
+      selectionMask: selectionMask,
+    );
+  }
+
+  Uint8List? magicWandMask({
+    required int handle,
+    required int layerIndex,
+    required int startX,
+    required int startY,
+    required int maskLength,
+    bool sampleAllLayers = true,
+    int tolerance = 0,
+    Uint8List? selectionMask,
+  }) {
+    if (!isSupported) {
+      return null;
+    }
+    return _gpu.magicWandMask(
+      handle: handle,
+      layerIndex: layerIndex,
+      startX: startX,
+      startY: startY,
+      maskLength: maskLength,
+      sampleAllLayers: sampleAllLayers,
+      tolerance: tolerance,
+      selectionMask: selectionMask,
+    );
+  }
+
+  Uint32List? readLayer({
+    required int handle,
+    required int layerIndex,
+    required int width,
+    required int height,
+  }) {
+    if (!isSupported) {
+      return null;
+    }
+    return _gpu.readLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+  }
+
+  Uint8List? readLayerPreview({
+    required int handle,
+    required int layerIndex,
+    required int width,
+    required int height,
+  }) {
+    if (!isSupported) {
+      return null;
+    }
+    return _gpu.readLayerPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+  }
+
+  bool writeLayer({
+    required int handle,
+    required int layerIndex,
+    required Uint32List pixels,
+    bool recordUndo = true,
+  }) {
+    if (!isSupported) {
+      return false;
+    }
+    return _gpu.writeLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      pixels: pixels,
+      recordUndo: recordUndo,
+    );
+  }
+
+  bool translateLayer({
+    required int handle,
+    required int layerIndex,
+    required int deltaX,
+    required int deltaY,
+  }) {
+    if (!isSupported) {
+      return false;
+    }
+    return _gpu.translateLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      deltaX: deltaX,
+      deltaY: deltaY,
+    );
+  }
+
+  bool setLayerTransformPreview({
+    required int handle,
+    required int layerIndex,
+    required Float32List matrix,
+    bool enabled = true,
+    bool bilinear = true,
+  }) {
+    if (!isSupported) {
+      return false;
+    }
+    return _gpu.setLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      enabled: enabled,
+      bilinear: bilinear,
+    );
+  }
+
+  bool applyLayerTransform({
+    required int handle,
+    required int layerIndex,
+    required Float32List matrix,
+    bool bilinear = true,
+  }) {
+    if (!isSupported) {
+      return false;
+    }
+    return _gpu.applyLayerTransform(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      bilinear: bilinear,
+    );
+  }
+
+  Int32List? getLayerBounds({required int handle, required int layerIndex}) {
+    if (!isSupported) {
+      return null;
+    }
+    return _gpu.getLayerBounds(handle: handle, layerIndex: layerIndex);
+  }
+
+  void setSelectionMask({required int handle, Uint8List? selectionMask}) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.setSelectionMask(handle: handle, selectionMask: selectionMask);
+  }
+
+  void resetCanvas({required int handle, required int backgroundColorArgb}) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.resetCanvas(
+      handle: handle,
+      backgroundColorArgb: backgroundColorArgb,
+    );
+  }
+
+  void undo({required int handle}) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.undo(handle: handle);
+  }
+
+  void redo({required int handle}) {
+    if (!isSupported) {
+      return;
+    }
+    _gpu.redo(handle: handle);
+  }
+}

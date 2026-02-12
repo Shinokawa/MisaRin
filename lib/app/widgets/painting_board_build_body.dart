@@ -492,59 +492,78 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               return child;
                                             }
 
+                                            final bool useGpuCanvas =
+                                                CanvasEngineFfi.instance.isSupported;
                                             final Widget canvasSurface = IgnorePointer(
                                               ignoring: true,
-                                              child: RustCanvasSurface(
-                                                surfaceKey: widget.surfaceKey,
-                                                canvasSize: _canvasSize,
-                                                enableDrawing:
-                                                    canPreviewStroke &&
-                                                    !activeLayerLocked &&
-                                                    !_layerTransformModeActive &&
-                                                    !_isLayerFreeTransformActive &&
-                                                    !_controller
-                                                        .isActiveLayerTransforming,
-                                                layerCount:
-                                                    _controller.layers.length,
-                                                brushColorArgb:
-                                                    _isBrushEraserEnabled
-                                                        ? 0xFFFFFFFF
-                                                        : _primaryColor.value,
-                                                brushRadius: _penStrokeWidth / 2,
-                                                erase: _isBrushEraserEnabled,
-                                                brushShape: _brushShape,
-                                                brushRandomRotationEnabled:
-                                                    _brushRandomRotationEnabled,
-                                                brushRotationSeed:
-                                                    _brushRandomRotationPreviewSeed,
-                                                brushSpacing: _brushSpacing,
-                                                brushHardness: _brushHardness,
-                                                brushFlow: _brushFlow,
-                                                brushScatter: _brushScatter,
-                                                brushRotationJitter:
-                                                    _brushRotationJitter,
-                                                brushSnapToPixel:
-                                                    _brushSnapToPixel,
-                                                hollowStrokeEnabled:
-                                                    _hollowStrokeEnabled,
-                                                hollowStrokeRatio:
-                                                    _hollowStrokeRatio,
-                                                hollowStrokeEraseOccludedParts:
-                                                    _hollowStrokeEraseOccludedParts,
-                                                antialiasLevel: _penAntialiasLevel,
-                                                backgroundColorArgb:
-                                                    widget.settings.backgroundColor.toARGB32(),
-                                                usePressure:
-                                                    _stylusPressureEnabled ||
-                                                    _simulatePenPressure ||
-                                                    _autoSharpPeakEnabled,
-                                                stylusCurve: _stylusCurve,
-                                                streamlineStrength:
-                                                    _streamlineStrength,
-                                                onStrokeBegin: _markDirty,
-                                                onEngineInfoChanged:
-                                                    _handleRustCanvasEngineInfoChanged,
-                                              ),
+                                              child: useGpuCanvas
+                                                  ? RustCanvasSurface(
+                                                      surfaceKey:
+                                                          widget.surfaceKey,
+                                                      canvasSize: _canvasSize,
+                                                      enableDrawing:
+                                                          canPreviewStroke &&
+                                                          !activeLayerLocked &&
+                                                          !_layerTransformModeActive &&
+                                                          !_isLayerFreeTransformActive &&
+                                                          !_controller
+                                                              .isActiveLayerTransforming,
+                                                      layerCount: _controller
+                                                          .layers
+                                                          .length,
+                                                      brushColorArgb:
+                                                          _isBrushEraserEnabled
+                                                              ? 0xFFFFFFFF
+                                                              : _primaryColor
+                                                                  .value,
+                                                      brushRadius:
+                                                          _penStrokeWidth / 2,
+                                                      erase:
+                                                          _isBrushEraserEnabled,
+                                                      brushShape: _brushShape,
+                                                      brushRandomRotationEnabled:
+                                                          _brushRandomRotationEnabled,
+                                                      brushRotationSeed:
+                                                          _brushRandomRotationPreviewSeed,
+                                                      brushSpacing:
+                                                          _brushSpacing,
+                                                      brushHardness:
+                                                          _brushHardness,
+                                                      brushFlow: _brushFlow,
+                                                      brushScatter:
+                                                          _brushScatter,
+                                                      brushRotationJitter:
+                                                          _brushRotationJitter,
+                                                      brushSnapToPixel:
+                                                          _brushSnapToPixel,
+                                                      hollowStrokeEnabled:
+                                                          _hollowStrokeEnabled,
+                                                      hollowStrokeRatio:
+                                                          _hollowStrokeRatio,
+                                                      hollowStrokeEraseOccludedParts:
+                                                          _hollowStrokeEraseOccludedParts,
+                                                      antialiasLevel:
+                                                          _penAntialiasLevel,
+                                                      backgroundColorArgb:
+                                                          widget
+                                                              .settings
+                                                              .backgroundColor
+                                                              .toARGB32(),
+                                                      usePressure:
+                                                          _stylusPressureEnabled ||
+                                                          _simulatePenPressure ||
+                                                          _autoSharpPeakEnabled,
+                                                      stylusCurve: _stylusCurve,
+                                                      streamlineStrength:
+                                                          _streamlineStrength,
+                                                      onStrokeBegin: _markDirty,
+                                                      onEngineInfoChanged:
+                                                          _handleRustCanvasEngineInfoChanged,
+                                                    )
+                                                  : BitmapCanvasSurface(
+                                                      canvasSize: _canvasSize,
+                                                      frame: _controller.frame,
+                                                    ),
                                             );
 
                                             final _FilterSession? filterSession =

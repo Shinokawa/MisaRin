@@ -84,7 +84,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(_primaryColor);
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
-    const bool enableRasterOutput = false;
+    final bool useGpuCanvas = CanvasEngineFfi.instance.isSupported;
+    final bool enableRasterOutput = !useGpuCanvas;
+    final CanvasBackend rasterBackend =
+        useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
     _controller = BitmapCanvasController(
       width: widget.settings.width.round(),
       height: widget.settings.height.round(),
@@ -92,6 +95,7 @@ class PaintingBoardState extends _PaintingBoardBase
       initialLayers: layers,
       creationLogic: widget.settings.creationLogic,
       enableRasterOutput: enableRasterOutput,
+      backend: rasterBackend,
     );
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     if (_brushLibrary != null) {
@@ -798,7 +802,10 @@ class PaintingBoardState extends _PaintingBoardBase
       }
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
-      const bool enableRasterOutput = false;
+      final bool useGpuCanvas = CanvasEngineFfi.instance.isSupported;
+      final bool enableRasterOutput = !useGpuCanvas;
+      final CanvasBackend rasterBackend =
+          useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
       _controller = BitmapCanvasController(
         width: widget.settings.width.round(),
         height: widget.settings.height.round(),
@@ -806,6 +813,7 @@ class PaintingBoardState extends _PaintingBoardBase
         initialLayers: _buildInitialLayers(),
         creationLogic: widget.settings.creationLogic,
         enableRasterOutput: enableRasterOutput,
+        backend: rasterBackend,
       );
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);

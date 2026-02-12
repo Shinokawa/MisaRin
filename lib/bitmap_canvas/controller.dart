@@ -16,6 +16,7 @@ import '../app/debug/rust_canvas_timeline.dart';
 import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
 import '../backend/rgba_utils.dart';
+import '../canvas/canvas_backend.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
@@ -56,6 +57,7 @@ class BitmapCanvasController extends ChangeNotifier {
     List<CanvasLayerData>? initialLayers,
     CanvasCreationLogic creationLogic = CanvasCreationLogic.multiThread,
     bool enableRasterOutput = true,
+    CanvasBackend backend = CanvasBackend.gpu,
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
@@ -66,6 +68,7 @@ class BitmapCanvasController extends ChangeNotifier {
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
+         backend: backend,
        ) {
     if (creationLogic == CanvasCreationLogic.multiThread && !_isMultithreaded) {
       debugPrint('CanvasPaintingWorker 未启用：当前平台不支持多线程画布，已自动回退到单线程。');

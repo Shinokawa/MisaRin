@@ -17,19 +17,26 @@ import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
 import 'app/widgets/rust_canvas_surface.dart';
 import 'backend/canvas_raster_backend.dart';
+import 'canvas/canvas_backend.dart';
+import 'canvas/canvas_backend_state.dart';
 import 'src/rust/rust_init.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   TabletInputBridge.instance.ensureInitialized();
 
+  await AppPreferences.load();
+  CanvasBackendState.initialize(AppPreferences.instance.canvasBackend);
+
   try {
     await ensureRustInitialized();
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      // Initialize the GPU compositor and pre-warm shaders/pipelines.
-      await CanvasRasterBackend.prewarmGpuEngine();
-      // Also pre-warm the Texture engine used by RustCanvasSurface.
-      await RustCanvasSurface.prewarmTextureEngine();
+      if (CanvasBackendState.backend == CanvasBackend.gpu) {
+        // Initialize the GPU compositor and pre-warm shaders/pipelines.
+        await CanvasRasterBackend.prewarmGpuEngine();
+        // Also pre-warm the Texture engine used by RustCanvasSurface.
+        await RustCanvasSurface.prewarmTextureEngine();
+      }
       // Pre-warm Flutter's image decoding pipeline.
       await _prewarmImageDecoder();
     }

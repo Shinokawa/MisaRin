@@ -9,6 +9,7 @@ import '../bitmap_canvas/bitmap_blend_utils.dart' as blend_utils;
 import '../bitmap_canvas/bitmap_canvas.dart';
 import '../bitmap_canvas/bitmap_layer_state.dart';
 import '../bitmap_canvas/raster_int_rect.dart';
+import '../canvas/canvas_backend.dart';
 import '../src/rust/api/gpu_composite.dart' as rust_gpu;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import '../src/rust/rust_init.dart';
@@ -48,6 +49,7 @@ class CanvasRasterBackend {
     required int width,
     required int height,
     this.tileSize = 256,
+    this.backend = CanvasBackend.gpu,
   }) : _width = width,
        _height = height {
     _backendInstanceCount++;
@@ -62,6 +64,7 @@ class CanvasRasterBackend {
   int _width;
   int _height;
   final int tileSize;
+  final CanvasBackend backend;
 
   bool _disposed = false;
 
@@ -194,7 +197,18 @@ class CanvasRasterBackend {
       return;
     }
 
-    await initGpu();
+    final bool useGpuComposite = backend == CanvasBackend.gpu;
+    bool gpuReady = false;
+    if (useGpuComposite) {
+      try {
+        await initGpu();
+        gpuReady = true;
+      } catch (_) {
+        gpuReady = false;
+      }
+    } else {
+      await ensureRustInitialized();
+    }
 
     await _runGpuCompositeSerialized(() async {
       final List<BitmapLayerState> effectiveLayers = <BitmapLayerState>[];
@@ -230,7 +244,8 @@ class CanvasRasterBackend {
           _cachedLayerWidth == _width && _cachedLayerHeight == _height;
       final bool sameOrder = _listEquals(_cachedLayerOrder, layerOrder);
 
-      final bool allowIncrementalPixels = sameEpoch && sameCanvasSize && sameOrder;
+      final bool allowIncrementalPixels =
+          useGpuComposite && gpuReady && sameEpoch && sameCanvasSize && sameOrder;
 
       final bool debugComposite = kDebugMode && _kDebugGpuComposite;
       final List<bool>? uploadFlags =

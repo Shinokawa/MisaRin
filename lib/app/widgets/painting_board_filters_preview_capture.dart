@@ -22,9 +22,13 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
 }) async {
   final int width = controller.width;
   final int height = controller.height;
+  final bool useGpuCanvas = CanvasEngineFfi.instance.isSupported;
+  final CanvasBackend rasterBackend =
+      useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
   final CanvasRasterBackend tempBackend = CanvasRasterBackend(
     width: width,
     height: height,
+    backend: rasterBackend,
   );
   ui.Image? background;
   ui.Image? active;

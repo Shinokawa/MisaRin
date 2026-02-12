@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart' show StatefulElement, State, StatefulWidget;
 import 'package:path/path.dart' as p;
+import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
 import '../../canvas/canvas_settings.dart';
 import '../dialogs/about_dialog.dart';
@@ -41,7 +42,7 @@ class AppMenuActions {
       _applyWorkspacePreset(config.workspacePreset);
       ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
-      if (!kIsWeb) {
+      if (!kIsWeb && CanvasEngineFfi.instance.isSupported) {
         unawaited(
           RustCanvasSurface.prewarm(
             surfaceKey: document.id,
@@ -388,14 +389,16 @@ class AppMenuActions {
       }
       return null;
     }();
-    try {
-      await RustCanvasSurface.prewarm(
-        surfaceKey: document.id,
-        canvasSize: document.settings.size,
-        layerCount: document.layers.length,
-        backgroundColorArgb: document.settings.backgroundColor.value,
-      );
-    } catch (_) {}
+    if (!kIsWeb && CanvasEngineFfi.instance.isSupported) {
+      try {
+        await RustCanvasSurface.prewarm(
+          surfaceKey: document.id,
+          canvasSize: document.settings.size,
+          layerCount: document.layers.length,
+          backgroundColorArgb: document.settings.backgroundColor.value,
+        );
+      } catch (_) {}
+    }
     try {
       if (canvasState != null) {
         await canvasState.openDocument(document);

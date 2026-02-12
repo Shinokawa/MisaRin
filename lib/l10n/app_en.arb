@@ -127,6 +127,10 @@
       "max": {}
     }
   },
+  "canvasBackendLabel": "Canvas backend",
+  "canvasBackendGpu": "GPU (wgpu)",
+  "canvasBackendCpu": "CPU (Rust)",
+  "canvasBackendRestartHint": "Canvas backend change will take effect after restart.",
   "developerOptionsLabel": "Developer Options",
   "performanceOverlayLabel": "Performance overlay",
   "performanceOverlayDesc": "Shows a Flutter Performance Pulse dashboard in the corner with FPS, CPU, memory, disk, etc.",

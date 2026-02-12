@@ -6,7 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
+import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
 import '../debug/rust_canvas_timeline.dart';
 import '../../canvas/canvas_tools.dart';

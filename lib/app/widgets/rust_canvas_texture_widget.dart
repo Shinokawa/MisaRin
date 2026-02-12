@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/scheduler.dart';
 
-import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
+import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
 import '../utils/tablet_input_bridge.dart';
 

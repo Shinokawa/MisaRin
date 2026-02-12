@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../bitmap_canvas/stroke_dynamics.dart';
+import '../../canvas/canvas_backend.dart';
 import '../../canvas/canvas_tools.dart';
 import '../constants/color_line_presets.dart';
 import '../constants/pen_constants.dart';
@@ -60,12 +61,13 @@ class AppPreferences {
     this.newCanvasWidth = _defaultNewCanvasWidth,
     this.newCanvasHeight = _defaultNewCanvasHeight,
     this.newCanvasBackgroundColor = _defaultNewCanvasBackgroundColor,
+    this.canvasBackend = _defaultCanvasBackend,
   });
 
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'app_preferences.rinconfig';
   static const String _preferencesStorageKey = 'misa_rin.preferences';
-  static const int _version = 39;
+  static const int _version = 40;
   static const int _defaultHistoryLimit = 30;
   static const int minHistoryLimit = 5;
   static const int maxHistoryLimit = 200;
@@ -114,6 +116,7 @@ class AppPreferences {
   static const Color _defaultNewCanvasBackgroundColor = Color(0xFFFFFFFF);
   static const int _minNewCanvasDimension = 1;
   static const int _maxNewCanvasDimension = 16000;
+  static const CanvasBackend _defaultCanvasBackend = CanvasBackend.gpu;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;
@@ -153,6 +156,7 @@ class AppPreferences {
   static const bool defaultShapeToolFillEnabled = _defaultShapeToolFillEnabled;
   static const int defaultBucketAntialiasLevel = _defaultBucketAntialiasLevel;
   static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
+  static const CanvasBackend defaultCanvasBackend = _defaultCanvasBackend;
   static const WorkspaceLayoutPreference defaultWorkspaceLayout =
       _defaultWorkspaceLayout;
   static const double defaultSai2ToolPanelSplit = _defaultSai2ToolPanelSplit;
@@ -189,6 +193,7 @@ class AppPreferences {
   int newCanvasWidth;
   int newCanvasHeight;
   Color newCanvasBackgroundColor;
+  CanvasBackend canvasBackend;
   bool layerAdjustCropOutside;
   Color colorLineColor;
   bool bucketSwallowColorLine;
@@ -265,6 +270,10 @@ class AppPreferences {
               version >= 38 && bytes.length >= 52
                   ? _decodeStreamlineStrength(bytes[51])
                   : _defaultStreamlineStrength;
+          final CanvasBackend decodedCanvasBackend =
+              version >= 40 && bytes.length >= 53
+                  ? _decodeCanvasBackend(bytes[52])
+                  : _defaultCanvasBackend;
           if (version >= 20 && bytes.length >= 26) {
             final bool hasWorkspaceSplitPayload =
                 version >= 21 && bytes.length >= 32;
@@ -401,6 +410,7 @@ class AppPreferences {
                 newCanvasWidth: decodedNewCanvasWidth,
                 newCanvasHeight: decodedNewCanvasHeight,
                 newCanvasBackgroundColor: decodedNewCanvasBackgroundColor,
+                canvasBackend: decodedCanvasBackend,
               );
               return _finalizeLoadedPreferences();
             } else if (version >= 27 && bytes.length >= 42) {
@@ -453,6 +463,7 @@ class AppPreferences {
                 sprayMode: decodedSprayMode,
                 pixelGridVisible: decodedPixelGridVisible,
                 primaryColor: decodedPrimaryColor,
+                canvasBackend: _defaultCanvasBackend,
               );
               return _finalizeLoadedPreferences();
             } else if (version >= 26 && bytes.length >= 38) {
@@ -498,6 +509,7 @@ class AppPreferences {
                 sprayStrokeWidth: decodedSprayStrokeWidth,
                 sprayMode: decodedSprayMode,
                 pixelGridVisible: decodedPixelGridVisible,
+                canvasBackend: _defaultCanvasBackend,
               );
               return _finalizeLoadedPreferences();
             } else if (version >= 25 && bytes.length >= 37) {
@@ -541,6 +553,7 @@ class AppPreferences {
                 sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
                 sprayStrokeWidth: decodedSprayStrokeWidth,
                 sprayMode: decodedSprayMode,
+                canvasBackend: _defaultCanvasBackend,
               );
               return _finalizeLoadedPreferences();
             }
@@ -1249,6 +1262,7 @@ class AppPreferences {
     prefs.newCanvasHeight = newCanvasHeight;
     final int newCanvasBackgroundColorValue =
         prefs.newCanvasBackgroundColor.value;
+    final int canvasBackendEncoded = _encodeCanvasBackend(prefs.canvasBackend);
 
     final Uint8List payload = Uint8List.fromList(<int>[
       _version,
@@ -1303,7 +1317,7 @@ class AppPreferences {
       bucketFillGapEncoded,
       prefs.brushRandomRotationEnabled ? 1 : 0,
       streamlineEncoded,
-      0,
+      canvasBackendEncoded,
       newCanvasWidth & 0xff,
       (newCanvasWidth >> 8) & 0xff,
       newCanvasHeight & 0xff,
@@ -1407,6 +1421,14 @@ class AppPreferences {
       default:
         return 0;
     }
+  }
+
+  static CanvasBackend _decodeCanvasBackend(int value) {
+    return CanvasBackendId.fromId(value);
+  }
+
+  static int _encodeCanvasBackend(CanvasBackend backend) {
+    return backend.id;
   }
 
   static Locale? _decodeLocaleOverride(int value) {
