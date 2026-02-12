@@ -85,7 +85,7 @@ class PaintingBoardState extends _PaintingBoardBase
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
     final bool useGpuCanvas = CanvasEngineFfi.instance.isSupported;
-    final bool enableRasterOutput = !useGpuCanvas;
+    final bool enableRasterOutput = !useGpuCanvas && !kIsWeb;
     final CanvasBackend rasterBackend =
         useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
     _controller = BitmapCanvasController(
@@ -803,7 +803,7 @@ class PaintingBoardState extends _PaintingBoardBase
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
       final bool useGpuCanvas = CanvasEngineFfi.instance.isSupported;
-      final bool enableRasterOutput = !useGpuCanvas;
+      final bool enableRasterOutput = !useGpuCanvas && !kIsWeb;
       final CanvasBackend rasterBackend =
           useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
       _controller = BitmapCanvasController(

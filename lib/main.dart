@@ -26,7 +26,6 @@ Future<void> main() async {
   TabletInputBridge.instance.ensureInitialized();
 
   await AppPreferences.load();
-  CanvasBackendState.initialize(AppPreferences.instance.canvasBackend);
 
   try {
     await ensureRustInitialized();

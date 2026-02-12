@@ -253,6 +253,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get canvasBackendLabel => 'Canvas backend';
+
+  @override
+  String get canvasBackendGpu => 'GPU (wgpu)';
+
+  @override
+  String get canvasBackendCpu => 'CPU (Rust)';
+
+  @override
+  String get canvasBackendRestartHint =>
+      'Canvas backend change will take effect after restart.';
+
+  @override
   String get developerOptionsLabel => 'Developer Options';
 
   @override

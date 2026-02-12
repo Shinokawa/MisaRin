@@ -244,6 +244,19 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get canvasBackendLabel => 'キャンバスバックエンド';
+
+  @override
+  String get canvasBackendGpu => 'GPU（wgpu）';
+
+  @override
+  String get canvasBackendCpu => 'CPU（Rust）';
+
+  @override
+  String get canvasBackendRestartHint =>
+      'バックエンドの切り替えは再起動後に反映されます。';
+
+  @override
   String get developerOptionsLabel => '開発者オプション';
 
   @override

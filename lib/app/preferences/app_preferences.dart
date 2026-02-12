@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../bitmap_canvas/stroke_dynamics.dart';
 import '../../canvas/canvas_backend.dart';
+import '../../canvas/canvas_backend_state.dart';
 import '../../canvas/canvas_tools.dart';
 import '../constants/color_line_presets.dart';
 import '../constants/pen_constants.dart';
@@ -1182,6 +1183,7 @@ class AppPreferences {
 
   static AppPreferences _finalizeLoadedPreferences() {
     final AppPreferences prefs = _instance!;
+    CanvasBackendState.initialize(prefs.canvasBackend);
     fpsOverlayEnabledNotifier.value = prefs.showFpsOverlay;
     pixelGridVisibleNotifier.value = prefs.pixelGridVisible;
     return prefs;

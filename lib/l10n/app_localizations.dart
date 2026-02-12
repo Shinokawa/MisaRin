@@ -518,6 +518,30 @@ abstract class AppLocalizations {
   /// **'Adjust how many undo/redo steps are kept. Range {min}-{max}.'**
   String historyLimitDesc(Object min, Object max);
 
+  /// No description provided for @canvasBackendLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Canvas backend'**
+  String get canvasBackendLabel;
+
+  /// No description provided for @canvasBackendGpu.
+  ///
+  /// In en, this message translates to:
+  /// **'GPU (wgpu)'**
+  String get canvasBackendGpu;
+
+  /// No description provided for @canvasBackendCpu.
+  ///
+  /// In en, this message translates to:
+  /// **'CPU (Rust)'**
+  String get canvasBackendCpu;
+
+  /// No description provided for @canvasBackendRestartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Canvas backend change will take effect after restart.'**
+  String get canvasBackendRestartHint;
+
   /// No description provided for @developerOptionsLabel.
   ///
   /// In en, this message translates to:

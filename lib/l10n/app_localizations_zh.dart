@@ -243,6 +243,18 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get canvasBackendLabel => '画布后端';
+
+  @override
+  String get canvasBackendGpu => 'GPU（wgpu）';
+
+  @override
+  String get canvasBackendCpu => 'CPU（Rust）';
+
+  @override
+  String get canvasBackendRestartHint => '切换画布后端需要重启后生效。';
+
+  @override
   String get developerOptionsLabel => '开发者选项';
 
   @override
@@ -2292,6 +2304,18 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   }
 
   @override
+  String get canvasBackendLabel => '画布后端';
+
+  @override
+  String get canvasBackendGpu => 'GPU（wgpu）';
+
+  @override
+  String get canvasBackendCpu => 'CPU（Rust）';
+
+  @override
+  String get canvasBackendRestartHint => '切换画布后端需要重启后生效。';
+
+  @override
   String get developerOptionsLabel => '开发者选项';
 
   @override
@@ -3189,6 +3213,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String historyLimitDesc(Object min, Object max) {
     return '調整復原/重做歷史的儲存數量，範圍 $min-$max。';
   }
+
+  @override
+  String get canvasBackendLabel => '畫布後端';
+
+  @override
+  String get canvasBackendGpu => 'GPU（wgpu）';
+
+  @override
+  String get canvasBackendCpu => 'CPU（Rust）';
+
+  @override
+  String get canvasBackendRestartHint => '切換畫布後端需要重新啟動後生效。';
 
   @override
   String get developerOptionsLabel => '開發者選項';
