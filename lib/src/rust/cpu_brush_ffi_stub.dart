@@ -5,7 +5,19 @@ class CpuBrushFfi {
 
   static final CpuBrushFfi instance = CpuBrushFfi._();
 
+  static bool _loggedUnsupported = false;
+
   final bool isSupported = false;
+
+  static void _logUnsupportedOnce() {
+    if (_loggedUnsupported) {
+      return;
+    }
+    _loggedUnsupported = true;
+    print(
+      'CpuBrushFfi unsupported: dart:ffi not available (stub implementation).',
+    );
+  }
 
   bool drawStamp({
     required int pixelsPtr,
@@ -26,6 +38,7 @@ class CpuBrushFfi {
     required bool snapToPixel,
     Uint8List? selectionMask,
   }) {
+    _logUnsupportedOnce();
     return false;
   }
 
@@ -46,6 +59,7 @@ class CpuBrushFfi {
     required bool erase,
     Uint8List? selectionMask,
   }) {
+    _logUnsupportedOnce();
     return false;
   }
 
@@ -62,6 +76,7 @@ class CpuBrushFfi {
     required bool erase,
     Uint8List? selectionMask,
   }) {
+    _logUnsupportedOnce();
     return false;
   }
 }

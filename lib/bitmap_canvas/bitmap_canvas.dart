@@ -20,6 +20,8 @@ const int _kMaxIntegrationSlices = 20;
 ///
 /// Backed by a native pixel buffer; call [dispose] when no longer needed.
 class BitmapSurface {
+  static bool _loggedCpuBrushUnsupported = false;
+
   BitmapSurface({required this.width, required this.height, Color? fillColor}) {
     if (width <= 0 || height <= 0) {
       throw ArgumentError('Surface dimensions must be positive');
@@ -86,7 +88,7 @@ class BitmapSurface {
     if (radius <= 0) {
       return;
     }
-    if (!CpuBrushFfi.instance.isSupported) {
+    if (!_ensureCpuBrushSupported()) {
       return;
     }
     final bool ok = CpuBrushFfi.instance.drawStamp(
@@ -124,7 +126,7 @@ class BitmapSurface {
     bool includeStartCap = true,
     bool erase = false,
   }) {
-    if (!CpuBrushFfi.instance.isSupported) {
+    if (!_ensureCpuBrushSupported()) {
       return;
     }
     final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
@@ -162,7 +164,7 @@ class BitmapSurface {
     bool includeStartCap = true,
     bool erase = false,
   }) {
-    if (!CpuBrushFfi.instance.isSupported) {
+    if (!_ensureCpuBrushSupported()) {
       return;
     }
     final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
@@ -241,7 +243,7 @@ class BitmapSurface {
     if (sanitized.length < 3) {
       return;
     }
-    if (!CpuBrushFfi.instance.isSupported) {
+    if (!_ensureCpuBrushSupported()) {
       return;
     }
     final Float32List packed = Float32List(sanitized.length * 2);
@@ -319,7 +321,7 @@ class BitmapSurface {
       resolvedRadius = 0.01;
     }
     final int level = antialiasLevel.clamp(0, 9);
-    if (!CpuBrushFfi.instance.isSupported) {
+    if (!_ensureCpuBrushSupported()) {
       return;
     }
     final bool ok = CpuBrushFfi.instance.drawStamp(
@@ -345,6 +347,20 @@ class BitmapSurface {
       _isClean = false;
     }
     return;
+  }
+
+  static bool _ensureCpuBrushSupported() {
+    if (CpuBrushFfi.instance.isSupported) {
+      return true;
+    }
+    if (!_loggedCpuBrushUnsupported) {
+      _loggedCpuBrushUnsupported = true;
+      print(
+        'CpuBrushFfi unsupported: Rust CPU brush symbols not available '
+        '(library missing or failed to load).',
+      );
+    }
+    return false;
   }
 
   List<Offset> _rotateVertices(

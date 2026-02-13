@@ -2,7 +2,6 @@ import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart';
 
 import 'rust_dylib.dart';
 
@@ -143,14 +142,16 @@ class CpuBrushFfi {
       isSupported = true;
     } catch (error, stackTrace) {
       isSupported = false;
-      if (kDebugMode) {
-        debugPrint('CpuBrushFfi init failed: $error');
-        debugPrint('$stackTrace');
+      if (!_loggedInitFailure) {
+        _loggedInitFailure = true;
+        print('CpuBrushFfi init failed: $error');
+        print('$stackTrace');
       }
     }
   }
 
   static final CpuBrushFfi instance = CpuBrushFfi._();
+  static bool _loggedInitFailure = false;
   static bool _loggedUnsupported = false;
   static bool _loggedInvalidBuffer = false;
   static bool _loggedInvalidSize = false;
@@ -168,8 +169,8 @@ class CpuBrushFfi {
   late final bool isSupported;
 
   static bool _logOnce(bool alreadyLogged, String message) {
-    if (kDebugMode && !alreadyLogged) {
-      debugPrint(message);
+    if (!alreadyLogged) {
+      print(message);
       return true;
     }
     return alreadyLogged;

@@ -543,6 +543,21 @@ mixin _PaintingBoardInteractionMixin
     return true;
   }
 
+  bool _canStartCpuStroke({required bool pointerInsideBoard}) {
+    if (!pointerInsideBoard) {
+      return false;
+    }
+    if (_layerTransformModeActive ||
+        _isLayerFreeTransformActive ||
+        _controller.isActiveLayerTransforming) {
+      return false;
+    }
+    if (_isActiveLayerLocked()) {
+      return false;
+    }
+    return true;
+  }
+
   Offset _rustToEngineSpace(Offset boardLocal) {
     final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
     if (engineSize == _canvasSize ||
@@ -1174,7 +1189,29 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
       case CanvasTool.eraser:
         _focusNode.requestFocus();
+        final bool useCpuBackend =
+            CanvasBackendState.backend == CanvasBackend.cpu;
+        if (useCpuBackend) {
+          if (!_canStartCpuStroke(pointerInsideBoard: pointerInsideBoard)) {
+            return;
+          }
+          if (!isPointInsideSelection(boardLocal)) {
+            return;
+          }
+          if (shiftPressed) {
+            final Offset? anchor = _lastBrushLineAnchor;
+            if (anchor != null) {
+              await _startStroke(anchor, event.timeStamp, event);
+              _appendPoint(boardLocal, event.timeStamp, event);
+              _finishStroke(event.timeStamp);
+              return;
+            }
+          }
+          await _startStroke(boardLocal, event.timeStamp, event);
+          return;
+        }
         if (!_canStartRustStroke(pointerInsideBoard: pointerInsideBoard)) {
+          _showRustCanvasMessage('Rust 画布尚未准备好。');
           return;
         }
         if (!isPointInsideSelection(boardLocal)) {
