@@ -58,7 +58,11 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
       regions: work.regions,
     );
     final int compositeDone = sw.elapsedMilliseconds;
-    RustCanvasTimeline.mark('composite: GPU composite took ${compositeDone - startComposite}ms');
+    final String backendLabel =
+        controller._rasterBackend.backend == CanvasBackend.gpu ? 'GPU' : 'CPU';
+    RustCanvasTimeline.mark(
+      'composite: $backendLabel composite took ${compositeDone - startComposite}ms',
+    );
 
     final List<RasterIntRect> dirtyRegions = work.requiresFullSurface
         ? controller._rasterBackend.fullSurfaceTileRects()

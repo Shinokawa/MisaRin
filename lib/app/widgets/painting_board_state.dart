@@ -88,6 +88,15 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool enableRasterOutput = !useGpuCanvas && !kIsWeb;
     final CanvasBackend rasterBackend =
         useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
+    if (kDebugMode) {
+      debugPrint(
+        '[canvas-backend] pref=${AppPreferences.instance.canvasBackend} '
+        'state=${CanvasBackendState.backend} '
+        'gpuSupported=${CanvasEngineFfi.instance.isSupported} '
+        'useGpuCanvas=$useGpuCanvas rasterBackend=$rasterBackend '
+        'rasterOutput=$enableRasterOutput',
+      );
+    }
     _controller = createCanvasFacade(
       width: widget.settings.width.round(),
       height: widget.settings.height.round(),

@@ -2,6 +2,7 @@ import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 
 import 'rust_dylib.dart';
 
@@ -140,12 +141,20 @@ class CpuBrushFfi {
             'cpu_brush_fill_polygon',
           );
       isSupported = true;
-    } catch (_) {
+    } catch (error, stackTrace) {
       isSupported = false;
+      if (kDebugMode) {
+        debugPrint('CpuBrushFfi init failed: $error');
+        debugPrint('$stackTrace');
+      }
     }
   }
 
   static final CpuBrushFfi instance = CpuBrushFfi._();
+  static bool _loggedUnsupported = false;
+  static bool _loggedInvalidBuffer = false;
+  static bool _loggedInvalidSize = false;
+  static bool _loggedCallFailed = false;
 
   static ffi.DynamicLibrary _openLibrary() {
     return RustDynamicLibrary.open();
@@ -157,6 +166,14 @@ class CpuBrushFfi {
   late final _CpuBrushFillPolygonDart _fillPolygon;
 
   late final bool isSupported;
+
+  static bool _logOnce(bool alreadyLogged, String message) {
+    if (kDebugMode && !alreadyLogged) {
+      debugPrint(message);
+      return true;
+    }
+    return alreadyLogged;
+  }
 
   bool drawStamp({
     required int pixelsPtr,
@@ -178,9 +195,25 @@ class CpuBrushFfi {
     Uint8List? selectionMask,
   }) {
     if (!isSupported || pixelsPtr == 0 || pixelsLen <= 0) {
+      if (!isSupported) {
+        _loggedUnsupported = _logOnce(
+          _loggedUnsupported,
+          'CpuBrushFfi unsupported: missing cpu_brush symbols.',
+        );
+      } else {
+        _loggedInvalidBuffer = _logOnce(
+          _loggedInvalidBuffer,
+          'CpuBrushFfi drawStamp skipped: invalid pixel buffer '
+          '(ptr=$pixelsPtr, len=$pixelsLen).',
+        );
+      }
       return false;
     }
     if (width <= 0 || height <= 0) {
+      _loggedInvalidSize = _logOnce(
+        _loggedInvalidSize,
+        'CpuBrushFfi drawStamp skipped: invalid size ${width}x${height}.',
+      );
       return false;
     }
 
@@ -213,6 +246,12 @@ class CpuBrushFfi {
         selectionPtr,
         selectionLen,
       );
+      if (result == 0) {
+        _loggedCallFailed = _logOnce(
+          _loggedCallFailed,
+          'CpuBrushFfi drawStamp failed: native returned 0.',
+        );
+      }
       return result != 0;
     } finally {
       if (selectionPtr != ffi.nullptr) {
@@ -239,9 +278,25 @@ class CpuBrushFfi {
     Uint8List? selectionMask,
   }) {
     if (!isSupported || pixelsPtr == 0 || pixelsLen <= 0) {
+      if (!isSupported) {
+        _loggedUnsupported = _logOnce(
+          _loggedUnsupported,
+          'CpuBrushFfi unsupported: missing cpu_brush symbols.',
+        );
+      } else {
+        _loggedInvalidBuffer = _logOnce(
+          _loggedInvalidBuffer,
+          'CpuBrushFfi drawCapsuleSegment skipped: invalid pixel buffer '
+          '(ptr=$pixelsPtr, len=$pixelsLen).',
+        );
+      }
       return false;
     }
     if (width <= 0 || height <= 0) {
+      _loggedInvalidSize = _logOnce(
+        _loggedInvalidSize,
+        'CpuBrushFfi drawCapsuleSegment skipped: invalid size ${width}x${height}.',
+      );
       return false;
     }
 
@@ -272,6 +327,12 @@ class CpuBrushFfi {
         selectionPtr,
         selectionLen,
       );
+      if (result == 0) {
+        _loggedCallFailed = _logOnce(
+          _loggedCallFailed,
+          'CpuBrushFfi drawCapsuleSegment failed: native returned 0.',
+        );
+      }
       return result != 0;
     } finally {
       if (selectionPtr != ffi.nullptr) {
@@ -294,9 +355,25 @@ class CpuBrushFfi {
     Uint8List? selectionMask,
   }) {
     if (!isSupported || pixelsPtr == 0 || pixelsLen <= 0) {
+      if (!isSupported) {
+        _loggedUnsupported = _logOnce(
+          _loggedUnsupported,
+          'CpuBrushFfi unsupported: missing cpu_brush symbols.',
+        );
+      } else {
+        _loggedInvalidBuffer = _logOnce(
+          _loggedInvalidBuffer,
+          'CpuBrushFfi fillPolygon skipped: invalid pixel buffer '
+          '(ptr=$pixelsPtr, len=$pixelsLen).',
+        );
+      }
       return false;
     }
     if (width <= 0 || height <= 0) {
+      _loggedInvalidSize = _logOnce(
+        _loggedInvalidSize,
+        'CpuBrushFfi fillPolygon skipped: invalid size ${width}x${height}.',
+      );
       return false;
     }
     if (vertices.length < 6) {
@@ -332,6 +409,12 @@ class CpuBrushFfi {
         selectionPtr,
         selectionLen,
       );
+      if (result == 0) {
+        _loggedCallFailed = _logOnce(
+          _loggedCallFailed,
+          'CpuBrushFfi fillPolygon failed: native returned 0.',
+        );
+      }
       return result != 0;
     } finally {
       malloc.free(vertsPtr);
