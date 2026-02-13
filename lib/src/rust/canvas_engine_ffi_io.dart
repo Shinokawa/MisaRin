@@ -1,8 +1,9 @@
 import 'dart:ffi' as ffi;
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
+
+import 'rust_dylib.dart';
 
 const int _kPointStrideBytes = 32;
 const int _kViewFlagMirror = 1;
@@ -678,10 +679,7 @@ class CanvasEngineFfi {
   static final CanvasEngineFfi instance = CanvasEngineFfi._();
 
   static ffi.DynamicLibrary _openLibrary() {
-    if (Platform.isWindows) {
-      return ffi.DynamicLibrary.open('rust_lib_misa_rin.dll');
-    }
-    return ffi.DynamicLibrary.process();
+    return RustDynamicLibrary.open();
   }
 
   late final ffi.DynamicLibrary _lib;

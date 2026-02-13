@@ -1,5 +1,6 @@
 import 'dart:ffi' as ffi;
-import 'dart:io';
+
+import 'rust_dylib.dart';
 
 typedef _CpuTransformTranslateNative =
     ffi.Uint8 Function(
@@ -98,10 +99,7 @@ class CpuTransformFfi {
   static final CpuTransformFfi instance = CpuTransformFfi._();
 
   static ffi.DynamicLibrary _openLibrary() {
-    if (Platform.isWindows) {
-      return ffi.DynamicLibrary.open('rust_lib_misa_rin.dll');
-    }
-    return ffi.DynamicLibrary.process();
+    return RustDynamicLibrary.open();
   }
 
   late final ffi.DynamicLibrary _lib;

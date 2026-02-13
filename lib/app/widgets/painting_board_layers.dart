@@ -14,7 +14,10 @@ mixin _PaintingBoardLayerMixin
   final FlyoutController _layerContextMenuController = FlyoutController();
   final FlyoutController _blendModeFlyoutController = FlyoutController();
   bool? _rasterizeMenuEnabled;
-  bool get rustLayerSupported => CanvasEngineFfi.instance.isSupported;
+  // Layer operations are always supported by the Dart controller.
+  // When the Rust GPU canvas engine is active, we additionally sync changes
+  // via `_rustCanvasSet*` helpers (they are no-ops when Rust is unavailable).
+  bool get rustLayerSupported => true;
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;

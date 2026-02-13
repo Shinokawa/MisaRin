@@ -1,8 +1,9 @@
 import 'dart:ffi' as ffi;
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
+
+import 'rust_dylib.dart';
 
 typedef _CpuBrushDrawStampNative =
     ffi.Uint8 Function(
@@ -147,10 +148,7 @@ class CpuBrushFfi {
   static final CpuBrushFfi instance = CpuBrushFfi._();
 
   static ffi.DynamicLibrary _openLibrary() {
-    if (Platform.isWindows) {
-      return ffi.DynamicLibrary.open('rust_lib_misa_rin.dll');
-    }
-    return ffi.DynamicLibrary.process();
+    return RustDynamicLibrary.open();
   }
 
   late final ffi.DynamicLibrary _lib;
