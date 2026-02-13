@@ -206,69 +206,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   Future<Uint8List?> _computeMagicWandMask(Offset position) async {
-    final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
-    if (!useGpuBackend) {
-      return _controller.computeMagicWandMask(
-        position,
-        sampleAllLayers: true,
-        tolerance: _magicWandTolerance,
-      );
-    }
-    if (!_canUseRustCanvasEngine()) {
-      return null;
-    }
-    final int handle = _rustCanvasEngineHandle!;
-    final String? activeLayerId = _controller.activeLayerId;
-    final int? layerIndex =
-        activeLayerId != null ? _rustCanvasLayerIndexForId(activeLayerId) : null;
-    if (layerIndex == null) {
-      return null;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int engineWidth = engineSize.width.round();
-    final int engineHeight = engineSize.height.round();
-    if (engineWidth <= 0 || engineHeight <= 0) {
-      return null;
-    }
-    final Offset enginePos = _rustToEngineSpace(position);
-    final int startX = enginePos.dx.floor();
-    final int startY = enginePos.dy.floor();
-    if (startX < 0 ||
-        startY < 0 ||
-        startX >= engineWidth ||
-        startY >= engineHeight) {
-      return null;
-    }
-    final int maskLength = engineWidth * engineHeight;
-    final Uint8List? selectionMaskForRust =
-        _resolveSelectionMaskForRust(engineWidth, engineHeight);
-    final Uint8List? mask = CanvasEngineFfi.instance.magicWandMask(
-      handle: handle,
-      layerIndex: layerIndex,
-      startX: startX,
-      startY: startY,
-      maskLength: maskLength,
+    return _backend.magicWandMask(
+      position,
       sampleAllLayers: true,
       tolerance: _magicWandTolerance,
-      selectionMask: selectionMaskForRust,
-    );
-    if (mask == null) {
-      return null;
-    }
-    final int canvasWidth = _controller.width;
-    final int canvasHeight = _controller.height;
-    if (canvasWidth <= 0 || canvasHeight <= 0) {
-      return null;
-    }
-    if (engineWidth == canvasWidth && engineHeight == canvasHeight) {
-      return mask;
-    }
-    return _scaleSelectionMask(
-      mask,
-      engineWidth,
-      engineHeight,
-      canvasWidth,
-      canvasHeight,
     );
   }
 
@@ -808,25 +749,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   void _syncRustSelectionMask() {
-    if (!_canUseRustCanvasEngine()) {
-      return;
-    }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      CanvasEngineFfi.instance.setSelectionMask(handle: handle);
-      return;
-    }
-    final Uint8List? selectionMask = _resolveSelectionMaskForRust(width, height);
-    CanvasEngineFfi.instance.setSelectionMask(
-      handle: handle,
-      selectionMask: selectionMask,
-    );
+    _backend.syncSelectionMask();
   }
 
   @override

@@ -1568,3 +1568,226 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
 }
+
+final class _CanvasBackendFacade {
+  _CanvasBackendFacade(this._owner);
+
+  final _PaintingBoardBase _owner;
+
+  bool get _gpuSelected => CanvasEngineFfi.instance.isSupported;
+  bool get _gpuReady => _gpuSelected && _owner._rustCanvasEngineHandle != null;
+
+  Future<bool> bucketFill({
+    required Offset position,
+    required Color color,
+    required bool contiguous,
+    required bool sampleAllLayers,
+    required List<Color>? swallowColors,
+    required int tolerance,
+    required int fillGap,
+    required int antialiasLevel,
+  }) async {
+    if (!_gpuSelected) {
+      await _owner._pushUndoSnapshot();
+      _owner._controller.floodFill(
+        position,
+        color: color,
+        contiguous: contiguous,
+        sampleAllLayers: sampleAllLayers,
+        swallowColors: swallowColors,
+        tolerance: tolerance,
+        fillGap: fillGap,
+        antialiasLevel: antialiasLevel,
+      );
+      if (_owner.mounted) {
+        _owner.setState(() {});
+      }
+      _owner._markDirty();
+      return true;
+    }
+
+    if (!_gpuReady) {
+      _owner._showRustCanvasMessage('Rust 画布尚未准备好。');
+      return false;
+    }
+
+    final int handle = _owner._rustCanvasEngineHandle!;
+    final String? activeLayerId = _owner._controller.activeLayerId;
+    final int? layerIndex = activeLayerId != null
+        ? _owner._rustCanvasLayerIndexForId(activeLayerId)
+        : null;
+    if (layerIndex == null) {
+      return false;
+    }
+    final Size engineSize = _owner._rustCanvasEngineSize ?? _owner._canvasSize;
+    final int engineWidth = engineSize.width.round();
+    final int engineHeight = engineSize.height.round();
+    if (engineWidth <= 0 || engineHeight <= 0) {
+      return false;
+    }
+    final Offset enginePos = _owner._rustToEngineSpace(position);
+    final int startX = enginePos.dx.floor();
+    final int startY = enginePos.dy.floor();
+    if (startX < 0 ||
+        startY < 0 ||
+        startX >= engineWidth ||
+        startY >= engineHeight) {
+      return false;
+    }
+    final Uint8List? selectionMaskForRust = _owner._resolveSelectionMaskForRust(
+      engineWidth,
+      engineHeight,
+    );
+    final Uint32List? swallowColorsArgb =
+        swallowColors != null && swallowColors.isNotEmpty
+        ? Uint32List.fromList(
+            swallowColors
+                .map((Color color) => color.toARGB32())
+                .toList(growable: false),
+          )
+        : null;
+    final bool applied = CanvasEngineFfi.instance.bucketFill(
+      handle: handle,
+      layerIndex: layerIndex,
+      startX: startX,
+      startY: startY,
+      colorArgb: color.toARGB32(),
+      contiguous: contiguous,
+      sampleAllLayers: sampleAllLayers,
+      tolerance: tolerance,
+      fillGap: fillGap,
+      antialiasLevel: antialiasLevel,
+      swallowColors: swallowColorsArgb,
+      selectionMask: selectionMaskForRust,
+    );
+    if (applied) {
+      _owner._recordRustHistoryAction(layerId: activeLayerId);
+      if (_owner.mounted) {
+        _owner.setState(() {});
+      }
+      _owner._markDirty();
+    }
+    return applied;
+  }
+
+  Future<Uint8List?> magicWandMask(
+    Offset position, {
+    bool sampleAllLayers = true,
+    int tolerance = 0,
+  }) async {
+    if (!_gpuSelected) {
+      return _owner._controller.computeMagicWandMask(
+        position,
+        sampleAllLayers: sampleAllLayers,
+        tolerance: tolerance,
+      );
+    }
+    if (!_gpuReady) {
+      return null;
+    }
+    final int handle = _owner._rustCanvasEngineHandle!;
+    final String? activeLayerId = _owner._controller.activeLayerId;
+    final int? layerIndex = activeLayerId != null
+        ? _owner._rustCanvasLayerIndexForId(activeLayerId)
+        : null;
+    if (layerIndex == null) {
+      return null;
+    }
+    final Size engineSize = _owner._rustCanvasEngineSize ?? _owner._canvasSize;
+    final int engineWidth = engineSize.width.round();
+    final int engineHeight = engineSize.height.round();
+    if (engineWidth <= 0 || engineHeight <= 0) {
+      return null;
+    }
+    final Offset enginePos = _owner._rustToEngineSpace(position);
+    final int startX = enginePos.dx.floor();
+    final int startY = enginePos.dy.floor();
+    if (startX < 0 ||
+        startY < 0 ||
+        startX >= engineWidth ||
+        startY >= engineHeight) {
+      return null;
+    }
+    final int maskLength = engineWidth * engineHeight;
+    final Uint8List? selectionMaskForRust = _owner._resolveSelectionMaskForRust(
+      engineWidth,
+      engineHeight,
+    );
+    final Uint8List? mask = CanvasEngineFfi.instance.magicWandMask(
+      handle: handle,
+      layerIndex: layerIndex,
+      startX: startX,
+      startY: startY,
+      maskLength: maskLength,
+      sampleAllLayers: sampleAllLayers,
+      tolerance: tolerance,
+      selectionMask: selectionMaskForRust,
+    );
+    if (mask == null) {
+      return null;
+    }
+    final int canvasWidth = _owner._controller.width;
+    final int canvasHeight = _owner._controller.height;
+    if (canvasWidth <= 0 || canvasHeight <= 0) {
+      return null;
+    }
+    if (engineWidth == canvasWidth && engineHeight == canvasHeight) {
+      return mask;
+    }
+    return _scaleSelectionMask(
+      mask,
+      engineWidth,
+      engineHeight,
+      canvasWidth,
+      canvasHeight,
+    );
+  }
+
+  void syncSelectionMask() {
+    if (!_gpuReady) {
+      return;
+    }
+    final int handle = _owner._rustCanvasEngineHandle!;
+    final Size engineSize = _owner._rustCanvasEngineSize ?? _owner._canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      CanvasEngineFfi.instance.setSelectionMask(handle: handle);
+      return;
+    }
+    final Uint8List? selectionMask = _owner._resolveSelectionMaskForRust(
+      width,
+      height,
+    );
+    CanvasEngineFfi.instance.setSelectionMask(
+      handle: handle,
+      selectionMask: selectionMask,
+    );
+  }
+
+  Uint8List _scaleSelectionMask(
+    Uint8List mask,
+    int srcWidth,
+    int srcHeight,
+    int targetWidth,
+    int targetHeight,
+  ) {
+    if (srcWidth <= 0 ||
+        srcHeight <= 0 ||
+        targetWidth <= 0 ||
+        targetHeight <= 0) {
+      return Uint8List(0);
+    }
+    final Uint8List scaled = Uint8List(targetWidth * targetHeight);
+    for (int y = 0; y < targetHeight; y++) {
+      final int srcY = (y * srcHeight) ~/ targetHeight;
+      final int dstRow = y * targetWidth;
+      final int srcRow = srcY * srcWidth;
+      for (int x = 0; x < targetWidth; x++) {
+        final int srcX = (x * srcWidth) ~/ targetWidth;
+        scaled[dstRow + x] = mask[srcRow + srcX];
+      }
+    }
+    return scaled;
+  }
+}

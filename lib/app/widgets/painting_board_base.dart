@@ -1,6 +1,7 @@
 part of 'painting_board.dart';
 
 abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
+  late final _CanvasBackendFacade _backend = _CanvasBackendFacade(this);
   bool get canUndo =>
       _useCombinedHistory ? _historyUndoStack.isNotEmpty : _undoStack.isNotEmpty;
   bool get canRedo =>
