@@ -448,10 +448,11 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     required int revision,
     required int requestId,
   }) async {
-    final bool useRust = _canUseRustCanvasEngine();
-    _LayerPreviewPixels? pixels =
-        useRust ? await _buildRustLayerPreviewPixels(layerId) : null;
-    if (!useRust) {
+    _LayerPreviewPixels? pixels = await _backend.readLayerPreviewPixels(
+      layerId: layerId,
+      maxHeight: _layerPreviewRasterHeight,
+    );
+    if (pixels == null) {
       final Size? surfaceSize = _controller.readLayerSurfaceSize(layerId);
       final Uint32List? layerPixels = _controller.readLayerPixels(layerId);
       if (surfaceSize != null && layerPixels != null) {
@@ -485,46 +486,6 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       return layer.revision;
     }
     return _rustLayerPreviewRevisions[layer.id] ?? 0;
-  }
-
-  Future<_LayerPreviewPixels?> _buildRustLayerPreviewPixels(
-    String layerId,
-  ) async {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return null;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layerId);
-    if (layerIndex == null) {
-      return null;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      return null;
-    }
-    final int targetHeight = math.min(_layerPreviewRasterHeight, height);
-    final double scale = targetHeight / height;
-    final int targetWidth = math.max(1, (width * scale).round());
-    if (targetWidth <= 0 || targetHeight <= 0) {
-      return null;
-    }
-    final Uint8List? rgba = CanvasEngineFfi.instance.readLayerPreview(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: targetWidth,
-      height: targetHeight,
-    );
-    if (rgba == null ||
-        rgba.length != targetWidth * targetHeight * 4) {
-      return null;
-    }
-    return _LayerPreviewPixels(
-      bytes: rgba,
-      width: targetWidth,
-      height: targetHeight,
-    );
   }
 
   void _applyLayerPreviewResultImpl({

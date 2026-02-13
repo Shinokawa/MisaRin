@@ -1569,6 +1569,18 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool get isDirty => _isDirty;
 }
 
+final class _LayerPixels {
+  const _LayerPixels({
+    required this.pixels,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint32List pixels;
+  final int width;
+  final int height;
+}
+
 final class _CanvasBackendFacade {
   _CanvasBackendFacade(this._owner);
 
@@ -1668,6 +1680,73 @@ final class _CanvasBackendFacade {
       _owner._markDirty();
     }
     return applied;
+  }
+
+  _LayerPixels? readLayerPixelsFromRust(String layerId) {
+    if (!_gpuReady) {
+      return null;
+    }
+    final int handle = _owner._rustCanvasEngineHandle!;
+    final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
+    if (layerIndex == null) {
+      return null;
+    }
+    final Size engineSize = _owner._rustCanvasEngineSize ?? _owner._canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+    if (pixels == null || pixels.length != width * height) {
+      return null;
+    }
+    return _LayerPixels(pixels: pixels, width: width, height: height);
+  }
+
+  Future<_LayerPreviewPixels?> readLayerPreviewPixels({
+    required String layerId,
+    required int maxHeight,
+  }) async {
+    if (!_gpuReady) {
+      return null;
+    }
+    final int handle = _owner._rustCanvasEngineHandle!;
+    final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
+    if (layerIndex == null) {
+      return null;
+    }
+    final Size engineSize = _owner._rustCanvasEngineSize ?? _owner._canvasSize;
+    final int width = engineSize.width.round();
+    final int height = engineSize.height.round();
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    final int targetHeight = math.min(maxHeight, height);
+    final double scale = targetHeight / height;
+    final int targetWidth = math.max(1, (width * scale).round());
+    if (targetWidth <= 0 || targetHeight <= 0) {
+      return null;
+    }
+    final Uint8List? rgba = CanvasEngineFfi.instance.readLayerPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: targetWidth,
+      height: targetHeight,
+    );
+    if (rgba == null || rgba.length != targetWidth * targetHeight * 4) {
+      return null;
+    }
+    return _LayerPreviewPixels(
+      bytes: rgba,
+      width: targetWidth,
+      height: targetHeight,
+    );
   }
 
   Future<Uint8List?> magicWandMask(

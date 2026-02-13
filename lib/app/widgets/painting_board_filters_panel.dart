@@ -112,34 +112,18 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
   Future<_LayerPreviewImages> _captureRustLayerPreviewImages(
     _FilterSession session,
   ) async {
-    if (!_canUseRustCanvasEngine()) {
-      return const _LayerPreviewImages();
-    }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return const _LayerPreviewImages();
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(session.activeLayerId);
-    if (layerIndex == null) {
-      return const _LayerPreviewImages();
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      return const _LayerPreviewImages();
-    }
-    final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
+    final _LayerPixels? layer = _backend.readLayerPixelsFromRust(
+      session.activeLayerId,
     );
-    if (sourcePixels == null || sourcePixels.length != width * height) {
+    if (layer == null) {
       return const _LayerPreviewImages();
     }
-    final Uint8List rgba = this._argbPixelsToRgba(sourcePixels);
-    final ui.Image active = await _decodeImage(rgba, width, height);
+    final Uint8List rgba = this._argbPixelsToRgba(layer.pixels);
+    final ui.Image active = await _decodeImage(
+      rgba,
+      layer.width,
+      layer.height,
+    );
     return _LayerPreviewImages(active: active);
   }
 
