@@ -258,7 +258,7 @@ fn signed_distance_box(px: f32, py: f32, half: f32) -> f32 {
 }
 
 fn signed_distance_triangle_unit(px: f32, py: f32) -> f32 {
-    let mut min_dist = 1.0e9;
+    let mut min_dist: f32 = 1.0e9;
     let mut inside = false;
     let mut j = 2u32;
     for i in 0..3u32 {
@@ -277,7 +277,7 @@ fn signed_distance_triangle_unit(px: f32, py: f32) -> f32 {
 }
 
 fn signed_distance_star_unit(px: f32, py: f32) -> f32 {
-    let mut min_dist = 1.0e9;
+    let mut min_dist: f32 = 1.0e9;
     let mut inside = false;
     let mut j = 9u32;
     for i in 0..10u32 {

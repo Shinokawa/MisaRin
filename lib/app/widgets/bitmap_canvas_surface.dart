@@ -2,7 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 
-import '../../bitmap_canvas/raster_frame.dart';
+import '../../canvas/canvas_frame.dart';
+import '../../canvas/canvas_tile.dart';
 
 class BitmapCanvasSurface extends StatelessWidget {
   const BitmapCanvasSurface({
@@ -12,11 +13,11 @@ class BitmapCanvasSurface extends StatelessWidget {
   });
 
   final ui.Size canvasSize;
-  final BitmapCanvasFrame? frame;
+  final CanvasFrame? frame;
 
   @override
   Widget build(BuildContext context) {
-    final BitmapCanvasFrame? frame = this.frame;
+    final CanvasFrame? frame = this.frame;
     return SizedBox(
       width: canvasSize.width,
       height: canvasSize.height,
@@ -30,18 +31,18 @@ class BitmapCanvasSurface extends StatelessWidget {
 class _BitmapCanvasPainter extends CustomPainter {
   _BitmapCanvasPainter(this.frame);
 
-  final BitmapCanvasFrame? frame;
+  final CanvasFrame? frame;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final BitmapCanvasFrame? frame = this.frame;
+    final CanvasFrame? frame = this.frame;
     if (frame == null) {
       return;
     }
     final Paint paint = Paint()
       ..isAntiAlias = false
       ..filterQuality = FilterQuality.none;
-    for (final BitmapCanvasTile tile in frame.tiles) {
+    for (final CanvasTile tile in frame.tiles) {
       canvas.drawImageRect(
         tile.image,
         tile.sourceRect,
@@ -53,8 +54,8 @@ class _BitmapCanvasPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BitmapCanvasPainter oldDelegate) {
-    final BitmapCanvasFrame? nextFrame = frame;
-    final BitmapCanvasFrame? previousFrame = oldDelegate.frame;
+    final CanvasFrame? nextFrame = frame;
+    final CanvasFrame? previousFrame = oldDelegate.frame;
     if (identical(nextFrame, previousFrame)) {
       return false;
     }

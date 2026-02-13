@@ -732,7 +732,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       final SchedulerBinding binding = SchedulerBinding.instance;
       int waits = 0;
       while (waits < maxWaitFrames) {
-        final BitmapCanvasFrame? frame = _controller.frame;
+        final CanvasFrame? frame = _controller.frame;
         if (frame != null) {
           if (initialFrameGeneration == null ||
               frame.generation != initialFrameGeneration) {

@@ -311,11 +311,16 @@ void _blendOnCanvasPixels(
   int? srcPixelsPtr,
   int? dstPixelsPtr,
 }) {
+  final int srcPtr = srcPixelsPtr ?? 0;
+  final int dstPtr = dstPixelsPtr ?? 0;
+  if (srcPtr == 0 || dstPtr == 0 || !CpuBlendFfi.instance.isSupported) {
+    return;
+  }
   final Rect? bounds = _computePixelBounds(
     srcPixels,
     controller._width,
     controller._height,
-    pixelsPtr: srcPixelsPtr,
+    pixelsPtr: srcPtr,
   );
   if (bounds == null) {
     return;
@@ -327,78 +332,36 @@ void _blendOnCanvasPixels(
   if (startX >= endX || startY >= endY) {
     return;
   }
-  final int srcPtr = srcPixelsPtr ?? 0;
-  final int dstPtr = dstPixelsPtr ?? 0;
-  if (srcPtr != 0 && dstPtr != 0 && CpuBlendFfi.instance.isSupported) {
-    int maskPtr = 0;
-    int maskLen = 0;
-    double maskOpacity = 0;
-    if (clippingInfo != null) {
-      maskPtr = clippingInfo.layer.surface.pointerAddress;
-      if (maskPtr != 0) {
-        maskLen = clippingInfo.layer.surface.pixels.length;
-        maskOpacity = clippingInfo.opacity;
-      }
-    }
-    if (clippingInfo == null || maskPtr != 0) {
-      final bool ok = CpuBlendFfi.instance.blendOnCanvas(
-        srcPtr: srcPtr,
-        dstPtr: dstPtr,
-        pixelsLen: srcPixels.length,
-        width: controller._width,
-        height: controller._height,
-        startX: startX,
-        endX: endX,
-        startY: startY,
-        endY: endY,
-        opacity: opacity,
-        blendMode: blendMode.index,
-        maskPtr: maskPtr,
-        maskLen: maskLen,
-        maskOpacity: maskOpacity,
-      );
-      if (ok) {
-        return;
-      }
+  int maskPtr = 0;
+  int maskLen = 0;
+  double maskOpacity = 0;
+  if (clippingInfo != null) {
+    maskPtr = clippingInfo.layer.surface.pointerAddress;
+    if (maskPtr != 0) {
+      maskLen = clippingInfo.layer.surface.pixels.length;
+      maskOpacity = clippingInfo.opacity;
     }
   }
-  for (int y = startY; y < endY; y++) {
-    final int rowOffset = y * controller._width;
-    for (int x = startX; x < endX; x++) {
-      final int src = srcPixels[rowOffset + x];
-      final int srcA = (src >> 24) & 0xff;
-      if (srcA == 0) {
-        continue;
-      }
-      double effectiveAlpha = (srcA / 255.0) * opacity;
-      if (effectiveAlpha <= 0) {
-        continue;
-      }
-      if (clippingInfo != null) {
-        final double maskAlpha = _sampleClippingMaskAlpha(
-          controller,
-          clippingInfo,
-          x,
-          y,
-        );
-        if (maskAlpha <= 0) {
-          continue;
-        }
-        effectiveAlpha *= maskAlpha;
-        if (effectiveAlpha <= 0) {
-          continue;
-        }
-      }
-      final int effectiveColor = _colorWithOpacity(src, effectiveAlpha);
-      final int destIndex = rowOffset + x;
-      dstPixels[destIndex] = blend_utils.blendWithMode(
-        dstPixels[destIndex],
-        effectiveColor,
-        blendMode,
-        destIndex,
-      );
-    }
+  if (clippingInfo != null && maskPtr == 0) {
+    return;
   }
+  CpuBlendFfi.instance.blendOnCanvas(
+    srcPtr: srcPtr,
+    dstPtr: dstPtr,
+    pixelsLen: srcPixels.length,
+    width: controller._width,
+    height: controller._height,
+    startX: startX,
+    endX: endX,
+    startY: startY,
+    endY: endY,
+    opacity: opacity,
+    blendMode: blendMode.index,
+    maskPtr: maskPtr,
+    maskLen: maskLen,
+    maskOpacity: maskOpacity,
+  );
+  return;
 }
 
 void _blendOverflowPixels(
@@ -416,355 +379,168 @@ void _blendOverflowPixels(
   final int canvasPtr = lower.surface.pointerAddress;
   final int maskPtr =
       clippingInfo == null ? 0 : clippingInfo.layer.surface.pointerAddress;
-  if (canvasPtr != 0 &&
-      CpuBlendFfi.instance.isSupported &&
-      (clippingInfo == null || maskPtr != 0)) {
-    final int upperCount = _countOverflowPixels(upperOverflow);
-    if (upperCount > 0) {
-      Pointer<Int32>? upperX;
-      Pointer<Int32>? upperY;
-      Pointer<Uint32>? upperColor;
-      Pointer<Int32>? lowerX;
-      Pointer<Int32>? lowerY;
-      Pointer<Uint32>? lowerColor;
-      Pointer<Int32>? maskOverflowX;
-      Pointer<Int32>? maskOverflowY;
-      Pointer<Uint32>? maskOverflowColor;
-      Pointer<Int32>? outX;
-      Pointer<Int32>? outY;
-      Pointer<Uint32>? outColor;
-      Pointer<Uint64>? outCountPtr;
-      try {
-        upperX = malloc.allocate<Int32>(sizeOf<Int32>() * upperCount);
-        upperY = malloc.allocate<Int32>(sizeOf<Int32>() * upperCount);
-        upperColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * upperCount);
-        _fillOverflowArrays(
-          upperOverflow,
-          upperX.asTypedList(upperCount),
-          upperY.asTypedList(upperCount),
-          upperColor.asTypedList(upperCount),
-        );
-        final int lowerCount = _countOverflowPixels(lowerOverflow);
-        if (lowerCount > 0) {
-          lowerX = malloc.allocate<Int32>(sizeOf<Int32>() * lowerCount);
-          lowerY = malloc.allocate<Int32>(sizeOf<Int32>() * lowerCount);
-          lowerColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * lowerCount);
-          _fillOverflowArrays(
-            lowerOverflow,
-            lowerX.asTypedList(lowerCount),
-            lowerY.asTypedList(lowerCount),
-            lowerColor.asTypedList(lowerCount),
-          );
-        }
-        int maskLen = 0;
-        double maskOpacity = 0;
-        int maskOverflowCount = 0;
-        if (clippingInfo != null) {
-          maskLen = clippingInfo.layer.surface.pixels.length;
-          maskOpacity = clippingInfo.opacity;
-          maskOverflowCount = _countOverflowPixels(clippingInfo.overflow);
-          if (maskOverflowCount > 0) {
-            maskOverflowX = malloc.allocate<Int32>(
-              sizeOf<Int32>() * maskOverflowCount,
-            );
-            maskOverflowY = malloc.allocate<Int32>(
-              sizeOf<Int32>() * maskOverflowCount,
-            );
-            maskOverflowColor = malloc.allocate<Uint32>(
-              sizeOf<Uint32>() * maskOverflowCount,
-            );
-            _fillOverflowArrays(
-              clippingInfo.overflow,
-              maskOverflowX.asTypedList(maskOverflowCount),
-              maskOverflowY.asTypedList(maskOverflowCount),
-              maskOverflowColor.asTypedList(maskOverflowCount),
-            );
-          }
-        }
-        final int outCapacity = upperCount + lowerCount;
-        outX = malloc.allocate<Int32>(sizeOf<Int32>() * outCapacity);
-        outY = malloc.allocate<Int32>(sizeOf<Int32>() * outCapacity);
-        outColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * outCapacity);
-        outCountPtr = malloc.allocate<Uint64>(sizeOf<Uint64>());
-        final bool ok = CpuBlendFfi.instance.blendOverflow(
-          canvasPtr: canvasPtr,
-          canvasLen: lower.surface.pixels.length,
-          width: controller._width,
-          height: controller._height,
-          upperXPtr: upperX.address,
-          upperYPtr: upperY.address,
-          upperColorPtr: upperColor.address,
-          upperLen: upperCount,
-          lowerXPtr: lowerX?.address ?? 0,
-          lowerYPtr: lowerY?.address ?? 0,
-          lowerColorPtr: lowerColor?.address ?? 0,
-          lowerLen: lowerCount,
-          opacity: opacity,
-          blendMode: blendMode.index,
-          maskPtr: maskPtr,
-          maskLen: maskLen,
-          maskOpacity: maskOpacity,
-          maskOverflowXPtr: maskOverflowX?.address ?? 0,
-          maskOverflowYPtr: maskOverflowY?.address ?? 0,
-          maskOverflowColorPtr: maskOverflowColor?.address ?? 0,
-          maskOverflowLen: maskOverflowCount,
-          outXPtr: outX.address,
-          outYPtr: outY.address,
-          outColorPtr: outColor.address,
-          outCapacity: outCapacity,
-          outCountPtr: outCountPtr.address,
-        );
-        if (ok) {
-          final int count = outCountPtr.value;
-          final _LayerOverflowBuilder overflowBuilder = _LayerOverflowBuilder();
-          if (count > 0) {
-            final Int32List xs = outX.asTypedList(count);
-            final Int32List ys = outY.asTypedList(count);
-            final Uint32List colors = outColor.asTypedList(count);
-            for (int i = 0; i < count; i++) {
-              overflowBuilder.addPixel(xs[i], ys[i], colors[i]);
-            }
-          }
-          final _LayerOverflowStore mergedStore = overflowBuilder.build();
-          if (mergedStore.isEmpty) {
-            controller._layerOverflowStores.remove(lower.id);
-          } else {
-            controller._layerOverflowStores[lower.id] = mergedStore;
-          }
-          return;
-        }
-      } finally {
-        if (upperX != null) {
-          malloc.free(upperX);
-        }
-        if (upperY != null) {
-          malloc.free(upperY);
-        }
-        if (upperColor != null) {
-          malloc.free(upperColor);
-        }
-        if (lowerX != null) {
-          malloc.free(lowerX);
-        }
-        if (lowerY != null) {
-          malloc.free(lowerY);
-        }
-        if (lowerColor != null) {
-          malloc.free(lowerColor);
-        }
-        if (maskOverflowX != null) {
-          malloc.free(maskOverflowX);
-        }
-        if (maskOverflowY != null) {
-          malloc.free(maskOverflowY);
-        }
-        if (maskOverflowColor != null) {
-          malloc.free(maskOverflowColor);
-        }
-        if (outX != null) {
-          malloc.free(outX);
-        }
-        if (outY != null) {
-          malloc.free(outY);
-        }
-        if (outColor != null) {
-          malloc.free(outColor);
-        }
-        if (outCountPtr != null) {
-          malloc.free(outCountPtr);
-        }
-      }
-    }
-  }
-  final _OverflowPixelMap targetMap = _cloneOverflowStore(lowerOverflow);
-  final _OverflowPixelMap sourceMap = _cloneOverflowStore(upperOverflow);
-  sourceMap.forEach((int y, SplayTreeMap<int, int> row) {
-    row.forEach((int x, int src) {
-      final int srcA = (src >> 24) & 0xff;
-      if (srcA == 0) {
-        return;
-      }
-      double effectiveAlpha = (srcA / 255.0) * opacity;
-      if (effectiveAlpha <= 0) {
-        return;
-      }
-      if (clippingInfo != null) {
-        final double maskAlpha = _sampleClippingMaskAlpha(
-          controller,
-          clippingInfo,
-          x,
-          y,
-        );
-        if (maskAlpha <= 0) {
-          return;
-        }
-        effectiveAlpha *= maskAlpha;
-        if (effectiveAlpha <= 0) {
-          return;
-        }
-      }
-      final int effectiveColor = _colorWithOpacity(src, effectiveAlpha);
-      final bool insideCanvas =
-          x >= 0 && x < controller._width && y >= 0 && y < controller._height;
-      if (insideCanvas) {
-        final int index = y * controller._width + x;
-        final int blended = blend_utils.blendWithMode(
-          lower.surface.pixels[index],
-          effectiveColor,
-          blendMode,
-          index,
-        );
-        lower.surface.pixels[index] = blended;
-        return;
-      }
-      final int pixelIndex = y * controller._width + x;
-      final int dest = _readOverflowPixelFromMap(targetMap, x, y);
-      final int blended = blend_utils.blendWithMode(
-        dest,
-        effectiveColor,
-        blendMode,
-        pixelIndex,
-      );
-      _writeOverflowPixel(targetMap, x, y, blended);
-    });
-  });
-  final _LayerOverflowStore mergedStore = _overflowStoreFromMap(targetMap);
-  if (mergedStore.isEmpty) {
-    controller._layerOverflowStores.remove(lower.id);
-  } else {
-    controller._layerOverflowStores[lower.id] = mergedStore;
-  }
-}
-
-double _sampleClippingMaskAlpha(
-  BitmapCanvasController controller,
-  _ClippingMaskInfo info,
-  int x,
-  int y,
-) {
-  final int color = _readLayerPixel(
-    controller,
-    info.layer,
-    info.overflow,
-    x,
-    y,
-  );
-  final int alpha = (color >> 24) & 0xff;
-  if (alpha == 0) {
-    return 0.0;
-  }
-  return (alpha / 255.0) * info.opacity;
-}
-
-int _colorWithOpacity(int color, double opacity) {
-  final int alpha = (opacity * 255).round().clamp(0, 255);
-  if (alpha <= 0) {
-    return 0;
-  }
-  return (alpha << 24) | (color & 0x00FFFFFF);
-}
-
-int _readLayerPixel(
-  BitmapCanvasController controller,
-  BitmapLayerState layer,
-  _LayerOverflowStore overflow,
-  int x,
-  int y,
-) {
-  if (x >= 0 && x < controller._width && y >= 0 && y < controller._height) {
-    return layer.surface.pixels[y * controller._width + x];
-  }
-  return _readOverflowPixel(overflow, x, y);
-}
-
-int _readOverflowPixel(_LayerOverflowStore store, int x, int y) {
-  if (store.isEmpty) {
-    return 0;
-  }
-  final List<_LayerOverflowSegment>? segments = store._rows[y];
-  if (segments == null) {
-    return 0;
-  }
-  for (final _LayerOverflowSegment segment in segments) {
-    final int start = segment.startX;
-    final int end = start + segment.length;
-    if (x < start || x >= end) {
-      continue;
-    }
-    return segment.pixels[x - start];
-  }
-  return 0;
-}
-
-typedef _OverflowPixelMap = SplayTreeMap<int, SplayTreeMap<int, int>>;
-
-_OverflowPixelMap _cloneOverflowStore(_LayerOverflowStore store) {
-  final _OverflowPixelMap map = SplayTreeMap<int, SplayTreeMap<int, int>>();
-  if (store.isEmpty) {
-    return map;
-  }
-  store._rows.forEach((int y, List<_LayerOverflowSegment> segments) {
-    final SplayTreeMap<int, int> row = SplayTreeMap<int, int>();
-    for (final _LayerOverflowSegment segment in segments) {
-      for (int i = 0; i < segment.length; i++) {
-        final int color = segment.pixels[i];
-        if ((color >> 24) == 0) {
-          continue;
-        }
-        row[segment.startX + i] = color;
-      }
-    }
-    if (row.isNotEmpty) {
-      map[y] = row;
-    }
-  });
-  return map;
-}
-
-int _readOverflowPixelFromMap(_OverflowPixelMap map, int x, int y) {
-  final SplayTreeMap<int, int>? row = map[y];
-  if (row == null) {
-    return 0;
-  }
-  return row[x] ?? 0;
-}
-
-void _writeOverflowPixel(_OverflowPixelMap map, int x, int y, int color) {
-  final int alpha = (color >> 24) & 0xff;
-  final SplayTreeMap<int, int>? existingRow = map[y];
-  if (alpha == 0) {
-    if (existingRow == null) {
-      return;
-    }
-    existingRow.remove(x);
-    if (existingRow.isEmpty) {
-      map.remove(y);
-    }
+  if (canvasPtr == 0 ||
+      !CpuBlendFfi.instance.isSupported ||
+      (clippingInfo != null && maskPtr == 0)) {
     return;
   }
-  final SplayTreeMap<int, int> row = existingRow ?? SplayTreeMap<int, int>();
-  row[x] = color;
-  if (existingRow == null) {
-    map[y] = row;
+  final int upperCount = _countOverflowPixels(upperOverflow);
+  if (upperCount <= 0) {
+    return;
   }
-}
-
-_LayerOverflowStore _overflowStoreFromMap(_OverflowPixelMap map) {
-  final _LayerOverflowStore store = _LayerOverflowStore();
-  map.forEach((int y, SplayTreeMap<int, int> row) {
-    if (row.isEmpty) {
-      return;
+  Pointer<Int32>? upperX;
+  Pointer<Int32>? upperY;
+  Pointer<Uint32>? upperColor;
+  Pointer<Int32>? lowerX;
+  Pointer<Int32>? lowerY;
+  Pointer<Uint32>? lowerColor;
+  Pointer<Int32>? maskOverflowX;
+  Pointer<Int32>? maskOverflowY;
+  Pointer<Uint32>? maskOverflowColor;
+  Pointer<Int32>? outX;
+  Pointer<Int32>? outY;
+  Pointer<Uint32>? outColor;
+  Pointer<Uint64>? outCountPtr;
+  try {
+    upperX = malloc.allocate<Int32>(sizeOf<Int32>() * upperCount);
+    upperY = malloc.allocate<Int32>(sizeOf<Int32>() * upperCount);
+    upperColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * upperCount);
+    _fillOverflowArrays(
+      upperOverflow,
+      upperX.asTypedList(upperCount),
+      upperY.asTypedList(upperCount),
+      upperColor.asTypedList(upperCount),
+    );
+    final int lowerCount = _countOverflowPixels(lowerOverflow);
+    if (lowerCount > 0) {
+      lowerX = malloc.allocate<Int32>(sizeOf<Int32>() * lowerCount);
+      lowerY = malloc.allocate<Int32>(sizeOf<Int32>() * lowerCount);
+      lowerColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * lowerCount);
+      _fillOverflowArrays(
+        lowerOverflow,
+        lowerX.asTypedList(lowerCount),
+        lowerY.asTypedList(lowerCount),
+        lowerColor.asTypedList(lowerCount),
+      );
     }
-    final _OverflowRowBuilder builder = _OverflowRowBuilder();
-    row.forEach((int x, int color) {
-      builder.addPixel(x, color);
-    });
-    final List<_LayerOverflowSegment> segments = builder.build();
-    if (segments.isNotEmpty) {
-      store.addRow(y, segments);
+    int maskLen = 0;
+    double maskOpacity = 0;
+    int maskOverflowCount = 0;
+    if (clippingInfo != null) {
+      maskLen = clippingInfo.layer.surface.pixels.length;
+      maskOpacity = clippingInfo.opacity;
+      maskOverflowCount = _countOverflowPixels(clippingInfo.overflow);
+      if (maskOverflowCount > 0) {
+        maskOverflowX = malloc.allocate<Int32>(
+          sizeOf<Int32>() * maskOverflowCount,
+        );
+        maskOverflowY = malloc.allocate<Int32>(
+          sizeOf<Int32>() * maskOverflowCount,
+        );
+        maskOverflowColor = malloc.allocate<Uint32>(
+          sizeOf<Uint32>() * maskOverflowCount,
+        );
+        _fillOverflowArrays(
+          clippingInfo.overflow,
+          maskOverflowX.asTypedList(maskOverflowCount),
+          maskOverflowY.asTypedList(maskOverflowCount),
+          maskOverflowColor.asTypedList(maskOverflowCount),
+        );
+      }
     }
-  });
-  return store;
+    final int outCapacity = upperCount + lowerCount;
+    outX = malloc.allocate<Int32>(sizeOf<Int32>() * outCapacity);
+    outY = malloc.allocate<Int32>(sizeOf<Int32>() * outCapacity);
+    outColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * outCapacity);
+    outCountPtr = malloc.allocate<Uint64>(sizeOf<Uint64>());
+    final bool ok = CpuBlendFfi.instance.blendOverflow(
+      canvasPtr: canvasPtr,
+      canvasLen: lower.surface.pixels.length,
+      width: controller._width,
+      height: controller._height,
+      upperXPtr: upperX.address,
+      upperYPtr: upperY.address,
+      upperColorPtr: upperColor.address,
+      upperLen: upperCount,
+      lowerXPtr: lowerX?.address ?? 0,
+      lowerYPtr: lowerY?.address ?? 0,
+      lowerColorPtr: lowerColor?.address ?? 0,
+      lowerLen: lowerCount,
+      opacity: opacity,
+      blendMode: blendMode.index,
+      maskPtr: maskPtr,
+      maskLen: maskLen,
+      maskOpacity: maskOpacity,
+      maskOverflowXPtr: maskOverflowX?.address ?? 0,
+      maskOverflowYPtr: maskOverflowY?.address ?? 0,
+      maskOverflowColorPtr: maskOverflowColor?.address ?? 0,
+      maskOverflowLen: maskOverflowCount,
+      outXPtr: outX.address,
+      outYPtr: outY.address,
+      outColorPtr: outColor.address,
+      outCapacity: outCapacity,
+      outCountPtr: outCountPtr.address,
+    );
+    if (ok) {
+      final int count = outCountPtr.value;
+      final _LayerOverflowBuilder overflowBuilder = _LayerOverflowBuilder();
+      if (count > 0) {
+        final Int32List xs = outX.asTypedList(count);
+        final Int32List ys = outY.asTypedList(count);
+        final Uint32List colors = outColor.asTypedList(count);
+        for (int i = 0; i < count; i++) {
+          overflowBuilder.addPixel(xs[i], ys[i], colors[i]);
+        }
+      }
+      final _LayerOverflowStore mergedStore = overflowBuilder.build();
+      if (mergedStore.isEmpty) {
+        controller._layerOverflowStores.remove(lower.id);
+      } else {
+        controller._layerOverflowStores[lower.id] = mergedStore;
+      }
+    }
+  } finally {
+    if (upperX != null) {
+      malloc.free(upperX);
+    }
+    if (upperY != null) {
+      malloc.free(upperY);
+    }
+    if (upperColor != null) {
+      malloc.free(upperColor);
+    }
+    if (lowerX != null) {
+      malloc.free(lowerX);
+    }
+    if (lowerY != null) {
+      malloc.free(lowerY);
+    }
+    if (lowerColor != null) {
+      malloc.free(lowerColor);
+    }
+    if (maskOverflowX != null) {
+      malloc.free(maskOverflowX);
+    }
+    if (maskOverflowY != null) {
+      malloc.free(maskOverflowY);
+    }
+    if (maskOverflowColor != null) {
+      malloc.free(maskOverflowColor);
+    }
+    if (outX != null) {
+      malloc.free(outX);
+    }
+    if (outY != null) {
+      malloc.free(outY);
+    }
+    if (outColor != null) {
+      malloc.free(outColor);
+    }
+    if (outCountPtr != null) {
+      malloc.free(outCountPtr);
+    }
+  }
+  return;
 }
 
 class _ClippingMaskInfo {

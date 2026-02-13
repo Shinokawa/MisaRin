@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:ffi';
+import 'dart:ffi' hide Size;
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -19,6 +19,7 @@ import '../backend/canvas_raster_backend.dart';
 import '../backend/rgba_utils.dart';
 import '../canvas/canvas_backend.dart';
 import '../canvas/canvas_facade.dart';
+import '../canvas/canvas_frame.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_layer_info.dart';
 import '../canvas/canvas_composite_layer.dart';
@@ -35,10 +36,8 @@ import '../src/rust/cpu_image_ffi.dart';
 import '../src/rust/cpu_filters_ffi.dart';
 import '../src/rust/cpu_transform_ffi.dart';
 import '../src/rust/rust_init.dart';
-import 'bitmap_blend_utils.dart' as blend_utils;
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
-import 'raster_frame.dart';
 import 'raster_tile_cache.dart';
 import 'raster_int_rect.dart';
 import 'soft_brush_profile.dart';
@@ -213,7 +212,7 @@ class BitmapCanvasController extends ChangeNotifier
   final CanvasRasterBackend _rasterBackend;
   final CanvasTextRenderer _textRenderer = CanvasTextRenderer();
   late final RasterTileCache _tileCache;
-  BitmapCanvasFrame? _currentFrame;
+  CanvasFrame? _currentFrame;
   final List<ui.Image> _pendingTileDisposals = <ui.Image>[];
   bool _tileDisposalScheduled = false;
   Uint32List? _activeLayerTranslationSnapshot;
@@ -300,7 +299,7 @@ class BitmapCanvasController extends ChangeNotifier
   Rect? _dirtyRectForCommand(PaintingDrawCommand command) =>
       _controllerDirtyRectForCommand(this, command);
 
-  BitmapCanvasFrame? get frame => _currentFrame;
+  CanvasFrame? get frame => _currentFrame;
   bool get rasterOutputEnabled => _rasterOutputEnabled;
   Color get backgroundColor => _backgroundColor;
   int get width => _width;
@@ -375,7 +374,7 @@ class BitmapCanvasController extends ChangeNotifier
 
   void configureStylusPressure({
     required bool enabled,
-    required double curve,
+    double? curve,
   }) => _strokeConfigureStylusPressure(this, enabled: enabled, curve: curve);
 
   void configureSharpTips({required bool enabled}) =>

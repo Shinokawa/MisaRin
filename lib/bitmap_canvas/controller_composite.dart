@@ -65,7 +65,7 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
         : (work.regions ?? const <RasterIntRect>[]);
     
     final int startTiles = sw.elapsedMilliseconds;
-    final BitmapCanvasFrame? frame = await controller._tileCache.updateTiles(
+    final CanvasFrame? frame = await controller._tileCache.updateTiles(
       backend: controller._rasterBackend,
       dirtyRegions: dirtyRegions,
       fullSurface: work.requiresFullSurface,

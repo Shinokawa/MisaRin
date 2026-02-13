@@ -278,93 +278,29 @@ bool _controllerApplyAntialiasToActiveLayerCpu(
   if (layer.locked) {
     return false;
   }
-  final List<double> profile = List<double>.from(
-    BitmapCanvasController._kAntialiasBlendProfiles[level.clamp(0, 9)] ??
-        const <double>[0.25],
-  );
-  if (profile.isEmpty) {
-    return false;
-  }
   final Uint32List pixels = layer.surface.pixels;
   if (pixels.isEmpty) {
     return false;
   }
-  if (CpuFiltersFfi.instance.isSupported && layer.surface.pointerAddress != 0) {
-    final bool ok = CpuFiltersFfi.instance.applyAntialias(
-      pixelsPtr: layer.surface.pointerAddress,
-      pixelsLen: pixels.length,
-      width: controller._width,
-      height: controller._height,
-      level: level.clamp(0, 9),
-      previewOnly: previewOnly,
-    );
-    if (ok) {
-      if (!previewOnly) {
-        layer.surface.markDirty();
-        controller._markDirty(layerId: layer.id, pixelsDirty: true);
-        controller._notify();
-      }
-      return true;
-    }
+  if (!CpuFiltersFfi.instance.isSupported ||
+      layer.surface.pointerAddress == 0) {
     return false;
   }
-  final Uint32List temp = Uint32List(pixels.length);
-  Uint32List src = pixels;
-  Uint32List dest = temp;
-  bool anyChange = false;
-  for (final double factor in profile) {
-    if (factor <= 0) {
-      continue;
-    }
-    final bool alphaChanged = _controllerRunAntialiasPass(
-      controller,
-      src,
-      dest,
-      controller._width,
-      controller._height,
-      factor,
-    );
-    if (!alphaChanged) {
-      continue;
-    }
-    if (previewOnly) {
-      return true;
-    }
-    anyChange = true;
-    final Uint32List swap = src;
-    src = dest;
-    dest = swap;
-  }
-
-  final Uint32List blurBuffer = Uint32List(pixels.length);
-  final bool colorChanged = _controllerRunEdgeAwareColorSmoothPass(
-    controller,
-    src,
-    dest,
-    blurBuffer,
-    controller._width,
-    controller._height,
+  final bool ok = CpuFiltersFfi.instance.applyAntialias(
+    pixelsPtr: layer.surface.pointerAddress,
+    pixelsLen: pixels.length,
+    width: controller._width,
+    height: controller._height,
+    level: level.clamp(0, 9),
+    previewOnly: previewOnly,
   );
-  if (colorChanged) {
-    if (previewOnly) {
-      return true;
-    }
-    anyChange = true;
-    final Uint32List swap = src;
-    src = dest;
-    dest = swap;
-  }
-  if (!anyChange) {
+  if (!ok) {
     return false;
   }
-  if (previewOnly) {
-    return true;
+  if (!previewOnly) {
+    layer.surface.markDirty();
+    controller._markDirty(layerId: layer.id, pixelsDirty: true);
+    controller._notify();
   }
-  if (!identical(src, pixels)) {
-    pixels.setAll(0, src);
-  }
-  layer.surface.markDirty();
-  controller._markDirty(layerId: layer.id, pixelsDirty: true);
-  controller._notify();
   return true;
 }

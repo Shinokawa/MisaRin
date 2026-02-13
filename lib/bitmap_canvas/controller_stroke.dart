@@ -34,10 +34,12 @@ Rect _strokeDirtyRectForLine(Offset a, Offset b, double radius) {
 void _strokeConfigureStylusPressure(
   BitmapCanvasController controller, {
   required bool enabled,
-  required double curve,
+  double? curve,
 }) {
   controller._stylusPressureEnabled = enabled;
-  controller._stylusCurve = curve.clamp(0.1, 8.0);
+  if (curve != null) {
+    controller._stylusCurve = curve.clamp(0.1, 8.0);
+  }
 }
 
 void _strokeConfigureSharpTips(

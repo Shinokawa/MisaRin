@@ -429,7 +429,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _tryFinalizeFilterApplyAfterFrameChange();
   }
 
-  void _tryFinalizeFilterApplyAfterFrameChange([BitmapCanvasFrame? frame]) {
+  void _tryFinalizeFilterApplyAfterFrameChange([CanvasFrame? frame]) {
     if (!_filterAwaitingFrameSwap) {
       return;
     }
@@ -445,7 +445,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
   }
 
-  void _handleFilterApplyFrameProgressInternal(BitmapCanvasFrame? frame) {
+  void _handleFilterApplyFrameProgressInternal(CanvasFrame? frame) {
     _tryFinalizeFilterApplyAfterFrameChange(frame);
   }
 

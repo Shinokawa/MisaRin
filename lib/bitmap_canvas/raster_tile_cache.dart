@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 
 import '../backend/canvas_raster_backend.dart';
+import '../canvas/canvas_frame.dart';
 import 'raster_frame.dart';
 import 'raster_int_rect.dart';
 
@@ -32,9 +33,9 @@ class RasterTileCache {
   final List<ui.Image> _pendingDisposals = <ui.Image>[];
   int _generation = 0;
 
-  BitmapCanvasFrame? _frame;
+  CanvasFrame? _frame;
 
-  BitmapCanvasFrame? get frame => _frame;
+  CanvasFrame? get frame => _frame;
 
   List<ui.Image> takePendingDisposals() {
     if (_pendingDisposals.isEmpty) {
@@ -45,7 +46,7 @@ class RasterTileCache {
     return result;
   }
 
-  Future<BitmapCanvasFrame?> updateTiles({
+  Future<CanvasFrame?> updateTiles({
     required CanvasRasterBackend backend,
     required List<RasterIntRect> dirtyRegions,
     required bool fullSurface,

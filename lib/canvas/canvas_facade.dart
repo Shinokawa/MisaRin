@@ -4,8 +4,9 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
-import '../bitmap_canvas/raster_frame.dart';
+import '../backend/canvas_painting_worker.dart';
 import '../bitmap_canvas/stroke_dynamics.dart';
+import 'canvas_frame.dart';
 import 'canvas_layer.dart';
 import 'canvas_layer_info.dart';
 import 'canvas_composite_layer.dart';
@@ -24,7 +25,18 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
   String? get activeLayerId;
 
   int get activeStrokeRotationSeed;
-  BitmapCanvasFrame? get frame;
+  CanvasFrame? get frame;
+
+  List<Offset> get activeStrokePoints;
+  List<double> get activeStrokeRadii;
+  List<PaintingDrawCommand> get committingStrokes;
+  Color get activeStrokeColor;
+  BrushShape get activeStrokeShape;
+  bool get activeStrokeEraseMode;
+  int get activeStrokeAntialiasLevel;
+  bool get activeStrokeHollowEnabled;
+  double get activeStrokeHollowRatio;
+  bool get activeStrokeRandomRotationEnabled;
 
   Image? get activeLayerTransformImage;
   Offset get activeLayerTransformOffset;
@@ -44,6 +56,13 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
   });
 
   void configureSharpTips({required bool enabled});
+
+  void drawFilledPolygon({
+    required List<Offset> points,
+    required Color color,
+    int antialiasLevel = 0,
+    bool erase = false,
+  });
 
   void beginStroke(
     Offset position, {

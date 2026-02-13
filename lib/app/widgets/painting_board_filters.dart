@@ -261,7 +261,7 @@ mixin _PaintingBoardFilterMixin
     this._removeFilterOverlayInternal(restoreOriginal: restoreOriginal);
   }
 
-  void _handleFilterApplyFrameProgress(BitmapCanvasFrame? frame) {
+  void _handleFilterApplyFrameProgress(CanvasFrame? frame) {
     this._handleFilterApplyFrameProgressInternal(frame);
   }
 

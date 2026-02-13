@@ -179,7 +179,7 @@ class PaintingBoardState extends _PaintingBoardBase
     }
   }
 
-  void _perfStressMaybeRecordFrame(BitmapCanvasFrame? frame) {
+  void _perfStressMaybeRecordFrame(CanvasFrame? frame) {
     if (!_perfStressRunning) {
       return;
     }
@@ -843,7 +843,7 @@ class PaintingBoardState extends _PaintingBoardBase
   }
 
   void _handleControllerChanged() {
-    final BitmapCanvasFrame? frame = _controller.frame;
+    final CanvasFrame? frame = _controller.frame;
     _perfStressMaybeRecordFrame(frame);
     final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
     if (awaitedGeneration != null &&
@@ -872,7 +872,7 @@ class PaintingBoardState extends _PaintingBoardBase
     if (_boardReadyNotified) {
       return;
     }
-    final BitmapCanvasFrame? frame = _controller.frame;
+    final CanvasFrame? frame = _controller.frame;
     if (frame == null) {
       if (_rustCanvasEngineHandle == null) {
         return;

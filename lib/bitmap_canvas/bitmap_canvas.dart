@@ -4,11 +4,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
-import '../canvas/brush_random_rotation.dart';
-import '../canvas/brush_shape_geometry.dart';
 import '../canvas/canvas_tools.dart';
 import '../src/rust/cpu_brush_ffi.dart';
-import 'brush_tip_cache.dart';
 import 'memory/native_memory_manager.dart';
 import 'soft_brush_profile.dart';
 
@@ -89,184 +86,30 @@ class BitmapSurface {
     if (radius <= 0) {
       return;
     }
-    if (CpuBrushFfi.instance.isSupported) {
-      final bool ok = CpuBrushFfi.instance.drawStamp(
-        pixelsPtr: pointerAddress,
-        pixelsLen: pixels.length,
-        width: width,
-        height: height,
-        centerX: center.dx,
-        centerY: center.dy,
-        radius: radius,
-        colorArgb: color.toARGB32(),
-        brushShape: BrushShape.circle.index,
-        antialiasLevel: antialiasLevel.clamp(0, 9),
-        softness: softness,
-        erase: erase,
-        randomRotation: false,
-        rotationSeed: 0,
-        rotationJitter: 0.0,
-        snapToPixel: false,
-        selectionMask: mask,
-      );
-      if (ok) {
-        _isClean = false;
-        return;
-      }
-    }
-    final double softnessClamped = softness.clamp(0.0, 1.0);
-
-    // Optimization: Use cached brush tip for soft brushes
-    if (softnessClamped > 0.0 && mask == null) {
-      final BrushTip tip = BrushTipCache.getIfPresent(radius, softnessClamped);
-      final int tipWidth = tip.width;
-      final int tipHeight = tip.height;
-      final Uint8List tipAlpha = tip.alpha;
-
-      final int minX = math.max(0, (center.dx - tip.extent).floor());
-      final int maxX = math.min(width - 1, (center.dx + tip.extent).ceil());
-      final int minY = math.max(0, (center.dy - tip.extent).floor());
-      final int maxY = math.min(height - 1, (center.dy + tip.extent).ceil());
-
-      final int baseColor = color.toARGB32();
-      final int baseAlpha = (baseColor >> 24) & 0xff;
-      final int baseRgb = baseColor & 0x00ffffff;
-
-      final double tipOffsetX = tipWidth / 2.0 - center.dx;
-      final double tipOffsetY = tipHeight / 2.0 - center.dy;
-
-      final int surfaceWidth = width; // hoisting
-      final Uint32List destPixels = pixels; // direct access
-
-      for (int y = minY; y <= maxY; y++) {
-        final int ty = (y + tipOffsetY).floor();
-        if (ty < 0 || ty >= tipHeight) continue;
-
-        final int tipRowOffset = ty * tipWidth;
-        // Calculate starting index for this row
-        int destIndex = y * surfaceWidth + minX;
-
-        for (int x = minX; x <= maxX; x++) {
-          final int tx = (x + tipOffsetX).floor();
-          if (tx >= 0 && tx < tipWidth) {
-            final int coverageAlpha = tipAlpha[tipRowOffset + tx];
-            if (coverageAlpha > 0) {
-              // Inlined blending logic
-              final int dst = destPixels[destIndex];
-              final int dstA = (dst >> 24) & 0xff;
-
-              if (erase) {
-                if (dstA != 0) {
-                  // srcA (coverageAlpha) acts as erase amount (0..255) where 255 is full erase
-                  // But wait, coverageAlpha is just the brush shape alpha.
-                  // We also need to consider baseAlpha (flow/opacity).
-                  // Effective erase amount = (baseAlpha * coverageAlpha) / 255
-                  final int effectiveErase =
-                      (baseAlpha * coverageAlpha * 257) >> 16;
-                  final int invErase = 255 - effectiveErase;
-                  final int remainingAlpha = (dstA * invErase * 257) >> 16;
-
-                  if (remainingAlpha == 0) {
-                    destPixels[destIndex] = 0;
-                    _isClean = false;
-                  } else {
-                    // Preserve RGB, reduce alpha
-                    destPixels[destIndex] =
-                        (remainingAlpha << 24) | (dst & 0x00FFFFFF);
-                    _isClean = false;
-                  }
-                }
-              } else {
-                // Normal Blend
-                // effectiveSrcA = (baseAlpha * coverageAlpha) / 255
-                final int srcA = (baseAlpha * coverageAlpha * 257) >> 16;
-
-                if (srcA > 0) {
-                  final int dstR = (dst >> 16) & 0xff;
-                  final int dstG = (dst >> 8) & 0xff;
-                  final int dstB = dst & 0xff;
-
-                  final int invSrcA = 255 - srcA;
-                  final int dstWeightedA = (dstA * invSrcA * 257) >> 16;
-                  final int outA = srcA + dstWeightedA;
-
-                  if (outA > 0) {
-                    final int srcR = (baseRgb >> 16) & 0xff;
-                    final int srcG = (baseRgb >> 8) & 0xff;
-                    final int srcB = baseRgb & 0xff;
-
-                    // outC = (srcC * srcA + dstC * dstWeightedA) / outA
-                    final int outR =
-                        (srcR * srcA + dstR * dstWeightedA) ~/ outA;
-                    final int outG =
-                        (srcG * srcA + dstG * dstWeightedA) ~/ outA;
-                    final int outB =
-                        (srcB * srcA + dstB * dstWeightedA) ~/ outA;
-
-                    destPixels[destIndex] =
-                        (outA << 24) | (outR << 16) | (outG << 8) | outB;
-                    _isClean = false;
-                  }
-                }
-              }
-            }
-          }
-          destIndex++;
-        }
-      }
+    if (!CpuBrushFfi.instance.isSupported) {
       return;
     }
-
-    final double softnessRadius = softnessClamped > 0
-        ? radius * softBrushExtentMultiplier(softnessClamped)
-        : 0.0;
-    final double extent = radius + softnessRadius + 1.5;
-    final int minX = math.max(0, (center.dx - extent).floor());
-    final int maxX = math.min(width - 1, (center.dx + extent).ceil());
-    final int minY = math.max(0, (center.dy - extent).floor());
-    final int maxY = math.min(height - 1, (center.dy + extent).ceil());
-    final int level = antialiasLevel.clamp(0, 9);
-    final double feather = _featherForLevel(level);
-    final int baseColor = color.toARGB32();
-    final int baseAlpha = (baseColor >> 24) & 0xff;
-    final int baseRgb = baseColor & 0x00ffffff;
-
-    for (int y = minY; y <= maxY; y++) {
-      final double dy = y + 0.5 - center.dy;
-      for (int x = minX; x <= maxX; x++) {
-        final double dx = x + 0.5 - center.dx;
-        final double distance = math.sqrt(dx * dx + dy * dy);
-        final double coverage = softnessClamped <= 0.0
-            ? _computePixelCoverage(
-                dx: dx,
-                dy: dy,
-                distance: distance,
-                radius: radius,
-                feather: feather,
-                antialiasLevel: level,
-              )
-            : _computeFeatheredCoverage(
-                distance: distance,
-                radius: radius,
-                softness: softnessClamped,
-              );
-        if (coverage <= 0.0) {
-          continue;
-        }
-        if (mask != null && mask[y * width + x] == 0) {
-          continue;
-        }
-        if (coverage >= 0.999 && softnessClamped <= 0.0) {
-          _blendPixelWithArgb(x, y, baseColor, erase: erase);
-          continue;
-        }
-        final int adjustedAlpha = (baseAlpha * coverage).round().clamp(0, 255);
-        if (adjustedAlpha == 0) {
-          continue;
-        }
-        final int encoded = (adjustedAlpha << 24) | baseRgb;
-        _blendPixelWithArgb(x, y, encoded, erase: erase);
-      }
+    final bool ok = CpuBrushFfi.instance.drawStamp(
+      pixelsPtr: pointerAddress,
+      pixelsLen: pixels.length,
+      width: width,
+      height: height,
+      centerX: center.dx,
+      centerY: center.dy,
+      radius: radius,
+      colorArgb: color.toARGB32(),
+      brushShape: BrushShape.circle.index,
+      antialiasLevel: antialiasLevel.clamp(0, 9),
+      softness: softness,
+      erase: erase,
+      randomRotation: false,
+      rotationSeed: 0,
+      rotationJitter: 0.0,
+      snapToPixel: false,
+      selectionMask: mask,
+    );
+    if (ok) {
+      _isClean = false;
     }
   }
 
@@ -281,40 +124,30 @@ class BitmapSurface {
     bool includeStartCap = true,
     bool erase = false,
   }) {
-    if (CpuBrushFfi.instance.isSupported) {
-      final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
-        pixelsPtr: pointerAddress,
-        pixelsLen: pixels.length,
-        width: width,
-        height: height,
-        ax: a.dx,
-        ay: a.dy,
-        bx: b.dx,
-        by: b.dy,
-        startRadius: radius,
-        endRadius: radius,
-        colorArgb: color.toARGB32(),
-        antialiasLevel: antialiasLevel.clamp(0, 9),
-        includeStartCap: includeStartCap,
-        erase: erase,
-        selectionMask: mask,
-      );
-      if (ok) {
-        _isClean = false;
-        return;
-      }
+    if (!CpuBrushFfi.instance.isSupported) {
+      return;
     }
-    _drawCapsuleSegment(
-      a: a,
-      b: b,
+    final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
+      pixelsPtr: pointerAddress,
+      pixelsLen: pixels.length,
+      width: width,
+      height: height,
+      ax: a.dx,
+      ay: a.dy,
+      bx: b.dx,
+      by: b.dy,
       startRadius: radius,
       endRadius: radius,
-      color: color,
-      mask: mask,
+      colorArgb: color.toARGB32(),
       antialiasLevel: antialiasLevel.clamp(0, 9),
       includeStartCap: includeStartCap,
       erase: erase,
+      selectionMask: mask,
     );
+    if (ok) {
+      _isClean = false;
+    }
+    return;
   }
 
   /// Draws a line between [a] and [b] gradually interpolating the brush radius.
@@ -329,40 +162,30 @@ class BitmapSurface {
     bool includeStartCap = true,
     bool erase = false,
   }) {
-    if (CpuBrushFfi.instance.isSupported) {
-      final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
-        pixelsPtr: pointerAddress,
-        pixelsLen: pixels.length,
-        width: width,
-        height: height,
-        ax: a.dx,
-        ay: a.dy,
-        bx: b.dx,
-        by: b.dy,
-        startRadius: startRadius,
-        endRadius: endRadius,
-        colorArgb: color.toARGB32(),
-        antialiasLevel: antialiasLevel.clamp(0, 9),
-        includeStartCap: includeStartCap,
-        erase: erase,
-        selectionMask: mask,
-      );
-      if (ok) {
-        _isClean = false;
-        return;
-      }
+    if (!CpuBrushFfi.instance.isSupported) {
+      return;
     }
-    _drawCapsuleSegment(
-      a: a,
-      b: b,
+    final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
+      pixelsPtr: pointerAddress,
+      pixelsLen: pixels.length,
+      width: width,
+      height: height,
+      ax: a.dx,
+      ay: a.dy,
+      bx: b.dx,
+      by: b.dy,
       startRadius: startRadius,
       endRadius: endRadius,
-      color: color,
-      mask: mask,
+      colorArgb: color.toARGB32(),
       antialiasLevel: antialiasLevel.clamp(0, 9),
       includeStartCap: includeStartCap,
       erase: erase,
+      selectionMask: mask,
     );
+    if (ok) {
+      _isClean = false;
+    }
+    return;
   }
 
   /// Draws a stroke made of consecutive [points].
@@ -418,69 +241,24 @@ class BitmapSurface {
     if (sanitized.length < 3) {
       return;
     }
-    if (CpuBrushFfi.instance.isSupported) {
-      final Float32List packed = Float32List(sanitized.length * 2);
-      for (int i = 0; i < sanitized.length; i++) {
-        final Offset v = sanitized[i];
-        packed[i * 2] = v.dx;
-        packed[i * 2 + 1] = v.dy;
-      }
-      double minX = sanitized.first.dx;
-      double maxX = sanitized.first.dx;
-      double minY = sanitized.first.dy;
-      double maxY = sanitized.first.dy;
-      for (final Offset vertex in sanitized) {
-        if (vertex.dx < minX) minX = vertex.dx;
-        if (vertex.dx > maxX) maxX = vertex.dx;
-        if (vertex.dy < minY) minY = vertex.dy;
-        if (vertex.dy > maxY) maxY = vertex.dy;
-      }
-      if (minX.isNaN || maxX.isNaN || minY.isNaN || maxY.isNaN) {
-        return;
-      }
-      final int level = antialiasLevel.clamp(0, 9);
-      final double padding = _featherForLevel(level) + 1.5;
-      final Rect bounds = Rect.fromLTRB(minX, minY, maxX, maxY).inflate(padding);
-      final double longestSide = math.max(
-        bounds.width.abs(),
-        bounds.height.abs(),
-      );
-      final double radius = math.max(longestSide * 0.5, 0.01);
-      final bool ok = CpuBrushFfi.instance.fillPolygon(
-        pixelsPtr: pointerAddress,
-        pixelsLen: pixels.length,
-        width: width,
-        height: height,
-        vertices: packed,
-        radius: radius,
-        colorArgb: color.toARGB32(),
-        antialiasLevel: level,
-        softness: 0.0,
-        erase: erase,
-        selectionMask: mask,
-      );
-      if (ok) {
-        _isClean = false;
-        return;
-      }
+    if (!CpuBrushFfi.instance.isSupported) {
+      return;
+    }
+    final Float32List packed = Float32List(sanitized.length * 2);
+    for (int i = 0; i < sanitized.length; i++) {
+      final Offset v = sanitized[i];
+      packed[i * 2] = v.dx;
+      packed[i * 2 + 1] = v.dy;
     }
     double minX = sanitized.first.dx;
     double maxX = sanitized.first.dx;
     double minY = sanitized.first.dy;
     double maxY = sanitized.first.dy;
     for (final Offset vertex in sanitized) {
-      if (vertex.dx < minX) {
-        minX = vertex.dx;
-      }
-      if (vertex.dx > maxX) {
-        maxX = vertex.dx;
-      }
-      if (vertex.dy < minY) {
-        minY = vertex.dy;
-      }
-      if (vertex.dy > maxY) {
-        maxY = vertex.dy;
-      }
+      if (vertex.dx < minX) minX = vertex.dx;
+      if (vertex.dx > maxX) maxX = vertex.dx;
+      if (vertex.dy < minY) minY = vertex.dy;
+      if (vertex.dy > maxY) maxY = vertex.dy;
     }
     if (minX.isNaN || maxX.isNaN || minY.isNaN || maxY.isNaN) {
       return;
@@ -493,16 +271,23 @@ class BitmapSurface {
       bounds.height.abs(),
     );
     final double radius = math.max(longestSide * 0.5, 0.01);
-    _drawPolygonStamp(
-      vertices: sanitized,
-      bounds: bounds,
+    final bool ok = CpuBrushFfi.instance.fillPolygon(
+      pixelsPtr: pointerAddress,
+      pixelsLen: pixels.length,
+      width: width,
+      height: height,
+      vertices: packed,
       radius: radius,
-      color: color,
-      mask: mask,
+      colorArgb: color.toARGB32(),
       antialiasLevel: level,
       softness: 0.0,
       erase: erase,
+      selectionMask: mask,
     );
+    if (ok) {
+      _isClean = false;
+    }
+    return;
   }
 
   void drawBrushStamp({
@@ -534,99 +319,32 @@ class BitmapSurface {
       resolvedRadius = 0.01;
     }
     final int level = antialiasLevel.clamp(0, 9);
-    if (CpuBrushFfi.instance.isSupported) {
-      final bool ok = CpuBrushFfi.instance.drawStamp(
-        pixelsPtr: pointerAddress,
-        pixelsLen: pixels.length,
-        width: width,
-        height: height,
-        centerX: resolvedCenter.dx,
-        centerY: resolvedCenter.dy,
-        radius: resolvedRadius,
-        colorArgb: color.toARGB32(),
-        brushShape: shape.index,
-        antialiasLevel: level,
-        softness: softness,
-        erase: erase,
-        randomRotation: randomRotation,
-        rotationSeed: rotationSeed,
-        rotationJitter: rotationJitter,
-        snapToPixel: snapToPixel,
-        selectionMask: mask,
-      );
-      if (ok) {
-        _isClean = false;
-        return;
-      }
-    }
-    if (shape == BrushShape.circle) {
-      drawCircle(
-        center: resolvedCenter,
-        radius: resolvedRadius,
-        color: color,
-        mask: mask,
-        antialiasLevel: level,
-        erase: erase,
-        softness: softness,
-      );
+    if (!CpuBrushFfi.instance.isSupported) {
       return;
     }
-    final double effectiveRadius = math.max(resolvedRadius.abs(), 0.01);
-    List<Offset> vertices = BrushShapeGeometry.polygonFor(
-      shape,
-      resolvedCenter,
-      effectiveRadius,
-    );
-    if (vertices.length < 3) {
-      drawCircle(
-        center: resolvedCenter,
-        radius: effectiveRadius,
-        color: color,
-        mask: mask,
-        antialiasLevel: level,
-      );
-      return;
-    }
-    if (randomRotation) {
-      final double jitter = rotationJitter.isFinite
-          ? rotationJitter.clamp(0.0, 1.0)
-          : 1.0;
-      final double rotation = brushRandomRotationRadians(
-        center: resolvedCenter,
-        seed: rotationSeed,
-      );
-      vertices = _rotateVertices(vertices, resolvedCenter, rotation * jitter);
-    }
-    final List<Offset> sanitized = _sanitizePolygonVertices(vertices);
-    if (sanitized.length < 3) {
-      return;
-    }
-    double minX = sanitized.first.dx;
-    double maxX = sanitized.first.dx;
-    double minY = sanitized.first.dy;
-    double maxY = sanitized.first.dy;
-    for (final Offset vertex in sanitized) {
-      if (vertex.dx < minX) minX = vertex.dx;
-      if (vertex.dx > maxX) maxX = vertex.dx;
-      if (vertex.dy < minY) minY = vertex.dy;
-      if (vertex.dy > maxY) maxY = vertex.dy;
-    }
-    final Rect bounds = Rect.fromLTRB(
-      minX,
-      minY,
-      maxX,
-      maxY,
-    ).inflate(_featherForLevel(level) + 1.5);
-    _drawPolygonStamp(
-      vertices: sanitized,
-      bounds: bounds,
-      radius: effectiveRadius,
-      color: color,
-      mask: mask,
+    final bool ok = CpuBrushFfi.instance.drawStamp(
+      pixelsPtr: pointerAddress,
+      pixelsLen: pixels.length,
+      width: width,
+      height: height,
+      centerX: resolvedCenter.dx,
+      centerY: resolvedCenter.dy,
+      radius: resolvedRadius,
+      colorArgb: color.toARGB32(),
+      brushShape: shape.index,
       antialiasLevel: level,
       softness: softness,
       erase: erase,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
+      selectionMask: mask,
     );
+    if (ok) {
+      _isClean = false;
+    }
+    return;
   }
 
   List<Offset> _rotateVertices(

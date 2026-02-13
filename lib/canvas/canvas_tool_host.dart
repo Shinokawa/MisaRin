@@ -16,4 +16,6 @@ abstract class CanvasToolHost {
     bool erase = false,
     double softness = 0.0,
   });
+
+  Color sampleColor(Offset position, {bool sampleAllLayers = true});
 }

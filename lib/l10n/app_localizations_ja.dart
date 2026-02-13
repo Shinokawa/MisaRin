@@ -253,8 +253,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get canvasBackendCpu => 'CPU（Rust）';
 
   @override
-  String get canvasBackendRestartHint =>
-      'バックエンドの切り替えは再起動後に反映されます。';
+  String get canvasBackendRestartHint => 'バックエンドの切り替えは再起動後に反映されます。';
 
   @override
   String get developerOptionsLabel => '開発者オプション';

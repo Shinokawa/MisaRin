@@ -254,8 +254,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get canvasBackendCpu => 'CPU (Rust)';
 
   @override
-  String get canvasBackendRestartHint =>
-      '백엔드 변경은 재시작 후 적용됩니다.';
+  String get canvasBackendRestartHint => '백엔드 변경은 재시작 후 적용됩니다.';
 
   @override
   String get developerOptionsLabel => '개발자 옵션';
