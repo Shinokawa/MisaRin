@@ -21,6 +21,16 @@ Future<Uint32List> gpuCompositeLayers({
   height: height,
 );
 
+Future<Uint32List> cpuCompositeLayers({
+  required List<GpuLayerData> layers,
+  required int width,
+  required int height,
+}) => RustLib.instance.api.crateApiGpuCompositeCpuCompositeLayers(
+  layers: layers,
+  width: width,
+  height: height,
+);
+
 void gpuCompositorDispose() =>
     RustLib.instance.api.crateApiGpuCompositeGpuCompositorDispose();
 

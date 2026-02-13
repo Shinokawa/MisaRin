@@ -449,7 +449,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               if (activeId == null) {
                                                 return false;
                                               }
-                                              for (final BitmapLayerState layer
+                                              for (final CanvasLayerInfo layer
                                                   in _controller.layers) {
                                                 if (layer.id == activeId) {
                                                   return layer.locked;
@@ -579,7 +579,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             final bool showRustShapePreview =
                                                 _canUseRustCanvasEngine() &&
                                                 _shapePreviewRasterImage != null;
-                                            final BitmapLayerState activeLayer =
+                                            final CanvasLayerInfo activeLayer =
                                                 _controller.activeLayer;
                                             final ui.BlendMode?
                                                 rustPreviewBlendMode =

@@ -486,7 +486,7 @@ mixin _PaintingBoardBuildMixin
       }
     }
 
-    final BitmapLayerState? layer = _layerById(session.activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(session.activeLayerId);
     final double opacity = (layer?.opacity ?? 1.0).clamp(0.0, 1.0);
     if (opacity < 0.999) {
       activeLayerWidget = Opacity(opacity: opacity, child: activeLayerWidget);

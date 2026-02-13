@@ -308,7 +308,7 @@ mixin _PaintingBoardFilterMixin
           _previewActiveLayerImage == null) {
         return;
       }
-      final BitmapLayerState? layer = _layerById(layerId);
+      final CanvasLayerInfo? layer = _layerById(layerId);
       if (layer == null || !layer.visible) {
         return;
       }
@@ -357,7 +357,7 @@ mixin _PaintingBoardFilterMixin
       _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage(l10n.cannotLocateLayer);
       return;
@@ -563,7 +563,7 @@ mixin _PaintingBoardFilterMixin
   }
 
   bool _ensureAntialiasLayerReady() {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       _showFilterMessage('请先选择一个可编辑的图层。');
       return false;
@@ -607,7 +607,7 @@ mixin _PaintingBoardFilterMixin
       _showFilterMessage('请先选择一个可编辑的图层。');
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage('无法定位当前图层。');
       return;

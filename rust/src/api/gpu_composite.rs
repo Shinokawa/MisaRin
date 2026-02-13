@@ -54,7 +54,7 @@ pub fn gpu_composite_layers(
         .lock()
         .map_err(|_| "gpu compositor lock poisoned".to_string())?;
     if guard.is_none() {
-        let result = cpu_composite_layers(&layers, width, height);
+        let result = cpu_composite_layers_impl(&layers, width, height);
         let elapsed = t0.elapsed();
         match &result {
             Ok(out) => {
@@ -206,7 +206,16 @@ pub fn gpu_compositor_dispose() {
 
 const EPS: f32 = 1.0e-7;
 
-fn cpu_composite_layers(
+#[flutter_rust_bridge::frb]
+pub fn cpu_composite_layers(
+    layers: Vec<GpuLayerData>,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u32>, String> {
+    cpu_composite_layers_impl(&layers, width, height)
+}
+
+fn cpu_composite_layers_impl(
     layers: &[GpuLayerData],
     width: u32,
     height: u32,

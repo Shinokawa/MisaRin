@@ -142,8 +142,8 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     return true;
   }
 
-  BitmapLayerState? _resolveActiveLayerState(String id) {
-    for (final BitmapLayerState layer in _controller.layers) {
+  CanvasLayerInfo? _resolveActiveLayerState(String id) {
+    for (final CanvasLayerInfo layer in _controller.layers) {
       if (layer.id == id) {
         return layer;
       }
@@ -207,7 +207,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       if (rgba == null || srcWidth == null || srcHeight == null) {
         return null;
       }
-      srcPixels = BitmapCanvasController.rgbaToPixels(rgba, srcWidth, srcHeight);
+      srcPixels = rgbaToPixels(rgba, srcWidth, srcHeight);
     }
     if (srcWidth == null ||
         srcHeight == null ||
@@ -246,7 +246,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     if (!_canUseRustCanvasEngine() || handle == null) {
       return false;
     }
-    final BitmapLayerState? layer = _resolveActiveLayerState(activeLayerId);
+    final CanvasLayerInfo? layer = _resolveActiveLayerState(activeLayerId);
     if (layer == null) {
       return false;
     }

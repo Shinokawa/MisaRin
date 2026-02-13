@@ -1646,7 +1646,7 @@ Color _fillColorAtComposite(
 }) {
   return controller._rasterBackend.colorAtComposite(
     position,
-    controller._layers,
+    controller._layers.cast<CanvasCompositeLayer>(),
     translatingLayerId: controller._translatingLayerIdForComposite,
     preferRealtime: preferRealtime,
   );

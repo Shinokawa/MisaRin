@@ -135,6 +135,12 @@ abstract class RustLibApi extends BaseApi {
     required int height,
   });
 
+  Future<Uint32List> crateApiGpuCompositeCpuCompositeLayers({
+    required List<GpuLayerData> layers,
+    required int width,
+    required int height,
+  });
+
   void crateApiGpuCompositeGpuCompositorDispose();
 
   void crateApiGpuCompositeGpuCompositorInit();
@@ -561,6 +567,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiGpuCompositeGpuCompositeLayersConstMeta =>
       const TaskConstMeta(
         debugName: "gpu_composite_layers",
+        argNames: ["layers", "width", "height"],
+      );
+
+  @override
+  Future<Uint32List> crateApiGpuCompositeCpuCompositeLayers({
+    required List<GpuLayerData> layers,
+    required int width,
+    required int height,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_gpu_layer_data(layers, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_32_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiGpuCompositeCpuCompositeLayersConstMeta,
+        argValues: [layers, width, height],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGpuCompositeCpuCompositeLayersConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_composite_layers",
         argNames: ["layers", "width", "height"],
       );
 

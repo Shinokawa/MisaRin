@@ -517,7 +517,7 @@ mixin _PaintingBoardInteractionMixin
     if (activeId == null) {
       return false;
     }
-    for (final BitmapLayerState layer in _controller.layers) {
+    for (final CanvasLayerInfo layer in _controller.layers) {
       if (layer.id == activeId) {
         return layer.locked;
       }
@@ -1275,7 +1275,7 @@ mixin _PaintingBoardInteractionMixin
         if (!pointerInsideBoard) {
           return;
         }
-        final BitmapLayerState? targetLayer = _hitTestTextLayer(boardLocal);
+        final CanvasLayerInfo? targetLayer = _hitTestTextLayer(boardLocal);
         if (targetLayer != null) {
           await _beginEditExistingTextLayer(targetLayer);
         } else {

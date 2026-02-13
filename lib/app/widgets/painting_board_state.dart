@@ -88,7 +88,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool enableRasterOutput = !useGpuCanvas && !kIsWeb;
     final CanvasBackend rasterBackend =
         useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
-    _controller = BitmapCanvasController(
+    _controller = createCanvasFacade(
       width: widget.settings.width.round(),
       height: widget.settings.height.round(),
       backgroundColor: widget.settings.backgroundColor,
@@ -488,7 +488,7 @@ class PaintingBoardState extends _PaintingBoardBase
     if (activeLayerId == null) {
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       return;
     }
@@ -505,7 +505,7 @@ class PaintingBoardState extends _PaintingBoardBase
       _showBinarizeMessage('请先选择一个可编辑的图层。');
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showBinarizeMessage('无法定位当前图层。');
       return;
@@ -806,7 +806,7 @@ class PaintingBoardState extends _PaintingBoardBase
       final bool enableRasterOutput = !useGpuCanvas && !kIsWeb;
       final CanvasBackend rasterBackend =
           useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
-      _controller = BitmapCanvasController(
+      _controller = createCanvasFacade(
         width: widget.settings.width.round(),
         height: widget.settings.height.round(),
         backgroundColor: widget.settings.backgroundColor,
@@ -1138,10 +1138,10 @@ void _layerOpacityPreviewDisposeImages(_PaintingBoardBase board) {
   board._layerOpacityPreviewForeground = null;
 }
 
-int _layerOpacityPreviewSignature(Iterable<BitmapLayerState> layers) {
+int _layerOpacityPreviewSignature(Iterable<CanvasLayerInfo> layers) {
   int hash = layers.length;
   int index = 1;
-  for (final BitmapLayerState layer in layers) {
+  for (final CanvasLayerInfo layer in layers) {
     hash = 37 * hash + layer.revision;
     hash = 37 * hash + layer.id.hashCode;
     hash = 37 * hash + index;

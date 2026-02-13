@@ -23,7 +23,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void resetSelectionUndoFlag();
   Uint8List? _resolveSelectionMaskForRust(int targetWidth, int targetHeight);
 
-  UnmodifiableListView<BitmapLayerState> get _layers => _controller.layers;
+  UnmodifiableListView<CanvasLayerInfo> get _layers => _controller.layers;
   String? get _activeLayerId => _controller.activeLayerId;
   Color get _backgroundPreviewColor;
 

@@ -222,7 +222,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       _clearTextHoverHighlight();
       return;
     }
-    final BitmapLayerState? targetLayer = _hitTestTextLayer(boardLocal);
+    final CanvasLayerInfo? targetLayer = _hitTestTextLayer(boardLocal);
     if (targetLayer == null || targetLayer.locked) {
       _clearTextHoverHighlight();
       return;
@@ -366,7 +366,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         bounds.height * scale,
       );
     }
-    Future<void> _beginEditExistingTextLayer(BitmapLayerState layer) async {
+    Future<void> _beginEditExistingTextLayer(CanvasLayerInfo layer) async {
       _clearTextHoverHighlight();
       final CanvasTextData? existing = layer.text;
       if (existing == null) {
@@ -419,8 +419,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         pendingHistoryEntry: pendingHistory,
       );
       if (layerWasVisible) {
-        layer.visible = false;
-        _controller.notifyListeners();
+        _controller.updateLayerVisibility(layer.id, false);
+        _rustCanvasSetLayerVisibleById(layer.id, false);
       }
       _updateTextPreview(existing.origin);
       setState(() {});
@@ -434,8 +434,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (handle == null) {
         return false;
       }
-      BitmapLayerState? layer;
-      for (final BitmapLayerState candidate in _controller.layers) {
+      CanvasLayerInfo? layer;
+      for (final CanvasLayerInfo candidate in _controller.layers) {
         if (candidate.id == layerId) {
           layer = candidate;
           break;
@@ -580,16 +580,11 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       }
     }
     void _restoreTextLayerVisibility(String id, bool wasVisible) {
-      for (final BitmapLayerState layer in _controller.layers) {
-        if (layer.id == id) {
-          layer.visible = wasVisible;
-          break;
-        }
-      }
-      _controller.notifyListeners();
+      _controller.updateLayerVisibility(id, wasVisible);
+      _rustCanvasSetLayerVisibleById(id, wasVisible);
     }
   bool _activeLayerIsText() {
-    final BitmapLayerState layer = _controller.activeLayer;
+    final CanvasLayerInfo layer = _controller.activeLayer;
     return layer.text != null;
   }
   bool _shouldBlockToolOnTextLayer(CanvasTool tool) {
@@ -623,11 +618,11 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         severity: InfoBarSeverity.warning,
       );
     }
-    BitmapLayerState? _hitTestTextLayer(Offset boardLocal) {
-      final List<BitmapLayerState> layers =
+    CanvasLayerInfo? _hitTestTextLayer(Offset boardLocal) {
+      final List<CanvasLayerInfo> layers =
           _controller.layers.toList(growable: false);
       for (int i = layers.length - 1; i >= 0; i--) {
-        final BitmapLayerState layer = layers[i];
+        final CanvasLayerInfo layer = layers[i];
         if (!layer.visible || layer.text == null || layer.textBounds == null) {
           continue;
         }

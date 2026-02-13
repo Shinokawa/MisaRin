@@ -110,7 +110,7 @@ Future<void> _compositeUpdate(
   List<RasterIntRect>? regions,
 }) {
   return controller._rasterBackend.composite(
-    layers: controller._layers,
+    layers: controller._layers.cast<CanvasCompositeLayer>(),
     requiresFullSurface: requiresFullSurface,
     regions: regions,
     translatingLayerId: controller._translatingLayerIdForComposite,

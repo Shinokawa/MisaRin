@@ -91,14 +91,14 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         image: image,
       );
     });
-    final BitmapLayerState? activeLayer = _activeLayerSnapshot();
+    final CanvasLayerInfo? activeLayer = _activeLayerSnapshot();
     if (activeLayer != null) {
       _hideRustLayerForTransform(activeLayer);
     }
     return true;
   }
 
-  bool _startLayerFreeTransformWithRust(BitmapLayerState activeLayer) {
+  bool _startLayerFreeTransformWithRust(CanvasLayerInfo activeLayer) {
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
@@ -160,12 +160,12 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     return true;
   }
 
-  BitmapLayerState? _activeLayerSnapshot() {
+  CanvasLayerInfo? _activeLayerSnapshot() {
     final String? activeId = _controller.activeLayerId;
     if (activeId == null) {
       return null;
     }
-    for (final BitmapLayerState layer in _controller.layers) {
+    for (final CanvasLayerInfo layer in _controller.layers) {
       if (layer.id == activeId) {
         return layer;
       }
@@ -193,7 +193,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       return;
     }
     _restoreRustLayerAfterTransform();
-    final BitmapLayerState? activeLayer = _activeLayerSnapshot();
+    final CanvasLayerInfo? activeLayer = _activeLayerSnapshot();
     if (activeLayer == null) {
       AppNotifications.show(
         context,
@@ -298,7 +298,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_isLayerFreeTransformActive || _layerTransformApplying) {
       return;
     }
-    final BitmapLayerState? activeLayer = _activeLayerSnapshot();
+    final CanvasLayerInfo? activeLayer = _activeLayerSnapshot();
     final _LayerTransformStateModel? state = _layerTransformState;
     if (activeLayer == null || state == null) {
       return;
@@ -415,7 +415,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   Future<_CanvasHistoryEntry?> _buildLayerTransformUndoEntry(
     _LayerTransformStateModel state,
   ) async {
-    final BitmapLayerState? activeLayer = _activeLayerSnapshot();
+    final CanvasLayerInfo? activeLayer = _activeLayerSnapshot();
     if (activeLayer == null) {
       return null;
     }
@@ -561,7 +561,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     );
   }
 
-  bool _syncActiveLayerFromRustForTransform(BitmapLayerState layer) {
+  bool _syncActiveLayerFromRustForTransform(CanvasLayerInfo layer) {
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
@@ -597,7 +597,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     return _controller.writeLayerPixels(layer.id, pixels);
   }
 
-  void _hideRustLayerForTransform(BitmapLayerState layer) {
+  void _hideRustLayerForTransform(CanvasLayerInfo layer) {
     if (!_canUseRustCanvasEngine()) {
       return;
     }
@@ -747,7 +747,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   }
 
   bool _applyRustLayerTransform({
-    required BitmapLayerState layer,
+    required CanvasLayerInfo layer,
     required _LayerTransformRenderResult result,
   }) {
     if (!_canUseRustCanvasEngine()) {

@@ -723,7 +723,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage(l10n.cannotLocateLayer);
       return;

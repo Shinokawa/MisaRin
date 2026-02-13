@@ -337,7 +337,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
         snapshot.bitmap != null &&
         snapshot.bitmapWidth != null &&
         snapshot.bitmapHeight != null) {
-      _shapeRasterPreviewPixels = BitmapCanvasController.rgbaToPixels(
+      _shapeRasterPreviewPixels = rgbaToPixels(
         snapshot.bitmap!,
         snapshot.bitmapWidth!,
         snapshot.bitmapHeight!,
@@ -426,7 +426,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       _clearShapePreviewRasterImage();
       return;
     }
-    final BitmapLayerState layer = _controller.activeLayer;
+    final CanvasLayerInfo layer = _controller.activeLayer;
     if (!layer.visible) {
       _clearShapePreviewRasterImage();
       return;

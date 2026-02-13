@@ -18,7 +18,10 @@ import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
 import '../backend/rgba_utils.dart';
 import '../canvas/canvas_backend.dart';
+import '../canvas/canvas_facade.dart';
 import '../canvas/canvas_layer.dart';
+import '../canvas/canvas_layer_info.dart';
+import '../canvas/canvas_composite_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
 import '../canvas/canvas_tool_host.dart';
@@ -55,7 +58,8 @@ part 'controller_filters_gpu.dart';
 part 'controller_worker_queue.dart';
 part 'controller_text.dart';
 
-class BitmapCanvasController extends ChangeNotifier implements CanvasToolHost {
+class BitmapCanvasController extends ChangeNotifier
+    implements CanvasToolHost, CanvasFacade {
   BitmapCanvasController({
     required int width,
     required int height,
@@ -240,8 +244,15 @@ class BitmapCanvasController extends ChangeNotifier implements CanvasToolHost {
     return null;
   }
 
-  UnmodifiableListView<BitmapLayerState> get layers =>
-      UnmodifiableListView<BitmapLayerState>(_layers);
+  UnmodifiableListView<CanvasLayerInfo> get layers =>
+      UnmodifiableListView<CanvasLayerInfo>(
+        _layers.cast<CanvasLayerInfo>(),
+      );
+
+  UnmodifiableListView<CanvasCompositeLayer> get compositeLayers =>
+      UnmodifiableListView<CanvasCompositeLayer>(
+        _layers.cast<CanvasCompositeLayer>(),
+      );
 
   bool get isMultithreaded => _isMultithreaded;
 
@@ -266,7 +277,7 @@ class BitmapCanvasController extends ChangeNotifier implements CanvasToolHost {
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
 
-  BitmapLayerState get activeLayer => _activeLayer;
+  CanvasLayerInfo get activeLayer => _activeLayer;
 
   void _flushDeferredStrokeCommands() =>
       _controllerFlushDeferredStrokeCommands(this);
@@ -438,7 +449,7 @@ class BitmapCanvasController extends ChangeNotifier implements CanvasToolHost {
 
   Future<ui.Image> snapshotImage() async {
     await _rasterBackend.composite(
-      layers: _layers,
+      layers: _layers.cast<CanvasCompositeLayer>(),
       requiresFullSurface: true,
       regions: null,
       translatingLayerId: _translatingLayerIdForComposite,

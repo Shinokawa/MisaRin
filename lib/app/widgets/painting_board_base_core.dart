@@ -3,7 +3,7 @@ part of 'painting_board.dart';
 enum _HistoryActionKind { dart, rust }
 
 abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
-  late BitmapCanvasController _controller;
+  late CanvasFacade _controller;
   final FocusNode _focusNode = FocusNode();
   bool _boardReadyNotified = false;
   int? _rustCanvasEngineHandle;
@@ -315,12 +315,12 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     widget.onDirtyChanged?.call(true);
   }
 
-  BitmapLayerState? _activeLayerStateForRustSync() {
+  CanvasLayerInfo? _activeLayerStateForRustSync() {
     final String? activeId = _controller.activeLayerId;
     if (activeId == null) {
       return null;
     }
-    for (final BitmapLayerState layer in _controller.layers) {
+    for (final CanvasLayerInfo layer in _controller.layers) {
       if (layer.id == activeId) {
         return layer;
       }
@@ -328,7 +328,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     return null;
   }
 
-  bool _syncLayerPixelsFromRust(BitmapLayerState layer) {
+  bool _syncLayerPixelsFromRust(CanvasLayerInfo layer) {
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
@@ -346,7 +346,10 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (width <= 0 || height <= 0) {
       return false;
     }
-    if (layer.surface.width != width || layer.surface.height != height) {
+    final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+    if (surfaceSize == null ||
+        surfaceSize.width.round() != width ||
+        surfaceSize.height.round() != height) {
       return false;
     }
     final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
@@ -355,16 +358,14 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       width: width,
       height: height,
     );
-    if (pixels == null || pixels.length != layer.surface.pixels.length) {
+    if (pixels == null || pixels.length != width * height) {
       return false;
     }
-    layer.surface.pixels.setAll(0, pixels);
-    layer.surface.markDirty();
-    return true;
+    return _controller.writeLayerPixels(layer.id, pixels, markDirty: false);
   }
 
   bool _syncActiveLayerPixelsFromRust() {
-    final BitmapLayerState? layer = _activeLayerStateForRustSync();
+    final CanvasLayerInfo? layer = _activeLayerStateForRustSync();
     if (layer == null) {
       return false;
     }
@@ -375,12 +376,12 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
-    final List<BitmapLayerState> layers = _controller.layers;
+    final List<CanvasLayerInfo> layers = _controller.layers;
     if (layers.isEmpty) {
       return true;
     }
     bool allOk = true;
-    for (final BitmapLayerState layer in layers) {
+    for (final CanvasLayerInfo layer in layers) {
       if (!_syncLayerPixelsFromRust(layer)) {
         allOk = false;
       }
@@ -396,7 +397,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (handle == null) {
       return false;
     }
-    final BitmapLayerState? layer = _activeLayerStateForRustSync();
+    final CanvasLayerInfo? layer = _activeLayerStateForRustSync();
     if (layer == null) {
       return false;
     }
@@ -410,16 +411,20 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (width <= 0 || height <= 0) {
       return false;
     }
-    if (layer.surface.width != width || layer.surface.height != height) {
+    final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+    if (surfaceSize == null ||
+        surfaceSize.width.round() != width ||
+        surfaceSize.height.round() != height) {
       return false;
     }
-    if (layer.surface.pixels.length != width * height) {
+    final Uint32List? pixels = _controller.readLayerPixels(layer.id);
+    if (pixels == null || pixels.length != width * height) {
       return false;
     }
     final bool applied = CanvasEngineFfi.instance.writeLayer(
       handle: handle,
       layerIndex: layerIndex,
-      pixels: layer.surface.pixels,
+      pixels: pixels,
       recordUndo: recordUndo,
     );
     if (applied) {
@@ -446,22 +451,26 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (width <= 0 || height <= 0) {
       return false;
     }
-    final List<BitmapLayerState> layers = _controller.layers;
+    final List<CanvasLayerInfo> layers = _controller.layers;
     bool allOk = true;
     for (int i = 0; i < layers.length; i++) {
-      final BitmapLayerState layer = layers[i];
-      if (layer.surface.width != width || layer.surface.height != height) {
+      final CanvasLayerInfo layer = layers[i];
+      final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
+      if (surfaceSize == null ||
+          surfaceSize.width.round() != width ||
+          surfaceSize.height.round() != height) {
         allOk = false;
         continue;
       }
-      if (layer.surface.pixels.length != width * height) {
+      final Uint32List? pixels = _controller.readLayerPixels(layer.id);
+      if (pixels == null || pixels.length != width * height) {
         allOk = false;
         continue;
       }
       final bool applied = CanvasEngineFfi.instance.writeLayer(
         handle: handle,
         layerIndex: i,
-        pixels: layer.surface.pixels,
+        pixels: pixels,
         recordUndo: recordUndo,
       );
       if (!applied) {
@@ -1025,7 +1034,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
 
   int? _rustCanvasLayerIndexForId(String layerId) {
     final int index = _controller.layers.indexWhere(
-      (BitmapLayerState layer) => layer.id == layerId,
+      (CanvasLayerInfo layer) => layer.id == layerId,
     );
     if (index < 0) {
       return null;
@@ -1069,7 +1078,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       if (!_isRustVectorPreviewActive) {
         return;
       }
-      final BitmapLayerState layer = _controller.activeLayer;
+      final CanvasLayerInfo layer = _controller.activeLayer;
       if (layer.id != layerId || !layer.visible) {
         return;
       }
@@ -1290,7 +1299,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _rustLayerSnapshotInFlight = true;
     bool allOk = true;
     final Map<String, Uint32List> next = <String, Uint32List>{};
-    final List<BitmapLayerState> layers = _controller.layers;
+    final List<CanvasLayerInfo> layers = _controller.layers;
     for (int i = 0; i < layers.length; i++) {
       final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
         handle: handle,
@@ -1348,7 +1357,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       return;
     }
     final int handle = _rustCanvasEngineHandle!;
-    final List<BitmapLayerState> layers = _controller.layers;
+    final List<CanvasLayerInfo> layers = _controller.layers;
     for (int i = 0; i < layers.length; i++) {
       final Uint32List? pixels = _rustLayerSnapshots[layers[i].id];
       if (pixels == null) {
@@ -1382,12 +1391,12 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       return;
     }
     final int handle = _rustCanvasEngineHandle!;
-    final List<BitmapLayerState> layers = _controller.layers;
+    final List<CanvasLayerInfo> layers = _controller.layers;
     final int currentCount = layers.length;
     final int? hiddenAdjustIndex = _layerAdjustRustHiddenLayerIndex;
     final int? hiddenTransformIndex = _layerTransformRustHiddenLayerIndex;
     for (int i = 0; i < currentCount; i++) {
-      final BitmapLayerState layer = layers[i];
+      final CanvasLayerInfo layer = layers[i];
       final bool hideForAdjust =
           (hiddenAdjustIndex != null && hiddenAdjustIndex == i) ||
           (hiddenTransformIndex != null && hiddenTransformIndex == i);

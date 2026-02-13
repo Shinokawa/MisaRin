@@ -7,9 +7,9 @@ import 'package:flutter/foundation.dart';
 
 import '../bitmap_canvas/bitmap_blend_utils.dart' as blend_utils;
 import '../bitmap_canvas/bitmap_canvas.dart';
-import '../bitmap_canvas/bitmap_layer_state.dart';
 import '../bitmap_canvas/raster_int_rect.dart';
 import '../canvas/canvas_backend.dart';
+import '../canvas/canvas_composite_layer.dart';
 import '../src/rust/api/gpu_composite.dart' as rust_gpu;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import '../src/rust/rust_init.dart';
@@ -187,7 +187,7 @@ class CanvasRasterBackend {
   }
 
   Future<void> composite({
-    required List<BitmapLayerState> layers,
+    required List<CanvasCompositeLayer> layers,
     required bool requiresFullSurface,
     List<RasterIntRect>? regions,
     String? translatingLayerId,
@@ -211,8 +211,9 @@ class CanvasRasterBackend {
     }
 
     await _runGpuCompositeSerialized(() async {
-      final List<BitmapLayerState> effectiveLayers = <BitmapLayerState>[];
-      for (final BitmapLayerState layer in layers) {
+      final List<CanvasCompositeLayer> effectiveLayers =
+          <CanvasCompositeLayer>[];
+      for (final CanvasCompositeLayer layer in layers) {
         if (translatingLayerId != null && layer.id == translatingLayerId) {
           continue;
         }
@@ -231,11 +232,11 @@ class CanvasRasterBackend {
       // cache as up-to-date and skip required uploads, leading to stale tiles
       // (visual "cuts" along tile boundaries).
       final List<int> revisionSnapshot = <int>[
-        for (final BitmapLayerState layer in effectiveLayers) layer.revision,
+        for (final CanvasCompositeLayer layer in effectiveLayers) layer.revision,
       ];
 
       final List<String> layerOrder = effectiveLayers
-          .map((BitmapLayerState layer) => layer.id)
+          .map((CanvasCompositeLayer layer) => layer.id)
           .toList(growable: false);
 
       final bool sameEpoch = _gpuLayerCacheInitialized &&
@@ -267,7 +268,7 @@ class CanvasRasterBackend {
           );
         }
         for (int i = 0; i < effectiveLayers.length; i++) {
-          final BitmapLayerState layer = effectiveLayers[i];
+          final CanvasCompositeLayer layer = effectiveLayers[i];
           final int layerRevision = revisionSnapshot[i];
           final int? cachedRevision = _cachedLayerRevisions[layer.id];
           cachedRevisionsAtDecision?[i] = cachedRevision;
@@ -277,7 +278,7 @@ class CanvasRasterBackend {
                   allowIncrementalPixels &&
                   pixelsUnchanged)
               ? _emptyPixels
-              : layer.surface.pixels;
+              : layer.pixels;
           uploadFlags?[i] = pixels.isNotEmpty;
 
           if (kDebugMode && _kDebugGpuComposite) {
@@ -300,11 +301,17 @@ class CanvasRasterBackend {
           );
         }
 
-        return rust_gpu.gpuCompositeLayers(
-          layers: gpuLayers,
-          width: _width,
-          height: _height,
-        );
+        return useGpuComposite
+            ? rust_gpu.gpuCompositeLayers(
+                layers: gpuLayers,
+                width: _width,
+                height: _height,
+              )
+            : rust_gpu.cpuCompositeLayers(
+                layers: gpuLayers,
+                width: _width,
+                height: _height,
+              );
       }
 
       Uint32List result;
@@ -345,14 +352,14 @@ class CanvasRasterBackend {
       _cachedLayerWidth = _width;
       _cachedLayerHeight = _height;
       _cachedLayerOrder = layerOrder;
-      for (int i = 0; i < effectiveLayers.length; i++) {
-        final BitmapLayerState layer = effectiveLayers[i];
-        _cachedLayerRevisions[layer.id] = revisionSnapshot[i];
-      }
+        for (int i = 0; i < effectiveLayers.length; i++) {
+          final CanvasCompositeLayer layer = effectiveLayers[i];
+          _cachedLayerRevisions[layer.id] = revisionSnapshot[i];
+        }
 
       if (kDebugMode && _kDebugGpuComposite) {
         for (int i = 0; i < effectiveLayers.length; i++) {
-          final BitmapLayerState layer = effectiveLayers[i];
+          final CanvasCompositeLayer layer = effectiveLayers[i];
           final int before = revisionSnapshot[i];
           final int now = layer.revision;
           if (now != before) {
@@ -485,7 +492,7 @@ class CanvasRasterBackend {
 
   Color colorAtComposite(
     Offset position,
-    List<BitmapLayerState> layers, {
+    List<CanvasCompositeLayer> layers, {
     String? translatingLayerId,
     bool preferRealtime = false,
   }) {
@@ -500,14 +507,14 @@ class CanvasRasterBackend {
       return BitmapSurface.decodeColor(pixels[index]);
     }
     int? color;
-    for (final BitmapLayerState layer in layers) {
+    for (final CanvasCompositeLayer layer in layers) {
       if (!layer.visible) {
         continue;
       }
       if (translatingLayerId != null && layer.id == translatingLayerId) {
         continue;
       }
-      final int src = layer.surface.pixels[index];
+      final int src = layer.pixels[index];
       if (color == null) {
         color = src;
       } else {

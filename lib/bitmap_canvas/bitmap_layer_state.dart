@@ -1,11 +1,15 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
+import '../canvas/canvas_composite_layer.dart';
 import '../canvas/canvas_layer.dart';
+import '../canvas/canvas_layer_info.dart';
 import '../canvas/text_renderer.dart';
 import 'bitmap_canvas.dart';
 
 /// 在画布控制器与渲染后端之间共享的图层状态模型。
-class BitmapLayerState {
+class BitmapLayerState implements CanvasLayerInfo, CanvasCompositeLayer {
   BitmapLayerState({
     required this.id,
     required this.name,
@@ -30,4 +34,7 @@ class BitmapLayerState {
   int revision = 0;
   CanvasTextData? text;
   Rect? textBounds;
+
+  @override
+  Uint32List get pixels => surface.pixels;
 }

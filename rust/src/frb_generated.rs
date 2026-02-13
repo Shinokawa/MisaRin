@@ -362,6 +362,44 @@ fn wire__crate__api__gpu_composite__gpu_composite_layers_impl(
         },
     )
 }
+fn wire__crate__api__gpu_composite__cpu_composite_layers_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cpu_composite_layers",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_layers =
+                <Vec<crate::api::gpu_composite::GpuLayerData>>::sse_decode(&mut deserializer);
+            let api_width = <u32>::sse_decode(&mut deserializer);
+            let api_height = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::gpu_composite::cpu_composite_layers(
+                        api_layers, api_width, api_height,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__gpu_composite__gpu_compositor_dispose_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1486,6 +1524,12 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__bucket_fill__flood_fill_patch_impl(port, ptr, rust_vec_len, data_len)
         }
         8 => wire__crate__api__gpu_composite__gpu_composite_layers_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        31 => wire__crate__api__gpu_composite__cpu_composite_layers_impl(
             port,
             ptr,
             rust_vec_len,

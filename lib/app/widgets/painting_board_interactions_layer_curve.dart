@@ -1,12 +1,12 @@
 part of 'painting_board.dart';
 
 extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteractionMixin {
-  BitmapLayerState? _activeLayerForAdjustment() {
+  CanvasLayerInfo? _activeLayerForAdjustment() {
     final String? activeId = _controller.activeLayerId;
     if (activeId == null) {
       return null;
     }
-    for (final BitmapLayerState layer in _controller.layers) {
+    for (final CanvasLayerInfo layer in _controller.layers) {
       if (layer.id == activeId) {
         return layer;
       }
@@ -48,7 +48,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   Future<void> _beginLayerAdjustDrag(Offset boardLocal) async {
-    final BitmapLayerState? layer = _activeLayerForAdjustment();
+    final CanvasLayerInfo? layer = _activeLayerForAdjustment();
     if (layer == null || layer.locked) {
       return;
     }
@@ -156,7 +156,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     return matrix;
   }
 
-  bool _startRustLayerAdjustPreview(BitmapLayerState layer) {
+  bool _startRustLayerAdjustPreview(CanvasLayerInfo layer) {
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
@@ -230,7 +230,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_canUseRustCanvasEngine() || handle == null) {
       return;
     }
-    final BitmapLayerState? layer = _activeLayerForAdjustment();
+    final CanvasLayerInfo? layer = _activeLayerForAdjustment();
     if (layer == null) {
       return;
     }
@@ -277,7 +277,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
   }
 
-  void _hideRustLayerForAdjust(BitmapLayerState layer) {
+  void _hideRustLayerForAdjust(CanvasLayerInfo layer) {
     if (!_canUseRustCanvasEngine()) {
       return;
     }
@@ -314,7 +314,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _layerAdjustRustHiddenVisible = false;
   }
 
-  bool _syncActiveLayerFromRustForAdjust(BitmapLayerState layer) {
+  bool _syncActiveLayerFromRustForAdjust(CanvasLayerInfo layer) {
     return _syncLayerPixelsFromRust(layer);
   }
 
@@ -525,7 +525,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
         snapshot.bitmap != null &&
         snapshot.bitmapWidth != null &&
         snapshot.bitmapHeight != null) {
-      _curveRasterPreviewPixels = BitmapCanvasController.rgbaToPixels(
+      _curveRasterPreviewPixels = rgbaToPixels(
         snapshot.bitmap!,
         snapshot.bitmapWidth!,
         snapshot.bitmapHeight!,
@@ -622,7 +622,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _clearCurvePreviewRasterImage();
       return;
     }
-    final BitmapLayerState layer = _controller.activeLayer;
+    final CanvasLayerInfo layer = _controller.activeLayer;
     if (!layer.visible) {
       _clearCurvePreviewRasterImage();
       return;

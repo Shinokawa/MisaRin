@@ -40,7 +40,7 @@ mixin _PaintingBoardLayerMixin
     if (_layers.isEmpty) {
       return widget.settings.backgroundColor;
     }
-    final BitmapLayerState baseLayer = _layers.first;
+    final CanvasLayerInfo baseLayer = _layers.first;
     final Uint32List? pixels = _controller.readLayerPixels(baseLayer.id);
     if (pixels != null && pixels.isNotEmpty && (pixels[0] >> 24) != 0) {
       return BitmapSurface.decodeColor(pixels[0]);
@@ -49,8 +49,8 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerVisibilityChanged(String id, bool visible) async {
-    BitmapLayerState? target;
-    for (final BitmapLayerState layer in _layers) {
+    CanvasLayerInfo? target;
+    for (final CanvasLayerInfo layer in _layers) {
       if (layer.id == id) {
         target = layer;
         break;
@@ -83,12 +83,12 @@ mixin _PaintingBoardLayerMixin
     }
   }
 
-  Future<void> _beginLayerRename(BitmapLayerState layer) async {
+  Future<void> _beginLayerRename(CanvasLayerInfo layer) async {
     if (layer.locked) {
       return;
     }
 
-    final BitmapLayerState? target = _layerById(layer.id);
+    final CanvasLayerInfo? target = _layerById(layer.id);
     if (target == null || target.locked) {
       return;
     }
@@ -163,7 +163,7 @@ mixin _PaintingBoardLayerMixin
       return;
     }
 
-    final BitmapLayerState? refreshed = _layerById(layer.id);
+    final CanvasLayerInfo? refreshed = _layerById(layer.id);
     if (refreshed == null || refreshed.locked || refreshed.name == nextName) {
       return;
     }
@@ -186,8 +186,8 @@ mixin _PaintingBoardLayerMixin
     if (cancel || nextName.isEmpty) {
       return;
     }
-    BitmapLayerState? target;
-    for (final BitmapLayerState layer in _layers) {
+    CanvasLayerInfo? target;
+    for (final CanvasLayerInfo layer in _layers) {
       if (layer.id == targetId) {
         target = layer;
         break;
@@ -299,12 +299,12 @@ mixin _PaintingBoardLayerMixin
     _markDirty();
   }
 
-  BitmapLayerState? _currentActiveLayer() {
+  CanvasLayerInfo? _currentActiveLayer() {
     final String? activeId = _activeLayerId;
     if (activeId == null) {
       return null;
     }
-    for (final BitmapLayerState layer in _layers) {
+    for (final CanvasLayerInfo layer in _layers) {
       if (layer.id == activeId) {
         return layer;
       }
@@ -313,7 +313,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   Future<bool> rasterizeActiveTextLayer() async {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return false;
     }
@@ -321,14 +321,14 @@ mixin _PaintingBoardLayerMixin
   }
 
   bool get canRasterizeActiveLayer {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return false;
     }
     return layer.text != null && !layer.locked;
   }
 
-  Future<bool> _rasterizeTextLayer(BitmapLayerState layer) async {
+  Future<bool> _rasterizeTextLayer(CanvasLayerInfo layer) async {
     if (layer.text == null || layer.locked) {
       return false;
     }
@@ -350,7 +350,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerOpacityChangeStart(double _) {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return;
     }
@@ -405,7 +405,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerOpacityChanged(double value) {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return;
     }
@@ -432,7 +432,7 @@ mixin _PaintingBoardLayerMixin
     if (layerId == null) {
       return false;
     }
-    final BitmapLayerState? layer = _layerById(layerId);
+    final CanvasLayerInfo? layer = _layerById(layerId);
     if (layer == null) {
       return false;
     }
@@ -447,7 +447,7 @@ mixin _PaintingBoardLayerMixin
     return true;
   }
 
-  void _ensureLayerOpacityPreview(BitmapLayerState layer) {
+  void _ensureLayerOpacityPreview(CanvasLayerInfo layer) {
     bool needsImages =
         _layerOpacityPreviewLayerId != layer.id ||
             _layerOpacityPreviewActiveLayerImage == null;
@@ -469,8 +469,8 @@ mixin _PaintingBoardLayerMixin
     }
   }
 
-  bool _hasVisibleLayersBelow(BitmapLayerState target) {
-    for (final BitmapLayerState layer in _layers) {
+  bool _hasVisibleLayersBelow(CanvasLayerInfo target) {
+    for (final CanvasLayerInfo layer in _layers) {
       if (layer.id == target.id) {
         break;
       }
@@ -485,12 +485,14 @@ mixin _PaintingBoardLayerMixin
     String layerId,
     int requestId,
   ) async {
-    final List<BitmapLayerState> snapshot = _layers.toList();
+    final List<CanvasCompositeLayer> compositeSnapshot =
+        _controller.compositeLayers.toList();
+    final List<CanvasLayerInfo> signatureSnapshot = _controller.layers.toList();
     _LayerPreviewImages previews;
     try {
       previews = await _captureLayerPreviewImages(
         controller: _controller,
-        layers: snapshot,
+        layers: compositeSnapshot,
         activeLayerId: layerId,
         captureActiveLayerAtFullOpacity: true,
       );
@@ -510,7 +512,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityPreviewActiveLayerImage = previews.active;
     _layerOpacityPreviewForeground = previews.foreground;
     _layerOpacityPreviewCapturedSignature =
-        _layerOpacityPreviewSignature(snapshot);
+        _layerOpacityPreviewSignature(signatureSnapshot);
     setState(() {});
   }
 
@@ -548,7 +550,7 @@ mixin _PaintingBoardLayerMixin
     }
   }
 
-  void _applyLayerLockedState(BitmapLayerState layer, bool locked) async {
+  void _applyLayerLockedState(CanvasLayerInfo layer, bool locked) async {
     if (layer.locked == locked) {
       return;
     }
@@ -561,19 +563,19 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerLocked(bool locked) {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return;
     }
     _applyLayerLockedState(layer, locked);
   }
 
-  void _handleLayerLockToggle(BitmapLayerState layer) {
+  void _handleLayerLockToggle(CanvasLayerInfo layer) {
     _applyLayerLockedState(layer, !layer.locked);
   }
 
-  BitmapLayerState? _layerById(String id) {
-    for (final BitmapLayerState candidate in _layers) {
+  CanvasLayerInfo? _layerById(String id) {
+    for (final CanvasLayerInfo candidate in _layers) {
       if (candidate.id == id) {
         return candidate;
       }
@@ -581,7 +583,7 @@ mixin _PaintingBoardLayerMixin
     return null;
   }
 
-  bool _canMergeLayerDown(BitmapLayerState layer) {
+  bool _canMergeLayerDown(CanvasLayerInfo layer) {
     if (layer.locked) {
       return false;
     }
@@ -591,11 +593,11 @@ mixin _PaintingBoardLayerMixin
     if (index <= 0) {
       return false;
     }
-    final BitmapLayerState below = _layers[index - 1];
+    final CanvasLayerInfo below = _layers[index - 1];
     return !below.locked;
   }
 
-  void _handleMergeLayerDown(BitmapLayerState layer) async {
+  void _handleMergeLayerDown(CanvasLayerInfo layer) async {
     if (!_canMergeLayerDown(layer)) {
       return;
     }
@@ -620,7 +622,7 @@ mixin _PaintingBoardLayerMixin
     _markDirty();
   }
 
-  void _handleLayerClippingToggle(BitmapLayerState layer) async {
+  void _handleLayerClippingToggle(CanvasLayerInfo layer) async {
     if (layer.locked) {
       return;
     }
@@ -632,7 +634,7 @@ mixin _PaintingBoardLayerMixin
     _markDirty();
   }
 
-  void _handleDuplicateLayer(BitmapLayerState layer) async {
+  void _handleDuplicateLayer(CanvasLayerInfo layer) async {
     if (_canUseRustCanvasEngine()) {
       _showRustCanvasMessage('Rust 画布目前暂不支持复制图层。');
       return;
@@ -659,7 +661,7 @@ mixin _PaintingBoardLayerMixin
     _markDirty();
   }
 
-  void _showLayerContextMenu(BitmapLayerState layer, Offset position) {
+  void _showLayerContextMenu(CanvasLayerInfo layer, Offset position) {
     _handleLayerSelected(layer.id);
     _layerContextMenuController.showFlyout(
       position: position,
@@ -668,7 +670,7 @@ mixin _PaintingBoardLayerMixin
       transitionDuration: Duration.zero,
       reverseTransitionDuration: Duration.zero,
       builder: (context) {
-        final BitmapLayerState? target = _layerById(layer.id);
+        final CanvasLayerInfo? target = _layerById(layer.id);
         if (target == null) {
           return const SizedBox.shrink();
         }
@@ -677,7 +679,7 @@ mixin _PaintingBoardLayerMixin
     );
   }
 
-  List<MenuFlyoutItemBase> _buildLayerContextMenuItems(BitmapLayerState layer) {
+  List<MenuFlyoutItemBase> _buildLayerContextMenuItems(CanvasLayerInfo layer) {
     final bool canDelete = _layers.length > 1 && !layer.locked;
     final bool canMerge = _canMergeLayerDown(layer);
     final bool isLocked = layer.locked;
@@ -738,7 +740,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerClipping(bool clipping) async {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null || layer.clippingMask == clipping) {
       return;
     }
@@ -749,7 +751,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerBlendMode(CanvasLayerBlendMode mode) async {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null || layer.blendMode == mode) {
       return;
     }
@@ -776,7 +778,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   Future<bool> applyLayerAntialiasLevel(int level) async {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null || layer.locked) {
       return false;
     }
@@ -836,7 +838,7 @@ mixin _PaintingBoardLayerMixin
 
   Widget? _buildLayerControlStrip(
     FluentThemeData theme,
-    BitmapLayerState? activeLayer,
+    CanvasLayerInfo? activeLayer,
   ) {
     return _buildLayerControlStripImpl(theme, activeLayer);
   }
@@ -845,11 +847,11 @@ mixin _PaintingBoardLayerMixin
     return _computeLayerTileDimStatesImpl();
   }
 
-  void _pruneLayerPreviewCache(Iterable<BitmapLayerState> layers) {
+  void _pruneLayerPreviewCache(Iterable<CanvasLayerInfo> layers) {
     _pruneLayerPreviewCacheImpl(layers);
   }
 
-  void _ensureLayerPreview(BitmapLayerState layer) {
+  void _ensureLayerPreview(CanvasLayerInfo layer) {
     _ensureLayerPreviewImpl(layer);
   }
 

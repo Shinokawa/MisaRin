@@ -78,13 +78,17 @@ import 'package:file_picker/file_picker.dart';
 import '../dialogs/misarin_dialog.dart';
 import '../dialogs/brush_preset_editor_dialog.dart';
 import '../l10n/l10n.dart';
+import 'package:misa_rin/canvas/canvas_facade.dart';
+import 'package:misa_rin/canvas/canvas_factory.dart';
+import 'package:misa_rin/canvas/canvas_layer_info.dart';
+import 'package:misa_rin/canvas/canvas_composite_layer.dart';
+import 'package:misa_rin/canvas/canvas_pixel_utils.dart';
 import '../debug/rust_canvas_timeline.dart';
 
 import '../../minecraft/bedrock_model.dart';
 import '../../minecraft/bedrock_animation.dart';
 import '../../bitmap_canvas/bitmap_canvas.dart';
 import '../../bitmap_canvas/raster_frame.dart';
-import '../../bitmap_canvas/controller.dart';
 import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
 import '../../bitmap_canvas/stroke_dynamics.dart'

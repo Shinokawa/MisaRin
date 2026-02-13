@@ -15,7 +15,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       return;
     }
     _layerOpacityPreviewReset(this);
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage(l10n.cannotLocateLayer);
       return;
@@ -153,7 +153,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
         ? await _captureRustLayerPreviewImages(session)
         : await _captureLayerPreviewImages(
             controller: _controller,
-            layers: _layers.toList(),
+            layers: _controller.compositeLayers.toList(),
             activeLayerId: session.activeLayerId,
           );
     _previewBackground?.dispose();
