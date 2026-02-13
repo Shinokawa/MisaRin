@@ -604,6 +604,16 @@ mixin _PaintingBoardLayerMixin
     if (!_canMergeLayerDown(layer)) {
       return;
     }
+    final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
+    if (!useGpuBackend) {
+      await _pushUndoSnapshot();
+      if (!_controller.mergeLayerDown(layer.id)) {
+        return;
+      }
+      setState(() {});
+      _markDirty();
+      return;
+    }
     if (!_canUseRustCanvasEngine()) {
       _showRustCanvasMessage('Rust 画布尚未准备好。');
       return;

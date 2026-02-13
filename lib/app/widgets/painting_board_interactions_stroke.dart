@@ -242,7 +242,17 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (anchor == null || snapped == null) {
       return;
     }
+    final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
+    if (!useGpuBackend) {
+      await _startStroke(anchor, timestamp, rawEvent);
+      _appendPoint(snapped, timestamp, rawEvent);
+      _finishStroke(timestamp);
+      _clearPerspectivePenPreview();
+      return;
+    }
     if (!_canUseRustCanvasEngine()) {
+      _showRustCanvasMessage('Rust 画布尚未准备好。');
+      _clearPerspectivePenPreview();
       return;
     }
     if (!_syncActiveLayerPixelsFromRust()) {

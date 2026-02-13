@@ -1189,9 +1189,8 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
       case CanvasTool.eraser:
         _focusNode.requestFocus();
-        final bool useCpuBackend =
-            CanvasBackendState.backend == CanvasBackend.cpu;
-        if (useCpuBackend) {
+        final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
+        if (!useGpuBackend) {
           if (!_canStartCpuStroke(pointerInsideBoard: pointerInsideBoard)) {
             return;
           }

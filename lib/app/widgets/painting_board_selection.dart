@@ -206,6 +206,14 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   Future<Uint8List?> _computeMagicWandMask(Offset position) async {
+    final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
+    if (!useGpuBackend) {
+      return _controller.computeMagicWandMask(
+        position,
+        sampleAllLayers: true,
+        tolerance: _magicWandTolerance,
+      );
+    }
     if (!_canUseRustCanvasEngine()) {
       return null;
     }

@@ -147,11 +147,31 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     if (!isPointInsideSelection(position)) {
       return;
     }
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
+    if (_isActiveLayerLocked()) {
       return;
     }
-    if (_isActiveLayerLocked()) {
+    final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
+    if (!useGpuBackend) {
+      await _pushUndoSnapshot();
+      _controller.floodFill(
+        position,
+        color: _primaryColor,
+        contiguous: _bucketContiguous,
+        sampleAllLayers: _bucketSampleAllLayers,
+        swallowColors: _resolveBucketSwallowColors(),
+        tolerance: _bucketTolerance,
+        fillGap: _bucketFillGap,
+        antialiasLevel: _bucketAntialiasLevel,
+      );
+      if (mounted) {
+        setState(() {});
+      }
+      _markDirty();
+      return;
+    }
+    final int? handle = _rustCanvasEngineHandle;
+    if (!_canUseRustCanvasEngine() || handle == null) {
+      _showRustCanvasMessage('Rust 画布尚未准备好。');
       return;
     }
     final String? activeLayerId = _controller.activeLayerId;
