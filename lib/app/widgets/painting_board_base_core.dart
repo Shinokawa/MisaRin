@@ -96,10 +96,10 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _isLayerDragging = false;
   bool _layerAdjustRustSynced = false;
   bool _layerAdjustUsingRustPreview = false;
-  int? _layerAdjustRustPreviewLayerIndex;
-  int? _layerAdjustRustHiddenLayerIndex;
+  String? _layerAdjustRustPreviewLayerId;
+  String? _layerAdjustRustHiddenLayerId;
   bool _layerAdjustRustHiddenVisible = false;
-  int? _layerTransformRustHiddenLayerIndex;
+  String? _layerTransformRustHiddenLayerId;
   bool _layerTransformRustHiddenVisible = false;
   Future<void>? _layerAdjustFinalizeTask;
   Offset? _layerDragStart;
@@ -1352,8 +1352,14 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     }
     final List<CanvasLayerInfo> layers = _controller.layers;
     final int currentCount = layers.length;
-    final int? hiddenAdjustIndex = _layerAdjustRustHiddenLayerIndex;
-    final int? hiddenTransformIndex = _layerTransformRustHiddenLayerIndex;
+    final String? hiddenAdjustId = _layerAdjustRustHiddenLayerId;
+    final String? hiddenTransformId = _layerTransformRustHiddenLayerId;
+    final int? hiddenAdjustIndex = hiddenAdjustId == null
+        ? null
+        : _rustCanvasLayerIndexForId(hiddenAdjustId);
+    final int? hiddenTransformIndex = hiddenTransformId == null
+        ? null
+        : _rustCanvasLayerIndexForId(hiddenTransformId);
     for (int i = 0; i < currentCount; i++) {
       final CanvasLayerInfo layer = layers[i];
       final bool hideForAdjust =
@@ -1786,6 +1792,20 @@ final class _CanvasBackendFacade {
     );
   }
 
+  bool applyAntialiasById({
+    required String layerId,
+    required int level,
+  }) {
+    if (!_gpuReady) {
+      return false;
+    }
+    final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
+    if (layerIndex == null) {
+      return false;
+    }
+    return applyAntialiasByIndex(layerIndex: layerIndex, level: level);
+  }
+
   bool undo() {
     if (!_gpuReady) {
       return false;
@@ -2050,6 +2070,24 @@ final class _CanvasBackendFacade {
     return true;
   }
 
+  bool hasRustLayer({required String layerId}) {
+    if (!_gpuReady) {
+      return false;
+    }
+    return _owner._rustCanvasLayerIndexForId(layerId) != null;
+  }
+
+  Rect? getRustLayerBoundsById({required String layerId}) {
+    if (!_gpuReady) {
+      return null;
+    }
+    final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
+    if (layerIndex == null) {
+      return null;
+    }
+    return getRustLayerBoundsByIndex(layerIndex);
+  }
+
   Rect? getRustLayerBoundsByIndex(int layerIndex) {
     if (!_gpuReady) {
       return null;
@@ -2089,6 +2127,27 @@ final class _CanvasBackendFacade {
     );
   }
 
+  bool setLayerTransformPreviewById({
+    required String layerId,
+    required Float32List matrix,
+    required bool enabled,
+    required bool bilinear,
+  }) {
+    if (!_gpuReady) {
+      return false;
+    }
+    final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
+    if (layerIndex == null) {
+      return false;
+    }
+    return setLayerTransformPreviewByIndex(
+      layerIndex: layerIndex,
+      matrix: matrix,
+      enabled: enabled,
+      bilinear: bilinear,
+    );
+  }
+
   bool applyLayerTransformByIndex({
     required int layerIndex,
     required Float32List matrix,
@@ -2099,6 +2158,25 @@ final class _CanvasBackendFacade {
     }
     return _ffi.applyLayerTransform(
       handle: _owner._rustCanvasEngineHandle!,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      bilinear: bilinear,
+    );
+  }
+
+  bool applyLayerTransformById({
+    required String layerId,
+    required Float32List matrix,
+    required bool bilinear,
+  }) {
+    if (!_gpuReady) {
+      return false;
+    }
+    final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
+    if (layerIndex == null) {
+      return false;
+    }
+    return applyLayerTransformByIndex(
       layerIndex: layerIndex,
       matrix: matrix,
       bilinear: bilinear,
@@ -2137,6 +2215,29 @@ final class _CanvasBackendFacade {
       _owner._markDirty();
     }
     return true;
+  }
+
+  bool translateLayerById({
+    required String layerId,
+    required int deltaX,
+    required int deltaY,
+    bool recordHistory = true,
+    bool markDirty = true,
+  }) {
+    if (!_gpuReady) {
+      return false;
+    }
+    final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
+    if (layerIndex == null) {
+      return false;
+    }
+    return translateLayerByIndex(
+      layerIndex: layerIndex,
+      deltaX: deltaX,
+      deltaY: deltaY,
+      recordHistory: recordHistory,
+      markDirty: markDirty,
+    );
   }
 
   bool applyFilterToRust({

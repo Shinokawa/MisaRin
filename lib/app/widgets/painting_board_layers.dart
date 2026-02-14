@@ -796,12 +796,8 @@ mixin _PaintingBoardLayerMixin
       if (layerId == null) {
         return false;
       }
-      final int? index = _rustCanvasLayerIndexForId(layerId);
-      if (index == null) {
-        return false;
-      }
-      final bool applied = _backend.applyAntialiasByIndex(
-        layerIndex: index,
+      final bool applied = _backend.applyAntialiasById(
+        layerId: layerId,
         level: clamped,
       );
       if (applied) {

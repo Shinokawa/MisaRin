@@ -141,7 +141,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       return false;
     }
     final String layerId = session.activeLayerId;
-    if (_rustCanvasLayerIndexForId(layerId) == null) {
+    if (!_backend.hasRustLayer(layerId: layerId)) {
       return false;
     }
     bool applied = false;

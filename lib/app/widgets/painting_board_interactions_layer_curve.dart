@@ -57,7 +57,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
     _focusNode.requestFocus();
     _layerAdjustUsingRustPreview = false;
-    _layerAdjustRustPreviewLayerIndex = null;
+    _layerAdjustRustPreviewLayerId = null;
     _layerAdjustRustSynced =
         _backend.isGpuReady && _syncActiveLayerFromRustForAdjust(layer);
     _controller.translateActiveLayer(0, 0);
@@ -160,20 +160,16 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_backend.isGpuReady) {
       return false;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
-    if (layerIndex == null) {
-      return false;
-    }
     final Float32List matrix = _buildLayerAdjustTransformMatrix(0, 0);
-    final bool ok = _backend.setLayerTransformPreviewByIndex(
-      layerIndex: layerIndex,
+    final bool ok = _backend.setLayerTransformPreviewById(
+      layerId: layer.id,
       matrix: matrix,
       enabled: true,
       bilinear: false,
     );
     if (ok) {
       _layerAdjustUsingRustPreview = true;
-      _layerAdjustRustPreviewLayerIndex = layerIndex;
+      _layerAdjustRustPreviewLayerId = layer.id;
     }
     return ok;
   }
@@ -182,13 +178,13 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_layerAdjustUsingRustPreview) {
       return;
     }
-    final int? layerIndex = _layerAdjustRustPreviewLayerIndex;
-    if (!_backend.isGpuReady || layerIndex == null) {
+    final String? layerId = _layerAdjustRustPreviewLayerId;
+    if (!_backend.isGpuReady || layerId == null) {
       return;
     }
     final Float32List matrix = _buildLayerAdjustTransformMatrix(dx, dy);
-    _backend.setLayerTransformPreviewByIndex(
-      layerIndex: layerIndex,
+    _backend.setLayerTransformPreviewById(
+      layerId: layerId,
       matrix: matrix,
       enabled: true,
       bilinear: false,
@@ -199,18 +195,18 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_layerAdjustUsingRustPreview) {
       return;
     }
-    final int? layerIndex = _layerAdjustRustPreviewLayerIndex;
-    if (_backend.isGpuReady && layerIndex != null) {
+    final String? layerId = _layerAdjustRustPreviewLayerId;
+    if (_backend.isGpuReady && layerId != null) {
       final Float32List matrix = _buildLayerAdjustTransformMatrix(0, 0);
-      _backend.setLayerTransformPreviewByIndex(
-        layerIndex: layerIndex,
+      _backend.setLayerTransformPreviewById(
+        layerId: layerId,
         matrix: matrix,
         enabled: false,
         bilinear: false,
       );
     }
     _layerAdjustUsingRustPreview = false;
-    _layerAdjustRustPreviewLayerIndex = null;
+    _layerAdjustRustPreviewLayerId = null;
   }
 
   void _applyRustLayerTranslation(int dx, int dy) {
@@ -222,10 +218,6 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
     final CanvasLayerInfo? layer = _activeLayerForAdjustment();
     if (layer == null) {
-      return;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
-    if (layerIndex == null) {
       return;
     }
     final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
@@ -250,8 +242,8 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
         recordUndo: true,
       );
     } else {
-      applied = _backend.translateLayerByIndex(
-        layerIndex: layerIndex,
+      applied = _backend.translateLayerById(
+        layerId: layer.id,
         deltaX: dx,
         deltaY: dy,
       );
@@ -265,26 +257,25 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_backend.isGpuReady) {
       return;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
-    if (layerIndex == null) {
+    if (!_backend.hasRustLayer(layerId: layer.id)) {
       return;
     }
-    _layerAdjustRustHiddenLayerIndex = layerIndex;
+    _layerAdjustRustHiddenLayerId = layer.id;
     _layerAdjustRustHiddenVisible = layer.visible;
-    _backend.setRustLayerVisibleByIndex(layerIndex: layerIndex, visible: false);
+    _backend.setRustLayerVisible(layerId: layer.id, visible: false);
   }
 
   void _restoreRustLayerAfterAdjust() {
-    final int? layerIndex = _layerAdjustRustHiddenLayerIndex;
-    if (layerIndex == null) {
-      _layerAdjustRustHiddenLayerIndex = null;
+    final String? layerId = _layerAdjustRustHiddenLayerId;
+    if (layerId == null) {
+      _layerAdjustRustHiddenLayerId = null;
       return;
     }
-    _backend.setRustLayerVisibleByIndex(
-      layerIndex: layerIndex,
+    _backend.setRustLayerVisible(
+      layerId: layerId,
       visible: _layerAdjustRustHiddenVisible,
     );
-    _layerAdjustRustHiddenLayerIndex = null;
+    _layerAdjustRustHiddenLayerId = null;
     _layerAdjustRustHiddenVisible = false;
   }
 

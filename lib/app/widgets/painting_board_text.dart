@@ -439,7 +439,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (layer == null) {
         return false;
       }
-      if (_rustCanvasLayerIndexForId(layerId) == null) {
+      if (!_backend.hasRustLayer(layerId: layerId)) {
         return false;
       }
       final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;

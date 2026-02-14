@@ -354,7 +354,7 @@ mixin _PaintingBoardFilterMixin
     }
 
     if (_backend.isGpuReady) {
-      if (_rustCanvasLayerIndexForId(activeLayerId) == null) {
+      if (!_backend.hasRustLayer(layerId: activeLayerId)) {
         _showFilterMessage(l10n.cannotLocateLayer);
         return;
       }

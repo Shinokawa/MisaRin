@@ -24,7 +24,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   Offset? _layerTransformCursorWorkspacePosition;
   _LayerTransformHandle? _layerTransformCursorHandle;
   bool _layerTransformUsingRustPreview = false;
-  int? _layerTransformRustLayerIndex;
+  String? _layerTransformRustLayerId;
 
   bool get _isLayerFreeTransformActive =>
       _layerTransformModeActive && _layerTransformState != null;
@@ -102,11 +102,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_backend.isGpuReady) {
       return false;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(activeLayer.id);
-    if (layerIndex == null) {
-      return false;
-    }
-    final Rect? bounds = _fetchRustLayerBounds(layerIndex);
+    final Rect? bounds =
+        _backend.getRustLayerBoundsById(layerId: activeLayer.id);
     if (bounds == null || bounds.isEmpty) {
       return false;
     }
@@ -117,7 +114,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       fullImageSizeOverride: bounds.size,
     );
     if (!_setRustLayerTransformPreview(
-      layerIndex: layerIndex,
+      layerId: activeLayer.id,
       state: state,
       enabled: true,
     )) {
@@ -148,7 +145,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         additionalDy: 12,
       );
       _layerTransformUsingRustPreview = true;
-      _layerTransformRustLayerIndex = layerIndex;
+      _layerTransformRustLayerId = activeLayer.id;
     });
     _toolCursorPosition = null;
     _penCursorWorkspacePosition = null;
@@ -255,7 +252,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         additionalDy: 12,
       );
       _layerTransformUsingRustPreview = false;
-      _layerTransformRustLayerIndex = null;
+      _layerTransformRustLayerId = null;
     });
     _toolCursorPosition = null;
     _penCursorWorkspacePosition = null;
@@ -284,7 +281,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformCursorWorkspacePosition = null;
       _layerTransformCursorHandle = null;
       _layerTransformUsingRustPreview = false;
-      _layerTransformRustLayerIndex = null;
+      _layerTransformRustLayerId = null;
     });
     _restoreRustLayerAfterTransform();
   }
@@ -325,7 +322,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           _layerTransformCursorWorkspacePosition = null;
           _layerTransformCursorHandle = null;
           _layerTransformUsingRustPreview = false;
-          _layerTransformRustLayerIndex = null;
+          _layerTransformRustLayerId = null;
         });
         _restoreRustLayerAfterTransform();
         _markDirty();
@@ -578,36 +575,28 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (_layerTransformUsingRustPreview) {
       return;
     }
-    if (_layerTransformRustHiddenLayerIndex != null) {
+    if (_layerTransformRustHiddenLayerId != null) {
       return;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
-    if (layerIndex == null) {
+    if (!_backend.hasRustLayer(layerId: layer.id)) {
       return;
     }
-    _layerTransformRustHiddenLayerIndex = layerIndex;
+    _layerTransformRustHiddenLayerId = layer.id;
     _layerTransformRustHiddenVisible = layer.visible;
-    _backend.setRustLayerVisibleByIndex(
-      layerIndex: layerIndex,
-      visible: false,
-    );
+    _backend.setRustLayerVisible(layerId: layer.id, visible: false);
   }
 
   void _restoreRustLayerAfterTransform() {
-    final int? layerIndex = _layerTransformRustHiddenLayerIndex;
-    if (layerIndex == null) {
+    final String? layerId = _layerTransformRustHiddenLayerId;
+    if (layerId == null) {
       return;
     }
-    _backend.setRustLayerVisibleByIndex(
-      layerIndex: layerIndex,
+    _backend.setRustLayerVisible(
+      layerId: layerId,
       visible: _layerTransformRustHiddenVisible,
     );
-    _layerTransformRustHiddenLayerIndex = null;
+    _layerTransformRustHiddenLayerId = null;
     _layerTransformRustHiddenVisible = false;
-  }
-
-  Rect? _fetchRustLayerBounds(int layerIndex) {
-    return _backend.getRustLayerBoundsByIndex(layerIndex);
   }
 
   Float32List? _buildRustTransformMatrix(_LayerTransformStateModel state) {
@@ -627,7 +616,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   }
 
   bool _setRustLayerTransformPreview({
-    required int layerIndex,
+    required String layerId,
     required _LayerTransformStateModel state,
     required bool enabled,
   }) {
@@ -635,8 +624,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (matrix == null) {
       return false;
     }
-    return _backend.setLayerTransformPreviewByIndex(
-      layerIndex: layerIndex,
+    return _backend.setLayerTransformPreviewById(
+      layerId: layerId,
       matrix: matrix,
       enabled: enabled,
       bilinear: _shouldUseTransformBilinear(),
@@ -648,12 +637,12 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       return;
     }
     final _LayerTransformStateModel? state = _layerTransformState;
-    final int? layerIndex = _layerTransformRustLayerIndex;
-    if (state == null || layerIndex == null) {
+    final String? layerId = _layerTransformRustLayerId;
+    if (state == null || layerId == null) {
       return;
     }
     _setRustLayerTransformPreview(
-      layerIndex: layerIndex,
+      layerId: layerId,
       state: state,
       enabled: true,
     );
@@ -663,32 +652,32 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_layerTransformUsingRustPreview) {
       return;
     }
-    final int? layerIndex = _layerTransformRustLayerIndex;
-    if (layerIndex != null && _layerTransformState != null) {
+    final String? layerId = _layerTransformRustLayerId;
+    if (layerId != null && _layerTransformState != null) {
       _setRustLayerTransformPreview(
-        layerIndex: layerIndex,
+        layerId: layerId,
         state: _layerTransformState!,
         enabled: false,
       );
     }
     _layerTransformUsingRustPreview = false;
-    _layerTransformRustLayerIndex = null;
+    _layerTransformRustLayerId = null;
   }
 
   bool _applyRustLayerTransformPreview(_LayerTransformStateModel state) {
     if (!_backend.isGpuReady) {
       return false;
     }
-    final int? layerIndex = _layerTransformRustLayerIndex;
-    if (layerIndex == null) {
+    final String? layerId = _layerTransformRustLayerId;
+    if (layerId == null) {
       return false;
     }
     final Float32List? matrix = _buildRustTransformMatrix(state);
     if (matrix == null) {
       return false;
     }
-    return _backend.applyLayerTransformByIndex(
-      layerIndex: layerIndex,
+    return _backend.applyLayerTransformById(
+      layerId: layerId,
       matrix: matrix,
       bilinear: _shouldUseTransformBilinear(),
     );
@@ -701,7 +690,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_backend.isGpuReady) {
       return false;
     }
-    if (_rustCanvasLayerIndexForId(layer.id) == null) {
+    if (!_backend.hasRustLayer(layerId: layer.id)) {
       return false;
     }
     final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
