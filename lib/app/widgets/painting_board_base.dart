@@ -41,7 +41,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void _setPrimaryColor(Color color, {bool remember = true});
   Future<void> _applyPaintBucket(Offset position);
   bool _isActiveLayerLocked();
-  Offset _rustToEngineSpace(Offset boardLocal);
+  Offset _backendToEngineSpace(Offset boardLocal);
 
   void _setActiveTool(CanvasTool tool);
   void _convertMagicWandPreviewToSelection();
@@ -129,7 +129,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       waitForPending: true,
       warnIfFailed: true,
     )) {
-      debugPrint('rotateCanvas: rust sync failed');
+      debugPrint('rotateCanvas: backend sync failed');
       return null;
     }
     final List<CanvasLayerData> original = snapshotLayers();
@@ -173,7 +173,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       waitForPending: true,
       warnIfFailed: true,
     )) {
-      debugPrint('flipCanvas: rust sync failed');
+      debugPrint('flipCanvas: backend sync failed');
       return null;
     }
     final List<CanvasLayerData> original = snapshotLayers();

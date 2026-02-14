@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../src/rust/api/selection_path.dart' as rust_selection_path;
 import '../src/rust/canvas_engine_ffi.dart' as gpu_engine;
 import 'canvas_backend.dart';
 import 'canvas_backend_state.dart';
@@ -489,10 +490,9 @@ class CanvasBackendFacade {
   static final CanvasBackendFacade instance = CanvasBackendFacade._();
   static final CanvasEngineFfi _ffi = CanvasEngineFfi.instance;
 
-  bool get isGpuSupported => _ffi.isSupported;
-  bool get isSupported => isGpuSupported;
+  bool get isSupported => _ffi.isSupported;
 
-  bool isHandleReady(int? handle) => isGpuSupported && handle != null;
+  bool isHandleReady(int? handle) => isSupported && handle != null;
 
   int getInputQueueLen(int handle) => _ffi.getInputQueueLen(handle);
 
@@ -859,5 +859,22 @@ class CanvasBackendFacade {
       param2: param2,
       param3: param3,
     );
+  }
+
+  Uint32List? selectionPathVerticesFromMask({
+    required Uint8List mask,
+    required int width,
+  }) {
+    if (mask.isEmpty || width <= 0) {
+      return null;
+    }
+    try {
+      return rust_selection_path.selectionPathVerticesFromMask(
+        mask: mask,
+        width: width,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }

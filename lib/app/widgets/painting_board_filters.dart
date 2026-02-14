@@ -265,7 +265,7 @@ mixin _PaintingBoardFilterMixin
     this._handleFilterApplyFrameProgressInternal(frame);
   }
 
-  CanvasFilterType? _rustPreviewFilterType(_FilterPanelType type) {
+  CanvasFilterType? _backendPreviewFilterType(_FilterPanelType type) {
     switch (type) {
       case _FilterPanelType.hueSaturation:
         return CanvasFilterType.hueSaturation;
@@ -288,7 +288,7 @@ mixin _PaintingBoardFilterMixin
 
   bool _shouldUseBackendFilterPreview(_FilterSession session) {
     return _backend.supportsFilterType(
-      _rustPreviewFilterType(session.type),
+      _backendPreviewFilterType(session.type),
     );
   }
 
@@ -945,7 +945,7 @@ mixin _PaintingBoardFilterMixin
               markDirty: false,
             );
         if (!applied) {
-          throw StateError('Apply rust color range failed.');
+          throw StateError('Apply backend color range failed.');
         }
         _markDirty();
         setState(() {

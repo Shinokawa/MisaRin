@@ -24,7 +24,7 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
   final int width = controller.width;
   final int height = controller.height;
   final CanvasBackend rasterBackend =
-      useBackendCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
+      CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
   final CanvasRasterBackend tempBackend = CanvasRasterBackend(
     width: width,
     height: height,

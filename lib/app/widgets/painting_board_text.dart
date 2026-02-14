@@ -444,7 +444,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (!_backend.hasBackendLayer(layerId: layerId)) {
         return false;
       }
-      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+      final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
       final int width = engineSize.width.round();
       final int height = engineSize.height.round();
       if (width <= 0 || height <= 0) {

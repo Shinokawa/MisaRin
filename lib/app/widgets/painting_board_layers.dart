@@ -17,7 +17,7 @@ mixin _PaintingBoardLayerMixin
   // Layer operations are always supported by the Dart controller.
   // When the backend canvas is active, we additionally sync changes
   // via `_backendCanvasSet*` helpers (they are no-ops when backend is unavailable).
-  bool get rustLayerSupported => true;
+  bool get backendLayerSupported => true;
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;

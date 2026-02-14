@@ -38,7 +38,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     required CanvasLayerBlendMode mode,
     required bool isLocked,
   }) {
-    final bool isEnabled = !isLocked && rustLayerSupported;
+    final bool isEnabled = !isLocked && backendLayerSupported;
     final TextStyle baseStyle =
         theme.typography.body ?? const TextStyle(fontSize: 14);
     final Color textColor = isEnabled
@@ -414,8 +414,8 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     for (final String id in stale) {
       final _LayerPreviewCacheEntry? entry = _layerPreviewCache.remove(id);
       entry?.dispose();
-      _rustLayerPreviewRevisions.remove(id);
-      _rustLayerPreviewPending.remove(id);
+      _backendLayerPreviewRevisions.remove(id);
+      _backendLayerPreviewPending.remove(id);
     }
   }
 
@@ -485,7 +485,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     if (!_backend.isReady) {
       return layer.revision;
     }
-    return _rustLayerPreviewRevisions[layer.id] ?? 0;
+    return _backendLayerPreviewRevisions[layer.id] ?? 0;
   }
 
   void _applyLayerPreviewResultImpl({
@@ -562,8 +562,8 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       entry.dispose();
     }
     _layerPreviewCache.clear();
-    _rustLayerPreviewRevisions.clear();
-    _rustLayerPreviewPending.clear();
+    _backendLayerPreviewRevisions.clear();
+    _backendLayerPreviewPending.clear();
   }
 
   Widget _buildLayerPanelContentImpl(FluentThemeData theme) {
@@ -682,7 +682,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
-                      onChanged: rustLayerSupported
+                      onChanged: backendLayerSupported
                           ? (value) =>
                               _handleLayerVisibilityChanged(layer.id, value)
                           : null,
@@ -861,7 +861,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                           ),
                           child: _LayerTile(
                             onTapDown: (_) => _handleLayerSelected(layer.id),
-                            onSecondaryTapDown: rustLayerSupported
+                            onSecondaryTapDown: backendLayerSupported
                                 ? (details) => _showLayerContextMenu(
                                       layer,
                                       details.globalPosition,

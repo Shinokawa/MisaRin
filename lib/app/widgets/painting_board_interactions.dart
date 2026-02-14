@@ -1,20 +1,20 @@
 part of 'painting_board.dart';
 
 const double _kStylusSimulationBlend = 0.68;
-const int _kRustPointStrideBytes = 32;
-const int _kRustPointFlagDown = 1;
-const int _kRustPointFlagMove = 2;
-const int _kRustPointFlagUp = 4;
-const double _kRustPressureMinFactor = 0.09;
-const double _kRustPressureMaxFactor = 1.0;
-const bool _kDebugRustCanvasInput = bool.fromEnvironment(
+const int _kBackendPointStrideBytes = 32;
+const int _kBackendPointFlagDown = 1;
+const int _kBackendPointFlagMove = 2;
+const int _kBackendPointFlagUp = 4;
+const double _kBackendPressureMinFactor = 0.09;
+const double _kBackendPressureMaxFactor = 1.0;
+const bool _kDebugBackendCanvasInput = bool.fromEnvironment(
   'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
   defaultValue: false,
 );
 
-final class _RustPointBuffer {
-  _RustPointBuffer({int initialCapacityPoints = 256})
-    : _bytes = Uint8List(initialCapacityPoints * _kRustPointStrideBytes) {
+final class _BackendPointBuffer {
+  _BackendPointBuffer({int initialCapacityPoints = 256})
+    : _bytes = Uint8List(initialCapacityPoints * _kBackendPointStrideBytes) {
     _data = ByteData.view(_bytes.buffer);
   }
 
@@ -37,7 +37,7 @@ final class _RustPointBuffer {
     required int pointerId,
   }) {
     _ensureCapacity(_len + 1);
-    final int base = _len * _kRustPointStrideBytes;
+    final int base = _len * _kBackendPointStrideBytes;
     _data.setFloat32(base + 0, x, Endian.little);
     _data.setFloat32(base + 4, y, Endian.little);
     _data.setFloat32(base + 8, pressure, Endian.little);
@@ -57,7 +57,7 @@ final class _RustPointBuffer {
     if (index < 0 || index >= _len) {
       return;
     }
-    final int base = index * _kRustPointStrideBytes;
+    final int base = index * _kBackendPointStrideBytes;
     if (x != null) {
       _data.setFloat32(base + 0, x, Endian.little);
     }
@@ -70,7 +70,7 @@ final class _RustPointBuffer {
   }
 
   void _ensureCapacity(int neededPoints) {
-    final int neededBytes = neededPoints * _kRustPointStrideBytes;
+    final int neededBytes = neededPoints * _kBackendPointStrideBytes;
     if (_bytes.lengthInBytes >= neededBytes) {
       return;
     }
@@ -79,18 +79,18 @@ final class _RustPointBuffer {
       nextBytes = nextBytes * 2;
     }
     final Uint8List next = Uint8List(nextBytes);
-    next.setRange(0, _len * _kRustPointStrideBytes, _bytes, 0);
+    next.setRange(0, _len * _kBackendPointStrideBytes, _bytes, 0);
     _bytes = next;
     _data = ByteData.view(_bytes.buffer);
   }
 }
 
-final class _RustPressureSimulator {
-  _RustPressureSimulator()
+final class _BackendPressureSimulator {
+  _BackendPressureSimulator()
     : _strokeDynamics = StrokeDynamics(
         profile: StrokePressureProfile.auto,
-        minRadiusFactor: _kRustPressureMinFactor,
-        maxRadiusFactor: _kRustPressureMaxFactor,
+        minRadiusFactor: _kBackendPressureMinFactor,
+        maxRadiusFactor: _kBackendPressureMaxFactor,
       );
 
   final StrokeDynamics _strokeDynamics;
@@ -266,23 +266,23 @@ mixin _PaintingBoardInteractionMixin
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
         TickerProvider {
-  final _RustPointBuffer _rustPoints = _RustPointBuffer();
-  final _RustPressureSimulator _rustPressureSimulator =
-      _RustPressureSimulator();
-  bool _rustFlushScheduled = false;
-  int? _rustActivePointer;
-  bool _rustActiveStrokeUsesPressure = true;
-  bool _rustSimulatePressure = false;
-  bool _rustUseStylusPressure = false;
-  Offset? _rustLastEnginePoint;
-  Offset? _rustLastMovementUnit;
-  double _rustLastMovementDistance = 0.0;
-  double? _rustLastStylusPressure;
-  double _rustLastResolvedPressure = 1.0;
-  bool _rustWaitingForFirstMove = false;
-  Offset? _rustStrokeStartPoint;
-  double _rustStrokeStartPressure = 1.0;
-  int _rustStrokeStartIndex = 0;
+  final _BackendPointBuffer _backendPoints = _BackendPointBuffer();
+  final _BackendPressureSimulator _backendPressureSimulator =
+      _BackendPressureSimulator();
+  bool _backendFlushScheduled = false;
+  int? _backendActivePointer;
+  bool _backendActiveStrokeUsesPressure = true;
+  bool _backendSimulatePressure = false;
+  bool _backendUseStylusPressure = false;
+  Offset? _backendLastEnginePoint;
+  Offset? _backendLastMovementUnit;
+  double _backendLastMovementDistance = 0.0;
+  double? _backendLastStylusPressure;
+  double _backendLastResolvedPressure = 1.0;
+  bool _backendWaitingForFirstMove = false;
+  Offset? _backendStrokeStartPoint;
+  double _backendStrokeStartPressure = 1.0;
+  int _backendStrokeStartIndex = 0;
 
   void clear() async {
     if (_isTextEditingActive) {
@@ -454,7 +454,7 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     setState(() => _autoSharpPeakEnabled = value);
-    _rustPressureSimulator.setSharpTipsEnabled(value);
+    _backendPressureSimulator.setSharpTipsEnabled(value);
     final AppPreferences prefs = AppPreferences.instance;
     prefs.autoSharpPeakEnabled = value;
     unawaited(AppPreferences.save());
@@ -502,7 +502,7 @@ mixin _PaintingBoardInteractionMixin
     }
   }
 
-  bool _isRustDrawingPointer(PointerEvent event) {
+  bool _isBackendDrawingPointer(PointerEvent event) {
     if (_isStylusEvent(event)) {
       return true;
     }
@@ -525,7 +525,7 @@ mixin _PaintingBoardInteractionMixin
     return false;
   }
 
-  bool _canStartRustStroke({required bool pointerInsideBoard}) {
+  bool _canStartBackendStroke({required bool pointerInsideBoard}) {
     if (!pointerInsideBoard) {
       return false;
     }
@@ -558,8 +558,8 @@ mixin _PaintingBoardInteractionMixin
     return true;
   }
 
-  Offset _rustToEngineSpace(Offset boardLocal) {
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+  Offset _backendToEngineSpace(Offset boardLocal) {
+    final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
     if (engineSize == _canvasSize ||
         _canvasSize.width <= 0 ||
         _canvasSize.height <= 0) {
@@ -570,7 +570,7 @@ mixin _PaintingBoardInteractionMixin
     return Offset(boardLocal.dx * sx, boardLocal.dy * sy);
   }
 
-  Offset _sanitizeRustStrokePosition(
+  Offset _sanitizeBackendStrokePosition(
     Offset boardLocal, {
     required bool isInitialSample,
   }) {
@@ -607,47 +607,47 @@ mixin _PaintingBoardInteractionMixin
     return curved.clamp(0.0, 1.0);
   }
 
-  double _resolveRustPressure({
+  double _resolveBackendPressure({
     required PointerEvent event,
     required Offset enginePos,
     required bool isInitialSample,
   }) {
-    if (!_rustActiveStrokeUsesPressure) {
+    if (!_backendActiveStrokeUsesPressure) {
       return 1.0;
     }
     final bool isUpEvent = event is PointerUpEvent || event is PointerCancelEvent;
     double? stylusPressure =
-        _rustUseStylusPressure ? _normalizePointerPressure(event) : null;
-    if (_rustUseStylusPressure) {
+        _backendUseStylusPressure ? _normalizePointerPressure(event) : null;
+    if (_backendUseStylusPressure) {
       if (!isUpEvent && stylusPressure != null) {
-        _rustLastStylusPressure = stylusPressure;
+        _backendLastStylusPressure = stylusPressure;
       } else if (isUpEvent) {
-        stylusPressure = _rustLastStylusPressure ?? stylusPressure;
+        stylusPressure = _backendLastStylusPressure ?? stylusPressure;
       }
     }
-    final bool shouldSimulate = _rustSimulatePressure || _autoSharpPeakEnabled;
+    final bool shouldSimulate = _backendSimulatePressure || _autoSharpPeakEnabled;
     if (!shouldSimulate) {
       return stylusPressure ?? 1.0;
     }
     final double timestampMillis = event.timeStamp.inMicroseconds / 1000.0;
     if (isInitialSample) {
-      _rustPressureSimulator.setProfile(_penPressureProfile);
-      _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+      _backendPressureSimulator.setProfile(_penPressureProfile);
+      _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
       final double stylusBlend =
-          _rustUseStylusPressure && _rustSimulatePressure
+          _backendUseStylusPressure && _backendSimulatePressure
               ? _kStylusSimulationBlend
               : 1.0;
-      final double? initialPressure = _rustPressureSimulator.beginStroke(
+      final double? initialPressure = _backendPressureSimulator.beginStroke(
         position: enginePos,
         timestampMillis: timestampMillis,
-        simulatePressure: _rustSimulatePressure,
-        useDevicePressure: _rustUseStylusPressure,
+        simulatePressure: _backendSimulatePressure,
+        useDevicePressure: _backendUseStylusPressure,
         stylusPressureBlend: stylusBlend,
         stylusPressure: stylusPressure,
       );
       return initialPressure ?? stylusPressure ?? 1.0;
     }
-    final double? simulated = _rustPressureSimulator.samplePressure(
+    final double? simulated = _backendPressureSimulator.samplePressure(
       position: enginePos,
       timestampMillis: timestampMillis,
       stylusPressure: stylusPressure,
@@ -655,25 +655,25 @@ mixin _PaintingBoardInteractionMixin
     return simulated ?? stylusPressure ?? 1.0;
   }
 
-  void _appendRustPoint({
+  void _appendBackendPoint({
     required Offset enginePos,
     required double pressure,
     required int timestampUs,
     required int flags,
     required int pointerId,
   }) {
-    final Offset? previous = _rustLastEnginePoint;
+    final Offset? previous = _backendLastEnginePoint;
     if (previous != null) {
       final Offset delta = enginePos - previous;
       final double distance = delta.distance;
       if (distance.isFinite && distance > 0.001) {
-        _rustLastMovementUnit = delta / distance;
-        _rustLastMovementDistance = distance;
+        _backendLastMovementUnit = delta / distance;
+        _backendLastMovementDistance = distance;
       }
     }
-    _rustLastResolvedPressure = pressure;
-    _rustLastEnginePoint = enginePos;
-    _rustPoints.add(
+    _backendLastResolvedPressure = pressure;
+    _backendLastEnginePoint = enginePos;
+    _backendPoints.add(
       x: enginePos.dx,
       y: enginePos.dy,
       pressure: pressure,
@@ -683,7 +683,7 @@ mixin _PaintingBoardInteractionMixin
     );
   }
 
-  double _rustRadiusFromPressure(double pressure, double baseRadius) {
+  double _backendRadiusFromPressure(double pressure, double baseRadius) {
     final double base = baseRadius.isFinite ? math.max(baseRadius, 0.0) : 0.0;
     if (base <= 0.0) {
       return 0.0;
@@ -691,11 +691,11 @@ mixin _PaintingBoardInteractionMixin
     final double clamped =
         pressure.isFinite ? pressure.clamp(0.0, 1.0) : 0.0;
     return base *
-        (_kRustPressureMinFactor +
-            (1.0 - _kRustPressureMinFactor) * clamped);
+        (_kBackendPressureMinFactor +
+            (1.0 - _kBackendPressureMinFactor) * clamped);
   }
 
-  Offset? _computeRustSharpTail({
+  Offset? _computeBackendSharpTail({
     required Offset tip,
     required Offset? previousPoint,
     required double baseRadius,
@@ -709,33 +709,33 @@ mixin _PaintingBoardInteractionMixin
         unit = direction / length;
       }
     }
-    unit ??= _rustLastMovementUnit;
+    unit ??= _backendLastMovementUnit;
     if (unit == null) {
       return null;
     }
     final double base = math.max(baseRadius, 0.1);
     final double movement =
-        length > 0.001 ? length : _rustLastMovementDistance;
+        length > 0.001 ? length : _backendLastMovementDistance;
     final double taperMax = base * 6.5;
     final double taperDynamic = movement * 2.4 + 2.0;
     final double taperLength = math.min(taperMax, taperDynamic);
     return tip + unit * taperLength;
   }
 
-  void _maybeEmitRustSharpStart({
+  void _maybeEmitBackendSharpStart({
     required Offset currentPos,
     required double currentPressure,
     required int timestampUs,
     required int pointerId,
   }) {
-    if (!_rustWaitingForFirstMove) {
+    if (!_backendWaitingForFirstMove) {
       return;
     }
-    _rustWaitingForFirstMove = false;
-    if (!_autoSharpPeakEnabled || !_rustPressureSimulator.isSimulatingStroke) {
+    _backendWaitingForFirstMove = false;
+    if (!_autoSharpPeakEnabled || !_backendPressureSimulator.isSimulatingStroke) {
       return;
     }
-    final Offset? startPos = _rustStrokeStartPoint;
+    final Offset? startPos = _backendStrokeStartPoint;
     if (startPos == null) {
       return;
     }
@@ -746,29 +746,29 @@ mixin _PaintingBoardInteractionMixin
     if (!distToCurrent.isFinite || distToCurrent <= 0.001) {
       return;
     }
-    final double startPressure = _rustStrokeStartPressure.clamp(0.0, 1.0);
-    final double r0 = _rustRadiusFromPressure(startPressure, baseRadius);
+    final double startPressure = _backendStrokeStartPressure.clamp(0.0, 1.0);
+    final double r0 = _backendRadiusFromPressure(startPressure, baseRadius);
     final double r1 =
-        _rustRadiusFromPressure(currentPressure.clamp(0.0, 1.0), baseRadius);
+        _backendRadiusFromPressure(currentPressure.clamp(0.0, 1.0), baseRadius);
     if (distToCurrent + r0 >= r1) {
       return;
     }
-    final Offset? headPoint = _computeRustSharpTail(
+    final Offset? headPoint = _computeBackendSharpTail(
       tip: startPos,
       previousPoint: currentPos,
       baseRadius: baseRadius,
     );
-    if (headPoint == null || _rustStrokeStartIndex >= _rustPoints.length) {
+    if (headPoint == null || _backendStrokeStartIndex >= _backendPoints.length) {
       return;
     }
-    _rustPoints.updateAt(
-      _rustStrokeStartIndex,
+    _backendPoints.updateAt(
+      _backendStrokeStartIndex,
       x: headPoint.dx,
       y: headPoint.dy,
       pressure: 0.0,
     );
-    _rustLastEnginePoint = headPoint;
-    _rustLastResolvedPressure = 0.0;
+    _backendLastEnginePoint = headPoint;
+    _backendLastResolvedPressure = 0.0;
     final Offset delta = startPos - headPoint;
     final double dist = delta.distance;
     if (dist.isFinite && dist > 0.5 && startPressure > 0.001) {
@@ -783,193 +783,193 @@ mixin _PaintingBoardInteractionMixin
           continue;
         }
         final Offset midPoint = headPoint + delta * t;
-        _appendRustPoint(
+        _appendBackendPoint(
           enginePos: midPoint,
           pressure: midPressure,
           timestampUs: timestampUs,
-          flags: _kRustPointFlagMove,
+          flags: _kBackendPointFlagMove,
           pointerId: pointerId,
         );
       }
     }
-    _appendRustPoint(
+    _appendBackendPoint(
       enginePos: startPos,
       pressure: startPressure,
       timestampUs: timestampUs,
-      flags: _kRustPointFlagMove,
+      flags: _kBackendPointFlagMove,
       pointerId: pointerId,
     );
   }
 
-  void _enqueueRustPoint(
+  void _enqueueBackendPoint(
     PointerEvent event,
     int flags, {
     bool isInitialSample = false,
   }) {
-    final int? handle = _rustCanvasEngineHandle;
+    final int? handle = _backendCanvasEngineHandle;
     if (!_backend.supportsInputQueue || handle == null) {
       return;
     }
     final Offset boardLocal = _toBoardLocal(event.localPosition);
-    final Offset sanitized = _sanitizeRustStrokePosition(
+    final Offset sanitized = _sanitizeBackendStrokePosition(
       boardLocal,
       isInitialSample: isInitialSample,
     );
-    final Offset enginePos = _rustToEngineSpace(sanitized);
-    final double pressure = _resolveRustPressure(
+    final Offset enginePos = _backendToEngineSpace(sanitized);
+    final double pressure = _resolveBackendPressure(
       event: event,
       enginePos: enginePos,
       isInitialSample: isInitialSample,
     );
     final int timestampUs = event.timeStamp.inMicroseconds;
-    if (flags == _kRustPointFlagMove) {
-      _maybeEmitRustSharpStart(
+    if (flags == _kBackendPointFlagMove) {
+      _maybeEmitBackendSharpStart(
         currentPos: enginePos,
         currentPressure: pressure,
         timestampUs: timestampUs,
         pointerId: event.pointer,
       );
     }
-    if (flags == _kRustPointFlagDown) {
-      _rustStrokeStartPoint = enginePos;
-      _rustStrokeStartPressure = pressure;
-      _rustStrokeStartIndex = _rustPoints.length;
+    if (flags == _kBackendPointFlagDown) {
+      _backendStrokeStartPoint = enginePos;
+      _backendStrokeStartPressure = pressure;
+      _backendStrokeStartIndex = _backendPoints.length;
     }
-    _appendRustPoint(
+    _appendBackendPoint(
       enginePos: enginePos,
       pressure: pressure,
       timestampUs: timestampUs,
       flags: flags,
       pointerId: event.pointer,
     );
-    if (_kDebugRustCanvasInput &&
-        (flags == _kRustPointFlagDown || flags == _kRustPointFlagUp)) {
+    if (_kDebugBackendCanvasInput &&
+        (flags == _kBackendPointFlagDown || flags == _kBackendPointFlagUp)) {
       final int queued = _backend.getInputQueueLen(handle: handle) ?? 0;
       debugPrint(
-        '[rust_canvas] enqueue flags=$flags points=${_rustPoints.length} '
+        '[backend_canvas] enqueue flags=$flags points=${_backendPoints.length} '
         'queued=$queued streamline=${_streamlineStrength.toStringAsFixed(3)}',
       );
     }
-    _scheduleRustFlush();
+    _scheduleBackendFlush();
   }
 
-  void _scheduleRustFlush() {
-    if (_rustWaitingForFirstMove && _rustPoints.length <= 1) {
-      if (_kDebugRustCanvasInput && _rustPoints.length == 1) {
+  void _scheduleBackendFlush() {
+    if (_backendWaitingForFirstMove && _backendPoints.length <= 1) {
+      if (_kDebugBackendCanvasInput && _backendPoints.length == 1) {
         debugPrint(
-          '[rust_canvas] flush skipped: waiting first move '
+          '[backend_canvas] flush skipped: waiting first move '
           'streamline=${_streamlineStrength.toStringAsFixed(3)}',
         );
       }
       return;
     }
-    if (_rustFlushScheduled) {
+    if (_backendFlushScheduled) {
       return;
     }
-    _rustFlushScheduled = true;
+    _backendFlushScheduled = true;
     SchedulerBinding.instance.scheduleFrameCallback((_) {
-      _rustFlushScheduled = false;
+      _backendFlushScheduled = false;
       if (!mounted) {
-        _rustPoints.clear();
+        _backendPoints.clear();
         return;
       }
-      final int? handle = _rustCanvasEngineHandle;
+      final int? handle = _backendCanvasEngineHandle;
       if (!_backend.supportsInputQueue || handle == null) {
-        _rustPoints.clear();
+        _backendPoints.clear();
         return;
       }
-      _flushRustPoints(handle);
+      _flushBackendPoints(handle);
     });
   }
 
-  void _flushRustPoints(int handle) {
-    final int count = _rustPoints.length;
+  void _flushBackendPoints(int handle) {
+    final int count = _backendPoints.length;
     if (count == 0) {
       return;
     }
-    if (_kDebugRustCanvasInput) {
+    if (_kDebugBackendCanvasInput) {
       final int queued = _backend.getInputQueueLen(handle: handle) ?? 0;
       debugPrint(
-        '[rust_canvas] flush points=$count queued_before=$queued '
+        '[backend_canvas] flush points=$count queued_before=$queued '
         'streamline=${_streamlineStrength.toStringAsFixed(3)}',
       );
     }
     _backend.pushPointsPacked(
-      bytes: _rustPoints.bytes,
+      bytes: _backendPoints.bytes,
       pointCount: count,
     );
-    _rustPoints.clear();
+    _backendPoints.clear();
   }
 
-  void _beginRustStroke(PointerDownEvent event) {
-    if (!_isRustDrawingPointer(event)) {
+  void _beginBackendStroke(PointerDownEvent event) {
+    if (!_isBackendDrawingPointer(event)) {
       return;
     }
     _resetPerspectiveLock();
     _lastStrokeBoardPosition = null;
-    _rustLastEnginePoint = null;
-    _rustLastMovementUnit = null;
-    _rustLastMovementDistance = 0.0;
-    _rustLastStylusPressure = null;
-    _rustLastResolvedPressure = 1.0;
-    _rustWaitingForFirstMove = _autoSharpPeakEnabled;
-    _rustStrokeStartPoint = null;
-    _rustStrokeStartPressure = 1.0;
-    _rustStrokeStartIndex = 0;
+    _backendLastEnginePoint = null;
+    _backendLastMovementUnit = null;
+    _backendLastMovementDistance = 0.0;
+    _backendLastStylusPressure = null;
+    _backendLastResolvedPressure = 1.0;
+    _backendWaitingForFirstMove = _autoSharpPeakEnabled;
+    _backendStrokeStartPoint = null;
+    _backendStrokeStartPressure = 1.0;
+    _backendStrokeStartIndex = 0;
     final bool supportsPressure = _isStylusEvent(event);
-    _rustPressureSimulator.resetTracking();
-    _rustSimulatePressure = _simulatePenPressure;
-    _rustUseStylusPressure = _stylusPressureEnabled && supportsPressure;
-    _rustActiveStrokeUsesPressure =
-        _rustUseStylusPressure || _rustSimulatePressure || _autoSharpPeakEnabled;
-    _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
-    _rustActivePointer = event.pointer;
-    _enqueueRustPoint(event, _kRustPointFlagDown, isInitialSample: true);
+    _backendPressureSimulator.resetTracking();
+    _backendSimulatePressure = _simulatePenPressure;
+    _backendUseStylusPressure = _stylusPressureEnabled && supportsPressure;
+    _backendActiveStrokeUsesPressure =
+        _backendUseStylusPressure || _backendSimulatePressure || _autoSharpPeakEnabled;
+    _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+    _backendActivePointer = event.pointer;
+    _enqueueBackendPoint(event, _kBackendPointFlagDown, isInitialSample: true);
     _markDirty();
   }
 
-  void _endRustStroke(PointerEvent event) {
-    final bool hadActiveStroke = _rustActivePointer != null;
-    final int? handle = _rustCanvasEngineHandle;
+  void _endBackendStroke(PointerEvent event) {
+    final bool hadActiveStroke = _backendActivePointer != null;
+    final int? handle = _backendCanvasEngineHandle;
     final bool canRecordHistory =
         hadActiveStroke && _backend.supportsStrokeStream;
     if (_backend.supportsInputQueue && handle != null) {
-      _rustWaitingForFirstMove = false;
+      _backendWaitingForFirstMove = false;
       final Offset boardLocal = _toBoardLocal(event.localPosition);
-      final Offset sanitized = _sanitizeRustStrokePosition(
+      final Offset sanitized = _sanitizeBackendStrokePosition(
         boardLocal,
         isInitialSample: false,
       );
       _lastBrushLineAnchor = sanitized;
-      final Offset enginePos = _rustToEngineSpace(sanitized);
-      final double pressure = _resolveRustPressure(
+      final Offset enginePos = _backendToEngineSpace(sanitized);
+      final double pressure = _resolveBackendPressure(
         event: event,
         enginePos: enginePos,
         isInitialSample: false,
       );
       final int timestampUs = event.timeStamp.inMicroseconds;
-      final double startPressure = _rustLastResolvedPressure.isFinite
-          ? _rustLastResolvedPressure
+      final double startPressure = _backendLastResolvedPressure.isFinite
+          ? _backendLastResolvedPressure
           : pressure;
       final bool wantsSharpTail =
-          _autoSharpPeakEnabled && _rustPressureSimulator.isSimulatingStroke;
+          _autoSharpPeakEnabled && _backendPressureSimulator.isSimulatingStroke;
       if (wantsSharpTail) {
-        final Offset? previousPoint = _rustLastEnginePoint;
+        final Offset? previousPoint = _backendLastEnginePoint;
         final double baseRadius =
             (_penStrokeWidth / 2).clamp(0.0, 4096.0).toDouble();
-        Offset? tailPoint = _computeRustSharpTail(
+        Offset? tailPoint = _computeBackendSharpTail(
           tip: enginePos,
           previousPoint: previousPoint,
           baseRadius: baseRadius,
         );
         final double lastRadius =
-            _rustRadiusFromPressure(startPressure, baseRadius);
-        final double endRadius = _rustRadiusFromPressure(0.0, baseRadius);
+            _backendRadiusFromPressure(startPressure, baseRadius);
+        final double endRadius = _backendRadiusFromPressure(0.0, baseRadius);
         if (tailPoint == null &&
-            _rustLastMovementUnit != null &&
+            _backendLastMovementUnit != null &&
             lastRadius > endRadius) {
           final double targetDist = lastRadius - endRadius + 1.5;
-          tailPoint = enginePos + _rustLastMovementUnit! * targetDist;
+          tailPoint = enginePos + _backendLastMovementUnit! * targetDist;
         } else if (tailPoint != null && lastRadius > endRadius) {
           final Offset delta = tailPoint - enginePos;
           final double dist = delta.distance;
@@ -980,11 +980,11 @@ mixin _PaintingBoardInteractionMixin
         }
         if (tailPoint != null) {
           final double tailPressure = startPressure.clamp(0.0, 1.0);
-          _appendRustPoint(
+          _appendBackendPoint(
             enginePos: enginePos,
             pressure: tailPressure,
             timestampUs: timestampUs,
-            flags: _kRustPointFlagMove,
+            flags: _kBackendPointFlagMove,
             pointerId: event.pointer,
           );
           final Offset delta = tailPoint - enginePos;
@@ -1002,41 +1002,41 @@ mixin _PaintingBoardInteractionMixin
                 continue;
               }
               final Offset midPoint = enginePos + delta * t;
-              _appendRustPoint(
+              _appendBackendPoint(
                 enginePos: midPoint,
                 pressure: midPressure,
                 timestampUs: timestampUs,
-                flags: _kRustPointFlagMove,
+                flags: _kBackendPointFlagMove,
                 pointerId: event.pointer,
               );
             }
           }
-          _appendRustPoint(
+          _appendBackendPoint(
             enginePos: tailPoint,
             pressure: 0.0,
             timestampUs: timestampUs,
-            flags: _kRustPointFlagUp,
+            flags: _kBackendPointFlagUp,
             pointerId: event.pointer,
           );
         } else {
-          _appendRustPoint(
+          _appendBackendPoint(
             enginePos: enginePos,
             pressure: 0.0,
             timestampUs: timestampUs,
-            flags: _kRustPointFlagUp,
+            flags: _kBackendPointFlagUp,
             pointerId: event.pointer,
           );
         }
       } else {
-        _appendRustPoint(
+        _appendBackendPoint(
           enginePos: enginePos,
           pressure: pressure,
           timestampUs: timestampUs,
-          flags: _kRustPointFlagUp,
+          flags: _kBackendPointFlagUp,
           pointerId: event.pointer,
         );
       }
-      _scheduleRustFlush();
+      _scheduleBackendFlush();
       if (canRecordHistory) {
         _recordBackendHistoryAction(
           layerId: _activeLayerId,
@@ -1047,68 +1047,68 @@ mixin _PaintingBoardInteractionMixin
         }
       }
     }
-    _rustActivePointer = null;
-    _rustActiveStrokeUsesPressure = true;
-    _rustSimulatePressure = false;
-    _rustUseStylusPressure = false;
-    _rustPressureSimulator.resetTracking();
-    _rustLastEnginePoint = null;
-    _rustLastMovementUnit = null;
-    _rustLastMovementDistance = 0.0;
-    _rustLastStylusPressure = null;
-    _rustLastResolvedPressure = 1.0;
-    _rustWaitingForFirstMove = false;
-    _rustStrokeStartPoint = null;
-    _rustStrokeStartPressure = 1.0;
-    _rustStrokeStartIndex = 0;
+    _backendActivePointer = null;
+    _backendActiveStrokeUsesPressure = true;
+    _backendSimulatePressure = false;
+    _backendUseStylusPressure = false;
+    _backendPressureSimulator.resetTracking();
+    _backendLastEnginePoint = null;
+    _backendLastMovementUnit = null;
+    _backendLastMovementDistance = 0.0;
+    _backendLastStylusPressure = null;
+    _backendLastResolvedPressure = 1.0;
+    _backendWaitingForFirstMove = false;
+    _backendStrokeStartPoint = null;
+    _backendStrokeStartPressure = 1.0;
+    _backendStrokeStartIndex = 0;
     _lastStrokeBoardPosition = null;
     _strokeStabilizer.reset();
     _resetPerspectiveLock();
   }
 
-  bool _drawRustStraightLine({
+  bool _drawBackendStraightLine({
     required Offset start,
     required Offset end,
     required PointerDownEvent event,
   }) {
-    final int? handle = _rustCanvasEngineHandle;
+    final int? handle = _backendCanvasEngineHandle;
     if (!_backend.supportsInputQueue || handle == null) {
       return false;
     }
     final Offset startClamped = _clampToCanvas(start);
     final Offset endClamped = _clampToCanvas(end);
-    final Offset startEngine = _rustToEngineSpace(startClamped);
-    final Offset endEngine = _rustToEngineSpace(endClamped);
+    final Offset startEngine = _backendToEngineSpace(startClamped);
+    final Offset endEngine = _backendToEngineSpace(endClamped);
     final int startTimestampUs = event.timeStamp.inMicroseconds;
     final int endTimestampUs = startTimestampUs + 1000;
     final double pressure =
         (_normalizePointerPressure(event) ?? 1.0).clamp(0.0, 1.0);
 
-    _rustLastEnginePoint = null;
-    _rustLastMovementUnit = null;
-    _rustLastMovementDistance = 0.0;
-    _rustLastStylusPressure = null;
-    _rustLastResolvedPressure = 1.0;
-    _rustWaitingForFirstMove = false;
-    _rustStrokeStartPoint = null;
-    _rustStrokeStartPressure = 1.0;
-    _rustStrokeStartIndex = 0;
+    _backendLastEnginePoint = null;
+    _backendLastMovementUnit = null;
+    _backendLastMovementDistance = 0.0;
+    _backendLastStylusPressure = null;
+    _backendLastResolvedPressure = 1.0;
+    _backendWaitingForFirstMove = false;
+    _backendStrokeStartPoint = null;
+    _backendStrokeStartPressure = 1.0;
+    _backendStrokeStartIndex = 0;
 
-    _appendRustPoint(
+    _appendBackendPoint(
       enginePos: startEngine,
       pressure: pressure,
       timestampUs: startTimestampUs,
-      flags: _kRustPointFlagDown,
+      flags: _kBackendPointFlagDown,
       pointerId: event.pointer,
     );
-    _appendRustPoint(
+    _appendBackendPoint(
       enginePos: endEngine,
       pressure: pressure,
       timestampUs: endTimestampUs,
-      flags: _kRustPointFlagUp,
+      flags: _kBackendPointFlagUp,
       pointerId: event.pointer,
     );
-    _scheduleRustFlush();
+    _scheduleBackendFlush();
     _recordBackendHistoryAction(
       layerId: _activeLayerId,
       deferPreview: true,
@@ -1209,7 +1209,7 @@ mixin _PaintingBoardInteractionMixin
           await _startStroke(boardLocal, event.timeStamp, event);
           return;
         }
-        if (!_canStartRustStroke(pointerInsideBoard: pointerInsideBoard)) {
+        if (!_canStartBackendStroke(pointerInsideBoard: pointerInsideBoard)) {
           _showBackendCanvasMessage('画布后端尚未准备好。');
           return;
         }
@@ -1219,7 +1219,7 @@ mixin _PaintingBoardInteractionMixin
         if (shiftPressed) {
           final Offset? anchor = _lastBrushLineAnchor;
           if (anchor != null &&
-              _drawRustStraightLine(
+              _drawBackendStraightLine(
                 start: anchor,
                 end: boardLocal,
                 event: event,
@@ -1228,7 +1228,7 @@ mixin _PaintingBoardInteractionMixin
             return;
           }
         }
-        _beginRustStroke(event);
+        _beginBackendStroke(event);
         break;
       case CanvasTool.perspectivePen:
         _focusNode.requestFocus();
@@ -1328,8 +1328,8 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
-    final bool rustStrokeActive = _rustActivePointer == event.pointer;
-    if (!_isPrimaryPointer(event) && !rustStrokeActive) {
+    final bool backendStrokeActive = _backendActivePointer == event.pointer;
+    if (!_isPrimaryPointer(event) && !backendStrokeActive) {
       return;
     }
     if (_isScalingGesture) {
@@ -1353,7 +1353,7 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
-        if (rustStrokeActive) {
+        if (backendStrokeActive) {
           final dynamic dyn = event;
           try {
             final List<dynamic>? coalesced =
@@ -1361,13 +1361,13 @@ mixin _PaintingBoardInteractionMixin
             if (coalesced != null && coalesced.isNotEmpty) {
               for (final dynamic e in coalesced) {
                 if (e is PointerEvent) {
-                  _enqueueRustPoint(e, _kRustPointFlagMove);
+                  _enqueueBackendPoint(e, _kBackendPointFlagMove);
                 }
               }
               break;
             }
           } catch (_) {}
-          _enqueueRustPoint(event, _kRustPointFlagMove);
+          _enqueueBackendPoint(event, _kBackendPointFlagMove);
           break;
         }
         if (_isDrawing) {
@@ -1443,8 +1443,8 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
-        if (_rustActivePointer == event.pointer) {
-          _endRustStroke(event);
+        if (_backendActivePointer == event.pointer) {
+          _endBackendStroke(event);
           break;
         }
         if (_isDrawing) {
@@ -1521,8 +1521,8 @@ mixin _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
-        if (_rustActivePointer == event.pointer) {
-          _endRustStroke(event);
+        if (_backendActivePointer == event.pointer) {
+          _endBackendStroke(event);
           break;
         }
         if (_isDrawing) {
@@ -1808,7 +1808,7 @@ mixin _PaintingBoardInteractionMixin
     _refreshHistoryLimit();
     if (_useCombinedHistory) {
       final _HistoryActionKind? action = _peekHistoryUndoAction();
-      if (action == _HistoryActionKind.rust) {
+      if (action == _HistoryActionKind.backend) {
         if (!_backend.undo()) {
           return false;
         }
@@ -1849,7 +1849,7 @@ mixin _PaintingBoardInteractionMixin
     _refreshHistoryLimit();
     if (_useCombinedHistory) {
       final _HistoryActionKind? action = _peekHistoryRedoAction();
-      if (action == _HistoryActionKind.rust) {
+      if (action == _HistoryActionKind.backend) {
         if (!_backend.redo()) {
           return false;
         }

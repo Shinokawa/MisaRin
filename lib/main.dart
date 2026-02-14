@@ -15,7 +15,7 @@ import 'brushes/brush_library.dart';
 import 'app/l10n/l10n.dart';
 import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
-import 'app/widgets/rust_canvas_surface.dart';
+import 'app/widgets/backend_canvas_surface.dart';
 import 'backend/canvas_raster_backend.dart';
 import 'canvas/canvas_backend.dart';
 import 'canvas/canvas_backend_state.dart';
@@ -33,8 +33,8 @@ Future<void> main() async {
       if (CanvasBackendState.backend == CanvasBackend.gpu) {
         // Initialize the GPU compositor and pre-warm shaders/pipelines.
         await CanvasRasterBackend.prewarmGpuEngine();
-        // Also pre-warm the Texture engine used by RustCanvasSurface.
-        await RustCanvasSurface.prewarmTextureEngine();
+        // Also pre-warm the Texture engine used by BackendCanvasSurface.
+        await BackendCanvasSurface.prewarmTextureEngine();
       }
       // Pre-warm Flutter's image decoding pipeline.
       await _prewarmImageDecoder();

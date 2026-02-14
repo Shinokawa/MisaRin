@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-class RustCanvasTimeline {
-  const RustCanvasTimeline._();
+class BackendCanvasTimeline {
+  const BackendCanvasTimeline._();
 
   static DateTime? _start;
   static DateTime? _last;
@@ -23,7 +23,7 @@ class RustCanvasTimeline {
     final int fromLastMs =
         _last == null ? 0 : now.difference(_last!).inMilliseconds;
     debugPrint(
-      '[rust_canvas_timeline] +${fromStartMs}ms (+${fromLastMs}ms) '
+      '[backend_canvas_timeline] +${fromStartMs}ms (+${fromLastMs}ms) '
       '$label @ ${now.toIso8601String()}',
     );
     _last = now;

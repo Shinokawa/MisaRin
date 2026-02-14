@@ -15,4 +15,8 @@ class CanvasBackendState {
     _backend = backend;
     _initialized = true;
   }
+
+  static CanvasBackend resolveRasterBackend({required bool useBackendCanvas}) {
+    return useBackendCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
+  }
 }

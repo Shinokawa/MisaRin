@@ -316,7 +316,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     required String layerId,
     required CanvasLayerData layerData,
   }) {
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
     final int width = engineSize.width.round();
     final int height = engineSize.height.round();
     if (width <= 0 || height <= 0) {

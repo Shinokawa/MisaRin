@@ -6,7 +6,7 @@ import '../../canvas/canvas_engine_bridge.dart';
 import '../../canvas/canvas_frame.dart';
 import '../../canvas/canvas_tools.dart';
 import 'bitmap_canvas_surface.dart';
-import 'rust_canvas_surface.dart';
+import 'backend_canvas_surface.dart';
 
 class AdaptiveCanvasSurface extends StatelessWidget {
   const AdaptiveCanvasSurface({
@@ -76,7 +76,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool useBackendCanvas = CanvasBackendFacade.instance.isSupported;
     if (useBackendCanvas) {
-      return RustCanvasSurface(
+      return BackendCanvasSurface(
         surfaceKey: surfaceKey,
         canvasSize: canvasSize,
         enableDrawing: enableDrawing,

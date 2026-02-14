@@ -19,7 +19,7 @@ import '../project/project_repository.dart';
 import '../utils/clipboard_image_reader.dart';
 import '../view/canvas_page.dart';
 import '../widgets/app_notification.dart';
-import '../widgets/rust_canvas_surface.dart';
+import '../widgets/backend_canvas_surface.dart';
 
 class AppMenuActions {
   const AppMenuActions._();
@@ -44,7 +44,7 @@ class AppMenuActions {
           .createDocumentFromSettings(config.settings, name: config.name);
       if (!kIsWeb && CanvasBackendFacade.instance.isSupported) {
         unawaited(
-          RustCanvasSurface.prewarm(
+          BackendCanvasSurface.prewarm(
             surfaceKey: document.id,
             canvasSize: config.settings.size,
             layerCount: document.layers.length,
@@ -391,7 +391,7 @@ class AppMenuActions {
     }();
     if (!kIsWeb && CanvasBackendFacade.instance.isSupported) {
       try {
-        await RustCanvasSurface.prewarm(
+        await BackendCanvasSurface.prewarm(
           surfaceKey: document.id,
           canvasSize: document.settings.size,
           layerCount: document.layers.length,

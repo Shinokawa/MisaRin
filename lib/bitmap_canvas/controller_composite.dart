@@ -60,7 +60,7 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
     final int compositeDone = sw.elapsedMilliseconds;
     final String backendLabel =
         controller._rasterBackend.backend == CanvasBackend.gpu ? 'GPU' : 'CPU';
-    RustCanvasTimeline.mark(
+    BackendCanvasTimeline.mark(
       'composite: $backendLabel composite took ${compositeDone - startComposite}ms',
     );
 
@@ -75,7 +75,7 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
       fullSurface: work.requiresFullSurface,
     );
     final int tilesDone = sw.elapsedMilliseconds;
-    RustCanvasTimeline.mark('composite: Tile update took ${tilesDone - startTiles}ms (count: ${dirtyRegions.length})');
+    BackendCanvasTimeline.mark('composite: Tile update took ${tilesDone - startTiles}ms (count: ${dirtyRegions.length})');
 
     if (frame != null) {
       controller._currentFrame = frame;
@@ -98,7 +98,7 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
     }
     controller._rasterBackend.completeCompositePass();
     controller._notify();
-    RustCanvasTimeline.mark('composite: Total pass took ${sw.elapsedMilliseconds}ms');
+    BackendCanvasTimeline.mark('composite: Total pass took ${sw.elapsedMilliseconds}ms');
   } finally {
     controller._compositeProcessing = false;
     if (controller._rasterBackend.isCompositeDirty &&

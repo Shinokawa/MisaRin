@@ -86,7 +86,7 @@ import 'package:misa_rin/canvas/canvas_factory.dart';
 import 'package:misa_rin/canvas/canvas_layer_info.dart';
 import 'package:misa_rin/canvas/canvas_composite_layer.dart';
 import 'package:misa_rin/canvas/canvas_pixel_utils.dart';
-import '../debug/rust_canvas_timeline.dart';
+import '../debug/backend_canvas_timeline.dart';
 
 import '../../minecraft/bedrock_model.dart';
 import '../../minecraft/bedrock_animation.dart';
@@ -139,7 +139,6 @@ import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
 import '../../backend/rgba_utils.dart';
-import '../../src/rust/api/selection_path.dart' as rust_selection_path;
 import '../../performance/canvas_perf_stress.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import '../workspace/workspace_shared_state.dart';

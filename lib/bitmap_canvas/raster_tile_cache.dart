@@ -11,7 +11,7 @@ import '../canvas/canvas_frame.dart';
 import 'raster_frame.dart';
 import 'raster_int_rect.dart';
 
-import '../app/debug/rust_canvas_timeline.dart';
+import '../app/debug/backend_canvas_timeline.dart';
 
 const bool _kDebugRasterTiles = bool.fromEnvironment(
   'MISA_RIN_DEBUG_RASTER_TILES',
@@ -139,7 +139,7 @@ class RasterTileCache {
       }),
     );
     final int decodeTime = sw.elapsedMilliseconds - startDecode;
-    RustCanvasTimeline.mark('tiles: copyPixels total took ${copyTime}ms, decodeImages total wait took ${decodeTime}ms');
+    BackendCanvasTimeline.mark('tiles: copyPixels total took ${copyTime}ms, decodeImages total wait took ${decodeTime}ms');
 
     for (final _DecodedTile tile in decodedTiles) {
       final int key = _tileKeyForRect(tile.rect);

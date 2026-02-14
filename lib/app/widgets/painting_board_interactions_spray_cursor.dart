@@ -137,8 +137,8 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     final bool erase = _isBrushEraserEnabled;
     final Color color =
         _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
-    if (_rustSprayActive && _backend.supportsSpray && !engine.sampleInputColor) {
-      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    if (_backendSprayActive && _backend.supportsSpray && !engine.sampleInputColor) {
+      final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
       double sx = 1.0;
       double sy = 1.0;
       if (engineSize != _canvasSize &&
@@ -182,7 +182,7 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
           softness: 0.0,
           accumulate: true,
         )) {
-          _rustSprayHasDrawn = true;
+          _backendSprayHasDrawn = true;
           _markDirty();
         }
       }
@@ -269,8 +269,8 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (opacityScale <= 0.0) {
       return;
     }
-    if (_rustSprayActive && _backend.supportsSpray) {
-      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    if (_backendSprayActive && _backend.supportsSpray) {
+      final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
       double sx = 1.0;
       double sy = 1.0;
       if (engineSize != _canvasSize &&
@@ -315,7 +315,7 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
         start = end;
       }
       if (drawn) {
-        _rustSprayHasDrawn = true;
+        _backendSprayHasDrawn = true;
       }
       return;
     }

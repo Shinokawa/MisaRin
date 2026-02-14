@@ -695,7 +695,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     await _refreshReferenceModelTexture(showSuccessToast: false, force: true);
   }
 
-  Future<void> _syncReferenceModelTextureFromRust({
+  Future<void> _syncReferenceModelTextureFromBackend({
     required bool showWarning,
   }) async {
     if (!_backend.supportsInputQueue) {
@@ -708,7 +708,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     }
     final bool ok = await _backend.syncAllLayerPixelsFromBackend();
     if (!ok) {
-      debugPrint('referenceModel: rust sync failed');
+      debugPrint('referenceModel: backend sync failed');
       if (showWarning) {
         _showBackendCanvasMessage('画布后端同步图层失败。');
       }
@@ -746,7 +746,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     _referenceModelTextureDirty = false;
     _referenceModelTextureLoading = true;
     try {
-      await _syncReferenceModelTextureFromRust(
+      await _syncReferenceModelTextureFromBackend(
         showWarning: showSuccessToast,
       );
       final ui.Image image = await _controller.snapshotImage();

@@ -367,8 +367,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (!useBackendSpray) {
       await _pushUndoSnapshot();
     } else if (_backend.beginSpray()) {
-      _rustSprayActive = true;
-      _rustSprayHasDrawn = false;
+      _backendSprayActive = true;
+      _backendSprayHasDrawn = false;
     } else {
       await _pushUndoSnapshot();
     }
@@ -414,9 +414,9 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _sprayTicker?.stop();
-    if (_rustSprayActive) {
+    if (_backendSprayActive) {
       _backend.endSpray();
-      if (_rustSprayHasDrawn) {
+      if (_backendSprayHasDrawn) {
         _recordBackendHistoryAction(
           layerId: _activeLayerId,
           deferPreview: true,
@@ -425,8 +425,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
           setState(() {});
         }
       }
-      _rustSprayActive = false;
-      _rustSprayHasDrawn = false;
+      _backendSprayActive = false;
+      _backendSprayHasDrawn = false;
     }
     setState(() {
       _isSpraying = false;

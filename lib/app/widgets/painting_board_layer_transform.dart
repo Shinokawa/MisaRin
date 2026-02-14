@@ -693,7 +693,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_backend.hasBackendLayer(layerId: layer.id)) {
       return false;
     }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
     final int canvasWidth = engineSize.width.round();
     final int canvasHeight = engineSize.height.round();
     if (canvasWidth <= 0 || canvasHeight <= 0) {

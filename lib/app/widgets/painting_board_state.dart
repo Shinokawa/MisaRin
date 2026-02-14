@@ -64,7 +64,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
-    _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+    _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
     _brushShape = prefs.brushShape;
     _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
     _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
@@ -87,7 +87,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool useBackendCanvas = _backend.isSupported;
     final bool enableRasterOutput = !useBackendCanvas && !kIsWeb;
     final CanvasBackend rasterBackend =
-        useBackendCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
+        CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
     if (kDebugMode) {
       debugPrint(
         '[canvas-backend] pref=${AppPreferences.instance.canvasBackend} '
@@ -119,7 +119,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _resetHistory();
     _syncRasterizeMenuAvailability();
     _notifyViewInfoChanged();
-    RustCanvasTimeline.mark(
+    BackendCanvasTimeline.mark(
       'paintingBoard: initState '
       'size=${widget.settings.width.round()}x${widget.settings.height.round()}',
     );
@@ -170,8 +170,8 @@ class PaintingBoardState extends _PaintingBoardBase
     _shapePreviewRasterImage?.dispose();
     _shapePreviewRasterImage = null;
     _restoreBackendLayerAfterVectorPreview();
-    _rustLayerSnapshots.clear();
-    _rustLayerSnapshotHandle = null;
+    _backendLayerSnapshots.clear();
+    _backendLayerSnapshotHandle = null;
     super.dispose();
   }
 
@@ -701,7 +701,7 @@ class PaintingBoardState extends _PaintingBoardBase
       waitForPending: true,
       warnIfFailed: true,
     )) {
-      debugPrint('resizeImage: rust sync failed');
+      debugPrint('resizeImage: backend sync failed');
       return null;
     }
     final int sourceWidth = _controller.width;
@@ -713,7 +713,7 @@ class PaintingBoardState extends _PaintingBoardBase
     debugPrint(
       'resizeImage: source=${sourceWidth}x$sourceHeight '
       'target=${width}x$height sampling=$sampling '
-      'rust=${_backend.isReady}',
+      'backend=${_backend.isReady}',
     );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
@@ -748,7 +748,7 @@ class PaintingBoardState extends _PaintingBoardBase
       waitForPending: true,
       warnIfFailed: true,
     )) {
-      debugPrint('resizeCanvas: rust sync failed');
+      debugPrint('resizeCanvas: backend sync failed');
       return null;
     }
     final int sourceWidth = _controller.width;
@@ -760,7 +760,7 @@ class PaintingBoardState extends _PaintingBoardBase
     debugPrint(
       'resizeCanvas: source=${sourceWidth}x$sourceHeight '
       'target=${width}x$height anchor=$anchor '
-      'rust=${_backend.isReady}',
+      'backend=${_backend.isReady}',
     );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
@@ -809,7 +809,7 @@ class PaintingBoardState extends _PaintingBoardBase
       final bool useBackendCanvas = _backend.isSupported;
       final bool enableRasterOutput = !useBackendCanvas && !kIsWeb;
       final CanvasBackend rasterBackend =
-          useBackendCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
+          CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
       _controller = createCanvasFacade(
         width: widget.settings.width.round(),
         height: widget.settings.height.round(),
@@ -826,13 +826,13 @@ class PaintingBoardState extends _PaintingBoardBase
         widget.onReadyChanged?.call(true);
       }
       _resetHistory();
-      _rustLayerSnapshots.clear();
-      _rustLayerSnapshotDirty = false;
-      _rustLayerSnapshotPendingRestore = false;
-      _rustLayerSnapshotInFlight = false;
-      _rustLayerSnapshotWidth = 0;
-      _rustLayerSnapshotHeight = 0;
-      _rustLayerSnapshotHandle = null;
+      _backendLayerSnapshots.clear();
+      _backendLayerSnapshotDirty = false;
+      _backendLayerSnapshotPendingRestore = false;
+      _backendLayerSnapshotInFlight = false;
+      _backendLayerSnapshotWidth = 0;
+      _backendLayerSnapshotHeight = 0;
+      _backendLayerSnapshotHandle = null;
       setState(() {
         if (sizeChanged) {
           _viewport.reset();
@@ -878,14 +878,14 @@ class PaintingBoardState extends _PaintingBoardBase
     }
     final CanvasFrame? frame = _controller.frame;
     if (frame == null) {
-      if (_rustCanvasEngineHandle == null) {
+      if (_backendCanvasEngineHandle == null) {
         return;
       }
-      RustCanvasTimeline.mark(
-        'paintingBoard: board ready rustEngine=${_rustCanvasEngineHandle}',
+      BackendCanvasTimeline.mark(
+        'paintingBoard: board ready backendEngine=${_backendCanvasEngineHandle}',
       );
     } else {
-      RustCanvasTimeline.mark(
+      BackendCanvasTimeline.mark(
         'paintingBoard: board ready generation=${frame.generation}',
       );
     }
@@ -1067,7 +1067,7 @@ class PaintingBoardState extends _PaintingBoardBase
       update();
     }
     if (autoSharpChanged) {
-      _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+      _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
       _applyStylusSettingsToController();
     }
   }
