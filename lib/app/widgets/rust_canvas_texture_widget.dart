@@ -210,7 +210,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   }
 
   bool _canSendPoints() {
-    return CanvasEngineFfi.instance.isSupported && _engineHandle != null;
+    return CanvasBackendFacade.instance.isHandleReady(_engineHandle);
   }
 
   bool _isDrawingPointer(PointerEvent event) {
@@ -267,20 +267,20 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   }
 
   void _applyLayerDefaults(int handle) {
-    if (!CanvasEngineFfi.instance.isSupported) {
+    if (!CanvasBackendFacade.instance.isGpuSupported) {
       return;
     }
-    CanvasEngineFfi.instance.setActiveLayer(
+    CanvasBackendFacade.instance.setActiveLayer(
       handle: handle,
       layerIndex: _activeLayerIndex,
     );
     for (int i = 0; i < _layerVisible.length; i++) {
-      CanvasEngineFfi.instance.setLayerVisible(
+      CanvasBackendFacade.instance.setLayerVisible(
         handle: handle,
         layerIndex: i,
         visible: _layerVisible[i],
       );
-      CanvasEngineFfi.instance.setLayerOpacity(
+      CanvasBackendFacade.instance.setLayerOpacity(
         handle: handle,
         layerIndex: i,
         opacity: _layerOpacity[i],
@@ -358,7 +358,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     if (count == 0) {
       return;
     }
-    CanvasEngineFfi.instance.pushPointsPacked(
+    CanvasBackendFacade.instance.pushPointsPacked(
       handle: handle,
       bytes: _points.bytes,
       pointCount: count,
@@ -375,7 +375,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       return;
     }
     setState(() => _activeLayerIndex = layerIndex);
-    CanvasEngineFfi.instance.setActiveLayer(
+    CanvasBackendFacade.instance.setActiveLayer(
       handle: handle,
       layerIndex: layerIndex,
     );
@@ -391,7 +391,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     }
     final bool next = !_layerVisible[layerIndex];
     setState(() => _layerVisible[layerIndex] = next);
-    CanvasEngineFfi.instance.setLayerVisible(
+    CanvasBackendFacade.instance.setLayerVisible(
       handle: handle,
       layerIndex: layerIndex,
       visible: next,
@@ -406,7 +406,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     final int layerIndex = _activeLayerIndex;
     final double next = opacity.clamp(0.0, 1.0);
     setState(() => _layerOpacity[layerIndex] = next);
-    CanvasEngineFfi.instance.setLayerOpacity(
+    CanvasBackendFacade.instance.setLayerOpacity(
       handle: handle,
       layerIndex: layerIndex,
       opacity: next,
@@ -429,18 +429,18 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
       _layerOpacity[nextIndex] = 1.0;
       _activeLayerIndex = nextIndex;
     });
-    CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: nextIndex);
-    CanvasEngineFfi.instance.setLayerVisible(
+    CanvasBackendFacade.instance.clearLayer(handle: handle, layerIndex: nextIndex);
+    CanvasBackendFacade.instance.setLayerVisible(
       handle: handle,
       layerIndex: nextIndex,
       visible: true,
     );
-    CanvasEngineFfi.instance.setLayerOpacity(
+    CanvasBackendFacade.instance.setLayerOpacity(
       handle: handle,
       layerIndex: nextIndex,
       opacity: 1.0,
     );
-    CanvasEngineFfi.instance.setActiveLayer(
+    CanvasBackendFacade.instance.setActiveLayer(
       handle: handle,
       layerIndex: nextIndex,
     );
@@ -454,7 +454,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     final int layerIndex = _activeLayerIndex;
     final int visibleCount = _layerVisible.where((v) => v).length;
     if (visibleCount <= 1) {
-      CanvasEngineFfi.instance.clearLayer(
+      CanvasBackendFacade.instance.clearLayer(
         handle: handle,
         layerIndex: layerIndex,
       );
@@ -483,14 +483,14 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
         _activeLayerIndex = nextActive;
       }
     });
-    CanvasEngineFfi.instance.setLayerVisible(
+    CanvasBackendFacade.instance.setLayerVisible(
       handle: handle,
       layerIndex: layerIndex,
       visible: false,
     );
-    CanvasEngineFfi.instance.clearLayer(handle: handle, layerIndex: layerIndex);
+    CanvasBackendFacade.instance.clearLayer(handle: handle, layerIndex: layerIndex);
     if (nextActive != null && nextActive >= 0) {
-      CanvasEngineFfi.instance.setActiveLayer(
+      CanvasBackendFacade.instance.setActiveLayer(
         handle: handle,
         layerIndex: nextActive,
       );
@@ -510,7 +510,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     if (handle == null) {
       return;
     }
-    CanvasEngineFfi.instance.undo(handle: handle);
+    CanvasBackendFacade.instance.undo(handle: handle);
   }
 
   void _handleRedo() {
@@ -518,7 +518,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
     if (handle == null) {
       return;
     }
-    CanvasEngineFfi.instance.redo(handle: handle);
+    CanvasBackendFacade.instance.redo(handle: handle);
   }
 
   @override

@@ -1354,7 +1354,6 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (!_canUseRustCanvasEngine()) {
       return;
     }
-    final int handle = _rustCanvasEngineHandle!;
     final List<CanvasLayerInfo> layers = _controller.layers;
     final int currentCount = layers.length;
     final int? hiddenAdjustIndex = _layerAdjustRustHiddenLayerIndex;

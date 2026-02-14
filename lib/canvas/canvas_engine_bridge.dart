@@ -482,3 +482,120 @@ class CanvasEngineFfi {
     _gpu.redo(handle: handle);
   }
 }
+
+class CanvasBackendFacade {
+  CanvasBackendFacade._();
+
+  static final CanvasBackendFacade instance = CanvasBackendFacade._();
+  static final CanvasEngineFfi _ffi = CanvasEngineFfi.instance;
+
+  bool get isGpuSupported => _ffi.isSupported;
+
+  bool isHandleReady(int? handle) => isGpuSupported && handle != null;
+
+  int getInputQueueLen(int handle) => _ffi.getInputQueueLen(handle);
+
+  void pushPointsPacked({
+    required int handle,
+    required Uint8List bytes,
+    required int pointCount,
+  }) {
+    _ffi.pushPointsPacked(handle: handle, bytes: bytes, pointCount: pointCount);
+  }
+
+  void fillLayer({
+    required int handle,
+    required int layerIndex,
+    required int colorArgb,
+  }) {
+    _ffi.fillLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      colorArgb: colorArgb,
+    );
+  }
+
+  void setBrush({
+    required int handle,
+    required int colorArgb,
+    required double baseRadius,
+    bool usePressure = true,
+    bool erase = false,
+    int antialiasLevel = 1,
+    int brushShape = 0,
+    bool randomRotation = false,
+    int rotationSeed = 0,
+    double spacing = 0.15,
+    double hardness = 0.8,
+    double flow = 1.0,
+    double scatter = 0.0,
+    double rotationJitter = 1.0,
+    bool snapToPixel = false,
+    bool hollow = false,
+    double hollowRatio = 0.0,
+    bool hollowEraseOccludedParts = false,
+    double streamlineStrength = 0.0,
+  }) {
+    _ffi.setBrush(
+      handle: handle,
+      colorArgb: colorArgb,
+      baseRadius: baseRadius,
+      usePressure: usePressure,
+      erase: erase,
+      antialiasLevel: antialiasLevel,
+      brushShape: brushShape,
+      randomRotation: randomRotation,
+      rotationSeed: rotationSeed,
+      spacing: spacing,
+      hardness: hardness,
+      flow: flow,
+      scatter: scatter,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
+      hollow: hollow,
+      hollowRatio: hollowRatio,
+      hollowEraseOccludedParts: hollowEraseOccludedParts,
+      streamlineStrength: streamlineStrength,
+    );
+  }
+
+  void setActiveLayer({required int handle, required int layerIndex}) {
+    _ffi.setActiveLayer(handle: handle, layerIndex: layerIndex);
+  }
+
+  void setLayerVisible({
+    required int handle,
+    required int layerIndex,
+    required bool visible,
+  }) {
+    _ffi.setLayerVisible(
+      handle: handle,
+      layerIndex: layerIndex,
+      visible: visible,
+    );
+  }
+
+  void setLayerOpacity({
+    required int handle,
+    required int layerIndex,
+    required double opacity,
+  }) {
+    _ffi.setLayerOpacity(
+      handle: handle,
+      layerIndex: layerIndex,
+      opacity: opacity,
+    );
+  }
+
+  void clearLayer({required int handle, required int layerIndex}) {
+    _ffi.clearLayer(handle: handle, layerIndex: layerIndex);
+  }
+
+  void undo({required int handle}) {
+    _ffi.undo(handle: handle);
+  }
+
+  void redo({required int handle}) {
+    _ffi.redo(handle: handle);
+  }
+}

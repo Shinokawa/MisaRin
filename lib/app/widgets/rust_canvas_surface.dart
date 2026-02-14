@@ -599,11 +599,11 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   }
 
   void _applyBackground(int handle) {
-    if (!CanvasEngineFfi.instance.isSupported) {
+    if (!CanvasBackendFacade.instance.isGpuSupported) {
       return;
     }
     // Background is represented by layer 0 in the Rust MVP compositor.
-    CanvasEngineFfi.instance.fillLayer(
+    CanvasBackendFacade.instance.fillLayer(
       handle: handle,
       layerIndex: 0,
       colorArgb: widget.backgroundColorArgb,
@@ -611,11 +611,11 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   }
 
   bool _canSendPoints() {
-    return CanvasEngineFfi.instance.isSupported && _engineHandle != null;
+    return CanvasBackendFacade.instance.isHandleReady(_engineHandle);
   }
 
   void _applyBrushSettings(int handle, {bool? usePressureOverride}) {
-    if (!CanvasEngineFfi.instance.isSupported) {
+    if (!CanvasBackendFacade.instance.isGpuSupported) {
       return;
     }
     double radius = widget.brushRadius;
@@ -632,7 +632,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
         radius *= scale;
       }
     }
-    CanvasEngineFfi.instance.setBrush(
+    CanvasBackendFacade.instance.setBrush(
       handle: handle,
       colorArgb: widget.brushColorArgb,
       baseRadius: radius,
@@ -790,10 +790,10 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
       return;
     }
     if (_kDebugRustCanvasInput) {
-      final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+      final int queued = CanvasBackendFacade.instance.getInputQueueLen(handle);
       debugPrint('[rust_canvas] flush points=$count queued_before=$queued');
     }
-    CanvasEngineFfi.instance.pushPointsPacked(
+    CanvasBackendFacade.instance.pushPointsPacked(
       handle: handle,
       bytes: _points.bytes,
       pointCount: count,
