@@ -1492,8 +1492,9 @@ final class _CanvasBackendFacade {
   _CanvasBackendFacade(this._owner);
 
   final _PaintingBoardBase _owner;
+  final CanvasBackendFacade _ffi = CanvasBackendFacade.instance;
 
-  bool get _gpuSelected => CanvasEngineFfi.instance.isSupported;
+  bool get _gpuSelected => _ffi.isGpuSupported;
   bool get _gpuReady => _gpuSelected && _owner._rustCanvasEngineHandle != null;
   bool get isGpuSupported => _gpuSelected;
   bool get isGpuReady => _gpuReady;
@@ -1506,14 +1507,14 @@ final class _CanvasBackendFacade {
     if (effectiveHandle == null) {
       return null;
     }
-    return CanvasEngineFfi.instance.getInputQueueLen(effectiveHandle);
+    return _ffi.getInputQueueLen(effectiveHandle);
   }
 
   void setViewFlags({required bool mirror, required bool blackWhite}) {
     if (!_gpuReady) {
       return;
     }
-    CanvasEngineFfi.instance.setViewFlags(
+    _ffi.setViewFlags(
       handle: _owner._rustCanvasEngineHandle!,
       mirror: mirror,
       blackWhite: blackWhite,
@@ -1524,7 +1525,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.setActiveLayer(
+    _ffi.setActiveLayer(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
     );
@@ -1549,7 +1550,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.setLayerOpacity(
+    _ffi.setLayerOpacity(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       opacity: opacity.clamp(0.0, 1.0),
@@ -1564,7 +1565,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.setLayerClippingMask(
+    _ffi.setLayerClippingMask(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       clippingMask: clippingMask,
@@ -1579,7 +1580,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.setLayerBlendMode(
+    _ffi.setLayerBlendMode(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       blendModeIndex: blendMode.index,
@@ -1639,7 +1640,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.clearLayer(
+    _ffi.clearLayer(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
     );
@@ -1650,7 +1651,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.reorderLayer(
+    _ffi.reorderLayer(
       handle: _owner._rustCanvasEngineHandle!,
       fromIndex: fromIndex,
       toIndex: toIndex,
@@ -1665,7 +1666,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    return CanvasEngineFfi.instance.applyAntialias(
+    return _ffi.applyAntialias(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       level: level,
@@ -1676,7 +1677,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.undo(handle: _owner._rustCanvasEngineHandle!);
+    _ffi.undo(handle: _owner._rustCanvasEngineHandle!);
     return true;
   }
 
@@ -1684,7 +1685,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.redo(handle: _owner._rustCanvasEngineHandle!);
+    _ffi.redo(handle: _owner._rustCanvasEngineHandle!);
     return true;
   }
 
@@ -1695,7 +1696,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.pushPointsPacked(
+    _ffi.pushPointsPacked(
       handle: _owner._rustCanvasEngineHandle!,
       bytes: bytes,
       pointCount: pointCount,
@@ -1707,7 +1708,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.beginSpray(handle: _owner._rustCanvasEngineHandle!);
+    _ffi.beginSpray(handle: _owner._rustCanvasEngineHandle!);
     return true;
   }
 
@@ -1715,7 +1716,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.endSpray(handle: _owner._rustCanvasEngineHandle!);
+    _ffi.endSpray(handle: _owner._rustCanvasEngineHandle!);
     return true;
   }
 
@@ -1732,7 +1733,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.drawSpray(
+    _ffi.drawSpray(
       handle: _owner._rustCanvasEngineHandle!,
       points: points,
       pointCount: pointCount,
@@ -1815,7 +1816,7 @@ final class _CanvasBackendFacade {
                 .toList(growable: false),
           )
         : null;
-    final bool applied = CanvasEngineFfi.instance.bucketFill(
+    final bool applied = _ffi.bucketFill(
       handle: handle,
       layerIndex: layerIndex,
       startX: startX,
@@ -1854,7 +1855,7 @@ final class _CanvasBackendFacade {
     if (width <= 0 || height <= 0) {
       return null;
     }
-    final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
+    final Uint32List? pixels = _ffi.readLayer(
       handle: handle,
       layerIndex: layerIndex,
       width: width,
@@ -1881,7 +1882,7 @@ final class _CanvasBackendFacade {
     if (layerIndex == null) {
       return false;
     }
-    final bool applied = CanvasEngineFfi.instance.writeLayer(
+    final bool applied = _ffi.writeLayer(
       handle: handle,
       layerIndex: layerIndex,
       pixels: pixels,
@@ -1913,7 +1914,7 @@ final class _CanvasBackendFacade {
     if (layerIndex == null) {
       return false;
     }
-    CanvasEngineFfi.instance.setLayerVisible(
+    _ffi.setLayerVisible(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       visible: visible,
@@ -1928,7 +1929,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    CanvasEngineFfi.instance.setLayerVisible(
+    _ffi.setLayerVisible(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       visible: visible,
@@ -1940,7 +1941,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return null;
     }
-    final Int32List? bounds = CanvasEngineFfi.instance.getLayerBounds(
+    final Int32List? bounds = _ffi.getLayerBounds(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
     );
@@ -1966,7 +1967,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    return CanvasEngineFfi.instance.setLayerTransformPreview(
+    return _ffi.setLayerTransformPreview(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       matrix: matrix,
@@ -1983,7 +1984,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    return CanvasEngineFfi.instance.applyLayerTransform(
+    return _ffi.applyLayerTransform(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       matrix: matrix,
@@ -2001,7 +2002,7 @@ final class _CanvasBackendFacade {
     if (!_gpuReady) {
       return false;
     }
-    final bool applied = CanvasEngineFfi.instance.translateLayer(
+    final bool applied = _ffi.translateLayer(
       handle: _owner._rustCanvasEngineHandle!,
       layerIndex: layerIndex,
       deltaX: deltaX,
@@ -2043,7 +2044,7 @@ final class _CanvasBackendFacade {
     if (layerIndex == null) {
       return false;
     }
-    final bool applied = CanvasEngineFfi.instance.applyFilter(
+    final bool applied = _ffi.applyFilter(
       handle: handle,
       layerIndex: layerIndex,
       filterType: filterType,
@@ -2091,7 +2092,7 @@ final class _CanvasBackendFacade {
     if (targetWidth <= 0 || targetHeight <= 0) {
       return null;
     }
-    final Uint8List? rgba = CanvasEngineFfi.instance.readLayerPreview(
+    final Uint8List? rgba = _ffi.readLayerPreview(
       handle: handle,
       layerIndex: layerIndex,
       width: targetWidth,
@@ -2150,7 +2151,7 @@ final class _CanvasBackendFacade {
       engineWidth,
       engineHeight,
     );
-    final Uint8List? mask = CanvasEngineFfi.instance.magicWandMask(
+    final Uint8List? mask = _ffi.magicWandMask(
       handle: handle,
       layerIndex: layerIndex,
       startX: startX,
@@ -2189,14 +2190,14 @@ final class _CanvasBackendFacade {
     final int width = engineSize.width.round();
     final int height = engineSize.height.round();
     if (width <= 0 || height <= 0) {
-      CanvasEngineFfi.instance.setSelectionMask(handle: handle);
+      _ffi.setSelectionMask(handle: handle);
       return;
     }
     final Uint8List? selectionMask = _owner._resolveSelectionMaskForRust(
       width,
       height,
     );
-    CanvasEngineFfi.instance.setSelectionMask(
+    _ffi.setSelectionMask(
       handle: handle,
       selectionMask: selectionMask,
     );

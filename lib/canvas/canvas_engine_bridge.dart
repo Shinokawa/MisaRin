@@ -598,4 +598,265 @@ class CanvasBackendFacade {
   void redo({required int handle}) {
     _ffi.redo(handle: handle);
   }
+
+  void beginSpray({required int handle}) {
+    _ffi.beginSpray(handle: handle);
+  }
+
+  void endSpray({required int handle}) {
+    _ffi.endSpray(handle: handle);
+  }
+
+  void drawSpray({
+    required int handle,
+    required Float32List points,
+    required int pointCount,
+    required int colorArgb,
+    int brushShape = 0,
+    bool erase = false,
+    int antialiasLevel = 1,
+    double softness = 0.0,
+    bool accumulate = true,
+  }) {
+    _ffi.drawSpray(
+      handle: handle,
+      points: points,
+      pointCount: pointCount,
+      colorArgb: colorArgb,
+      brushShape: brushShape,
+      erase: erase,
+      antialiasLevel: antialiasLevel,
+      softness: softness,
+      accumulate: accumulate,
+    );
+  }
+
+  void setLayerClippingMask({
+    required int handle,
+    required int layerIndex,
+    required bool clippingMask,
+  }) {
+    _ffi.setLayerClippingMask(
+      handle: handle,
+      layerIndex: layerIndex,
+      clippingMask: clippingMask,
+    );
+  }
+
+  void setLayerBlendMode({
+    required int handle,
+    required int layerIndex,
+    required int blendModeIndex,
+  }) {
+    _ffi.setLayerBlendMode(
+      handle: handle,
+      layerIndex: layerIndex,
+      blendModeIndex: blendModeIndex,
+    );
+  }
+
+  void reorderLayer({
+    required int handle,
+    required int fromIndex,
+    required int toIndex,
+  }) {
+    _ffi.reorderLayer(
+      handle: handle,
+      fromIndex: fromIndex,
+      toIndex: toIndex,
+    );
+  }
+
+  void setViewFlags({
+    required int handle,
+    required bool mirror,
+    required bool blackWhite,
+  }) {
+    _ffi.setViewFlags(
+      handle: handle,
+      mirror: mirror,
+      blackWhite: blackWhite,
+    );
+  }
+
+  bool applyAntialias({
+    required int handle,
+    required int layerIndex,
+    required int level,
+  }) {
+    return _ffi.applyAntialias(
+      handle: handle,
+      layerIndex: layerIndex,
+      level: level,
+    );
+  }
+
+  bool bucketFill({
+    required int handle,
+    required int layerIndex,
+    required int startX,
+    required int startY,
+    required int colorArgb,
+    bool contiguous = true,
+    bool sampleAllLayers = false,
+    int tolerance = 0,
+    int fillGap = 0,
+    int antialiasLevel = 0,
+    Uint32List? swallowColors,
+    Uint8List? selectionMask,
+  }) {
+    return _ffi.bucketFill(
+      handle: handle,
+      layerIndex: layerIndex,
+      startX: startX,
+      startY: startY,
+      colorArgb: colorArgb,
+      contiguous: contiguous,
+      sampleAllLayers: sampleAllLayers,
+      tolerance: tolerance,
+      fillGap: fillGap,
+      antialiasLevel: antialiasLevel,
+      swallowColors: swallowColors,
+      selectionMask: selectionMask,
+    );
+  }
+
+  Uint32List? readLayer({
+    required int handle,
+    required int layerIndex,
+    required int width,
+    required int height,
+  }) {
+    return _ffi.readLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+  }
+
+  Uint8List? readLayerPreview({
+    required int handle,
+    required int layerIndex,
+    required int width,
+    required int height,
+  }) {
+    return _ffi.readLayerPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      width: width,
+      height: height,
+    );
+  }
+
+  bool writeLayer({
+    required int handle,
+    required int layerIndex,
+    required Uint32List pixels,
+    bool recordUndo = true,
+  }) {
+    return _ffi.writeLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      pixels: pixels,
+      recordUndo: recordUndo,
+    );
+  }
+
+  bool translateLayer({
+    required int handle,
+    required int layerIndex,
+    required int deltaX,
+    required int deltaY,
+  }) {
+    return _ffi.translateLayer(
+      handle: handle,
+      layerIndex: layerIndex,
+      deltaX: deltaX,
+      deltaY: deltaY,
+    );
+  }
+
+  bool setLayerTransformPreview({
+    required int handle,
+    required int layerIndex,
+    required Float32List matrix,
+    required bool enabled,
+    required bool bilinear,
+  }) {
+    return _ffi.setLayerTransformPreview(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      enabled: enabled,
+      bilinear: bilinear,
+    );
+  }
+
+  bool applyLayerTransform({
+    required int handle,
+    required int layerIndex,
+    required Float32List matrix,
+    required bool bilinear,
+  }) {
+    return _ffi.applyLayerTransform(
+      handle: handle,
+      layerIndex: layerIndex,
+      matrix: matrix,
+      bilinear: bilinear,
+    );
+  }
+
+  Int32List? getLayerBounds({
+    required int handle,
+    required int layerIndex,
+  }) {
+    return _ffi.getLayerBounds(handle: handle, layerIndex: layerIndex);
+  }
+
+  Uint8List? magicWandMask({
+    required int handle,
+    required int layerIndex,
+    required int startX,
+    required int startY,
+    required int maskLength,
+    bool sampleAllLayers = true,
+    int tolerance = 0,
+    Uint8List? selectionMask,
+  }) {
+    return _ffi.magicWandMask(
+      handle: handle,
+      layerIndex: layerIndex,
+      startX: startX,
+      startY: startY,
+      maskLength: maskLength,
+      sampleAllLayers: sampleAllLayers,
+      tolerance: tolerance,
+      selectionMask: selectionMask,
+    );
+  }
+
+  void setSelectionMask({required int handle, Uint8List? selectionMask}) {
+    _ffi.setSelectionMask(handle: handle, selectionMask: selectionMask);
+  }
+
+  bool applyFilter({
+    required int handle,
+    required int layerIndex,
+    required int filterType,
+    double param0 = 0.0,
+    double param1 = 0.0,
+    double param2 = 0.0,
+    double param3 = 0.0,
+  }) {
+    return _ffi.applyFilter(
+      handle: handle,
+      layerIndex: layerIndex,
+      filterType: filterType,
+      param0: param0,
+      param1: param1,
+      param2: param2,
+      param3: param3,
+    );
+  }
 }
