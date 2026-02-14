@@ -129,7 +129,7 @@
   },
   "canvasBackendLabel": "キャンバスバックエンド",
   "canvasBackendGpu": "GPU（wgpu）",
-  "canvasBackendCpu": "CPU（Rust）",
+  "canvasBackendCpu": "CPU",
   "canvasBackendRestartHint": "バックエンドの切り替えは再起動後に反映されます。",
   "developerOptionsLabel": "開発者オプション",
   "performanceOverlayLabel": "パフォーマンス表示",

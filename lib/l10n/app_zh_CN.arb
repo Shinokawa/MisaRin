@@ -129,7 +129,7 @@
   },
   "canvasBackendLabel": "画布后端",
   "canvasBackendGpu": "GPU（wgpu）",
-  "canvasBackendCpu": "CPU（Rust）",
+  "canvasBackendCpu": "CPU",
   "canvasBackendRestartHint": "切换画布后端需要重启后生效。",
   "developerOptionsLabel": "开发者选项",
   "performanceOverlayLabel": "性能监控面板",

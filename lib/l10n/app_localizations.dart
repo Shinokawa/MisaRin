@@ -533,7 +533,7 @@ abstract class AppLocalizations {
   /// No description provided for @canvasBackendCpu.
   ///
   /// In en, this message translates to:
-  /// **'CPU (Rust)'**
+  /// **'CPU'**
   String get canvasBackendCpu;
 
   /// No description provided for @canvasBackendRestartHint.

@@ -251,7 +251,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get canvasBackendGpu => 'GPU (wgpu)';
 
   @override
-  String get canvasBackendCpu => 'CPU (Rust)';
+  String get canvasBackendCpu => 'CPU';
 
   @override
   String get canvasBackendRestartHint => '백엔드 변경은 재시작 후 적용됩니다.';

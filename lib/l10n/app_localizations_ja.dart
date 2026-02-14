@@ -250,7 +250,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get canvasBackendGpu => 'GPU（wgpu）';
 
   @override
-  String get canvasBackendCpu => 'CPU（Rust）';
+  String get canvasBackendCpu => 'CPU';
 
   @override
   String get canvasBackendRestartHint => 'バックエンドの切り替えは再起動後に反映されます。';

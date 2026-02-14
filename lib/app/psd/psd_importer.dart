@@ -9,7 +9,7 @@ import '../../src/rust/frb_generated.dart';
 import '../../src/rust/rust_init.dart';
 import '../project/project_document.dart';
 
-/// 使用 Rust `psd` crate 解析 PSD，并转换为 `ProjectDocument`。
+/// 使用 PSD 解析器解析 PSD，并转换为 `ProjectDocument`。
 ///
 /// 目前仅支持 8bit RGB PSD（8BPS v1）。
 class PsdImporter {
@@ -36,15 +36,15 @@ class PsdImporter {
       // ignore: invalid_use_of_internal_member
       final dynamic api = RustLib.instance.api;
       final dynamic result = await api.crateApiPsdImportPsd(bytes: data);
-      return _buildProjectFromRustResult(result, displayName: resolvedName);
+      return _buildProjectFromPsdResult(result, displayName: resolvedName);
     } on NoSuchMethodError catch (_) {
       throw UnsupportedError(
-        'Rust PSD 导入器接口未生成；请在所有任务完成后运行 flutter_rust_bridge_codegen。',
+        'PSD 导入器接口未生成；请在所有任务完成后运行 flutter_rust_bridge_codegen。',
       );
     }
   }
 
-  ProjectDocument _buildProjectFromRustResult(
+  ProjectDocument _buildProjectFromPsdResult(
     dynamic result, {
     required String displayName,
   }) {
@@ -66,7 +66,7 @@ class PsdImporter {
     );
 
     final List<CanvasLayerData> canvasLayers = <CanvasLayerData>[];
-    // Rust psd crate 返回的图层顺序是“自上而下”（顶层在前），而项目内部 layers
+    // PSD 解析器返回的图层顺序是“自上而下”（顶层在前），而项目内部 layers
     // 使用“自下而上”（底层在前，顶层在后）。这里需要反转以保证导入后叠放顺序一致。
     for (final dynamic layer in layers.reversed) {
       final String name = layer.name as String;

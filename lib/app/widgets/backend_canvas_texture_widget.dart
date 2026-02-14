@@ -77,8 +77,8 @@ final class _PackedPointBuffer {
   }
 }
 
-class RustCanvasTextureWidget extends StatefulWidget {
-  const RustCanvasTextureWidget({
+class BackendCanvasTextureWidget extends StatefulWidget {
+  const BackendCanvasTextureWidget({
     super.key,
     this.canvasSize = const Size(512, 512),
     this.stylusCurve = 1.0,
@@ -88,11 +88,11 @@ class RustCanvasTextureWidget extends StatefulWidget {
   final double stylusCurve;
 
   @override
-  State<RustCanvasTextureWidget> createState() =>
-      _RustCanvasTextureWidgetState();
+  State<BackendCanvasTextureWidget> createState() =>
+      _BackendCanvasTextureWidgetState();
 }
 
-class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
+class _BackendCanvasTextureWidgetState extends State<BackendCanvasTextureWidget> {
   static const MethodChannel _channel = MethodChannel(
     'misarin/rust_canvas_texture',
   );
@@ -126,7 +126,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   @override
   void initState() {
     super.initState();
-    _surfaceId = 'rust_canvas_demo_${_nextSurfaceId++}';
+    _surfaceId = 'backend_canvas_demo_${_nextSurfaceId++}';
     unawaited(_loadTextureInfo());
   }
 
@@ -349,11 +349,11 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
         _points.clear();
         return;
       }
-      _flushToRust(handle);
+      _flushToBackend(handle);
     });
   }
 
-  void _flushToRust(int handle) {
+  void _flushToBackend(int handle) {
     final int count = _points.length;
     if (count == 0) {
       return;
@@ -531,7 +531,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
         color: const Color(0xFF000000),
         child: Center(
           child: Text(
-            'Rust texture init failed: $error',
+            'Canvas backend texture init failed: $error',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Color(0xFFFFFFFF)),
           ),
@@ -544,7 +544,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
         color: Color(0xFF000000),
         child: Center(
           child: Text(
-            'Initializing Rust texture…',
+            'Initializing canvas backend texture…',
             style: TextStyle(color: Color(0xFFFFFFFF)),
           ),
         ),

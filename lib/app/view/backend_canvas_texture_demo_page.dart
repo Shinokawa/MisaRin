@@ -1,9 +1,9 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-import '../widgets/rust_canvas_texture_widget.dart';
+import '../widgets/backend_canvas_texture_widget.dart';
 
-class RustCanvasTextureDemoPage extends StatelessWidget {
-  const RustCanvasTextureDemoPage({super.key});
+class BackendCanvasTextureDemoPage extends StatelessWidget {
+  const BackendCanvasTextureDemoPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +12,7 @@ class RustCanvasTextureDemoPage extends StatelessWidget {
         padding: EdgeInsets.zero,
         content: Stack(
           children: [
-            const Positioned.fill(child: RustCanvasTextureWidget()),
+            const Positioned.fill(child: BackendCanvasTextureWidget()),
             Positioned(
               top: 12,
               left: 12,

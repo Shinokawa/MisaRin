@@ -1,10 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../project/project_document.dart';
-import '../widgets/rust_canvas_texture_widget.dart';
+import '../widgets/backend_canvas_texture_widget.dart';
 
-class RustCanvasPage extends StatelessWidget {
-  const RustCanvasPage({
+class BackendCanvasPage extends StatelessWidget {
+  const BackendCanvasPage({
     super.key,
     required this.document,
   });
@@ -18,7 +18,7 @@ class RustCanvasPage extends StatelessWidget {
         padding: EdgeInsets.zero,
         content: Stack(
           children: [
-            const Positioned.fill(child: RustCanvasTextureWidget()),
+            const Positioned.fill(child: BackendCanvasTextureWidget()),
             Positioned(
               top: 12,
               left: 12,
