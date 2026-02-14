@@ -3,7 +3,7 @@ import 'dart:collection';
 import 'package:flutter/widgets.dart';
 
 import '../project/project_document.dart';
-import '../../src/rust/api/workspace.dart' as workspace_backend;
+import '../../backend/workspace_backend.dart' as workspace_backend;
 
 class CanvasWorkspaceEntry {
   CanvasWorkspaceEntry({required this.document, this.isDirty = false});
@@ -51,7 +51,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
   void open(ProjectDocument document, {bool activate = true}) {
     final CanvasWorkspaceEntry? existing = entryById(document.id);
     final bool isDirty = existing?.isDirty ?? false;
-    final workspace_backend.WorkspaceState state = workspace_backend.workspaceOpen(
+    final workspace_backend.WorkspaceState state = workspace_backend.openWorkspace(
       entry: workspace_backend.WorkspaceEntry(
         id: document.id,
         name: document.name,
@@ -71,7 +71,8 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (current == null || current.isDirty == isDirty) {
       return;
     }
-    final workspace_backend.WorkspaceState state = workspace_backend.workspaceMarkDirty(
+    final workspace_backend.WorkspaceState state =
+        workspace_backend.markWorkspaceDirty(
       id: id,
       isDirty: isDirty,
     );
@@ -85,7 +86,8 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (entryById(id) == null) {
       return;
     }
-    final workspace_backend.WorkspaceState state = workspace_backend.workspaceSetActive(id: id);
+    final workspace_backend.WorkspaceState state =
+        workspace_backend.setWorkspaceActive(id: id);
     _applyBackendState(state);
   }
 
@@ -119,7 +121,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (entryById(id) == null) {
       return;
     }
-    final workspace_backend.WorkspaceState state = workspace_backend.workspaceRemove(
+    final workspace_backend.WorkspaceState state = workspace_backend.removeWorkspace(
       id: id,
       activateAfter: activateAfter,
     );
@@ -127,7 +129,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
   }
 
   void reset() {
-    final workspace_backend.WorkspaceState state = workspace_backend.workspaceReset();
+    final workspace_backend.WorkspaceState state = workspace_backend.resetWorkspace();
     _applyBackendState(state);
   }
 
@@ -138,7 +140,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (oldIndex < 0 || oldIndex >= _entries.length) {
       return;
     }
-    final workspace_backend.WorkspaceState state = workspace_backend.workspaceReorder(
+    final workspace_backend.WorkspaceState state = workspace_backend.reorderWorkspace(
       oldIndex: oldIndex,
       newIndex: newIndex,
     );

@@ -1,6 +1,6 @@
 enum CanvasBackend {
-  gpu,
-  cpu,
+  rustWgpu,
+  rustCpu,
 }
 
 enum CanvasFilterType {
@@ -52,9 +52,9 @@ extension CanvasBackendId on CanvasBackend {
   int get id => index;
 
   static CanvasBackend fromId(int id) {
-    if (id == CanvasBackend.cpu.index) {
-      return CanvasBackend.cpu;
+    if (id == CanvasBackend.rustCpu.index) {
+      return CanvasBackend.rustCpu;
     }
-    return CanvasBackend.gpu;
+    return CanvasBackend.rustWgpu;
   }
 }

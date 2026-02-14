@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
-class CpuBrushFfi {
-  CpuBrushFfi._();
+class RustCpuBrushFfi {
+  RustCpuBrushFfi._();
 
-  static final CpuBrushFfi instance = CpuBrushFfi._();
+  static final RustCpuBrushFfi instance = RustCpuBrushFfi._();
 
   static bool _loggedUnsupported = false;
 
@@ -15,7 +15,7 @@ class CpuBrushFfi {
     }
     _loggedUnsupported = true;
     print(
-      'CpuBrushFfi unsupported: dart:ffi not available (stub implementation).',
+      'RustCpuBrushFfi unsupported: dart:ffi not available (stub implementation).',
     );
   }
 

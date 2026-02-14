@@ -1,7 +1,7 @@
-class CpuTransformFfi {
-  CpuTransformFfi._();
+class RustCpuTransformFfi {
+  RustCpuTransformFfi._();
 
-  static final CpuTransformFfi instance = CpuTransformFfi._();
+  static final RustCpuTransformFfi instance = RustCpuTransformFfi._();
 
   bool get isSupported => false;
 

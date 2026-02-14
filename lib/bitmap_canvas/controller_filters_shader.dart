@@ -1,6 +1,6 @@
 part of 'controller.dart';
 
-/// GPU 旁路版的图层边缘柔化，失败时回退到 CPU。
+/// Shader 加速版的图层边缘柔化，失败时回退到 rustCpu。
 Future<bool> _controllerApplyAntialiasToActiveLayer(
   BitmapCanvasController controller,
   int level, {
@@ -10,14 +10,14 @@ Future<bool> _controllerApplyAntialiasToActiveLayer(
   if (previewOnly) {
     return _canApplyAntialias(controller, clamped);
   }
-  if (_gpuAntialiasSupported()) {
-    final bool gpuApplied =
-        await _gpuApplyAntialiasToActiveLayer(controller, clamped);
-    if (gpuApplied) {
+  if (_shaderAntialiasSupported()) {
+    final bool shaderApplied =
+        await _shaderApplyAntialiasToActiveLayer(controller, clamped);
+    if (shaderApplied) {
       return true;
     }
   }
-  return _controllerApplyAntialiasToActiveLayerCpu(
+  return _controllerApplyAntialiasToActiveLayerRustCpu(
     controller,
     clamped,
     previewOnly: previewOnly,
@@ -44,14 +44,14 @@ bool _canApplyAntialias(BitmapCanvasController controller, int level) {
   return true;
 }
 
-bool _gpuAntialiasSupported() {
+bool _shaderAntialiasSupported() {
   if (kIsWeb) {
     return false;
   }
   return true;
 }
 
-Future<bool> _gpuApplyAntialiasToActiveLayer(
+Future<bool> _shaderApplyAntialiasToActiveLayer(
   BitmapCanvasController controller,
   int level,
 ) async {
@@ -60,7 +60,7 @@ Future<bool> _gpuApplyAntialiasToActiveLayer(
   }
   final BitmapLayerState layer = controller._activeLayer;
   try {
-    final ui.Image? initial = await _gpuImageFromPixels(
+    final ui.Image? initial = await _shaderImageFromPixels(
       layer.surface.pixels,
       controller._width,
       controller._height,
@@ -77,7 +77,7 @@ Future<bool> _gpuApplyAntialiasToActiveLayer(
       if (factor <= 0) {
         continue;
       }
-      final ui.Image next = await _gpuRunAlphaPass(
+      final ui.Image next = await _shaderRunAlphaPass(
         working,
         controller._width,
         controller._height,
@@ -87,14 +87,14 @@ Future<bool> _gpuApplyAntialiasToActiveLayer(
       working = next;
     }
 
-    final ui.Image smoothed = await _gpuRunEdgeSmoothPass(
+    final ui.Image smoothed = await _shaderRunEdgeSmoothPass(
       working,
       controller._width,
       controller._height,
     );
     working.dispose();
 
-    final bool wroteBack = await _gpuWriteBackToLayer(smoothed, layer);
+    final bool wroteBack = await _shaderWriteBackToLayer(smoothed, layer);
     smoothed.dispose();
     if (!wroteBack) {
       return false;
@@ -105,12 +105,12 @@ Future<bool> _gpuApplyAntialiasToActiveLayer(
     controller._notify();
     return true;
   } on Object catch (error, stack) {
-    debugPrint('GPU antialias failed, falling back to CPU: $error\n$stack');
+    debugPrint('Shader antialias failed, falling back to rustCpu: $error\n$stack');
     return false;
   }
 }
 
-Future<ui.Image?> _gpuImageFromPixels(
+Future<ui.Image?> _shaderImageFromPixels(
   Uint32List pixels,
   int width,
   int height,
@@ -136,13 +136,13 @@ Future<ui.Image?> _gpuImageFromPixels(
   return frame.image;
 }
 
-Future<ui.Image> _gpuRunAlphaPass(
+Future<ui.Image> _shaderRunAlphaPass(
   ui.Image input,
   int width,
   int height,
   double blendFactor,
 ) async {
-  final ui.FragmentProgram program = await _GpuAntialiasPrograms.alphaProgram;
+  final ui.FragmentProgram program = await _ShaderAntialiasPrograms.alphaProgram;
   final ui.FragmentShader shader = program.fragmentShader()
     ..setFloat(0, width.toDouble())
     ..setFloat(1, height.toDouble())
@@ -160,12 +160,12 @@ Future<ui.Image> _gpuRunAlphaPass(
   return output;
 }
 
-Future<ui.Image> _gpuRunEdgeSmoothPass(
+Future<ui.Image> _shaderRunEdgeSmoothPass(
   ui.Image input,
   int width,
   int height,
 ) async {
-  final ui.FragmentProgram program = await _GpuAntialiasPrograms.edgeProgram;
+  final ui.FragmentProgram program = await _ShaderAntialiasPrograms.edgeProgram;
   final ui.FragmentShader shader = program.fragmentShader()
     ..setFloat(0, width.toDouble())
     ..setFloat(1, height.toDouble())
@@ -182,7 +182,7 @@ Future<ui.Image> _gpuRunEdgeSmoothPass(
   return output;
 }
 
-Future<bool> _gpuWriteBackToLayer(
+Future<bool> _shaderWriteBackToLayer(
   ui.Image image,
   BitmapLayerState layer,
 ) async {
@@ -209,7 +209,7 @@ Future<bool> _gpuWriteBackToLayer(
   return true;
 }
 
-class _GpuAntialiasPrograms {
+class _ShaderAntialiasPrograms {
   static Future<ui.FragmentProgram> get alphaProgram =>
       _alphaProgram ??= ui.FragmentProgram.fromAsset(
         'shaders/antialias_alpha.frag',

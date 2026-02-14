@@ -237,8 +237,8 @@ Rect? _computePixelBounds(
 }) {
   if (pixelsPtr != null &&
       pixelsPtr != 0 &&
-      CpuImageFfi.instance.isSupported) {
-    final Int32List? bounds = CpuImageFfi.instance.computeBounds(
+      RustCpuImageFfi.instance.isSupported) {
+    final Int32List? bounds = RustCpuImageFfi.instance.computeBounds(
       pixelsPtr: pixelsPtr,
       pixelsLen: pixels.length,
       width: width,
@@ -377,7 +377,7 @@ void _applyClippedLayerTranslation(
   final int dx = controller._activeLayerTranslationDx;
   final int dy = controller._activeLayerTranslationDy;
   final int canvasPtr = target.surface.pointerAddress;
-  if (canvasPtr == 0 || !CpuTransformFfi.instance.isSupported) {
+  if (canvasPtr == 0 || !RustCpuTransformFfi.instance.isSupported) {
     return;
   }
   final int expectedLen = snapshotWidth * snapshotHeight;
@@ -391,7 +391,7 @@ void _applyClippedLayerTranslation(
   );
   snapshotPtr.asTypedList(snapshot.length).setAll(0, snapshot);
   try {
-    final bool ok = CpuTransformFfi.instance.translateLayer(
+    final bool ok = RustCpuTransformFfi.instance.translateLayer(
       canvasPtr: canvasPtr,
       canvasLen: pixels.length,
       canvasWidth: canvasWidth,
@@ -438,7 +438,7 @@ void _applyOverflowLayerTranslation(
   final int canvasHeight = controller._height;
   final Uint32List pixels = target.surface.pixels;
   final int canvasPtr = target.surface.pointerAddress;
-  if (canvasPtr == 0 || !CpuTransformFfi.instance.isSupported) {
+  if (canvasPtr == 0 || !RustCpuTransformFfi.instance.isSupported) {
     return;
   }
   final int expectedLen = snapshotWidth * snapshotHeight;
@@ -464,7 +464,7 @@ void _applyOverflowLayerTranslation(
       malloc.allocate<Uint64>(sizeOf<Uint64>());
   snapshotPtr.asTypedList(snapshot.length).setAll(0, snapshot);
   try {
-    final bool ok = CpuTransformFfi.instance.translateLayer(
+    final bool ok = RustCpuTransformFfi.instance.translateLayer(
       canvasPtr: canvasPtr,
       canvasLen: pixels.length,
       canvasWidth: canvasWidth,
@@ -635,7 +635,7 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
   final int canvasPtr = layer.surface.pointerAddress;
   if (snapshotLen > 0 &&
       canvasPtr != 0 &&
-      CpuTransformFfi.instance.isSupported) {
+      RustCpuTransformFfi.instance.isSupported) {
     final Pointer<Uint32> snapshotPtr = malloc.allocate<Uint32>(
       sizeOf<Uint32>() * snapshotLen,
     );
@@ -657,7 +657,7 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
           overflowColor.asTypedList(overflowCount),
         );
       }
-      final bool ok = CpuTransformFfi.instance.buildOverflowSnapshot(
+      final bool ok = RustCpuTransformFfi.instance.buildOverflowSnapshot(
         canvasPtr: canvasPtr,
         canvasLen: layer.surface.pixels.length,
         canvasWidth: controller._width,

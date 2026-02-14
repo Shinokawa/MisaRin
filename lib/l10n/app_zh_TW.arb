@@ -131,8 +131,8 @@
     }
   },
   "canvasBackendLabel": "\u756b\u5e03\u5f8c\u7aef",
-  "canvasBackendGpu": "GPU\uff08wgpu\uff09",
-  "canvasBackendCpu": "CPU\uff08Rust\uff09",
+  "canvasBackendGpu": "Rust WGPU",
+  "canvasBackendCpu": "Rust CPU",
   "canvasBackendRestartHint": "\u5207\u63db\u756b\u5e03\u5f8c\u7aef\u9700\u8981\u91cd\u65b0\u555f\u52d5\u5f8c\u751f\u6548\u3002",
   "developerOptionsLabel": "\u958b\u767c\u8005\u9078\u9805",
   "performanceOverlayLabel": "\u6548\u80fd\u76e3\u63a7\u9762\u677f",

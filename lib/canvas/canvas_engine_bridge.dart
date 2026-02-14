@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import '../src/rust/api/selection_path.dart' as rust_selection_path;
-import '../src/rust/canvas_engine_ffi.dart' as gpu_engine;
+import '../src/rust/canvas_engine_ffi.dart' as rust_wgpu_engine;
 import 'canvas_backend.dart';
 import 'canvas_backend_state.dart';
 
@@ -9,12 +9,12 @@ class CanvasEngineFfi {
   CanvasEngineFfi._();
 
   static final CanvasEngineFfi instance = CanvasEngineFfi._();
-  static final gpu_engine.CanvasEngineFfi _gpu =
-      gpu_engine.CanvasEngineFfi.instance;
+  static final rust_wgpu_engine.CanvasEngineFfi _rustWgpu =
+      rust_wgpu_engine.CanvasEngineFfi.instance;
 
-  bool get _useGpu => CanvasBackendState.backend == CanvasBackend.gpu;
+  bool get _useRustWgpu => CanvasBackendState.backend == CanvasBackend.rustWgpu;
 
-  bool get isSupported => _useGpu && _gpu.isSupported;
+  bool get isSupported => _useRustWgpu && _rustWgpu.isSupported;
 
   void pushPointsPacked({
     required int handle,
@@ -24,7 +24,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.pushPointsPacked(
+    _rustWgpu.pushPointsPacked(
       handle: handle,
       bytes: bytes,
       pointCount: pointCount,
@@ -35,7 +35,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return 0;
     }
-    return _gpu.getInputQueueLen(handle);
+    return _rustWgpu.getInputQueueLen(handle);
   }
 
   void setBrush({
@@ -62,7 +62,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.setBrush(
+    _rustWgpu.setBrush(
       handle: handle,
       colorArgb: colorArgb,
       baseRadius: baseRadius,
@@ -89,7 +89,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.beginSpray(handle: handle);
+    _rustWgpu.beginSpray(handle: handle);
   }
 
   void drawSpray({
@@ -106,7 +106,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.drawSpray(
+    _rustWgpu.drawSpray(
       handle: handle,
       points: points,
       pointCount: pointCount,
@@ -123,7 +123,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.endSpray(handle: handle);
+    _rustWgpu.endSpray(handle: handle);
   }
 
   bool applyFilter({
@@ -138,7 +138,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return false;
     }
-    return _gpu.applyFilter(
+    return _rustWgpu.applyFilter(
       handle: handle,
       layerIndex: layerIndex,
       filterType: filterType,
@@ -157,7 +157,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return false;
     }
-    return _gpu.applyAntialias(
+    return _rustWgpu.applyAntialias(
       handle: handle,
       layerIndex: layerIndex,
       level: level,
@@ -168,7 +168,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.setActiveLayer(handle: handle, layerIndex: layerIndex);
+    _rustWgpu.setActiveLayer(handle: handle, layerIndex: layerIndex);
   }
 
   void setLayerOpacity({
@@ -179,7 +179,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.setLayerOpacity(
+    _rustWgpu.setLayerOpacity(
       handle: handle,
       layerIndex: layerIndex,
       opacity: opacity,
@@ -194,7 +194,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.setLayerVisible(
+    _rustWgpu.setLayerVisible(
       handle: handle,
       layerIndex: layerIndex,
       visible: visible,
@@ -209,7 +209,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.setLayerClippingMask(
+    _rustWgpu.setLayerClippingMask(
       handle: handle,
       layerIndex: layerIndex,
       clippingMask: clippingMask,
@@ -224,7 +224,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.setLayerBlendMode(
+    _rustWgpu.setLayerBlendMode(
       handle: handle,
       layerIndex: layerIndex,
       blendModeIndex: blendModeIndex,
@@ -239,7 +239,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.reorderLayer(
+    _rustWgpu.reorderLayer(
       handle: handle,
       fromIndex: fromIndex,
       toIndex: toIndex,
@@ -254,7 +254,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.setViewFlags(
+    _rustWgpu.setViewFlags(
       handle: handle,
       mirror: mirror,
       blackWhite: blackWhite,
@@ -265,7 +265,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.clearLayer(handle: handle, layerIndex: layerIndex);
+    _rustWgpu.clearLayer(handle: handle, layerIndex: layerIndex);
   }
 
   void fillLayer({
@@ -276,7 +276,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.fillLayer(
+    _rustWgpu.fillLayer(
       handle: handle,
       layerIndex: layerIndex,
       colorArgb: colorArgb,
@@ -300,7 +300,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return false;
     }
-    return _gpu.bucketFill(
+    return _rustWgpu.bucketFill(
       handle: handle,
       layerIndex: layerIndex,
       startX: startX,
@@ -329,7 +329,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return null;
     }
-    return _gpu.magicWandMask(
+    return _rustWgpu.magicWandMask(
       handle: handle,
       layerIndex: layerIndex,
       startX: startX,
@@ -350,7 +350,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return null;
     }
-    return _gpu.readLayer(
+    return _rustWgpu.readLayer(
       handle: handle,
       layerIndex: layerIndex,
       width: width,
@@ -367,7 +367,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return null;
     }
-    return _gpu.readLayerPreview(
+    return _rustWgpu.readLayerPreview(
       handle: handle,
       layerIndex: layerIndex,
       width: width,
@@ -384,7 +384,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return false;
     }
-    return _gpu.writeLayer(
+    return _rustWgpu.writeLayer(
       handle: handle,
       layerIndex: layerIndex,
       pixels: pixels,
@@ -401,7 +401,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return false;
     }
-    return _gpu.translateLayer(
+    return _rustWgpu.translateLayer(
       handle: handle,
       layerIndex: layerIndex,
       deltaX: deltaX,
@@ -419,7 +419,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return false;
     }
-    return _gpu.setLayerTransformPreview(
+    return _rustWgpu.setLayerTransformPreview(
       handle: handle,
       layerIndex: layerIndex,
       matrix: matrix,
@@ -437,7 +437,7 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return false;
     }
-    return _gpu.applyLayerTransform(
+    return _rustWgpu.applyLayerTransform(
       handle: handle,
       layerIndex: layerIndex,
       matrix: matrix,
@@ -449,21 +449,21 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return null;
     }
-    return _gpu.getLayerBounds(handle: handle, layerIndex: layerIndex);
+    return _rustWgpu.getLayerBounds(handle: handle, layerIndex: layerIndex);
   }
 
   void setSelectionMask({required int handle, Uint8List? selectionMask}) {
     if (!isSupported) {
       return;
     }
-    _gpu.setSelectionMask(handle: handle, selectionMask: selectionMask);
+    _rustWgpu.setSelectionMask(handle: handle, selectionMask: selectionMask);
   }
 
   void resetCanvas({required int handle, required int backgroundColorArgb}) {
     if (!isSupported) {
       return;
     }
-    _gpu.resetCanvas(
+    _rustWgpu.resetCanvas(
       handle: handle,
       backgroundColorArgb: backgroundColorArgb,
     );
@@ -473,14 +473,14 @@ class CanvasEngineFfi {
     if (!isSupported) {
       return;
     }
-    _gpu.undo(handle: handle);
+    _rustWgpu.undo(handle: handle);
   }
 
   void redo({required int handle}) {
     if (!isSupported) {
       return;
     }
-    _gpu.redo(handle: handle);
+    _rustWgpu.redo(handle: handle);
   }
 }
 

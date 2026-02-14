@@ -4,7 +4,7 @@ class CanvasBackendState {
   CanvasBackendState._();
 
   static bool _initialized = false;
-  static CanvasBackend _backend = CanvasBackend.gpu;
+  static CanvasBackend _backend = CanvasBackend.rustWgpu;
 
   static CanvasBackend get backend => _backend;
 
@@ -17,6 +17,6 @@ class CanvasBackendState {
   }
 
   static CanvasBackend resolveRasterBackend({required bool useBackendCanvas}) {
-    return useBackendCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
+    return useBackendCanvas ? CanvasBackend.rustWgpu : CanvasBackend.rustCpu;
   }
 }

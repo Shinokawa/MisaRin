@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 /// Opens the native Rust library that backs both flutter_rust_bridge APIs and
-/// the hand-written dart:ffi shims (CPU brush/blend/filters/etc).
+/// the hand-written dart:ffi shims (rustCpu brush/blend/filters/etc).
 ///
 /// Why this exists:
 /// - On desktop (especially macOS), relying on `DynamicLibrary.process()` can be
@@ -97,4 +97,3 @@ class RustDynamicLibrary {
     return ffi.DynamicLibrary.process();
   }
 }
-

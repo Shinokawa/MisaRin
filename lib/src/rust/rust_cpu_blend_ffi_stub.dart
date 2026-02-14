@@ -1,7 +1,7 @@
-class CpuBlendFfi {
-  CpuBlendFfi._();
+class RustCpuBlendFfi {
+  RustCpuBlendFfi._();
 
-  static final CpuBlendFfi instance = CpuBlendFfi._();
+  static final RustCpuBlendFfi instance = RustCpuBlendFfi._();
 
   bool get isSupported => false;
 

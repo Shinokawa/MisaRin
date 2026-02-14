@@ -246,10 +246,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get canvasBackendLabel => '画布后端';
 
   @override
-  String get canvasBackendGpu => 'GPU（wgpu）';
+  String get canvasBackendGpu => 'Rust WGPU';
 
   @override
-  String get canvasBackendCpu => 'CPU';
+  String get canvasBackendCpu => 'Rust CPU';
 
   @override
   String get canvasBackendRestartHint => '切换画布后端需要重启后生效。';
@@ -2307,10 +2307,10 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get canvasBackendLabel => '画布后端';
 
   @override
-  String get canvasBackendGpu => 'GPU（wgpu）';
+  String get canvasBackendGpu => 'Rust WGPU';
 
   @override
-  String get canvasBackendCpu => 'CPU';
+  String get canvasBackendCpu => 'Rust CPU';
 
   @override
   String get canvasBackendRestartHint => '切换画布后端需要重启后生效。';
@@ -3218,10 +3218,10 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get canvasBackendLabel => '畫布後端';
 
   @override
-  String get canvasBackendGpu => 'GPU（wgpu）';
+  String get canvasBackendGpu => 'Rust WGPU';
 
   @override
-  String get canvasBackendCpu => 'CPU';
+  String get canvasBackendCpu => 'Rust CPU';
 
   @override
   String get canvasBackendRestartHint => '切換畫布後端需要重新啟動後生效。';

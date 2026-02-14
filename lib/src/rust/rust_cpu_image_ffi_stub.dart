@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
-class CpuImageFfi {
-  CpuImageFfi._();
+class RustCpuImageFfi {
+  RustCpuImageFfi._();
 
-  static final CpuImageFfi instance = CpuImageFfi._();
+  static final RustCpuImageFfi instance = RustCpuImageFfi._();
 
   bool get isSupported => false;
 

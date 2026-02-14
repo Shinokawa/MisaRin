@@ -5,7 +5,7 @@ import 'package:ffi/ffi.dart';
 
 import 'rust_dylib.dart';
 
-typedef _CpuBrushDrawStampNative =
+typedef _RustCpuBrushDrawStampNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> pixels,
       ffi.Uint64 pixelsLen,
@@ -27,7 +27,7 @@ typedef _CpuBrushDrawStampNative =
       ffi.Uint64 selectionLen,
     );
 
-typedef _CpuBrushDrawStampDart =
+typedef _RustCpuBrushDrawStampDart =
     int Function(
       ffi.Pointer<ffi.Uint32> pixels,
       int pixelsLen,
@@ -49,7 +49,7 @@ typedef _CpuBrushDrawStampDart =
       int selectionLen,
     );
 
-typedef _CpuBrushDrawCapsuleNative =
+typedef _RustCpuBrushDrawCapsuleNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> pixels,
       ffi.Uint64 pixelsLen,
@@ -69,7 +69,7 @@ typedef _CpuBrushDrawCapsuleNative =
       ffi.Uint64 selectionLen,
     );
 
-typedef _CpuBrushDrawCapsuleDart =
+typedef _RustCpuBrushDrawCapsuleDart =
     int Function(
       ffi.Pointer<ffi.Uint32> pixels,
       int pixelsLen,
@@ -89,7 +89,7 @@ typedef _CpuBrushDrawCapsuleDart =
       int selectionLen,
     );
 
-typedef _CpuBrushFillPolygonNative =
+typedef _RustCpuBrushFillPolygonNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> pixels,
       ffi.Uint64 pixelsLen,
@@ -106,7 +106,7 @@ typedef _CpuBrushFillPolygonNative =
       ffi.Uint64 selectionLen,
     );
 
-typedef _CpuBrushFillPolygonDart =
+typedef _RustCpuBrushFillPolygonDart =
     int Function(
       ffi.Pointer<ffi.Uint32> pixels,
       int pixelsLen,
@@ -123,20 +123,20 @@ typedef _CpuBrushFillPolygonDart =
       int selectionLen,
     );
 
-class CpuBrushFfi {
-  CpuBrushFfi._() {
+class RustCpuBrushFfi {
+  RustCpuBrushFfi._() {
     try {
       _lib = _openLibrary();
       _drawStamp = _lib
-          .lookupFunction<_CpuBrushDrawStampNative, _CpuBrushDrawStampDart>(
+          .lookupFunction<_RustCpuBrushDrawStampNative, _RustCpuBrushDrawStampDart>(
             'cpu_brush_draw_stamp',
           );
       _drawCapsule = _lib
-          .lookupFunction<_CpuBrushDrawCapsuleNative, _CpuBrushDrawCapsuleDart>(
+          .lookupFunction<_RustCpuBrushDrawCapsuleNative, _RustCpuBrushDrawCapsuleDart>(
             'cpu_brush_draw_capsule_segment',
           );
       _fillPolygon = _lib
-          .lookupFunction<_CpuBrushFillPolygonNative, _CpuBrushFillPolygonDart>(
+          .lookupFunction<_RustCpuBrushFillPolygonNative, _RustCpuBrushFillPolygonDart>(
             'cpu_brush_fill_polygon',
           );
       isSupported = true;
@@ -144,13 +144,13 @@ class CpuBrushFfi {
       isSupported = false;
       if (!_loggedInitFailure) {
         _loggedInitFailure = true;
-        print('CpuBrushFfi init failed: $error');
+        print('RustCpuBrushFfi init failed: $error');
         print('$stackTrace');
       }
     }
   }
 
-  static final CpuBrushFfi instance = CpuBrushFfi._();
+  static final RustCpuBrushFfi instance = RustCpuBrushFfi._();
   static bool _loggedInitFailure = false;
   static bool _loggedUnsupported = false;
   static bool _loggedInvalidBuffer = false;
@@ -162,9 +162,9 @@ class CpuBrushFfi {
   }
 
   late final ffi.DynamicLibrary _lib;
-  late final _CpuBrushDrawStampDart _drawStamp;
-  late final _CpuBrushDrawCapsuleDart _drawCapsule;
-  late final _CpuBrushFillPolygonDart _fillPolygon;
+  late final _RustCpuBrushDrawStampDart _drawStamp;
+  late final _RustCpuBrushDrawCapsuleDart _drawCapsule;
+  late final _RustCpuBrushFillPolygonDart _fillPolygon;
 
   late final bool isSupported;
 
@@ -199,12 +199,12 @@ class CpuBrushFfi {
       if (!isSupported) {
         _loggedUnsupported = _logOnce(
           _loggedUnsupported,
-          'CpuBrushFfi unsupported: missing cpu_brush symbols.',
+          'RustCpuBrushFfi unsupported: missing cpu_brush symbols.',
         );
       } else {
         _loggedInvalidBuffer = _logOnce(
           _loggedInvalidBuffer,
-          'CpuBrushFfi drawStamp skipped: invalid pixel buffer '
+          'RustCpuBrushFfi drawStamp skipped: invalid pixel buffer '
           '(ptr=$pixelsPtr, len=$pixelsLen).',
         );
       }
@@ -213,7 +213,7 @@ class CpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'CpuBrushFfi drawStamp skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi drawStamp skipped: invalid size ${width}x${height}.',
       );
       return false;
     }
@@ -250,7 +250,7 @@ class CpuBrushFfi {
       if (result == 0) {
         _loggedCallFailed = _logOnce(
           _loggedCallFailed,
-          'CpuBrushFfi drawStamp failed: native returned 0.',
+          'RustCpuBrushFfi drawStamp failed: native returned 0.',
         );
       }
       return result != 0;
@@ -282,12 +282,12 @@ class CpuBrushFfi {
       if (!isSupported) {
         _loggedUnsupported = _logOnce(
           _loggedUnsupported,
-          'CpuBrushFfi unsupported: missing cpu_brush symbols.',
+          'RustCpuBrushFfi unsupported: missing cpu_brush symbols.',
         );
       } else {
         _loggedInvalidBuffer = _logOnce(
           _loggedInvalidBuffer,
-          'CpuBrushFfi drawCapsuleSegment skipped: invalid pixel buffer '
+          'RustCpuBrushFfi drawCapsuleSegment skipped: invalid pixel buffer '
           '(ptr=$pixelsPtr, len=$pixelsLen).',
         );
       }
@@ -296,7 +296,7 @@ class CpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'CpuBrushFfi drawCapsuleSegment skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi drawCapsuleSegment skipped: invalid size ${width}x${height}.',
       );
       return false;
     }
@@ -331,7 +331,7 @@ class CpuBrushFfi {
       if (result == 0) {
         _loggedCallFailed = _logOnce(
           _loggedCallFailed,
-          'CpuBrushFfi drawCapsuleSegment failed: native returned 0.',
+          'RustCpuBrushFfi drawCapsuleSegment failed: native returned 0.',
         );
       }
       return result != 0;
@@ -359,12 +359,12 @@ class CpuBrushFfi {
       if (!isSupported) {
         _loggedUnsupported = _logOnce(
           _loggedUnsupported,
-          'CpuBrushFfi unsupported: missing cpu_brush symbols.',
+          'RustCpuBrushFfi unsupported: missing cpu_brush symbols.',
         );
       } else {
         _loggedInvalidBuffer = _logOnce(
           _loggedInvalidBuffer,
-          'CpuBrushFfi fillPolygon skipped: invalid pixel buffer '
+          'RustCpuBrushFfi fillPolygon skipped: invalid pixel buffer '
           '(ptr=$pixelsPtr, len=$pixelsLen).',
         );
       }
@@ -373,7 +373,7 @@ class CpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'CpuBrushFfi fillPolygon skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi fillPolygon skipped: invalid size ${width}x${height}.',
       );
       return false;
     }
@@ -413,7 +413,7 @@ class CpuBrushFfi {
       if (result == 0) {
         _loggedCallFailed = _logOnce(
           _loggedCallFailed,
-          'CpuBrushFfi fillPolygon failed: native returned 0.',
+          'RustCpuBrushFfi fillPolygon failed: native returned 0.',
         );
       }
       return result != 0;

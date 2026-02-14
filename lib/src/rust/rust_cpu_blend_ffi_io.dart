@@ -2,7 +2,7 @@ import 'dart:ffi' as ffi;
 
 import 'rust_dylib.dart';
 
-typedef _CpuBlendOnCanvasNative =
+typedef _RustCpuBlendOnCanvasNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> src,
       ffi.Pointer<ffi.Uint32> dst,
@@ -20,7 +20,7 @@ typedef _CpuBlendOnCanvasNative =
       ffi.Float maskOpacity,
     );
 
-typedef _CpuBlendOnCanvasDart =
+typedef _RustCpuBlendOnCanvasDart =
     int Function(
       ffi.Pointer<ffi.Uint32> src,
       ffi.Pointer<ffi.Uint32> dst,
@@ -38,7 +38,7 @@ typedef _CpuBlendOnCanvasDart =
       double maskOpacity,
     );
 
-typedef _CpuBlendOverflowNative =
+typedef _RustCpuBlendOverflowNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> canvas,
       ffi.Uint64 canvasLen,
@@ -68,7 +68,7 @@ typedef _CpuBlendOverflowNative =
       ffi.Pointer<ffi.Uint64> outCount,
     );
 
-typedef _CpuBlendOverflowDart =
+typedef _RustCpuBlendOverflowDart =
     int Function(
       ffi.Pointer<ffi.Uint32> canvas,
       int canvasLen,
@@ -98,31 +98,31 @@ typedef _CpuBlendOverflowDart =
       ffi.Pointer<ffi.Uint64> outCount,
     );
 
-class CpuBlendFfi {
-  CpuBlendFfi._() {
+class RustCpuBlendFfi {
+  RustCpuBlendFfi._() {
     try {
       _lib = _openLibrary();
       _blendOnCanvas = _lib.lookupFunction<
-          _CpuBlendOnCanvasNative,
-          _CpuBlendOnCanvasDart>('cpu_blend_on_canvas');
+          _RustCpuBlendOnCanvasNative,
+          _RustCpuBlendOnCanvasDart>('cpu_blend_on_canvas');
       _blendOverflow = _lib.lookupFunction<
-          _CpuBlendOverflowNative,
-          _CpuBlendOverflowDart>('cpu_blend_overflow');
+          _RustCpuBlendOverflowNative,
+          _RustCpuBlendOverflowDart>('cpu_blend_overflow');
       isSupported = true;
     } catch (_) {
       isSupported = false;
     }
   }
 
-  static final CpuBlendFfi instance = CpuBlendFfi._();
+  static final RustCpuBlendFfi instance = RustCpuBlendFfi._();
 
   static ffi.DynamicLibrary _openLibrary() {
     return RustDynamicLibrary.open();
   }
 
   late final ffi.DynamicLibrary _lib;
-  late final _CpuBlendOnCanvasDart _blendOnCanvas;
-  late final _CpuBlendOverflowDart _blendOverflow;
+  late final _RustCpuBlendOnCanvasDart _blendOnCanvas;
+  late final _RustCpuBlendOverflowDart _blendOverflow;
 
   late final bool isSupported;
 

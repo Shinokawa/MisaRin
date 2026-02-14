@@ -543,7 +543,7 @@ mixin _PaintingBoardInteractionMixin
     return true;
   }
 
-  bool _canStartCpuStroke({required bool pointerInsideBoard}) {
+  bool _canStartBitmapStroke({required bool pointerInsideBoard}) {
     if (!pointerInsideBoard) {
       return false;
     }
@@ -1191,7 +1191,7 @@ mixin _PaintingBoardInteractionMixin
         _focusNode.requestFocus();
         final bool useBackendCanvas = _backend.isSupported;
         if (!useBackendCanvas) {
-          if (!_canStartCpuStroke(pointerInsideBoard: pointerInsideBoard)) {
+          if (!_canStartBitmapStroke(pointerInsideBoard: pointerInsideBoard)) {
             return;
           }
           if (!isPointInsideSelection(boardLocal)) {

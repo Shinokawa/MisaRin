@@ -5,8 +5,7 @@ import 'dart:ui';
 import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
-import '../../src/rust/frb_generated.dart';
-import '../../src/rust/rust_init.dart';
+import '../../backend/psd_backend.dart' as psd_backend;
 import '../project/project_document.dart';
 
 /// 使用 PSD 解析器解析 PSD，并转换为 `ProjectDocument`。
@@ -28,14 +27,8 @@ class PsdImporter {
     String? displayName,
   }) async {
     final String resolvedName = displayName ?? 'PSD 项目';
-    await ensureRustInitialized();
-
     try {
-      // NOTE: 这里故意用 dynamic 调用，避免在你尚未运行
-      // flutter_rust_bridge_codegen 时直接编译报错。
-      // ignore: invalid_use_of_internal_member
-      final dynamic api = RustLib.instance.api;
-      final dynamic result = await api.crateApiPsdImportPsd(bytes: data);
+      final dynamic result = await psd_backend.importPsdBytes(data);
       return _buildProjectFromPsdResult(result, displayName: resolvedName);
     } on NoSuchMethodError catch (_) {
       throw UnsupportedError(

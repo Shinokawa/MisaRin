@@ -527,13 +527,13 @@ abstract class AppLocalizations {
   /// No description provided for @canvasBackendGpu.
   ///
   /// In en, this message translates to:
-  /// **'GPU (wgpu)'**
+  /// **'Rust WGPU'**
   String get canvasBackendGpu;
 
   /// No description provided for @canvasBackendCpu.
   ///
   /// In en, this message translates to:
-  /// **'CPU'**
+  /// **'Rust CPU'**
   String get canvasBackendCpu;
 
   /// No description provided for @canvasBackendRestartHint.

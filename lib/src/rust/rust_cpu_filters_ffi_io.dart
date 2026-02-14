@@ -2,7 +2,7 @@ import 'dart:ffi' as ffi;
 
 import 'rust_dylib.dart';
 
-typedef _CpuFiltersApplyAntialiasNative =
+typedef _RustCpuFiltersApplyAntialiasNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> pixels,
       ffi.Uint64 pixelsLen,
@@ -12,7 +12,7 @@ typedef _CpuFiltersApplyAntialiasNative =
       ffi.Uint8 previewOnly,
     );
 
-typedef _CpuFiltersApplyAntialiasDart =
+typedef _RustCpuFiltersApplyAntialiasDart =
     int Function(
       ffi.Pointer<ffi.Uint32> pixels,
       int pixelsLen,
@@ -22,27 +22,27 @@ typedef _CpuFiltersApplyAntialiasDart =
       int previewOnly,
     );
 
-class CpuFiltersFfi {
-  CpuFiltersFfi._() {
+class RustCpuFiltersFfi {
+  RustCpuFiltersFfi._() {
     try {
       _lib = _openLibrary();
       _applyAntialias = _lib.lookupFunction<
-          _CpuFiltersApplyAntialiasNative,
-          _CpuFiltersApplyAntialiasDart>('cpu_filters_apply_antialias');
+          _RustCpuFiltersApplyAntialiasNative,
+          _RustCpuFiltersApplyAntialiasDart>('cpu_filters_apply_antialias');
       isSupported = true;
     } catch (_) {
       isSupported = false;
     }
   }
 
-  static final CpuFiltersFfi instance = CpuFiltersFfi._();
+  static final RustCpuFiltersFfi instance = RustCpuFiltersFfi._();
 
   static ffi.DynamicLibrary _openLibrary() {
     return RustDynamicLibrary.open();
   }
 
   late final ffi.DynamicLibrary _lib;
-  late final _CpuFiltersApplyAntialiasDart _applyAntialias;
+  late final _RustCpuFiltersApplyAntialiasDart _applyAntialias;
 
   late final bool isSupported;
 

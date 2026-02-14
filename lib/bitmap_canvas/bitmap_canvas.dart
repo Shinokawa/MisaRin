@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import '../canvas/canvas_tools.dart';
-import '../src/rust/cpu_brush_ffi.dart';
+import '../src/rust/rust_cpu_brush_ffi.dart';
 import 'memory/native_memory_manager.dart';
 import 'soft_brush_profile.dart';
 
@@ -20,7 +20,7 @@ const int _kMaxIntegrationSlices = 20;
 ///
 /// Backed by a native pixel buffer; call [dispose] when no longer needed.
 class BitmapSurface {
-  static bool _loggedCpuBrushUnsupported = false;
+  static bool _loggedRustCpuBrushUnsupported = false;
 
   BitmapSurface({required this.width, required this.height, Color? fillColor}) {
     if (width <= 0 || height <= 0) {
@@ -88,10 +88,10 @@ class BitmapSurface {
     if (radius <= 0) {
       return;
     }
-    if (!_ensureCpuBrushSupported()) {
+    if (!_ensureRustCpuBrushSupported()) {
       return;
     }
-    final bool ok = CpuBrushFfi.instance.drawStamp(
+    final bool ok = RustCpuBrushFfi.instance.drawStamp(
       pixelsPtr: pointerAddress,
       pixelsLen: pixels.length,
       width: width,
@@ -126,10 +126,10 @@ class BitmapSurface {
     bool includeStartCap = true,
     bool erase = false,
   }) {
-    if (!_ensureCpuBrushSupported()) {
+    if (!_ensureRustCpuBrushSupported()) {
       return;
     }
-    final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
+    final bool ok = RustCpuBrushFfi.instance.drawCapsuleSegment(
       pixelsPtr: pointerAddress,
       pixelsLen: pixels.length,
       width: width,
@@ -164,10 +164,10 @@ class BitmapSurface {
     bool includeStartCap = true,
     bool erase = false,
   }) {
-    if (!_ensureCpuBrushSupported()) {
+    if (!_ensureRustCpuBrushSupported()) {
       return;
     }
-    final bool ok = CpuBrushFfi.instance.drawCapsuleSegment(
+    final bool ok = RustCpuBrushFfi.instance.drawCapsuleSegment(
       pixelsPtr: pointerAddress,
       pixelsLen: pixels.length,
       width: width,
@@ -243,7 +243,7 @@ class BitmapSurface {
     if (sanitized.length < 3) {
       return;
     }
-    if (!_ensureCpuBrushSupported()) {
+    if (!_ensureRustCpuBrushSupported()) {
       return;
     }
     final Float32List packed = Float32List(sanitized.length * 2);
@@ -273,7 +273,7 @@ class BitmapSurface {
       bounds.height.abs(),
     );
     final double radius = math.max(longestSide * 0.5, 0.01);
-    final bool ok = CpuBrushFfi.instance.fillPolygon(
+    final bool ok = RustCpuBrushFfi.instance.fillPolygon(
       pixelsPtr: pointerAddress,
       pixelsLen: pixels.length,
       width: width,
@@ -321,10 +321,10 @@ class BitmapSurface {
       resolvedRadius = 0.01;
     }
     final int level = antialiasLevel.clamp(0, 9);
-    if (!_ensureCpuBrushSupported()) {
+    if (!_ensureRustCpuBrushSupported()) {
       return;
     }
-    final bool ok = CpuBrushFfi.instance.drawStamp(
+    final bool ok = RustCpuBrushFfi.instance.drawStamp(
       pixelsPtr: pointerAddress,
       pixelsLen: pixels.length,
       width: width,
@@ -349,14 +349,14 @@ class BitmapSurface {
     return;
   }
 
-  static bool _ensureCpuBrushSupported() {
-    if (CpuBrushFfi.instance.isSupported) {
+  static bool _ensureRustCpuBrushSupported() {
+    if (RustCpuBrushFfi.instance.isSupported) {
       return true;
     }
-    if (!_loggedCpuBrushUnsupported) {
-      _loggedCpuBrushUnsupported = true;
+    if (!_loggedRustCpuBrushUnsupported) {
+      _loggedRustCpuBrushUnsupported = true;
       print(
-        'CpuBrushFfi unsupported: Rust CPU brush symbols not available '
+        'RustCpuBrushFfi unsupported: rustCpu brush symbols not available '
         '(library missing or failed to load).',
       );
     }

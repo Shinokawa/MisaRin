@@ -117,7 +117,7 @@ class AppPreferences {
   static const Color _defaultNewCanvasBackgroundColor = Color(0xFFFFFFFF);
   static const int _minNewCanvasDimension = 1;
   static const int _maxNewCanvasDimension = 16000;
-  static const CanvasBackend _defaultCanvasBackend = CanvasBackend.gpu;
+  static const CanvasBackend _defaultCanvasBackend = CanvasBackend.rustWgpu;
 
   static const double _stylusCurveLowerBound = 0.25;
   static const double _stylusCurveUpperBound = 3.2;

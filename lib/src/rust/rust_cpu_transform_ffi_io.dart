@@ -2,7 +2,7 @@ import 'dart:ffi' as ffi;
 
 import 'rust_dylib.dart';
 
-typedef _CpuTransformTranslateNative =
+typedef _RustCpuTransformTranslateNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> canvas,
       ffi.Uint64 canvasLen,
@@ -23,7 +23,7 @@ typedef _CpuTransformTranslateNative =
       ffi.Pointer<ffi.Uint64> outCount,
     );
 
-typedef _CpuTransformTranslateDart =
+typedef _RustCpuTransformTranslateDart =
     int Function(
       ffi.Pointer<ffi.Uint32> canvas,
       int canvasLen,
@@ -44,7 +44,7 @@ typedef _CpuTransformTranslateDart =
       ffi.Pointer<ffi.Uint64> outCount,
     );
 
-typedef _CpuTransformBuildSnapshotNative =
+typedef _RustCpuTransformBuildSnapshotNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> canvas,
       ffi.Uint64 canvasLen,
@@ -62,7 +62,7 @@ typedef _CpuTransformBuildSnapshotNative =
       ffi.Uint64 overflowLen,
     );
 
-typedef _CpuTransformBuildSnapshotDart =
+typedef _RustCpuTransformBuildSnapshotDart =
     int Function(
       ffi.Pointer<ffi.Uint32> canvas,
       int canvasLen,
@@ -80,31 +80,31 @@ typedef _CpuTransformBuildSnapshotDart =
       int overflowLen,
     );
 
-class CpuTransformFfi {
-  CpuTransformFfi._() {
+class RustCpuTransformFfi {
+  RustCpuTransformFfi._() {
     try {
       _lib = _openLibrary();
       _translate = _lib.lookupFunction<
-          _CpuTransformTranslateNative,
-          _CpuTransformTranslateDart>('cpu_layer_translate');
+          _RustCpuTransformTranslateNative,
+          _RustCpuTransformTranslateDart>('cpu_layer_translate');
       _buildSnapshot = _lib.lookupFunction<
-          _CpuTransformBuildSnapshotNative,
-          _CpuTransformBuildSnapshotDart>('cpu_build_overflow_snapshot');
+          _RustCpuTransformBuildSnapshotNative,
+          _RustCpuTransformBuildSnapshotDart>('cpu_build_overflow_snapshot');
       isSupported = true;
     } catch (_) {
       isSupported = false;
     }
   }
 
-  static final CpuTransformFfi instance = CpuTransformFfi._();
+  static final RustCpuTransformFfi instance = RustCpuTransformFfi._();
 
   static ffi.DynamicLibrary _openLibrary() {
     return RustDynamicLibrary.open();
   }
 
   late final ffi.DynamicLibrary _lib;
-  late final _CpuTransformTranslateDart _translate;
-  late final _CpuTransformBuildSnapshotDart _buildSnapshot;
+  late final _RustCpuTransformTranslateDart _translate;
+  late final _RustCpuTransformBuildSnapshotDart _buildSnapshot;
 
   late final bool isSupported;
 

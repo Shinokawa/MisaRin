@@ -5,7 +5,7 @@ import 'rust_dylib.dart';
 
 import 'package:ffi/ffi.dart';
 
-typedef _CpuImageBoundsNative =
+typedef _RustCpuImageBoundsNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> pixels,
       ffi.Uint64 pixelsLen,
@@ -14,7 +14,7 @@ typedef _CpuImageBoundsNative =
       ffi.Pointer<ffi.Int32> outBounds,
     );
 
-typedef _CpuImageBoundsDart =
+typedef _RustCpuImageBoundsDart =
     int Function(
       ffi.Pointer<ffi.Uint32> pixels,
       int pixelsLen,
@@ -23,12 +23,12 @@ typedef _CpuImageBoundsDart =
       ffi.Pointer<ffi.Int32> outBounds,
     );
 
-class CpuImageFfi {
-  CpuImageFfi._() {
+class RustCpuImageFfi {
+  RustCpuImageFfi._() {
     try {
       _lib = _openLibrary();
       _bounds = _lib
-          .lookupFunction<_CpuImageBoundsNative, _CpuImageBoundsDart>(
+          .lookupFunction<_RustCpuImageBoundsNative, _RustCpuImageBoundsDart>(
             'cpu_image_bounds',
           );
       isSupported = true;
@@ -37,14 +37,14 @@ class CpuImageFfi {
     }
   }
 
-  static final CpuImageFfi instance = CpuImageFfi._();
+  static final RustCpuImageFfi instance = RustCpuImageFfi._();
 
   static ffi.DynamicLibrary _openLibrary() {
     return RustDynamicLibrary.open();
   }
 
   late final ffi.DynamicLibrary _lib;
-  late final _CpuImageBoundsDart _bounds;
+  late final _RustCpuImageBoundsDart _bounds;
 
   late final bool isSupported;
 

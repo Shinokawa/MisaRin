@@ -29,12 +29,12 @@ import '../canvas/canvas_tool_host.dart';
 import '../canvas/brush_random_rotation.dart';
 import '../canvas/text_renderer.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
-import '../src/rust/api/gpu_brush.dart' as rust_gpu_brush;
+import '../backend/rust_wgpu_brush.dart' as rust_wgpu_brush;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
-import '../src/rust/cpu_blend_ffi.dart';
-import '../src/rust/cpu_image_ffi.dart';
-import '../src/rust/cpu_filters_ffi.dart';
-import '../src/rust/cpu_transform_ffi.dart';
+import '../src/rust/rust_cpu_blend_ffi.dart';
+import '../src/rust/rust_cpu_image_ffi.dart';
+import '../src/rust/rust_cpu_filters_ffi.dart';
+import '../src/rust/rust_cpu_transform_ffi.dart';
 import '../src/rust/rust_init.dart';
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
@@ -53,7 +53,7 @@ part 'controller_fill.dart';
 part 'controller_composite.dart';
 part 'controller_paint_commands.dart';
 part 'controller_filters.dart';
-part 'controller_filters_gpu.dart';
+part 'controller_filters_shader.dart';
 part 'controller_worker_queue.dart';
 part 'controller_text.dart';
 
@@ -66,7 +66,7 @@ class BitmapCanvasController extends ChangeNotifier
     List<CanvasLayerData>? initialLayers,
     CanvasCreationLogic creationLogic = CanvasCreationLogic.multiThread,
     bool enableRasterOutput = true,
-    CanvasBackend backend = CanvasBackend.gpu,
+    CanvasBackend backend = CanvasBackend.rustWgpu,
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
@@ -151,8 +151,8 @@ class BitmapCanvasController extends ChangeNotifier
   String? _paintingWorkerSyncedLayerId;
   int _paintingWorkerSyncedRevision = -1;
   bool _paintingWorkerSelectionDirty = true;
-  final Map<String, int> _gpuBrushSyncedRevisions = <String, int>{};
-  Future<void> _gpuBrushQueue = Future<void>.value();
+  final Map<String, int> _rustWgpuBrushSyncedRevisions = <String, int>{};
+  Future<void> _rustWgpuBrushQueue = Future<void>.value();
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -346,9 +346,9 @@ class BitmapCanvasController extends ChangeNotifier
 
   void _notify() => notifyListeners();
 
-  Future<T> _enqueueGpuBrushTask<T>(Future<T> Function() task) {
-    final Future<T> future = _gpuBrushQueue.then((_) => task());
-    _gpuBrushQueue = future.then((_) {}, onError: (_, __) {});
+  Future<T> _enqueueRustWgpuBrushTask<T>(Future<T> Function() task) {
+    final Future<T> future = _rustWgpuBrushQueue.then((_) => task());
+    _rustWgpuBrushQueue = future.then((_) {}, onError: (_, __) {});
     return future;
   }
 
@@ -698,7 +698,7 @@ class BitmapCanvasController extends ChangeNotifier
   List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
   Future<void> waitForPendingWorkerTasks() async {
     await _waitForPendingWorkerTasks();
-    await _gpuBrushQueue;
+    await _rustWgpuBrushQueue;
   }
 
   CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) =>

@@ -153,11 +153,11 @@ void _layerManagerRemoveLayer(BitmapCanvasController controller, String id) {
   }
   controller._layers.removeAt(index);
   controller._layerOverflowStores.remove(id);
-  controller._gpuBrushSyncedRevisions.remove(id);
+  controller._rustWgpuBrushSyncedRevisions.remove(id);
   unawaited(() async {
     try {
       await ensureRustInitialized();
-      rust_gpu_brush.gpuRemoveLayer(layerId: id);
+      rust_wgpu_brush.rustWgpuRemoveLayer(layerId: id);
     } catch (_) {}
   }());
   if (controller._activeIndex >= controller._layers.length) {
@@ -313,7 +313,7 @@ void _blendOnCanvasPixels(
 }) {
   final int srcPtr = srcPixelsPtr ?? 0;
   final int dstPtr = dstPixelsPtr ?? 0;
-  if (srcPtr == 0 || dstPtr == 0 || !CpuBlendFfi.instance.isSupported) {
+  if (srcPtr == 0 || dstPtr == 0 || !RustCpuBlendFfi.instance.isSupported) {
     return;
   }
   final Rect? bounds = _computePixelBounds(
@@ -345,7 +345,7 @@ void _blendOnCanvasPixels(
   if (clippingInfo != null && maskPtr == 0) {
     return;
   }
-  CpuBlendFfi.instance.blendOnCanvas(
+  RustCpuBlendFfi.instance.blendOnCanvas(
     srcPtr: srcPtr,
     dstPtr: dstPtr,
     pixelsLen: srcPixels.length,
@@ -380,7 +380,7 @@ void _blendOverflowPixels(
   final int maskPtr =
       clippingInfo == null ? 0 : clippingInfo.layer.surface.pointerAddress;
   if (canvasPtr == 0 ||
-      !CpuBlendFfi.instance.isSupported ||
+      !RustCpuBlendFfi.instance.isSupported ||
       (clippingInfo != null && maskPtr == 0)) {
     return;
   }
@@ -453,7 +453,7 @@ void _blendOverflowPixels(
     outY = malloc.allocate<Int32>(sizeOf<Int32>() * outCapacity);
     outColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * outCapacity);
     outCountPtr = malloc.allocate<Uint64>(sizeOf<Uint64>());
-    final bool ok = CpuBlendFfi.instance.blendOverflow(
+    final bool ok = RustCpuBlendFfi.instance.blendOverflow(
       canvasPtr: canvasPtr,
       canvasLen: lower.surface.pixels.length,
       width: controller._width,

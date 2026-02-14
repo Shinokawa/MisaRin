@@ -1,7 +1,7 @@
-class CpuFiltersFfi {
-  CpuFiltersFfi._();
+class RustCpuFiltersFfi {
+  RustCpuFiltersFfi._();
 
-  static final CpuFiltersFfi instance = CpuFiltersFfi._();
+  static final RustCpuFiltersFfi instance = RustCpuFiltersFfi._();
 
   bool get isSupported => false;
 

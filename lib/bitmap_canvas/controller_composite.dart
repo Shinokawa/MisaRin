@@ -59,7 +59,9 @@ Future<void> _compositeProcessPending(BitmapCanvasController controller) async {
     );
     final int compositeDone = sw.elapsedMilliseconds;
     final String backendLabel =
-        controller._rasterBackend.backend == CanvasBackend.gpu ? 'GPU' : 'CPU';
+        controller._rasterBackend.backend == CanvasBackend.rustWgpu
+            ? 'rustWgpu'
+            : 'rustCpu';
     BackendCanvasTimeline.mark(
       'composite: $backendLabel composite took ${compositeDone - startComposite}ms',
     );

@@ -266,7 +266,7 @@ int _controllerLerpArgb(int a, int b, double t) {
   return (outA << 24) | (outR << 16) | (outG << 8) | outB;
 }
 
-bool _controllerApplyAntialiasToActiveLayerCpu(
+bool _controllerApplyAntialiasToActiveLayerRustCpu(
   BitmapCanvasController controller,
   int level, {
   bool previewOnly = false,
@@ -282,11 +282,11 @@ bool _controllerApplyAntialiasToActiveLayerCpu(
   if (pixels.isEmpty) {
     return false;
   }
-  if (!CpuFiltersFfi.instance.isSupported ||
+  if (!RustCpuFiltersFfi.instance.isSupported ||
       layer.surface.pointerAddress == 0) {
     return false;
   }
-  final bool ok = CpuFiltersFfi.instance.applyAntialias(
+  final bool ok = RustCpuFiltersFfi.instance.applyAntialias(
     pixelsPtr: layer.surface.pointerAddress,
     pixelsLen: pixels.length,
     width: controller._width,

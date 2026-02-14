@@ -128,8 +128,8 @@
     }
   },
   "canvasBackendLabel": "Canvas backend",
-  "canvasBackendGpu": "GPU (wgpu)",
-  "canvasBackendCpu": "CPU",
+  "canvasBackendGpu": "Rust WGPU",
+  "canvasBackendCpu": "Rust CPU",
   "canvasBackendRestartHint": "Canvas backend change will take effect after restart.",
   "developerOptionsLabel": "Developer Options",
   "performanceOverlayLabel": "Performance overlay",

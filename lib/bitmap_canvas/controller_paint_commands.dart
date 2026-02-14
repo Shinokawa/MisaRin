@@ -1,12 +1,17 @@
 part of 'controller.dart';
 
-const bool _kDebugGpuBrushTiles = bool.fromEnvironment(
-  'MISA_RIN_DEBUG_GPU_BRUSH_TILES',
-  defaultValue: false,
-);
+const bool _kDebugRustWgpuBrushTiles =
+    bool.fromEnvironment(
+      'MISA_RIN_DEBUG_RUST_WGPU_BRUSH_TILES',
+      defaultValue: false,
+    ) ||
+    bool.fromEnvironment(
+      'MISA_RIN_DEBUG_GPU_BRUSH_TILES',
+      defaultValue: false,
+    );
 
-class _GpuStrokeDrawData {
-  const _GpuStrokeDrawData({
+class _RustWgpuStrokeDrawData {
+  const _RustWgpuStrokeDrawData({
     required this.points,
     required this.radii,
     required this.color,
@@ -29,7 +34,7 @@ class _GpuStrokeDrawData {
   final bool eraseOccludedParts;
 }
 
-_GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
+_RustWgpuStrokeDrawData? _controllerRustWgpuStrokeFromCommand(
   PaintingDrawCommand command, {
   required bool hollow,
   required double hollowRatio,
@@ -47,7 +52,7 @@ _GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
         return null;
       }
       final int clamped = shapeIndex.clamp(0, BrushShape.values.length - 1);
-      return _GpuStrokeDrawData(
+      return _RustWgpuStrokeDrawData(
         points: <Offset>[center],
         radii: <double>[radius.abs()],
         color: Color(command.color),
@@ -67,7 +72,7 @@ _GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
         return null;
       }
       final double resolved = radius.abs();
-      return _GpuStrokeDrawData(
+      return _RustWgpuStrokeDrawData(
         points: <Offset>[start, end],
         radii: <double>[resolved, resolved],
         color: Color(command.color),
@@ -87,7 +92,7 @@ _GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
       if (start == null || end == null || startRadius == null || endRadius == null) {
         return null;
       }
-      return _GpuStrokeDrawData(
+      return _RustWgpuStrokeDrawData(
         points: <Offset>[start, end],
         radii: <double>[startRadius.abs(), endRadius.abs()],
         color: Color(command.color),
@@ -113,7 +118,7 @@ _GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
         return null;
       }
       final int clamped = shapeIndex.clamp(0, BrushShape.values.length - 1);
-      return _GpuStrokeDrawData(
+      return _RustWgpuStrokeDrawData(
         points: <Offset>[start, end],
         radii: <double>[startRadius.abs(), endRadius.abs()],
         color: Color(command.color),
@@ -136,7 +141,7 @@ _GpuStrokeDrawData? _controllerGpuStrokeFromCommand(
       final bool resolvedHollow = (command.hollow ?? false) && !erase;
       final bool resolvedEraseOccludedParts =
           resolvedHollow && (command.eraseOccludedParts ?? false);
-      return _GpuStrokeDrawData(
+      return _RustWgpuStrokeDrawData(
         points: List<Offset>.from(points),
         radii: List<double>.from(radii),
         color: Color(command.color),
@@ -192,7 +197,7 @@ void _controllerFlushDeferredStrokeCommands(
 
       unawaited(() async {
         try {
-          await _controllerDrawStrokeOnGpu(
+          await _controllerDrawStrokeOnRustWgpu(
             controller,
             layerId: controller._activeLayer.id,
             points: overlayCommand.points ?? const <Offset>[],
@@ -217,7 +222,7 @@ void _controllerFlushDeferredStrokeCommands(
   controller._commitDeferredStrokeCommandsAsRaster();
   if (overlayCommand != null) {
     unawaited(
-      controller._enqueueGpuBrushTask<void>(() async {}).whenComplete(() {
+      controller._enqueueRustWgpuBrushTask<void>(() async {}).whenComplete(() {
         controller._committingStrokes.remove(overlayCommand);
         controller._notify();
       }),
@@ -225,7 +230,7 @@ void _controllerFlushDeferredStrokeCommands(
   }
 }
 
-Future<void> _controllerDrawStrokeOnGpu(
+Future<void> _controllerDrawStrokeOnRustWgpu(
   BitmapCanvasController controller, {
   required String layerId,
   required List<Offset> points,
@@ -242,10 +247,10 @@ Future<void> _controllerDrawStrokeOnGpu(
     return;
   }
   if (points.length != radii.length) {
-    throw StateError('GPU笔触 points/radii 长度不一致');
+    throw StateError('Rust WGPU 笔触 points/radii 长度不一致');
   }
 
-  await controller._enqueueGpuBrushTask<void>(() async {
+  await controller._enqueueRustWgpuBrushTask<void>(() async {
     final int layerIndex = controller._layers.indexWhere(
       (BitmapLayerState layer) => layer.id == layerId,
     );
@@ -317,7 +322,7 @@ Future<void> _controllerDrawStrokeOnGpu(
     final BitmapSurface surface = layer.surface;
     final Uint32List destination = surface.pixels;
 
-    void drawStrokeOnCpu({
+    void drawStrokeOnSurface({
       required Color strokeColor,
       required List<double> strokeRadii,
       required bool eraseMode,
@@ -366,7 +371,7 @@ Future<void> _controllerDrawStrokeOnGpu(
       }
     }
 
-    drawStrokeOnCpu(
+    drawStrokeOnSurface(
       strokeColor: color,
       strokeRadii: radii,
       eraseMode: erase,
@@ -385,7 +390,7 @@ Future<void> _controllerDrawStrokeOnGpu(
         layerId: layerId,
         pixelsDirty: true,
       );
-      controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+      controller._rustWgpuBrushSyncedRevisions[layerId] = layer.revision;
       return;
     }
 
@@ -394,7 +399,7 @@ Future<void> _controllerDrawStrokeOnGpu(
         .toList(growable: false);
 
     if (resolvedEraseOccludedParts) {
-      drawStrokeOnCpu(
+      drawStrokeOnSurface(
         strokeColor: const Color(0xFFFFFFFF),
         strokeRadii: scaledRadii,
         eraseMode: true,
@@ -411,7 +416,7 @@ Future<void> _controllerDrawStrokeOnGpu(
         layerId: layerId,
         pixelsDirty: true,
       );
-      controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+      controller._rustWgpuBrushSyncedRevisions[layerId] = layer.revision;
       return;
     }
 
@@ -466,7 +471,7 @@ Future<void> _controllerDrawStrokeOnGpu(
       outerAfter.setRange(dstOffset, dstOffset + copyW, destination, srcOffset);
     }
 
-    drawStrokeOnCpu(
+    drawStrokeOnSurface(
       strokeColor: const Color(0xFFFFFFFF),
       strokeRadii: scaledRadii,
       eraseMode: true,
@@ -512,7 +517,7 @@ Future<void> _controllerDrawStrokeOnGpu(
       layerId: layerId,
       pixelsDirty: true,
     );
-    controller._gpuBrushSyncedRevisions[layerId] = layer.revision;
+    controller._rustWgpuBrushSyncedRevisions[layerId] = layer.revision;
   });
 }
 
@@ -546,7 +551,7 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
   final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
 
   for (final PaintingDrawCommand command in commands) {
-    final _GpuStrokeDrawData? stroke = _controllerGpuStrokeFromCommand(
+    final _RustWgpuStrokeDrawData? stroke = _controllerRustWgpuStrokeFromCommand(
       command,
       hollow: hollow,
       hollowRatio: hollowRatio,
@@ -564,7 +569,7 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
       continue;
     }
     unawaited(
-      _controllerDrawStrokeOnGpu(
+      _controllerDrawStrokeOnRustWgpu(
         controller,
         layerId: controller._activeLayer.id,
         points: stroke.points,
@@ -593,7 +598,7 @@ void _controllerDispatchDirectPaintCommand(
   if (bounds == null || bounds.isEmpty) {
     return;
   }
-  final _GpuStrokeDrawData? stroke = _controllerGpuStrokeFromCommand(
+  final _RustWgpuStrokeDrawData? stroke = _controllerRustWgpuStrokeFromCommand(
     command,
     hollow: false,
     hollowRatio: 0.0,
@@ -607,7 +612,7 @@ void _controllerDispatchDirectPaintCommand(
     return;
   }
   unawaited(
-    _controllerDrawStrokeOnGpu(
+    _controllerDrawStrokeOnRustWgpu(
       controller,
       layerId: controller._activeLayer.id,
       points: stroke.points,
@@ -703,12 +708,12 @@ Rect? _controllerDirtyRectForCommand(
   }
 }
 
-void _controllerApplyGpuStrokeResult(
+void _controllerApplyRustWgpuStrokeResult(
   BitmapCanvasController controller, {
   required String layerId,
-  required rust_gpu_brush.GpuStrokeResult result,
+  required rust_wgpu_brush.RustWgpuStrokeResult result,
 }) {
-  // Deprecated: GPU brush no longer returns pixel patches (Flow 5 hard ban).
+  // Deprecated: Rust WGPU brush no longer returns pixel patches (Flow 5 hard ban).
   // Keep the symbol to avoid large refactors; call sites have been removed.
   // ignore: unused_local_variable
   final _ = result;

@@ -13,7 +13,7 @@ CanvasFacade createCanvasFacade({
   List<CanvasLayerData>? initialLayers,
   CanvasCreationLogic creationLogic = CanvasCreationLogic.multiThread,
   bool enableRasterOutput = true,
-  CanvasBackend backend = CanvasBackend.gpu,
+  CanvasBackend backend = CanvasBackend.rustWgpu,
 }) {
   return BitmapCanvasController(
     width: width,

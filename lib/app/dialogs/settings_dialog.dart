@@ -366,9 +366,9 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   String _canvasBackendLabel(CanvasBackend backend) {
     final l10n = context.l10n;
     switch (backend) {
-      case CanvasBackend.gpu:
+      case CanvasBackend.rustWgpu:
         return l10n.canvasBackendGpu;
-      case CanvasBackend.cpu:
+      case CanvasBackend.rustCpu:
         return l10n.canvasBackendCpu;
     }
   }

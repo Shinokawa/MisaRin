@@ -248,10 +248,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get canvasBackendLabel => '캔버스 백엔드';
 
   @override
-  String get canvasBackendGpu => 'GPU (wgpu)';
+  String get canvasBackendGpu => 'Rust WGPU';
 
   @override
-  String get canvasBackendCpu => 'CPU';
+  String get canvasBackendCpu => 'Rust CPU';
 
   @override
   String get canvasBackendRestartHint => '백엔드 변경은 재시작 후 적용됩니다.';

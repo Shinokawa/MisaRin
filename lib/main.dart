@@ -30,9 +30,9 @@ Future<void> main() async {
   try {
     await ensureRustInitialized();
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      if (CanvasBackendState.backend == CanvasBackend.gpu) {
-        // Initialize the GPU compositor and pre-warm shaders/pipelines.
-        await CanvasRasterBackend.prewarmGpuEngine();
+      if (CanvasBackendState.backend == CanvasBackend.rustWgpu) {
+        // Initialize the Rust WGPU compositor and pre-warm shaders/pipelines.
+        await CanvasRasterBackend.prewarmRustWgpuEngine();
         // Also pre-warm the Texture engine used by BackendCanvasSurface.
         await BackendCanvasSurface.prewarmTextureEngine();
       }
@@ -40,7 +40,7 @@ Future<void> main() async {
       await _prewarmImageDecoder();
     }
   } catch (error, stackTrace) {
-    debugPrint('GPU init failed: $error\n$stackTrace');
+    debugPrint('Rust WGPU init failed: $error\n$stackTrace');
     // We continue anyway, but canvas might fail later.
   }
 
