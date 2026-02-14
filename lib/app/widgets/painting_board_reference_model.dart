@@ -698,26 +698,15 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   Future<void> _syncReferenceModelTextureFromRust({
     required bool showWarning,
   }) async {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     await _controller.waitForPendingWorkerTasks();
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle != null) {
-      bool queueEmpty = false;
-      for (int attempt = 0; attempt < 6; attempt++) {
-        final int queued = _backend.getInputQueueLen(handle: handle) ?? 0;
-        if (queued == 0) {
-          queueEmpty = true;
-          break;
-        }
-        await Future.delayed(const Duration(milliseconds: 16));
-      }
-      if (queueEmpty) {
-        await Future.delayed(const Duration(milliseconds: 16));
-      }
+    final bool queueEmpty = await _backend.waitForInputQueueIdle();
+    if (queueEmpty) {
+      await Future.delayed(const Duration(milliseconds: 16));
     }
-    final bool ok = _syncAllLayerPixelsFromRust();
+    final bool ok = await _backend.syncAllLayerPixelsFromRust();
     if (!ok) {
       debugPrint('referenceModel: rust sync failed');
       if (showWarning) {

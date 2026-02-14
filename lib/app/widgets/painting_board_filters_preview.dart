@@ -78,7 +78,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       return;
     }
 
-    if (_canUseRustCanvasEngine() && _supportsRustFilter(session.type)) {
+    if (_backend.isGpuReady && _supportsRustFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -137,7 +137,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
   }
 
   Future<bool> _applyRustFilter(_FilterSession session) async {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return false;
     }
     final String layerId = session.activeLayerId;
@@ -269,7 +269,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
 
     final l10n = context.l10n;
-    if (_canUseRustCanvasEngine() && _supportsRustFilter(session.type)) {
+    if (_backend.isGpuReady && _supportsRustFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -434,7 +434,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
   bool _isFilterSessionIdentity(_FilterSession session) {
     final bool allowRust =
-        _canUseRustCanvasEngine() && _supportsRustFilter(session.type);
+        _backend.isGpuReady && _supportsRustFilter(session.type);
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
         final _HueSaturationSettings settings = session.hueSaturation;
@@ -697,7 +697,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
   Future<void> scanPaperDrawing() async {
     final l10n = context.l10n;
-    if (_controller.frame == null && !_canUseRustCanvasEngine()) {
+    if (_controller.frame == null && !_backend.isGpuReady) {
       _showFilterMessage(l10n.canvasNotReady);
       return;
     }

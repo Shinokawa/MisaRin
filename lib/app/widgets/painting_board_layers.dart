@@ -208,7 +208,7 @@ mixin _PaintingBoardLayerMixin
   void _handleAddLayer() async {
     await _pushUndoSnapshot();
     final String? insertAbove =
-        _canUseRustCanvasEngine()
+        _backend.isGpuReady
             ? (_layers.isEmpty ? null : _layers.last.id)
             : _activeLayerId;
     _controller.addLayer(aboveLayerId: insertAbove);
@@ -221,23 +221,19 @@ mixin _PaintingBoardLayerMixin
     if (_layers.length <= 1) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return;
-      }
+    if (!await _backend.syncAllLayerPixelsFromRust(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      return;
     }
-    await _pushUndoSnapshot(rustPixelsSynced: _canUseRustCanvasEngine());
+    final bool rustSynced = _backend.isGpuReady;
+    await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
     _controller.removeLayer(id);
     setState(() {});
     _markDirty();
     _syncRustCanvasLayersToEngine();
-    if (_canUseRustCanvasEngine()) {
-      if (!_syncAllLayerPixelsToRust()) {
-        _showRustCanvasMessage('Rust 画布写入图层失败。');
-      }
-    }
+    await _backend.syncAllLayerPixelsToRust(warnIfFailed: true);
   }
 
   Widget _buildAddLayerButton() {
@@ -278,16 +274,16 @@ mixin _PaintingBoardLayerMixin
     if (actualOldIndex == actualNewIndex) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return;
-      }
+    if (!await _backend.syncAllLayerPixelsFromRust(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      return;
     }
-    await _pushUndoSnapshot(rustPixelsSynced: _canUseRustCanvasEngine());
+    final bool rustSynced = _backend.isGpuReady;
+    await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
-    if (_canUseRustCanvasEngine()) {
+    if (rustSynced) {
       _backend.reorderRustLayer(
         fromIndex: actualOldIndex,
         toIndex: actualNewIndex,
@@ -362,7 +358,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityGestureActive = true;
     _layerOpacityGestureLayerId = layer.id;
     _layerOpacityUndoOriginalValue = layer.opacity;
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       _layerOpacityPreviewReset(this);
       return;
     }
@@ -377,7 +373,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityUndoOriginalValue = null;
     final double clampedValue = value.clamp(0.0, 1.0);
     final bool applied = _applyLayerOpacityValue(targetLayerId, clampedValue);
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       if (targetLayerId != null && originalValue != null) {
         unawaited(_commitLayerOpacityUndoSnapshot(targetLayerId, originalValue));
       }
@@ -411,7 +407,7 @@ mixin _PaintingBoardLayerMixin
     if (layer == null) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       if (!_layerOpacityGestureActive || _layerOpacityGestureLayerId != layer.id) {
         _layerOpacityGestureActive = true;
         _layerOpacityGestureLayerId = layer.id;
@@ -614,13 +610,11 @@ mixin _PaintingBoardLayerMixin
       _markDirty();
       return;
     }
-    if (!_canUseRustCanvasEngine()) {
-      _showRustCanvasMessage('Rust 画布尚未准备好。');
-      return;
-    }
-    await _controller.waitForPendingWorkerTasks();
-    if (!_syncAllLayerPixelsFromRust()) {
-      _showRustCanvasMessage('Rust 画布同步图层失败。');
+    if (!await _backend.syncAllLayerPixelsFromRust(
+      waitForPending: true,
+      warnIfFailed: true,
+      skipIfUnavailable: false,
+    )) {
       return;
     }
     await _pushUndoSnapshot(rustPixelsSynced: true);
@@ -628,9 +622,10 @@ mixin _PaintingBoardLayerMixin
       return;
     }
     _syncRustCanvasLayersToEngine();
-    if (!_syncAllLayerPixelsToRust()) {
-      _showRustCanvasMessage('Rust 画布写入图层失败。');
-    }
+    await _backend.syncAllLayerPixelsToRust(
+      warnIfFailed: true,
+      skipIfUnavailable: false,
+    );
     setState(() {});
     _markDirty();
   }
@@ -648,7 +643,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleDuplicateLayer(CanvasLayerInfo layer) async {
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       _showRustCanvasMessage('Rust 画布目前暂不支持复制图层。');
       return;
     }
@@ -796,7 +791,7 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     final int clamped = level.clamp(0, 9);
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       final String? layerId = _activeLayerId;
       if (layerId == null) {
         return false;

@@ -482,7 +482,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
   }
 
   int _layerPreviewRevisionForLayer(CanvasLayerInfo layer) {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return layer.revision;
     }
     return _rustLayerPreviewRevisions[layer.id] ?? 0;

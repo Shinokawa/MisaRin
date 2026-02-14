@@ -414,13 +414,12 @@ class PaintingBoardState extends _PaintingBoardBase
       return false;
     }
     try {
-      final bool rustSynced = _canUseRustCanvasEngine();
-      if (rustSynced) {
-        await _controller.waitForPendingWorkerTasks();
-        if (!_syncAllLayerPixelsFromRust()) {
-          _showRustCanvasMessage('Rust 画布同步图层失败。');
-          return false;
-        }
+      final bool rustSynced = _backend.isGpuReady;
+      if (!await _backend.syncAllLayerPixelsFromRust(
+        waitForPending: true,
+        warnIfFailed: true,
+      )) {
+        return false;
       }
       final _ImportedImageData decoded = await _decodeExternalImage(bytes);
       final int canvasWidth = widget.settings.width.round();
@@ -441,11 +440,9 @@ class PaintingBoardState extends _PaintingBoardBase
       await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
       _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
       _controller.setActiveLayer(layerData.id);
-      if (_canUseRustCanvasEngine()) {
+      if (rustSynced) {
         _syncRustCanvasLayersToEngine();
-        if (!_syncAllLayerPixelsToRust()) {
-          _showRustCanvasMessage('Rust 画布写入图层失败。');
-        }
+        await _backend.syncAllLayerPixelsToRust(warnIfFailed: true);
       }
       setState(() {});
       _markDirty();
@@ -700,13 +697,12 @@ class PaintingBoardState extends _PaintingBoardBase
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        debugPrint('resizeImage: rust sync failed');
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return null;
-      }
+    if (!await _backend.syncAllLayerPixelsFromRust(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      debugPrint('resizeImage: rust sync failed');
+      return null;
     }
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
@@ -717,7 +713,7 @@ class PaintingBoardState extends _PaintingBoardBase
     debugPrint(
       'resizeImage: source=${sourceWidth}x$sourceHeight '
       'target=${width}x$height sampling=$sampling '
-      'rust=${_canUseRustCanvasEngine()}',
+      'rust=${_backend.isGpuReady}',
     );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
@@ -748,13 +744,12 @@ class PaintingBoardState extends _PaintingBoardBase
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        debugPrint('resizeCanvas: rust sync failed');
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return null;
-      }
+    if (!await _backend.syncAllLayerPixelsFromRust(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      debugPrint('resizeCanvas: rust sync failed');
+      return null;
     }
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
@@ -765,7 +760,7 @@ class PaintingBoardState extends _PaintingBoardBase
     debugPrint(
       'resizeCanvas: source=${sourceWidth}x$sourceHeight '
       'target=${width}x$height anchor=$anchor '
-      'rust=${_canUseRustCanvasEngine()}',
+      'rust=${_backend.isGpuReady}',
     );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[

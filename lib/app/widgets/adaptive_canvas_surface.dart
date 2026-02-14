@@ -1,0 +1,113 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/widgets.dart';
+
+import '../../canvas/canvas_engine_bridge.dart';
+import '../../canvas/canvas_frame.dart';
+import '../../canvas/canvas_tools.dart';
+import 'bitmap_canvas_surface.dart';
+import 'rust_canvas_surface.dart';
+
+class AdaptiveCanvasSurface extends StatelessWidget {
+  const AdaptiveCanvasSurface({
+    super.key,
+    required this.surfaceKey,
+    required this.canvasSize,
+    required this.frame,
+    required this.enableDrawing,
+    this.layerCount = 1,
+    required this.brushColorArgb,
+    required this.brushRadius,
+    required this.erase,
+    required this.brushShape,
+    required this.brushRandomRotationEnabled,
+    required this.brushRotationSeed,
+    required this.brushSpacing,
+    required this.brushHardness,
+    required this.brushFlow,
+    required this.brushScatter,
+    required this.brushRotationJitter,
+    required this.brushSnapToPixel,
+    this.hollowStrokeEnabled = false,
+    this.hollowStrokeRatio = 0.0,
+    this.hollowStrokeEraseOccludedParts = false,
+    this.antialiasLevel = 1,
+    this.backgroundColorArgb = 0xFFFFFFFF,
+    this.usePressure = true,
+    this.stylusCurve = 1.0,
+    this.streamlineStrength = 0.0,
+    this.onStrokeBegin,
+    this.onEngineInfoChanged,
+  });
+
+  final String surfaceKey;
+  final ui.Size canvasSize;
+  final CanvasFrame? frame;
+  final bool enableDrawing;
+  final int layerCount;
+  final int brushColorArgb;
+  final double brushRadius;
+  final bool erase;
+  final BrushShape brushShape;
+  final bool brushRandomRotationEnabled;
+  final int brushRotationSeed;
+  final double brushSpacing;
+  final double brushHardness;
+  final double brushFlow;
+  final double brushScatter;
+  final double brushRotationJitter;
+  final bool brushSnapToPixel;
+  final bool hollowStrokeEnabled;
+  final double hollowStrokeRatio;
+  final bool hollowStrokeEraseOccludedParts;
+  final int antialiasLevel;
+  final int backgroundColorArgb;
+  final bool usePressure;
+  final double stylusCurve;
+  final double streamlineStrength;
+  final VoidCallback? onStrokeBegin;
+  final void Function(
+    int? handle,
+    ui.Size? engineSize,
+    bool isNewEngine,
+  )? onEngineInfoChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool useGpu = CanvasBackendFacade.instance.isGpuSupported;
+    if (useGpu) {
+      return RustCanvasSurface(
+        surfaceKey: surfaceKey,
+        canvasSize: canvasSize,
+        enableDrawing: enableDrawing,
+        layerCount: layerCount,
+        brushColorArgb: brushColorArgb,
+        brushRadius: brushRadius,
+        erase: erase,
+        brushShape: brushShape,
+        brushRandomRotationEnabled: brushRandomRotationEnabled,
+        brushRotationSeed: brushRotationSeed,
+        brushSpacing: brushSpacing,
+        brushHardness: brushHardness,
+        brushFlow: brushFlow,
+        brushScatter: brushScatter,
+        brushRotationJitter: brushRotationJitter,
+        brushSnapToPixel: brushSnapToPixel,
+        hollowStrokeEnabled: hollowStrokeEnabled,
+        hollowStrokeRatio: hollowStrokeRatio,
+        hollowStrokeEraseOccludedParts: hollowStrokeEraseOccludedParts,
+        antialiasLevel: antialiasLevel,
+        backgroundColorArgb: backgroundColorArgb,
+        usePressure: usePressure,
+        stylusCurve: stylusCurve,
+        streamlineStrength: streamlineStrength,
+        onStrokeBegin: onStrokeBegin,
+        onEngineInfoChanged: onEngineInfoChanged,
+      );
+    }
+    return BitmapCanvasSurface(
+      canvasSize: canvasSize,
+      frame: frame,
+    );
+  }
+}

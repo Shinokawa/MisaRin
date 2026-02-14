@@ -108,12 +108,12 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   List<CanvasLayerData> snapshotLayers() => _controller.snapshotLayers();
 
   Future<List<CanvasLayerData>> snapshotLayersForExport() async {
-    await _controller.waitForPendingWorkerTasks();
-    if (_canUseRustCanvasEngine()) {
-      final bool ok = _syncAllLayerPixelsFromRust();
-      if (!ok) {
-        debugPrint('Rust 画布同步图层失败，导出将使用当前缓存数据。');
-      }
+    final bool ok = await _backend.syncAllLayerPixelsFromRust(
+      waitForPending: true,
+      warnIfFailed: false,
+    );
+    if (!ok) {
+      debugPrint('Rust 画布同步图层失败，导出将使用当前缓存数据。');
     }
     return _controller.snapshotLayers();
   }
@@ -125,13 +125,12 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        debugPrint('rotateCanvas: rust sync failed');
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return null;
-      }
+    if (!await _backend.syncAllLayerPixelsFromRust(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      debugPrint('rotateCanvas: rust sync failed');
+      return null;
     }
     final List<CanvasLayerData> original = snapshotLayers();
     if (original.isEmpty) {
@@ -154,9 +153,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       _resetHistory();
       setState(() {});
       _syncRustCanvasLayersToEngine();
-      if (_canUseRustCanvasEngine() && !_syncAllLayerPixelsToRust()) {
-        _showRustCanvasMessage('Rust 画布写入图层失败。');
-      }
+      await _backend.syncAllLayerPixelsToRust(warnIfFailed: true);
     }
     return CanvasRotationResult(
       layers: rotated,
@@ -172,13 +169,12 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        debugPrint('flipCanvas: rust sync failed');
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return null;
-      }
+    if (!await _backend.syncAllLayerPixelsFromRust(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      debugPrint('flipCanvas: rust sync failed');
+      return null;
     }
     final List<CanvasLayerData> original = snapshotLayers();
     if (original.isEmpty) {
@@ -199,9 +195,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _resetHistory();
     setState(() {});
     _syncRustCanvasLayersToEngine();
-    if (_canUseRustCanvasEngine() && !_syncAllLayerPixelsToRust()) {
-      _showRustCanvasMessage('Rust 画布写入图层失败。');
-    }
+    await _backend.syncAllLayerPixelsToRust(warnIfFailed: true);
     return CanvasRotationResult(layers: flipped, width: width, height: height);
   }
 
@@ -836,12 +830,10 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     resetSelectionUndoFlag();
     _updateSelectionAnimation();
     _syncRustCanvasLayersToEngine();
-    if (_canUseRustCanvasEngine()) {
-      if (entry.rustPixelsSynced) {
-        _syncAllLayerPixelsToRust();
-      } else {
-        _syncAllLayerPixelsFromRust();
-      }
+    if (entry.rustPixelsSynced) {
+      await _backend.syncAllLayerPixelsToRust();
+    } else {
+      await _backend.syncAllLayerPixelsFromRust();
     }
   }
 
@@ -1002,7 +994,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
 
   bool get isBoardReady =>
-      _controller.frame != null || _canUseRustCanvasEngine();
+      _controller.frame != null || _backend.isGpuReady;
 
   void _handlePixelGridPreferenceChanged() {
     if (!mounted) {

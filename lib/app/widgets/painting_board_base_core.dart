@@ -331,7 +331,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _syncLayerPixelsFromRust(CanvasLayerInfo layer) {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return false;
     }
     final _LayerPixels? sourceLayer =
@@ -361,7 +361,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _syncAllLayerPixelsFromRust() {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return false;
     }
     final List<CanvasLayerInfo> layers = _controller.layers;
@@ -378,7 +378,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _commitActiveLayerToRust({bool recordUndo = true}) {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return false;
     }
     final CanvasLayerInfo? layer = _activeLayerStateForRustSync();
@@ -414,7 +414,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _syncAllLayerPixelsToRust({bool recordUndo = false}) {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return false;
     }
     final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
@@ -1015,10 +1015,6 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     return index;
   }
 
-  bool _canUseRustCanvasEngine() {
-    return _backend.isGpuReady;
-  }
-
   bool get _isRustVectorPreviewActive =>
       _curvePreviewRasterImage != null || _shapePreviewRasterImage != null;
 
@@ -1036,7 +1032,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _hideRustLayerForVectorPreview(String layerId) {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     if (_rustVectorPreviewHiddenLayerId == layerId) {
@@ -1074,7 +1070,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (layerId == null) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       final int? index = _rustCanvasLayerIndexForId(layerId);
       if (index != null) {
         _backend.setRustLayerVisibleByIndex(
@@ -1115,7 +1111,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _scheduleRustLayerPreviewRefresh(String layerId) {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     _rustLayerPreviewPending.add(layerId);
@@ -1129,7 +1125,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   Future<void> _runRustLayerPreviewRefresh() async {
     while (mounted && _rustLayerPreviewPending.isNotEmpty) {
       final int? handle = _rustCanvasEngineHandle;
-      if (!_canUseRustCanvasEngine() || handle == null) {
+      if (!_backend.isGpuReady || handle == null) {
         _rustLayerPreviewPending.clear();
         break;
       }
@@ -1220,7 +1216,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _syncRustCanvasViewFlags() {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     _backend.setViewFlags(
@@ -1230,7 +1226,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _syncRustCanvasPixelsIfNeeded() {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     if (_rustLayerSnapshotPendingRestore) {
@@ -1252,7 +1248,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   Future<void> _captureRustLayerSnapshotIfNeeded() async {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     if (!_rustLayerSnapshotDirty || _rustLayerSnapshotInFlight) {
@@ -1302,7 +1298,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (_rustLayerSnapshotInFlight) {
       return;
     }
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     if (_rustLayerSnapshots.isEmpty) {
@@ -1351,7 +1347,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _syncRustCanvasLayersToEngine() {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     final List<CanvasLayerInfo> layers = _controller.layers;
@@ -1498,6 +1494,123 @@ final class _CanvasBackendFacade {
   bool get _gpuReady => _gpuSelected && _owner._rustCanvasEngineHandle != null;
   bool get isGpuSupported => _gpuSelected;
   bool get isGpuReady => _gpuReady;
+
+  bool _handleRustUnavailable({bool skipIfUnavailable, bool warnIfFailed}) {
+    if (skipIfUnavailable) {
+      return true;
+    }
+    if (warnIfFailed) {
+      _owner._showRustCanvasMessage('Rust 画布尚未准备好。');
+    }
+    return false;
+  }
+
+  Future<bool> syncActiveLayerFromRust({
+    bool waitForPending = false,
+    bool warnIfFailed = false,
+    bool skipIfUnavailable = true,
+  }) async {
+    if (!_gpuReady) {
+      return _handleRustUnavailable(
+        skipIfUnavailable: skipIfUnavailable,
+        warnIfFailed: warnIfFailed,
+      );
+    }
+    if (waitForPending) {
+      await _owner._controller.waitForPendingWorkerTasks();
+    }
+    final bool ok = _owner._syncActiveLayerPixelsFromRust();
+    if (!ok && warnIfFailed) {
+      _owner._showRustCanvasMessage('Rust 画布同步图层失败。');
+    }
+    return ok;
+  }
+
+  Future<bool> syncAllLayerPixelsFromRust({
+    bool waitForPending = false,
+    bool warnIfFailed = false,
+    bool skipIfUnavailable = true,
+  }) async {
+    if (!_gpuReady) {
+      return _handleRustUnavailable(
+        skipIfUnavailable: skipIfUnavailable,
+        warnIfFailed: warnIfFailed,
+      );
+    }
+    if (waitForPending) {
+      await _owner._controller.waitForPendingWorkerTasks();
+    }
+    final bool ok = _owner._syncAllLayerPixelsFromRust();
+    if (!ok && warnIfFailed) {
+      _owner._showRustCanvasMessage('Rust 画布同步图层失败。');
+    }
+    return ok;
+  }
+
+  Future<bool> commitActiveLayerToRust({
+    bool waitForPending = false,
+    bool warnIfFailed = false,
+    bool skipIfUnavailable = true,
+    bool recordUndo = true,
+  }) async {
+    if (!_gpuReady) {
+      return _handleRustUnavailable(
+        skipIfUnavailable: skipIfUnavailable,
+        warnIfFailed: warnIfFailed,
+      );
+    }
+    if (waitForPending) {
+      await _owner._controller.waitForPendingWorkerTasks();
+    }
+    final bool ok = _owner._commitActiveLayerToRust(recordUndo: recordUndo);
+    if (!ok && warnIfFailed) {
+      _owner._showRustCanvasMessage('Rust 画布写入图层失败。');
+    }
+    return ok;
+  }
+
+  Future<bool> syncAllLayerPixelsToRust({
+    bool waitForPending = false,
+    bool warnIfFailed = false,
+    bool skipIfUnavailable = true,
+    bool recordUndo = false,
+  }) async {
+    if (!_gpuReady) {
+      return _handleRustUnavailable(
+        skipIfUnavailable: skipIfUnavailable,
+        warnIfFailed: warnIfFailed,
+      );
+    }
+    if (waitForPending) {
+      await _owner._controller.waitForPendingWorkerTasks();
+    }
+    final bool ok = _owner._syncAllLayerPixelsToRust(recordUndo: recordUndo);
+    if (!ok && warnIfFailed) {
+      _owner._showRustCanvasMessage('Rust 画布写入图层失败。');
+    }
+    return ok;
+  }
+
+  Future<bool> waitForInputQueueIdle({
+    int attempts = 6,
+    Duration delay = const Duration(milliseconds: 16),
+  }) async {
+    if (!_gpuReady) {
+      return false;
+    }
+    final int? handle = _owner._rustCanvasEngineHandle;
+    if (handle == null) {
+      return false;
+    }
+    for (int attempt = 0; attempt < attempts; attempt++) {
+      final int queued = getInputQueueLen(handle: handle) ?? 0;
+      if (queued == 0) {
+        return true;
+      }
+      await Future.delayed(delay);
+    }
+    return false;
+  }
 
   int? getInputQueueLen({int? handle}) {
     if (!_gpuReady) {

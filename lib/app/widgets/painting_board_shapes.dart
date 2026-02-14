@@ -52,9 +52,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     _resetPerspectiveLock();
-    final bool useRustCanvas = _canUseRustCanvasEngine();
-    if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
-      _showRustCanvasMessage('Rust 画布同步图层失败。');
+    final bool useRustCanvas = _backend.isGpuReady;
+    if (useRustCanvas &&
+        !await _backend.syncActiveLayerFromRust(warnIfFailed: true)) {
       return;
     }
     await _prepareShapeRasterPreview(captureUndo: !useRustCanvas);
@@ -122,14 +122,14 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
 
-    final bool useRustCanvas = _canUseRustCanvasEngine();
+    final bool useRustCanvas = _backend.isGpuReady;
     if (!_shapeUndoCapturedForPreview && !useRustCanvas) {
       await _pushUndoSnapshot();
     }
     const double initialTimestamp = 0.0;
     _clearShapePreviewOverlay();
-    if (useRustCanvas && !_syncActiveLayerPixelsFromRust()) {
-      _showRustCanvasMessage('Rust 画布同步图层失败。');
+    if (useRustCanvas &&
+        !await _backend.syncActiveLayerFromRust(warnIfFailed: true)) {
       _disposeShapeRasterPreview(restoreLayer: true);
       setState(_resetShapeDrawingState);
       return;
@@ -142,10 +142,10 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       clearPreviewImage: !useRustCanvas,
     );
     if (useRustCanvas) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_commitActiveLayerToRust()) {
-        _showRustCanvasMessage('Rust 画布写入图层失败。');
-      }
+      await _backend.commitActiveLayerToRust(
+        waitForPending: true,
+        warnIfFailed: true,
+      );
       _clearShapePreviewRasterImage(notify: false);
     }
 
@@ -348,7 +348,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
-    final bool useRustCanvas = _canUseRustCanvasEngine();
+    final bool useRustCanvas = _backend.isGpuReady;
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {
       _clearShapePreviewOverlay();
@@ -419,7 +419,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   Future<void> _updateShapePreviewRasterImage() async {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     if (_shapePreviewPath == null) {

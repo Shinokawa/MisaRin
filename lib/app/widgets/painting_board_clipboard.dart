@@ -35,7 +35,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       return false;
     }
     bool undoCaptured = false;
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       final bool needsUndo = clearAfter;
       if (needsUndo) {
         await _pushUndoSnapshot();
@@ -98,7 +98,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       return false;
     }
     await _pushUndoSnapshot();
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       _deleteSelectionFromRust(activeLayerId: activeLayerId);
     }
     _controller.clearLayerRegion(activeLayerId, mask: selection);
@@ -129,7 +129,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     await _pushUndoSnapshot();
     _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
     _controller.setActiveLayer(newId);
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       _syncRustCanvasLayersToEngine();
       _pasteLayerToRust(layerId: newId, layerData: layerData);
     }

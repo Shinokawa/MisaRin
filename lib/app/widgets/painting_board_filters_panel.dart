@@ -6,7 +6,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     final l10n = context.l10n;
     if (type == _FilterPanelType.scanPaperDrawing &&
         _controller.frame == null &&
-        !_canUseRustCanvasEngine()) {
+        !_backend.isGpuReady) {
       _showFilterMessage(l10n.canvasNotReady);
       return;
     }
@@ -49,7 +49,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
           (data.bitmapHeight ?? 0) > 0;
       final bool hasFill =
           data.fillColor != null && data.fillColor!.alpha != 0;
-      if (!hasBitmap && !hasFill && !_canUseRustCanvasEngine()) {
+      if (!hasBitmap && !hasFill && !_backend.isGpuReady) {
         _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
         return;
       }

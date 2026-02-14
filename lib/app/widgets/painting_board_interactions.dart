@@ -529,7 +529,7 @@ mixin _PaintingBoardInteractionMixin
     if (!pointerInsideBoard) {
       return false;
     }
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return false;
     }
     if (_layerTransformModeActive ||
@@ -807,7 +807,7 @@ mixin _PaintingBoardInteractionMixin
     bool isInitialSample = false,
   }) {
     final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
+    if (!_backend.isGpuReady || handle == null) {
       return;
     }
     final Offset boardLocal = _toBoardLocal(event.localPosition);
@@ -874,7 +874,7 @@ mixin _PaintingBoardInteractionMixin
         return;
       }
       final int? handle = _rustCanvasEngineHandle;
-      if (!_canUseRustCanvasEngine() || handle == null) {
+      if (!_backend.isGpuReady || handle == null) {
         _rustPoints.clear();
         return;
       }
@@ -931,8 +931,8 @@ mixin _PaintingBoardInteractionMixin
   void _endRustStroke(PointerEvent event) {
     final bool hadActiveStroke = _rustActivePointer != null;
     final int? handle = _rustCanvasEngineHandle;
-    final bool canRecordHistory = hadActiveStroke && _canUseRustCanvasEngine();
-    if (_canUseRustCanvasEngine() && handle != null) {
+    final bool canRecordHistory = hadActiveStroke && _backend.isGpuReady;
+    if (_backend.isGpuReady && handle != null) {
       _rustWaitingForFirstMove = false;
       final Offset boardLocal = _toBoardLocal(event.localPosition);
       final Offset sanitized = _sanitizeRustStrokePosition(
@@ -1071,7 +1071,7 @@ mixin _PaintingBoardInteractionMixin
     required PointerDownEvent event,
   }) {
     final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
+    if (!_backend.isGpuReady || handle == null) {
       return false;
     }
     final Offset startClamped = _clampToCanvas(start);

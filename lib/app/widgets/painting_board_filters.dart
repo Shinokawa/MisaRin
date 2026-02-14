@@ -266,7 +266,7 @@ mixin _PaintingBoardFilterMixin
   }
 
   bool _shouldUseRustFilterPreview(_FilterSession session) {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return false;
     }
     return session.type == _FilterPanelType.hueSaturation ||
@@ -287,7 +287,7 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _hideRustLayerForFilterPreview(String layerId) {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.isGpuReady) {
       return;
     }
     if (_filterRustHiddenLayerId == layerId) {
@@ -334,7 +334,7 @@ mixin _PaintingBoardFilterMixin
 
   Future<void> invertActiveLayerColors() async {
     final l10n = context.l10n;
-    if (_controller.frame == null && !_canUseRustCanvasEngine()) {
+    if (_controller.frame == null && !_backend.isGpuReady) {
       _showFilterMessage(l10n.canvasNotReadyInvert);
       return;
     }
@@ -353,7 +353,7 @@ mixin _PaintingBoardFilterMixin
       return;
     }
 
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isGpuReady) {
       if (_rustCanvasLayerIndexForId(activeLayerId) == null) {
         _showFilterMessage(l10n.cannotLocateLayer);
         return;
@@ -610,7 +610,7 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     final CanvasLayerData activeLayer = snapshot[layerIndex];
-    final bool useRust = _canUseRustCanvasEngine();
+    final bool useRust = _backend.isGpuReady;
     Uint8List? rustBitmap;
     Uint32List? rustPixels;
     int rustWidth = 0;
@@ -820,7 +820,7 @@ mixin _PaintingBoardFilterMixin
     setState(() {
       _colorRangePreviewInFlight = true;
     });
-    final bool useRust = session.usesRust && _canUseRustCanvasEngine();
+    final bool useRust = session.usesRust && _backend.isGpuReady;
     final CanvasLayerData baseLayer =
         session.originalLayers[session.activeLayerIndex];
     final Uint8List? baseBitmap =
@@ -896,7 +896,7 @@ mixin _PaintingBoardFilterMixin
       1,
       math.min(_colorRangeSelectedColors, _colorRangeMaxSelectable()),
     );
-    final bool useRust = session.usesRust && _canUseRustCanvasEngine();
+    final bool useRust = session.usesRust && _backend.isGpuReady;
     if (targetColors >= availableColors) {
       _showFilterMessage('目标颜色数量不少于当前颜色数量，图层保持不变。');
       hideColorRangeCard();
@@ -1006,7 +1006,7 @@ mixin _PaintingBoardFilterMixin
     if (session.previewLayer == null) {
       return;
     }
-    if (session.usesRust && _canUseRustCanvasEngine()) {
+    if (session.usesRust && _backend.isGpuReady) {
       final Uint32List? pixels = session.rustPixels;
       if (pixels != null) {
         _backend.writeLayerPixelsToRust(

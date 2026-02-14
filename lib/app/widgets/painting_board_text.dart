@@ -380,12 +380,11 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         );
         return;
       }
-      if (_canUseRustCanvasEngine()) {
-        await _controller.waitForPendingWorkerTasks();
-        if (!_syncAllLayerPixelsFromRust()) {
-          _showRustCanvasMessage('Rust 画布同步图层失败。');
-          return;
-        }
+      if (!await _backend.syncAllLayerPixelsFromRust(
+        waitForPending: true,
+        warnIfFailed: true,
+      )) {
+        return;
       }
       if (!mounted) {
         return;
@@ -408,7 +407,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       );
       _pendingTextLayerUpdate = null;
       final Future<_CanvasHistoryEntry> pendingHistory =
-          _createHistoryEntry(rustPixelsSynced: _canUseRustCanvasEngine());
+          _createHistoryEntry(rustPixelsSynced: _backend.isGpuReady);
       final bool layerWasVisible = layer.visible;
       _textSession = _TextEditingSession(
         origin: existing.origin,
@@ -427,7 +426,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       _textEditingFocusNode.requestFocus();
     }
     bool _commitTextLayerToRust(String layerId) {
-      if (!_canUseRustCanvasEngine()) {
+      if (!_backend.isGpuReady) {
         return false;
       }
       CanvasLayerInfo? layer;
@@ -490,10 +489,11 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       final CanvasTextData data = baseData.copyWith(text: content);
       final CanvasTextLayout layout = _textOverlayRenderer.layout(data);
       await _waitForPendingTextLayerUpdate();
-      if (session.isNewLayer && _canUseRustCanvasEngine()) {
-        await _controller.waitForPendingWorkerTasks();
-        if (!_syncAllLayerPixelsFromRust()) {
-          _showRustCanvasMessage('Rust 画布同步图层失败。');
+      if (session.isNewLayer) {
+        if (!await _backend.syncAllLayerPixelsFromRust(
+          waitForPending: true,
+          warnIfFailed: true,
+        )) {
           return;
         }
       }
@@ -505,7 +505,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       });
       try {
         if (session.isNewLayer) {
-          final bool rustSynced = _canUseRustCanvasEngine();
+          final bool rustSynced = _backend.isGpuReady;
           await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
           final String layerId = await _controller.createTextLayer(data);
           _markDirty();
@@ -534,7 +534,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         }
         await _controller.updateTextLayer(session.layerId!, data);
         _markDirty();
-        if (_canUseRustCanvasEngine()) {
+        if (_backend.isGpuReady) {
           await _controller.waitForPendingWorkerTasks();
           if (!_commitTextLayerToRust(session.layerId!)) {
             _showRustCanvasMessage('Rust 画布写入图层失败。');
