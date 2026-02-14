@@ -64,6 +64,23 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
     bool erase = false,
   });
 
+  void floodFill(
+    Offset position, {
+    required Color color,
+    bool contiguous = true,
+    bool sampleAllLayers = false,
+    List<Color>? swallowColors,
+    int tolerance = 0,
+    int fillGap = 0,
+    int antialiasLevel = 0,
+  });
+
+  Future<Uint8List?> computeMagicWandMask(
+    Offset position, {
+    bool sampleAllLayers = true,
+    int tolerance = 0,
+  });
+
   void beginStroke(
     Offset position, {
     required Color color,

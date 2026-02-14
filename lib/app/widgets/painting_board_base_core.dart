@@ -1332,7 +1332,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       _bumpBackendLayerPreviewRevision(layers[i].id);
     }
     _backendLayerSnapshotPendingRestore = false;
-    _backendLayerSnapshotHandle = handle;
+    _backendLayerSnapshotHandle = _backendCanvasEngineHandle;
   }
 
   void _showBackendCanvasMessage(String message) {
@@ -1574,7 +1574,10 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     return capabilities.isAvailable && capabilities.supportsFilter(type);
   }
 
-  bool _handleBackendUnavailable({bool skipIfUnavailable, bool warnIfFailed}) {
+  bool _handleBackendUnavailable({
+    bool skipIfUnavailable = false,
+    bool warnIfFailed = false,
+  }) {
     if (skipIfUnavailable) {
       return true;
     }
