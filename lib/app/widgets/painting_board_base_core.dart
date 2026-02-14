@@ -1490,16 +1490,79 @@ final class _LayerPixels {
   final int height;
 }
 
-final class _CanvasBackendFacade {
+final class _CanvasRasterEditSession {
+  _CanvasRasterEditSession._(
+    this._backend, {
+    required this.useGpu,
+    required this.ok,
+  });
+
+  final _CanvasBackendFacade _backend;
+  final bool useGpu;
+  final bool ok;
+
+  Future<bool> commit({
+    bool waitForPending = false,
+    bool warnIfFailed = false,
+    bool recordUndo = true,
+  }) async {
+    if (!ok || !useGpu) {
+      return ok;
+    }
+    return _backend.commitActiveLayerToRust(
+      waitForPending: waitForPending,
+      warnIfFailed: warnIfFailed,
+      recordUndo: recordUndo,
+    );
+  }
+}
+
+final class _CanvasBackendFacade implements CanvasBackendInterface {
   _CanvasBackendFacade(this._owner);
 
   final _PaintingBoardBase _owner;
   final CanvasBackendFacade _ffi = CanvasBackendFacade.instance;
+  static const Set<CanvasFilterType> _rustFilters = <CanvasFilterType>{
+    CanvasFilterType.hueSaturation,
+    CanvasFilterType.brightnessContrast,
+    CanvasFilterType.blackWhite,
+    CanvasFilterType.binarize,
+    CanvasFilterType.gaussianBlur,
+    CanvasFilterType.leakRemoval,
+    CanvasFilterType.lineNarrow,
+    CanvasFilterType.fillExpand,
+    CanvasFilterType.scanPaperDrawing,
+    CanvasFilterType.invert,
+  };
 
   bool get _gpuSelected => _ffi.isGpuSupported;
   bool get _gpuReady => _gpuSelected && _owner._rustCanvasEngineHandle != null;
   bool get isGpuSupported => _gpuSelected;
   bool get isGpuReady => _gpuReady;
+  bool get canUseGpu => capabilities.canUseGpu;
+  bool get supportsLayerTransformPreview =>
+      capabilities.canUseGpu && capabilities.supportsLayerTransformPreview;
+  bool get supportsLayerTranslate =>
+      capabilities.canUseGpu && capabilities.supportsLayerTranslate;
+  bool get supportsAntialias =>
+      capabilities.canUseGpu && capabilities.supportsAntialias;
+
+  @override
+  CanvasBackendCapabilities get capabilities => CanvasBackendCapabilities(
+    isGpuSupported: _gpuSelected,
+    isReady: _gpuReady,
+    supportedFilters: _gpuSelected ? _rustFilters : const <CanvasFilterType>{},
+    supportsLayerTransformPreview: _gpuSelected,
+    supportsLayerTranslate: _gpuSelected,
+    supportsAntialias: _gpuSelected,
+  );
+
+  bool supportsFilterType(CanvasFilterType? type) {
+    if (type == null) {
+      return false;
+    }
+    return capabilities.canUseGpu && capabilities.supportsFilter(type);
+  }
 
   bool _handleRustUnavailable({bool skipIfUnavailable, bool warnIfFailed}) {
     if (skipIfUnavailable) {
@@ -1509,6 +1572,43 @@ final class _CanvasBackendFacade {
       _owner._showRustCanvasMessage('Rust 画布尚未准备好。');
     }
     return false;
+  }
+
+  Future<_CanvasRasterEditSession> beginRasterEdit({
+    bool captureUndoOnCpu = true,
+    bool warnIfFailed = false,
+    bool requireGpu = false,
+  }) async {
+    if (!_gpuReady) {
+      if (requireGpu) {
+        _handleRustUnavailable(
+          skipIfUnavailable: false,
+          warnIfFailed: warnIfFailed,
+        );
+        return _CanvasRasterEditSession._(
+          this,
+          useGpu: false,
+          ok: false,
+        );
+      }
+      if (captureUndoOnCpu) {
+        await _owner._pushUndoSnapshot();
+      }
+      return _CanvasRasterEditSession._(
+        this,
+        useGpu: false,
+        ok: true,
+      );
+    }
+    final bool ok = await syncActiveLayerFromRust(
+      warnIfFailed: warnIfFailed,
+      skipIfUnavailable: false,
+    );
+    return _CanvasRasterEditSession._(
+      this,
+      useGpu: true,
+      ok: ok,
+    );
   }
 
   Future<bool> syncActiveLayerFromRust({

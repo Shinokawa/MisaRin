@@ -358,7 +358,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityGestureActive = true;
     _layerOpacityGestureLayerId = layer.id;
     _layerOpacityUndoOriginalValue = layer.opacity;
-    if (_backend.isGpuReady) {
+    if (_backend.supportsAntialias) {
       _layerOpacityPreviewReset(this);
       return;
     }
@@ -373,7 +373,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityUndoOriginalValue = null;
     final double clampedValue = value.clamp(0.0, 1.0);
     final bool applied = _applyLayerOpacityValue(targetLayerId, clampedValue);
-    if (_backend.isGpuReady) {
+    if (_backend.supportsAntialias) {
       if (targetLayerId != null && originalValue != null) {
         unawaited(_commitLayerOpacityUndoSnapshot(targetLayerId, originalValue));
       }
@@ -407,7 +407,7 @@ mixin _PaintingBoardLayerMixin
     if (layer == null) {
       return;
     }
-    if (_backend.isGpuReady) {
+    if (_backend.supportsAntialias) {
       if (!_layerOpacityGestureActive || _layerOpacityGestureLayerId != layer.id) {
         _layerOpacityGestureActive = true;
         _layerOpacityGestureLayerId = layer.id;
@@ -791,7 +791,7 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     final int clamped = level.clamp(0, 9);
-    if (_backend.isGpuReady) {
+    if (_backend.supportsAntialias) {
       final String? layerId = _activeLayerId;
       if (layerId == null) {
         return false;

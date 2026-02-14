@@ -78,7 +78,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       return;
     }
 
-    if (_backend.isGpuReady && _supportsRustFilter(session.type)) {
+    if (_supportsRustFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -137,7 +137,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
   }
 
   Future<bool> _applyRustFilter(_FilterSession session) async {
-    if (!_backend.isGpuReady) {
+    if (!_supportsRustFilter(session.type)) {
       return false;
     }
     final String layerId = session.activeLayerId;
@@ -220,19 +220,31 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     return applied;
   }
 
-  bool _supportsRustFilter(_FilterPanelType type) {
+  CanvasFilterType? _backendFilterType(_FilterPanelType type) {
     switch (type) {
       case _FilterPanelType.hueSaturation:
+        return CanvasFilterType.hueSaturation;
       case _FilterPanelType.brightnessContrast:
+        return CanvasFilterType.brightnessContrast;
       case _FilterPanelType.blackWhite:
+        return CanvasFilterType.blackWhite;
       case _FilterPanelType.binarize:
+        return CanvasFilterType.binarize;
       case _FilterPanelType.gaussianBlur:
+        return CanvasFilterType.gaussianBlur;
       case _FilterPanelType.leakRemoval:
+        return CanvasFilterType.leakRemoval;
       case _FilterPanelType.lineNarrow:
+        return CanvasFilterType.lineNarrow;
       case _FilterPanelType.fillExpand:
+        return CanvasFilterType.fillExpand;
       case _FilterPanelType.scanPaperDrawing:
-        return true;
+        return CanvasFilterType.scanPaperDrawing;
     }
+  }
+
+  bool _supportsRustFilter(_FilterPanelType type) {
+    return _backend.supportsFilterType(_backendFilterType(type));
   }
 
   Uint8List _argbPixelsToRgba(Uint32List pixels) {
@@ -269,7 +281,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
 
     final l10n = context.l10n;
-    if (_backend.isGpuReady && _supportsRustFilter(session.type)) {
+    if (_supportsRustFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -433,8 +445,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
   }
 
   bool _isFilterSessionIdentity(_FilterSession session) {
-    final bool allowRust =
-        _backend.isGpuReady && _supportsRustFilter(session.type);
+    final bool allowRust = _supportsRustFilter(session.type);
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
         final _HueSaturationSettings settings = session.hueSaturation;
@@ -697,7 +708,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
   Future<void> scanPaperDrawing() async {
     final l10n = context.l10n;
-    if (_controller.frame == null && !_backend.isGpuReady) {
+    if (_controller.frame == null && !_backend.canUseGpu) {
       _showFilterMessage(l10n.canvasNotReady);
       return;
     }

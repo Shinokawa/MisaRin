@@ -353,7 +353,9 @@ mixin _PaintingBoardFilterMixin
       return;
     }
 
-    if (_backend.isGpuReady) {
+    final bool useRust =
+        _backend.supportsFilterType(CanvasFilterType.invert);
+    if (useRust) {
       if (!_backend.hasRustLayer(layerId: activeLayerId)) {
         _showFilterMessage(l10n.cannotLocateLayer);
         return;

@@ -71,6 +71,7 @@ import 'package:flutter/widgets.dart'
         WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
+import 'package:misa_rin/canvas/canvas_backend.dart';
 import 'package:misa_rin/canvas/canvas_backend_state.dart';
 import 'package:path/path.dart' as p;
 import 'package:vector_math/vector_math_64.dart' show Matrix4, Vector3;

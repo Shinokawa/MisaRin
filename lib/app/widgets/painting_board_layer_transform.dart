@@ -99,7 +99,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   }
 
   bool _startLayerFreeTransformWithRust(CanvasLayerInfo activeLayer) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.supportsLayerTransformPreview) {
       return false;
     }
     final Rect? bounds =
@@ -202,7 +202,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       );
       return;
     }
-    if (_backend.isGpuReady) {
+    if (_backend.supportsLayerTransformPreview) {
       final bool started = _startLayerFreeTransformWithRust(activeLayer);
       if (started) {
         return;
@@ -344,7 +344,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           await _renderLayerTransformResult(state);
       final _CanvasHistoryEntry? undoEntry =
           await _buildLayerTransformUndoEntry(state);
-      if (_backend.isGpuReady) {
+      if (_backend.canUseGpu) {
         final bool applied = _applyRustLayerTransform(
           layer: activeLayer,
           result: result,
@@ -569,7 +569,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   }
 
   void _hideRustLayerForTransform(CanvasLayerInfo layer) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.canUseGpu) {
       return;
     }
     if (_layerTransformUsingRustPreview) {
@@ -665,7 +665,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   }
 
   bool _applyRustLayerTransformPreview(_LayerTransformStateModel state) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.supportsLayerTransformPreview) {
       return false;
     }
     final String? layerId = _layerTransformRustLayerId;
@@ -687,7 +687,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     required CanvasLayerInfo layer,
     required _LayerTransformRenderResult result,
   }) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.canUseGpu) {
       return false;
     }
     if (!_backend.hasRustLayer(layerId: layer.id)) {

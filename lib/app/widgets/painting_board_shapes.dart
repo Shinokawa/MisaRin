@@ -52,12 +52,14 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
     _resetPerspectiveLock();
-    final bool useRustCanvas = _backend.isGpuReady;
-    if (useRustCanvas &&
-        !await _backend.syncActiveLayerFromRust(warnIfFailed: true)) {
+    final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
+      captureUndoOnCpu: false,
+      warnIfFailed: true,
+    );
+    if (!edit.ok) {
       return;
     }
-    await _prepareShapeRasterPreview(captureUndo: !useRustCanvas);
+    await _prepareShapeRasterPreview(captureUndo: !edit.useGpu);
     final Offset clamped = _clampToCanvas(boardLocal);
     setState(() {
       _shapeDragStart = clamped;
@@ -122,27 +124,26 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
 
-    final bool useRustCanvas = _backend.isGpuReady;
-    if (!_shapeUndoCapturedForPreview && !useRustCanvas) {
-      await _pushUndoSnapshot();
-    }
-    const double initialTimestamp = 0.0;
-    _clearShapePreviewOverlay();
-    if (useRustCanvas &&
-        !await _backend.syncActiveLayerFromRust(warnIfFailed: true)) {
+    final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
+      captureUndoOnCpu: !_shapeUndoCapturedForPreview,
+      warnIfFailed: true,
+    );
+    if (!edit.ok) {
       _disposeShapeRasterPreview(restoreLayer: true);
       setState(_resetShapeDrawingState);
       return;
     }
+    const double initialTimestamp = 0.0;
+    _clearShapePreviewOverlay();
     _controller.runSynchronousRasterization(() {
       _paintShapeStroke(strokePoints, initialTimestamp);
     });
     _disposeShapeRasterPreview(
       restoreLayer: false,
-      clearPreviewImage: !useRustCanvas,
+      clearPreviewImage: !edit.useGpu,
     );
-    if (useRustCanvas) {
-      await _backend.commitActiveLayerToRust(
+    if (edit.useGpu) {
+      await edit.commit(
         waitForPending: true,
         warnIfFailed: true,
       );
@@ -348,7 +349,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
-    final bool useRustCanvas = _backend.isGpuReady;
+    final bool useRustCanvas = _backend.canUseGpu;
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {
       _clearShapePreviewOverlay();
@@ -419,7 +420,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   Future<void> _updateShapePreviewRasterImage() async {
-    if (!_backend.isGpuReady) {
+    if (!_backend.canUseGpu) {
       return;
     }
     if (_shapePreviewPath == null) {
