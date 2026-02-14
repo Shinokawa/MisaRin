@@ -419,7 +419,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                       .activeLayerTransformBlendMode,
                                                 );
                                             final bool suppressLayerAdjustOverlay =
-                                                _layerAdjustUsingRustPreview;
+                                                _layerAdjustUsingBackendPreview;
                                             final bool hasSelectionOverlay =
                                                 selectionPath != null ||
                                                 selectionPreviewPath != null ||
@@ -549,38 +549,38 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _streamlineStrength,
                                                 onStrokeBegin: _markDirty,
                                                 onEngineInfoChanged:
-                                                    _handleRustCanvasEngineInfoChanged,
+                                                    _handleBackendCanvasEngineInfoChanged,
                                               ),
                                             );
 
                                             final _FilterSession? filterSession =
                                                 _filterSession;
-                                            final bool showRustFilterPreview =
+                                            final bool showBackendFilterPreview =
                                                 filterSession != null &&
-                                                _shouldShowRustFilterPreviewOverlay(
+                                                _shouldShowBackendFilterPreviewOverlay(
                                                   filterSession,
                                                 );
-                                            final bool showRustCurvePreview =
+                                            final bool showBackendCurvePreview =
                                                 _backend.isReady &&
                                                 _curvePreviewRasterImage != null;
-                                            final bool showRustShapePreview =
+                                            final bool showBackendShapePreview =
                                                 _backend.isReady &&
                                                 _shapePreviewRasterImage != null;
                                             final CanvasLayerInfo activeLayer =
                                                 _controller.activeLayer;
                                             final ui.BlendMode?
-                                                rustPreviewBlendMode =
+                                                backendPreviewBlendMode =
                                                 _flutterBlendMode(
                                                   activeLayer.blendMode,
                                                 );
-                                            final double rustPreviewOpacity =
+                                            final double backendPreviewOpacity =
                                                 activeLayer.opacity
                                                     .clamp(0.0, 1.0)
                                                     .toDouble();
                                             final List<Widget> overlayChildren =
                                                 <Widget>[
-                                              if (showRustFilterPreview)
-                                                _buildRustFilterPreviewOverlay(),
+                                              if (showBackendFilterPreview)
+                                                _buildBackendFilterPreviewOverlay(),
                                               if (_pixelGridVisible)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
@@ -634,7 +634,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     ),
                                                   ),
                                                 ),
-                                              if (showRustCurvePreview)
+                                              if (showBackendCurvePreview)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
@@ -643,13 +643,13 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                           image:
                                                               _curvePreviewRasterImage!,
                                                           opacity:
-                                                              rustPreviewOpacity,
+                                                              backendPreviewOpacity,
                                                           blendMode:
-                                                              rustPreviewBlendMode,
+                                                              backendPreviewBlendMode,
                                                         ),
                                                   ),
                                                 ),
-                                              if (showRustShapePreview)
+                                              if (showBackendShapePreview)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
@@ -658,9 +658,9 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                           image:
                                                               _shapePreviewRasterImage!,
                                                           opacity:
-                                                              rustPreviewOpacity,
+                                                              backendPreviewOpacity,
                                                           blendMode:
-                                                              rustPreviewBlendMode,
+                                                              backendPreviewBlendMode,
                                                         ),
                                                   ),
                                                 ),

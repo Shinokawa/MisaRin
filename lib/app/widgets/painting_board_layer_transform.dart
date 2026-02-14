@@ -23,8 +23,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   int _layerTransformRevision = 0;
   Offset? _layerTransformCursorWorkspacePosition;
   _LayerTransformHandle? _layerTransformCursorHandle;
-  bool _layerTransformUsingRustPreview = false;
-  String? _layerTransformRustLayerId;
+  bool _layerTransformUsingBackendPreview = false;
+  String? _layerTransformBackendLayerId;
 
   bool get _isLayerFreeTransformActive =>
       _layerTransformModeActive && _layerTransformState != null;
@@ -93,17 +93,17 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     });
     final CanvasLayerInfo? activeLayer = _activeLayerSnapshot();
     if (activeLayer != null) {
-      _hideRustLayerForTransform(activeLayer);
+      _hideBackendLayerForTransform(activeLayer);
     }
     return true;
   }
 
-  bool _startLayerFreeTransformWithRust(CanvasLayerInfo activeLayer) {
+  bool _startLayerFreeTransformWithBackend(CanvasLayerInfo activeLayer) {
     if (!_backend.supportsLayerTransformPreview) {
       return false;
     }
     final Rect? bounds =
-        _backend.getRustLayerBoundsById(layerId: activeLayer.id);
+        _backend.getBackendLayerBoundsById(layerId: activeLayer.id);
     if (bounds == null || bounds.isEmpty) {
       return false;
     }
@@ -113,7 +113,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       image: null,
       fullImageSizeOverride: bounds.size,
     );
-    if (!_setRustLayerTransformPreview(
+    if (!_setBackendLayerTransformPreview(
       layerId: activeLayer.id,
       state: state,
       enabled: true,
@@ -144,8 +144,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         panelHeight: _kLayerTransformPanelMinHeight,
         additionalDy: 12,
       );
-      _layerTransformUsingRustPreview = true;
-      _layerTransformRustLayerId = activeLayer.id;
+      _layerTransformUsingBackendPreview = true;
+      _layerTransformBackendLayerId = activeLayer.id;
     });
     _toolCursorPosition = null;
     _penCursorWorkspacePosition = null;
@@ -184,7 +184,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         _controller.isActiveLayerTransformPendingCleanup) {
       return;
     }
-    _restoreRustLayerAfterTransform();
+    _restoreBackendLayerAfterTransform();
     final CanvasLayerInfo? activeLayer = _activeLayerSnapshot();
     if (activeLayer == null) {
       AppNotifications.show(
@@ -203,11 +203,11 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       return;
     }
     if (_backend.supportsLayerTransformPreview) {
-      final bool started = _startLayerFreeTransformWithRust(activeLayer);
+      final bool started = _startLayerFreeTransformWithBackend(activeLayer);
       if (started) {
         return;
       }
-      if (!_syncActiveLayerFromRustForTransform(activeLayer)) {
+      if (!_syncActiveLayerFromBackendForTransform(activeLayer)) {
         AppNotifications.show(
           context,
           message: context.l10n.cannotEnterTransformMode,
@@ -251,8 +251,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         panelHeight: _kLayerTransformPanelMinHeight,
         additionalDy: 12,
       );
-      _layerTransformUsingRustPreview = false;
-      _layerTransformRustLayerId = null;
+      _layerTransformUsingBackendPreview = false;
+      _layerTransformBackendLayerId = null;
     });
     _toolCursorPosition = null;
     _penCursorWorkspacePosition = null;
@@ -263,8 +263,8 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_layerTransformModeActive || _layerTransformApplying) {
       return;
     }
-    if (_layerTransformUsingRustPreview) {
-      _clearRustLayerTransformPreview();
+    if (_layerTransformUsingBackendPreview) {
+      _clearBackendLayerTransformPreview();
     }
     _controller.cancelActiveLayerTranslation();
     setState(() {
@@ -280,10 +280,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformRevision = 0;
       _layerTransformCursorWorkspacePosition = null;
       _layerTransformCursorHandle = null;
-      _layerTransformUsingRustPreview = false;
-      _layerTransformRustLayerId = null;
+      _layerTransformUsingBackendPreview = false;
+      _layerTransformBackendLayerId = null;
     });
-    _restoreRustLayerAfterTransform();
+    _restoreBackendLayerAfterTransform();
   }
 
   Future<void> _confirmLayerFreeTransform() async {
@@ -295,16 +295,16 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (activeLayer == null || state == null) {
       return;
     }
-    if (_layerTransformUsingRustPreview) {
+    if (_layerTransformUsingBackendPreview) {
       setState(() => _layerTransformApplying = true);
       try {
-        final bool applied = _applyRustLayerTransformPreview(state);
+        final bool applied = _applyBackendLayerTransformPreview(state);
         if (!applied) {
           throw StateError(context.l10n.applyTransformFailed);
         }
-        _recordRustHistoryAction(layerId: activeLayer.id);
+        _recordBackendHistoryAction(layerId: activeLayer.id);
         _controller.disposeActiveLayerTransformSession();
-        _clearRustLayerTransformPreview();
+        _clearBackendLayerTransformPreview();
         if (!mounted) {
           return;
         }
@@ -321,10 +321,10 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           _layerTransformRevision = 0;
           _layerTransformCursorWorkspacePosition = null;
           _layerTransformCursorHandle = null;
-          _layerTransformUsingRustPreview = false;
-          _layerTransformRustLayerId = null;
+          _layerTransformUsingBackendPreview = false;
+          _layerTransformBackendLayerId = null;
         });
-        _restoreRustLayerAfterTransform();
+        _restoreBackendLayerAfterTransform();
         _markDirty();
         return;
       } catch (error, stackTrace) {
@@ -345,14 +345,14 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       final _CanvasHistoryEntry? undoEntry =
           await _buildLayerTransformUndoEntry(state);
       if (_backend.isReady) {
-        final bool applied = _applyRustLayerTransform(
+        final bool applied = _applyBackendLayerTransform(
           layer: activeLayer,
           result: result,
         );
         if (!applied) {
           throw StateError(context.l10n.applyTransformFailed);
         }
-        _recordRustHistoryAction(layerId: activeLayer.id);
+        _recordBackendHistoryAction(layerId: activeLayer.id);
       }
       await _pushUndoSnapshot(entry: undoEntry);
       final CanvasLayerData data = CanvasLayerData(
@@ -390,7 +390,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         _layerTransformCursorWorkspacePosition = null;
         _layerTransformCursorHandle = null;
       });
-      _restoreRustLayerAfterTransform();
+      _restoreBackendLayerAfterTransform();
       _markDirty();
     } catch (error, stackTrace) {
       debugPrint('Failed to apply transform: $error\n$stackTrace');
@@ -553,9 +553,9 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     );
   }
 
-  bool _syncActiveLayerFromRustForTransform(CanvasLayerInfo layer) {
+  bool _syncActiveLayerFromBackendForTransform(CanvasLayerInfo layer) {
     final _LayerPixels? sourceLayer =
-        _backend.readLayerPixelsFromRust(layer.id);
+        _backend.readLayerPixelsFromBackend(layer.id);
     if (sourceLayer == null) {
       return false;
     }
@@ -568,38 +568,38 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     return _controller.writeLayerPixels(layer.id, sourceLayer.pixels);
   }
 
-  void _hideRustLayerForTransform(CanvasLayerInfo layer) {
+  void _hideBackendLayerForTransform(CanvasLayerInfo layer) {
     if (!_backend.isReady) {
       return;
     }
-    if (_layerTransformUsingRustPreview) {
+    if (_layerTransformUsingBackendPreview) {
       return;
     }
-    if (_layerTransformRustHiddenLayerId != null) {
+    if (_layerTransformBackendHiddenLayerId != null) {
       return;
     }
-    if (!_backend.hasRustLayer(layerId: layer.id)) {
+    if (!_backend.hasBackendLayer(layerId: layer.id)) {
       return;
     }
-    _layerTransformRustHiddenLayerId = layer.id;
-    _layerTransformRustHiddenVisible = layer.visible;
-    _backend.setRustLayerVisible(layerId: layer.id, visible: false);
+    _layerTransformBackendHiddenLayerId = layer.id;
+    _layerTransformBackendHiddenVisible = layer.visible;
+    _backend.setBackendLayerVisible(layerId: layer.id, visible: false);
   }
 
-  void _restoreRustLayerAfterTransform() {
-    final String? layerId = _layerTransformRustHiddenLayerId;
+  void _restoreBackendLayerAfterTransform() {
+    final String? layerId = _layerTransformBackendHiddenLayerId;
     if (layerId == null) {
       return;
     }
-    _backend.setRustLayerVisible(
+    _backend.setBackendLayerVisible(
       layerId: layerId,
-      visible: _layerTransformRustHiddenVisible,
+      visible: _layerTransformBackendHiddenVisible,
     );
-    _layerTransformRustHiddenLayerId = null;
-    _layerTransformRustHiddenVisible = false;
+    _layerTransformBackendHiddenLayerId = null;
+    _layerTransformBackendHiddenVisible = false;
   }
 
-  Float32List? _buildRustTransformMatrix(_LayerTransformStateModel state) {
+  Float32List? _buildBackendTransformMatrix(_LayerTransformStateModel state) {
     final Matrix4? inverse = state.inverseMatrix;
     if (inverse == null) {
       return null;
@@ -615,12 +615,12 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     return out;
   }
 
-  bool _setRustLayerTransformPreview({
+  bool _setBackendLayerTransformPreview({
     required String layerId,
     required _LayerTransformStateModel state,
     required bool enabled,
   }) {
-    final Float32List? matrix = _buildRustTransformMatrix(state);
+    final Float32List? matrix = _buildBackendTransformMatrix(state);
     if (matrix == null) {
       return false;
     }
@@ -632,47 +632,47 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     );
   }
 
-  void _updateRustLayerTransformPreview() {
-    if (!_layerTransformUsingRustPreview) {
+  void _updateBackendLayerTransformPreview() {
+    if (!_layerTransformUsingBackendPreview) {
       return;
     }
     final _LayerTransformStateModel? state = _layerTransformState;
-    final String? layerId = _layerTransformRustLayerId;
+    final String? layerId = _layerTransformBackendLayerId;
     if (state == null || layerId == null) {
       return;
     }
-    _setRustLayerTransformPreview(
+    _setBackendLayerTransformPreview(
       layerId: layerId,
       state: state,
       enabled: true,
     );
   }
 
-  void _clearRustLayerTransformPreview() {
-    if (!_layerTransformUsingRustPreview) {
+  void _clearBackendLayerTransformPreview() {
+    if (!_layerTransformUsingBackendPreview) {
       return;
     }
-    final String? layerId = _layerTransformRustLayerId;
+    final String? layerId = _layerTransformBackendLayerId;
     if (layerId != null && _layerTransformState != null) {
-      _setRustLayerTransformPreview(
+      _setBackendLayerTransformPreview(
         layerId: layerId,
         state: _layerTransformState!,
         enabled: false,
       );
     }
-    _layerTransformUsingRustPreview = false;
-    _layerTransformRustLayerId = null;
+    _layerTransformUsingBackendPreview = false;
+    _layerTransformBackendLayerId = null;
   }
 
-  bool _applyRustLayerTransformPreview(_LayerTransformStateModel state) {
+  bool _applyBackendLayerTransformPreview(_LayerTransformStateModel state) {
     if (!_backend.supportsLayerTransformPreview) {
       return false;
     }
-    final String? layerId = _layerTransformRustLayerId;
+    final String? layerId = _layerTransformBackendLayerId;
     if (layerId == null) {
       return false;
     }
-    final Float32List? matrix = _buildRustTransformMatrix(state);
+    final Float32List? matrix = _buildBackendTransformMatrix(state);
     if (matrix == null) {
       return false;
     }
@@ -683,14 +683,14 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     );
   }
 
-  bool _applyRustLayerTransform({
+  bool _applyBackendLayerTransform({
     required CanvasLayerInfo layer,
     required _LayerTransformRenderResult result,
   }) {
     if (!_backend.isReady) {
       return false;
     }
-    if (!_backend.hasRustLayer(layerId: layer.id)) {
+    if (!_backend.hasBackendLayer(layerId: layer.id)) {
       return false;
     }
     final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
@@ -705,12 +705,12 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
         surfaceSize.height.round() != canvasHeight) {
       return false;
     }
-    final Uint32List pixels = _buildRustTransformPixels(
+    final Uint32List pixels = _buildBackendTransformPixels(
       result: result,
       canvasWidth: canvasWidth,
       canvasHeight: canvasHeight,
     );
-    return _backend.writeLayerPixelsToRust(
+    return _backend.writeLayerPixelsToBackend(
       layerId: layer.id,
       pixels: pixels,
       recordUndo: true,
@@ -719,7 +719,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     );
   }
 
-  Uint32List _buildRustTransformPixels({
+  Uint32List _buildBackendTransformPixels({
     required _LayerTransformRenderResult result,
     required int canvasWidth,
     required int canvasHeight,
@@ -822,7 +822,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           state.translation = initial + delta;
           _layerTransformRevision++;
         });
-        _updateRustLayerTransformPreview();
+        _updateBackendLayerTransformPreview();
         break;
       case _LayerTransformHandle.rotation:
         final Offset pivot = state.translation + state.pivotLocal;
@@ -847,7 +847,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           state.rotation = _layerTransformInitialRotation + delta;
           _layerTransformRevision++;
         });
-        _updateRustLayerTransformPreview();
+        _updateBackendLayerTransformPreview();
         break;
       default:
         final Matrix4? inverse = _layerTransformPointerStartInverse;
@@ -930,7 +930,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           state.scaleY = nextScaleY;
           _layerTransformRevision++;
         });
-        _updateRustLayerTransformPreview();
+        _updateBackendLayerTransformPreview();
         break;
     }
   }
@@ -1117,7 +1117,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_isLayerFreeTransformActive) {
       return null;
     }
-    if (_layerTransformUsingRustPreview) {
+    if (_layerTransformUsingBackendPreview) {
       return null;
     }
     final _LayerTransformStateModel? state = _layerTransformState;

@@ -109,10 +109,10 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _insertFilterOverlay();
   }
 
-  Future<_LayerPreviewImages> _captureRustLayerPreviewImages(
+  Future<_LayerPreviewImages> _captureBackendLayerPreviewImages(
     _FilterSession session,
   ) async {
-    final _LayerPixels? layer = _backend.readLayerPixelsFromRust(
+    final _LayerPixels? layer = _backend.readLayerPixelsFromBackend(
       session.activeLayerId,
     );
     if (layer == null) {
@@ -132,9 +132,9 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     if (session == null) {
       return;
     }
-    final bool useRustPreview = _shouldUseRustFilterPreview(session);
-    final _LayerPreviewImages previews = useRustPreview
-        ? await _captureRustLayerPreviewImages(session)
+    final bool useBackendPreview = _shouldUseBackendFilterPreview(session);
+    final _LayerPreviewImages previews = useBackendPreview
+        ? await _captureBackendLayerPreviewImages(session)
         : await _captureLayerPreviewImages(
             controller: _controller,
             layers: _controller.compositeLayers.toList(),
@@ -171,10 +171,10 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     } else if (session.type == _FilterPanelType.binarize) {
       _scheduleBinarizePreviewImageUpdate();
     }
-    if (useRustPreview) {
-      _enableRustFilterPreviewIfNeeded(session);
+    if (useBackendPreview) {
+      _enableBackendFilterPreviewIfNeeded(session);
     } else {
-      _restoreRustLayerAfterFilterPreview();
+      _restoreBackendLayerAfterFilterPreview();
     }
   }
 

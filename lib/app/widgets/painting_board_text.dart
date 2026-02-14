@@ -380,7 +380,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         );
         return;
       }
-      if (!await _backend.syncAllLayerPixelsFromRust(
+      if (!await _backend.syncAllLayerPixelsFromBackend(
         waitForPending: true,
         warnIfFailed: true,
       )) {
@@ -407,7 +407,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       );
       _pendingTextLayerUpdate = null;
       final Future<_CanvasHistoryEntry> pendingHistory =
-          _createHistoryEntry(rustPixelsSynced: _backend.isReady);
+          _createHistoryEntry(backendPixelsSynced: _backend.isReady);
       final bool layerWasVisible = layer.visible;
       _textSession = _TextEditingSession(
         origin: existing.origin,
@@ -420,14 +420,14 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (layerWasVisible) {
         _controller.updateLayerVisibility(layer.id, false);
         if (_backend.isReady) {
-          _rustCanvasSetLayerVisibleById(layer.id, false);
+          _backendCanvasSetLayerVisibleById(layer.id, false);
         }
       }
       _updateTextPreview(existing.origin);
       setState(() {});
       _textEditingFocusNode.requestFocus();
     }
-    bool _commitTextLayerToRust(String layerId) {
+    bool _commitTextLayerToBackend(String layerId) {
       if (!_backend.isReady) {
         return false;
       }
@@ -441,7 +441,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (layer == null) {
         return false;
       }
-      if (!_backend.hasRustLayer(layerId: layerId)) {
+      if (!_backend.hasBackendLayer(layerId: layerId)) {
         return false;
       }
       final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
@@ -460,7 +460,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (pixels == null || pixels.length != width * height) {
         return false;
       }
-      final bool applied = _backend.writeLayerPixelsToRust(
+      final bool applied = _backend.writeLayerPixelsToBackend(
         layerId: layerId,
         pixels: pixels,
         recordUndo: false,
@@ -468,7 +468,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         markDirty: false,
       );
       if (applied) {
-        _bumpRustLayerPreviewRevision(layerId);
+        _bumpBackendLayerPreviewRevision(layerId);
         if (mounted) {
           setState(() {});
         }
@@ -492,7 +492,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       final CanvasTextLayout layout = _textOverlayRenderer.layout(data);
       await _waitForPendingTextLayerUpdate();
       if (session.isNewLayer) {
-        if (!await _backend.syncAllLayerPixelsFromRust(
+        if (!await _backend.syncAllLayerPixelsFromBackend(
           waitForPending: true,
           warnIfFailed: true,
         )) {
@@ -507,14 +507,14 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       });
       try {
         if (session.isNewLayer) {
-          final bool rustSynced = _backend.isReady;
-          await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
+          final bool backendSynced = _backend.isReady;
+          await _pushUndoSnapshot(backendPixelsSynced: backendSynced);
           final String layerId = await _controller.createTextLayer(data);
           _markDirty();
-          if (rustSynced) {
+          if (backendSynced) {
             await _controller.waitForPendingWorkerTasks();
-            if (!_commitTextLayerToRust(layerId)) {
-              _showRustCanvasMessage('Rust 画布写入图层失败。');
+            if (!_commitTextLayerToBackend(layerId)) {
+              _showBackendCanvasMessage('画布后端写入图层失败。');
             }
           }
           return;
@@ -538,8 +538,8 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
         _markDirty();
         if (_backend.isReady) {
           await _controller.waitForPendingWorkerTasks();
-          if (!_commitTextLayerToRust(session.layerId!)) {
-            _showRustCanvasMessage('Rust 画布写入图层失败。');
+          if (!_commitTextLayerToBackend(session.layerId!)) {
+            _showBackendCanvasMessage('画布后端写入图层失败。');
           }
         }
       } finally {
@@ -579,7 +579,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
     }
     void _restoreTextLayerVisibility(String id, bool wasVisible) {
       _controller.updateLayerVisibility(id, wasVisible);
-      _rustCanvasSetLayerVisibleById(id, wasVisible);
+      _backendCanvasSetLayerVisibleById(id, wasVisible);
     }
   bool _activeLayerIsText() {
     final CanvasLayerInfo layer = _controller.activeLayer;

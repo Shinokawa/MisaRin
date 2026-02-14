@@ -383,11 +383,11 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   bool _referenceModelBuiltinLoadInProgress = false;
 
   @override
-  void _recordRustHistoryAction({
+  void _recordBackendHistoryAction({
     String? layerId,
     bool deferPreview = false,
   }) {
-    super._recordRustHistoryAction(
+    super._recordBackendHistoryAction(
       layerId: layerId,
       deferPreview: deferPreview,
     );
@@ -706,11 +706,11 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     if (queueEmpty) {
       await Future.delayed(const Duration(milliseconds: 16));
     }
-    final bool ok = await _backend.syncAllLayerPixelsFromRust();
+    final bool ok = await _backend.syncAllLayerPixelsFromBackend();
     if (!ok) {
       debugPrint('referenceModel: rust sync failed');
       if (showWarning) {
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        _showBackendCanvasMessage('画布后端同步图层失败。');
       }
     }
   }

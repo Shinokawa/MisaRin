@@ -349,11 +349,11 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
-    final bool useRustCanvas = _backend.isReady;
+    final bool useBackendCanvas = _backend.isReady;
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {
       _clearShapePreviewOverlay();
-      if (useRustCanvas) {
+      if (useBackendCanvas) {
         _clearShapePreviewRasterImage();
       }
       return;
@@ -383,7 +383,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     if (restoredRegion != null) {
       _controller.markLayerRegionDirty(snapshot.id, restoredRegion);
     }
-    if (useRustCanvas) {
+    if (useBackendCanvas) {
       unawaited(_updateShapePreviewRasterImage());
     }
   }
@@ -462,7 +462,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     _shapePreviewRasterImage?.dispose();
     _shapePreviewRasterImage = image;
     setState(() {});
-    _hideRustLayerForVectorPreview(layer.id);
+    _hideBackendLayerForVectorPreview(layer.id);
   }
 
   void _clearShapePreviewRasterImage({bool notify = true}) {
@@ -470,8 +470,8 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     final bool hadImage = _shapePreviewRasterImage != null;
     _shapePreviewRasterImage?.dispose();
     _shapePreviewRasterImage = null;
-    if (!_isRustVectorPreviewActive) {
-      _restoreRustLayerAfterVectorPreview();
+    if (!_isBackendVectorPreviewActive) {
+      _restoreBackendLayerAfterVectorPreview();
     }
     if (notify && hadImage && mounted) {
       setState(() {});

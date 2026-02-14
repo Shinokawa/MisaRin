@@ -15,8 +15,8 @@ mixin _PaintingBoardLayerMixin
   final FlyoutController _blendModeFlyoutController = FlyoutController();
   bool? _rasterizeMenuEnabled;
   // Layer operations are always supported by the Dart controller.
-  // When the Rust canvas backend is active, we additionally sync changes
-  // via `_rustCanvasSet*` helpers (they are no-ops when Rust is unavailable).
+  // When the backend canvas is active, we additionally sync changes
+  // via `_backendCanvasSet*` helpers (they are no-ops when backend is unavailable).
   bool get rustLayerSupported => true;
 
   List<CanvasLayerData> _buildInitialLayers() {
@@ -64,7 +64,7 @@ mixin _PaintingBoardLayerMixin
     }
     await _pushUndoSnapshot();
     _controller.updateLayerVisibility(id, visible);
-    _rustCanvasSetLayerVisibleById(id, visible);
+    _backendCanvasSetLayerVisibleById(id, visible);
     setState(() {});
     _markDirty();
   }
@@ -75,7 +75,7 @@ mixin _PaintingBoardLayerMixin
     }
     _layerOpacityPreviewReset(this);
     _controller.setActiveLayer(id);
-    _rustCanvasSetActiveLayerById(id);
+    _backendCanvasSetActiveLayerById(id);
     setState(() {});
     _syncRasterizeMenuAvailability();
   }
@@ -214,26 +214,26 @@ mixin _PaintingBoardLayerMixin
     _controller.addLayer(aboveLayerId: insertAbove);
     setState(() {});
     _markDirty();
-    _syncRustCanvasLayersToEngine();
+    _syncBackendCanvasLayersToEngine();
   }
 
   void _handleRemoveLayer(String id) async {
     if (_layers.length <= 1) {
       return;
     }
-    if (!await _backend.syncAllLayerPixelsFromRust(
+    if (!await _backend.syncAllLayerPixelsFromBackend(
       waitForPending: true,
       warnIfFailed: true,
     )) {
       return;
     }
-    final bool rustSynced = _backend.isReady;
-    await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
+    final bool backendSynced = _backend.isReady;
+    await _pushUndoSnapshot(backendPixelsSynced: backendSynced);
     _controller.removeLayer(id);
     setState(() {});
     _markDirty();
-    _syncRustCanvasLayersToEngine();
-    await _backend.syncAllLayerPixelsToRust(warnIfFailed: true);
+    _syncBackendCanvasLayersToEngine();
+    await _backend.syncAllLayerPixelsToBackend(warnIfFailed: true);
   }
 
   Widget _buildAddLayerButton() {
@@ -274,23 +274,23 @@ mixin _PaintingBoardLayerMixin
     if (actualOldIndex == actualNewIndex) {
       return;
     }
-    if (!await _backend.syncAllLayerPixelsFromRust(
+    if (!await _backend.syncAllLayerPixelsFromBackend(
       waitForPending: true,
       warnIfFailed: true,
     )) {
       return;
     }
-    final bool rustSynced = _backend.isReady;
-    await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
+    final bool backendSynced = _backend.isReady;
+    await _pushUndoSnapshot(backendPixelsSynced: backendSynced);
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
-    if (rustSynced) {
-      _backend.reorderRustLayer(
+    if (backendSynced) {
+      _backend.reorderBackendLayer(
         fromIndex: actualOldIndex,
         toIndex: actualNewIndex,
       );
       final String? activeLayerId = _activeLayerId;
       if (activeLayerId != null) {
-        _rustCanvasSetActiveLayerById(activeLayerId);
+        _backendCanvasSetActiveLayerById(activeLayerId);
       }
     }
     setState(() {});
@@ -439,7 +439,7 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     _controller.setLayerOpacity(layerId, clamped);
-    _rustCanvasSetLayerOpacityById(layerId, clamped);
+    _backendCanvasSetLayerOpacityById(layerId, clamped);
     setState(() {});
     _markDirty();
     return true;
@@ -610,19 +610,19 @@ mixin _PaintingBoardLayerMixin
       _markDirty();
       return;
     }
-    if (!await _backend.syncAllLayerPixelsFromRust(
+    if (!await _backend.syncAllLayerPixelsFromBackend(
       waitForPending: true,
       warnIfFailed: true,
       skipIfUnavailable: false,
     )) {
       return;
     }
-    await _pushUndoSnapshot(rustPixelsSynced: true);
+    await _pushUndoSnapshot(backendPixelsSynced: true);
     if (!_controller.mergeLayerDown(layer.id)) {
       return;
     }
-    _syncRustCanvasLayersToEngine();
-    await _backend.syncAllLayerPixelsToRust(
+    _syncBackendCanvasLayersToEngine();
+    await _backend.syncAllLayerPixelsToBackend(
       warnIfFailed: true,
       skipIfUnavailable: false,
     );
@@ -637,14 +637,14 @@ mixin _PaintingBoardLayerMixin
     final bool nextValue = !layer.clippingMask;
     await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, nextValue);
-    _rustCanvasSetLayerClippingById(layer.id, nextValue);
+    _backendCanvasSetLayerClippingById(layer.id, nextValue);
     setState(() {});
     _markDirty();
   }
 
   void _handleDuplicateLayer(CanvasLayerInfo layer) async {
     if (_backend.isReady) {
-      _showRustCanvasMessage('Rust 画布目前暂不支持复制图层。');
+      _showBackendCanvasMessage('画布后端目前暂不支持复制图层。');
       return;
     }
     final CanvasLayerData? snapshot = _controller.buildClipboardLayer(layer.id);
@@ -754,7 +754,7 @@ mixin _PaintingBoardLayerMixin
     }
     await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, clipping);
-    _rustCanvasSetLayerClippingById(layer.id, clipping);
+    _backendCanvasSetLayerClippingById(layer.id, clipping);
     setState(() {});
   }
 
@@ -765,7 +765,7 @@ mixin _PaintingBoardLayerMixin
     }
     await _pushUndoSnapshot();
     _controller.setLayerBlendMode(layer.id, mode);
-    _rustCanvasSetLayerBlendModeById(layer.id, mode);
+    _backendCanvasSetLayerBlendModeById(layer.id, mode);
     setState(() {});
   }
 
@@ -801,7 +801,7 @@ mixin _PaintingBoardLayerMixin
         level: clamped,
       );
       if (applied) {
-        _recordRustHistoryAction(layerId: layerId);
+        _recordBackendHistoryAction(layerId: layerId);
         setState(() {});
         _markDirty();
       }

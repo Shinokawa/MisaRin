@@ -22,7 +22,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
 
   void clearSelectionArtifacts();
   void resetSelectionUndoFlag();
-  Uint8List? _resolveSelectionMaskForRust(int targetWidth, int targetHeight);
+  Uint8List? _resolveSelectionMaskForBackend(int targetWidth, int targetHeight);
 
   UnmodifiableListView<CanvasLayerInfo> get _layers => _controller.layers;
   String? get _activeLayerId => _controller.activeLayerId;
@@ -108,12 +108,12 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   List<CanvasLayerData> snapshotLayers() => _controller.snapshotLayers();
 
   Future<List<CanvasLayerData>> snapshotLayersForExport() async {
-    final bool ok = await _backend.syncAllLayerPixelsFromRust(
+    final bool ok = await _backend.syncAllLayerPixelsFromBackend(
       waitForPending: true,
       warnIfFailed: false,
     );
     if (!ok) {
-      debugPrint('Rust 画布同步图层失败，导出将使用当前缓存数据。');
+      debugPrint('画布后端同步图层失败，导出将使用当前缓存数据。');
     }
     return _controller.snapshotLayers();
   }
@@ -125,7 +125,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (!await _backend.syncAllLayerPixelsFromRust(
+    if (!await _backend.syncAllLayerPixelsFromBackend(
       waitForPending: true,
       warnIfFailed: true,
     )) {
@@ -152,8 +152,8 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       _controller.loadLayers(rotated, _controller.backgroundColor);
       _resetHistory();
       setState(() {});
-      _syncRustCanvasLayersToEngine();
-      await _backend.syncAllLayerPixelsToRust(warnIfFailed: true);
+      _syncBackendCanvasLayersToEngine();
+      await _backend.syncAllLayerPixelsToBackend(warnIfFailed: true);
     }
     return CanvasRotationResult(
       layers: rotated,
@@ -169,7 +169,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (!await _backend.syncAllLayerPixelsFromRust(
+    if (!await _backend.syncAllLayerPixelsFromBackend(
       waitForPending: true,
       warnIfFailed: true,
     )) {
@@ -194,8 +194,8 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _controller.loadLayers(flipped, _controller.backgroundColor);
     _resetHistory();
     setState(() {});
-    _syncRustCanvasLayersToEngine();
-    await _backend.syncAllLayerPixelsToRust(warnIfFailed: true);
+    _syncBackendCanvasLayersToEngine();
+    await _backend.syncAllLayerPixelsToBackend(warnIfFailed: true);
     return CanvasRotationResult(layers: flipped, width: width, height: height);
   }
 
@@ -769,14 +769,14 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
 
   Future<void> _pushUndoSnapshot({
     _CanvasHistoryEntry? entry,
-    bool rustPixelsSynced = false,
+    bool backendPixelsSynced = false,
   }) async {
     _refreshHistoryLimit();
     if (_historyLocked) {
       return;
     }
     final _CanvasHistoryEntry snapshot =
-        entry ?? await _createHistoryEntry(rustPixelsSynced: rustPixelsSynced);
+        entry ?? await _createHistoryEntry(backendPixelsSynced: backendPixelsSynced);
     _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();
@@ -784,7 +784,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   }
 
   Future<_CanvasHistoryEntry> _createHistoryEntry({
-    bool rustPixelsSynced = false,
+    bool backendPixelsSynced = false,
   }) async {
     await _controller.waitForPendingWorkerTasks();
     return _CanvasHistoryEntry(
@@ -798,7 +798,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       selectionPath: selectionPathSnapshot != null
           ? (Path()..addPath(selectionPathSnapshot!, Offset.zero))
           : null,
-      rustPixelsSynced: rustPixelsSynced,
+      backendPixelsSynced: backendPixelsSynced,
     );
   }
 
@@ -829,11 +829,11 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _markDirty();
     resetSelectionUndoFlag();
     _updateSelectionAnimation();
-    _syncRustCanvasLayersToEngine();
-    if (entry.rustPixelsSynced) {
-      await _backend.syncAllLayerPixelsToRust();
+    _syncBackendCanvasLayersToEngine();
+    if (entry.backendPixelsSynced) {
+      await _backend.syncAllLayerPixelsToBackend();
     } else {
-      await _backend.syncAllLayerPixelsFromRust();
+      await _backend.syncAllLayerPixelsFromBackend();
     }
   }
 
@@ -1021,7 +1021,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     setState(() {
       _viewBlackWhiteOverlay = !_viewBlackWhiteOverlay;
     });
-    _syncRustCanvasViewFlags();
+    _syncBackendCanvasViewFlags();
     _notifyViewInfoChanged();
   }
 
@@ -1029,7 +1029,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     setState(() {
       _viewMirrorOverlay = !_viewMirrorOverlay;
     });
-    _syncRustCanvasViewFlags();
+    _syncBackendCanvasViewFlags();
     _notifyViewInfoChanged();
   }
 

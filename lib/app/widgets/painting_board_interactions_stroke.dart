@@ -250,7 +250,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       _clearPerspectivePenPreview();
       return;
     }
-    if (!await _backend.syncActiveLayerFromRust(
+    if (!await _backend.syncActiveLayerFromBackend(
       warnIfFailed: true,
       skipIfUnavailable: false,
     )) {
@@ -260,7 +260,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     await _startStroke(anchor, timestamp, rawEvent, skipUndo: true);
     _appendPoint(snapped, timestamp, rawEvent);
     _finishStroke(timestamp);
-    await _backend.commitActiveLayerToRust(
+    await _backend.commitActiveLayerToBackend(
       waitForPending: true,
       warnIfFailed: true,
       skipIfUnavailable: false,
@@ -417,7 +417,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (_rustSprayActive) {
       _backend.endSpray();
       if (_rustSprayHasDrawn) {
-        _recordRustHistoryAction(
+        _recordBackendHistoryAction(
           layerId: _activeLayerId,
           deferPreview: true,
         );

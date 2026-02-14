@@ -169,7 +169,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _curvePreviewRasterImage = null;
     _shapePreviewRasterImage?.dispose();
     _shapePreviewRasterImage = null;
-    _restoreRustLayerAfterVectorPreview();
+    _restoreBackendLayerAfterVectorPreview();
     _rustLayerSnapshots.clear();
     _rustLayerSnapshotHandle = null;
     super.dispose();
@@ -414,8 +414,8 @@ class PaintingBoardState extends _PaintingBoardBase
       return false;
     }
     try {
-      final bool rustSynced = _backend.isReady;
-      if (!await _backend.syncAllLayerPixelsFromRust(
+      final bool backendSynced = _backend.isReady;
+      if (!await _backend.syncAllLayerPixelsFromBackend(
         waitForPending: true,
         warnIfFailed: true,
       )) {
@@ -437,12 +437,12 @@ class PaintingBoardState extends _PaintingBoardBase
         bitmapTop: offsetY,
         cloneBitmap: false,
       );
-      await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
+      await _pushUndoSnapshot(backendPixelsSynced: backendSynced);
       _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
       _controller.setActiveLayer(layerData.id);
-      if (rustSynced) {
-        _syncRustCanvasLayersToEngine();
-        await _backend.syncAllLayerPixelsToRust(warnIfFailed: true);
+      if (backendSynced) {
+        _syncBackendCanvasLayersToEngine();
+        await _backend.syncAllLayerPixelsToBackend(warnIfFailed: true);
       }
       setState(() {});
       _markDirty();
@@ -697,7 +697,7 @@ class PaintingBoardState extends _PaintingBoardBase
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (!await _backend.syncAllLayerPixelsFromRust(
+    if (!await _backend.syncAllLayerPixelsFromBackend(
       waitForPending: true,
       warnIfFailed: true,
     )) {
@@ -744,7 +744,7 @@ class PaintingBoardState extends _PaintingBoardBase
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (!await _backend.syncAllLayerPixelsFromRust(
+    if (!await _backend.syncAllLayerPixelsFromBackend(
       waitForPending: true,
       warnIfFailed: true,
     )) {
@@ -785,9 +785,9 @@ class PaintingBoardState extends _PaintingBoardBase
   void didUpdateWidget(covariant PaintingBoard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isActive && !widget.isActive) {
-      unawaited(_captureRustLayerSnapshotIfNeeded());
+      unawaited(_captureBackendLayerSnapshotIfNeeded());
     } else if (!oldWidget.isActive && widget.isActive) {
-      _restoreRustLayerSnapshotIfNeeded();
+      _restoreBackendLayerSnapshotIfNeeded();
     }
     final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
     final bool backgroundChanged =
@@ -842,7 +842,7 @@ class PaintingBoardState extends _PaintingBoardBase
         }
       });
       _notifyViewInfoChanged();
-      _syncRustCanvasLayersToEngine();
+      _syncBackendCanvasLayersToEngine();
     }
   }
 
@@ -862,13 +862,13 @@ class PaintingBoardState extends _PaintingBoardBase
     _handleFilterApplyFrameProgress(frame);
     if (_maybeInitializeLayerTransformStateFromController()) {
       _scheduleReferenceModelTextureRefresh();
-      _syncRustCanvasLayersToEngine();
+      _syncBackendCanvasLayersToEngine();
       return;
     }
     _syncRasterizeMenuAvailability();
     _notifyBoardReadyIfNeeded();
     _scheduleReferenceModelTextureRefresh();
-    _syncRustCanvasLayersToEngine();
+    _syncBackendCanvasLayersToEngine();
   }
 
   @override
@@ -1081,7 +1081,7 @@ class _CanvasHistoryEntry {
     required this.selectionShape,
     this.selectionMask,
     this.selectionPath,
-    this.rustPixelsSynced = false,
+    this.backendPixelsSynced = false,
   });
 
   final List<CanvasLayerData> layers;
@@ -1090,7 +1090,7 @@ class _CanvasHistoryEntry {
   final SelectionShape selectionShape;
   final Uint8List? selectionMask;
   final Path? selectionPath;
-  final bool rustPixelsSynced;
+  final bool backendPixelsSynced;
 }
 
 StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;

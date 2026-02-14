@@ -78,7 +78,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       return;
     }
 
-    if (_supportsRustFilter(session.type)) {
+    if (_supportsBackendFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -86,9 +86,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
       bool applied = false;
       try {
-        applied = await _applyRustFilter(session);
+        applied = await _applyBackendFilter(session);
       } catch (error, stackTrace) {
-        debugPrint('Rust filter apply failed: $error');
+        debugPrint('Backend filter apply failed: $error');
         debugPrint('$stackTrace');
       }
 
@@ -136,18 +136,18 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     await _finalizeFilterApply(session, result);
   }
 
-  Future<bool> _applyRustFilter(_FilterSession session) async {
-    if (!_supportsRustFilter(session.type)) {
+  Future<bool> _applyBackendFilter(_FilterSession session) async {
+    if (!_supportsBackendFilter(session.type)) {
       return false;
     }
     final String layerId = session.activeLayerId;
-    if (!_backend.hasRustLayer(layerId: layerId)) {
+    if (!_backend.hasBackendLayer(layerId: layerId)) {
       return false;
     }
     bool applied = false;
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeHueSaturation,
           param0: session.hueSaturation.hue,
@@ -156,7 +156,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
       case _FilterPanelType.brightnessContrast:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeBrightnessContrast,
           param0: session.brightnessContrast.brightness,
@@ -164,7 +164,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
       case _FilterPanelType.blackWhite:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeBlackWhite,
           param0: session.blackWhite.blackPoint,
@@ -173,42 +173,42 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
       case _FilterPanelType.binarize:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeBinarize,
           param0: session.binarize.alphaThreshold,
         );
         break;
       case _FilterPanelType.gaussianBlur:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeGaussianBlur,
           param0: session.gaussianBlur.radius,
         );
         break;
       case _FilterPanelType.leakRemoval:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeLeakRemoval,
           param0: session.leakRemoval.radius,
         );
         break;
       case _FilterPanelType.lineNarrow:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeLineNarrow,
           param0: session.lineNarrow.radius,
         );
         break;
       case _FilterPanelType.fillExpand:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeFillExpand,
           param0: session.fillExpand.radius,
         );
         break;
       case _FilterPanelType.scanPaperDrawing:
-        applied = _backend.applyFilterToRust(
+        applied = _backend.applyFilterToBackend(
           layerId: layerId,
           filterType: _kFilterTypeScanPaperDrawing,
           param0: session.blackWhite.blackPoint,
@@ -243,7 +243,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
   }
 
-  bool _supportsRustFilter(_FilterPanelType type) {
+  bool _supportsBackendFilter(_FilterPanelType type) {
     return _backend.supportsFilterType(_backendFilterType(type));
   }
 
@@ -281,7 +281,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
 
     final l10n = context.l10n;
-    if (_supportsRustFilter(session.type)) {
+    if (_supportsBackendFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -289,9 +289,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
       bool applied = false;
       try {
-        applied = await _applyRustFilter(session);
+        applied = await _applyBackendFilter(session);
       } catch (error, stackTrace) {
-        debugPrint('Rust scan paper drawing apply failed: $error');
+        debugPrint('Backend scan paper drawing apply failed: $error');
         debugPrint('$stackTrace');
       }
 
@@ -445,7 +445,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
   }
 
   bool _isFilterSessionIdentity(_FilterSession session) {
-    final bool allowRust = _supportsRustFilter(session.type);
+    final bool allowBackend = _supportsBackendFilter(session.type);
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
         final _HueSaturationSettings settings = session.hueSaturation;
@@ -463,7 +463,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
         final bool hasFill = layer.fillColor != null;
-        return !hasBitmap && !hasFill && !allowRust;
+        return !hasBitmap && !hasFill && !allowBackend;
       case _FilterPanelType.scanPaperDrawing:
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
@@ -474,7 +474,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         final bool hasFill = layer.fillColor != null;
         return !hasBitmap && !hasFill;
       case _FilterPanelType.binarize:
-        if (allowRust) {
+        if (allowBackend) {
           return false;
         }
         final CanvasLayerData layer =
@@ -510,7 +510,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || (!hasBitmap && !allowRust);
+        return radius <= 0 || (!hasBitmap && !allowBackend);
       case _FilterPanelType.leakRemoval:
         final double radius = session.leakRemoval.radius;
         final CanvasLayerData layer =
@@ -519,7 +519,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || (!hasBitmap && !allowRust);
+        return radius <= 0 || (!hasBitmap && !allowBackend);
       case _FilterPanelType.lineNarrow:
       case _FilterPanelType.fillExpand:
         final double radius = session.type == _FilterPanelType.lineNarrow
@@ -531,7 +531,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || (!hasBitmap && !allowRust);
+        return radius <= 0 || (!hasBitmap && !allowBackend);
     }
   }
 
@@ -605,7 +605,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _filterOverlayEntry?.remove();
     _filterOverlayEntry = null;
     _cancelFilterPreviewTasks();
-    _restoreRustLayerAfterFilterPreview();
+    _restoreBackendLayerAfterFilterPreview();
     final _FilterSession? session = _filterSession;
     if (restoreOriginal && session != null) {
       _restoreFilterPreviewToOriginal(session);

@@ -359,19 +359,19 @@ mixin _PaintingBoardBuildMixin
     );
   }
 
-  bool _shouldShowRustFilterPreviewOverlay(_FilterSession session) {
-    if (!_shouldUseRustFilterPreview(session)) {
+  bool _shouldShowBackendFilterPreviewOverlay(_FilterSession session) {
+    if (!_shouldUseBackendFilterPreview(session)) {
       return false;
     }
     if (_previewActiveLayerImage == null) {
       return false;
     }
-    return _filterRustHiddenLayerId == session.activeLayerId;
+    return _filterBackendHiddenLayerId == session.activeLayerId;
   }
 
-  Widget _buildRustFilterPreviewOverlay() {
+  Widget _buildBackendFilterPreviewOverlay() {
     final _FilterSession? session = _filterSession;
-    if (session == null || !_shouldShowRustFilterPreviewOverlay(session)) {
+    if (session == null || !_shouldShowBackendFilterPreviewOverlay(session)) {
       return const SizedBox.shrink();
     }
 

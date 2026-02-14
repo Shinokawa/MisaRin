@@ -735,25 +735,25 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _selectionPath = path;
     _selectionMask = mask;
     _controller.setSelectionMask(mask);
-    _syncRustSelectionMask();
+    _syncBackendSelectionMask();
   }
 
   @override
-  void _handleRustCanvasEngineInfoChanged(
+  void _handleBackendCanvasEngineInfoChanged(
     int? handle,
     Size? engineSize,
     bool isNewEngine,
   ) {
-    super._handleRustCanvasEngineInfoChanged(handle, engineSize, isNewEngine);
-    _syncRustSelectionMask();
+    super._handleBackendCanvasEngineInfoChanged(handle, engineSize, isNewEngine);
+    _syncBackendSelectionMask();
   }
 
-  void _syncRustSelectionMask() {
+  void _syncBackendSelectionMask() {
     _backend.syncSelectionMask();
   }
 
   @override
-  Uint8List? _resolveSelectionMaskForRust(int targetWidth, int targetHeight) {
+  Uint8List? _resolveSelectionMaskForBackend(int targetWidth, int targetHeight) {
     final Uint8List? mask = _selectionMask;
     if (mask == null) {
       return null;

@@ -41,7 +41,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
         await _pushUndoSnapshot();
         undoCaptured = true;
       }
-      final bool handled = _copyActiveLayerFromRust(
+      final bool handled = _copyActiveLayerFromBackend(
         activeLayerId: activeLayerId,
         clearAfter: clearAfter,
       );
@@ -99,7 +99,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     }
     await _pushUndoSnapshot();
     if (_backend.isReady) {
-      _deleteSelectionFromRust(activeLayerId: activeLayerId);
+      _deleteSelectionFromBackend(activeLayerId: activeLayerId);
     }
     _controller.clearLayerRegion(activeLayerId, mask: selection);
     setState(() {
@@ -130,8 +130,8 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
     _controller.setActiveLayer(newId);
     if (_backend.isReady) {
-      _syncRustCanvasLayersToEngine();
-      _pasteLayerToRust(layerId: newId, layerData: layerData);
+      _syncBackendCanvasLayersToEngine();
+      _pasteLayerToBackend(layerId: newId, layerData: layerData);
     }
     setState(() {
       setSelectionState(path: null, mask: null);
@@ -194,7 +194,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     return output;
   }
 
-  Uint32List? _resolveRustPastePixels(
+  Uint32List? _resolveBackendPastePixels(
     CanvasLayerData layer,
     int width,
     int height,
@@ -238,7 +238,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     return dest;
   }
 
-  bool _copyActiveLayerFromRust({
+  bool _copyActiveLayerFromBackend({
     required String activeLayerId,
     required bool clearAfter,
   }) {
@@ -246,7 +246,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     if (layer == null) {
       return false;
     }
-    final _LayerPixels? sourceLayer = _backend.readLayerPixelsFromRust(
+    final _LayerPixels? sourceLayer = _backend.readLayerPixelsFromBackend(
       activeLayerId,
     );
     if (sourceLayer == null) {
@@ -256,7 +256,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     final int height = sourceLayer.height;
     final Uint32List sourcePixels = sourceLayer.pixels;
     final Uint8List? selectionMask =
-        _resolveSelectionMaskForRust(width, height);
+        _resolveSelectionMaskForBackend(width, height);
     if (selectionMask != null && !_maskHasCoverage(selectionMask)) {
       return false;
     }
@@ -283,36 +283,36 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     }
     final Uint32List clearedPixels =
         _clearSelectionInPixels(sourcePixels, selectionMask);
-    return _backend.writeLayerPixelsToRust(
+    return _backend.writeLayerPixelsToBackend(
       layerId: activeLayerId,
       pixels: clearedPixels,
       recordUndo: true,
     );
   }
 
-  bool _deleteSelectionFromRust({required String activeLayerId}) {
-    final _LayerPixels? sourceLayer = _backend.readLayerPixelsFromRust(
+  bool _deleteSelectionFromBackend({required String activeLayerId}) {
+    final _LayerPixels? sourceLayer = _backend.readLayerPixelsFromBackend(
       activeLayerId,
     );
     if (sourceLayer == null) {
       return false;
     }
     final Uint8List? selectionMask =
-        _resolveSelectionMaskForRust(sourceLayer.width, sourceLayer.height);
+        _resolveSelectionMaskForBackend(sourceLayer.width, sourceLayer.height);
     if (selectionMask == null || !_maskHasCoverage(selectionMask)) {
       return false;
     }
     final Uint32List sourcePixels = sourceLayer.pixels;
     final Uint32List clearedPixels =
         _clearSelectionInPixels(sourcePixels, selectionMask);
-    return _backend.writeLayerPixelsToRust(
+    return _backend.writeLayerPixelsToBackend(
       layerId: activeLayerId,
       pixels: clearedPixels,
       recordUndo: true,
     );
   }
 
-  bool _pasteLayerToRust({
+  bool _pasteLayerToBackend({
     required String layerId,
     required CanvasLayerData layerData,
   }) {
@@ -323,9 +323,9 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       return false;
     }
     final Uint32List pixels =
-        _resolveRustPastePixels(layerData, width, height) ??
+        _resolveBackendPastePixels(layerData, width, height) ??
         Uint32List(width * height);
-    return _backend.writeLayerPixelsToRust(
+    return _backend.writeLayerPixelsToBackend(
       layerId: layerId,
       pixels: pixels,
       recordUndo: true,

@@ -1038,7 +1038,7 @@ mixin _PaintingBoardInteractionMixin
       }
       _scheduleRustFlush();
       if (canRecordHistory) {
-        _recordRustHistoryAction(
+        _recordBackendHistoryAction(
           layerId: _activeLayerId,
           deferPreview: true,
         );
@@ -1109,7 +1109,7 @@ mixin _PaintingBoardInteractionMixin
       pointerId: event.pointer,
     );
     _scheduleRustFlush();
-    _recordRustHistoryAction(
+    _recordBackendHistoryAction(
       layerId: _activeLayerId,
       deferPreview: true,
     );
@@ -1210,7 +1210,7 @@ mixin _PaintingBoardInteractionMixin
           return;
         }
         if (!_canStartRustStroke(pointerInsideBoard: pointerInsideBoard)) {
-          _showRustCanvasMessage('Rust 画布尚未准备好。');
+          _showBackendCanvasMessage('画布后端尚未准备好。');
           return;
         }
         if (!isPointInsideSelection(boardLocal)) {
@@ -1824,7 +1824,7 @@ mixin _PaintingBoardInteractionMixin
         final _CanvasHistoryEntry previous = _undoStack.removeLast();
         _redoStack.add(
           await _createHistoryEntry(
-            rustPixelsSynced: previous.rustPixelsSynced,
+            backendPixelsSynced: previous.backendPixelsSynced,
           ),
         );
         _commitHistoryUndoAction();
@@ -1838,7 +1838,7 @@ mixin _PaintingBoardInteractionMixin
     }
     final _CanvasHistoryEntry previous = _undoStack.removeLast();
     _redoStack.add(
-      await _createHistoryEntry(rustPixelsSynced: previous.rustPixelsSynced),
+      await _createHistoryEntry(backendPixelsSynced: previous.backendPixelsSynced),
     );
     _trimHistoryStacks();
     await _applyHistoryEntry(previous);
@@ -1864,7 +1864,7 @@ mixin _PaintingBoardInteractionMixin
         }
         final _CanvasHistoryEntry next = _redoStack.removeLast();
         _undoStack.add(
-          await _createHistoryEntry(rustPixelsSynced: next.rustPixelsSynced),
+          await _createHistoryEntry(backendPixelsSynced: next.backendPixelsSynced),
         );
         _commitHistoryRedoAction();
         _trimHistoryStacks();
@@ -1877,7 +1877,7 @@ mixin _PaintingBoardInteractionMixin
     }
     final _CanvasHistoryEntry next = _redoStack.removeLast();
     _undoStack.add(
-      await _createHistoryEntry(rustPixelsSynced: next.rustPixelsSynced),
+      await _createHistoryEntry(backendPixelsSynced: next.backendPixelsSynced),
     );
     _trimHistoryStacks();
     await _applyHistoryEntry(next);
