@@ -265,16 +265,31 @@ mixin _PaintingBoardFilterMixin
     this._handleFilterApplyFrameProgressInternal(frame);
   }
 
-  bool _shouldUseRustFilterPreview(_FilterSession session) {
-    if (!_backend.isGpuReady) {
-      return false;
+  CanvasFilterType? _rustPreviewFilterType(_FilterPanelType type) {
+    switch (type) {
+      case _FilterPanelType.hueSaturation:
+        return CanvasFilterType.hueSaturation;
+      case _FilterPanelType.brightnessContrast:
+        return CanvasFilterType.brightnessContrast;
+      case _FilterPanelType.blackWhite:
+        return CanvasFilterType.blackWhite;
+      case _FilterPanelType.binarize:
+        return CanvasFilterType.binarize;
+      case _FilterPanelType.scanPaperDrawing:
+        return CanvasFilterType.scanPaperDrawing;
+      case _FilterPanelType.gaussianBlur:
+        return CanvasFilterType.gaussianBlur;
+      case _FilterPanelType.leakRemoval:
+      case _FilterPanelType.lineNarrow:
+      case _FilterPanelType.fillExpand:
+        return null;
     }
-    return session.type == _FilterPanelType.hueSaturation ||
-        session.type == _FilterPanelType.brightnessContrast ||
-        session.type == _FilterPanelType.blackWhite ||
-        session.type == _FilterPanelType.binarize ||
-        session.type == _FilterPanelType.scanPaperDrawing ||
-        session.type == _FilterPanelType.gaussianBlur;
+  }
+
+  bool _shouldUseRustFilterPreview(_FilterSession session) {
+    return _backend.supportsFilterType(
+      _rustPreviewFilterType(session.type),
+    );
   }
 
   void _enableRustFilterPreviewIfNeeded(_FilterSession session) {
@@ -287,7 +302,7 @@ mixin _PaintingBoardFilterMixin
   }
 
   void _hideRustLayerForFilterPreview(String layerId) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return;
     }
     if (_filterRustHiddenLayerId == layerId) {

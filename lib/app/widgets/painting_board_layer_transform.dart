@@ -344,7 +344,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
           await _renderLayerTransformResult(state);
       final _CanvasHistoryEntry? undoEntry =
           await _buildLayerTransformUndoEntry(state);
-      if (_backend.canUseGpu) {
+      if (_backend.isReady) {
         final bool applied = _applyRustLayerTransform(
           layer: activeLayer,
           result: result,
@@ -569,7 +569,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   }
 
   void _hideRustLayerForTransform(CanvasLayerInfo layer) {
-    if (!_backend.canUseGpu) {
+    if (!_backend.isReady) {
       return;
     }
     if (_layerTransformUsingRustPreview) {
@@ -687,7 +687,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     required CanvasLayerInfo layer,
     required _LayerTransformRenderResult result,
   }) {
-    if (!_backend.canUseGpu) {
+    if (!_backend.isReady) {
       return false;
     }
     if (!_backend.hasRustLayer(layerId: layer.id)) {

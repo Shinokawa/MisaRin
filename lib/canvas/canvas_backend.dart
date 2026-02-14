@@ -24,6 +24,9 @@ class CanvasBackendCapabilities {
     this.supportsLayerTransformPreview = false,
     this.supportsLayerTranslate = false,
     this.supportsAntialias = false,
+    this.supportsStrokeStream = false,
+    this.supportsInputQueue = false,
+    this.supportsSpray = false,
   });
 
   final bool isGpuSupported;
@@ -32,8 +35,11 @@ class CanvasBackendCapabilities {
   final bool supportsLayerTransformPreview;
   final bool supportsLayerTranslate;
   final bool supportsAntialias;
+  final bool supportsStrokeStream;
+  final bool supportsInputQueue;
+  final bool supportsSpray;
 
-  bool get canUseGpu => isGpuSupported && isReady;
+  bool get isAvailable => isGpuSupported && isReady;
 
   bool supportsFilter(CanvasFilterType type) => supportedFilters.contains(type);
 }

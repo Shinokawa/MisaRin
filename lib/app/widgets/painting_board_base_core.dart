@@ -1539,13 +1539,19 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   bool get _gpuReady => _gpuSelected && _owner._rustCanvasEngineHandle != null;
   bool get isGpuSupported => _gpuSelected;
   bool get isGpuReady => _gpuReady;
-  bool get canUseGpu => capabilities.canUseGpu;
+  bool get isReady => capabilities.isAvailable;
   bool get supportsLayerTransformPreview =>
-      capabilities.canUseGpu && capabilities.supportsLayerTransformPreview;
+      capabilities.isAvailable && capabilities.supportsLayerTransformPreview;
   bool get supportsLayerTranslate =>
-      capabilities.canUseGpu && capabilities.supportsLayerTranslate;
+      capabilities.isAvailable && capabilities.supportsLayerTranslate;
   bool get supportsAntialias =>
-      capabilities.canUseGpu && capabilities.supportsAntialias;
+      capabilities.isAvailable && capabilities.supportsAntialias;
+  bool get supportsStrokeStream =>
+      capabilities.isAvailable && capabilities.supportsStrokeStream;
+  bool get supportsInputQueue =>
+      capabilities.isAvailable && capabilities.supportsInputQueue;
+  bool get supportsSpray =>
+      capabilities.isAvailable && capabilities.supportsSpray;
 
   @override
   CanvasBackendCapabilities get capabilities => CanvasBackendCapabilities(
@@ -1555,13 +1561,16 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     supportsLayerTransformPreview: _gpuSelected,
     supportsLayerTranslate: _gpuSelected,
     supportsAntialias: _gpuSelected,
+    supportsStrokeStream: _gpuSelected,
+    supportsInputQueue: _gpuSelected,
+    supportsSpray: _gpuSelected,
   );
 
   bool supportsFilterType(CanvasFilterType? type) {
     if (type == null) {
       return false;
     }
-    return capabilities.canUseGpu && capabilities.supportsFilter(type);
+    return capabilities.isAvailable && capabilities.supportsFilter(type);
   }
 
   bool _handleRustUnavailable({bool skipIfUnavailable, bool warnIfFailed}) {

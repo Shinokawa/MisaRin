@@ -59,7 +59,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     _layerAdjustUsingRustPreview = false;
     _layerAdjustRustPreviewLayerId = null;
     _layerAdjustRustSynced =
-        _backend.canUseGpu && _syncActiveLayerFromRustForAdjust(layer);
+        _backend.isReady && _syncActiveLayerFromRustForAdjust(layer);
     _controller.translateActiveLayer(0, 0);
     if (_backend.supportsLayerTransformPreview &&
         _controller.isActiveLayerTransforming) {
@@ -255,7 +255,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   void _hideRustLayerForAdjust(CanvasLayerInfo layer) {
-    if (!_backend.canUseGpu) {
+    if (!_backend.isReady) {
       return;
     }
     if (!_backend.hasRustLayer(layerId: layer.id)) {
@@ -503,7 +503,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   void _refreshCurveRasterPreview() {
-    final bool useRustCanvas = _backend.canUseGpu;
+    final bool useRustCanvas = _backend.isReady;
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     final Offset? start = _curveAnchor;
     final Offset? end = _curvePendingEnd;
@@ -582,7 +582,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   Future<void> _updateCurvePreviewRasterImage() async {
-    if (!_backend.canUseGpu) {
+    if (!_backend.isReady) {
       return;
     }
     if (_curvePreviewPath == null) {

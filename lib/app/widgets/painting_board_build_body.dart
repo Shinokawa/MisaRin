@@ -561,10 +561,10 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   filterSession,
                                                 );
                                             final bool showRustCurvePreview =
-                                                _backend.isGpuReady &&
+                                                _backend.isReady &&
                                                 _curvePreviewRasterImage != null;
                                             final bool showRustShapePreview =
-                                                _backend.isGpuReady &&
+                                                _backend.isReady &&
                                                 _shapePreviewRasterImage != null;
                                             final CanvasLayerInfo activeLayer =
                                                 _controller.activeLayer;
@@ -742,7 +742,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             );
 
                                             final bool applyViewToCanvas =
-                                                !_backend.isGpuReady;
+                                                !_backend.isReady;
                                             final Widget canvasWithView =
                                                 applyViewToCanvas
                                                 ? applyViewOverlay(canvasLayer)

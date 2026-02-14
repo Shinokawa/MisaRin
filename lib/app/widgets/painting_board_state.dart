@@ -414,7 +414,7 @@ class PaintingBoardState extends _PaintingBoardBase
       return false;
     }
     try {
-      final bool rustSynced = _backend.isGpuReady;
+      final bool rustSynced = _backend.isReady;
       if (!await _backend.syncAllLayerPixelsFromRust(
         waitForPending: true,
         warnIfFailed: true,
@@ -713,7 +713,7 @@ class PaintingBoardState extends _PaintingBoardBase
     debugPrint(
       'resizeImage: source=${sourceWidth}x$sourceHeight '
       'target=${width}x$height sampling=$sampling '
-      'rust=${_backend.isGpuReady}',
+      'rust=${_backend.isReady}',
     );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
@@ -760,7 +760,7 @@ class PaintingBoardState extends _PaintingBoardBase
     debugPrint(
       'resizeCanvas: source=${sourceWidth}x$sourceHeight '
       'target=${width}x$height anchor=$anchor '
-      'rust=${_backend.isGpuReady}',
+      'rust=${_backend.isReady}',
     );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[

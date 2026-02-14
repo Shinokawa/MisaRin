@@ -349,7 +349,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
-    final bool useRustCanvas = _backend.canUseGpu;
+    final bool useRustCanvas = _backend.isReady;
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {
       _clearShapePreviewOverlay();
@@ -420,7 +420,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   Future<void> _updateShapePreviewRasterImage() async {
-    if (!_backend.canUseGpu) {
+    if (!_backend.isReady) {
       return;
     }
     if (_shapePreviewPath == null) {
