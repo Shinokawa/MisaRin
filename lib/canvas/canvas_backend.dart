@@ -18,7 +18,7 @@ enum CanvasFilterType {
 
 class CanvasBackendCapabilities {
   const CanvasBackendCapabilities({
-    required this.isGpuSupported,
+    required this.isSupported,
     required this.isReady,
     this.supportedFilters = const <CanvasFilterType>{},
     this.supportsLayerTransformPreview = false,
@@ -29,7 +29,7 @@ class CanvasBackendCapabilities {
     this.supportsSpray = false,
   });
 
-  final bool isGpuSupported;
+  final bool isSupported;
   final bool isReady;
   final Set<CanvasFilterType> supportedFilters;
   final bool supportsLayerTransformPreview;
@@ -39,7 +39,7 @@ class CanvasBackendCapabilities {
   final bool supportsInputQueue;
   final bool supportsSpray;
 
-  bool get isAvailable => isGpuSupported && isReady;
+  bool get isAvailable => isSupported && isReady;
 
   bool supportsFilter(CanvasFilterType type) => supportedFilters.contains(type);
 }

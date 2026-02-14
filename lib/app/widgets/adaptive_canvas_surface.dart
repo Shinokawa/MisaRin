@@ -74,8 +74,8 @@ class AdaptiveCanvasSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool useGpu = CanvasBackendFacade.instance.isGpuSupported;
-    if (useGpu) {
+    final bool useBackendCanvas = CanvasBackendFacade.instance.isSupported;
+    if (useBackendCanvas) {
       return RustCanvasSurface(
         surfaceKey: surfaceKey,
         canvasSize: canvasSize,

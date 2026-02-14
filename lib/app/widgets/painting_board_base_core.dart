@@ -331,7 +331,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _syncLayerPixelsFromRust(CanvasLayerInfo layer) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return false;
     }
     final _LayerPixels? sourceLayer =
@@ -361,7 +361,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _syncAllLayerPixelsFromRust() {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return false;
     }
     final List<CanvasLayerInfo> layers = _controller.layers;
@@ -378,7 +378,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _commitActiveLayerToRust({bool recordUndo = true}) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return false;
     }
     final CanvasLayerInfo? layer = _activeLayerStateForRustSync();
@@ -414,7 +414,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   bool _syncAllLayerPixelsToRust({bool recordUndo = false}) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return false;
     }
     final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
@@ -1032,7 +1032,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _hideRustLayerForVectorPreview(String layerId) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return;
     }
     if (_rustVectorPreviewHiddenLayerId == layerId) {
@@ -1070,7 +1070,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (layerId == null) {
       return;
     }
-    if (_backend.isGpuReady) {
+    if (_backend.isReady) {
       final int? index = _rustCanvasLayerIndexForId(layerId);
       if (index != null) {
         _backend.setRustLayerVisibleByIndex(
@@ -1111,7 +1111,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _scheduleRustLayerPreviewRefresh(String layerId) {
-    if (!_backend.isGpuReady) {
+    if (!_backend.supportsInputQueue) {
       return;
     }
     _rustLayerPreviewPending.add(layerId);
@@ -1125,7 +1125,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   Future<void> _runRustLayerPreviewRefresh() async {
     while (mounted && _rustLayerPreviewPending.isNotEmpty) {
       final int? handle = _rustCanvasEngineHandle;
-      if (!_backend.isGpuReady || handle == null) {
+      if (!_backend.supportsInputQueue || handle == null) {
         _rustLayerPreviewPending.clear();
         break;
       }
@@ -1216,7 +1216,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _syncRustCanvasViewFlags() {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return;
     }
     _backend.setViewFlags(
@@ -1226,7 +1226,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _syncRustCanvasPixelsIfNeeded() {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return;
     }
     if (_rustLayerSnapshotPendingRestore) {
@@ -1248,7 +1248,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   Future<void> _captureRustLayerSnapshotIfNeeded() async {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return;
     }
     if (!_rustLayerSnapshotDirty || _rustLayerSnapshotInFlight) {
@@ -1298,7 +1298,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (_rustLayerSnapshotInFlight) {
       return;
     }
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return;
     }
     if (_rustLayerSnapshots.isEmpty) {
@@ -1347,7 +1347,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   }
 
   void _syncRustCanvasLayersToEngine() {
-    if (!_backend.isGpuReady) {
+    if (!_backend.isReady) {
       return;
     }
     final List<CanvasLayerInfo> layers = _controller.layers;
@@ -1493,12 +1493,12 @@ final class _LayerPixels {
 final class _CanvasRasterEditSession {
   _CanvasRasterEditSession._(
     this._backend, {
-    required this.useGpu,
+    required this.useBackend,
     required this.ok,
   });
 
   final _CanvasBackendFacade _backend;
-  final bool useGpu;
+  final bool useBackend;
   final bool ok;
 
   Future<bool> commit({
@@ -1506,7 +1506,7 @@ final class _CanvasRasterEditSession {
     bool warnIfFailed = false,
     bool recordUndo = true,
   }) async {
-    if (!ok || !useGpu) {
+    if (!ok || !useBackend) {
       return ok;
     }
     return _backend.commitActiveLayerToRust(
@@ -1535,11 +1535,11 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     CanvasFilterType.invert,
   };
 
-  bool get _gpuSelected => _ffi.isGpuSupported;
-  bool get _gpuReady => _gpuSelected && _owner._rustCanvasEngineHandle != null;
-  bool get isGpuSupported => _gpuSelected;
-  bool get isGpuReady => _gpuReady;
-  bool get isReady => capabilities.isAvailable;
+  bool get _backendSupported => _ffi.isGpuSupported;
+  bool get _backendReady =>
+      _backendSupported && _owner._rustCanvasEngineHandle != null;
+  bool get isSupported => _backendSupported;
+  bool get isReady => _backendReady;
   bool get supportsLayerTransformPreview =>
       capabilities.isAvailable && capabilities.supportsLayerTransformPreview;
   bool get supportsLayerTranslate =>
@@ -1555,15 +1555,16 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
 
   @override
   CanvasBackendCapabilities get capabilities => CanvasBackendCapabilities(
-    isGpuSupported: _gpuSelected,
-    isReady: _gpuReady,
-    supportedFilters: _gpuSelected ? _rustFilters : const <CanvasFilterType>{},
-    supportsLayerTransformPreview: _gpuSelected,
-    supportsLayerTranslate: _gpuSelected,
-    supportsAntialias: _gpuSelected,
-    supportsStrokeStream: _gpuSelected,
-    supportsInputQueue: _gpuSelected,
-    supportsSpray: _gpuSelected,
+    isSupported: _backendSupported,
+    isReady: _backendReady,
+    supportedFilters:
+        _backendSupported ? _rustFilters : const <CanvasFilterType>{},
+    supportsLayerTransformPreview: _backendSupported,
+    supportsLayerTranslate: _backendSupported,
+    supportsAntialias: _backendSupported,
+    supportsStrokeStream: _backendSupported,
+    supportsInputQueue: _backendSupported,
+    supportsSpray: _backendSupported,
   );
 
   bool supportsFilterType(CanvasFilterType? type) {
@@ -1584,28 +1585,28 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   Future<_CanvasRasterEditSession> beginRasterEdit({
-    bool captureUndoOnCpu = true,
+    bool captureUndoOnFallback = true,
     bool warnIfFailed = false,
-    bool requireGpu = false,
+    bool requireBackend = false,
   }) async {
-    if (!_gpuReady) {
-      if (requireGpu) {
+    if (!_backendReady) {
+      if (requireBackend) {
         _handleRustUnavailable(
           skipIfUnavailable: false,
           warnIfFailed: warnIfFailed,
         );
         return _CanvasRasterEditSession._(
           this,
-          useGpu: false,
+          useBackend: false,
           ok: false,
         );
       }
-      if (captureUndoOnCpu) {
+      if (captureUndoOnFallback) {
         await _owner._pushUndoSnapshot();
       }
       return _CanvasRasterEditSession._(
         this,
-        useGpu: false,
+        useBackend: false,
         ok: true,
       );
     }
@@ -1615,7 +1616,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     );
     return _CanvasRasterEditSession._(
       this,
-      useGpu: true,
+      useBackend: true,
       ok: ok,
     );
   }
@@ -1625,7 +1626,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool warnIfFailed = false,
     bool skipIfUnavailable = true,
   }) async {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return _handleRustUnavailable(
         skipIfUnavailable: skipIfUnavailable,
         warnIfFailed: warnIfFailed,
@@ -1646,7 +1647,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool warnIfFailed = false,
     bool skipIfUnavailable = true,
   }) async {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return _handleRustUnavailable(
         skipIfUnavailable: skipIfUnavailable,
         warnIfFailed: warnIfFailed,
@@ -1668,7 +1669,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool skipIfUnavailable = true,
     bool recordUndo = true,
   }) async {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return _handleRustUnavailable(
         skipIfUnavailable: skipIfUnavailable,
         warnIfFailed: warnIfFailed,
@@ -1690,7 +1691,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool skipIfUnavailable = true,
     bool recordUndo = false,
   }) async {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return _handleRustUnavailable(
         skipIfUnavailable: skipIfUnavailable,
         warnIfFailed: warnIfFailed,
@@ -1710,7 +1711,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     int attempts = 6,
     Duration delay = const Duration(milliseconds: 16),
   }) async {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? handle = _owner._rustCanvasEngineHandle;
@@ -1728,7 +1729,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   int? getInputQueueLen({int? handle}) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return null;
     }
     final int? effectiveHandle = handle ?? _owner._rustCanvasEngineHandle;
@@ -1739,7 +1740,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   void setViewFlags({required bool mirror, required bool blackWhite}) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return;
     }
     _ffi.setViewFlags(
@@ -1750,7 +1751,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool setRustActiveLayerByIndex({required int layerIndex}) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.setActiveLayer(
@@ -1761,7 +1762,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool setRustActiveLayerById(String layerId) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? index = _owner._rustCanvasLayerIndexForId(layerId);
@@ -1775,7 +1776,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required int layerIndex,
     required double opacity,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.setLayerOpacity(
@@ -1790,7 +1791,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required int layerIndex,
     required bool clippingMask,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.setLayerClippingMask(
@@ -1805,7 +1806,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required int layerIndex,
     required CanvasLayerBlendMode blendMode,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.setLayerBlendMode(
@@ -1820,7 +1821,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required String layerId,
     required double opacity,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? index = _owner._rustCanvasLayerIndexForId(layerId);
@@ -1834,7 +1835,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required String layerId,
     required bool clippingMask,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? index = _owner._rustCanvasLayerIndexForId(layerId);
@@ -1851,7 +1852,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required String layerId,
     required CanvasLayerBlendMode blendMode,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? index = _owner._rustCanvasLayerIndexForId(layerId);
@@ -1865,7 +1866,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool clearRustLayerByIndex({required int layerIndex}) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.clearLayer(
@@ -1876,7 +1877,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool reorderRustLayer({required int fromIndex, required int toIndex}) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.reorderLayer(
@@ -1891,7 +1892,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required int layerIndex,
     required int level,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     return _ffi.applyAntialias(
@@ -1905,7 +1906,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required String layerId,
     required int level,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
@@ -1916,7 +1917,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool undo() {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.undo(handle: _owner._rustCanvasEngineHandle!);
@@ -1924,7 +1925,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool redo() {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.redo(handle: _owner._rustCanvasEngineHandle!);
@@ -1935,7 +1936,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required Uint8List bytes,
     required int pointCount,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.pushPointsPacked(
@@ -1947,7 +1948,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool beginSpray() {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.beginSpray(handle: _owner._rustCanvasEngineHandle!);
@@ -1955,7 +1956,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool endSpray() {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.endSpray(handle: _owner._rustCanvasEngineHandle!);
@@ -1972,7 +1973,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required double softness,
     required bool accumulate,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.drawSpray(
@@ -1999,7 +2000,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required int fillGap,
     required int antialiasLevel,
   }) async {
-    if (!_gpuSelected) {
+    if (!_backendSupported) {
       await _owner._pushUndoSnapshot();
       _owner._controller.floodFill(
         position,
@@ -2018,7 +2019,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
       return true;
     }
 
-    if (!_gpuReady) {
+    if (!_backendReady) {
       _owner._showRustCanvasMessage('Rust 画布尚未准备好。');
       return false;
     }
@@ -2083,7 +2084,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   _LayerPixels? readLayerPixelsFromRust(String layerId) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return null;
     }
     final int handle = _owner._rustCanvasEngineHandle!;
@@ -2116,7 +2117,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool recordHistory = true,
     bool markDirty = true,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int handle = _owner._rustCanvasEngineHandle!;
@@ -2149,7 +2150,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required String layerId,
     required bool visible,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
@@ -2168,7 +2169,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required int layerIndex,
     required bool visible,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     _ffi.setLayerVisible(
@@ -2180,14 +2181,14 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   bool hasRustLayer({required String layerId}) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     return _owner._rustCanvasLayerIndexForId(layerId) != null;
   }
 
   Rect? getRustLayerBoundsById({required String layerId}) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return null;
     }
     final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
@@ -2198,7 +2199,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   Rect? getRustLayerBoundsByIndex(int layerIndex) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return null;
     }
     final Int32List? bounds = _ffi.getLayerBounds(
@@ -2224,7 +2225,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required bool enabled,
     required bool bilinear,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     return _ffi.setLayerTransformPreview(
@@ -2242,7 +2243,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required bool enabled,
     required bool bilinear,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
@@ -2262,7 +2263,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required Float32List matrix,
     required bool bilinear,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     return _ffi.applyLayerTransform(
@@ -2278,7 +2279,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required Float32List matrix,
     required bool bilinear,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
@@ -2299,7 +2300,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool recordHistory = true,
     bool markDirty = true,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final bool applied = _ffi.translateLayer(
@@ -2333,7 +2334,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool recordHistory = true,
     bool markDirty = true,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int? layerIndex = _owner._rustCanvasLayerIndexForId(layerId);
@@ -2359,7 +2360,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool recordHistory = true,
     bool markDirty = true,
   }) {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return false;
     }
     final int handle = _owner._rustCanvasEngineHandle!;
@@ -2395,7 +2396,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required String layerId,
     required int maxHeight,
   }) async {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return null;
     }
     final int handle = _owner._rustCanvasEngineHandle!;
@@ -2436,14 +2437,14 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     bool sampleAllLayers = true,
     int tolerance = 0,
   }) async {
-    if (!_gpuSelected) {
+    if (!_backendSupported) {
       return _owner._controller.computeMagicWandMask(
         position,
         sampleAllLayers: sampleAllLayers,
         tolerance: tolerance,
       );
     }
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return null;
     }
     final int handle = _owner._rustCanvasEngineHandle!;
@@ -2505,7 +2506,7 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
   }
 
   void syncSelectionMask() {
-    if (!_gpuReady) {
+    if (!_backendReady) {
       return;
     }
     final int handle = _owner._rustCanvasEngineHandle!;

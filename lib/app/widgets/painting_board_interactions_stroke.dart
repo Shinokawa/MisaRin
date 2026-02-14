@@ -242,8 +242,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (anchor == null || snapped == null) {
       return;
     }
-    final bool useGpuBackend = _backend.isGpuSupported;
-    if (!useGpuBackend) {
+    final bool useBackendCanvas = _backend.isSupported;
+    if (!useBackendCanvas) {
       await _startStroke(anchor, timestamp, rawEvent);
       _appendPoint(snapped, timestamp, rawEvent);
       _finishStroke(timestamp);
@@ -363,8 +363,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _focusNode.requestFocus();
-    final bool useRust = _backend.isGpuReady;
-    if (!useRust) {
+    final bool useBackendSpray = _backend.supportsSpray;
+    if (!useBackendSpray) {
       await _pushUndoSnapshot();
     } else if (_backend.beginSpray()) {
       _rustSprayActive = true;

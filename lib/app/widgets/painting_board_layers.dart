@@ -15,7 +15,7 @@ mixin _PaintingBoardLayerMixin
   final FlyoutController _blendModeFlyoutController = FlyoutController();
   bool? _rasterizeMenuEnabled;
   // Layer operations are always supported by the Dart controller.
-  // When the Rust GPU canvas engine is active, we additionally sync changes
+  // When the Rust canvas backend is active, we additionally sync changes
   // via `_rustCanvasSet*` helpers (they are no-ops when Rust is unavailable).
   bool get rustLayerSupported => true;
 
@@ -208,7 +208,7 @@ mixin _PaintingBoardLayerMixin
   void _handleAddLayer() async {
     await _pushUndoSnapshot();
     final String? insertAbove =
-        _backend.isGpuReady
+        _backend.isReady
             ? (_layers.isEmpty ? null : _layers.last.id)
             : _activeLayerId;
     _controller.addLayer(aboveLayerId: insertAbove);
@@ -227,7 +227,7 @@ mixin _PaintingBoardLayerMixin
     )) {
       return;
     }
-    final bool rustSynced = _backend.isGpuReady;
+    final bool rustSynced = _backend.isReady;
     await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
     _controller.removeLayer(id);
     setState(() {});
@@ -280,7 +280,7 @@ mixin _PaintingBoardLayerMixin
     )) {
       return;
     }
-    final bool rustSynced = _backend.isGpuReady;
+    final bool rustSynced = _backend.isReady;
     await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
     if (rustSynced) {
@@ -492,7 +492,7 @@ mixin _PaintingBoardLayerMixin
         controller: _controller,
         layers: compositeSnapshot,
         activeLayerId: layerId,
-        useGpuCanvas: _backend.isGpuSupported,
+        useBackendCanvas: _backend.isSupported,
         captureActiveLayerAtFullOpacity: true,
       );
     } catch (error, stackTrace) {
@@ -600,8 +600,8 @@ mixin _PaintingBoardLayerMixin
     if (!_canMergeLayerDown(layer)) {
       return;
     }
-    final bool useGpuBackend = _backend.isGpuSupported;
-    if (!useGpuBackend) {
+    final bool useBackendCanvas = _backend.isSupported;
+    if (!useBackendCanvas) {
       await _pushUndoSnapshot();
       if (!_controller.mergeLayerDown(layer.id)) {
         return;
@@ -643,7 +643,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleDuplicateLayer(CanvasLayerInfo layer) async {
-    if (_backend.isGpuReady) {
+    if (_backend.isReady) {
       _showRustCanvasMessage('Rust 画布目前暂不支持复制图层。');
       return;
     }

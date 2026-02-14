@@ -994,7 +994,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
 
   bool get isBoardReady =>
-      _controller.frame != null || _backend.isGpuReady;
+      _controller.frame != null || _backend.isReady;
 
   void _handlePixelGridPreferenceChanged() {
     if (!mounted) {

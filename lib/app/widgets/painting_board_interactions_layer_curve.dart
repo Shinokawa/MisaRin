@@ -298,7 +298,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       }
       if (insideCanvas) {
         final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
-          captureUndoOnCpu: true,
+          captureUndoOnFallback: true,
           warnIfFailed: true,
         );
         if (!edit.ok) {
@@ -334,7 +334,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
           _brushRandomRotationPreviewSeed =
               _brushRotationRandom.nextInt(1 << 31);
         }
-        if (edit.useGpu) {
+        if (edit.useBackend) {
           await edit.commit(
             waitForPending: true,
             warnIfFailed: true,
@@ -355,7 +355,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       return;
     }
     final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
-      captureUndoOnCpu: false,
+      captureUndoOnFallback: false,
       warnIfFailed: true,
     );
     if (!edit.ok) {
@@ -368,7 +368,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _isCurvePlacingSegment = true;
       _curvePreviewPath = _buildCurvePreviewPath();
     });
-    await _prepareCurveRasterPreview(captureUndo: !edit.useGpu);
+    await _prepareCurveRasterPreview(captureUndo: !edit.useBackend);
     _refreshCurveRasterPreview();
   }
 
@@ -399,7 +399,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       return;
     }
     final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
-      captureUndoOnCpu: !_curveUndoCapturedForPreview,
+      captureUndoOnFallback: !_curveUndoCapturedForPreview,
       warnIfFailed: true,
     );
     if (!edit.ok) {
@@ -419,9 +419,9 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     });
     _disposeCurveRasterPreview(
       restoreLayer: false,
-      clearPreviewImage: !edit.useGpu,
+      clearPreviewImage: !edit.useBackend,
     );
-    if (edit.useGpu) {
+    if (edit.useBackend) {
       await edit.commit(
         waitForPending: true,
         warnIfFailed: true,

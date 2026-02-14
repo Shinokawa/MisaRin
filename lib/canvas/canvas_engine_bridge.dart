@@ -490,6 +490,7 @@ class CanvasBackendFacade {
   static final CanvasEngineFfi _ffi = CanvasEngineFfi.instance;
 
   bool get isGpuSupported => _ffi.isSupported;
+  bool get isSupported => isGpuSupported;
 
   bool isHandleReady(int? handle) => isGpuSupported && handle != null;
 

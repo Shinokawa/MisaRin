@@ -94,7 +94,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       _initializeFilterWorker();
     }
 
-    // Generate GPU preview images
+    // Generate backend preview images
     setState(() => _filterLoading = true);
     try {
       await _generatePreviewImages();
@@ -139,7 +139,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
             controller: _controller,
             layers: _controller.compositeLayers.toList(),
             activeLayerId: session.activeLayerId,
-            useGpuCanvas: _backend.isGpuSupported,
+            useBackendCanvas: _backend.isSupported,
           );
     _previewBackground?.dispose();
     _previewActiveLayerImage?.dispose();

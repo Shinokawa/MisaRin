@@ -56,7 +56,7 @@ void _paintStrokeOverlay({
       return;
     case BrushShape.triangle:
     case BrushShape.star:
-      // GPU 笔刷目前仅保证圆/方形；预览这里用圆形回退，避免 UI 报错。
+      // 后端笔刷目前仅保证圆/方形；预览这里用圆形回退，避免 UI 报错。
       _paintCircleStrokeOverlay(canvas, points, radii, paint, radiusScale: 1.0);
       if (clearPaint != null) {
         _paintCircleStrokeOverlay(

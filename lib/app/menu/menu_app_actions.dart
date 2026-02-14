@@ -42,7 +42,7 @@ class AppMenuActions {
       _applyWorkspacePreset(config.workspacePreset);
       ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
-      if (!kIsWeb && CanvasBackendFacade.instance.isGpuSupported) {
+      if (!kIsWeb && CanvasBackendFacade.instance.isSupported) {
         unawaited(
           RustCanvasSurface.prewarm(
             surfaceKey: document.id,
@@ -389,7 +389,7 @@ class AppMenuActions {
       }
       return null;
     }();
-    if (!kIsWeb && CanvasBackendFacade.instance.isGpuSupported) {
+    if (!kIsWeb && CanvasBackendFacade.instance.isSupported) {
       try {
         await RustCanvasSurface.prewarm(
           surfaceKey: document.id,

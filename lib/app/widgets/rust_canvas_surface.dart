@@ -599,7 +599,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   }
 
   void _applyBackground(int handle) {
-    if (!CanvasBackendFacade.instance.isGpuSupported) {
+    if (!CanvasBackendFacade.instance.isSupported) {
       return;
     }
     // Background is represented by layer 0 in the Rust MVP compositor.
@@ -615,7 +615,7 @@ class _RustCanvasSurfaceState extends State<RustCanvasSurface> {
   }
 
   void _applyBrushSettings(int handle, {bool? usePressureOverride}) {
-    if (!CanvasBackendFacade.instance.isGpuSupported) {
+    if (!CanvasBackendFacade.instance.isSupported) {
       return;
     }
     double radius = widget.brushRadius;

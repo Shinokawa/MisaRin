@@ -53,13 +53,13 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     }
     _resetPerspectiveLock();
     final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
-      captureUndoOnCpu: false,
+      captureUndoOnFallback: false,
       warnIfFailed: true,
     );
     if (!edit.ok) {
       return;
     }
-    await _prepareShapeRasterPreview(captureUndo: !edit.useGpu);
+    await _prepareShapeRasterPreview(captureUndo: !edit.useBackend);
     final Offset clamped = _clampToCanvas(boardLocal);
     setState(() {
       _shapeDragStart = clamped;
@@ -125,7 +125,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     }
 
     final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
-      captureUndoOnCpu: !_shapeUndoCapturedForPreview,
+      captureUndoOnFallback: !_shapeUndoCapturedForPreview,
       warnIfFailed: true,
     );
     if (!edit.ok) {
@@ -140,9 +140,9 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
     });
     _disposeShapeRasterPreview(
       restoreLayer: false,
-      clearPreviewImage: !edit.useGpu,
+      clearPreviewImage: !edit.useBackend,
     );
-    if (edit.useGpu) {
+    if (edit.useBackend) {
       await edit.commit(
         waitForPending: true,
         warnIfFailed: true,

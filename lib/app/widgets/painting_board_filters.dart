@@ -349,7 +349,7 @@ mixin _PaintingBoardFilterMixin
 
   Future<void> invertActiveLayerColors() async {
     final l10n = context.l10n;
-    if (_controller.frame == null && !_backend.isGpuReady) {
+    if (_controller.frame == null && !_backend.isReady) {
       _showFilterMessage(l10n.canvasNotReadyInvert);
       return;
     }
@@ -627,7 +627,7 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     final CanvasLayerData activeLayer = snapshot[layerIndex];
-    final bool useRust = _backend.isGpuReady;
+    final bool useRust = _backend.isReady;
     Uint8List? rustBitmap;
     Uint32List? rustPixels;
     int rustWidth = 0;
@@ -837,7 +837,7 @@ mixin _PaintingBoardFilterMixin
     setState(() {
       _colorRangePreviewInFlight = true;
     });
-    final bool useRust = session.usesRust && _backend.isGpuReady;
+    final bool useRust = session.usesRust && _backend.isReady;
     final CanvasLayerData baseLayer =
         session.originalLayers[session.activeLayerIndex];
     final Uint8List? baseBitmap =
@@ -913,7 +913,7 @@ mixin _PaintingBoardFilterMixin
       1,
       math.min(_colorRangeSelectedColors, _colorRangeMaxSelectable()),
     );
-    final bool useRust = session.usesRust && _backend.isGpuReady;
+    final bool useRust = session.usesRust && _backend.isReady;
     if (targetColors >= availableColors) {
       _showFilterMessage('目标颜色数量不少于当前颜色数量，图层保持不变。');
       hideColorRangeCard();
@@ -1023,7 +1023,7 @@ mixin _PaintingBoardFilterMixin
     if (session.previewLayer == null) {
       return;
     }
-    if (session.usesRust && _backend.isGpuReady) {
+    if (session.usesRust && _backend.isReady) {
       final Uint32List? pixels = session.rustPixels;
       if (pixels != null) {
         _backend.writeLayerPixelsToRust(

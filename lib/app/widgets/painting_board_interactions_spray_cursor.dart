@@ -137,7 +137,7 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     final bool erase = _isBrushEraserEnabled;
     final Color color =
         _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
-    if (_rustSprayActive && _backend.isGpuReady && !engine.sampleInputColor) {
+    if (_rustSprayActive && _backend.supportsSpray && !engine.sampleInputColor) {
       final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
       double sx = 1.0;
       double sy = 1.0;
@@ -269,7 +269,7 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (opacityScale <= 0.0) {
       return;
     }
-    if (_rustSprayActive && _backend.isGpuReady) {
+    if (_rustSprayActive && _backend.supportsSpray) {
       final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
       double sx = 1.0;
       double sy = 1.0;

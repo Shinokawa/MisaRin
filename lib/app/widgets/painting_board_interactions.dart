@@ -529,7 +529,7 @@ mixin _PaintingBoardInteractionMixin
     if (!pointerInsideBoard) {
       return false;
     }
-    if (!_backend.isGpuReady) {
+    if (!_backend.supportsStrokeStream) {
       return false;
     }
     if (_layerTransformModeActive ||
@@ -807,7 +807,7 @@ mixin _PaintingBoardInteractionMixin
     bool isInitialSample = false,
   }) {
     final int? handle = _rustCanvasEngineHandle;
-    if (!_backend.isGpuReady || handle == null) {
+    if (!_backend.supportsInputQueue || handle == null) {
       return;
     }
     final Offset boardLocal = _toBoardLocal(event.localPosition);
@@ -874,7 +874,7 @@ mixin _PaintingBoardInteractionMixin
         return;
       }
       final int? handle = _rustCanvasEngineHandle;
-      if (!_backend.isGpuReady || handle == null) {
+      if (!_backend.supportsInputQueue || handle == null) {
         _rustPoints.clear();
         return;
       }
@@ -931,8 +931,9 @@ mixin _PaintingBoardInteractionMixin
   void _endRustStroke(PointerEvent event) {
     final bool hadActiveStroke = _rustActivePointer != null;
     final int? handle = _rustCanvasEngineHandle;
-    final bool canRecordHistory = hadActiveStroke && _backend.isGpuReady;
-    if (_backend.isGpuReady && handle != null) {
+    final bool canRecordHistory =
+        hadActiveStroke && _backend.supportsStrokeStream;
+    if (_backend.supportsInputQueue && handle != null) {
       _rustWaitingForFirstMove = false;
       final Offset boardLocal = _toBoardLocal(event.localPosition);
       final Offset sanitized = _sanitizeRustStrokePosition(
@@ -1071,7 +1072,7 @@ mixin _PaintingBoardInteractionMixin
     required PointerDownEvent event,
   }) {
     final int? handle = _rustCanvasEngineHandle;
-    if (!_backend.isGpuReady || handle == null) {
+    if (!_backend.supportsInputQueue || handle == null) {
       return false;
     }
     final Offset startClamped = _clampToCanvas(start);
@@ -1188,8 +1189,8 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
       case CanvasTool.eraser:
         _focusNode.requestFocus();
-        final bool useGpuBackend = _backend.isGpuSupported;
-        if (!useGpuBackend) {
+        final bool useBackendCanvas = _backend.isSupported;
+        if (!useBackendCanvas) {
           if (!_canStartCpuStroke(pointerInsideBoard: pointerInsideBoard)) {
             return;
           }

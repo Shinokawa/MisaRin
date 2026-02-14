@@ -267,7 +267,7 @@ class _RustCanvasTextureWidgetState extends State<RustCanvasTextureWidget> {
   }
 
   void _applyLayerDefaults(int handle) {
-    if (!CanvasBackendFacade.instance.isGpuSupported) {
+    if (!CanvasBackendFacade.instance.isSupported) {
       return;
     }
     CanvasBackendFacade.instance.setActiveLayer(

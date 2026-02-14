@@ -698,7 +698,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   Future<void> _syncReferenceModelTextureFromRust({
     required bool showWarning,
   }) async {
-    if (!_backend.isGpuReady) {
+    if (!_backend.supportsInputQueue) {
       return;
     }
     await _controller.waitForPendingWorkerTasks();
