@@ -102,15 +102,11 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return false;
-    }
     final int? layerIndex = _rustCanvasLayerIndexForId(activeLayer.id);
     if (layerIndex == null) {
       return false;
     }
-    final Rect? bounds = _fetchRustLayerBounds(handle, layerIndex);
+    final Rect? bounds = _fetchRustLayerBounds(layerIndex);
     if (bounds == null || bounds.isEmpty) {
       return false;
     }
@@ -121,7 +117,6 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       fullImageSizeOverride: bounds.size,
     );
     if (!_setRustLayerTransformPreview(
-      handle: handle,
       layerIndex: layerIndex,
       state: state,
       enabled: true,
@@ -562,39 +557,18 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   }
 
   bool _syncActiveLayerFromRustForTransform(CanvasLayerInfo layer) {
-    if (!_canUseRustCanvasEngine()) {
-      return false;
-    }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return false;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
-    if (layerIndex == null) {
-      return false;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
+    final _LayerPixels? sourceLayer =
+        _backend.readLayerPixelsFromRust(layer.id);
+    if (sourceLayer == null) {
       return false;
     }
     final Size? surfaceSize = _controller.readLayerSurfaceSize(layer.id);
     if (surfaceSize == null ||
-        surfaceSize.width.round() != width ||
-        surfaceSize.height.round() != height) {
+        surfaceSize.width.round() != sourceLayer.width ||
+        surfaceSize.height.round() != sourceLayer.height) {
       return false;
     }
-    final Uint32List? pixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
-    );
-    if (pixels == null || pixels.length != width * height) {
-      return false;
-    }
-    return _controller.writeLayerPixels(layer.id, pixels);
+    return _controller.writeLayerPixels(layer.id, sourceLayer.pixels);
   }
 
   void _hideRustLayerForTransform(CanvasLayerInfo layer) {
@@ -613,8 +587,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     }
     _layerTransformRustHiddenLayerIndex = layerIndex;
     _layerTransformRustHiddenVisible = layer.visible;
-    CanvasEngineFfi.instance.setLayerVisible(
-      handle: _rustCanvasEngineHandle!,
+    _backend.setRustLayerVisibleByIndex(
       layerIndex: layerIndex,
       visible: false,
     );
@@ -625,33 +598,16 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (layerIndex == null) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
-      CanvasEngineFfi.instance.setLayerVisible(
-        handle: _rustCanvasEngineHandle!,
-        layerIndex: layerIndex,
-        visible: _layerTransformRustHiddenVisible,
-      );
-    }
+    _backend.setRustLayerVisibleByIndex(
+      layerIndex: layerIndex,
+      visible: _layerTransformRustHiddenVisible,
+    );
     _layerTransformRustHiddenLayerIndex = null;
     _layerTransformRustHiddenVisible = false;
   }
 
-  Rect? _fetchRustLayerBounds(int handle, int layerIndex) {
-    final Int32List? bounds = CanvasEngineFfi.instance.getLayerBounds(
-      handle: handle,
-      layerIndex: layerIndex,
-    );
-    if (bounds == null || bounds.length < 4) {
-      return null;
-    }
-    final double left = bounds[0].toDouble();
-    final double top = bounds[1].toDouble();
-    final double right = bounds[2].toDouble();
-    final double bottom = bounds[3].toDouble();
-    if (right <= left || bottom <= top) {
-      return null;
-    }
-    return Rect.fromLTRB(left, top, right, bottom);
+  Rect? _fetchRustLayerBounds(int layerIndex) {
+    return _backend.getRustLayerBoundsByIndex(layerIndex);
   }
 
   Float32List? _buildRustTransformMatrix(_LayerTransformStateModel state) {
@@ -671,7 +627,6 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
   }
 
   bool _setRustLayerTransformPreview({
-    required int handle,
     required int layerIndex,
     required _LayerTransformStateModel state,
     required bool enabled,
@@ -680,8 +635,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (matrix == null) {
       return false;
     }
-    return CanvasEngineFfi.instance.setLayerTransformPreview(
-      handle: handle,
+    return _backend.setLayerTransformPreviewByIndex(
       layerIndex: layerIndex,
       matrix: matrix,
       enabled: enabled,
@@ -694,13 +648,11 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       return;
     }
     final _LayerTransformStateModel? state = _layerTransformState;
-    final int? handle = _rustCanvasEngineHandle;
     final int? layerIndex = _layerTransformRustLayerIndex;
-    if (state == null || handle == null || layerIndex == null) {
+    if (state == null || layerIndex == null) {
       return;
     }
     _setRustLayerTransformPreview(
-      handle: handle,
       layerIndex: layerIndex,
       state: state,
       enabled: true,
@@ -711,11 +663,9 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_layerTransformUsingRustPreview) {
       return;
     }
-    final int? handle = _rustCanvasEngineHandle;
     final int? layerIndex = _layerTransformRustLayerIndex;
-    if (handle != null && layerIndex != null && _layerTransformState != null) {
+    if (layerIndex != null && _layerTransformState != null) {
       _setRustLayerTransformPreview(
-        handle: handle,
         layerIndex: layerIndex,
         state: _layerTransformState!,
         enabled: false,
@@ -729,17 +679,15 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
-    final int? handle = _rustCanvasEngineHandle;
     final int? layerIndex = _layerTransformRustLayerIndex;
-    if (handle == null || layerIndex == null) {
+    if (layerIndex == null) {
       return false;
     }
     final Float32List? matrix = _buildRustTransformMatrix(state);
     if (matrix == null) {
       return false;
     }
-    return CanvasEngineFfi.instance.applyLayerTransform(
-      handle: handle,
+    return _backend.applyLayerTransformByIndex(
       layerIndex: layerIndex,
       matrix: matrix,
       bilinear: _shouldUseTransformBilinear(),
@@ -753,12 +701,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return false;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
-    if (layerIndex == null) {
+    if (_rustCanvasLayerIndexForId(layer.id) == null) {
       return false;
     }
     final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
@@ -778,11 +721,12 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       canvasWidth: canvasWidth,
       canvasHeight: canvasHeight,
     );
-    return CanvasEngineFfi.instance.writeLayer(
-      handle: handle,
-      layerIndex: layerIndex,
+    return _backend.writeLayerPixelsToRust(
+      layerId: layer.id,
       pixels: pixels,
       recordUndo: true,
+      recordHistory: false,
+      markDirty: false,
     );
   }
 

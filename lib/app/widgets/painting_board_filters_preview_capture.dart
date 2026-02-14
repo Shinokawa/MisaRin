@@ -18,11 +18,11 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
   required CanvasFacade controller,
   required List<CanvasCompositeLayer> layers,
   required String activeLayerId,
+  required bool useGpuCanvas,
   bool captureActiveLayerAtFullOpacity = false,
 }) async {
   final int width = controller.width;
   final int height = controller.height;
-  final bool useGpuCanvas = CanvasEngineFfi.instance.isSupported;
   final CanvasBackend rasterBackend =
       useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
   final CanvasRasterBackend tempBackend = CanvasRasterBackend(

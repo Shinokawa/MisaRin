@@ -844,7 +844,7 @@ mixin _PaintingBoardInteractionMixin
     );
     if (_kDebugRustCanvasInput &&
         (flags == _kRustPointFlagDown || flags == _kRustPointFlagUp)) {
-      final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+      final int queued = _backend.getInputQueueLen(handle: handle) ?? 0;
       debugPrint(
         '[rust_canvas] enqueue flags=$flags points=${_rustPoints.length} '
         'queued=$queued streamline=${_streamlineStrength.toStringAsFixed(3)}',
@@ -888,14 +888,13 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     if (_kDebugRustCanvasInput) {
-      final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+      final int queued = _backend.getInputQueueLen(handle: handle) ?? 0;
       debugPrint(
         '[rust_canvas] flush points=$count queued_before=$queued '
         'streamline=${_streamlineStrength.toStringAsFixed(3)}',
       );
     }
-    CanvasEngineFfi.instance.pushPointsPacked(
-      handle: handle,
+    _backend.pushPointsPacked(
       bytes: _rustPoints.bytes,
       pointCount: count,
     );
@@ -1189,7 +1188,7 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
       case CanvasTool.eraser:
         _focusNode.requestFocus();
-        final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
+        final bool useGpuBackend = _backend.isGpuSupported;
         if (!useGpuBackend) {
           if (!_canStartCpuStroke(pointerInsideBoard: pointerInsideBoard)) {
             return;
@@ -1809,11 +1808,9 @@ mixin _PaintingBoardInteractionMixin
     if (_useCombinedHistory) {
       final _HistoryActionKind? action = _peekHistoryUndoAction();
       if (action == _HistoryActionKind.rust) {
-        final int? handle = _rustCanvasEngineHandle;
-        if (!_canUseRustCanvasEngine() || handle == null) {
+        if (!_backend.undo()) {
           return false;
         }
-        CanvasEngineFfi.instance.undo(handle: handle);
         _commitHistoryUndoAction();
         _markDirty();
         setState(() {});
@@ -1852,11 +1849,9 @@ mixin _PaintingBoardInteractionMixin
     if (_useCombinedHistory) {
       final _HistoryActionKind? action = _peekHistoryRedoAction();
       if (action == _HistoryActionKind.rust) {
-        final int? handle = _rustCanvasEngineHandle;
-        if (!_canUseRustCanvasEngine() || handle == null) {
+        if (!_backend.redo()) {
           return false;
         }
-        CanvasEngineFfi.instance.redo(handle: handle);
         _commitHistoryRedoAction();
         _markDirty();
         setState(() {});

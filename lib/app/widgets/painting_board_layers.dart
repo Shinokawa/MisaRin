@@ -288,8 +288,7 @@ mixin _PaintingBoardLayerMixin
     await _pushUndoSnapshot(rustPixelsSynced: _canUseRustCanvasEngine());
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
     if (_canUseRustCanvasEngine()) {
-      CanvasEngineFfi.instance.reorderLayer(
-        handle: _rustCanvasEngineHandle!,
+      _backend.reorderRustLayer(
         fromIndex: actualOldIndex,
         toIndex: actualNewIndex,
       );
@@ -497,6 +496,7 @@ mixin _PaintingBoardLayerMixin
         controller: _controller,
         layers: compositeSnapshot,
         activeLayerId: layerId,
+        useGpuCanvas: _backend.isGpuSupported,
         captureActiveLayerAtFullOpacity: true,
       );
     } catch (error, stackTrace) {
@@ -604,7 +604,7 @@ mixin _PaintingBoardLayerMixin
     if (!_canMergeLayerDown(layer)) {
       return;
     }
-    final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
+    final bool useGpuBackend = _backend.isGpuSupported;
     if (!useGpuBackend) {
       await _pushUndoSnapshot();
       if (!_controller.mergeLayerDown(layer.id)) {
@@ -797,17 +797,15 @@ mixin _PaintingBoardLayerMixin
     }
     final int clamped = level.clamp(0, 9);
     if (_canUseRustCanvasEngine()) {
-      final int? handle = _rustCanvasEngineHandle;
       final String? layerId = _activeLayerId;
-      if (handle == null || layerId == null) {
+      if (layerId == null) {
         return false;
       }
       final int? index = _rustCanvasLayerIndexForId(layerId);
       if (index == null) {
         return false;
       }
-      final bool applied = CanvasEngineFfi.instance.applyAntialias(
-        handle: handle,
+      final bool applied = _backend.applyAntialiasByIndex(
         layerIndex: index,
         level: clamped,
       );

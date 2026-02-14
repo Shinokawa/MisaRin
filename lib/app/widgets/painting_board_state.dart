@@ -84,7 +84,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(_primaryColor);
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
-    final bool useGpuCanvas = CanvasEngineFfi.instance.isSupported;
+    final bool useGpuCanvas = _backend.isGpuSupported;
     final bool enableRasterOutput = !useGpuCanvas && !kIsWeb;
     final CanvasBackend rasterBackend =
         useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;
@@ -92,7 +92,7 @@ class PaintingBoardState extends _PaintingBoardBase
       debugPrint(
         '[canvas-backend] pref=${AppPreferences.instance.canvasBackend} '
         'state=${CanvasBackendState.backend} '
-        'gpuSupported=${CanvasEngineFfi.instance.isSupported} '
+        'gpuSupported=${_backend.isGpuSupported} '
         'useGpuCanvas=$useGpuCanvas rasterBackend=$rasterBackend '
         'rasterOutput=$enableRasterOutput',
       );
@@ -811,7 +811,7 @@ class PaintingBoardState extends _PaintingBoardBase
       }
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
-      final bool useGpuCanvas = CanvasEngineFfi.instance.isSupported;
+      final bool useGpuCanvas = _backend.isGpuSupported;
       final bool enableRasterOutput = !useGpuCanvas && !kIsWeb;
       final CanvasBackend rasterBackend =
           useGpuCanvas ? CanvasBackend.gpu : CanvasBackend.cpu;

@@ -242,7 +242,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (anchor == null || snapped == null) {
       return;
     }
-    final bool useGpuBackend = CanvasEngineFfi.instance.isSupported;
+    final bool useGpuBackend = _backend.isGpuSupported;
     if (!useGpuBackend) {
       await _startStroke(anchor, timestamp, rawEvent);
       _appendPoint(snapped, timestamp, rawEvent);
@@ -365,14 +365,14 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _focusNode.requestFocus();
-    final int? handle = _rustCanvasEngineHandle;
-    final bool useRust = _canUseRustCanvasEngine() && handle != null;
+    final bool useRust = _backend.isGpuReady;
     if (!useRust) {
       await _pushUndoSnapshot();
-    } else {
-      CanvasEngineFfi.instance.beginSpray(handle: handle);
+    } else if (_backend.beginSpray()) {
       _rustSprayActive = true;
       _rustSprayHasDrawn = false;
+    } else {
+      await _pushUndoSnapshot();
     }
     _sprayBoardPosition = boardLocal;
     _sprayCurrentPressure = _resolveSprayPressure(event);
@@ -417,10 +417,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     }
     _sprayTicker?.stop();
     if (_rustSprayActive) {
-      final int? handle = _rustCanvasEngineHandle;
-      if (handle != null) {
-        CanvasEngineFfi.instance.endSpray(handle: handle);
-      }
+      _backend.endSpray();
       if (_rustSprayHasDrawn) {
         _recordRustHistoryAction(
           layerId: _activeLayerId,

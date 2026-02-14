@@ -493,7 +493,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             }
 
                                             final bool useGpuCanvas =
-                                                CanvasEngineFfi.instance.isSupported;
+                                                _backend.isGpuSupported;
                                             final Widget canvasSurface = IgnorePointer(
                                               ignoring: true,
                                               child: useGpuCanvas

@@ -137,20 +137,18 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
   }
 
   Future<bool> _applyRustFilter(_FilterSession session) async {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
+    if (!_canUseRustCanvasEngine()) {
       return false;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(session.activeLayerId);
-    if (layerIndex == null) {
+    final String layerId = session.activeLayerId;
+    if (_rustCanvasLayerIndexForId(layerId) == null) {
       return false;
     }
     bool applied = false;
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeHueSaturation,
           param0: session.hueSaturation.hue,
           param1: session.hueSaturation.saturation,
@@ -158,18 +156,16 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
       case _FilterPanelType.brightnessContrast:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeBrightnessContrast,
           param0: session.brightnessContrast.brightness,
           param1: session.brightnessContrast.contrast,
         );
         break;
       case _FilterPanelType.blackWhite:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeBlackWhite,
           param0: session.blackWhite.blackPoint,
           param1: session.blackWhite.whitePoint,
@@ -177,62 +173,49 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
       case _FilterPanelType.binarize:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeBinarize,
           param0: session.binarize.alphaThreshold,
         );
         break;
       case _FilterPanelType.gaussianBlur:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeGaussianBlur,
           param0: session.gaussianBlur.radius,
         );
         break;
       case _FilterPanelType.leakRemoval:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeLeakRemoval,
           param0: session.leakRemoval.radius,
         );
         break;
       case _FilterPanelType.lineNarrow:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeLineNarrow,
           param0: session.lineNarrow.radius,
         );
         break;
       case _FilterPanelType.fillExpand:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeFillExpand,
           param0: session.fillExpand.radius,
         );
         break;
       case _FilterPanelType.scanPaperDrawing:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToRust(
+          layerId: layerId,
           filterType: _kFilterTypeScanPaperDrawing,
           param0: session.blackWhite.blackPoint,
           param1: session.blackWhite.whitePoint,
           param2: session.blackWhite.midTone,
         );
         break;
-    }
-    if (applied) {
-      _recordRustHistoryAction(layerId: session.activeLayerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
     }
     return applied;
   }

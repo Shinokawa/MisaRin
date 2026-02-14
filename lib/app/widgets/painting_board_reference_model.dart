@@ -706,7 +706,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     if (handle != null) {
       bool queueEmpty = false;
       for (int attempt = 0; attempt < 6; attempt++) {
-        final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
+        final int queued = _backend.getInputQueueLen(handle: handle) ?? 0;
         if (queued == 0) {
           queueEmpty = true;
           break;

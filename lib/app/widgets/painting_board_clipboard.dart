@@ -242,33 +242,19 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     required String activeLayerId,
     required bool clearAfter,
   }) {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return false;
-    }
     final CanvasLayerInfo? layer = _resolveActiveLayerState(activeLayerId);
     if (layer == null) {
       return false;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(activeLayerId);
-    if (layerIndex == null) {
-      return false;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      return false;
-    }
-    final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
+    final _LayerPixels? sourceLayer = _backend.readLayerPixelsFromRust(
+      activeLayerId,
     );
-    if (sourcePixels == null) {
+    if (sourceLayer == null) {
       return false;
     }
+    final int width = sourceLayer.width;
+    final int height = sourceLayer.height;
+    final Uint32List sourcePixels = sourceLayer.pixels;
     final Uint8List? selectionMask =
         _resolveSelectionMaskForRust(width, height);
     if (selectionMask != null && !_maskHasCoverage(selectionMask)) {
@@ -297,81 +283,39 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     }
     final Uint32List clearedPixels =
         _clearSelectionInPixels(sourcePixels, selectionMask);
-    final bool applied = CanvasEngineFfi.instance.writeLayer(
-      handle: handle,
-      layerIndex: layerIndex,
+    return _backend.writeLayerPixelsToRust(
+      layerId: activeLayerId,
       pixels: clearedPixels,
       recordUndo: true,
     );
-    if (applied) {
-      _recordRustHistoryAction(layerId: activeLayerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
-    }
-    return applied;
   }
 
   bool _deleteSelectionFromRust({required String activeLayerId}) {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return false;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(activeLayerId);
-    if (layerIndex == null) {
-      return false;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
+    final _LayerPixels? sourceLayer = _backend.readLayerPixelsFromRust(
+      activeLayerId,
+    );
+    if (sourceLayer == null) {
       return false;
     }
     final Uint8List? selectionMask =
-        _resolveSelectionMaskForRust(width, height);
+        _resolveSelectionMaskForRust(sourceLayer.width, sourceLayer.height);
     if (selectionMask == null || !_maskHasCoverage(selectionMask)) {
       return false;
     }
-    final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
-    );
-    if (sourcePixels == null) {
-      return false;
-    }
+    final Uint32List sourcePixels = sourceLayer.pixels;
     final Uint32List clearedPixels =
         _clearSelectionInPixels(sourcePixels, selectionMask);
-    final bool applied = CanvasEngineFfi.instance.writeLayer(
-      handle: handle,
-      layerIndex: layerIndex,
+    return _backend.writeLayerPixelsToRust(
+      layerId: activeLayerId,
       pixels: clearedPixels,
       recordUndo: true,
     );
-    if (applied) {
-      _recordRustHistoryAction(layerId: activeLayerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
-    }
-    return applied;
   }
 
   bool _pasteLayerToRust({
     required String layerId,
     required CanvasLayerData layerData,
   }) {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return false;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layerId);
-    if (layerIndex == null) {
-      return false;
-    }
     final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
     final int width = engineSize.width.round();
     final int height = engineSize.height.round();
@@ -381,20 +325,11 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     final Uint32List pixels =
         _resolveRustPastePixels(layerData, width, height) ??
         Uint32List(width * height);
-    final bool applied = CanvasEngineFfi.instance.writeLayer(
-      handle: handle,
-      layerIndex: layerIndex,
+    return _backend.writeLayerPixelsToRust(
+      layerId: layerId,
       pixels: pixels,
       recordUndo: true,
     );
-    if (applied) {
-      _recordRustHistoryAction(layerId: layerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
-    }
-    return applied;
   }
 
   Future<bool> _pasteImageFromSystemClipboard() async {

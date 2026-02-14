@@ -160,17 +160,12 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_canUseRustCanvasEngine()) {
       return false;
     }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return false;
-    }
     final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
     if (layerIndex == null) {
       return false;
     }
     final Float32List matrix = _buildLayerAdjustTransformMatrix(0, 0);
-    final bool ok = CanvasEngineFfi.instance.setLayerTransformPreview(
-      handle: handle,
+    final bool ok = _backend.setLayerTransformPreviewByIndex(
       layerIndex: layerIndex,
       matrix: matrix,
       enabled: true,
@@ -187,14 +182,12 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_layerAdjustUsingRustPreview) {
       return;
     }
-    final int? handle = _rustCanvasEngineHandle;
     final int? layerIndex = _layerAdjustRustPreviewLayerIndex;
-    if (!_canUseRustCanvasEngine() || handle == null || layerIndex == null) {
+    if (!_canUseRustCanvasEngine() || layerIndex == null) {
       return;
     }
     final Float32List matrix = _buildLayerAdjustTransformMatrix(dx, dy);
-    CanvasEngineFfi.instance.setLayerTransformPreview(
-      handle: handle,
+    _backend.setLayerTransformPreviewByIndex(
       layerIndex: layerIndex,
       matrix: matrix,
       enabled: true,
@@ -206,12 +199,10 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (!_layerAdjustUsingRustPreview) {
       return;
     }
-    final int? handle = _rustCanvasEngineHandle;
     final int? layerIndex = _layerAdjustRustPreviewLayerIndex;
-    if (_canUseRustCanvasEngine() && handle != null && layerIndex != null) {
+    if (_canUseRustCanvasEngine() && layerIndex != null) {
       final Float32List matrix = _buildLayerAdjustTransformMatrix(0, 0);
-      CanvasEngineFfi.instance.setLayerTransformPreview(
-        handle: handle,
+      _backend.setLayerTransformPreviewByIndex(
         layerIndex: layerIndex,
         matrix: matrix,
         enabled: false,
@@ -226,8 +217,7 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     if (dx == 0 && dy == 0) {
       return;
     }
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
+    if (!_canUseRustCanvasEngine()) {
       return;
     }
     final CanvasLayerInfo? layer = _activeLayerForAdjustment();
@@ -254,35 +244,25 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
         surfaceSize.height.round() == height &&
         pixels != null &&
         pixels.length == width * height) {
-      applied = CanvasEngineFfi.instance.writeLayer(
-        handle: handle,
-        layerIndex: layerIndex,
+      applied = _backend.writeLayerPixelsToRust(
+        layerId: layer.id,
         pixels: pixels,
         recordUndo: true,
       );
     } else {
-      applied = CanvasEngineFfi.instance.translateLayer(
-        handle: handle,
+      applied = _backend.translateLayerByIndex(
         layerIndex: layerIndex,
         deltaX: dx,
         deltaY: dy,
       );
     }
-    if (applied) {
-      _recordRustHistoryAction(layerId: layer.id);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
+    if (!applied) {
+      return;
     }
   }
 
   void _hideRustLayerForAdjust(CanvasLayerInfo layer) {
     if (!_canUseRustCanvasEngine()) {
-      return;
-    }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
       return;
     }
     final int? layerIndex = _rustCanvasLayerIndexForId(layer.id);
@@ -291,22 +271,16 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
     }
     _layerAdjustRustHiddenLayerIndex = layerIndex;
     _layerAdjustRustHiddenVisible = layer.visible;
-    CanvasEngineFfi.instance.setLayerVisible(
-      handle: handle,
-      layerIndex: layerIndex,
-      visible: false,
-    );
+    _backend.setRustLayerVisibleByIndex(layerIndex: layerIndex, visible: false);
   }
 
   void _restoreRustLayerAfterAdjust() {
-    final int? handle = _rustCanvasEngineHandle;
     final int? layerIndex = _layerAdjustRustHiddenLayerIndex;
-    if (handle == null || layerIndex == null) {
+    if (layerIndex == null) {
       _layerAdjustRustHiddenLayerIndex = null;
       return;
     }
-    CanvasEngineFfi.instance.setLayerVisible(
-      handle: handle,
+    _backend.setRustLayerVisibleByIndex(
       layerIndex: layerIndex,
       visible: _layerAdjustRustHiddenVisible,
     );

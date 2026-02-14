@@ -139,6 +139,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
             controller: _controller,
             layers: _controller.compositeLayers.toList(),
             activeLayerId: session.activeLayerId,
+            useGpuCanvas: _backend.isGpuSupported,
           );
     _previewBackground?.dispose();
     _previewActiveLayerImage?.dispose();

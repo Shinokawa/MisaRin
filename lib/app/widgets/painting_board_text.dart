@@ -430,10 +430,6 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (!_canUseRustCanvasEngine()) {
         return false;
       }
-      final int? handle = _rustCanvasEngineHandle;
-      if (handle == null) {
-        return false;
-      }
       CanvasLayerInfo? layer;
       for (final CanvasLayerInfo candidate in _controller.layers) {
         if (candidate.id == layerId) {
@@ -444,8 +440,7 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (layer == null) {
         return false;
       }
-      final int? layerIndex = _rustCanvasLayerIndexForId(layerId);
-      if (layerIndex == null) {
+      if (_rustCanvasLayerIndexForId(layerId) == null) {
         return false;
       }
       final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
@@ -464,11 +459,12 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       if (pixels == null || pixels.length != width * height) {
         return false;
       }
-      final bool applied = CanvasEngineFfi.instance.writeLayer(
-        handle: handle,
-        layerIndex: layerIndex,
+      final bool applied = _backend.writeLayerPixelsToRust(
+        layerId: layerId,
         pixels: pixels,
         recordUndo: false,
+        recordHistory: false,
+        markDirty: false,
       );
       if (applied) {
         _bumpRustLayerPreviewRevision(layerId);
