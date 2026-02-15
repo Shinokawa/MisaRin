@@ -73,6 +73,7 @@ void _strokeBegin(
   double scatter = 0.0,
   double rotationJitter = 1.0,
   bool snapToPixel = false,
+  double streamlineStrength = 0.0,
   bool erase = false,
   bool hollow = false,
   double hollowRatio = 0.0,
@@ -172,6 +173,11 @@ void _strokeBegin(
   final double rotationValue = rotationJitter.isFinite ? rotationJitter : 1.0;
   controller._currentStrokeRotationJitter = rotationValue.clamp(0.0, 1.0);
   controller._currentStrokeSnapToPixel = snapToPixel;
+  final double streamlineValue =
+      streamlineStrength.isFinite ? streamlineStrength.clamp(0.0, 1.0) : 0.0;
+  controller._currentStrokeStreamlineStrength = streamlineValue;
+  controller._currentStrokeDeferRaster =
+      streamlineValue > 0.0001 && RustCpuBrushFfi.instance.supportsStreamline;
 }
 
 void _strokeExtend(
@@ -387,6 +393,7 @@ void _strokeEnd(BitmapCanvasController controller) {
     }
   }
 
+  _strokeApplyStreamline(controller);
   controller._flushDeferredStrokeCommands();
 
   if (controller.isMultithreaded) {
@@ -411,6 +418,8 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeScatter = 0.0;
   controller._currentStrokeRotationJitter = 1.0;
   controller._currentStrokeSnapToPixel = false;
+  controller._currentStrokeStreamlineStrength = 0.0;
+  controller._currentStrokeDeferRaster = false;
 }
 
 void _strokeCancel(BitmapCanvasController controller) {
@@ -435,6 +444,97 @@ void _strokeCancel(BitmapCanvasController controller) {
   controller._currentStrokeScatter = 0.0;
   controller._currentStrokeRotationJitter = 1.0;
   controller._currentStrokeSnapToPixel = false;
+  controller._currentStrokeStreamlineStrength = 0.0;
+  controller._currentStrokeDeferRaster = false;
+}
+
+bool _strokeApplyStreamline(BitmapCanvasController controller) {
+  if (!controller._currentStrokeDeferRaster) {
+    return false;
+  }
+  final double strength = controller._currentStrokeStreamlineStrength;
+  if (strength <= 0.0001 || !strength.isFinite) {
+    return false;
+  }
+  if (!RustCpuBrushFfi.instance.supportsStreamline) {
+    return false;
+  }
+  final int count = controller._currentStrokePoints.length;
+  if (count < 2 || controller._currentStrokeRadii.length != count) {
+    return false;
+  }
+
+  final Float32List samples = Float32List(count * 3);
+  for (int i = 0; i < count; i++) {
+    final Offset p = controller._currentStrokePoints[i];
+    samples[i * 3] = p.dx;
+    samples[i * 3 + 1] = p.dy;
+    samples[i * 3 + 2] = controller._currentStrokeRadii[i];
+  }
+
+  final bool ok =
+      RustCpuBrushFfi.instance.applyStreamline(samples: samples, strength: strength);
+  if (!ok) {
+    return false;
+  }
+
+  controller._currentStrokePoints
+    ..clear()
+    ..addAll(
+      List<Offset>.generate(
+        count,
+        (i) => Offset(samples[i * 3], samples[i * 3 + 1]),
+      ),
+    );
+  controller._currentStrokeRadii
+    ..clear()
+    ..addAll(
+      List<double>.generate(count, (i) => samples[i * 3 + 2]),
+    );
+
+  controller._deferredStrokeCommands.clear();
+  if (count == 1) {
+    controller._deferredStrokeCommands.add(
+      PaintingDrawCommand.brushStamp(
+        center: controller._currentStrokePoints.first,
+        radius: controller._currentStrokeRadii.first,
+        colorValue: controller._currentStrokeColor.value,
+        shapeIndex: controller._currentBrushShape.index,
+        randomRotation: controller._currentStrokeRandomRotationEnabled,
+        rotationSeed: controller._currentStrokeRotationSeed,
+        rotationJitter: controller._currentStrokeRotationJitter,
+        snapToPixel: controller._currentStrokeSnapToPixel,
+        antialiasLevel: controller._currentStrokeAntialiasLevel,
+        softness: controller._currentStrokeSoftness,
+        erase: controller._currentStrokeEraseMode,
+      ),
+    );
+    return true;
+  }
+
+  for (int i = 1; i < count; i++) {
+    controller._deferredStrokeCommands.add(
+      PaintingDrawCommand.stampSegment(
+        start: controller._currentStrokePoints[i - 1],
+        end: controller._currentStrokePoints[i],
+        startRadius: controller._currentStrokeRadii[i - 1],
+        endRadius: controller._currentStrokeRadii[i],
+        colorValue: controller._currentStrokeColor.value,
+        shapeIndex: controller._currentBrushShape.index,
+        randomRotation: controller._currentStrokeRandomRotationEnabled,
+        rotationSeed: controller._currentStrokeRotationSeed,
+        rotationJitter: controller._currentStrokeRotationJitter,
+        spacing: controller._currentStrokeSpacing,
+        scatter: controller._currentStrokeScatter,
+        softness: controller._currentStrokeSoftness,
+        snapToPixel: controller._currentStrokeSnapToPixel,
+        antialiasLevel: controller._currentStrokeAntialiasLevel,
+        includeStart: i == 1,
+        erase: controller._currentStrokeEraseMode,
+      ),
+    );
+  }
+  return true;
 }
 
 void _strokeSetPressureProfile(

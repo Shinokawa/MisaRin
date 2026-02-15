@@ -104,6 +104,7 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
     double scatter = 0.0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
+    double streamlineStrength = 0.0,
     bool erase = false,
     bool hollow = false,
     double hollowRatio = 0.0,

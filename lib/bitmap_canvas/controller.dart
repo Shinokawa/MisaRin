@@ -32,6 +32,7 @@ import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
 import '../backend/rust_wgpu_brush.dart' as rust_wgpu_brush;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import '../src/rust/rust_cpu_blend_ffi.dart';
+import '../src/rust/rust_cpu_brush_ffi.dart';
 import '../src/rust/rust_cpu_image_ffi.dart';
 import '../src/rust/rust_cpu_filters_ffi.dart';
 import '../src/rust/rust_cpu_transform_ffi.dart';
@@ -119,6 +120,8 @@ class BitmapCanvasController extends ChangeNotifier
   double _currentStrokeScatter = 0.0;
   double _currentStrokeRotationJitter = 1.0;
   bool _currentStrokeSnapToPixel = false;
+  double _currentStrokeStreamlineStrength = 0.0;
+  bool _currentStrokeDeferRaster = false;
   bool _currentStrokeStylusPressureEnabled = false;
   double _currentStylusCurve = 1.0;
   double? _currentStylusLastPressure;
@@ -539,6 +542,7 @@ class BitmapCanvasController extends ChangeNotifier
     double scatter = 0.0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
+    double streamlineStrength = 0.0,
     bool erase = false,
     bool hollow = false,
     double hollowRatio = 0.0,
@@ -567,6 +571,7 @@ class BitmapCanvasController extends ChangeNotifier
     scatter: scatter,
     rotationJitter: rotationJitter,
     snapToPixel: snapToPixel,
+    streamlineStrength: streamlineStrength,
     erase: erase,
     hollow: hollow,
     hollowRatio: hollowRatio,
@@ -637,6 +642,92 @@ class BitmapCanvasController extends ChangeNotifier
       softness: softness.clamp(0.0, 1.0),
     );
     _dispatchDirectPaintCommand(command);
+  }
+
+  bool drawSprayPoints({
+    required Float32List points,
+    required int pointCount,
+    required Color color,
+    required BrushShape brushShape,
+    int antialiasLevel = 0,
+    bool erase = false,
+    double softness = 0.0,
+    bool accumulate = true,
+  }) {
+    if (_layers.isEmpty || _activeLayer.locked) {
+      return false;
+    }
+    if (pointCount <= 0 || points.isEmpty) {
+      return false;
+    }
+    if (!RustCpuBrushFfi.instance.supportsSpray) {
+      return false;
+    }
+    final int needed = pointCount * 4;
+    if (points.length < needed) {
+      return false;
+    }
+
+    double minX = double.infinity;
+    double minY = double.infinity;
+    double maxX = -double.infinity;
+    double maxY = -double.infinity;
+    final double clampedSoftness = softness.clamp(0.0, 1.0);
+    final double softnessPad =
+        clampedSoftness > 0.0 ? softBrushExtentMultiplier(clampedSoftness) : 0.0;
+    for (int i = 0; i < needed; i += 4) {
+      final double x = points[i];
+      final double y = points[i + 1];
+      final double r = points[i + 2];
+      if (!x.isFinite || !y.isFinite || !r.isFinite || r <= 0.0) {
+        continue;
+      }
+      final double expand = r + (r * softnessPad) + 1.5;
+      minX = math.min(minX, x - expand);
+      maxX = math.max(maxX, x + expand);
+      minY = math.min(minY, y - expand);
+      maxY = math.max(maxY, y + expand);
+    }
+    if (!minX.isFinite ||
+        !minY.isFinite ||
+        !maxX.isFinite ||
+        !maxY.isFinite) {
+      return false;
+    }
+
+    final Rect dirty = Rect.fromLTRB(minX, minY, maxX, maxY).intersect(
+      Rect.fromLTWH(0, 0, _width.toDouble(), _height.toDouble()),
+    );
+    if (dirty.isEmpty) {
+      return false;
+    }
+
+    final bool ok = RustCpuBrushFfi.instance.drawSpray(
+      pixelsPtr: _activeLayer.surface.pointerAddress,
+      pixelsLen: _activeLayer.surface.pixels.length,
+      width: _width,
+      height: _height,
+      points: points,
+      pointCount: pointCount,
+      colorArgb: color.value,
+      brushShape: brushShape.index,
+      antialiasLevel: antialiasLevel.clamp(0, 9),
+      softness: clampedSoftness,
+      erase: erase,
+      accumulate: accumulate,
+      selectionMask: _selectionMask,
+    );
+    if (!ok) {
+      return false;
+    }
+    _activeLayer.surface.markDirty();
+    _resetWorkerSurfaceSync();
+    _markDirty(
+      region: dirty,
+      layerId: _activeLayer.id,
+      pixelsDirty: true,
+    );
+    return true;
   }
 
   Future<bool> applyAntialiasToActiveLayer(

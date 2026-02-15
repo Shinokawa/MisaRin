@@ -143,6 +143,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
         scatter: _brushScatter,
         rotationJitter: _brushRotationJitter,
         snapToPixel: _brushSnapToPixel,
+        streamlineStrength: _streamlineStrength,
         erase: erase,
         hollow: hollow,
         hollowRatio: _hollowStrokeRatio,

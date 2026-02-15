@@ -188,6 +188,39 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       }
       return;
     }
+    if (!engine.sampleInputColor) {
+      final List<double> packed = <double>[];
+      engine.forEachParticle(
+        center: center,
+        particleBudget: count,
+        pressure: _sprayCurrentPressure,
+        baseColor: color,
+        onParticle: (position, particleRadius, opacityScale, baseColor) {
+          if (opacityScale <= 0.0) {
+            return;
+          }
+          packed.add(position.dx);
+          packed.add(position.dy);
+          packed.add(particleRadius);
+          packed.add(opacityScale);
+        },
+      );
+      final int pointCount = packed.length ~/ 4;
+      if (pointCount > 0 &&
+          _controller.drawSprayPoints(
+            points: Float32List.fromList(packed),
+            pointCount: pointCount,
+            color: color,
+            brushShape: BrushShape.circle,
+            antialiasLevel: _penAntialiasLevel,
+            erase: erase,
+            softness: 0.0,
+            accumulate: true,
+          )) {
+        _markDirty();
+        return;
+      }
+    }
     engine.paintParticles(
       center: center,
       particleBudget: count,
@@ -318,6 +351,30 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
         _backendSprayHasDrawn = true;
       }
       return;
+    }
+    if (positions.isNotEmpty) {
+      final int pointCount = positions.length;
+      final Float32List packed = Float32List(pointCount * 4);
+      int offset = 0;
+      for (final Offset position in positions) {
+        packed[offset] = position.dx;
+        packed[offset + 1] = position.dy;
+        packed[offset + 2] = radius;
+        packed[offset + 3] = opacityScale;
+        offset += 4;
+      }
+      if (_controller.drawSprayPoints(
+        points: packed,
+        pointCount: pointCount,
+        color: baseColor,
+        brushShape: BrushShape.circle,
+        antialiasLevel: 3,
+        erase: erase,
+        softness: 1.0,
+        accumulate: true,
+      )) {
+        return;
+      }
     }
     final Color color = baseColor.withOpacity(opacityScale);
     for (final Offset position in positions) {

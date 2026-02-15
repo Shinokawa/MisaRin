@@ -524,6 +524,9 @@ Future<void> _controllerDrawStrokeOnRustWgpu(
 void _controllerFlushRealtimeStrokeCommands(
   BitmapCanvasController controller,
 ) {
+  if (controller._currentStrokeDeferRaster) {
+    return;
+  }
   if (controller._currentStrokeHollowEnabled &&
       !controller._currentStrokeEraseOccludedParts) {
     return;
@@ -1038,6 +1041,34 @@ void _controllerApplyStampSegmentFallback({
   double softness = 0.0,
   bool snapToPixel = false,
 }) {
+  if (RustCpuBrushFfi.instance.drawStampSegment(
+    pixelsPtr: surface.pointerAddress,
+    pixelsLen: surface.pixels.length,
+    width: surface.width,
+    height: surface.height,
+    startX: start.dx,
+    startY: start.dy,
+    endX: end.dx,
+    endY: end.dy,
+    startRadius: startRadius,
+    endRadius: endRadius,
+    colorArgb: color.value,
+    brushShape: shape.index,
+    antialiasLevel: antialias,
+    includeStart: includeStart,
+    erase: erase,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
+    rotationJitter: rotationJitter,
+    spacing: spacing,
+    scatter: scatter,
+    softness: softness,
+    snapToPixel: snapToPixel,
+    selectionMask: mask,
+  )) {
+    surface.markDirty();
+    return;
+  }
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
     surface.drawBrushStamp(

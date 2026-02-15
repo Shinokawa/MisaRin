@@ -595,6 +595,47 @@ fn brush_random_rotation_radians(center_x: f32, center_y: f32, seed: u32) -> f32
     (unit * std::f64::consts::PI * 2.0) as f32
 }
 
+fn brush_random_unit(center_x: f32, center_y: f32, seed: u32, salt: u32) -> f32 {
+    let x = (center_x * 256.0).round() as i32;
+    let y = (center_y * 256.0).round() as i32;
+
+    let mut h: u32 = 0;
+    h ^= seed;
+    h ^= salt;
+    h ^= (x as u32).wrapping_mul(0x9e3779b1);
+    h ^= (y as u32).wrapping_mul(0x85ebca77);
+    h = mix32(h);
+
+    (h as f64 / 4294967296.0) as f32
+}
+
+fn brush_scatter_offset(
+    center_x: f32,
+    center_y: f32,
+    seed: u32,
+    radius: f32,
+    salt: u32,
+) -> (f32, f32) {
+    if !radius.is_finite() || radius <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let u = brush_random_unit(center_x, center_y, seed, salt);
+    let v = brush_random_unit(center_x, center_y, seed, salt.wrapping_add(1));
+    let dist = u.sqrt() * radius;
+    let angle = v * std::f32::consts::PI * 2.0;
+    (angle.cos() * dist, angle.sin() * dist)
+}
+
+fn stroke_stamp_spacing(radius: f32, spacing: f32) -> f32 {
+    let mut r = if radius.is_finite() { radius.abs() } else { 0.0 };
+    if !r.is_finite() {
+        r = 0.0;
+    }
+    let mut s = if spacing.is_finite() { spacing } else { 0.15 };
+    s = s.clamp(0.02, 2.5);
+    (r * 2.0 * s).max(0.1)
+}
+
 #[no_mangle]
 pub extern "C" fn cpu_brush_draw_stamp(
     pixels_ptr: *mut u32,
@@ -733,6 +774,130 @@ pub extern "C" fn cpu_brush_draw_stamp(
         }
     }
 
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn cpu_brush_draw_stamp_segment(
+    pixels_ptr: *mut u32,
+    pixels_len: usize,
+    width: u32,
+    height: u32,
+    start_x: f32,
+    start_y: f32,
+    end_x: f32,
+    end_y: f32,
+    start_radius: f32,
+    end_radius: f32,
+    color_argb: u32,
+    brush_shape: u32,
+    antialias_level: u32,
+    include_start: u8,
+    erase: u8,
+    random_rotation: u8,
+    rotation_seed: u32,
+    rotation_jitter: f32,
+    spacing: f32,
+    scatter: f32,
+    softness: f32,
+    snap_to_pixel: u8,
+    selection_ptr: *const u8,
+    selection_len: usize,
+) -> u8 {
+    if pixels_ptr.is_null() || width == 0 || height == 0 {
+        return 0;
+    }
+    let pixel_count = (width as usize).saturating_mul(height as usize);
+    if pixel_count == 0 || pixels_len < pixel_count {
+        return 0;
+    }
+
+    let distance = ((end_x - start_x).powi(2) + (end_y - start_y).powi(2)).sqrt();
+    if !distance.is_finite() || distance <= 0.0001 {
+        let sample_radius = if end_radius.is_finite() { end_radius } else { 0.01 };
+        return cpu_brush_draw_stamp(
+            pixels_ptr,
+            pixels_len,
+            width,
+            height,
+            end_x,
+            end_y,
+            sample_radius,
+            color_argb,
+            brush_shape,
+            antialias_level,
+            softness,
+            erase,
+            random_rotation,
+            rotation_seed,
+            rotation_jitter,
+            snap_to_pixel,
+            selection_ptr,
+            selection_len,
+        );
+    }
+
+    let max_radius = start_radius
+        .abs()
+        .max(end_radius.abs())
+        .max(0.01);
+    let step = stroke_stamp_spacing(max_radius, spacing);
+    let samples = ((distance / step).ceil() as i32).max(1);
+    let start_index = if include_start != 0 { 0 } else { 1 };
+    let scatter_factor = if scatter.is_finite() {
+        scatter.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let scatter_radius = max_radius * scatter_factor * 2.0;
+
+    for i in start_index..=samples {
+        let t = if samples == 0 { 1.0 } else { i as f32 / samples as f32 };
+        let radius = if start_radius.is_finite() && end_radius.is_finite() {
+            start_radius + (end_radius - start_radius) * t
+        } else if end_radius.is_finite() {
+            end_radius
+        } else if start_radius.is_finite() {
+            start_radius
+        } else {
+            0.01
+        };
+        let sample_x = if start_x.is_finite() && end_x.is_finite() {
+            start_x + (end_x - start_x) * t
+        } else {
+            end_x
+        };
+        let sample_y = if start_y.is_finite() && end_y.is_finite() {
+            start_y + (end_y - start_y) * t
+        } else {
+            end_y
+        };
+        let (jx, jy) = if scatter_radius > 0.0 {
+            brush_scatter_offset(sample_x, sample_y, rotation_seed, scatter_radius, i as u32)
+        } else {
+            (0.0, 0.0)
+        };
+        let _ = cpu_brush_draw_stamp(
+            pixels_ptr,
+            pixels_len,
+            width,
+            height,
+            sample_x + jx,
+            sample_y + jy,
+            radius,
+            color_argb,
+            brush_shape,
+            antialias_level,
+            softness,
+            erase,
+            random_rotation,
+            rotation_seed,
+            rotation_jitter,
+            snap_to_pixel,
+            selection_ptr,
+            selection_len,
+        );
+    }
     1
 }
 
@@ -1076,5 +1241,464 @@ pub extern "C" fn cpu_brush_fill_polygon(
         }
     }
 
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn cpu_brush_draw_spray(
+    pixels_ptr: *mut u32,
+    pixels_len: usize,
+    width: u32,
+    height: u32,
+    points_ptr: *const f32,
+    points_len: usize,
+    color_argb: u32,
+    brush_shape: u32,
+    antialias_level: u32,
+    softness: f32,
+    erase: u8,
+    accumulate: u8,
+    selection_ptr: *const u8,
+    selection_len: usize,
+) -> u8 {
+    if pixels_ptr.is_null() || width == 0 || height == 0 {
+        return 0;
+    }
+    if points_ptr.is_null() || points_len < 4 {
+        return 0;
+    }
+    let pixel_count = (width as usize).saturating_mul(height as usize);
+    if pixel_count == 0 || pixels_len < pixel_count {
+        return 0;
+    }
+    let points = unsafe { std::slice::from_raw_parts(points_ptr, points_len) };
+    let point_count = points_len / 4;
+    if point_count == 0 {
+        return 0;
+    }
+
+    let selection = if selection_ptr.is_null() || selection_len == 0 {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(selection_ptr, selection_len) })
+    };
+
+    if accumulate != 0 {
+        let base_a = unpack_a(color_argb);
+        if base_a <= 0.0 {
+            return 1;
+        }
+        let rgb = color_argb & 0x00ff_ffff;
+        for i in 0..point_count {
+            let idx = i * 4;
+            let x = points[idx];
+            let y = points[idx + 1];
+            let radius = points[idx + 2];
+            let alpha = points[idx + 3];
+            if !x.is_finite() || !y.is_finite() || !radius.is_finite() {
+                continue;
+            }
+            if radius <= 0.0 {
+                continue;
+            }
+            let point_alpha = if alpha.is_finite() {
+                alpha.clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            if point_alpha <= 0.0 {
+                continue;
+            }
+            let scaled_a = (base_a * point_alpha).clamp(0.0, 1.0);
+            if scaled_a <= 0.0 {
+                continue;
+            }
+            let encoded_a = (scaled_a * 255.0 + 0.5).floor().clamp(0.0, 255.0) as u32;
+            let scaled_color = rgb | (encoded_a << 24);
+            let _ = cpu_brush_draw_stamp(
+                pixels_ptr,
+                pixels_len,
+                width,
+                height,
+                x,
+                y,
+                radius,
+                scaled_color,
+                brush_shape,
+                antialias_level,
+                softness,
+                erase,
+                0,
+                0,
+                0.0,
+                0,
+                selection_ptr,
+                selection_len,
+            );
+        }
+        return 1;
+    }
+
+    let base_a = unpack_a(color_argb);
+    if base_a <= 0.0 {
+        return 1;
+    }
+    let src_r = unpack_r(color_argb);
+    let src_g = unpack_g(color_argb);
+    let src_b = unpack_b(color_argb);
+    let aa_level = antialias_level.min(9);
+    let soft = clamp01(softness);
+    let feather = antialias_feather(aa_level);
+    let samples = antialias_samples_per_axis(aa_level);
+    let inv_samples = 1.0 / (samples as f32);
+    let total_samples = (samples * samples) as f32;
+
+    let mut any_point = false;
+    let mut union_min_x = width as i32;
+    let mut union_min_y = height as i32;
+    let mut union_max_x: i32 = 0;
+    let mut union_max_y: i32 = 0;
+
+    for i in 0..point_count {
+        let idx = i * 4;
+        let x = points[idx];
+        let y = points[idx + 1];
+        let radius = points[idx + 2];
+        let alpha = points[idx + 3];
+        if !x.is_finite() || !y.is_finite() || !radius.is_finite() {
+            continue;
+        }
+        if radius <= 0.0 {
+            continue;
+        }
+        let point_alpha = if alpha.is_finite() {
+            alpha.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        if point_alpha <= 0.0 {
+            continue;
+        }
+        let edge = feather.max(radius * soft);
+        let outer = radius + edge + 1.5;
+        let min_x = (x - outer).floor().max(0.0) as i32;
+        let max_x = (x + outer).ceil().min((width as f32) - 1.0) as i32;
+        let min_y = (y - outer).floor().max(0.0) as i32;
+        let max_y = (y + outer).ceil().min((height as f32) - 1.0) as i32;
+        if min_x > max_x || min_y > max_y {
+            continue;
+        }
+        if !any_point {
+            union_min_x = min_x;
+            union_max_x = max_x;
+            union_min_y = min_y;
+            union_max_y = max_y;
+            any_point = true;
+        } else {
+            union_min_x = union_min_x.min(min_x);
+            union_max_x = union_max_x.max(max_x);
+            union_min_y = union_min_y.min(min_y);
+            union_max_y = union_max_y.max(max_y);
+        }
+    }
+
+    if !any_point {
+        return 1;
+    }
+
+    let region_w = (union_max_x - union_min_x + 1) as usize;
+    let region_h = (union_max_y - union_min_y + 1) as usize;
+    if region_w == 0 || region_h == 0 {
+        return 1;
+    }
+    let mut max_alpha: Vec<f32> = vec![0.0; region_w * region_h];
+
+    for i in 0..point_count {
+        let idx = i * 4;
+        let cx = points[idx];
+        let cy = points[idx + 1];
+        let radius = points[idx + 2];
+        let alpha = points[idx + 3];
+        if !cx.is_finite() || !cy.is_finite() || !radius.is_finite() {
+            continue;
+        }
+        if radius <= 0.0 {
+            continue;
+        }
+        let point_alpha = if alpha.is_finite() {
+            alpha.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        if point_alpha <= 0.0 {
+            continue;
+        }
+        let eff_a = (base_a * point_alpha).clamp(0.0, 1.0);
+        if eff_a <= 0.0 {
+            continue;
+        }
+        let edge = feather.max(radius * soft);
+        let outer = radius + edge + 1.5;
+        let min_x = (cx - outer).floor().max(union_min_x as f32) as i32;
+        let max_x = (cx + outer)
+            .ceil()
+            .min(union_max_x as f32) as i32;
+        let min_y = (cy - outer).floor().max(union_min_y as f32) as i32;
+        let max_y = (cy + outer)
+            .ceil()
+            .min(union_max_y as f32) as i32;
+        if min_x > max_x || min_y > max_y {
+            continue;
+        }
+        for y in min_y..=max_y {
+            let row = (y - union_min_y) as usize * region_w;
+            let src_row = (y as usize) * (width as usize);
+            for x in min_x..=max_x {
+                let idx_region = row + (x - union_min_x) as usize;
+                let dst_idx = src_row + (x as usize);
+                if let Some(mask) = selection {
+                    if mask.get(dst_idx).copied().unwrap_or(0) == 0 {
+                        continue;
+                    }
+                }
+                let mut accum = 0.0f32;
+                for sy in 0..samples {
+                    for sx in 0..samples {
+                        let ox = (sx as f32 + 0.5) * inv_samples - 0.5;
+                        let oy = (sy as f32 + 0.5) * inv_samples - 0.5;
+                        let sample_x = x as f32 + 0.5 + ox;
+                        let sample_y = y as f32 + 0.5 + oy;
+                        let dist = shape_distance_to_point(
+                            sample_x,
+                            sample_y,
+                            cx,
+                            cy,
+                            radius,
+                            0.0,
+                            1.0,
+                            brush_shape,
+                        );
+                        let a = brush_alpha(dist, radius, soft, aa_level);
+                        accum += a;
+                    }
+                }
+                let coverage = clamp01(accum / total_samples.max(1.0));
+                if coverage <= 0.0 {
+                    continue;
+                }
+                let paint_a = clamp01(coverage * eff_a);
+                if paint_a > max_alpha[idx_region] {
+                    max_alpha[idx_region] = paint_a;
+                }
+            }
+        }
+    }
+
+    let pixels = unsafe { std::slice::from_raw_parts_mut(pixels_ptr, pixel_count) };
+    for y in union_min_y..=union_max_y {
+        let row = (y - union_min_y) as usize * region_w;
+        let src_row = (y as usize) * (width as usize);
+        for x in union_min_x..=union_max_x {
+            let idx_region = row + (x - union_min_x) as usize;
+            let a = max_alpha[idx_region];
+            if a <= 0.0 {
+                continue;
+            }
+            let dst_idx = src_row + (x as usize);
+            if let Some(mask) = selection {
+                if mask.get(dst_idx).copied().unwrap_or(0) == 0 {
+                    continue;
+                }
+            }
+            let dst = pixels[dst_idx];
+            pixels[dst_idx] = if erase != 0 {
+                blend_erase(dst, a)
+            } else {
+                blend_paint(dst, src_r, src_g, src_b, a)
+            };
+        }
+    }
+
+    1
+}
+
+#[derive(Clone, Copy)]
+struct StrokeSample {
+    x: f32,
+    y: f32,
+    r: f32,
+}
+
+fn streamline_turning_angle(prev: StrokeSample, curr: StrokeSample, next: StrokeSample) -> f32 {
+    let v1x = curr.x - prev.x;
+    let v1y = curr.y - prev.y;
+    let v2x = next.x - curr.x;
+    let v2y = next.y - curr.y;
+    let len1 = (v1x * v1x + v1y * v1y).sqrt();
+    let len2 = (v2x * v2x + v2y * v2y).sqrt();
+    if len1 <= 1.0e-6 || len2 <= 1.0e-6 {
+        return 0.0;
+    }
+    let cos = ((v1x * v2x + v1y * v2y) / (len1 * len2)).clamp(-1.0, 1.0);
+    cos.acos()
+}
+
+fn streamline_point_distance(a: StrokeSample, b: StrokeSample) -> f32 {
+    let dx = a.x - b.x;
+    let dy = a.y - b.y;
+    (dx * dx + dy * dy).sqrt()
+}
+
+fn streamline_catmull_rom(p0: StrokeSample, p1: StrokeSample, p2: StrokeSample, p3: StrokeSample, t: f32) -> StrokeSample {
+    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let t2 = t * t;
+    let t3 = t2 * t;
+    let x = 0.5
+        * ((2.0 * p1.x)
+            + (-p0.x + p2.x) * t
+            + (2.0 * p0.x - 5.0 * p1.x + 4.0 * p2.x - p3.x) * t2
+            + (-p0.x + 3.0 * p1.x - 3.0 * p2.x + p3.x) * t3);
+    let y = 0.5
+        * ((2.0 * p1.y)
+            + (-p0.y + p2.y) * t
+            + (2.0 * p0.y - 5.0 * p1.y + 4.0 * p2.y - p3.y) * t2
+            + (-p0.y + 3.0 * p1.y - 3.0 * p2.y + p3.y) * t3);
+    StrokeSample { x, y, r: p1.r }
+}
+
+fn streamline_resample(samples: &[StrokeSample], target_count: usize) -> Vec<StrokeSample> {
+    if samples.len() < 2 || target_count < 2 {
+        return samples.to_vec();
+    }
+
+    let mut turning: Vec<f32> = vec![0.0; samples.len()];
+    for i in 1..samples.len().saturating_sub(1) {
+        turning[i] = streamline_turning_angle(samples[i - 1], samples[i], samples[i + 1]);
+    }
+
+    let curvature_weight = 0.75f32;
+    let mut weights: Vec<f32> = Vec::with_capacity(samples.len().saturating_sub(1));
+    let mut total_weight = 0.0f32;
+    for i in 0..samples.len().saturating_sub(1) {
+        let length = streamline_point_distance(samples[i], samples[i + 1]);
+        let mut curvature = 0.0f32;
+        let mut count = 0.0f32;
+        if i > 0 {
+            curvature += turning[i];
+            count += 1.0;
+        }
+        if i + 1 < samples.len().saturating_sub(1) {
+            curvature += turning[i + 1];
+            count += 1.0;
+        }
+        if count > 0.0 {
+            curvature /= count;
+        }
+        let weight = (length * (1.0 + curvature_weight * curvature)).max(1.0e-4);
+        weights.push(weight);
+        total_weight += weight;
+    }
+    if !total_weight.is_finite() || total_weight <= 0.0 {
+        return samples.to_vec();
+    }
+
+    let mut output: Vec<StrokeSample> = Vec::with_capacity(target_count);
+    output.push(samples[0]);
+
+    let step = total_weight / (target_count.saturating_sub(1) as f32);
+    if !step.is_finite() || step <= 0.0 {
+        return samples.to_vec();
+    }
+
+    let mut seg_index = 0usize;
+    let mut seg_start = 0.0f32;
+    let mut seg_end = weights[0];
+
+    for sample_idx in 1..target_count.saturating_sub(1) {
+        let target = step * sample_idx as f32;
+        while target > seg_end && seg_index + 1 < weights.len() {
+            seg_index += 1;
+            seg_start = seg_end;
+            seg_end += weights[seg_index];
+        }
+
+        let denom = (seg_end - seg_start).max(1.0e-6);
+        let t = ((target - seg_start) / denom).clamp(0.0, 1.0);
+
+        let p0 = if seg_index == 0 { samples[0] } else { samples[seg_index - 1] };
+        let p1 = samples[seg_index];
+        let p2 = samples[seg_index + 1];
+        let p3 = if seg_index + 2 < samples.len() {
+            samples[seg_index + 2]
+        } else {
+            samples[samples.len() - 1]
+        };
+        let mut pos = streamline_catmull_rom(p0, p1, p2, p3, t);
+        pos.r = p1.r + (p2.r - p1.r) * t;
+        output.push(pos);
+    }
+
+    output.push(samples[samples.len() - 1]);
+    output
+}
+
+fn apply_streamline_samples(samples: &[StrokeSample], strength: f32) -> Vec<StrokeSample> {
+    let strength = if strength.is_finite() { strength.clamp(0.0, 1.0) } else { 0.0 };
+    if strength <= 0.0001 || samples.len() < 3 {
+        return samples.to_vec();
+    }
+    let eased = strength.powf(0.7);
+    let passes = ((eased * 2.0).ceil() as usize).clamp(1, 3);
+    let mut smoothed = streamline_resample(samples, samples.len());
+    for _ in 1..passes {
+        smoothed = streamline_resample(&smoothed, smoothed.len());
+    }
+    if smoothed.len() != samples.len() {
+        return samples.to_vec();
+    }
+    let mut output: Vec<StrokeSample> = Vec::with_capacity(samples.len());
+    for (orig, smooth) in samples.iter().zip(smoothed.iter()) {
+        let x = orig.x + (smooth.x - orig.x) * eased;
+        let y = orig.y + (smooth.y - orig.y) * eased;
+        let blended_r = orig.r + (smooth.r - orig.r) * (eased * 0.5);
+        let r = if blended_r.is_finite() { blended_r } else { orig.r };
+        output.push(StrokeSample { x, y, r });
+    }
+    output
+}
+
+#[no_mangle]
+pub extern "C" fn cpu_brush_apply_streamline(
+    samples_ptr: *mut f32,
+    samples_len: usize,
+    strength: f32,
+) -> u8 {
+    if samples_ptr.is_null() || samples_len < 6 || samples_len % 3 != 0 {
+        return 0;
+    }
+    let count = samples_len / 3;
+    if count < 2 {
+        return 0;
+    }
+    let slice = unsafe { std::slice::from_raw_parts_mut(samples_ptr, samples_len) };
+    let mut samples: Vec<StrokeSample> = Vec::with_capacity(count);
+    for i in 0..count {
+        let idx = i * 3;
+        samples.push(StrokeSample {
+            x: slice[idx],
+            y: slice[idx + 1],
+            r: slice[idx + 2],
+        });
+    }
+    let smoothed = apply_streamline_samples(&samples, strength);
+    if smoothed.len() != samples.len() {
+        return 0;
+    }
+    for i in 0..count {
+        let idx = i * 3;
+        slice[idx] = smoothed[i].x;
+        slice[idx + 1] = smoothed[i].y;
+        slice[idx + 2] = smoothed[i].r;
+    }
     1
 }

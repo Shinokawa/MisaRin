@@ -8,6 +8,7 @@ import '../bitmap_canvas/bitmap_canvas.dart';
 import '../canvas/brush_random_rotation.dart';
 import '../canvas/canvas_tools.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket;
+import '../src/rust/rust_cpu_brush_ffi.dart';
 import '../src/rust/rust_init.dart';
 // Removed vector_stroke_painter import as we don't draw vectors in worker anymore.
 
@@ -1289,6 +1290,34 @@ void _paintingWorkerStampSegment({
   required double softness,
   required bool snapToPixel,
 }) {
+  if (RustCpuBrushFfi.instance.drawStampSegment(
+    pixelsPtr: surface.pointerAddress,
+    pixelsLen: surface.pixels.length,
+    width: surface.width,
+    height: surface.height,
+    startX: start.dx,
+    startY: start.dy,
+    endX: end.dx,
+    endY: end.dy,
+    startRadius: startRadius,
+    endRadius: endRadius,
+    colorArgb: color.value,
+    brushShape: shape.index,
+    antialiasLevel: antialias,
+    includeStart: includeStart,
+    erase: erase,
+    randomRotation: randomRotation,
+    rotationSeed: rotationSeed,
+    rotationJitter: rotationJitter,
+    spacing: spacing,
+    scatter: scatter,
+    softness: softness,
+    snapToPixel: snapToPixel,
+    selectionMask: mask,
+  )) {
+    surface.markDirty();
+    return;
+  }
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
     final double sampleRadius = endRadius.isFinite ? endRadius : 0.01;

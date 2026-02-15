@@ -405,21 +405,39 @@ mixin _PaintingBoardFilterMixin
     Color? fillColor = data.fillColor;
     bool bitmapModified = false;
     if (bitmap != null) {
-      bool hasCoverage = false;
-      for (int i = 0; i < bitmap.length; i += 4) {
-        final int alpha = bitmap[i + 3];
-        if (alpha == 0) {
-          continue;
+      final int width = data.bitmapWidth ?? 0;
+      final int height = data.bitmapHeight ?? 0;
+      final Uint8List? rustProcessed =
+          RustCpuFiltersFfi.instance.applyFilterRgbaBytes(
+            pixels: bitmap,
+            width: width,
+            height: height,
+            filterType: _kFilterTypeInvert,
+          );
+      if (rustProcessed != null) {
+        bitmap = rustProcessed;
+        if (_filterBitmapHasVisiblePixels(bitmap)) {
+          bitmapModified = true;
+        } else {
+          bitmap = null;
         }
-        hasCoverage = true;
-        bitmap[i] = 255 - bitmap[i];
-        bitmap[i + 1] = 255 - bitmap[i + 1];
-        bitmap[i + 2] = 255 - bitmap[i + 2];
-      }
-      if (hasCoverage) {
-        bitmapModified = true;
       } else {
-        bitmap = null;
+        bool hasCoverage = false;
+        for (int i = 0; i < bitmap.length; i += 4) {
+          final int alpha = bitmap[i + 3];
+          if (alpha == 0) {
+            continue;
+          }
+          hasCoverage = true;
+          bitmap[i] = 255 - bitmap[i];
+          bitmap[i + 1] = 255 - bitmap[i + 1];
+          bitmap[i + 2] = 255 - bitmap[i + 2];
+        }
+        if (hasCoverage) {
+          bitmapModified = true;
+        } else {
+          bitmap = null;
+        }
       }
     }
 
