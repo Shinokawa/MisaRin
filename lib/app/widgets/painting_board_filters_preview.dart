@@ -579,6 +579,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _controller.replaceLayer(session.activeLayerId, adjusted);
     _controller.setActiveLayer(session.activeLayerId);
     setState(() {});
+    if (!_shouldUseBackendFilterPreview(session) && _backend.isReady) {
+      unawaited(_backend.commitActiveLayerToBackend(recordUndo: false));
+    }
     _onFilterPreviewRequestComplete();
   }
 
@@ -603,6 +606,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     session.previewLayer = null;
     if (shouldNotify) {
       setState(() {});
+    }
+    if (!_shouldUseBackendFilterPreview(session) && _backend.isReady) {
+      unawaited(_backend.commitActiveLayerToBackend(recordUndo: false));
     }
   }
 

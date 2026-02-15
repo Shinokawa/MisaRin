@@ -1290,7 +1290,6 @@ void _paintingWorkerStampSegment({
   required double softness,
   required bool snapToPixel,
 }) {
-  final bool useAccumulate = !(softness.isFinite && softness > 0.0001);
   if (RustCpuBrushFfi.instance.drawStampSegment(
     pixelsPtr: surface.pointerAddress,
     pixelsLen: surface.pixels.length,
@@ -1314,7 +1313,7 @@ void _paintingWorkerStampSegment({
     scatter: scatter,
     softness: softness,
     snapToPixel: snapToPixel,
-    accumulate: useAccumulate,
+    accumulate: true,
     selectionMask: mask,
   )) {
     surface.markDirty();
