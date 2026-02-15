@@ -91,6 +91,8 @@ void _strokeBegin(
     ..clear()
     ..add(position);
   controller._currentStrokeRadii.clear();
+  controller._currentStrokePreviewPoints.clear();
+  controller._currentStrokePreviewRadii.clear();
   // Will be populated after initial simulation calculation
   controller._deferredStrokeCommands.clear();
   controller._currentStrokeRadius = radius;
@@ -276,6 +278,7 @@ void _strokeExtend(
     );
     controller._currentStrokeHasMoved = true;
     controller._currentStrokeLastRadius = resolvedRadius;
+    _strokeUpdateStreamlinePreview(controller);
     return;
   }
 
@@ -289,6 +292,7 @@ void _strokeExtend(
     includeStart: firstSegment,
   );
   controller._currentStrokeHasMoved = true;
+  _strokeUpdateStreamlinePreview(controller);
 }
 
 void _strokeEnd(BitmapCanvasController controller) {
@@ -395,6 +399,8 @@ void _strokeEnd(BitmapCanvasController controller) {
 
   _strokeApplyStreamline(controller);
   controller._flushDeferredStrokeCommands();
+  controller._currentStrokePreviewPoints.clear();
+  controller._currentStrokePreviewRadii.clear();
 
   if (controller.isMultithreaded) {
     controller._flushPendingPaintingCommands();
@@ -425,6 +431,8 @@ void _strokeEnd(BitmapCanvasController controller) {
 void _strokeCancel(BitmapCanvasController controller) {
   controller._currentStrokePoints.clear();
   controller._currentStrokeRadii.clear();
+  controller._currentStrokePreviewPoints.clear();
+  controller._currentStrokePreviewRadii.clear();
   controller._deferredStrokeCommands.clear();
   controller._currentStrokeRadius = 0;
   controller._currentStrokeLastRadius = 0;
@@ -446,6 +454,60 @@ void _strokeCancel(BitmapCanvasController controller) {
   controller._currentStrokeSnapToPixel = false;
   controller._currentStrokeStreamlineStrength = 0.0;
   controller._currentStrokeDeferRaster = false;
+}
+
+void _strokeUpdateStreamlinePreview(BitmapCanvasController controller) {
+  if (!controller._currentStrokeDeferRaster) {
+    controller._currentStrokePreviewPoints.clear();
+    controller._currentStrokePreviewRadii.clear();
+    return;
+  }
+  final double strength = controller._currentStrokeStreamlineStrength;
+  if (strength <= 0.0001 ||
+      !strength.isFinite ||
+      !RustCpuBrushFfi.instance.supportsStreamline) {
+    controller._currentStrokePreviewPoints.clear();
+    controller._currentStrokePreviewRadii.clear();
+    return;
+  }
+  final int count = controller._currentStrokePoints.length;
+  if (count < 2 || controller._currentStrokeRadii.length != count) {
+    controller._currentStrokePreviewPoints.clear();
+    controller._currentStrokePreviewRadii.clear();
+    return;
+  }
+
+  final Float32List samples = Float32List(count * 3);
+  for (int i = 0; i < count; i++) {
+    final Offset p = controller._currentStrokePoints[i];
+    samples[i * 3] = p.dx;
+    samples[i * 3 + 1] = p.dy;
+    samples[i * 3 + 2] = controller._currentStrokeRadii[i];
+  }
+
+  final bool ok = RustCpuBrushFfi.instance.applyStreamline(
+    samples: samples,
+    strength: strength,
+  );
+  if (!ok) {
+    controller._currentStrokePreviewPoints.clear();
+    controller._currentStrokePreviewRadii.clear();
+    return;
+  }
+
+  controller._currentStrokePreviewPoints
+    ..clear()
+    ..addAll(
+      List<Offset>.generate(
+        count,
+        (i) => Offset(samples[i * 3], samples[i * 3 + 1]),
+      ),
+    );
+  controller._currentStrokePreviewRadii
+    ..clear()
+    ..addAll(
+      List<double>.generate(count, (i) => samples[i * 3 + 2]),
+    );
 }
 
 bool _strokeApplyStreamline(BitmapCanvasController controller) {

@@ -257,6 +257,22 @@ final class _BackendPressureSimulator {
   }
 }
 
+enum _CpuStrokeEventType { down, move, up, cancel }
+
+class _CpuStrokeEvent {
+  const _CpuStrokeEvent({
+    required this.type,
+    required this.position,
+    required this.timestamp,
+    required this.event,
+  });
+
+  final _CpuStrokeEventType type;
+  final Offset position;
+  final Duration timestamp;
+  final PointerEvent? event;
+}
+
 mixin _PaintingBoardInteractionMixin
     on
         _PaintingBoardBase,
@@ -283,6 +299,10 @@ mixin _PaintingBoardInteractionMixin
   Offset? _backendStrokeStartPoint;
   double _backendStrokeStartPressure = 1.0;
   int _backendStrokeStartIndex = 0;
+
+  final List<_CpuStrokeEvent> _cpuStrokeQueue = <_CpuStrokeEvent>[];
+  bool _cpuStrokeFlushScheduled = false;
+  bool _cpuStrokeProcessing = false;
 
   void clear() async {
     if (_isTextEditingActive) {
@@ -556,6 +576,94 @@ mixin _PaintingBoardInteractionMixin
       return false;
     }
     return true;
+  }
+
+  bool get _useCpuStrokeQueue => !_backend.isSupported;
+
+  void _enqueueCpuStrokeEvent({
+    required _CpuStrokeEventType type,
+    required Offset boardLocal,
+    required Duration timestamp,
+    required PointerEvent? event,
+  }) {
+    _cpuStrokeQueue.add(
+      _CpuStrokeEvent(
+        type: type,
+        position: boardLocal,
+        timestamp: timestamp,
+        event: event,
+      ),
+    );
+    _scheduleCpuStrokeFlush();
+  }
+
+  void _scheduleCpuStrokeFlush() {
+    if (_cpuStrokeFlushScheduled) {
+      return;
+    }
+    _cpuStrokeFlushScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _cpuStrokeFlushScheduled = false;
+      if (!mounted) {
+        _cpuStrokeQueue.clear();
+        return;
+      }
+      unawaited(_flushCpuStrokeQueue());
+    });
+  }
+
+  Future<void> _flushCpuStrokeQueue() async {
+    if (_cpuStrokeProcessing) {
+      return;
+    }
+    _cpuStrokeProcessing = true;
+    try {
+      while (_cpuStrokeQueue.isNotEmpty) {
+        final List<_CpuStrokeEvent> batch =
+            List<_CpuStrokeEvent>.from(_cpuStrokeQueue);
+        _cpuStrokeQueue.clear();
+        for (final _CpuStrokeEvent item in batch) {
+          await _processCpuStrokeEvent(item);
+        }
+      }
+    } finally {
+      _cpuStrokeProcessing = false;
+    }
+  }
+
+  Future<void> _processCpuStrokeEvent(_CpuStrokeEvent event) async {
+    switch (event.type) {
+      case _CpuStrokeEventType.down:
+        await _startStroke(event.position, event.timestamp, event.event);
+        break;
+      case _CpuStrokeEventType.move:
+        if (_isDrawing) {
+          _appendPoint(event.position, event.timestamp, event.event);
+        }
+        break;
+      case _CpuStrokeEventType.up:
+        if (_isDrawing) {
+          final double? releasePressure = _stylusPressureValue(event.event);
+          if (_activeStrokeUsesStylus) {
+            _appendStylusReleaseSample(
+              event.position,
+              event.timestamp,
+              releasePressure,
+            );
+          }
+          if (_activeStrokeUsesStylus) {
+            _finishStroke();
+          } else {
+            _finishStroke(event.timestamp);
+          }
+        }
+        break;
+      case _CpuStrokeEventType.cancel:
+        if (_isDrawing) {
+          _finishStroke(event.timestamp);
+        }
+        break;
+    }
   }
 
   Offset _backendToEngineSpace(Offset boardLocal) {
@@ -1200,11 +1308,41 @@ mixin _PaintingBoardInteractionMixin
           if (shiftPressed) {
             final Offset? anchor = _lastBrushLineAnchor;
             if (anchor != null) {
+              if (_useCpuStrokeQueue) {
+                _enqueueCpuStrokeEvent(
+                  type: _CpuStrokeEventType.down,
+                  boardLocal: anchor,
+                  timestamp: event.timeStamp,
+                  event: event,
+                );
+                _enqueueCpuStrokeEvent(
+                  type: _CpuStrokeEventType.move,
+                  boardLocal: boardLocal,
+                  timestamp: event.timeStamp,
+                  event: event,
+                );
+                _enqueueCpuStrokeEvent(
+                  type: _CpuStrokeEventType.up,
+                  boardLocal: boardLocal,
+                  timestamp: event.timeStamp,
+                  event: event,
+                );
+                return;
+              }
               await _startStroke(anchor, event.timeStamp, event);
               _appendPoint(boardLocal, event.timeStamp, event);
               _finishStroke(event.timeStamp);
               return;
             }
+          }
+          if (_useCpuStrokeQueue) {
+            _enqueueCpuStrokeEvent(
+              type: _CpuStrokeEventType.down,
+              boardLocal: boardLocal,
+              timestamp: event.timeStamp,
+              event: event,
+            );
+            return;
           }
           await _startStroke(boardLocal, event.timeStamp, event);
           return;
@@ -1370,6 +1508,40 @@ mixin _PaintingBoardInteractionMixin
           _enqueueBackendPoint(event, _kBackendPointFlagMove);
           break;
         }
+        if (_useCpuStrokeQueue) {
+          final dynamic dyn = event;
+          try {
+            final List<dynamic>? coalesced =
+                dyn.coalescedEvents as List<dynamic>?;
+            if (coalesced != null && coalesced.isNotEmpty) {
+              for (final dynamic e in coalesced) {
+                if (e is PointerEvent) {
+                  if (!e.down && !_isDrawing && _cpuStrokeQueue.isEmpty) {
+                    continue;
+                  }
+                  final Offset boardLocal = _toBoardLocal(e.localPosition);
+                  _enqueueCpuStrokeEvent(
+                    type: _CpuStrokeEventType.move,
+                    boardLocal: boardLocal,
+                    timestamp: e.timeStamp,
+                    event: e,
+                  );
+                }
+              }
+              break;
+            }
+          } catch (_) {}
+          if (event.down || _isDrawing || _cpuStrokeQueue.isNotEmpty) {
+            final Offset boardLocal = _toBoardLocal(event.localPosition);
+            _enqueueCpuStrokeEvent(
+              type: _CpuStrokeEventType.move,
+              boardLocal: boardLocal,
+              timestamp: event.timeStamp,
+              event: event,
+            );
+          }
+          break;
+        }
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           _appendPoint(boardLocal, event.timeStamp, event);
@@ -1445,6 +1617,16 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.eraser:
         if (_backendActivePointer == event.pointer) {
           _endBackendStroke(event);
+          break;
+        }
+        if (_useCpuStrokeQueue) {
+          final Offset boardLocal = _toBoardLocal(event.localPosition);
+          _enqueueCpuStrokeEvent(
+            type: _CpuStrokeEventType.up,
+            boardLocal: boardLocal,
+            timestamp: event.timeStamp,
+            event: event,
+          );
           break;
         }
         if (_isDrawing) {
@@ -1523,6 +1705,16 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.eraser:
         if (_backendActivePointer == event.pointer) {
           _endBackendStroke(event);
+          break;
+        }
+        if (_useCpuStrokeQueue) {
+          final Offset boardLocal = _toBoardLocal(event.localPosition);
+          _enqueueCpuStrokeEvent(
+            type: _CpuStrokeEventType.cancel,
+            boardLocal: boardLocal,
+            timestamp: event.timeStamp,
+            event: event,
+          );
           break;
         }
         if (_isDrawing) {

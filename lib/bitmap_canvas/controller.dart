@@ -109,6 +109,8 @@ class BitmapCanvasController extends ChangeNotifier
 
   final List<Offset> _currentStrokePoints = <Offset>[];
   final List<double> _currentStrokeRadii = <double>[];
+  final List<Offset> _currentStrokePreviewPoints = <Offset>[];
+  final List<double> _currentStrokePreviewRadii = <double>[];
   final List<PaintingDrawCommand> _deferredStrokeCommands =
       <PaintingDrawCommand>[];
   final List<PaintingDrawCommand> _committingStrokes =
@@ -259,10 +261,25 @@ class BitmapCanvasController extends ChangeNotifier
   bool get isMultithreaded => _isMultithreaded;
 
   // Active stroke state for client-side prediction
-  List<Offset> get activeStrokePoints =>
-      UnmodifiableListView(_currentStrokePoints);
-  List<double> get activeStrokeRadii =>
-      UnmodifiableListView(_currentStrokeRadii);
+  List<Offset> get activeStrokePoints {
+    final List<Offset> source =
+        _currentStrokePreviewPoints.isNotEmpty &&
+                _currentStrokePreviewPoints.length ==
+                    _currentStrokePreviewRadii.length
+            ? _currentStrokePreviewPoints
+            : _currentStrokePoints;
+    return UnmodifiableListView(source);
+  }
+
+  List<double> get activeStrokeRadii {
+    final List<double> source =
+        _currentStrokePreviewRadii.isNotEmpty &&
+                _currentStrokePreviewPoints.length ==
+                    _currentStrokePreviewRadii.length
+            ? _currentStrokePreviewRadii
+            : _currentStrokeRadii;
+    return UnmodifiableListView(source);
+  }
   List<PaintingDrawCommand> get committingStrokes =>
       UnmodifiableListView(_committingStrokes);
   Color get activeStrokeColor => _currentStrokeColor;

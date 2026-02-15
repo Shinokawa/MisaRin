@@ -97,7 +97,7 @@ class _FilterPreviewWorker {
         filterType = _kFilterTypeBlackWhite;
         break;
       case _FilterPanelType.scanPaperDrawing:
-        filterType = _kFilterTypeBlackWhite;
+        filterType = _kFilterTypeScanPaperDrawing;
         break;
       case _FilterPanelType.binarize:
         filterType = _kFilterTypeBinarize;
