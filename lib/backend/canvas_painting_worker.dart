@@ -1313,6 +1313,7 @@ void _paintingWorkerStampSegment({
     scatter: scatter,
     softness: softness,
     snapToPixel: snapToPixel,
+    accumulate: true,
     selectionMask: mask,
   )) {
     surface.markDirty();

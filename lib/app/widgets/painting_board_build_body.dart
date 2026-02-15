@@ -439,10 +439,13 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 
                                             // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
                                             final bool canPreviewStroke =
-                                                _effectiveActiveTool ==
-                                                    CanvasTool.pen ||
-                                                _effectiveActiveTool ==
-                                                    CanvasTool.eraser;
+                                                (_backend.isSupported ||
+                                                    _streamlineStrength >
+                                                        0.0001) &&
+                                                (_effectiveActiveTool ==
+                                                        CanvasTool.pen ||
+                                                    _effectiveActiveTool ==
+                                                        CanvasTool.eraser);
                                             final bool activeLayerLocked = () {
                                               final String? activeId =
                                                   _controller.activeLayerId;

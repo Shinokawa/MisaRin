@@ -1064,6 +1064,7 @@ void _controllerApplyStampSegmentFallback({
     scatter: scatter,
     softness: softness,
     snapToPixel: snapToPixel,
+    accumulate: true,
     selectionMask: mask,
   )) {
     surface.markDirty();

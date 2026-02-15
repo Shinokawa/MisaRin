@@ -105,6 +105,7 @@ class RustCpuBrushFfi {
     required double scatter,
     required double softness,
     required bool snapToPixel,
+    required bool accumulate,
     Uint8List? selectionMask,
   }) {
     _logUnsupportedOnce();

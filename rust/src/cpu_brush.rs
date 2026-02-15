@@ -636,6 +636,195 @@ fn stroke_stamp_spacing(radius: f32, spacing: f32) -> f32 {
     (r * 2.0 * s).max(0.1)
 }
 
+#[derive(Clone, Copy)]
+struct BrushPoint {
+    x: f32,
+    y: f32,
+    radius: f32,
+    alpha: f32,
+    rot_sin: f32,
+    rot_cos: f32,
+}
+
+fn draw_points_sampled(
+    pixels_ptr: *mut u32,
+    pixels_len: usize,
+    width: u32,
+    height: u32,
+    points: &[BrushPoint],
+    color_argb: u32,
+    brush_shape: u32,
+    antialias_level: u32,
+    softness: f32,
+    erase: u8,
+    accumulate: bool,
+    selection_ptr: *const u8,
+    selection_len: usize,
+) -> u8 {
+    if points.is_empty() || pixels_ptr.is_null() || width == 0 || height == 0 {
+        return 0;
+    }
+    let pixel_count = (width as usize).saturating_mul(height as usize);
+    if pixel_count == 0 || pixels_len < pixel_count {
+        return 0;
+    }
+
+    let selection = if selection_ptr.is_null() || selection_len < pixel_count {
+        None
+    } else {
+        Some(unsafe { std::slice::from_raw_parts(selection_ptr, selection_len) })
+    };
+
+    let base_a = unpack_a(color_argb);
+    if base_a <= 0.0 {
+        return 1;
+    }
+    let src_r = unpack_r(color_argb);
+    let src_g = unpack_g(color_argb);
+    let src_b = unpack_b(color_argb);
+    let aa_level = antialias_level.min(9);
+    let soft = clamp01(softness);
+    let feather = antialias_feather(aa_level);
+    let samples = antialias_samples_per_axis(aa_level);
+    let inv_samples = 1.0 / (samples as f32);
+    let total_samples = (samples * samples) as f32;
+
+    let mut any_point = false;
+    let mut union_min_x = width as i32;
+    let mut union_min_y = height as i32;
+    let mut union_max_x: i32 = 0;
+    let mut union_max_y: i32 = 0;
+
+    for p in points {
+        if !p.x.is_finite() || !p.y.is_finite() || !p.radius.is_finite() {
+            continue;
+        }
+        if p.radius <= 0.0 {
+            continue;
+        }
+        let alpha = if p.alpha.is_finite() {
+            p.alpha.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        if alpha <= 0.0 {
+            continue;
+        }
+        let edge = feather.max(p.radius * soft);
+        let outer = p.radius + edge + 1.5;
+        let min_x = (p.x - outer).floor().max(0.0) as i32;
+        let max_x = (p.x + outer).ceil().min((width as f32) - 1.0) as i32;
+        let min_y = (p.y - outer).floor().max(0.0) as i32;
+        let max_y = (p.y + outer).ceil().min((height as f32) - 1.0) as i32;
+        if min_x > max_x || min_y > max_y {
+            continue;
+        }
+        if !any_point {
+            union_min_x = min_x;
+            union_max_x = max_x;
+            union_min_y = min_y;
+            union_max_y = max_y;
+            any_point = true;
+        } else {
+            union_min_x = union_min_x.min(min_x);
+            union_max_x = union_max_x.max(max_x);
+            union_min_y = union_min_y.min(min_y);
+            union_max_y = union_max_y.max(max_y);
+        }
+    }
+
+    if !any_point {
+        return 1;
+    }
+
+    let pixels = unsafe { std::slice::from_raw_parts_mut(pixels_ptr, pixel_count) };
+    for y in union_min_y..=union_max_y {
+        let src_row = (y as usize) * (width as usize);
+        for x in union_min_x..=union_max_x {
+            let dst_idx = src_row + (x as usize);
+            if let Some(mask) = selection {
+                if mask.get(dst_idx).copied().unwrap_or(0) == 0 {
+                    continue;
+                }
+            }
+            let mut accum = 0.0f32;
+            for sy in 0..samples {
+                for sx in 0..samples {
+                    let ox = (sx as f32 + 0.5) * inv_samples - 0.5;
+                    let oy = (sy as f32 + 0.5) * inv_samples - 0.5;
+                    let sample_x = x as f32 + 0.5 + ox;
+                    let sample_y = y as f32 + 0.5 + oy;
+                    let sample_cov = if accumulate {
+                        let mut remain = 1.0f32;
+                        for p in points {
+                            let dist = shape_distance_to_point(
+                                sample_x,
+                                sample_y,
+                                p.x,
+                                p.y,
+                                p.radius,
+                                p.rot_sin,
+                                p.rot_cos,
+                                brush_shape,
+                            );
+                            let a = brush_alpha(dist, p.radius, soft, aa_level)
+                                * clamp01(p.alpha);
+                            if a > 0.0 {
+                                remain *= 1.0 - a;
+                                if remain <= 0.0001 {
+                                    remain = 0.0;
+                                    break;
+                                }
+                            }
+                        }
+                        1.0 - remain
+                    } else {
+                        let mut best = 0.0f32;
+                        for p in points {
+                            let dist = shape_distance_to_point(
+                                sample_x,
+                                sample_y,
+                                p.x,
+                                p.y,
+                                p.radius,
+                                p.rot_sin,
+                                p.rot_cos,
+                                brush_shape,
+                            );
+                            let a = brush_alpha(dist, p.radius, soft, aa_level)
+                                * clamp01(p.alpha);
+                            if a > best {
+                                best = a;
+                                if best >= 1.0 {
+                                    break;
+                                }
+                            }
+                        }
+                        best
+                    };
+                    accum += sample_cov;
+                }
+            }
+            let coverage = clamp01(accum / total_samples.max(1.0));
+            if coverage <= 0.0 {
+                continue;
+            }
+            let paint_a = clamp01(coverage * base_a);
+            if paint_a <= 0.0 {
+                continue;
+            }
+            let dst = pixels[dst_idx];
+            pixels[dst_idx] = if erase != 0 {
+                blend_erase(dst, paint_a)
+            } else {
+                blend_paint(dst, src_r, src_g, src_b, paint_a)
+            };
+        }
+    }
+
+    1
+}
+
 #[no_mangle]
 pub extern "C" fn cpu_brush_draw_stamp(
     pixels_ptr: *mut u32,
@@ -665,13 +854,6 @@ pub extern "C" fn cpu_brush_draw_stamp(
         return 0;
     }
 
-    let pixels = unsafe { std::slice::from_raw_parts_mut(pixels_ptr, pixels_len) };
-    let selection = if selection_ptr.is_null() || selection_len < pixel_count {
-        None
-    } else {
-        Some(unsafe { std::slice::from_raw_parts(selection_ptr, selection_len) })
-    };
-
     let mut cx = center_x;
     let mut cy = center_y;
     let mut r = radius;
@@ -685,96 +867,42 @@ pub extern "C" fn cpu_brush_draw_stamp(
     if !r.is_finite() || r <= 0.0 {
         r = 0.01;
     }
-
-    let aa_level = antialias_level.min(9);
-    let soft = clamp01(softness);
-    let feather = antialias_feather(aa_level);
-    let edge = feather.max(r * soft);
-    let outer = r + edge + 1.5;
-
-    let min_x = (cx - outer).floor().max(0.0) as i32;
-    let max_x = (cx + outer).ceil().min((width as f32) - 1.0) as i32;
-    let min_y = (cy - outer).floor().max(0.0) as i32;
-    let max_y = (cy + outer).ceil().min((height as f32) - 1.0) as i32;
-    if min_x > max_x || min_y > max_y {
-        return 1;
-    }
-
-    let src_a = unpack_a(color_argb);
-    let src_r = unpack_r(color_argb);
-    let src_g = unpack_g(color_argb);
-    let src_b = unpack_b(color_argb);
-
-    let rotation = if random_rotation != 0 {
-        let angle = brush_random_rotation_radians(cx, cy, rotation_seed);
+    let needs_rotation =
+        random_rotation != 0 && rotation_jitter > 0.0001 && brush_shape != 0;
+    let (rot_sin, rot_cos) = if needs_rotation {
         let jitter = if rotation_jitter.is_finite() {
             rotation_jitter.clamp(0.0, 1.0)
         } else {
             1.0
         };
-        angle * jitter
+        let angle = brush_random_rotation_radians(cx, cy, rotation_seed) * jitter;
+        (angle.sin(), angle.cos())
     } else {
-        0.0
+        (0.0, 1.0)
     };
-    let rot_sin = rotation.sin();
-    let rot_cos = rotation.cos();
-
-    let samples = antialias_samples_per_axis(aa_level);
-    let inv_samples = 1.0 / (samples as f32);
-    let total_samples = (samples * samples) as f32;
-
-    for y in min_y..=max_y {
-        let row = (y as usize) * (width as usize);
-        for x in min_x..=max_x {
-            let idx = row + (x as usize);
-            if let Some(mask) = selection {
-                if mask.get(idx).copied().unwrap_or(0) == 0 {
-                    continue;
-                }
-            }
-
-            let mut accum = 0.0f32;
-            for sy in 0..samples {
-                for sx in 0..samples {
-                    let ox = (sx as f32 + 0.5) * inv_samples - 0.5;
-                    let oy = (sy as f32 + 0.5) * inv_samples - 0.5;
-                    let sample_x = x as f32 + 0.5 + ox;
-                    let sample_y = y as f32 + 0.5 + oy;
-                    let dist = shape_distance_to_point(
-                        sample_x,
-                        sample_y,
-                        cx,
-                        cy,
-                        r,
-                        rot_sin,
-                        rot_cos,
-                        brush_shape,
-                    );
-                    let a = brush_alpha(dist, r, soft, aa_level);
-                    accum += a;
-                }
-            }
-            let coverage = clamp01(accum / total_samples.max(1.0));
-            if coverage <= 0.0 {
-                continue;
-            }
-
-            let dst = pixels[idx];
-            if erase != 0 {
-                let erase_a = clamp01(coverage * src_a);
-                if erase_a > 0.0 {
-                    pixels[idx] = blend_erase(dst, erase_a);
-                }
-            } else {
-                let paint_a = clamp01(coverage * src_a);
-                if paint_a > 0.0 {
-                    pixels[idx] = blend_paint(dst, src_r, src_g, src_b, paint_a);
-                }
-            }
-        }
-    }
-
-    1
+    let point = BrushPoint {
+        x: cx,
+        y: cy,
+        radius: r,
+        alpha: 1.0,
+        rot_sin,
+        rot_cos,
+    };
+    draw_points_sampled(
+        pixels_ptr,
+        pixels_len,
+        width,
+        height,
+        std::slice::from_ref(&point),
+        color_argb,
+        brush_shape,
+        antialias_level,
+        softness,
+        erase,
+        true,
+        selection_ptr,
+        selection_len,
+    )
 }
 
 #[no_mangle]
@@ -801,6 +929,7 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
     scatter: f32,
     softness: f32,
     snap_to_pixel: u8,
+    accumulate: u8,
     selection_ptr: *const u8,
     selection_len: usize,
 ) -> u8 {
@@ -851,9 +980,12 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
     };
     let scatter_radius = max_radius * scatter_factor * 2.0;
 
+    let mut points: Vec<BrushPoint> =
+        Vec::with_capacity((samples - start_index + 1).max(1) as usize);
+    let needs_rotation = random_rotation != 0 && rotation_jitter > 0.0001;
     for i in start_index..=samples {
         let t = if samples == 0 { 1.0 } else { i as f32 / samples as f32 };
-        let radius = if start_radius.is_finite() && end_radius.is_finite() {
+        let mut radius = if start_radius.is_finite() && end_radius.is_finite() {
             start_radius + (end_radius - start_radius) * t
         } else if end_radius.is_finite() {
             end_radius
@@ -862,12 +994,12 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
         } else {
             0.01
         };
-        let sample_x = if start_x.is_finite() && end_x.is_finite() {
+        let mut sample_x = if start_x.is_finite() && end_x.is_finite() {
             start_x + (end_x - start_x) * t
         } else {
             end_x
         };
-        let sample_y = if start_y.is_finite() && end_y.is_finite() {
+        let mut sample_y = if start_y.is_finite() && end_y.is_finite() {
             start_y + (end_y - start_y) * t
         } else {
             end_y
@@ -877,28 +1009,49 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
         } else {
             (0.0, 0.0)
         };
-        let _ = cpu_brush_draw_stamp(
-            pixels_ptr,
-            pixels_len,
-            width,
-            height,
-            sample_x + jx,
-            sample_y + jy,
+        sample_x += jx;
+        sample_y += jy;
+        if snap_to_pixel != 0 {
+            sample_x = sample_x.floor() + 0.5;
+            sample_y = sample_y.floor() + 0.5;
+            if radius.is_finite() {
+                radius = (radius * 2.0).round() * 0.5;
+            }
+        }
+        if !radius.is_finite() || radius <= 0.0 {
+            radius = 0.01;
+        }
+        let (rot_sin, rot_cos) = if needs_rotation {
+            let angle =
+                brush_random_rotation_radians(sample_x, sample_y, rotation_seed) * rotation_jitter;
+            (angle.sin(), angle.cos())
+        } else {
+            (0.0, 1.0)
+        };
+        points.push(BrushPoint {
+            x: sample_x,
+            y: sample_y,
             radius,
-            color_argb,
-            brush_shape,
-            antialias_level,
-            softness,
-            erase,
-            random_rotation,
-            rotation_seed,
-            rotation_jitter,
-            snap_to_pixel,
-            selection_ptr,
-            selection_len,
-        );
+            alpha: 1.0,
+            rot_sin,
+            rot_cos,
+        });
     }
-    1
+    draw_points_sampled(
+        pixels_ptr,
+        pixels_len,
+        width,
+        height,
+        &points,
+        color_argb,
+        brush_shape,
+        antialias_level,
+        softness,
+        erase,
+        accumulate != 0,
+        selection_ptr,
+        selection_len,
+    )
 }
 
 #[no_mangle]
@@ -1283,82 +1436,7 @@ pub extern "C" fn cpu_brush_draw_spray(
         Some(unsafe { std::slice::from_raw_parts(selection_ptr, selection_len) })
     };
 
-    if accumulate != 0 {
-        let base_a = unpack_a(color_argb);
-        if base_a <= 0.0 {
-            return 1;
-        }
-        let rgb = color_argb & 0x00ff_ffff;
-        for i in 0..point_count {
-            let idx = i * 4;
-            let x = points[idx];
-            let y = points[idx + 1];
-            let radius = points[idx + 2];
-            let alpha = points[idx + 3];
-            if !x.is_finite() || !y.is_finite() || !radius.is_finite() {
-                continue;
-            }
-            if radius <= 0.0 {
-                continue;
-            }
-            let point_alpha = if alpha.is_finite() {
-                alpha.clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            if point_alpha <= 0.0 {
-                continue;
-            }
-            let scaled_a = (base_a * point_alpha).clamp(0.0, 1.0);
-            if scaled_a <= 0.0 {
-                continue;
-            }
-            let encoded_a = (scaled_a * 255.0 + 0.5).floor().clamp(0.0, 255.0) as u32;
-            let scaled_color = rgb | (encoded_a << 24);
-            let _ = cpu_brush_draw_stamp(
-                pixels_ptr,
-                pixels_len,
-                width,
-                height,
-                x,
-                y,
-                radius,
-                scaled_color,
-                brush_shape,
-                antialias_level,
-                softness,
-                erase,
-                0,
-                0,
-                0.0,
-                0,
-                selection_ptr,
-                selection_len,
-            );
-        }
-        return 1;
-    }
-
-    let base_a = unpack_a(color_argb);
-    if base_a <= 0.0 {
-        return 1;
-    }
-    let src_r = unpack_r(color_argb);
-    let src_g = unpack_g(color_argb);
-    let src_b = unpack_b(color_argb);
-    let aa_level = antialias_level.min(9);
-    let soft = clamp01(softness);
-    let feather = antialias_feather(aa_level);
-    let samples = antialias_samples_per_axis(aa_level);
-    let inv_samples = 1.0 / (samples as f32);
-    let total_samples = (samples * samples) as f32;
-
-    let mut any_point = false;
-    let mut union_min_x = width as i32;
-    let mut union_min_y = height as i32;
-    let mut union_max_x: i32 = 0;
-    let mut union_max_y: i32 = 0;
-
+    let mut brush_points: Vec<BrushPoint> = Vec::with_capacity(point_count);
     for i in 0..point_count {
         let idx = i * 4;
         let x = points[idx];
@@ -1379,147 +1457,33 @@ pub extern "C" fn cpu_brush_draw_spray(
         if point_alpha <= 0.0 {
             continue;
         }
-        let edge = feather.max(radius * soft);
-        let outer = radius + edge + 1.5;
-        let min_x = (x - outer).floor().max(0.0) as i32;
-        let max_x = (x + outer).ceil().min((width as f32) - 1.0) as i32;
-        let min_y = (y - outer).floor().max(0.0) as i32;
-        let max_y = (y + outer).ceil().min((height as f32) - 1.0) as i32;
-        if min_x > max_x || min_y > max_y {
-            continue;
-        }
-        if !any_point {
-            union_min_x = min_x;
-            union_max_x = max_x;
-            union_min_y = min_y;
-            union_max_y = max_y;
-            any_point = true;
-        } else {
-            union_min_x = union_min_x.min(min_x);
-            union_max_x = union_max_x.max(max_x);
-            union_min_y = union_min_y.min(min_y);
-            union_max_y = union_max_y.max(max_y);
-        }
+        brush_points.push(BrushPoint {
+            x,
+            y,
+            radius,
+            alpha: point_alpha,
+            rot_sin: 0.0,
+            rot_cos: 1.0,
+        });
     }
-
-    if !any_point {
+    if brush_points.is_empty() {
         return 1;
     }
-
-    let region_w = (union_max_x - union_min_x + 1) as usize;
-    let region_h = (union_max_y - union_min_y + 1) as usize;
-    if region_w == 0 || region_h == 0 {
-        return 1;
-    }
-    let mut max_alpha: Vec<f32> = vec![0.0; region_w * region_h];
-
-    for i in 0..point_count {
-        let idx = i * 4;
-        let cx = points[idx];
-        let cy = points[idx + 1];
-        let radius = points[idx + 2];
-        let alpha = points[idx + 3];
-        if !cx.is_finite() || !cy.is_finite() || !radius.is_finite() {
-            continue;
-        }
-        if radius <= 0.0 {
-            continue;
-        }
-        let point_alpha = if alpha.is_finite() {
-            alpha.clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-        if point_alpha <= 0.0 {
-            continue;
-        }
-        let eff_a = (base_a * point_alpha).clamp(0.0, 1.0);
-        if eff_a <= 0.0 {
-            continue;
-        }
-        let edge = feather.max(radius * soft);
-        let outer = radius + edge + 1.5;
-        let min_x = (cx - outer).floor().max(union_min_x as f32) as i32;
-        let max_x = (cx + outer)
-            .ceil()
-            .min(union_max_x as f32) as i32;
-        let min_y = (cy - outer).floor().max(union_min_y as f32) as i32;
-        let max_y = (cy + outer)
-            .ceil()
-            .min(union_max_y as f32) as i32;
-        if min_x > max_x || min_y > max_y {
-            continue;
-        }
-        for y in min_y..=max_y {
-            let row = (y - union_min_y) as usize * region_w;
-            let src_row = (y as usize) * (width as usize);
-            for x in min_x..=max_x {
-                let idx_region = row + (x - union_min_x) as usize;
-                let dst_idx = src_row + (x as usize);
-                if let Some(mask) = selection {
-                    if mask.get(dst_idx).copied().unwrap_or(0) == 0 {
-                        continue;
-                    }
-                }
-                let mut accum = 0.0f32;
-                for sy in 0..samples {
-                    for sx in 0..samples {
-                        let ox = (sx as f32 + 0.5) * inv_samples - 0.5;
-                        let oy = (sy as f32 + 0.5) * inv_samples - 0.5;
-                        let sample_x = x as f32 + 0.5 + ox;
-                        let sample_y = y as f32 + 0.5 + oy;
-                        let dist = shape_distance_to_point(
-                            sample_x,
-                            sample_y,
-                            cx,
-                            cy,
-                            radius,
-                            0.0,
-                            1.0,
-                            brush_shape,
-                        );
-                        let a = brush_alpha(dist, radius, soft, aa_level);
-                        accum += a;
-                    }
-                }
-                let coverage = clamp01(accum / total_samples.max(1.0));
-                if coverage <= 0.0 {
-                    continue;
-                }
-                let paint_a = clamp01(coverage * eff_a);
-                if paint_a > max_alpha[idx_region] {
-                    max_alpha[idx_region] = paint_a;
-                }
-            }
-        }
-    }
-
-    let pixels = unsafe { std::slice::from_raw_parts_mut(pixels_ptr, pixel_count) };
-    for y in union_min_y..=union_max_y {
-        let row = (y - union_min_y) as usize * region_w;
-        let src_row = (y as usize) * (width as usize);
-        for x in union_min_x..=union_max_x {
-            let idx_region = row + (x - union_min_x) as usize;
-            let a = max_alpha[idx_region];
-            if a <= 0.0 {
-                continue;
-            }
-            let dst_idx = src_row + (x as usize);
-            if let Some(mask) = selection {
-                if mask.get(dst_idx).copied().unwrap_or(0) == 0 {
-                    continue;
-                }
-            }
-            let dst = pixels[dst_idx];
-            pixels[dst_idx] = if erase != 0 {
-                blend_erase(dst, a)
-            } else {
-                blend_paint(dst, src_r, src_g, src_b, a)
-            };
-        }
-    }
-
-    1
+    draw_points_sampled(
+        pixels_ptr,
+        pixels_len,
+        width,
+        height,
+        &brush_points,
+        color_argb,
+        brush_shape,
+        antialias_level,
+        softness,
+        erase,
+        accumulate != 0,
+        selection_ptr,
+        selection_len,
+    )
 }
 
 #[derive(Clone, Copy)]

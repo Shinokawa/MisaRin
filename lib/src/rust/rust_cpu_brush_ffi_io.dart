@@ -197,6 +197,7 @@ typedef _RustCpuBrushDrawStampSegmentNative =
       ffi.Float scatter,
       ffi.Float softness,
       ffi.Uint8 snapToPixel,
+      ffi.Uint8 accumulate,
       ffi.Pointer<ffi.Uint8> selection,
       ffi.Uint64 selectionLen,
     );
@@ -225,6 +226,7 @@ typedef _RustCpuBrushDrawStampSegmentDart =
       double scatter,
       double softness,
       int snapToPixel,
+      int accumulate,
       ffi.Pointer<ffi.Uint8> selection,
       int selectionLen,
     );
@@ -586,6 +588,7 @@ class RustCpuBrushFfi {
     required double scatter,
     required double softness,
     required bool snapToPixel,
+    required bool accumulate,
     Uint8List? selectionMask,
   }) {
     final _RustCpuBrushDrawStampSegmentDart? fn = _drawStampSegment;
@@ -644,6 +647,7 @@ class RustCpuBrushFfi {
         scatter,
         softness,
         snapToPixel ? 1 : 0,
+        accumulate ? 1 : 0,
         selectionPtr,
         selectionLen,
       );
