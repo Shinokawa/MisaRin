@@ -64,6 +64,17 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
     bool erase = false,
   });
 
+  bool drawSprayPoints({
+    required Float32List points,
+    required int pointCount,
+    required Color color,
+    required BrushShape brushShape,
+    int antialiasLevel = 0,
+    bool erase = false,
+    double softness = 0.0,
+    bool accumulate = true,
+  });
+
   void floodFill(
     Offset position, {
     required Color color,

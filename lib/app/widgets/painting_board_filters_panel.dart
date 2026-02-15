@@ -693,6 +693,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _scheduleHueSaturationPreviewImageUpdate();
     _scheduleBlackWhitePreviewImageUpdate();
     _scheduleBinarizePreviewImageUpdate();
+    _requestFilterPreview(immediate: true);
   }
 
   void _updateHueSaturation({
@@ -711,6 +712,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleHueSaturationPreviewImageUpdate();
+    _requestFilterPreview();
   }
 
   void _updateBrightnessContrast({double? brightness, double? contrast}) {
@@ -723,6 +725,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       ..contrast = contrast ?? session.brightnessContrast.contrast;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
   void _updateBlackWhite({
@@ -750,6 +753,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleBlackWhitePreviewImageUpdate();
+    _requestFilterPreview();
   }
 
   void _updateBinarizeThreshold(double threshold) {
@@ -761,6 +765,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleBinarizePreviewImageUpdate();
+    _requestFilterPreview();
   }
 
   void _updateGaussianBlur(double radius) {
@@ -771,6 +776,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.gaussianBlur.radius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
   void _updateLeakRemovalRadius(double radius) {
@@ -781,6 +787,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.leakRemoval.radius = radius.clamp(0.0, _kLeakRemovalMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
   void _updateLineNarrow(double radius) {
@@ -791,6 +798,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.lineNarrow.radius = radius.clamp(0.0, _kMorphologyMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
   void _updateFillExpand(double radius) {
@@ -801,6 +809,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.fillExpand.radius = radius.clamp(0.0, _kMorphologyMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
 }

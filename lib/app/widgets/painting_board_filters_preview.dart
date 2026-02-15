@@ -2,8 +2,22 @@ part of 'painting_board.dart';
 
 extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
   void _requestFilterPreview({bool immediate = false}) {
-    // Only used for final apply now
-    _applyFilterPreview();
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    _filterPreviewDebounceTimer?.cancel();
+    if (_shouldUseBackendFilterPreview(session)) {
+      return;
+    }
+    if (immediate) {
+      _applyFilterPreview();
+      return;
+    }
+    _filterPreviewDebounceTimer = Timer(
+      _PaintingBoardFilterMixin._filterPreviewDebounceDuration,
+      _applyFilterPreview,
+    );
   }
 
   void _applyFilterPreview() {
