@@ -1041,6 +1041,7 @@ void _controllerApplyStampSegmentFallback({
   double softness = 0.0,
   bool snapToPixel = false,
 }) {
+  final bool useAccumulate = !(softness.isFinite && softness > 0.0001);
   if (RustCpuBrushFfi.instance.drawStampSegment(
     pixelsPtr: surface.pointerAddress,
     pixelsLen: surface.pixels.length,
@@ -1064,7 +1065,7 @@ void _controllerApplyStampSegmentFallback({
     scatter: scatter,
     softness: softness,
     snapToPixel: snapToPixel,
-    accumulate: true,
+    accumulate: useAccumulate,
     selectionMask: mask,
   )) {
     surface.markDirty();
