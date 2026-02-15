@@ -643,9 +643,15 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleDuplicateLayer(CanvasLayerInfo layer) async {
-    if (_backend.isReady) {
-      _showBackendCanvasMessage('画布后端目前暂不支持复制图层。');
-      return;
+    final bool backendReady = _backend.isReady;
+    if (backendReady) {
+      if (!await _backend.syncAllLayerPixelsFromBackend(
+        waitForPending: true,
+        warnIfFailed: true,
+        skipIfUnavailable: false,
+      )) {
+        return;
+      }
     }
     final CanvasLayerData? snapshot = _controller.buildClipboardLayer(layer.id);
     if (snapshot == null) {
@@ -662,11 +668,18 @@ mixin _PaintingBoardLayerMixin
       locked: false,
       clippingMask: layer.clippingMask,
     );
-    await _pushUndoSnapshot();
+    await _pushUndoSnapshot(backendPixelsSynced: backendReady);
     _controller.insertLayerFromData(duplicate, aboveLayerId: layer.id);
     _controller.setActiveLayer(newId);
     setState(() {});
     _markDirty();
+    _syncBackendCanvasLayersToEngine();
+    if (backendReady) {
+      await _backend.syncAllLayerPixelsToBackend(
+        warnIfFailed: true,
+        skipIfUnavailable: false,
+      );
+    }
   }
 
   void _showLayerContextMenu(CanvasLayerInfo layer, Offset position) {
