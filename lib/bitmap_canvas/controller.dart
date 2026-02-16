@@ -314,6 +314,7 @@ class BitmapCanvasController extends ChangeNotifier
       _layers.isEmpty ? null : _layers[_activeIndex].id;
 
   CanvasLayerInfo get activeLayer => _activeLayer;
+  CanvasBackend get rasterBackend => _rasterBackend.backend;
 
   void _flushDeferredStrokeCommands() =>
       _controllerFlushDeferredStrokeCommands(this);

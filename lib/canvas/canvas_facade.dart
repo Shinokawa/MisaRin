@@ -23,6 +23,7 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
   UnmodifiableListView<CanvasCompositeLayer> get compositeLayers;
   CanvasLayerInfo get activeLayer;
   String? get activeLayerId;
+  CanvasBackend get rasterBackend;
 
   int get activeStrokeRotationSeed;
   CanvasFrame? get frame;

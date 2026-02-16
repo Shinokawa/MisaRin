@@ -1474,6 +1474,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool get _isBrushEraserEnabled =>
       _brushToolsEraserMode || _activeTool == CanvasTool.eraser;
 
+  CanvasBackend get canvasBackend => _controller.rasterBackend;
   bool get hasContent => _controller.hasVisibleContent;
   bool get isDirty => _isDirty;
 }

@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart'
 import 'package:misa_rin/utils/io_shim.dart';
 import 'package:path/path.dart' as p;
 
+import '../../canvas/canvas_backend.dart';
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/perspective_guide.dart';
@@ -2220,6 +2221,11 @@ class _CanvasStatusOverlay extends StatelessWidget {
             .clamp(-100000.0, 100000.0)
             .toDouble();
         final String zoom = '${zoomPercent.toStringAsFixed(1)}%';
+        final CanvasBackend backend = board!.canvasBackend;
+        final String backendName = backend == CanvasBackend.rustWgpu
+            ? l10n.canvasBackendGpu
+            : l10n.canvasBackendCpu;
+        final String backendLabel = '${l10n.canvasBackendLabel}: $backendName';
         final String position = info.cursorPosition != null
             ? '${info.cursorPosition!.dx.round()}, ${info.cursorPosition!.dy.round()}'
             : '--';
@@ -2246,6 +2252,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
         })();
         final List<String> parts = <String>[
           l10n.resolutionLabel(resolution),
+          backendLabel,
           l10n.zoomLabel(zoom),
           l10n.positionLabel(position),
           l10n.gridLabel(grid),
