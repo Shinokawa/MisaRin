@@ -25,7 +25,6 @@
 
 // Section: imports
 
-use crate::api::gpu_composite::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
@@ -38,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1199957171;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1556327404;
 
 // Section: executor
 
@@ -108,68 +107,6 @@ fn wire__crate__api__image_ops__convert_pixels_to_rgba_impl(
         },
     )
 }
-fn wire__crate__api__gpu_composite__cpu_blend_on_canvas_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "cpu_blend_on_canvas",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_src = <*const u32>::sse_decode(&mut deserializer);
-            let api_dst = <*mut u32>::sse_decode(&mut deserializer);
-            let api_pixels_len = <u64>::sse_decode(&mut deserializer);
-            let api_width = <u32>::sse_decode(&mut deserializer);
-            let api_height = <u32>::sse_decode(&mut deserializer);
-            let api_start_x = <i32>::sse_decode(&mut deserializer);
-            let api_end_x = <i32>::sse_decode(&mut deserializer);
-            let api_start_y = <i32>::sse_decode(&mut deserializer);
-            let api_end_y = <i32>::sse_decode(&mut deserializer);
-            let api_opacity = <f32>::sse_decode(&mut deserializer);
-            let api_blend_mode = <u32>::sse_decode(&mut deserializer);
-            let api_mask = <*const u32>::sse_decode(&mut deserializer);
-            let api_mask_len = <u64>::sse_decode(&mut deserializer);
-            let api_mask_opacity = <f32>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok =
-                        Result::<_, ()>::Ok(crate::api::gpu_composite::cpu_blend_on_canvas(
-                            api_src,
-                            api_dst,
-                            api_pixels_len,
-                            api_width,
-                            api_height,
-                            api_start_x,
-                            api_end_x,
-                            api_start_y,
-                            api_end_y,
-                            api_opacity,
-                            api_blend_mode,
-                            api_mask,
-                            api_mask_len,
-                            api_mask_opacity,
-                        ))?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
 fn wire__crate__api__cpu_blend__cpu_blend_on_canvas_rgba_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -222,92 +159,6 @@ fn wire__crate__api__cpu_blend__cpu_blend_on_canvas_rgba_impl(
                     ))?;
                 Ok(output_ok)
             })())
-        },
-    )
-}
-fn wire__crate__api__gpu_composite__cpu_blend_overflow_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "cpu_blend_overflow",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_canvas = <*mut u32>::sse_decode(&mut deserializer);
-            let api_canvas_len = <u64>::sse_decode(&mut deserializer);
-            let api_width = <u32>::sse_decode(&mut deserializer);
-            let api_height = <u32>::sse_decode(&mut deserializer);
-            let api_upper_x = <*const i32>::sse_decode(&mut deserializer);
-            let api_upper_y = <*const i32>::sse_decode(&mut deserializer);
-            let api_upper_color = <*const u32>::sse_decode(&mut deserializer);
-            let api_upper_len = <u64>::sse_decode(&mut deserializer);
-            let api_lower_x = <*const i32>::sse_decode(&mut deserializer);
-            let api_lower_y = <*const i32>::sse_decode(&mut deserializer);
-            let api_lower_color = <*const u32>::sse_decode(&mut deserializer);
-            let api_lower_len = <u64>::sse_decode(&mut deserializer);
-            let api_opacity = <f32>::sse_decode(&mut deserializer);
-            let api_blend_mode = <u32>::sse_decode(&mut deserializer);
-            let api_mask = <*const u32>::sse_decode(&mut deserializer);
-            let api_mask_len = <u64>::sse_decode(&mut deserializer);
-            let api_mask_opacity = <f32>::sse_decode(&mut deserializer);
-            let api_mask_overflow_x = <*const i32>::sse_decode(&mut deserializer);
-            let api_mask_overflow_y = <*const i32>::sse_decode(&mut deserializer);
-            let api_mask_overflow_color = <*const u32>::sse_decode(&mut deserializer);
-            let api_mask_overflow_len = <u64>::sse_decode(&mut deserializer);
-            let api_out_x = <*mut i32>::sse_decode(&mut deserializer);
-            let api_out_y = <*mut i32>::sse_decode(&mut deserializer);
-            let api_out_color = <*mut u32>::sse_decode(&mut deserializer);
-            let api_out_capacity = <u64>::sse_decode(&mut deserializer);
-            let api_out_count = <*mut u64>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok =
-                        Result::<_, ()>::Ok(crate::api::gpu_composite::cpu_blend_overflow(
-                            api_canvas,
-                            api_canvas_len,
-                            api_width,
-                            api_height,
-                            api_upper_x,
-                            api_upper_y,
-                            api_upper_color,
-                            api_upper_len,
-                            api_lower_x,
-                            api_lower_y,
-                            api_lower_color,
-                            api_lower_len,
-                            api_opacity,
-                            api_blend_mode,
-                            api_mask,
-                            api_mask_len,
-                            api_mask_opacity,
-                            api_mask_overflow_x,
-                            api_mask_overflow_y,
-                            api_mask_overflow_color,
-                            api_mask_overflow_len,
-                            api_out_x,
-                            api_out_y,
-                            api_out_color,
-                            api_out_capacity,
-                            api_out_count,
-                        ))?;
-                    Ok(output_ok)
-                })())
-            }
         },
     )
 }
@@ -1984,125 +1835,7 @@ fn wire__crate__api__workspace__workspace_state_default_impl(
     )
 }
 
-// Section: related_funcs
-
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*const i32>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*const u32>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut i32>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut u32>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut u64>
-);
-
 // Section: dart2rust
-
-impl SseDecode for *const i32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*const i32>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
-impl SseDecode for *const u32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*const u32>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
-impl SseDecode for *mut i32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut i32>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
-impl SseDecode for *mut u32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut u32>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
-impl SseDecode for *mut u64 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut u64>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
-impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*const i32>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*const u32>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut i32>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut u32>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut u64>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
 
 impl SseDecode for String {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -2609,56 +2342,44 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        3 => wire__crate__api__gpu_composite__cpu_blend_on_canvas_impl(
+        11 => wire__crate__api__gpu_composite__cpu_composite_layers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        5 => wire__crate__api__gpu_composite__cpu_blend_overflow_impl(
+        17 => wire__crate__api__bucket_fill__flood_fill_in_place_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__gpu_composite__cpu_composite_layers_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        19 => wire__crate__api__bucket_fill__flood_fill_in_place_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        20 => {
+        18 => {
             wire__crate__api__bucket_fill__flood_fill_patch_impl(port, ptr, rust_vec_len, data_len)
         }
-        24 => wire__crate__api__gpu_composite__gpu_composite_layers_impl(
+        22 => wire__crate__api__gpu_composite__gpu_composite_layers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => {
+        25 => {
             wire__crate__api__gpu_brush__gpu_download_layer_impl(port, ptr, rust_vec_len, data_len)
         }
-        28 => wire__crate__api__gpu_brush__gpu_draw_stroke_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__gpu_brush__gpu_upload_layer_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__psd__import_psd_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        34 => {
+        26 => wire__crate__api__gpu_brush__gpu_draw_stroke_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__gpu_brush__gpu_upload_layer_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__psd__import_psd_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        32 => {
             wire__crate__api__bucket_fill__magic_wand_mask_impl(port, ptr, rust_vec_len, data_len)
         }
-        37 => wire__crate__api__workspace__workspace_entry_default_impl(
+        35 => wire__crate__api__workspace__workspace_entry_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__workspace__workspace_state_default_impl(
+        44 => wire__crate__api__workspace__workspace_state_default_impl(
             port,
             ptr,
             rust_vec_len,
@@ -2678,164 +2399,89 @@ fn pde_ffi_dispatcher_sync_impl(
     match func_id {
         1 => wire__crate__api__memory__allocate_pixel_buffer_impl(ptr, rust_vec_len, data_len),
         2 => wire__crate__api__image_ops__convert_pixels_to_rgba_impl(ptr, rust_vec_len, data_len),
-        4 => {
+        3 => {
             wire__crate__api__cpu_blend__cpu_blend_on_canvas_rgba_impl(ptr, rust_vec_len, data_len)
         }
-        6 => wire__crate__api__cpu_blend__cpu_blend_overflow_rgba_impl(ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__cpu_brush__cpu_brush_apply_streamline_samples_impl(
+        4 => wire__crate__api__cpu_blend__cpu_blend_overflow_rgba_impl(ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__cpu_brush__cpu_brush_apply_streamline_samples_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        8 => wire__crate__api__cpu_brush__cpu_brush_draw_capsule_segment_rgba_impl(
+        6 => wire__crate__api__cpu_brush__cpu_brush_draw_capsule_segment_rgba_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        9 => {
+        7 => {
             wire__crate__api__cpu_brush__cpu_brush_draw_spray_rgba_impl(ptr, rust_vec_len, data_len)
         }
-        10 => {
+        8 => {
             wire__crate__api__cpu_brush__cpu_brush_draw_stamp_rgba_impl(ptr, rust_vec_len, data_len)
         }
-        11 => wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
+        9 => wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__cpu_brush__cpu_brush_fill_polygon_rgba_impl(
+        10 => wire__crate__api__cpu_brush__cpu_brush_fill_polygon_rgba_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__cpu_filters__cpu_filters_apply_antialias_rgba_impl(
+        12 => wire__crate__api__cpu_filters__cpu_filters_apply_antialias_rgba_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__cpu_filters__cpu_filters_apply_filter_rgba_bytes_impl(
+        13 => wire__crate__api__cpu_filters__cpu_filters_apply_filter_rgba_bytes_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__cpu_image__cpu_image_bounds_rgba_impl(ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__cpu_transform__cpu_transform_build_overflow_snapshot_impl(
+        14 => wire__crate__api__cpu_image__cpu_image_bounds_rgba_impl(ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__cpu_transform__cpu_transform_build_overflow_snapshot_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        18 => wire__crate__api__cpu_transform__cpu_transform_translate_layer_impl(
+        16 => wire__crate__api__cpu_transform__cpu_transform_translate_layer_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__memory__free_pixel_buffer_impl(ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__gpu_brush__gpu_brush_dispose_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__gpu_brush__gpu_brush_init_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__gpu_composite__gpu_compositor_dispose_impl(
+        19 => wire__crate__api__memory__free_pixel_buffer_impl(ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__gpu_brush__gpu_brush_dispose_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__gpu_brush__gpu_brush_init_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__gpu_composite__gpu_compositor_dispose_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => {
+        24 => {
             wire__crate__api__gpu_composite__gpu_compositor_init_impl(ptr, rust_vec_len, data_len)
         }
-        29 => wire__crate__api__gpu_brush__gpu_remove_layer_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__memory__read_pixel_at_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__selection_path__selection_path_vertices_from_mask_impl(
+        27 => wire__crate__api__gpu_brush__gpu_remove_layer_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__memory__read_pixel_at_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__selection_path__selection_path_vertices_from_mask_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__crate__api__workspace__workspace_mark_dirty_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__workspace__workspace_neighbor_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__workspace__workspace_open_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__workspace__workspace_remove_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__workspace__workspace_reorder_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__workspace__workspace_reset_impl(ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__workspace__workspace_set_active_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__workspace__workspace_state_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__workspace__workspace_mark_dirty_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__workspace__workspace_neighbor_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__workspace__workspace_open_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__workspace__workspace_remove_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__workspace__workspace_reorder_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__workspace__workspace_reset_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__workspace__workspace_set_active_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__workspace__workspace_state_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
 
 // Section: rust2dart
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<*const i32> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<*const i32> {}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<*const i32>> for *const i32 {
-    fn into_into_dart(self) -> FrbWrapper<*const i32> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<*const u32> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<*const u32> {}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<*const u32>> for *const u32 {
-    fn into_into_dart(self) -> FrbWrapper<*const u32> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<*mut i32> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<*mut i32> {}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<*mut i32>> for *mut i32 {
-    fn into_into_dart(self) -> FrbWrapper<*mut i32> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<*mut u32> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<*mut u32> {}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<*mut u32>> for *mut u32 {
-    fn into_into_dart(self) -> FrbWrapper<*mut u32> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<*mut u64> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<*mut u64> {}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<*mut u64>> for *mut u64 {
-    fn into_into_dart(self) -> FrbWrapper<*mut u64> {
-        self.into()
-    }
-}
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::cpu_blend::CpuBlendOverflowResult {
@@ -3235,96 +2881,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::workspace::WorkspaceState>
     }
 }
 
-impl SseEncode for *const i32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const i32>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
-impl SseEncode for *const u32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const u32>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
-impl SseEncode for *mut i32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut i32>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
-impl SseEncode for *mut u32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u32>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
-impl SseEncode for *mut u64 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u64>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
-impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*const i32>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*const u32>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut i32>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut u32>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<*mut u64>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
 impl SseEncode for String {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3705,7 +3261,6 @@ mod io {
     // Section: imports
 
     use super::*;
-    use crate::api::gpu_composite::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
@@ -3715,76 +3270,6 @@ mod io {
     // Section: boilerplate
 
     flutter_rust_bridge::frb_generated_boilerplate_io!();
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const i32>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const i32>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const u32>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const u32>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut i32>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut i32>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u32>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u32>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u64>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_misa_rin_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u64>>::decrement_strong_count(ptr as _);
-    }
 }
 #[cfg(not(target_family = "wasm"))]
 pub use io::*;
@@ -3798,7 +3283,6 @@ mod web {
     // Section: imports
 
     use super::*;
-    use crate::api::gpu_composite::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
@@ -3810,76 +3294,6 @@ mod web {
     // Section: boilerplate
 
     flutter_rust_bridge::frb_generated_boilerplate_web!();
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const i32>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const i32>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const u32>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const u32>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut i32>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut i32>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u32>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u32>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u64>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u64>>::decrement_strong_count(ptr as _);
-    }
 }
 #[cfg(target_family = "wasm")]
 pub use web::*;

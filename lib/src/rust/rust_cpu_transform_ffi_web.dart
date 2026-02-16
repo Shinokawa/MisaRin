@@ -51,8 +51,8 @@ class RustCpuTransformFfi {
         snapshotHeight <= 0) {
       return false;
     }
-    final rust.CpuTransformTranslateResult result =
-        rust.cpuTransformTranslateLayer(
+    final rust.CpuTransformTranslateResult result = rust
+        .cpuTransformTranslateLayer(
           canvas: canvas,
           canvasWidth: canvasWidth,
           canvasHeight: canvasHeight,
@@ -71,8 +71,9 @@ class RustCpuTransformFfi {
     if (result.canvas.length == canvas.length) {
       canvas.setAll(0, result.canvas);
     } else {
-      final int count =
-          result.canvas.length < canvas.length ? result.canvas.length : canvas.length;
+      final int count = result.canvas.length < canvas.length
+          ? result.canvas.length
+          : canvas.length;
       canvas.setAll(0, result.canvas.sublist(0, count));
     }
 
@@ -83,11 +84,16 @@ class RustCpuTransformFfi {
         overflowCapacity > 0) {
       final Int32List? outX = CpuBufferRegistry.lookup<Int32List>(overflowXPtr);
       final Int32List? outY = CpuBufferRegistry.lookup<Int32List>(overflowYPtr);
-      final Uint32List? outColor =
-          CpuBufferRegistry.lookup<Uint32List>(overflowColorPtr);
-      final Uint64List? outCount =
-          CpuBufferRegistry.lookup<Uint64List>(overflowCountPtr);
-      if (outX != null && outY != null && outColor != null && outCount != null) {
+      final Uint32List? outColor = CpuBufferRegistry.lookup<Uint32List>(
+        overflowColorPtr,
+      );
+      final Uint64List? outCount = CpuBufferRegistry.lookup<Uint64List>(
+        overflowCountPtr,
+      );
+      if (outX != null &&
+          outY != null &&
+          outColor != null &&
+          outCount != null) {
         final int maxCount = [
           overflowCapacity,
           outX.length,
@@ -145,10 +151,11 @@ class RustCpuTransformFfi {
         : (CpuBufferRegistry.lookup<Int32List>(overflowYPtr) ?? Int32List(0));
     final Uint32List overflowColor = overflowColorPtr == 0
         ? Uint32List(0)
-        : (CpuBufferRegistry.lookup<Uint32List>(overflowColorPtr) ?? Uint32List(0));
+        : (CpuBufferRegistry.lookup<Uint32List>(overflowColorPtr) ??
+              Uint32List(0));
     final int actualOverflowLen = overflowLen > 0 ? overflowLen : 0;
-    final rust.CpuTransformSnapshotResult result =
-        rust.cpuTransformBuildOverflowSnapshot(
+    final rust.CpuTransformSnapshotResult result = rust
+        .cpuTransformBuildOverflowSnapshot(
           canvas: canvas,
           canvasWidth: canvasWidth,
           canvasHeight: canvasHeight,

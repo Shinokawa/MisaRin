@@ -1,12 +1,18 @@
 use std::collections::HashMap;
+#[cfg(not(target_family = "wasm"))]
 use std::sync::{Mutex, OnceLock};
+#[cfg(not(target_family = "wasm"))]
 use std::time::{Duration, Instant};
 
+#[cfg(not(target_family = "wasm"))]
 use crate::gpu::compositor::{GpuCompositor, LayerData};
+#[cfg(not(target_family = "wasm"))]
 use crate::gpu::debug::{self, LogLevel};
 
+#[cfg(not(target_family = "wasm"))]
 static GPU_COMPOSITOR: OnceLock<Mutex<Option<GpuCompositor>>> = OnceLock::new();
 
+#[cfg(not(target_family = "wasm"))]
 fn compositor_cell() -> &'static Mutex<Option<GpuCompositor>> {
     GPU_COMPOSITOR.get_or_init(|| Mutex::new(None))
 }
@@ -20,6 +26,13 @@ pub struct GpuLayerData {
     pub clipping_mask: bool,
 }
 
+#[cfg(target_family = "wasm")]
+#[flutter_rust_bridge::frb(sync)]
+pub fn gpu_compositor_init() -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(not(target_family = "wasm"))]
 #[flutter_rust_bridge::frb(sync)]
 pub fn gpu_compositor_init() -> Result<(), String> {
     let mut guard = compositor_cell()
@@ -38,6 +51,16 @@ pub fn gpu_compositor_init() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_family = "wasm")]
+pub fn gpu_composite_layers(
+    layers: Vec<GpuLayerData>,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u32>, String> {
+    cpu_composite_layers_impl(&layers, width, height)
+}
+
+#[cfg(not(target_family = "wasm"))]
 pub fn gpu_composite_layers(
     layers: Vec<GpuLayerData>,
     width: u32,
@@ -195,6 +218,11 @@ pub fn gpu_composite_layers(
     result
 }
 
+#[cfg(target_family = "wasm")]
+#[flutter_rust_bridge::frb(sync)]
+pub fn gpu_compositor_dispose() {}
+
+#[cfg(not(target_family = "wasm"))]
 #[flutter_rust_bridge::frb(sync)]
 pub fn gpu_compositor_dispose() {
     if let Some(cell) = GPU_COMPOSITOR.get() {
@@ -627,6 +655,7 @@ fn overflow_key(x: i32, y: i32) -> i64 {
     ((x as i64) << 32) | (y as u32 as i64)
 }
 
+#[flutter_rust_bridge::frb(ignore)]
 #[no_mangle]
 pub extern "C" fn cpu_blend_on_canvas(
     src: *const u32,
@@ -728,6 +757,7 @@ pub extern "C" fn cpu_blend_on_canvas(
     1
 }
 
+#[flutter_rust_bridge::frb(ignore)]
 #[no_mangle]
 pub extern "C" fn cpu_blend_overflow(
     canvas: *mut u32,

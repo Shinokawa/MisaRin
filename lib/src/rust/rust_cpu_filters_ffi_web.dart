@@ -70,16 +70,17 @@ class RustCpuFiltersFfi {
     if (expected != pixels.length) {
       return null;
     }
-    final rust.CpuFiltersBytesResult result = rust.cpuFiltersApplyFilterRgbaBytes(
-      pixels: pixels,
-      width: width,
-      height: height,
-      filterType: filterType,
-      param0: param0,
-      param1: param1,
-      param2: param2,
-      param3: param3,
-    );
+    final rust.CpuFiltersBytesResult result = rust
+        .cpuFiltersApplyFilterRgbaBytes(
+          pixels: pixels,
+          width: width,
+          height: height,
+          filterType: filterType,
+          param0: param0,
+          param1: param1,
+          param2: param2,
+          param3: param3,
+        );
     if (!result.ok) {
       return null;
     }

@@ -7,6 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `blend_argb`, `blend_channel`, `blend_color_burn`, `blend_color_dodge`, `blend_divide`, `blend_hard_light`, `blend_hard_mix`, `blend_overlay`, `blend_pin_light`, `blend_soft_light`, `blend_vivid_light`, `clamp01`, `clamp_unit_f64_to_f32`, `color_with_opacity`, `compositor_cell`, `cpu_composite_layers_impl`, `hsl_to_rgb`, `hue_to_rgb`, `mix_hash`, `overflow_key`, `pack_argb`, `pseudo_random`, `rgb_to_hsl`, `soft_light_lum`, `to_u8`, `unpack_a`, `unpack_b`, `unpack_g`, `unpack_r`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `cpu_blend_on_canvas`, `cpu_blend_overflow`
 
 void gpuCompositorInit() =>
     RustLib.instance.api.crateApiGpuCompositeGpuCompositorInit();
@@ -33,109 +34,6 @@ Future<Uint32List> cpuCompositeLayers({
   width: width,
   height: height,
 );
-
-Future<int> cpuBlendOnCanvas({
-  required ConstU32 src,
-  required MutU32 dst,
-  required BigInt pixelsLen,
-  required int width,
-  required int height,
-  required int startX,
-  required int endX,
-  required int startY,
-  required int endY,
-  required double opacity,
-  required int blendMode,
-  required ConstU32 mask,
-  required BigInt maskLen,
-  required double maskOpacity,
-}) => RustLib.instance.api.crateApiGpuCompositeCpuBlendOnCanvas(
-  src: src,
-  dst: dst,
-  pixelsLen: pixelsLen,
-  width: width,
-  height: height,
-  startX: startX,
-  endX: endX,
-  startY: startY,
-  endY: endY,
-  opacity: opacity,
-  blendMode: blendMode,
-  mask: mask,
-  maskLen: maskLen,
-  maskOpacity: maskOpacity,
-);
-
-Future<int> cpuBlendOverflow({
-  required MutU32 canvas,
-  required BigInt canvasLen,
-  required int width,
-  required int height,
-  required ConstI32 upperX,
-  required ConstI32 upperY,
-  required ConstU32 upperColor,
-  required BigInt upperLen,
-  required ConstI32 lowerX,
-  required ConstI32 lowerY,
-  required ConstU32 lowerColor,
-  required BigInt lowerLen,
-  required double opacity,
-  required int blendMode,
-  required ConstU32 mask,
-  required BigInt maskLen,
-  required double maskOpacity,
-  required ConstI32 maskOverflowX,
-  required ConstI32 maskOverflowY,
-  required ConstU32 maskOverflowColor,
-  required BigInt maskOverflowLen,
-  required MutI32 outX,
-  required MutI32 outY,
-  required MutU32 outColor,
-  required BigInt outCapacity,
-  required MutU64 outCount,
-}) => RustLib.instance.api.crateApiGpuCompositeCpuBlendOverflow(
-  canvas: canvas,
-  canvasLen: canvasLen,
-  width: width,
-  height: height,
-  upperX: upperX,
-  upperY: upperY,
-  upperColor: upperColor,
-  upperLen: upperLen,
-  lowerX: lowerX,
-  lowerY: lowerY,
-  lowerColor: lowerColor,
-  lowerLen: lowerLen,
-  opacity: opacity,
-  blendMode: blendMode,
-  mask: mask,
-  maskLen: maskLen,
-  maskOpacity: maskOpacity,
-  maskOverflowX: maskOverflowX,
-  maskOverflowY: maskOverflowY,
-  maskOverflowColor: maskOverflowColor,
-  maskOverflowLen: maskOverflowLen,
-  outX: outX,
-  outY: outY,
-  outColor: outColor,
-  outCapacity: outCapacity,
-  outCount: outCount,
-);
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const i32>>
-abstract class ConstI32 implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* const u32>>
-abstract class ConstU32 implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut i32>>
-abstract class MutI32 implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u32>>
-abstract class MutU32 implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<* mut u64>>
-abstract class MutU64 implements RustOpaqueInterface {}
 
 class GpuLayerData {
   final Uint32List pixels;

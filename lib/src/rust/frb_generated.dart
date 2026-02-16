@@ -79,7 +79,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1199957171;
+  int get rustContentHash => 1556327404;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -94,23 +94,6 @@ abstract class RustLibApi extends BaseApi {
 
   Uint8List crateApiImageOpsConvertPixelsToRgba({required List<int> pixels});
 
-  Future<int> crateApiGpuCompositeCpuBlendOnCanvas({
-    required ConstU32 src,
-    required MutU32 dst,
-    required BigInt pixelsLen,
-    required int width,
-    required int height,
-    required int startX,
-    required int endX,
-    required int startY,
-    required int endY,
-    required double opacity,
-    required int blendMode,
-    required ConstU32 mask,
-    required BigInt maskLen,
-    required double maskOpacity,
-  });
-
   CpuBlendResult crateApiCpuBlendCpuBlendOnCanvasRgba({
     required List<int> src,
     required List<int> dst,
@@ -124,35 +107,6 @@ abstract class RustLibApi extends BaseApi {
     required int blendMode,
     Uint32List? mask,
     required double maskOpacity,
-  });
-
-  Future<int> crateApiGpuCompositeCpuBlendOverflow({
-    required MutU32 canvas,
-    required BigInt canvasLen,
-    required int width,
-    required int height,
-    required ConstI32 upperX,
-    required ConstI32 upperY,
-    required ConstU32 upperColor,
-    required BigInt upperLen,
-    required ConstI32 lowerX,
-    required ConstI32 lowerY,
-    required ConstU32 lowerColor,
-    required BigInt lowerLen,
-    required double opacity,
-    required int blendMode,
-    required ConstU32 mask,
-    required BigInt maskLen,
-    required double maskOpacity,
-    required ConstI32 maskOverflowX,
-    required ConstI32 maskOverflowY,
-    required ConstU32 maskOverflowColor,
-    required BigInt maskOverflowLen,
-    required MutI32 outX,
-    required MutI32 outY,
-    required MutU32 outColor,
-    required BigInt outCapacity,
-    required MutU64 outCount,
   });
 
   CpuBlendOverflowResult crateApiCpuBlendCpuBlendOverflowRgba({
@@ -455,40 +409,6 @@ abstract class RustLibApi extends BaseApi {
   WorkspaceState crateApiWorkspaceWorkspaceState();
 
   Future<WorkspaceState> crateApiWorkspaceWorkspaceStateDefault();
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ConstI32;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ConstI32;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ConstI32Ptr;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ConstU32;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ConstU32;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ConstU32Ptr;
-
-  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_MutI32;
-
-  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_MutI32;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MutI32Ptr;
-
-  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_MutU32;
-
-  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_MutU32;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MutU32Ptr;
-
-  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_MutU64;
-
-  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_MutU64;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MutU64Ptr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -552,104 +472,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<int> crateApiGpuCompositeCpuBlendOnCanvas({
-    required ConstU32 src,
-    required MutU32 dst,
-    required BigInt pixelsLen,
-    required int width,
-    required int height,
-    required int startX,
-    required int endX,
-    required int startY,
-    required int endY,
-    required double opacity,
-    required int blendMode,
-    required ConstU32 mask,
-    required BigInt maskLen,
-    required double maskOpacity,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-            src,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-            dst,
-            serializer,
-          );
-          sse_encode_u_64(pixelsLen, serializer);
-          sse_encode_u_32(width, serializer);
-          sse_encode_u_32(height, serializer);
-          sse_encode_i_32(startX, serializer);
-          sse_encode_i_32(endX, serializer);
-          sse_encode_i_32(startY, serializer);
-          sse_encode_i_32(endY, serializer);
-          sse_encode_f_32(opacity, serializer);
-          sse_encode_u_32(blendMode, serializer);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-            mask,
-            serializer,
-          );
-          sse_encode_u_64(maskLen, serializer);
-          sse_encode_f_32(maskOpacity, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 3,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_u_8,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiGpuCompositeCpuBlendOnCanvasConstMeta,
-        argValues: [
-          src,
-          dst,
-          pixelsLen,
-          width,
-          height,
-          startX,
-          endX,
-          startY,
-          endY,
-          opacity,
-          blendMode,
-          mask,
-          maskLen,
-          maskOpacity,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiGpuCompositeCpuBlendOnCanvasConstMeta =>
-      const TaskConstMeta(
-        debugName: "cpu_blend_on_canvas",
-        argNames: [
-          "src",
-          "dst",
-          "pixelsLen",
-          "width",
-          "height",
-          "startX",
-          "endX",
-          "startY",
-          "endY",
-          "opacity",
-          "blendMode",
-          "mask",
-          "maskLen",
-          "maskOpacity",
-        ],
-      );
-
-  @override
   CpuBlendResult crateApiCpuBlendCpuBlendOnCanvasRgba({
     required List<int> src,
     required List<int> dst,
@@ -680,7 +502,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_32(blendMode, serializer);
           sse_encode_opt_list_prim_u_32_strict(mask, serializer);
           sse_encode_f_32(maskOpacity, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_blend_result,
@@ -726,188 +548,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<int> crateApiGpuCompositeCpuBlendOverflow({
-    required MutU32 canvas,
-    required BigInt canvasLen,
-    required int width,
-    required int height,
-    required ConstI32 upperX,
-    required ConstI32 upperY,
-    required ConstU32 upperColor,
-    required BigInt upperLen,
-    required ConstI32 lowerX,
-    required ConstI32 lowerY,
-    required ConstU32 lowerColor,
-    required BigInt lowerLen,
-    required double opacity,
-    required int blendMode,
-    required ConstU32 mask,
-    required BigInt maskLen,
-    required double maskOpacity,
-    required ConstI32 maskOverflowX,
-    required ConstI32 maskOverflowY,
-    required ConstU32 maskOverflowColor,
-    required BigInt maskOverflowLen,
-    required MutI32 outX,
-    required MutI32 outY,
-    required MutU32 outColor,
-    required BigInt outCapacity,
-    required MutU64 outCount,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-            canvas,
-            serializer,
-          );
-          sse_encode_u_64(canvasLen, serializer);
-          sse_encode_u_32(width, serializer);
-          sse_encode_u_32(height, serializer);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-            upperX,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-            upperY,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-            upperColor,
-            serializer,
-          );
-          sse_encode_u_64(upperLen, serializer);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-            lowerX,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-            lowerY,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-            lowerColor,
-            serializer,
-          );
-          sse_encode_u_64(lowerLen, serializer);
-          sse_encode_f_32(opacity, serializer);
-          sse_encode_u_32(blendMode, serializer);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-            mask,
-            serializer,
-          );
-          sse_encode_u_64(maskLen, serializer);
-          sse_encode_f_32(maskOpacity, serializer);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-            maskOverflowX,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-            maskOverflowY,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-            maskOverflowColor,
-            serializer,
-          );
-          sse_encode_u_64(maskOverflowLen, serializer);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-            outX,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-            outY,
-            serializer,
-          );
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-            outColor,
-            serializer,
-          );
-          sse_encode_u_64(outCapacity, serializer);
-          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-            outCount,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 5,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_u_8,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiGpuCompositeCpuBlendOverflowConstMeta,
-        argValues: [
-          canvas,
-          canvasLen,
-          width,
-          height,
-          upperX,
-          upperY,
-          upperColor,
-          upperLen,
-          lowerX,
-          lowerY,
-          lowerColor,
-          lowerLen,
-          opacity,
-          blendMode,
-          mask,
-          maskLen,
-          maskOpacity,
-          maskOverflowX,
-          maskOverflowY,
-          maskOverflowColor,
-          maskOverflowLen,
-          outX,
-          outY,
-          outColor,
-          outCapacity,
-          outCount,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiGpuCompositeCpuBlendOverflowConstMeta =>
-      const TaskConstMeta(
-        debugName: "cpu_blend_overflow",
-        argNames: [
-          "canvas",
-          "canvasLen",
-          "width",
-          "height",
-          "upperX",
-          "upperY",
-          "upperColor",
-          "upperLen",
-          "lowerX",
-          "lowerY",
-          "lowerColor",
-          "lowerLen",
-          "opacity",
-          "blendMode",
-          "mask",
-          "maskLen",
-          "maskOpacity",
-          "maskOverflowX",
-          "maskOverflowY",
-          "maskOverflowColor",
-          "maskOverflowLen",
-          "outX",
-          "outY",
-          "outColor",
-          "outCapacity",
-          "outCount",
-        ],
-      );
-
-  @override
   CpuBlendOverflowResult crateApiCpuBlendCpuBlendOverflowRgba({
     required List<int> canvas,
     required int width,
@@ -948,7 +588,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_prim_i_32_loose(maskOverflowY, serializer);
           sse_encode_list_prim_u_32_loose(maskOverflowColor, serializer);
           sse_encode_u_64(outCapacity, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_blend_overflow_result,
@@ -1014,7 +654,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_f_32_loose(samples, serializer);
           sse_encode_f_32(strength, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_streamline_result,
@@ -1068,7 +708,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_bool(includeStartCap, serializer);
           sse_encode_bool(erase, serializer);
           sse_encode_opt_list_prim_u_8_strict(selection, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_brush_result,
@@ -1146,7 +786,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_bool(erase, serializer);
           sse_encode_bool(accumulate, serializer);
           sse_encode_opt_list_prim_u_8_strict(selection, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_brush_result,
@@ -1228,7 +868,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(rotationJitter, serializer);
           sse_encode_bool(snapToPixel, serializer);
           sse_encode_opt_list_prim_u_8_strict(selection, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_brush_result,
@@ -1334,7 +974,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_bool(snapToPixel, serializer);
           sse_encode_bool(accumulate, serializer);
           sse_encode_opt_list_prim_u_8_strict(selection, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_brush_result,
@@ -1428,7 +1068,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(softness, serializer);
           sse_encode_bool(erase, serializer);
           sse_encode_opt_list_prim_u_8_strict(selection, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_brush_result,
@@ -1485,7 +1125,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 11,
             port: port_,
           );
         },
@@ -1523,7 +1163,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_32(height, serializer);
           sse_encode_u_32(level, serializer);
           sse_encode_bool(previewOnly, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_filters_result,
@@ -1565,7 +1205,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(param1, serializer);
           sse_encode_f_32(param2, serializer);
           sse_encode_f_32(param3, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_filters_bytes_result,
@@ -1616,7 +1256,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_prim_u_32_loose(pixels, serializer);
           sse_encode_u_32(width, serializer);
           sse_encode_u_32(height, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_image_bounds_result,
@@ -1663,7 +1303,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_prim_i_32_loose(overflowX, serializer);
           sse_encode_list_prim_i_32_loose(overflowY, serializer);
           sse_encode_list_prim_u_32_loose(overflowColor, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_transform_snapshot_result,
@@ -1735,7 +1375,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_i_32(dx, serializer);
           sse_encode_i_32(dy, serializer);
           sse_encode_u_64(overflowCapacity, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_cpu_transform_translate_result,
@@ -1816,7 +1456,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 17,
             port: port_,
           );
         },
@@ -1905,7 +1545,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 18,
             port: port_,
           );
         },
@@ -1964,7 +1604,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_usize(ptr, serializer);
           sse_encode_i_32(size, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1989,7 +1629,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2011,7 +1651,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2043,7 +1683,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 22,
             port: port_,
           );
         },
@@ -2070,7 +1710,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2092,7 +1732,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2120,7 +1760,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 25,
             port: port_,
           );
         },
@@ -2165,7 +1805,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 26,
             port: port_,
           );
         },
@@ -2209,7 +1849,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(layerId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2243,7 +1883,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 28,
             port: port_,
           );
         },
@@ -2271,7 +1911,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2297,7 +1937,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 30,
             port: port_,
           );
         },
@@ -2324,7 +1964,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 31,
             port: port_,
           );
         },
@@ -2366,7 +2006,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 32,
             port: port_,
           );
         },
@@ -2411,7 +2051,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_usize(ptr, serializer);
           sse_encode_i_32(index, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -2440,7 +2080,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(mask, serializer);
           sse_encode_i_32(width, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_u_32_strict,
@@ -2469,7 +2109,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 35,
             port: port_,
           );
         },
@@ -2498,7 +2138,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(id, serializer);
           sse_encode_bool(isDirty, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -2524,7 +2164,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(id, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_workspace_entry,
@@ -2551,7 +2191,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_workspace_entry(entry, serializer);
           sse_encode_bool(activate, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -2581,7 +2221,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(id, serializer);
           sse_encode_opt_String(activateAfter, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -2611,7 +2251,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_32(oldIndex, serializer);
           sse_encode_i_32(newIndex, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -2636,7 +2276,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -2659,7 +2299,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(id, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -2681,7 +2321,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -2706,7 +2346,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 44,
             port: port_,
           );
         },
@@ -2723,136 +2363,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiWorkspaceWorkspaceStateDefaultConstMeta =>
       const TaskConstMeta(debugName: "workspace_state_default", argNames: []);
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ConstI32 => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ConstI32 => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ConstU32 => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ConstU32 => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_MutI32 => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_MutI32 => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_MutU32 => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_MutU32 => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_MutU64 => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_MutU64 => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64;
-
-  @protected
-  ConstI32
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ConstI32Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  ConstU32
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ConstU32Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  MutI32
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MutI32Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  MutU32
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MutU32Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  MutU64
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MutU64Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  ConstI32
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ConstI32Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  ConstU32
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ConstU32Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  MutI32
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MutI32Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  MutU32
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MutU32Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  MutU64
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return MutU64Impl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
 
   @protected
   String dco_decode_String(dynamic raw) {
@@ -3269,126 +2779,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return WorkspaceState(
       entries: dco_decode_list_workspace_entry(arr[0]),
       activeId: dco_decode_opt_String(arr[1]),
-    );
-  }
-
-  @protected
-  ConstI32
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ConstI32Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ConstU32
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ConstU32Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  MutI32
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MutI32Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  MutU32
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MutU32Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  MutU64
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MutU64Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ConstI32
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ConstI32Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  ConstU32
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return ConstU32Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  MutI32
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MutI32Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  MutU32
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MutU32Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  MutU64
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return MutU64Impl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
     );
   }
 
@@ -3867,136 +3257,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-    ConstI32 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ConstI32Impl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-    ConstU32 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ConstU32Impl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-    MutI32 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MutI32Impl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-    MutU32 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MutU32Impl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-    MutU64 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MutU64Impl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconsti32(
-    ConstI32 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ConstI32Impl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerconstu32(
-    ConstU32 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as ConstU32Impl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermuti32(
-    MutI32 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MutI32Impl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu32(
-    MutU32 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MutU32Impl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnermutu64(
-    MutU64 self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as MutU64Impl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
@@ -4459,104 +3719,4 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_workspace_entry(self.entries, serializer);
     sse_encode_opt_String(self.activeId, serializer);
   }
-}
-
-@sealed
-class ConstI32Impl extends RustOpaque implements ConstI32 {
-  // Not to be used by end users
-  ConstI32Impl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ConstI32Impl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_ConstI32,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ConstI32,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ConstI32Ptr,
-  );
-}
-
-@sealed
-class ConstU32Impl extends RustOpaque implements ConstU32 {
-  // Not to be used by end users
-  ConstU32Impl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  ConstU32Impl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_ConstU32,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ConstU32,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ConstU32Ptr,
-  );
-}
-
-@sealed
-class MutI32Impl extends RustOpaque implements MutI32 {
-  // Not to be used by end users
-  MutI32Impl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  MutI32Impl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_MutI32,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MutI32,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MutI32Ptr,
-  );
-}
-
-@sealed
-class MutU32Impl extends RustOpaque implements MutU32 {
-  // Not to be used by end users
-  MutU32Impl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  MutU32Impl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_MutU32,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MutU32,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MutU32Ptr,
-  );
-}
-
-@sealed
-class MutU64Impl extends RustOpaque implements MutU64 {
-  // Not to be used by end users
-  MutU64Impl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  MutU64Impl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_MutU64,
-    rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MutU64,
-    rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_MutU64Ptr,
-  );
 }

@@ -86,7 +86,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi (web) drawStamp skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi (web) drawStamp skipped: invalid size ${width}x$height.',
       );
       return false;
     }
@@ -143,7 +143,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi (web) drawCapsuleSegment skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi (web) drawCapsuleSegment skipped: invalid size ${width}x$height.',
       );
       return false;
     }
@@ -194,7 +194,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi (web) fillPolygon skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi (web) fillPolygon skipped: invalid size ${width}x$height.',
       );
       return false;
     }
@@ -257,7 +257,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi (web) drawStampSegment skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi (web) drawStampSegment skipped: invalid size ${width}x$height.',
       );
       return false;
     }
@@ -319,7 +319,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi (web) drawSpray skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi (web) drawSpray skipped: invalid size ${width}x$height.',
       );
       return false;
     }

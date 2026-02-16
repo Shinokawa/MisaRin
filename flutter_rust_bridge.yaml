@@ -1,4 +1,4 @@
 rust_input: crate::api
 rust_root: rust/
 dart_output: lib/src/rust
-no_add_mod_to_lib: true
+add_mod_to_lib: false

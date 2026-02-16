@@ -45,8 +45,9 @@ class RustCpuBlendFfi {
     if (width <= 0 || height <= 0) {
       return false;
     }
-    final Uint32List? mask =
-        maskPtr == 0 ? null : _lookupPixels(maskPtr, maskLen);
+    final Uint32List? mask = maskPtr == 0
+        ? null
+        : _lookupPixels(maskPtr, maskLen);
     if (maskPtr != 0 && mask == null) {
       return false;
     }
@@ -70,8 +71,9 @@ class RustCpuBlendFfi {
     if (result.canvas.length == dst.length) {
       dst.setAll(0, result.canvas);
     } else {
-      final int count =
-          result.canvas.length < dst.length ? result.canvas.length : dst.length;
+      final int count = result.canvas.length < dst.length
+          ? result.canvas.length
+          : dst.length;
       if (count > 0) {
         dst.setAll(0, result.canvas.sublist(0, count));
       }
@@ -116,8 +118,9 @@ class RustCpuBlendFfi {
     }
     final Int32List? upperX = CpuBufferRegistry.lookup<Int32List>(upperXPtr);
     final Int32List? upperY = CpuBufferRegistry.lookup<Int32List>(upperYPtr);
-    final Uint32List? upperColor =
-        CpuBufferRegistry.lookup<Uint32List>(upperColorPtr);
+    final Uint32List? upperColor = CpuBufferRegistry.lookup<Uint32List>(
+      upperColorPtr,
+    );
     if (upperX == null || upperY == null || upperColor == null) {
       return false;
     }
@@ -136,7 +139,8 @@ class RustCpuBlendFfi {
         : (CpuBufferRegistry.lookup<Int32List>(lowerYPtr) ?? Int32List(0));
     final Uint32List lowerColor = lowerColorPtr == 0
         ? Uint32List(0)
-        : (CpuBufferRegistry.lookup<Uint32List>(lowerColorPtr) ?? Uint32List(0));
+        : (CpuBufferRegistry.lookup<Uint32List>(lowerColorPtr) ??
+              Uint32List(0));
     if (lowerLen > 0 &&
         (lowerX.length < lowerLen ||
             lowerY.length < lowerLen ||
@@ -144,21 +148,25 @@ class RustCpuBlendFfi {
       return false;
     }
 
-    final Uint32List? mask =
-        maskPtr == 0 ? null : _lookupPixels(maskPtr, maskLen);
+    final Uint32List? mask = maskPtr == 0
+        ? null
+        : _lookupPixels(maskPtr, maskLen);
     if (maskPtr != 0 && mask == null) {
       return false;
     }
 
     final Int32List maskOverflowX = maskOverflowXPtr == 0
         ? Int32List(0)
-        : (CpuBufferRegistry.lookup<Int32List>(maskOverflowXPtr) ?? Int32List(0));
+        : (CpuBufferRegistry.lookup<Int32List>(maskOverflowXPtr) ??
+              Int32List(0));
     final Int32List maskOverflowY = maskOverflowYPtr == 0
         ? Int32List(0)
-        : (CpuBufferRegistry.lookup<Int32List>(maskOverflowYPtr) ?? Int32List(0));
+        : (CpuBufferRegistry.lookup<Int32List>(maskOverflowYPtr) ??
+              Int32List(0));
     final Uint32List maskOverflowColor = maskOverflowColorPtr == 0
         ? Uint32List(0)
-        : (CpuBufferRegistry.lookup<Uint32List>(maskOverflowColorPtr) ?? Uint32List(0));
+        : (CpuBufferRegistry.lookup<Uint32List>(maskOverflowColorPtr) ??
+              Uint32List(0));
     if (maskOverflowLen > 0 &&
         (maskOverflowX.length < maskOverflowLen ||
             maskOverflowY.length < maskOverflowLen ||
@@ -175,17 +183,22 @@ class RustCpuBlendFfi {
       upperColor: upperColor.sublist(0, upperLen),
       lowerX: lowerLen > 0 ? lowerX.sublist(0, lowerLen) : const <int>[],
       lowerY: lowerLen > 0 ? lowerY.sublist(0, lowerLen) : const <int>[],
-      lowerColor: lowerLen > 0 ? lowerColor.sublist(0, lowerLen) : const <int>[],
+      lowerColor: lowerLen > 0
+          ? lowerColor.sublist(0, lowerLen)
+          : const <int>[],
       opacity: opacity,
       blendMode: blendMode,
       mask: mask,
       maskOpacity: maskOpacity,
-      maskOverflowX:
-          maskOverflowLen > 0 ? maskOverflowX.sublist(0, maskOverflowLen) : const <int>[],
-      maskOverflowY:
-          maskOverflowLen > 0 ? maskOverflowY.sublist(0, maskOverflowLen) : const <int>[],
-      maskOverflowColor:
-          maskOverflowLen > 0 ? maskOverflowColor.sublist(0, maskOverflowLen) : const <int>[],
+      maskOverflowX: maskOverflowLen > 0
+          ? maskOverflowX.sublist(0, maskOverflowLen)
+          : const <int>[],
+      maskOverflowY: maskOverflowLen > 0
+          ? maskOverflowY.sublist(0, maskOverflowLen)
+          : const <int>[],
+      maskOverflowColor: maskOverflowLen > 0
+          ? maskOverflowColor.sublist(0, maskOverflowLen)
+          : const <int>[],
       outCapacity: BigInt.from(outCapacity),
     );
     if (!result.ok) {
@@ -209,11 +222,16 @@ class RustCpuBlendFfi {
         outCapacity > 0) {
       final Int32List? outX = CpuBufferRegistry.lookup<Int32List>(outXPtr);
       final Int32List? outY = CpuBufferRegistry.lookup<Int32List>(outYPtr);
-      final Uint32List? outColor =
-          CpuBufferRegistry.lookup<Uint32List>(outColorPtr);
-      final Uint64List? outCount =
-          CpuBufferRegistry.lookup<Uint64List>(outCountPtr);
-      if (outX != null && outY != null && outColor != null && outCount != null) {
+      final Uint32List? outColor = CpuBufferRegistry.lookup<Uint32List>(
+        outColorPtr,
+      );
+      final Uint64List? outCount = CpuBufferRegistry.lookup<Uint64List>(
+        outCountPtr,
+      );
+      if (outX != null &&
+          outY != null &&
+          outColor != null &&
+          outCount != null) {
         final int maxCount = [
           outCapacity,
           outX.length,
