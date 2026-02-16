@@ -22,8 +22,14 @@ void _compositeScheduleRefresh(BitmapCanvasController controller) {
     return;
   }
   controller._refreshScheduled = true;
-  scheduleMicrotask(() => _compositeProcessScheduled(controller));
-  SchedulerBinding.instance?.ensureVisualUpdate();
+  final SchedulerBinding? scheduler = SchedulerBinding.instance;
+  if (scheduler == null) {
+    scheduleMicrotask(() => _compositeProcessScheduled(controller));
+    controller._notify();
+    return;
+  }
+  scheduler.scheduleFrameCallback((_) => _compositeProcessScheduled(controller));
+  scheduler.ensureVisualUpdate();
   controller._notify();
 }
 

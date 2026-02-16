@@ -616,7 +616,23 @@ void _controllerFlushRealtimeStrokeCommands(
       !controller._currentStrokeEraseOccludedParts) {
     return;
   }
-  controller._commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
+  if (controller._realtimeStrokeFlushScheduled) {
+    return;
+  }
+  controller._realtimeStrokeFlushScheduled = true;
+  final SchedulerBinding? scheduler = SchedulerBinding.instance;
+  if (scheduler == null) {
+    scheduleMicrotask(() {
+      controller._realtimeStrokeFlushScheduled = false;
+      controller._commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
+    });
+    return;
+  }
+  scheduler.scheduleFrameCallback((_) {
+    controller._realtimeStrokeFlushScheduled = false;
+    controller._commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
+  });
+  scheduler.ensureVisualUpdate();
 }
 
 void _controllerCommitDeferredStrokeCommandsAsRaster(

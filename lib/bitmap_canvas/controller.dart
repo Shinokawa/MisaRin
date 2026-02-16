@@ -210,6 +210,7 @@ class BitmapCanvasController extends ChangeNotifier
 
   bool _refreshScheduled = false;
   bool _compositeProcessing = false;
+  bool _realtimeStrokeFlushScheduled = false;
   Uint8List? _selectionMask;
   final CanvasRasterBackend _rasterBackend;
   final CanvasTextRenderer _textRenderer = CanvasTextRenderer();

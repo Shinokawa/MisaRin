@@ -17,6 +17,7 @@ const bool _kDebugRasterTiles = bool.fromEnvironment(
   'MISA_RIN_DEBUG_RASTER_TILES',
   defaultValue: false,
 );
+const double _kFullSurfaceDirtyThreshold = 0.35;
 
 class RasterTileCache {
   RasterTileCache({
@@ -51,24 +52,40 @@ class RasterTileCache {
     required List<RasterIntRect> dirtyRegions,
     required bool fullSurface,
   }) async {
-    if (dirtyRegions.isEmpty && !fullSurface) {
+    bool forceFullSurface = fullSurface;
+    if (!forceFullSurface && dirtyRegions.isNotEmpty) {
+      final int surfacePixels = surfaceWidth * surfaceHeight;
+      int dirtyPixels = 0;
+      for (final RasterIntRect rect in dirtyRegions) {
+        dirtyPixels += rect.width * rect.height;
+        if (dirtyPixels >= surfacePixels) {
+          break;
+        }
+      }
+      if (surfacePixels > 0 &&
+          dirtyPixels >= (surfacePixels * _kFullSurfaceDirtyThreshold)) {
+        forceFullSurface = true;
+      }
+    }
+
+    if (dirtyRegions.isEmpty && !forceFullSurface) {
       return _frame;
     }
 
     if (kDebugMode && _kDebugRasterTiles) {
       debugPrint(
-        '[raster-tiles] updateTiles fullSurface=$fullSurface dirtyRegions=${dirtyRegions.length}',
+        '[raster-tiles] updateTiles fullSurface=$forceFullSurface dirtyRegions=${dirtyRegions.length}',
       );
     }
 
-    if (fullSurface) {
+    if (forceFullSurface) {
       for (final BitmapCanvasTile tile in _tiles.values) {
         _pendingDisposals.add(tile.image);
       }
       _tiles.clear();
     }
 
-    final Iterable<RasterIntRect> targets = fullSurface
+    final Iterable<RasterIntRect> targets = forceFullSurface
         ? backend.fullSurfaceTileRects()
         : dirtyRegions;
     if (targets.isEmpty) {
@@ -94,7 +111,7 @@ class RasterTileCache {
     }
 
     final Stopwatch sw = Stopwatch()..start();
-    final bool useSurfaceBuffer = fullSurface;
+    final bool useSurfaceBuffer = forceFullSurface;
     final int surfaceRowBytes = surfaceWidth * 4;
     Uint8List? surfaceRgba;
     final List<_PendingTile> uploads = <_PendingTile>[
