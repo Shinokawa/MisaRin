@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../backend/canvas_painting_worker.dart';
 import '../bitmap_canvas/stroke_dynamics.dart';
+import 'canvas_backend.dart';
 import 'canvas_frame.dart';
 import 'canvas_layer.dart';
 import 'canvas_layer_info.dart';

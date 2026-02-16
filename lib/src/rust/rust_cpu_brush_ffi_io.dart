@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import 'api/cpu_brush.dart' as rust;
 import 'rust_dylib.dart';
 
 typedef _RustCpuBrushDrawStampNative =
@@ -806,5 +807,15 @@ class RustCpuBrushFfi {
     } finally {
       malloc.free(samplesPtr);
     }
+  }
+
+  bool applyCommands({
+    required Uint32List pixels,
+    required int width,
+    required int height,
+    required List<rust.CpuBrushCommand> commands,
+    Uint8List? selectionMask,
+  }) {
+    return false;
   }
 }
