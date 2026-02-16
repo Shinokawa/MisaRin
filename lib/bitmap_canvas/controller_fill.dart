@@ -110,8 +110,7 @@ void _fillFloodFill(
   final BitmapSurface surface = controller._activeSurface;
   final String layerId = controller._activeLayer.id;
   final int ptrAddress = surface.pointerAddress;
-  final Pointer<Void> ptr = Pointer<Void>.fromAddress(ptrAddress);
-  if (ptr == nullptr) {
+  if (ptrAddress == 0) {
     return;
   }
   final int generation = controller._paintingWorkerGeneration;
@@ -121,7 +120,7 @@ void _fillFloodFill(
   controller._enqueueWorkerPatchFuture(
     rust_bucket_fill
         .floodFillInPlace(
-          ptr: BigInt.from(ptr.address),
+          ptr: BigInt.from(ptrAddress),
           width: width,
           height: height,
           samplePixels: samplePixels,

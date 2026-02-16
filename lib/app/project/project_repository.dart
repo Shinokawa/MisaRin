@@ -33,7 +33,7 @@ class ProjectRepository {
     if (_projectDirectory != null) {
       return _projectDirectory!;
     }
-    final Directory base = await getApplicationDocumentsDirectory();
+    final base = await getApplicationDocumentsDirectory();
     final Directory directory = Directory(p.join(base.path, _folderName));
     if (!await directory.exists()) {
       await directory.create(recursive: true);

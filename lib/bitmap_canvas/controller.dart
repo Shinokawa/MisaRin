@@ -8,8 +8,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-// ignore: unused_import
-import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 
 import '../app/debug/backend_canvas_timeline.dart';
 import '../backend/canvas_painting_worker.dart';

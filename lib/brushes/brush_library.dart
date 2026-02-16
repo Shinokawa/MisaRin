@@ -376,7 +376,7 @@ class BrushLibrary extends ChangeNotifier {
   }
 
   static Future<File> _libraryFile() async {
-    final Directory base = await getApplicationDocumentsDirectory();
+    final base = await getApplicationDocumentsDirectory();
     final Directory directory = Directory(p.join(base.path, _folderName));
     if (!await directory.exists()) {
       await directory.create(recursive: true);

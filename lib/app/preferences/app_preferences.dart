@@ -1800,7 +1800,7 @@ class AppPreferences {
         'Preferences file storage is not available on web',
       );
     }
-    final Directory base = await getApplicationDocumentsDirectory();
+    final base = await getApplicationDocumentsDirectory();
     final Directory directory = Directory(p.join(base.path, _folderName));
     if (!await directory.exists()) {
       await directory.create(recursive: true);
