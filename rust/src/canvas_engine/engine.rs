@@ -641,7 +641,9 @@ fn can_use_vector_preview(
 }
 
 fn preview_use_accumulate(_brush_settings: &EngineBrushSettings) -> bool {
-    false
+    // Preview is drawn over the composited frame; max blending hides dark strokes
+    // on light backgrounds, so use alpha blending for visibility.
+    true
 }
 
 fn build_preview_config(
