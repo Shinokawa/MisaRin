@@ -8,6 +8,15 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       }
       return (event.buttons & kPrimaryMouseButton) != 0;
     }
+    if (event.kind == PointerDeviceKind.touch) {
+      if (event is PointerUpEvent || event is PointerCancelEvent) {
+        return true;
+      }
+      if (event is PointerDownEvent || event is PointerMoveEvent) {
+        return event.down;
+      }
+      return event.down;
+    }
     if (event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus) {
       if (event is PointerUpEvent || event is PointerCancelEvent) {

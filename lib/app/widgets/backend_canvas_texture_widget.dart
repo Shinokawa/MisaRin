@@ -217,6 +217,9 @@ class _BackendCanvasTextureWidgetState extends State<BackendCanvasTextureWidget>
     if (TabletInputBridge.instance.isTabletPointer(event)) {
       return true;
     }
+    if (event.kind == PointerDeviceKind.touch) {
+      return true;
+    }
     if (event.kind == PointerDeviceKind.mouse) {
       return (event.buttons & kPrimaryMouseButton) != 0;
     }

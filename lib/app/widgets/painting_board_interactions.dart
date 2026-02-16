@@ -526,6 +526,9 @@ mixin _PaintingBoardInteractionMixin
     if (_isStylusEvent(event)) {
       return true;
     }
+    if (event.kind == PointerDeviceKind.touch) {
+      return true;
+    }
     if (event.kind == PointerDeviceKind.mouse) {
       return (event.buttons & kPrimaryMouseButton) != 0;
     }

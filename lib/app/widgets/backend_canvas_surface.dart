@@ -664,6 +664,9 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
     if (TabletInputBridge.instance.isTabletPointer(event)) {
       return true;
     }
+    if (event.kind == PointerDeviceKind.touch) {
+      return true;
+    }
     if (event.kind == PointerDeviceKind.mouse) {
       return (event.buttons & kPrimaryMouseButton) != 0;
     }
