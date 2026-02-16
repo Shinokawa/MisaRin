@@ -15,6 +15,33 @@ pub struct CpuStreamlineResult {
     pub samples: Vec<f32>,
 }
 
+#[flutter_rust_bridge::frb]
+pub struct CpuBrushCommand {
+    pub kind: u32,
+    pub ax: f32,
+    pub ay: f32,
+    pub bx: f32,
+    pub by: f32,
+    pub start_radius: f32,
+    pub end_radius: f32,
+    pub center_x: f32,
+    pub center_y: f32,
+    pub radius: f32,
+    pub color_argb: u32,
+    pub brush_shape: u32,
+    pub antialias_level: u32,
+    pub softness: f32,
+    pub erase: bool,
+    pub include_start_cap: bool,
+    pub include_start: bool,
+    pub random_rotation: bool,
+    pub rotation_seed: u32,
+    pub rotation_jitter: f32,
+    pub spacing: f32,
+    pub scatter: f32,
+    pub snap_to_pixel: bool,
+}
+
 fn bool_to_u8(v: bool) -> u8 {
     if v { 1 } else { 0 }
 }
@@ -257,6 +284,97 @@ pub fn cpu_brush_draw_spray_rgba(
         ok: ok != 0,
         pixels,
     }
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn cpu_brush_apply_commands_rgba(
+    pixels: Vec<u32>,
+    width: u32,
+    height: u32,
+    commands: Vec<CpuBrushCommand>,
+    selection: Option<Vec<u8>>,
+) -> CpuBrushResult {
+    let mut pixels = pixels;
+    let (selection_ptr, selection_len) = match selection.as_ref() {
+        Some(mask) => (mask.as_ptr(), mask.len()),
+        None => (std::ptr::null(), 0),
+    };
+    let mut ok = true;
+    for cmd in commands {
+        let result = match cmd.kind {
+            0 => cpu_brush_draw_stamp(
+                pixels.as_mut_ptr(),
+                pixels.len(),
+                width,
+                height,
+                cmd.center_x,
+                cmd.center_y,
+                cmd.radius,
+                cmd.color_argb,
+                cmd.brush_shape,
+                cmd.antialias_level,
+                cmd.softness,
+                bool_to_u8(cmd.erase),
+                bool_to_u8(cmd.random_rotation),
+                cmd.rotation_seed,
+                cmd.rotation_jitter,
+                bool_to_u8(cmd.snap_to_pixel),
+                selection_ptr,
+                selection_len,
+            ),
+            1 => cpu_brush_draw_stamp_segment(
+                pixels.as_mut_ptr(),
+                pixels.len(),
+                width,
+                height,
+                cmd.ax,
+                cmd.ay,
+                cmd.bx,
+                cmd.by,
+                cmd.start_radius,
+                cmd.end_radius,
+                cmd.color_argb,
+                cmd.brush_shape,
+                cmd.antialias_level,
+                bool_to_u8(cmd.include_start),
+                bool_to_u8(cmd.erase),
+                bool_to_u8(cmd.random_rotation),
+                cmd.rotation_seed,
+                cmd.rotation_jitter,
+                cmd.spacing,
+                cmd.scatter,
+                cmd.softness,
+                bool_to_u8(cmd.snap_to_pixel),
+                1,
+                selection_ptr,
+                selection_len,
+            ),
+            2 => cpu_brush_draw_capsule_segment(
+                pixels.as_mut_ptr(),
+                pixels.len(),
+                width,
+                height,
+                cmd.ax,
+                cmd.ay,
+                cmd.bx,
+                cmd.by,
+                cmd.start_radius,
+                cmd.end_radius,
+                cmd.color_argb,
+                cmd.antialias_level,
+                bool_to_u8(cmd.include_start_cap),
+                bool_to_u8(cmd.erase),
+                selection_ptr,
+                selection_len,
+            ),
+            _ => 0,
+        };
+        if result == 0 {
+            ok = false;
+            break;
+        }
+    }
+    CpuBrushResult { ok, pixels }
 }
 
 #[flutter_rust_bridge::frb(sync)]

@@ -616,6 +616,36 @@ void _controllerFlushRealtimeStrokeCommands(
       !controller._currentStrokeEraseOccludedParts) {
     return;
   }
+  if (kIsWeb && !controller._currentStrokeSnapToPixel) {
+    return;
+  }
+  if (kIsWeb) {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final int elapsed = now - controller._lastWebRasterFlushMs;
+    if (elapsed < BitmapCanvasController._kWebRasterFlushMinIntervalMs) {
+      if (controller._realtimeStrokeFlushScheduled) {
+        return;
+      }
+      controller._realtimeStrokeFlushScheduled = true;
+      controller._webRasterFlushTimer?.cancel();
+      controller._webRasterFlushTimer = Timer(
+        Duration(
+          milliseconds: BitmapCanvasController._kWebRasterFlushMinIntervalMs -
+              elapsed,
+        ),
+        () {
+          controller._realtimeStrokeFlushScheduled = false;
+          controller._lastWebRasterFlushMs =
+              DateTime.now().millisecondsSinceEpoch;
+          controller._commitDeferredStrokeCommandsAsRaster(
+            keepStrokeState: true,
+          );
+        },
+      );
+      return;
+    }
+    controller._lastWebRasterFlushMs = now;
+  }
   if (controller._realtimeStrokeFlushScheduled) {
     return;
   }
@@ -633,6 +663,256 @@ void _controllerFlushRealtimeStrokeCommands(
     controller._commitDeferredStrokeCommandsAsRaster(keepStrokeState: true);
   });
   scheduler.ensureVisualUpdate();
+}
+
+Uint32List _controllerCopySurfaceRegion(
+  Uint32List pixels,
+  int surfaceWidth,
+  RasterIntRect rect,
+) {
+  final int width = rect.width;
+  final int height = rect.height;
+  final Uint32List patch = Uint32List(width * height);
+  for (int row = 0; row < height; row++) {
+    final int srcRowStart = (rect.top + row) * surfaceWidth + rect.left;
+    patch.setRange(
+      row * width,
+      (row + 1) * width,
+      pixels,
+      srcRowStart,
+    );
+  }
+  return patch;
+}
+
+void _controllerWriteSurfaceRegion(
+  Uint32List pixels,
+  int surfaceWidth,
+  RasterIntRect rect,
+  Uint32List patch,
+) {
+  final int width = rect.width;
+  final int height = rect.height;
+  for (int row = 0; row < height; row++) {
+    final int dstRowStart = (rect.top + row) * surfaceWidth + rect.left;
+    pixels.setRange(
+      dstRowStart,
+      dstRowStart + width,
+      patch,
+      row * width,
+    );
+  }
+}
+
+Uint8List _controllerCopyMaskRegion(
+  Uint8List mask,
+  int surfaceWidth,
+  RasterIntRect rect,
+) {
+  final int width = rect.width;
+  final int height = rect.height;
+  final Uint8List patch = Uint8List(width * height);
+  for (int row = 0; row < height; row++) {
+    final int srcRowStart = (rect.top + row) * surfaceWidth + rect.left;
+    patch.setRange(
+      row * width,
+      (row + 1) * width,
+      mask,
+      srcRowStart,
+    );
+  }
+  return patch;
+}
+
+bool _controllerApplyPaintingCommandsBatchWeb(
+  BitmapCanvasController controller,
+  List<PaintingDrawCommand> commands,
+) {
+  if (!kIsWeb || commands.isEmpty) {
+    return false;
+  }
+  Rect? union;
+  for (final PaintingDrawCommand command in commands) {
+    final Rect? bounds = controller._dirtyRectForCommand(command);
+    if (bounds == null || bounds.isEmpty) {
+      continue;
+    }
+    union = union == null ? bounds : _controllerUnionRects(union, bounds);
+  }
+  if (union == null || union.isEmpty) {
+    return true;
+  }
+  final RasterIntRect clipped = controller._clipRectToSurface(union);
+  if (clipped.isEmpty) {
+    return true;
+  }
+
+  final BitmapSurface surface = controller._activeSurface;
+  final Uint32List patch =
+      _controllerCopySurfaceRegion(surface.pixels, controller._width, clipped);
+  final Uint8List? selectionMask = controller._selectionMask;
+  final Uint8List? selectionPatch = selectionMask == null
+      ? null
+      : _controllerCopyMaskRegion(selectionMask, controller._width, clipped);
+
+  final List<rust.CpuBrushCommand> rustCommands =
+      <rust.CpuBrushCommand>[];
+  for (final PaintingDrawCommand command in commands) {
+    switch (command.type) {
+      case PaintingDrawCommandType.brushStamp:
+        final Offset? center = command.center;
+        final double? radius = command.radius;
+        final int? shapeIndex = command.shapeIndex;
+        if (center == null || radius == null || shapeIndex == null) {
+          return false;
+        }
+        rustCommands.add(
+          rust.CpuBrushCommand(
+            kind: 0,
+            ax: 0,
+            ay: 0,
+            bx: 0,
+            by: 0,
+            startRadius: 0,
+            endRadius: 0,
+            centerX: center.dx - clipped.left,
+            centerY: center.dy - clipped.top,
+            radius: radius,
+            colorArgb: command.color,
+            brushShape: shapeIndex,
+            antialiasLevel: command.antialiasLevel,
+            softness: command.softness ?? 0.0,
+            erase: command.erase,
+            includeStartCap: true,
+            includeStart: true,
+            randomRotation: command.randomRotation ?? false,
+            rotationSeed: command.rotationSeed ?? 0,
+            rotationJitter: command.rotationJitter ?? 1.0,
+            spacing: command.spacing ?? 0.15,
+            scatter: command.scatter ?? 0.0,
+            snapToPixel: command.snapToPixel ?? false,
+          ),
+        );
+        break;
+      case PaintingDrawCommandType.stampSegment:
+        final Offset? start = command.start;
+        final Offset? end = command.end;
+        final double? startRadius = command.startRadius;
+        final double? endRadius = command.endRadius;
+        final int? shapeIndex = command.shapeIndex;
+        if (start == null ||
+            end == null ||
+            startRadius == null ||
+            endRadius == null ||
+            shapeIndex == null) {
+          return false;
+        }
+        rustCommands.add(
+          rust.CpuBrushCommand(
+            kind: 1,
+            ax: start.dx - clipped.left,
+            ay: start.dy - clipped.top,
+            bx: end.dx - clipped.left,
+            by: end.dy - clipped.top,
+            startRadius: startRadius,
+            endRadius: endRadius,
+            centerX: 0,
+            centerY: 0,
+            radius: 0,
+            colorArgb: command.color,
+            brushShape: shapeIndex,
+            antialiasLevel: command.antialiasLevel,
+            softness: command.softness ?? 0.0,
+            erase: command.erase,
+            includeStartCap: command.includeStartCap ?? true,
+            includeStart: command.includeStartCap ?? true,
+            randomRotation: command.randomRotation ?? false,
+            rotationSeed: command.rotationSeed ?? 0,
+            rotationJitter: command.rotationJitter ?? 1.0,
+            spacing: command.spacing ?? 0.15,
+            scatter: command.scatter ?? 0.0,
+            snapToPixel: command.snapToPixel ?? false,
+          ),
+        );
+        break;
+      case PaintingDrawCommandType.line:
+      case PaintingDrawCommandType.variableLine:
+        final Offset? start = command.start;
+        final Offset? end = command.end;
+        final double? startRadius = command.startRadius ?? command.radius;
+        final double? endRadius = command.endRadius ?? command.radius;
+        if (start == null ||
+            end == null ||
+            startRadius == null ||
+            endRadius == null) {
+          return false;
+        }
+        rustCommands.add(
+          rust.CpuBrushCommand(
+            kind: 2,
+            ax: start.dx - clipped.left,
+            ay: start.dy - clipped.top,
+            bx: end.dx - clipped.left,
+            by: end.dy - clipped.top,
+            startRadius: startRadius,
+            endRadius: endRadius,
+            centerX: 0,
+            centerY: 0,
+            radius: 0,
+            colorArgb: command.color,
+            brushShape: BrushShape.circle.index,
+            antialiasLevel: command.antialiasLevel,
+            softness: command.softness ?? 0.0,
+            erase: command.erase,
+            includeStartCap: command.includeStartCap ?? true,
+            includeStart: true,
+            randomRotation: false,
+            rotationSeed: 0,
+            rotationJitter: 0.0,
+            spacing: 0.15,
+            scatter: 0.0,
+            snapToPixel: false,
+          ),
+        );
+        break;
+      case PaintingDrawCommandType.filledPolygon:
+      case PaintingDrawCommandType.vectorStroke:
+        return false;
+    }
+  }
+
+  if (rustCommands.isEmpty) {
+    return false;
+  }
+  final bool ok = RustCpuBrushFfi.instance.applyCommands(
+    pixels: patch,
+    width: clipped.width,
+    height: clipped.height,
+    commands: rustCommands,
+    selectionMask: selectionPatch,
+  );
+  if (!ok) {
+    return false;
+  }
+  _controllerWriteSurfaceRegion(
+    surface.pixels,
+    controller._width,
+    clipped,
+    patch,
+  );
+  surface.markDirty();
+  controller._resetWorkerSurfaceSync();
+  controller._markDirty(
+    region: Rect.fromLTRB(
+      clipped.left.toDouble(),
+      clipped.top.toDouble(),
+      clipped.right.toDouble(),
+      clipped.bottom.toDouble(),
+    ),
+    layerId: controller._activeLayer.id,
+    pixelsDirty: true,
+  );
+  return true;
 }
 
 void _controllerCommitDeferredStrokeCommandsAsRaster(
@@ -653,6 +933,14 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
   final bool hollow = controller._currentStrokeHollowEnabled;
   final double hollowRatio = controller._currentStrokeHollowRatio;
   final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
+
+  if (_controllerApplyPaintingCommandsBatchWeb(controller, commands)) {
+    if (!keepStrokeState) {
+      controller._currentStrokePoints.clear();
+      controller._currentStrokeRadii.clear();
+    }
+    return;
+  }
 
   for (final PaintingDrawCommand command in commands) {
     final _RustWgpuStrokeDrawData? stroke = _controllerRustWgpuStrokeFromCommand(

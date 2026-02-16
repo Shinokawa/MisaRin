@@ -3,10 +3,14 @@ part of 'controller.dart';
 const double _kStylusAbsoluteMinRadius = 0.005;
 const double _kSimulatedAbsoluteMinRadius = 0.01;
 const double _kAbsoluteMaxStrokeRadius = 512.0;
+const double _kWebStampSpacingBoost = 2.0;
 
 double _strokeStampSpacing(double radius, double spacing) {
   double r = radius.isFinite ? radius.abs() : 0.0;
   double s = spacing.isFinite ? spacing : 0.15;
+  if (kIsWeb) {
+    s *= _kWebStampSpacingBoost;
+  }
   s = s.clamp(0.02, 2.5);
   return math.max(r * 2.0 * s, 0.1);
 }
@@ -108,7 +112,11 @@ void _strokeBegin(
       !controller._currentStrokeStylusPressureEnabled;
   controller._currentStylusCurve = controller._stylusCurve;
   controller._currentStylusLastPressure = null;
-  controller._currentStrokeAntialiasLevel = antialiasLevel.clamp(0, 9);
+  int resolvedAntialias = antialiasLevel.clamp(0, 9);
+  if (kIsWeb && resolvedAntialias > 1) {
+    resolvedAntialias = 1;
+  }
+  controller._currentStrokeAntialiasLevel = resolvedAntialias;
   controller._currentStrokeHasMoved = false;
   controller._currentBrushShape = brushShape;
   controller._currentStrokeRandomRotationEnabled = randomRotation;
@@ -405,6 +413,11 @@ void _strokeEnd(BitmapCanvasController controller) {
   if (controller.isMultithreaded) {
     controller._flushPendingPaintingCommands();
   }
+  if (kIsWeb) {
+    controller._webRasterFlushTimer?.cancel();
+    controller._webRasterFlushTimer = null;
+    controller._realtimeStrokeFlushScheduled = false;
+  }
 
   controller._currentStrokeRadius = 0;
   controller._currentStrokeLastRadius = 0;
@@ -426,6 +439,11 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeSnapToPixel = false;
   controller._currentStrokeStreamlineStrength = 0.0;
   controller._currentStrokeDeferRaster = false;
+  if (kIsWeb) {
+    controller._webRasterFlushTimer?.cancel();
+    controller._webRasterFlushTimer = null;
+    controller._realtimeStrokeFlushScheduled = false;
+  }
 }
 
 void _strokeCancel(BitmapCanvasController controller) {

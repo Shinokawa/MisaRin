@@ -26,6 +26,7 @@ import '../canvas/brush_random_rotation.dart';
 import '../canvas/text_renderer.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
 import '../backend/rust_wgpu_brush.dart' as rust_wgpu_brush;
+import '../src/rust/api/cpu_brush.dart' as rust;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
 import '../src/rust/rust_cpu_blend_ffi.dart';
 import '../src/rust/rust_cpu_brush_ffi.dart';
@@ -75,6 +76,7 @@ class BitmapCanvasController extends ChangeNotifier
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
+         tileSize: kIsWeb ? 1024 : 256,
          backend: backend,
        ) {
     if (creationLogic == CanvasCreationLogic.multiThread && !_isMultithreaded) {
@@ -207,10 +209,16 @@ class BitmapCanvasController extends ChangeNotifier
   static const int _kGaussianKernel5x5Weight = 256;
   static const int _kMaxWorkerBatchCommands = 24;
   static const int _kMaxWorkerBatchPixels = 512 * 512;
+  static const int _kWebCompositeMinIntervalMs = 16;
+  static const int _kWebRasterFlushMinIntervalMs = 16;
 
   bool _refreshScheduled = false;
   bool _compositeProcessing = false;
   bool _realtimeStrokeFlushScheduled = false;
+  Timer? _webCompositeTimer;
+  Timer? _webRasterFlushTimer;
+  int _lastWebCompositeMs = 0;
+  int _lastWebRasterFlushMs = 0;
   Uint8List? _selectionMask;
   final CanvasRasterBackend _rasterBackend;
   final CanvasTextRenderer _textRenderer = CanvasTextRenderer();
@@ -476,6 +484,10 @@ class BitmapCanvasController extends ChangeNotifier
   }
 
   Future<void> disposeController() async {
+    _webCompositeTimer?.cancel();
+    _webCompositeTimer = null;
+    _webRasterFlushTimer?.cancel();
+    _webRasterFlushTimer = null;
     _tileCache.dispose();
     await _rasterBackend.dispose();
     await _paintingWorker?.dispose();

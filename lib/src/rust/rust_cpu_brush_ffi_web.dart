@@ -382,4 +382,35 @@ class RustCpuBrushFfi {
     }
     return true;
   }
+
+  bool applyCommands({
+    required Uint32List pixels,
+    required int width,
+    required int height,
+    required List<rust.CpuBrushCommand> commands,
+    Uint8List? selectionMask,
+  }) {
+    if (pixels.isEmpty || width <= 0 || height <= 0) {
+      return false;
+    }
+    if (commands.isEmpty) {
+      return true;
+    }
+    final rust.CpuBrushResult result = rust.cpuBrushApplyCommandsRgba(
+      pixels: pixels,
+      width: width,
+      height: height,
+      commands: commands,
+      selection: selectionMask,
+    );
+    if (!result.ok) {
+      _loggedCallFailed = _logOnce(
+        _loggedCallFailed,
+        'RustCpuBrushFfi (web) applyCommands failed: native returned false.',
+      );
+      return false;
+    }
+    _copyPixels(pixels, result.pixels);
+    return true;
+  }
 }

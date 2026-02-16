@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1556327404;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1237602523;
 
 // Section: executor
 
@@ -221,6 +221,48 @@ fn wire__crate__api__cpu_blend__cpu_blend_overflow_rgba_impl(
                         api_mask_overflow_y,
                         api_mask_overflow_color,
                         api_out_capacity,
+                    ))?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__cpu_brush__cpu_brush_apply_commands_rgba_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cpu_brush_apply_commands_rgba",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_pixels = <Vec<u32>>::sse_decode(&mut deserializer);
+            let api_width = <u32>::sse_decode(&mut deserializer);
+            let api_height = <u32>::sse_decode(&mut deserializer);
+            let api_commands =
+                <Vec<crate::api::cpu_brush::CpuBrushCommand>>::sse_decode(&mut deserializer);
+            let api_selection = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::api::cpu_brush::cpu_brush_apply_commands_rgba(
+                        api_pixels,
+                        api_width,
+                        api_height,
+                        api_commands,
+                        api_selection,
                     ))?;
                 Ok(output_ok)
             })())
@@ -1882,6 +1924,60 @@ impl SseDecode for crate::api::cpu_blend::CpuBlendResult {
     }
 }
 
+impl SseDecode for crate::api::cpu_brush::CpuBrushCommand {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kind = <u32>::sse_decode(deserializer);
+        let mut var_ax = <f32>::sse_decode(deserializer);
+        let mut var_ay = <f32>::sse_decode(deserializer);
+        let mut var_bx = <f32>::sse_decode(deserializer);
+        let mut var_by = <f32>::sse_decode(deserializer);
+        let mut var_startRadius = <f32>::sse_decode(deserializer);
+        let mut var_endRadius = <f32>::sse_decode(deserializer);
+        let mut var_centerX = <f32>::sse_decode(deserializer);
+        let mut var_centerY = <f32>::sse_decode(deserializer);
+        let mut var_radius = <f32>::sse_decode(deserializer);
+        let mut var_colorArgb = <u32>::sse_decode(deserializer);
+        let mut var_brushShape = <u32>::sse_decode(deserializer);
+        let mut var_antialiasLevel = <u32>::sse_decode(deserializer);
+        let mut var_softness = <f32>::sse_decode(deserializer);
+        let mut var_erase = <bool>::sse_decode(deserializer);
+        let mut var_includeStartCap = <bool>::sse_decode(deserializer);
+        let mut var_includeStart = <bool>::sse_decode(deserializer);
+        let mut var_randomRotation = <bool>::sse_decode(deserializer);
+        let mut var_rotationSeed = <u32>::sse_decode(deserializer);
+        let mut var_rotationJitter = <f32>::sse_decode(deserializer);
+        let mut var_spacing = <f32>::sse_decode(deserializer);
+        let mut var_scatter = <f32>::sse_decode(deserializer);
+        let mut var_snapToPixel = <bool>::sse_decode(deserializer);
+        return crate::api::cpu_brush::CpuBrushCommand {
+            kind: var_kind,
+            ax: var_ax,
+            ay: var_ay,
+            bx: var_bx,
+            by: var_by,
+            start_radius: var_startRadius,
+            end_radius: var_endRadius,
+            center_x: var_centerX,
+            center_y: var_centerY,
+            radius: var_radius,
+            color_argb: var_colorArgb,
+            brush_shape: var_brushShape,
+            antialias_level: var_antialiasLevel,
+            softness: var_softness,
+            erase: var_erase,
+            include_start_cap: var_includeStartCap,
+            include_start: var_includeStart,
+            random_rotation: var_randomRotation,
+            rotation_seed: var_rotationSeed,
+            rotation_jitter: var_rotationJitter,
+            spacing: var_spacing,
+            scatter: var_scatter,
+            snap_to_pixel: var_snapToPixel,
+        };
+    }
+}
+
 impl SseDecode for crate::api::cpu_brush::CpuBrushResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2069,6 +2165,20 @@ impl SseDecode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_i32::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for Vec<crate::api::cpu_brush::CpuBrushCommand> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::cpu_brush::CpuBrushCommand>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
     }
 }
 
@@ -2342,44 +2452,44 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        11 => wire__crate__api__gpu_composite__cpu_composite_layers_impl(
+        12 => wire__crate__api__gpu_composite__cpu_composite_layers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__bucket_fill__flood_fill_in_place_impl(
+        18 => wire__crate__api__bucket_fill__flood_fill_in_place_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        18 => {
+        19 => {
             wire__crate__api__bucket_fill__flood_fill_patch_impl(port, ptr, rust_vec_len, data_len)
         }
-        22 => wire__crate__api__gpu_composite__gpu_composite_layers_impl(
+        23 => wire__crate__api__gpu_composite__gpu_composite_layers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => {
+        26 => {
             wire__crate__api__gpu_brush__gpu_download_layer_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => wire__crate__api__gpu_brush__gpu_draw_stroke_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__gpu_brush__gpu_upload_layer_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__psd__import_psd_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        32 => {
+        27 => wire__crate__api__gpu_brush__gpu_draw_stroke_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__gpu_brush__gpu_upload_layer_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__psd__import_psd_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        33 => {
             wire__crate__api__bucket_fill__magic_wand_mask_impl(port, ptr, rust_vec_len, data_len)
         }
-        35 => wire__crate__api__workspace__workspace_entry_default_impl(
+        36 => wire__crate__api__workspace__workspace_entry_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__crate__api__workspace__workspace_state_default_impl(
+        45 => wire__crate__api__workspace__workspace_state_default_impl(
             port,
             ptr,
             rust_vec_len,
@@ -2403,80 +2513,85 @@ fn pde_ffi_dispatcher_sync_impl(
             wire__crate__api__cpu_blend__cpu_blend_on_canvas_rgba_impl(ptr, rust_vec_len, data_len)
         }
         4 => wire__crate__api__cpu_blend__cpu_blend_overflow_rgba_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__cpu_brush__cpu_brush_apply_streamline_samples_impl(
+        5 => wire__crate__api__cpu_brush__cpu_brush_apply_commands_rgba_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        6 => wire__crate__api__cpu_brush__cpu_brush_draw_capsule_segment_rgba_impl(
+        6 => wire__crate__api__cpu_brush__cpu_brush_apply_streamline_samples_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        7 => {
+        7 => wire__crate__api__cpu_brush__cpu_brush_draw_capsule_segment_rgba_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        8 => {
             wire__crate__api__cpu_brush__cpu_brush_draw_spray_rgba_impl(ptr, rust_vec_len, data_len)
         }
-        8 => {
+        9 => {
             wire__crate__api__cpu_brush__cpu_brush_draw_stamp_rgba_impl(ptr, rust_vec_len, data_len)
         }
-        9 => wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
+        10 => wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        10 => wire__crate__api__cpu_brush__cpu_brush_fill_polygon_rgba_impl(
+        11 => wire__crate__api__cpu_brush__cpu_brush_fill_polygon_rgba_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__cpu_filters__cpu_filters_apply_antialias_rgba_impl(
+        13 => wire__crate__api__cpu_filters__cpu_filters_apply_antialias_rgba_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__cpu_filters__cpu_filters_apply_filter_rgba_bytes_impl(
+        14 => wire__crate__api__cpu_filters__cpu_filters_apply_filter_rgba_bytes_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__cpu_image__cpu_image_bounds_rgba_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__cpu_transform__cpu_transform_build_overflow_snapshot_impl(
+        15 => wire__crate__api__cpu_image__cpu_image_bounds_rgba_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__cpu_transform__cpu_transform_build_overflow_snapshot_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__cpu_transform__cpu_transform_translate_layer_impl(
+        17 => wire__crate__api__cpu_transform__cpu_transform_translate_layer_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        19 => wire__crate__api__memory__free_pixel_buffer_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__gpu_brush__gpu_brush_dispose_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__gpu_brush__gpu_brush_init_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__gpu_composite__gpu_compositor_dispose_impl(
+        20 => wire__crate__api__memory__free_pixel_buffer_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__gpu_brush__gpu_brush_dispose_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__gpu_brush__gpu_brush_init_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__gpu_composite__gpu_compositor_dispose_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => {
+        25 => {
             wire__crate__api__gpu_composite__gpu_compositor_init_impl(ptr, rust_vec_len, data_len)
         }
-        27 => wire__crate__api__gpu_brush__gpu_remove_layer_impl(ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__memory__read_pixel_at_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__selection_path__selection_path_vertices_from_mask_impl(
+        28 => wire__crate__api__gpu_brush__gpu_remove_layer_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__memory__read_pixel_at_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__selection_path__selection_path_vertices_from_mask_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__workspace__workspace_mark_dirty_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__workspace__workspace_neighbor_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__workspace__workspace_open_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__workspace__workspace_remove_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__workspace__workspace_reorder_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__workspace__workspace_reset_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__workspace__workspace_set_active_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__workspace__workspace_state_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__workspace__workspace_mark_dirty_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__workspace__workspace_neighbor_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__workspace__workspace_open_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__workspace__workspace_remove_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__workspace__workspace_reorder_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__workspace__workspace_reset_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__workspace__workspace_set_active_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__workspace__workspace_state_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2525,6 +2640,48 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::cpu_blend::CpuBlendResult>
     for crate::api::cpu_blend::CpuBlendResult
 {
     fn into_into_dart(self) -> crate::api::cpu_blend::CpuBlendResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::cpu_brush::CpuBrushCommand {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.kind.into_into_dart().into_dart(),
+            self.ax.into_into_dart().into_dart(),
+            self.ay.into_into_dart().into_dart(),
+            self.bx.into_into_dart().into_dart(),
+            self.by.into_into_dart().into_dart(),
+            self.start_radius.into_into_dart().into_dart(),
+            self.end_radius.into_into_dart().into_dart(),
+            self.center_x.into_into_dart().into_dart(),
+            self.center_y.into_into_dart().into_dart(),
+            self.radius.into_into_dart().into_dart(),
+            self.color_argb.into_into_dart().into_dart(),
+            self.brush_shape.into_into_dart().into_dart(),
+            self.antialias_level.into_into_dart().into_dart(),
+            self.softness.into_into_dart().into_dart(),
+            self.erase.into_into_dart().into_dart(),
+            self.include_start_cap.into_into_dart().into_dart(),
+            self.include_start.into_into_dart().into_dart(),
+            self.random_rotation.into_into_dart().into_dart(),
+            self.rotation_seed.into_into_dart().into_dart(),
+            self.rotation_jitter.into_into_dart().into_dart(),
+            self.spacing.into_into_dart().into_dart(),
+            self.scatter.into_into_dart().into_dart(),
+            self.snap_to_pixel.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::cpu_brush::CpuBrushCommand
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cpu_brush::CpuBrushCommand>
+    for crate::api::cpu_brush::CpuBrushCommand
+{
+    fn into_into_dart(self) -> crate::api::cpu_brush::CpuBrushCommand {
         self
     }
 }
@@ -2914,6 +3071,35 @@ impl SseEncode for crate::api::cpu_blend::CpuBlendResult {
     }
 }
 
+impl SseEncode for crate::api::cpu_brush::CpuBrushCommand {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.kind, serializer);
+        <f32>::sse_encode(self.ax, serializer);
+        <f32>::sse_encode(self.ay, serializer);
+        <f32>::sse_encode(self.bx, serializer);
+        <f32>::sse_encode(self.by, serializer);
+        <f32>::sse_encode(self.start_radius, serializer);
+        <f32>::sse_encode(self.end_radius, serializer);
+        <f32>::sse_encode(self.center_x, serializer);
+        <f32>::sse_encode(self.center_y, serializer);
+        <f32>::sse_encode(self.radius, serializer);
+        <u32>::sse_encode(self.color_argb, serializer);
+        <u32>::sse_encode(self.brush_shape, serializer);
+        <u32>::sse_encode(self.antialias_level, serializer);
+        <f32>::sse_encode(self.softness, serializer);
+        <bool>::sse_encode(self.erase, serializer);
+        <bool>::sse_encode(self.include_start_cap, serializer);
+        <bool>::sse_encode(self.include_start, serializer);
+        <bool>::sse_encode(self.random_rotation, serializer);
+        <u32>::sse_encode(self.rotation_seed, serializer);
+        <f32>::sse_encode(self.rotation_jitter, serializer);
+        <f32>::sse_encode(self.spacing, serializer);
+        <f32>::sse_encode(self.scatter, serializer);
+        <bool>::sse_encode(self.snap_to_pixel, serializer);
+    }
+}
+
 impl SseEncode for crate::api::cpu_brush::CpuBrushResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3042,6 +3228,16 @@ impl SseEncode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_i32::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for Vec<crate::api::cpu_brush::CpuBrushCommand> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::cpu_brush::CpuBrushCommand>::sse_encode(item, serializer);
+        }
     }
 }
 

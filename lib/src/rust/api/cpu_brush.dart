@@ -176,6 +176,20 @@ CpuBrushResult cpuBrushDrawSprayRgba({
   selection: selection,
 );
 
+CpuBrushResult cpuBrushApplyCommandsRgba({
+  required List<int> pixels,
+  required int width,
+  required int height,
+  required List<CpuBrushCommand> commands,
+  Uint8List? selection,
+}) => RustLib.instance.api.crateApiCpuBrushCpuBrushApplyCommandsRgba(
+  pixels: pixels,
+  width: width,
+  height: height,
+  commands: commands,
+  selection: selection,
+);
+
 CpuStreamlineResult cpuBrushApplyStreamlineSamples({
   required List<double> samples,
   required double strength,
@@ -183,6 +197,113 @@ CpuStreamlineResult cpuBrushApplyStreamlineSamples({
   samples: samples,
   strength: strength,
 );
+
+class CpuBrushCommand {
+  final int kind;
+  final double ax;
+  final double ay;
+  final double bx;
+  final double by;
+  final double startRadius;
+  final double endRadius;
+  final double centerX;
+  final double centerY;
+  final double radius;
+  final int colorArgb;
+  final int brushShape;
+  final int antialiasLevel;
+  final double softness;
+  final bool erase;
+  final bool includeStartCap;
+  final bool includeStart;
+  final bool randomRotation;
+  final int rotationSeed;
+  final double rotationJitter;
+  final double spacing;
+  final double scatter;
+  final bool snapToPixel;
+
+  const CpuBrushCommand({
+    required this.kind,
+    required this.ax,
+    required this.ay,
+    required this.bx,
+    required this.by,
+    required this.startRadius,
+    required this.endRadius,
+    required this.centerX,
+    required this.centerY,
+    required this.radius,
+    required this.colorArgb,
+    required this.brushShape,
+    required this.antialiasLevel,
+    required this.softness,
+    required this.erase,
+    required this.includeStartCap,
+    required this.includeStart,
+    required this.randomRotation,
+    required this.rotationSeed,
+    required this.rotationJitter,
+    required this.spacing,
+    required this.scatter,
+    required this.snapToPixel,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      ax.hashCode ^
+      ay.hashCode ^
+      bx.hashCode ^
+      by.hashCode ^
+      startRadius.hashCode ^
+      endRadius.hashCode ^
+      centerX.hashCode ^
+      centerY.hashCode ^
+      radius.hashCode ^
+      colorArgb.hashCode ^
+      brushShape.hashCode ^
+      antialiasLevel.hashCode ^
+      softness.hashCode ^
+      erase.hashCode ^
+      includeStartCap.hashCode ^
+      includeStart.hashCode ^
+      randomRotation.hashCode ^
+      rotationSeed.hashCode ^
+      rotationJitter.hashCode ^
+      spacing.hashCode ^
+      scatter.hashCode ^
+      snapToPixel.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CpuBrushCommand &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          ax == other.ax &&
+          ay == other.ay &&
+          bx == other.bx &&
+          by == other.by &&
+          startRadius == other.startRadius &&
+          endRadius == other.endRadius &&
+          centerX == other.centerX &&
+          centerY == other.centerY &&
+          radius == other.radius &&
+          colorArgb == other.colorArgb &&
+          brushShape == other.brushShape &&
+          antialiasLevel == other.antialiasLevel &&
+          softness == other.softness &&
+          erase == other.erase &&
+          includeStartCap == other.includeStartCap &&
+          includeStart == other.includeStart &&
+          randomRotation == other.randomRotation &&
+          rotationSeed == other.rotationSeed &&
+          rotationJitter == other.rotationJitter &&
+          spacing == other.spacing &&
+          scatter == other.scatter &&
+          snapToPixel == other.snapToPixel;
+}
 
 class CpuBrushResult {
   final bool ok;

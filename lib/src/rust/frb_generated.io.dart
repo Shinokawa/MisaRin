@@ -50,6 +50,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CpuBlendResult dco_decode_cpu_blend_result(dynamic raw);
 
   @protected
+  CpuBrushCommand dco_decode_cpu_brush_command(dynamic raw);
+
+  @protected
   CpuBrushResult dco_decode_cpu_brush_result(dynamic raw);
 
   @protected
@@ -97,6 +100,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_i_32(dynamic raw);
+
+  @protected
+  List<CpuBrushCommand> dco_decode_list_cpu_brush_command(dynamic raw);
 
   @protected
   List<GpuLayerData> dco_decode_list_gpu_layer_data(dynamic raw);
@@ -199,6 +205,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CpuBlendResult sse_decode_cpu_blend_result(SseDeserializer deserializer);
 
   @protected
+  CpuBrushCommand sse_decode_cpu_brush_command(SseDeserializer deserializer);
+
+  @protected
   CpuBrushResult sse_decode_cpu_brush_result(SseDeserializer deserializer);
 
   @protected
@@ -252,6 +261,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  List<CpuBrushCommand> sse_decode_list_cpu_brush_command(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<GpuLayerData> sse_decode_list_gpu_layer_data(
@@ -367,6 +381,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_cpu_brush_command(
+    CpuBrushCommand self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_cpu_brush_result(
     CpuBrushResult self,
     SseSerializer serializer,
@@ -437,6 +457,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_cpu_brush_command(
+    List<CpuBrushCommand> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_gpu_layer_data(
