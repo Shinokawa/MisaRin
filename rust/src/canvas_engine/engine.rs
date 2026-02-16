@@ -1445,18 +1445,25 @@ fn render_thread_main(
                                 }
 
                                 if let Some(payload) = stroke.take_streamline_payload() {
-                                    let points = payload.points;
+                                    let mut from_points = payload.points;
                                     let strength = payload.strength;
-                                    if points.len() > 2 && strength > 0.0001 {
-                                        let smoothed = apply_streamline(&points, strength);
+                                    if let Some(state) = preview_state.as_ref() {
+                                        if state.points.len() == from_points.len()
+                                            && !state.points.is_empty()
+                                        {
+                                            from_points = state.points.clone();
+                                        }
+                                    }
+                                    if from_points.len() > 2 && strength > 0.0001 {
+                                        let smoothed = apply_streamline(&from_points, strength);
                                         if !smoothed.is_empty()
-                                            && smoothed.len() == points.len()
+                                            && smoothed.len() == from_points.len()
                                         {
                                             let duration =
                                                 streamline_animation_duration(strength);
                                             let (preview_from, preview_to, preview_len) =
                                                 match build_streamline_preview(
-                                                    &points, &smoothed,
+                                                    &from_points, &smoothed,
                                                 ) {
                                                     Some((preview_from, preview_to)) => {
                                                         let len = preview_from.len();
@@ -1466,14 +1473,14 @@ fn render_thread_main(
                                                             len,
                                                         )
                                                     }
-                                                    None => (None, None, points.len()),
+                                                    None => (None, None, from_points.len()),
                                                 };
                                             if debug::level() >= LogLevel::Info {
                                                 debug::log(
                                                     LogLevel::Info,
                                                     format_args!(
                                                         "streamline start points={} preview_points={} strength={:.3} duration_ms={}",
-                                                        points.len(),
+                                                        from_points.len(),
                                                         preview_len,
                                                         strength,
                                                         duration.as_millis()
@@ -1486,8 +1493,8 @@ fn render_thread_main(
                                                 duration,
                                                 next_frame_at: now,
                                                 frame_interval: Duration::from_millis(16),
-                                                pending_first_frame: false,
-                                                from_points: points,
+                                                pending_first_frame: true,
+                                                from_points,
                                                 to_points: smoothed,
                                                 preview_from_points: preview_from,
                                                 preview_to_points: preview_to,
@@ -1649,18 +1656,18 @@ fn render_thread_main(
                                 drawn_any |= segment_drawn;
 
                                 if let Some(payload) = stroke.take_streamline_payload() {
-                                    let points = payload.points;
+                                    let from_points = payload.points;
                                     let strength = payload.strength;
-                                    if points.len() > 2 && strength > 0.0001 {
-                                        let smoothed = apply_streamline(&points, strength);
+                                    if from_points.len() > 2 && strength > 0.0001 {
+                                        let smoothed = apply_streamline(&from_points, strength);
                                         if !smoothed.is_empty()
-                                            && smoothed.len() == points.len()
+                                            && smoothed.len() == from_points.len()
                                         {
                                             let duration =
                                                 streamline_animation_duration(strength);
                                             let (preview_from, preview_to, preview_len) =
                                                 match build_streamline_preview(
-                                                    &points, &smoothed,
+                                                    &from_points, &smoothed,
                                                 ) {
                                                     Some((preview_from, preview_to)) => {
                                                         let len = preview_from.len();
@@ -1670,14 +1677,14 @@ fn render_thread_main(
                                                             len,
                                                         )
                                                     }
-                                                    None => (None, None, points.len()),
+                                                    None => (None, None, from_points.len()),
                                                 };
                                             if debug::level() >= LogLevel::Info {
                                                 debug::log(
                                                     LogLevel::Info,
                                                     format_args!(
                                                         "streamline start points={} preview_points={} strength={:.3} duration_ms={}",
-                                                        points.len(),
+                                                        from_points.len(),
                                                         preview_len,
                                                         strength,
                                                         duration.as_millis()
@@ -1690,8 +1697,8 @@ fn render_thread_main(
                                                 duration,
                                                 next_frame_at: now,
                                                 frame_interval: Duration::from_millis(16),
-                                                pending_first_frame: false,
-                                                from_points: points,
+                                                pending_first_frame: true,
+                                                from_points,
                                                 to_points: smoothed,
                                                 preview_from_points: preview_from,
                                                 preview_to_points: preview_to,
