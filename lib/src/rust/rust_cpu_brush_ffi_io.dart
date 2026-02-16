@@ -236,22 +236,26 @@ class RustCpuBrushFfi {
     try {
       _lib = _openLibrary();
       _drawStamp = _lib
-          .lookupFunction<_RustCpuBrushDrawStampNative, _RustCpuBrushDrawStampDart>(
-            'cpu_brush_draw_stamp',
-          );
+          .lookupFunction<
+            _RustCpuBrushDrawStampNative,
+            _RustCpuBrushDrawStampDart
+          >('cpu_brush_draw_stamp');
       _drawCapsule = _lib
-          .lookupFunction<_RustCpuBrushDrawCapsuleNative, _RustCpuBrushDrawCapsuleDart>(
-            'cpu_brush_draw_capsule_segment',
-          );
+          .lookupFunction<
+            _RustCpuBrushDrawCapsuleNative,
+            _RustCpuBrushDrawCapsuleDart
+          >('cpu_brush_draw_capsule_segment');
       _fillPolygon = _lib
-          .lookupFunction<_RustCpuBrushFillPolygonNative, _RustCpuBrushFillPolygonDart>(
-            'cpu_brush_fill_polygon',
-          );
+          .lookupFunction<
+            _RustCpuBrushFillPolygonNative,
+            _RustCpuBrushFillPolygonDart
+          >('cpu_brush_fill_polygon');
       try {
         _drawSpray = _lib
-            .lookupFunction<_RustCpuBrushDrawSprayNative, _RustCpuBrushDrawSprayDart>(
-              'cpu_brush_draw_spray',
-            );
+            .lookupFunction<
+              _RustCpuBrushDrawSprayNative,
+              _RustCpuBrushDrawSprayDart
+            >('cpu_brush_draw_spray');
       } catch (_) {
         _drawSpray = null;
       }
@@ -353,7 +357,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi drawStamp skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi drawStamp skipped: invalid size ${width}x$height.',
       );
       return false;
     }
@@ -436,7 +440,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi drawCapsuleSegment skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi drawCapsuleSegment skipped: invalid size ${width}x$height.',
       );
       return false;
     }
@@ -513,7 +517,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi fillPolygon skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi fillPolygon skipped: invalid size ${width}x$height.',
       );
       return false;
     }
@@ -610,7 +614,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi drawStampSegment skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi drawStampSegment skipped: invalid size ${width}x$height.',
       );
       return false;
     }
@@ -700,7 +704,7 @@ class RustCpuBrushFfi {
     if (width <= 0 || height <= 0) {
       _loggedInvalidSize = _logOnce(
         _loggedInvalidSize,
-        'RustCpuBrushFfi drawSpray skipped: invalid size ${width}x${height}.',
+        'RustCpuBrushFfi drawSpray skipped: invalid size ${width}x$height.',
       );
       return false;
     }

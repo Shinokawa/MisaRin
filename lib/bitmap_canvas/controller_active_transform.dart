@@ -386,17 +386,15 @@ void _applyClippedLayerTranslation(
       expectedLen != snapshot.length) {
     return;
   }
-  final Pointer<Uint32> snapshotPtr = malloc.allocate<Uint32>(
-    sizeOf<Uint32>() * snapshot.length,
-  );
-  snapshotPtr.asTypedList(snapshot.length).setAll(0, snapshot);
+  final CpuBuffer<Uint32List> snapshotBuffer = allocateUint32(snapshot.length);
+  snapshotBuffer.list.setAll(0, snapshot);
   try {
     final bool ok = RustCpuTransformFfi.instance.translateLayer(
       canvasPtr: canvasPtr,
       canvasLen: pixels.length,
       canvasWidth: canvasWidth,
       canvasHeight: canvasHeight,
-      snapshotPtr: snapshotPtr.address,
+      snapshotPtr: snapshotBuffer.address,
       snapshotLen: snapshot.length,
       snapshotWidth: snapshotWidth,
       snapshotHeight: snapshotHeight,
@@ -410,7 +408,7 @@ void _applyClippedLayerTranslation(
       _textLayerApplyTranslation(target, dx, dy);
     }
   } finally {
-    malloc.free(snapshotPtr);
+    snapshotBuffer.dispose();
   }
   return;
 }
@@ -448,28 +446,19 @@ void _applyOverflowLayerTranslation(
     return;
   }
   final int overflowCapacity = snapshot.length;
-  final Pointer<Uint32> snapshotPtr = malloc.allocate<Uint32>(
-    sizeOf<Uint32>() * snapshot.length,
-  );
-  final Pointer<Int32> overflowX = malloc.allocate<Int32>(
-    sizeOf<Int32>() * overflowCapacity,
-  );
-  final Pointer<Int32> overflowY = malloc.allocate<Int32>(
-    sizeOf<Int32>() * overflowCapacity,
-  );
-  final Pointer<Uint32> overflowColor = malloc.allocate<Uint32>(
-    sizeOf<Uint32>() * overflowCapacity,
-  );
-  final Pointer<Uint64> overflowCountPtr =
-      malloc.allocate<Uint64>(sizeOf<Uint64>());
-  snapshotPtr.asTypedList(snapshot.length).setAll(0, snapshot);
+  final CpuBuffer<Uint32List> snapshotBuffer = allocateUint32(snapshot.length);
+  final CpuBuffer<Int32List> overflowX = allocateInt32(overflowCapacity);
+  final CpuBuffer<Int32List> overflowY = allocateInt32(overflowCapacity);
+  final CpuBuffer<Uint32List> overflowColor = allocateUint32(overflowCapacity);
+  final CpuBuffer<Uint64List> overflowCount = allocateUint64(1);
+  snapshotBuffer.list.setAll(0, snapshot);
   try {
     final bool ok = RustCpuTransformFfi.instance.translateLayer(
       canvasPtr: canvasPtr,
       canvasLen: pixels.length,
       canvasWidth: canvasWidth,
       canvasHeight: canvasHeight,
-      snapshotPtr: snapshotPtr.address,
+      snapshotPtr: snapshotBuffer.address,
       snapshotLen: snapshot.length,
       snapshotWidth: snapshotWidth,
       snapshotHeight: snapshotHeight,
@@ -481,15 +470,15 @@ void _applyOverflowLayerTranslation(
       overflowYPtr: overflowY.address,
       overflowColorPtr: overflowColor.address,
       overflowCapacity: overflowCapacity,
-      overflowCountPtr: overflowCountPtr.address,
+      overflowCountPtr: overflowCount.address,
     );
     if (ok) {
-      final int count = overflowCountPtr.value;
+      final int count = overflowCount.list.isNotEmpty ? overflowCount.list[0] : 0;
       final _LayerOverflowBuilder overflowBuilder = _LayerOverflowBuilder();
       if (count > 0) {
-        final Int32List xs = overflowX.asTypedList(count);
-        final Int32List ys = overflowY.asTypedList(count);
-        final Uint32List colors = overflowColor.asTypedList(count);
+        final Int32List xs = overflowX.list;
+        final Int32List ys = overflowY.list;
+        final Uint32List colors = overflowColor.list;
         for (int i = 0; i < count; i++) {
           overflowBuilder.addPixel(xs[i], ys[i], colors[i]);
         }
@@ -503,11 +492,11 @@ void _applyOverflowLayerTranslation(
       _textLayerApplyTranslation(target, dx, dy);
     }
   } finally {
-    malloc.free(snapshotPtr);
-    malloc.free(overflowX);
-    malloc.free(overflowY);
-    malloc.free(overflowColor);
-    malloc.free(overflowCountPtr);
+    snapshotBuffer.dispose();
+    overflowX.dispose();
+    overflowY.dispose();
+    overflowColor.dispose();
+    overflowCount.dispose();
   }
   return;
 }
@@ -636,25 +625,22 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
   if (snapshotLen > 0 &&
       canvasPtr != 0 &&
       RustCpuTransformFfi.instance.isSupported) {
-    final Pointer<Uint32> snapshotPtr = malloc.allocate<Uint32>(
-      sizeOf<Uint32>() * snapshotLen,
-    );
-    Pointer<Int32>? overflowX;
-    Pointer<Int32>? overflowY;
-    Pointer<Uint32>? overflowColor;
+    final CpuBuffer<Uint32List> snapshotBuffer = allocateUint32(snapshotLen);
+    CpuBuffer<Int32List>? overflowX;
+    CpuBuffer<Int32List>? overflowY;
+    CpuBuffer<Uint32List>? overflowColor;
     int overflowCount = 0;
     try {
       overflowCount = _countOverflowPixels(store);
       if (overflowCount > 0) {
-        overflowX = malloc.allocate<Int32>(sizeOf<Int32>() * overflowCount);
-        overflowY = malloc.allocate<Int32>(sizeOf<Int32>() * overflowCount);
-        overflowColor =
-            malloc.allocate<Uint32>(sizeOf<Uint32>() * overflowCount);
+        overflowX = allocateInt32(overflowCount);
+        overflowY = allocateInt32(overflowCount);
+        overflowColor = allocateUint32(overflowCount);
         _fillOverflowArrays(
           store,
-          overflowX.asTypedList(overflowCount),
-          overflowY.asTypedList(overflowCount),
-          overflowColor.asTypedList(overflowCount),
+          overflowX.list,
+          overflowY.list,
+          overflowColor.list,
         );
       }
       final bool ok = RustCpuTransformFfi.instance.buildOverflowSnapshot(
@@ -662,7 +648,7 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
         canvasLen: layer.surface.pixels.length,
         canvasWidth: controller._width,
         canvasHeight: controller._height,
-        snapshotPtr: snapshotPtr.address,
+        snapshotPtr: snapshotBuffer.address,
         snapshotLen: snapshotLen,
         snapshotWidth: snapshotWidth,
         snapshotHeight: snapshotHeight,
@@ -674,7 +660,7 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
         overflowLen: overflowCount,
       );
       if (ok) {
-        pixels.setAll(0, snapshotPtr.asTypedList(snapshotLen));
+        pixels.setAll(0, snapshotBuffer.list);
         return _LayerTransformSnapshot(
           pixels: pixels,
           width: snapshotWidth,
@@ -684,16 +670,10 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
         );
       }
     } finally {
-      malloc.free(snapshotPtr);
-      if (overflowX != null) {
-        malloc.free(overflowX);
-      }
-      if (overflowY != null) {
-        malloc.free(overflowY);
-      }
-      if (overflowColor != null) {
-        malloc.free(overflowColor);
-      }
+      snapshotBuffer.dispose();
+      overflowX?.dispose();
+      overflowY?.dispose();
+      overflowColor?.dispose();
     }
   }
   final int overlapLeft = math.max(0, resolvedMinX);

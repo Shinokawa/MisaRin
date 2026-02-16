@@ -84,12 +84,16 @@ class RustCpuTransformFfi {
   RustCpuTransformFfi._() {
     try {
       _lib = _openLibrary();
-      _translate = _lib.lookupFunction<
-          _RustCpuTransformTranslateNative,
-          _RustCpuTransformTranslateDart>('cpu_layer_translate');
-      _buildSnapshot = _lib.lookupFunction<
-          _RustCpuTransformBuildSnapshotNative,
-          _RustCpuTransformBuildSnapshotDart>('cpu_build_overflow_snapshot');
+      _translate = _lib
+          .lookupFunction<
+            _RustCpuTransformTranslateNative,
+            _RustCpuTransformTranslateDart
+          >('cpu_layer_translate');
+      _buildSnapshot = _lib
+          .lookupFunction<
+            _RustCpuTransformBuildSnapshotNative,
+            _RustCpuTransformBuildSnapshotDart
+          >('cpu_build_overflow_snapshot');
       isSupported = true;
     } catch (_) {
       isSupported = false;

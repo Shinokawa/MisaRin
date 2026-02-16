@@ -86,7 +86,11 @@ typedef _EngineSetLayerBlendModeDart =
     void Function(int handle, int layerIndex, int blendModeIndex);
 
 typedef _EngineReorderLayerNative =
-    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 fromIndex, ffi.Uint32 toIndex);
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 fromIndex,
+      ffi.Uint32 toIndex,
+    );
 typedef _EngineReorderLayerDart =
     void Function(int handle, int fromIndex, int toIndex);
 
@@ -409,11 +413,7 @@ typedef _EngineApplyAntialiasNative =
       ffi.Uint32 level,
     );
 typedef _EngineApplyAntialiasDart =
-    int Function(
-      int handle,
-      int layerIndex,
-      int level,
-    );
+    int Function(int handle, int layerIndex, int level);
 
 class CanvasEngineFfi {
   CanvasEngineFfi._() {
@@ -477,10 +477,9 @@ class CanvasEngineFfi {
       }
       try {
         _reorderLayer = _lib
-            .lookupFunction<
-              _EngineReorderLayerNative,
-              _EngineReorderLayerDart
-            >('engine_reorder_layer');
+            .lookupFunction<_EngineReorderLayerNative, _EngineReorderLayerDart>(
+              'engine_reorder_layer',
+            );
       } catch (_) {
         _reorderLayer = null;
       }
@@ -630,24 +629,24 @@ class CanvasEngineFfi {
         _setBrush = null;
       }
       try {
-        _sprayBegin =
-            _lib.lookupFunction<_EngineSprayBeginNative, _EngineSprayBeginDart>(
+        _sprayBegin = _lib
+            .lookupFunction<_EngineSprayBeginNative, _EngineSprayBeginDart>(
               'engine_spray_begin',
             );
       } catch (_) {
         _sprayBegin = null;
       }
       try {
-        _sprayDraw =
-            _lib.lookupFunction<_EngineSprayDrawNative, _EngineSprayDrawDart>(
+        _sprayDraw = _lib
+            .lookupFunction<_EngineSprayDrawNative, _EngineSprayDrawDart>(
               'engine_spray_draw',
             );
       } catch (_) {
         _sprayDraw = null;
       }
       try {
-        _sprayEnd =
-            _lib.lookupFunction<_EngineSprayEndNative, _EngineSprayEndDart>(
+        _sprayEnd = _lib
+            .lookupFunction<_EngineSprayEndNative, _EngineSprayEndDart>(
               'engine_spray_end',
             );
       } catch (_) {
@@ -1032,7 +1031,14 @@ class CanvasEngineFfi {
     }
     final ffi.Pointer<ffi.Uint8> outPtr = malloc.allocate<ffi.Uint8>(byteCount);
     try {
-      final int result = fn(handle, layerIndex, width, height, outPtr, byteCount);
+      final int result = fn(
+        handle,
+        layerIndex,
+        width,
+        height,
+        outPtr,
+        byteCount,
+      );
       if (result == 0) {
         return null;
       }

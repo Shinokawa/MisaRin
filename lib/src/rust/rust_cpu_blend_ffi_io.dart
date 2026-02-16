@@ -102,12 +102,16 @@ class RustCpuBlendFfi {
   RustCpuBlendFfi._() {
     try {
       _lib = _openLibrary();
-      _blendOnCanvas = _lib.lookupFunction<
-          _RustCpuBlendOnCanvasNative,
-          _RustCpuBlendOnCanvasDart>('cpu_blend_on_canvas');
-      _blendOverflow = _lib.lookupFunction<
-          _RustCpuBlendOverflowNative,
-          _RustCpuBlendOverflowDart>('cpu_blend_overflow');
+      _blendOnCanvas = _lib
+          .lookupFunction<
+            _RustCpuBlendOnCanvasNative,
+            _RustCpuBlendOnCanvasDart
+          >('cpu_blend_on_canvas');
+      _blendOverflow = _lib
+          .lookupFunction<
+            _RustCpuBlendOverflowNative,
+            _RustCpuBlendOverflowDart
+          >('cpu_blend_overflow');
       isSupported = true;
     } catch (_) {
       isSupported = false;

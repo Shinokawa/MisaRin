@@ -388,39 +388,39 @@ void _blendOverflowPixels(
   if (upperCount <= 0) {
     return;
   }
-  Pointer<Int32>? upperX;
-  Pointer<Int32>? upperY;
-  Pointer<Uint32>? upperColor;
-  Pointer<Int32>? lowerX;
-  Pointer<Int32>? lowerY;
-  Pointer<Uint32>? lowerColor;
-  Pointer<Int32>? maskOverflowX;
-  Pointer<Int32>? maskOverflowY;
-  Pointer<Uint32>? maskOverflowColor;
-  Pointer<Int32>? outX;
-  Pointer<Int32>? outY;
-  Pointer<Uint32>? outColor;
-  Pointer<Uint64>? outCountPtr;
+  CpuBuffer<Int32List>? upperX;
+  CpuBuffer<Int32List>? upperY;
+  CpuBuffer<Uint32List>? upperColor;
+  CpuBuffer<Int32List>? lowerX;
+  CpuBuffer<Int32List>? lowerY;
+  CpuBuffer<Uint32List>? lowerColor;
+  CpuBuffer<Int32List>? maskOverflowX;
+  CpuBuffer<Int32List>? maskOverflowY;
+  CpuBuffer<Uint32List>? maskOverflowColor;
+  CpuBuffer<Int32List>? outX;
+  CpuBuffer<Int32List>? outY;
+  CpuBuffer<Uint32List>? outColor;
+  CpuBuffer<Uint64List>? outCountPtr;
   try {
-    upperX = malloc.allocate<Int32>(sizeOf<Int32>() * upperCount);
-    upperY = malloc.allocate<Int32>(sizeOf<Int32>() * upperCount);
-    upperColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * upperCount);
+    upperX = allocateInt32(upperCount);
+    upperY = allocateInt32(upperCount);
+    upperColor = allocateUint32(upperCount);
     _fillOverflowArrays(
       upperOverflow,
-      upperX.asTypedList(upperCount),
-      upperY.asTypedList(upperCount),
-      upperColor.asTypedList(upperCount),
+      upperX.list,
+      upperY.list,
+      upperColor.list,
     );
     final int lowerCount = _countOverflowPixels(lowerOverflow);
     if (lowerCount > 0) {
-      lowerX = malloc.allocate<Int32>(sizeOf<Int32>() * lowerCount);
-      lowerY = malloc.allocate<Int32>(sizeOf<Int32>() * lowerCount);
-      lowerColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * lowerCount);
+      lowerX = allocateInt32(lowerCount);
+      lowerY = allocateInt32(lowerCount);
+      lowerColor = allocateUint32(lowerCount);
       _fillOverflowArrays(
         lowerOverflow,
-        lowerX.asTypedList(lowerCount),
-        lowerY.asTypedList(lowerCount),
-        lowerColor.asTypedList(lowerCount),
+        lowerX.list,
+        lowerY.list,
+        lowerColor.list,
       );
     }
     int maskLen = 0;
@@ -431,28 +431,22 @@ void _blendOverflowPixels(
       maskOpacity = clippingInfo.opacity;
       maskOverflowCount = _countOverflowPixels(clippingInfo.overflow);
       if (maskOverflowCount > 0) {
-        maskOverflowX = malloc.allocate<Int32>(
-          sizeOf<Int32>() * maskOverflowCount,
-        );
-        maskOverflowY = malloc.allocate<Int32>(
-          sizeOf<Int32>() * maskOverflowCount,
-        );
-        maskOverflowColor = malloc.allocate<Uint32>(
-          sizeOf<Uint32>() * maskOverflowCount,
-        );
+        maskOverflowX = allocateInt32(maskOverflowCount);
+        maskOverflowY = allocateInt32(maskOverflowCount);
+        maskOverflowColor = allocateUint32(maskOverflowCount);
         _fillOverflowArrays(
           clippingInfo.overflow,
-          maskOverflowX.asTypedList(maskOverflowCount),
-          maskOverflowY.asTypedList(maskOverflowCount),
-          maskOverflowColor.asTypedList(maskOverflowCount),
+          maskOverflowX.list,
+          maskOverflowY.list,
+          maskOverflowColor.list,
         );
       }
     }
     final int outCapacity = upperCount + lowerCount;
-    outX = malloc.allocate<Int32>(sizeOf<Int32>() * outCapacity);
-    outY = malloc.allocate<Int32>(sizeOf<Int32>() * outCapacity);
-    outColor = malloc.allocate<Uint32>(sizeOf<Uint32>() * outCapacity);
-    outCountPtr = malloc.allocate<Uint64>(sizeOf<Uint64>());
+    outX = allocateInt32(outCapacity);
+    outY = allocateInt32(outCapacity);
+    outColor = allocateUint32(outCapacity);
+    outCountPtr = allocateUint64(1);
     final bool ok = RustCpuBlendFfi.instance.blendOverflow(
       canvasPtr: canvasPtr,
       canvasLen: lower.surface.pixels.length,
@@ -482,12 +476,13 @@ void _blendOverflowPixels(
       outCountPtr: outCountPtr.address,
     );
     if (ok) {
-      final int count = outCountPtr.value;
+      final int count =
+          outCountPtr.list.isNotEmpty ? outCountPtr.list[0] : 0;
       final _LayerOverflowBuilder overflowBuilder = _LayerOverflowBuilder();
       if (count > 0) {
-        final Int32List xs = outX.asTypedList(count);
-        final Int32List ys = outY.asTypedList(count);
-        final Uint32List colors = outColor.asTypedList(count);
+        final Int32List xs = outX.list;
+        final Int32List ys = outY.list;
+        final Uint32List colors = outColor.list;
         for (int i = 0; i < count; i++) {
           overflowBuilder.addPixel(xs[i], ys[i], colors[i]);
         }
@@ -500,45 +495,19 @@ void _blendOverflowPixels(
       }
     }
   } finally {
-    if (upperX != null) {
-      malloc.free(upperX);
-    }
-    if (upperY != null) {
-      malloc.free(upperY);
-    }
-    if (upperColor != null) {
-      malloc.free(upperColor);
-    }
-    if (lowerX != null) {
-      malloc.free(lowerX);
-    }
-    if (lowerY != null) {
-      malloc.free(lowerY);
-    }
-    if (lowerColor != null) {
-      malloc.free(lowerColor);
-    }
-    if (maskOverflowX != null) {
-      malloc.free(maskOverflowX);
-    }
-    if (maskOverflowY != null) {
-      malloc.free(maskOverflowY);
-    }
-    if (maskOverflowColor != null) {
-      malloc.free(maskOverflowColor);
-    }
-    if (outX != null) {
-      malloc.free(outX);
-    }
-    if (outY != null) {
-      malloc.free(outY);
-    }
-    if (outColor != null) {
-      malloc.free(outColor);
-    }
-    if (outCountPtr != null) {
-      malloc.free(outCountPtr);
-    }
+    upperX?.dispose();
+    upperY?.dispose();
+    upperColor?.dispose();
+    lowerX?.dispose();
+    lowerY?.dispose();
+    lowerColor?.dispose();
+    maskOverflowX?.dispose();
+    maskOverflowY?.dispose();
+    maskOverflowColor?.dispose();
+    outX?.dispose();
+    outY?.dispose();
+    outColor?.dispose();
+    outCountPtr?.dispose();
   }
   return;
 }

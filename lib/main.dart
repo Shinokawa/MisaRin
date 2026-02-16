@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -8,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_performance_pulse/flutter_performance_pulse.dart';
 import 'package:misa_rin/l10n/app_localizations.dart';
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';

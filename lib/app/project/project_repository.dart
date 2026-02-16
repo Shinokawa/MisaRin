@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 

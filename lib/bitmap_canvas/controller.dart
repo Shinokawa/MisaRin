@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:ffi' hide Size;
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -11,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 // ignore: unused_import
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
-import 'package:ffi/ffi.dart';
 
 import '../app/debug/backend_canvas_timeline.dart';
 import '../backend/canvas_painting_worker.dart';
@@ -37,6 +35,7 @@ import '../src/rust/rust_cpu_image_ffi.dart';
 import '../src/rust/rust_cpu_filters_ffi.dart';
 import '../src/rust/rust_cpu_transform_ffi.dart';
 import '../src/rust/rust_init.dart';
+import 'ffi/cpu_buffer.dart';
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
 import 'raster_tile_cache.dart';

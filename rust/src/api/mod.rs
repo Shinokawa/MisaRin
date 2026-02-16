@@ -1,4 +1,9 @@
 pub mod bucket_fill;
+pub mod cpu_blend;
+pub mod cpu_brush;
+pub mod cpu_filters;
+pub mod cpu_image;
+pub mod cpu_transform;
 pub mod gpu_brush;
 pub mod gpu_composite;
 pub mod image_ops;

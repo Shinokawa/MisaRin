@@ -55,18 +55,22 @@ class RustCpuFiltersFfi {
   RustCpuFiltersFfi._() {
     try {
       _lib = _openLibrary();
-      _applyAntialias = _lib.lookupFunction<
-          _RustCpuFiltersApplyAntialiasNative,
-          _RustCpuFiltersApplyAntialiasDart>('cpu_filters_apply_antialias');
+      _applyAntialias = _lib
+          .lookupFunction<
+            _RustCpuFiltersApplyAntialiasNative,
+            _RustCpuFiltersApplyAntialiasDart
+          >('cpu_filters_apply_antialias');
       isSupported = true;
     } catch (_) {
       isSupported = false;
     }
     if (isSupported) {
       try {
-        _applyFilterRgba = _lib.lookupFunction<
-            _RustCpuFiltersApplyFilterRgbaNative,
-            _RustCpuFiltersApplyFilterRgbaDart>('cpu_filters_apply_filter_rgba');
+        _applyFilterRgba = _lib
+            .lookupFunction<
+              _RustCpuFiltersApplyFilterRgbaNative,
+              _RustCpuFiltersApplyFilterRgbaDart
+            >('cpu_filters_apply_filter_rgba');
         supportsRgbaFilters = true;
       } catch (_) {
         supportsRgbaFilters = false;
@@ -134,8 +138,9 @@ class RustCpuFiltersFfi {
     if (expected != pixels.length) {
       return null;
     }
-    final ffi.Pointer<ffi.Uint8> buffer =
-        malloc.allocate<ffi.Uint8>(pixels.length);
+    final ffi.Pointer<ffi.Uint8> buffer = malloc.allocate<ffi.Uint8>(
+      pixels.length,
+    );
     final Uint8List native = buffer.asTypedList(pixels.length);
     native.setAll(0, pixels);
     final int result = _applyFilterRgba(

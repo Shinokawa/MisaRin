@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -20,6 +19,7 @@ import 'package:flutter/foundation.dart'
         TargetPlatform,
         kIsWeb,
         protected, kDebugMode;
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -14,6 +13,7 @@ import 'package:flutter/widgets.dart'
         TextEditingController,
         ValueListenableBuilder,
         WidgetsBinding;
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:path/path.dart' as p;
 
 import '../../canvas/canvas_exporter.dart';
