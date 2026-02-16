@@ -32,6 +32,7 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
   List<PaintingDrawCommand> get committingStrokes;
   int get commitOverlayFadeVersion;
   double commitOverlayOpacityFor(PaintingDrawCommand command);
+  bool get activeStrokeSnapToPixel;
   Color get activeStrokeColor;
   BrushShape get activeStrokeShape;
   bool get activeStrokeEraseMode;

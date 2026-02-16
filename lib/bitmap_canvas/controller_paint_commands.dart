@@ -217,8 +217,9 @@ _RustWgpuStrokeDrawData? _controllerRustWgpuStrokeFromCommand(
 void _controllerFlushDeferredStrokeCommands(
   BitmapCanvasController controller,
 ) {
-  PaintingDrawCommand? committingOverlayCommand;
+  PaintingDrawCommand? overlayCommand;
   final bool snapToPixel = controller._currentStrokeSnapToPixel;
+  final bool showCommitOverlay = !(kIsWeb && snapToPixel);
   if (controller._currentStrokePoints.isNotEmpty &&
       controller._currentStrokePoints.length ==
           controller._currentStrokeRadii.length) {
@@ -235,17 +236,19 @@ void _controllerFlushDeferredStrokeCommands(
       randomRotation: controller._currentStrokeRandomRotationEnabled,
       rotationSeed: controller._currentStrokeRotationSeed,
     );
-    controller._committingStrokes.add(command);
-    controller._notify();
-    committingOverlayCommand = command;
+    overlayCommand = command;
+    if (showCommitOverlay) {
+      controller._committingStrokes.add(command);
+      controller._notify();
+    }
   }
 
-  final PaintingDrawCommand? overlayCommand = committingOverlayCommand;
   if (overlayCommand != null) {
-    final bool hollow = (overlayCommand.hollow ?? false) &&
-        !overlayCommand.erase &&
-        (overlayCommand.hollowRatio ?? 0.0) > 0.0001;
-    final bool eraseOccludedParts = overlayCommand.eraseOccludedParts ?? false;
+    final PaintingDrawCommand command = overlayCommand;
+    final bool hollow = (command.hollow ?? false) &&
+        !command.erase &&
+        (command.hollowRatio ?? 0.0) > 0.0001;
+    final bool eraseOccludedParts = command.eraseOccludedParts ?? false;
 
     if (hollow && !eraseOccludedParts) {
       controller._deferredStrokeCommands.clear();
@@ -257,31 +260,34 @@ void _controllerFlushDeferredStrokeCommands(
           await _controllerDrawStrokeOnRustWgpu(
             controller,
             layerId: controller._activeLayer.id,
-            points: overlayCommand.points ?? const <Offset>[],
-            radii: overlayCommand.radii ?? const <double>[],
-            color: Color(overlayCommand.color),
-            brushShape: BrushShape.values[overlayCommand.shapeIndex ?? 0],
-            erase: overlayCommand.erase,
-            antialiasLevel: overlayCommand.antialiasLevel,
-            includeStart: overlayCommand.includeStartCap ?? true,
-            randomRotation: overlayCommand.randomRotation ?? false,
-            rotationSeed: overlayCommand.rotationSeed ?? 0,
-            rotationJitter: overlayCommand.rotationJitter ?? 1.0,
-            spacing: overlayCommand.spacing ?? 0.15,
-            scatter: overlayCommand.scatter ?? 0.0,
-            softness: overlayCommand.softness ?? 0.0,
-            snapToPixel: overlayCommand.snapToPixel ?? false,
+            points: command.points ?? const <Offset>[],
+            radii: command.radii ?? const <double>[],
+            color: Color(command.color),
+            brushShape: BrushShape.values[command.shapeIndex ?? 0],
+            erase: command.erase,
+            antialiasLevel: command.antialiasLevel,
+            includeStart: command.includeStartCap ?? true,
+            randomRotation: command.randomRotation ?? false,
+            rotationSeed: command.rotationSeed ?? 0,
+            rotationJitter: command.rotationJitter ?? 1.0,
+            spacing: command.spacing ?? 0.15,
+            scatter: command.scatter ?? 0.0,
+            softness: command.softness ?? 0.0,
+            snapToPixel: command.snapToPixel ?? false,
             hollow: true,
-            hollowRatio: overlayCommand.hollowRatio ?? 0.0,
+            hollowRatio: command.hollowRatio ?? 0.0,
             eraseOccludedParts: false,
           );
         } finally {
+          if (!showCommitOverlay) {
+            return;
+          }
           if (kIsWeb && !snapToPixel) {
             unawaited(controller._waitForNextFrame().whenComplete(() {
-              controller._startCommitOverlayFade(overlayCommand);
+              controller._startCommitOverlayFade(command);
             }));
           } else {
-            controller._removeCommitOverlay(overlayCommand);
+            controller._removeCommitOverlay(command);
           }
         }
       }());
@@ -290,22 +296,23 @@ void _controllerFlushDeferredStrokeCommands(
   }
 
   controller._commitDeferredStrokeCommandsAsRaster();
-  if (overlayCommand != null) {
+  if (overlayCommand != null && showCommitOverlay) {
+    final PaintingDrawCommand command = overlayCommand;
     if (kIsWeb) {
       unawaited(controller._waitForNextFrame().whenComplete(() {
-        if (!controller._committingStrokes.contains(overlayCommand)) {
+        if (!controller._committingStrokes.contains(command)) {
           return;
         }
         if (snapToPixel) {
-          controller._removeCommitOverlay(overlayCommand);
+          controller._removeCommitOverlay(command);
         } else {
-          controller._startCommitOverlayFade(overlayCommand);
+          controller._startCommitOverlayFade(command);
         }
       }));
     } else {
       unawaited(
         controller._enqueueRustWgpuBrushTask<void>(() async {}).whenComplete(() {
-          controller._removeCommitOverlay(overlayCommand);
+          controller._removeCommitOverlay(command);
         }),
       );
     }

@@ -298,6 +298,7 @@ class BitmapCanvasController extends ChangeNotifier
   int get commitOverlayFadeVersion => _commitOverlayFadeVersion;
   double commitOverlayOpacityFor(PaintingDrawCommand command) =>
       _commitOverlayOpacityFor(command);
+  bool get activeStrokeSnapToPixel => _currentStrokeSnapToPixel;
   Color get activeStrokeColor => _currentStrokeColor;
   double get activeStrokeRadius => _currentStrokeRadius;
   BrushShape get activeStrokeShape => _currentBrushShape;

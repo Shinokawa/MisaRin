@@ -458,12 +458,18 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               }
                                               return false;
                                             }();
+                                            final bool allowActiveStrokeOverlay =
+                                                !(kIsWeb &&
+                                                    _controller
+                                                        .activeStrokeSnapToPixel);
                                             final bool hasActiveStroke =
                                                 canPreviewStroke &&
+                                                allowActiveStrokeOverlay &&
                                                 _controller
                                                     .activeStrokePoints
                                                     .isNotEmpty;
                                             final bool showActiveStroke =
+                                                allowActiveStrokeOverlay &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&
