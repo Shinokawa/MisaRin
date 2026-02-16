@@ -285,12 +285,19 @@ void _controllerFlushDeferredStrokeCommands(
 
   controller._commitDeferredStrokeCommandsAsRaster();
   if (overlayCommand != null) {
-    unawaited(
-      controller._enqueueRustWgpuBrushTask<void>(() async {}).whenComplete(() {
+    if (kIsWeb) {
+      unawaited(controller._waitForNextFrame().whenComplete(() {
         controller._committingStrokes.remove(overlayCommand);
         controller._notify();
-      }),
-    );
+      }));
+    } else {
+      unawaited(
+        controller._enqueueRustWgpuBrushTask<void>(() async {}).whenComplete(() {
+          controller._committingStrokes.remove(overlayCommand);
+          controller._notify();
+        }),
+      );
+    }
   }
 }
 
