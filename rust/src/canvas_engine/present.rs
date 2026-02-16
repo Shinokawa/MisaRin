@@ -2,11 +2,11 @@ use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use metal::foreign_types::ForeignType;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use metal::MTLTextureType;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use wgpu_hal::{api::Metal, CopyExtent};
 #[cfg(target_os = "windows")]
 use wgpu_hal::api::Dx12;
@@ -371,7 +371,7 @@ pub(crate) fn attach_present_texture(
     height: u32,
     bytes_per_row: u32,
 ) -> Option<PresentTarget> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
         let raw_ptr = mtl_texture_ptr as *mut metal::MTLTexture;
         if raw_ptr.is_null() {
@@ -430,7 +430,7 @@ pub(crate) fn attach_present_texture(
         let _ = (device, mtl_texture_ptr, width, height, bytes_per_row);
         None
     }
-    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    #[cfg(all(not(any(target_os = "macos", target_os = "ios")), not(target_os = "windows")))]
     {
         let _ = (mtl_texture_ptr, bytes_per_row);
         if width == 0 || height == 0 {

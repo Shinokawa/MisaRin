@@ -25,7 +25,7 @@ flutter:
       android:
         ffiPlugin: true
       ios:
-        ffiPlugin: true
+        pluginClass: RustLibMisaRinPlugin
       linux:
         ffiPlugin: true
       macos:

@@ -5,9 +5,9 @@ use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use metal::foreign_types::ForeignType;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
@@ -254,7 +254,7 @@ static DEVICE_CONTEXT: OnceLock<Result<EngineDeviceContext, String>> = OnceLock:
 
 fn device_context() -> Result<&'static EngineDeviceContext, String> {
     let init_result = DEVICE_CONTEXT.get_or_init(|| {
-        let backends = if cfg!(target_os = "macos") {
+        let backends = if cfg!(any(target_os = "macos", target_os = "ios")) {
             wgpu::Backends::METAL
         } else if cfg!(target_os = "windows") {
             wgpu::Backends::DX12
@@ -5285,7 +5285,7 @@ fn mul255(channel: u32, alpha: u32) -> u32 {
     (channel * alpha + 127) / 255
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn mtl_device_ptr(device: &wgpu::Device) -> *mut c_void {
     let result = unsafe {
         device.as_hal::<Metal, _, _>(|hal_device| {
@@ -5298,7 +5298,7 @@ fn mtl_device_ptr(device: &wgpu::Device) -> *mut c_void {
     result.flatten().unwrap_or(std::ptr::null_mut())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "ios")))]
 fn mtl_device_ptr(_device: &wgpu::Device) -> *mut c_void {
     std::ptr::null_mut()
 }
@@ -5311,7 +5311,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     let ctx = device_context()?;
 
     let mtl_device_ptr = mtl_device_ptr(ctx.device.as_ref()) as usize;
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     if mtl_device_ptr == 0 {
         return Err("wgpu: failed to extract underlying MTLDevice".to_string());
     }

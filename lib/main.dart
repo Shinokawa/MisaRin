@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_performance_pulse/flutter_performance_pulse.dart';
@@ -123,7 +124,18 @@ Future<void> _waitForMaximized() async {
 
 Future<void> _initializePerformancePulse() async {
   try {
-    final bool enableBatteryMonitoring = !Platform.isWindows;
+    bool enableBatteryMonitoring = !Platform.isWindows;
+    if (Platform.isIOS) {
+      try {
+        final IosDeviceInfo info = await DeviceInfoPlugin().iosInfo;
+        if (!info.isPhysicalDevice) {
+          enableBatteryMonitoring = false;
+        }
+      } catch (_) {
+        // Disable on simulator/unknown environments to avoid noisy errors.
+        enableBatteryMonitoring = false;
+      }
+    }
     await PerformanceMonitor.instance.initialize(
       config: MonitorConfig(
         showMemory: true,
