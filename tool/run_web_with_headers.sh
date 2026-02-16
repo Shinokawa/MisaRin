@@ -10,7 +10,8 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
 echo "Building web ..."
-flutter build web
+# Disable service worker to avoid stale wasm/js during local testing.
+flutter build web --pwa-strategy=none
 
 if [[ ! -d "$DIR" ]]; then
   echo "Directory not found after build: $DIR"

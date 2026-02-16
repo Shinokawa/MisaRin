@@ -85,7 +85,7 @@ class PaintingBoardState extends _PaintingBoardBase
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
     final bool useBackendCanvas = _backend.isSupported;
-    final bool enableRasterOutput = !useBackendCanvas && !kIsWeb;
+    final bool enableRasterOutput = !useBackendCanvas;
     final CanvasBackend rasterBackend =
         CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
     if (kDebugMode) {
@@ -807,7 +807,7 @@ class PaintingBoardState extends _PaintingBoardBase
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
       final bool useBackendCanvas = _backend.isSupported;
-      final bool enableRasterOutput = !useBackendCanvas && !kIsWeb;
+      final bool enableRasterOutput = !useBackendCanvas;
       final CanvasBackend rasterBackend =
           CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
       _controller = createCanvasFacade(
