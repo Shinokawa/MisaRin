@@ -501,6 +501,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     required this.randomRotationEnabled,
     required this.rotationSeed,
     required this.committingStrokes,
+    required this.commitOverlayOpacityFor,
+    required this.commitOverlayFadeVersion,
     this.antialiasLevel = 1,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
@@ -515,6 +517,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   final bool randomRotationEnabled;
   final int rotationSeed;
   final List<PaintingDrawCommand> committingStrokes;
+  final double Function(PaintingDrawCommand) commitOverlayOpacityFor;
+  final int commitOverlayFadeVersion;
   final int antialiasLevel;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
@@ -526,9 +530,16 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     // Draw committing strokes (fading out/waiting for raster) first
     for (final PaintingDrawCommand command in committingStrokes) {
       if (command.points == null || command.radii == null) continue;
-      final Color commandColor = command.erase
+      final double opacity = commitOverlayOpacityFor(command);
+      if (opacity <= 0.0) {
+        continue;
+      }
+      final Color baseColor = command.erase
           ? eraserPreviewColor
           : Color(command.color);
+      final int alpha = (baseColor.alpha * opacity).round().clamp(0, 255) as int;
+      final Color commandColor =
+          alpha == baseColor.alpha ? baseColor : baseColor.withAlpha(alpha);
       final bool commandHollow = (command.hollow ?? false) && !command.erase;
       _paintStrokeOverlay(
         canvas: canvas,
@@ -570,6 +581,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.randomRotationEnabled != randomRotationEnabled ||
         oldDelegate.rotationSeed != rotationSeed ||
         oldDelegate.committingStrokes != committingStrokes ||
+        oldDelegate.commitOverlayFadeVersion != commitOverlayFadeVersion ||
         oldDelegate.antialiasLevel != antialiasLevel ||
         oldDelegate.hollowStrokeEnabled != hollowStrokeEnabled ||
         oldDelegate.hollowStrokeRatio != hollowStrokeRatio ||

@@ -627,6 +627,12 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                                 .activeStrokeHollowRatio,
                                                         committingStrokes: _controller
                                                             .committingStrokes,
+                                                        commitOverlayOpacityFor:
+                                                            _controller
+                                                                .commitOverlayOpacityFor,
+                                                        commitOverlayFadeVersion:
+                                                            _controller
+                                                                .commitOverlayFadeVersion,
                                                         activeStrokeIsEraser:
                                                             activeStrokeIsEraser,
                                                         eraserPreviewColor:

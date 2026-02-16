@@ -218,6 +218,7 @@ void _controllerFlushDeferredStrokeCommands(
   BitmapCanvasController controller,
 ) {
   PaintingDrawCommand? committingOverlayCommand;
+  final bool snapToPixel = controller._currentStrokeSnapToPixel;
   if (controller._currentStrokePoints.isNotEmpty &&
       controller._currentStrokePoints.length ==
           controller._currentStrokeRadii.length) {
@@ -275,8 +276,13 @@ void _controllerFlushDeferredStrokeCommands(
             eraseOccludedParts: false,
           );
         } finally {
-          controller._committingStrokes.remove(overlayCommand);
-          controller._notify();
+          if (kIsWeb && !snapToPixel) {
+            unawaited(controller._waitForNextFrame().whenComplete(() {
+              controller._startCommitOverlayFade(overlayCommand);
+            }));
+          } else {
+            controller._removeCommitOverlay(overlayCommand);
+          }
         }
       }());
       return;
@@ -287,14 +293,19 @@ void _controllerFlushDeferredStrokeCommands(
   if (overlayCommand != null) {
     if (kIsWeb) {
       unawaited(controller._waitForNextFrame().whenComplete(() {
-        controller._committingStrokes.remove(overlayCommand);
-        controller._notify();
+        if (!controller._committingStrokes.contains(overlayCommand)) {
+          return;
+        }
+        if (snapToPixel) {
+          controller._removeCommitOverlay(overlayCommand);
+        } else {
+          controller._startCommitOverlayFade(overlayCommand);
+        }
       }));
     } else {
       unawaited(
         controller._enqueueRustWgpuBrushTask<void>(() async {}).whenComplete(() {
-          controller._committingStrokes.remove(overlayCommand);
-          controller._notify();
+          controller._removeCommitOverlay(overlayCommand);
         }),
       );
     }

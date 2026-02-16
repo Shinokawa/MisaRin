@@ -211,6 +211,8 @@ class BitmapCanvasController extends ChangeNotifier
   static const int _kMaxWorkerBatchPixels = 512 * 512;
   static const int _kWebCompositeMinIntervalMs = 16;
   static const int _kWebRasterFlushMinIntervalMs = 16;
+  static const int _kCommitOverlayFadeMs = 140;
+  static const int _kCommitOverlayFadeTickMs = 16;
 
   bool _refreshScheduled = false;
   bool _compositeProcessing = false;
@@ -219,6 +221,11 @@ class BitmapCanvasController extends ChangeNotifier
   Timer? _webRasterFlushTimer;
   int _lastWebCompositeMs = 0;
   int _lastWebRasterFlushMs = 0;
+  Timer? _commitOverlayFadeTimer;
+  final Map<PaintingDrawCommand, _CommitOverlayFade> _commitOverlayFades =
+      <PaintingDrawCommand, _CommitOverlayFade>{};
+  int _commitOverlayNowMs = 0;
+  int _commitOverlayFadeVersion = 0;
   Uint8List? _selectionMask;
   final CanvasRasterBackend _rasterBackend;
   final CanvasTextRenderer _textRenderer = CanvasTextRenderer();
@@ -288,6 +295,9 @@ class BitmapCanvasController extends ChangeNotifier
   }
   List<PaintingDrawCommand> get committingStrokes =>
       UnmodifiableListView(_committingStrokes);
+  int get commitOverlayFadeVersion => _commitOverlayFadeVersion;
+  double commitOverlayOpacityFor(PaintingDrawCommand command) =>
+      _commitOverlayOpacityFor(command);
   Color get activeStrokeColor => _currentStrokeColor;
   double get activeStrokeRadius => _currentStrokeRadius;
   BrushShape get activeStrokeShape => _currentBrushShape;
@@ -488,6 +498,9 @@ class BitmapCanvasController extends ChangeNotifier
     _webCompositeTimer = null;
     _webRasterFlushTimer?.cancel();
     _webRasterFlushTimer = null;
+    _commitOverlayFadeTimer?.cancel();
+    _commitOverlayFadeTimer = null;
+    _commitOverlayFades.clear();
     _tileCache.dispose();
     await _rasterBackend.dispose();
     await _paintingWorker?.dispose();
@@ -1060,6 +1073,92 @@ class BitmapCanvasController extends ChangeNotifier
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
 
+  void _startCommitOverlayFade(PaintingDrawCommand command) {
+    if (!_committingStrokes.contains(command)) {
+      return;
+    }
+    if (_commitOverlayFades.containsKey(command)) {
+      return;
+    }
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    _commitOverlayNowMs = now;
+    _commitOverlayFades[command] = _CommitOverlayFade(startMs: now);
+    _ensureCommitOverlayFadeTimer();
+    _commitOverlayFadeVersion++;
+    _notify();
+  }
+
+  void _removeCommitOverlay(PaintingDrawCommand command, {bool notify = true}) {
+    final bool removed = _committingStrokes.remove(command);
+    final bool fadeRemoved = _commitOverlayFades.remove(command) != null;
+    if (_commitOverlayFades.isEmpty) {
+      _commitOverlayFadeTimer?.cancel();
+      _commitOverlayFadeTimer = null;
+    }
+    if ((removed || fadeRemoved) && notify) {
+      _commitOverlayFadeVersion++;
+      _notify();
+    }
+  }
+
+  double _commitOverlayOpacityFor(PaintingDrawCommand command) {
+    final _CommitOverlayFade? fade = _commitOverlayFades[command];
+    if (fade == null) {
+      return 1.0;
+    }
+    int now = _commitOverlayNowMs;
+    if (now == 0) {
+      now = DateTime.now().millisecondsSinceEpoch;
+      _commitOverlayNowMs = now;
+    }
+    final int elapsed = now - fade.startMs;
+    if (elapsed <= 0) {
+      return 1.0;
+    }
+    final double t = elapsed / _kCommitOverlayFadeMs;
+    if (t >= 1.0) {
+      return 0.0;
+    }
+    return 1.0 - t;
+  }
+
+  void _ensureCommitOverlayFadeTimer() {
+    if (_commitOverlayFadeTimer != null) {
+      return;
+    }
+    _commitOverlayFadeTimer = Timer.periodic(
+      const Duration(milliseconds: _kCommitOverlayFadeTickMs),
+      (_) => _tickCommitOverlayFade(),
+    );
+  }
+
+  void _tickCommitOverlayFade() {
+    if (_commitOverlayFades.isEmpty) {
+      _commitOverlayFadeTimer?.cancel();
+      _commitOverlayFadeTimer = null;
+      return;
+    }
+    _commitOverlayNowMs = DateTime.now().millisecondsSinceEpoch;
+    final List<PaintingDrawCommand> completed = <PaintingDrawCommand>[];
+    _commitOverlayFades.forEach((command, fade) {
+      if (_commitOverlayNowMs - fade.startMs >= _kCommitOverlayFadeMs) {
+        completed.add(command);
+      }
+    });
+    if (completed.isNotEmpty) {
+      for (final PaintingDrawCommand command in completed) {
+        _commitOverlayFades.remove(command);
+        _committingStrokes.remove(command);
+      }
+      if (_commitOverlayFades.isEmpty) {
+        _commitOverlayFadeTimer?.cancel();
+        _commitOverlayFadeTimer = null;
+      }
+    }
+    _commitOverlayFadeVersion++;
+    _notify();
+  }
+
   Future<void> _waitForNextFrame() {
     if (_nextFrameCompleter == null || _nextFrameCompleter!.isCompleted) {
       _nextFrameCompleter = Completer<void>();
@@ -1253,4 +1352,10 @@ class BitmapCanvasController extends ChangeNotifier
     pixels: pixels,
     tolerance: tolerance,
   );
+}
+
+class _CommitOverlayFade {
+  const _CommitOverlayFade({required this.startMs});
+
+  final int startMs;
 }
