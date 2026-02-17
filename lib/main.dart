@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_performance_pulse/flutter_performance_pulse.dart';
 import 'package:misa_rin/l10n/app_localizations.dart';
@@ -27,6 +28,7 @@ Future<void> main() async {
   TabletInputBridge.instance.ensureInitialized();
 
   await AppPreferences.load();
+  await _configureSystemUi();
 
   try {
     await ensureRustInitialized();
@@ -55,16 +57,35 @@ Future<void> main() async {
 
   await _initializeDesktopWindowIfNeeded();
 
-  final bool showCustomMenu =
-      kIsWeb || (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS));
-  final bool showCustomMenuItems =
-      kIsWeb || (!kIsWeb && (Platform.isWindows || Platform.isLinux));
+  final bool showCustomMenu = kIsWeb ||
+      (!kIsWeb &&
+          (Platform.isWindows ||
+              Platform.isLinux ||
+              Platform.isMacOS ||
+              Platform.isAndroid ||
+              Platform.isIOS));
+  final bool showCustomMenuItems = kIsWeb ||
+      (!kIsWeb &&
+          (Platform.isWindows ||
+              Platform.isLinux ||
+              Platform.isAndroid ||
+              Platform.isIOS));
   final app = MisarinApp(
     showCustomMenu: showCustomMenu,
     showCustomMenuItems: showCustomMenuItems,
   );
 
   runApp(app);
+}
+
+Future<void> _configureSystemUi() async {
+  if (kIsWeb || !Platform.isIOS) {
+    return;
+  }
+  await SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.manual,
+    overlays: <SystemUiOverlay>[SystemUiOverlay.bottom],
+  );
 }
 
 Future<void> _preloadCoreServices() async {
