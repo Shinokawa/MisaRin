@@ -191,6 +191,11 @@ impl PresentRenderer {
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
         });
 
+        let layer_sample_type = if cfg!(target_os = "ios") {
+            wgpu::TextureSampleType::Float { filterable: false }
+        } else {
+            wgpu::TextureSampleType::Uint
+        };
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("misa-rin present renderer bgl"),
             entries: &[
@@ -198,7 +203,7 @@ impl PresentRenderer {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Uint,
+                        sample_type: layer_sample_type,
                         view_dimension: wgpu::TextureViewDimension::D2Array,
                         multisampled: false,
                     },

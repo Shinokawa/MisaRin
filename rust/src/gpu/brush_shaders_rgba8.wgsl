@@ -20,16 +20,16 @@ struct Config {
   erase_mode: u32,         // 0: paint, 1: erase
   antialias_level: u32,    // 0..9
   color_argb: u32,         // straight alpha ARGB8888
-  softness: f32,           // 0.0..1.0 (extra edge feather as fraction of radius)
-  rotation_sin: f32,       // sin(theta) for brush rotation
-  rotation_cos: f32,       // cos(theta) for brush rotation
-  hollow_mode: u32,        // 0: solid, 1: hollow
-  hollow_ratio: f32,       // 0.0..1.0 (inner radius scale)
-  hollow_erase: u32,       // 0: keep underlying, 1: erase underlying
-  stroke_mask_mode: u32,  // 0: disabled, 1: use stroke hollow mask
-  stroke_base_mode: u32,  // 0: disabled, 1: blend against stroke base
-  stroke_accumulate_mode: u32, // 0: max coverage, 1: accumulate coverage
-  stroke_mode: u32,       // 0: segments, 1: points
+  softness: f32,           // 0.0..1.0
+  rotation_sin: f32,
+  rotation_cos: f32,
+  hollow_mode: u32,
+  hollow_ratio: f32,
+  hollow_erase: u32,
+  stroke_mask_mode: u32,
+  stroke_base_mode: u32,
+  stroke_accumulate_mode: u32,
+  stroke_mode: u32,        // 0: segments, 1: points
   selection_mask_mode: u32, // 0: disabled, 1: clip by selection mask
 };
 
@@ -39,33 +39,36 @@ const SQRT2: f32 = 1.414213562;
 var<storage, read> stroke_points: array<StrokePoint>;
 
 @group(0) @binding(1)
-var layer_tex: texture_storage_2d<rgba8uint, write>;
+var layer_tex: texture_storage_2d<rgba8unorm, write>;
 
 @group(0) @binding(2)
 var<uniform> cfg: Config;
 
 @group(0) @binding(3)
-var stroke_mask: texture_storage_2d<rgba8uint, read_write>;
+var layer_read: texture_2d<f32>;
 
 @group(0) @binding(4)
-var stroke_base: texture_storage_2d<rgba8uint, read>;
+var selection_mask: texture_2d<f32>;
 
-@group(0) @binding(5)
-var selection_mask: texture_storage_2d<rgba8uint, read>;
-
-@group(0) @binding(6)
-var layer_read: texture_2d<u32>;
-
-fn unpack_u32(v: vec4<u32>) -> u32 {
-  return (v.w << 24u) | (v.z << 16u) | (v.y << 8u) | v.x;
+fn to_u8(x: f32) -> u32 {
+  let v = floor(clamp(x, 0.0, 1.0) * 255.0 + 0.5);
+  return u32(clamp(v, 0.0, 255.0));
 }
 
-fn pack_u32(value: u32) -> vec4<u32> {
-  return vec4<u32>(
-    value & 0xFFu,
-    (value >> 8u) & 0xFFu,
-    (value >> 16u) & 0xFFu,
-    (value >> 24u) & 0xFFu
+fn unpack_u32(v: vec4<f32>) -> u32 {
+  let b = to_u8(v.x);
+  let g = to_u8(v.y);
+  let r = to_u8(v.z);
+  let a = to_u8(v.w);
+  return (a << 24u) | (r << 16u) | (g << 8u) | b;
+}
+
+fn pack_u32(value: u32) -> vec4<f32> {
+  return vec4<f32>(
+    f32(value & 0xFFu) / 255.0,
+    f32((value >> 8u) & 0xFFu) / 255.0,
+    f32((value >> 16u) & 0xFFu) / 255.0,
+    f32((value >> 24u) & 0xFFu) / 255.0
   );
 }
 
@@ -77,29 +80,13 @@ fn layer_store(coord: vec2<i32>, value: u32) {
   textureStore(layer_tex, coord, pack_u32(value));
 }
 
-fn stroke_mask_load(coord: vec2<i32>) -> u32 {
-  return unpack_u32(textureLoad(stroke_mask, coord));
-}
-
-fn stroke_mask_store(coord: vec2<i32>, value: u32) {
-  textureStore(stroke_mask, coord, pack_u32(value));
-}
-
-fn stroke_base_load(coord: vec2<i32>) -> u32 {
-  return unpack_u32(textureLoad(stroke_base, coord));
-}
-
 fn selection_mask_load(coord: vec2<i32>) -> u32 {
-  return unpack_u32(textureLoad(selection_mask, coord));
+  let v = textureLoad(selection_mask, coord, 0).r;
+  return select(0u, 1u, v > 0.0);
 }
 
 fn clamp01(x: f32) -> f32 {
   return clamp(x, 0.0, 1.0);
-}
-
-fn to_u8(x: f32) -> u32 {
-  let v = floor(clamp01(x) * 255.0 + 0.5);
-  return u32(clamp(v, 0.0, 255.0));
 }
 
 fn pack_argb(a: f32, r: f32, g: f32, b: f32) -> u32 {
@@ -124,20 +111,6 @@ fn unpack_g(c: u32) -> f32 {
 
 fn unpack_b(c: u32) -> f32 {
   return f32(c & 0xFFu) / 255.0;
-}
-
-fn unpack_inner_mask(c: u32) -> f32 {
-  return f32(c & 0xFFu) / 255.0;
-}
-
-fn unpack_outer_mask(c: u32) -> f32 {
-  return f32((c >> 8u) & 0xFFu) / 255.0;
-}
-
-fn pack_mask(inner: f32, outer: f32) -> u32 {
-  let inner_u = to_u8(inner);
-  let outer_u = to_u8(outer);
-  return (outer_u << 8u) | inner_u;
 }
 
 fn antialias_feather(level: u32) -> f32 {
@@ -464,7 +437,6 @@ fn blend_erase(dst: u32, erase_a: f32) -> u32 {
   if (out_a <= 0.0) {
     return 0u;
   }
-  // Preserve straight RGB; only alpha changes.
   return pack_argb(out_a, unpack_r(dst), unpack_g(dst), unpack_b(dst));
 }
 
@@ -490,40 +462,17 @@ fn draw_brush_stroke(@builtin(global_invocation_id) id: vec3<u32>) {
 
   let samples = antialias_samples_per_axis(cfg.antialias_level);
   let inv_samples = 1.0 / f32(samples);
-  let ratio = clamp(cfg.hollow_ratio, 0.0, 1.0);
-  let use_hollow = (cfg.hollow_mode != 0u) && (ratio > 0.0001) && (cfg.erase_mode == 0u);
   var outer_accum = 0.0;
-  var inner_accum = 0.0;
   for (var sy: u32 = 0u; sy < samples; sy = sy + 1u) {
     for (var sx: u32 = 0u; sx < samples; sx = sx + 1u) {
       let ox = (f32(sx) + 0.5) * inv_samples - 0.5;
       let oy = (f32(sy) + 0.5) * inv_samples - 0.5;
       let sample_pos = vec2<f32>(f32(x) + 0.5 + ox, f32(y) + 0.5 + oy);
       outer_accum = outer_accum + stroke_coverage_at(sample_pos, 1.0);
-      if (use_hollow) {
-        inner_accum = inner_accum + stroke_coverage_at(sample_pos, ratio);
-      }
     }
   }
   let total_samples = f32(samples * samples);
   let outer = clamp01(outer_accum / max(1.0, total_samples));
-  let inner = select(0.0, clamp01(inner_accum / max(1.0, total_samples)), use_hollow);
-  let use_mask = use_hollow && (cfg.stroke_mask_mode != 0u);
-  let use_base = use_hollow && (cfg.stroke_base_mode != 0u);
-  var hole = inner;
-  var outer_union = outer;
-  if (use_mask) {
-    let mask_before = stroke_mask_load(vec2<i32>(i32(x), i32(y)));
-    let inner_before = unpack_inner_mask(mask_before);
-    let outer_before = unpack_outer_mask(mask_before);
-    hole = max(inner_before, inner);
-    outer_union = max(outer_before, outer);
-    let mask_u = pack_mask(hole, outer_union);
-    stroke_mask_store(vec2<i32>(i32(x), i32(y)), mask_u);
-  }
-  let hollow_outer = select(outer, outer_union, use_base);
-  let paint_cov = select(outer, max(hollow_outer - hole, 0.0), use_hollow);
-  let erase_cov = select(0.0, hole, cfg.hollow_erase != 0u);
 
   let src_a_base = unpack_a(cfg.color_argb);
   if (cfg.erase_mode != 0u) {
@@ -537,8 +486,10 @@ fn draw_brush_stroke(@builtin(global_invocation_id) id: vec3<u32>) {
     return;
   }
 
-  let paint_a = clamp01(paint_cov * src_a_base);
-  let erase_a = clamp01(erase_cov);
+  let paint_a = clamp01(outer * src_a_base);
+  if (paint_a <= 0.0) {
+    return;
+  }
 
   let src_rgb = vec3<f32>(
     unpack_r(cfg.color_argb),
@@ -546,22 +497,7 @@ fn draw_brush_stroke(@builtin(global_invocation_id) id: vec3<u32>) {
     unpack_b(cfg.color_argb),
   );
 
-  if (use_base) {
-    let base = stroke_base_load(vec2<i32>(i32(x), i32(y)));
-    let out = blend_paint(base, src_rgb, paint_a);
-    layer_store(vec2<i32>(i32(x), i32(y)), out);
-    return;
-  }
-
-  if (paint_a <= 0.0 && erase_a <= 0.0) {
-    return;
-  }
-
   let dst = layer_load(vec2<i32>(i32(x), i32(y)));
-  var out = blend_paint(dst, src_rgb, paint_a);
-  if (erase_a > 0.0) {
-    out = blend_erase(out, erase_a);
-  }
-
+  let out = blend_paint(dst, src_rgb, paint_a);
   layer_store(vec2<i32>(i32(x), i32(y)), out);
 }

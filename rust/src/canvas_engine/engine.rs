@@ -1623,6 +1623,18 @@ fn render_thread_main(
                                 let segment_drawn = {
                                     let mut before_draw =
                                         |brush: &mut BrushRenderer, dirty_rect| {
+                                            if let Err(err) = brush.prepare_layer_read(
+                                                layer_texture,
+                                                layer_idx,
+                                                dirty_rect,
+                                            ) {
+                                                debug::log(
+                                                    LogLevel::Warn,
+                                                    format_args!(
+                                                        "Brush layer read prep failed: {err}"
+                                                    ),
+                                                );
+                                            }
                                             undo_manager.capture_before_for_dirty_rect(
                                                 device.as_ref(),
                                                 queue.as_ref(),
@@ -1748,6 +1760,16 @@ fn render_thread_main(
                                 && brush_settings.hollow_ratio > 0.0001
                                 && !brush_settings.hollow_erase_occluded;
                             let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+                                if let Err(err) =
+                                    brush.prepare_layer_read(layer_texture, layer_idx, dirty_rect)
+                                {
+                                    debug::log(
+                                        LogLevel::Warn,
+                                        format_args!(
+                                            "Brush layer read prep failed: {err}"
+                                        ),
+                                    );
+                                }
                                 undo_manager.capture_before_for_dirty_rect(
                                     device.as_ref(),
                                     queue.as_ref(),

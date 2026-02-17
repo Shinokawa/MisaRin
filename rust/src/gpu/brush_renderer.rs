@@ -179,40 +179,20 @@ impl BrushRenderer {
                     wgpu::BindGroupLayoutEntry {
                         binding: 3,
                         visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            access: wgpu::StorageTextureAccess::ReadWrite,
-                            format: LAYER_TEXTURE_FORMAT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
                             view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         },
                         count: None,
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 4,
                         visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            access: wgpu::StorageTextureAccess::ReadOnly,
-                            format: LAYER_TEXTURE_FORMAT,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 5,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            access: wgpu::StorageTextureAccess::ReadOnly,
-                            format: LAYER_TEXTURE_FORMAT,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 6,
-                        visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Uint,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         },
                         count: None,
                     },
@@ -929,18 +909,6 @@ impl BrushRenderer {
                 binding: 2,
                 resource: self.uniform_buffer.as_entire_binding(),
             },
-            wgpu::BindGroupEntry {
-                binding: 3,
-                resource: wgpu::BindingResource::TextureView(&self.stroke_mask_view),
-            },
-            wgpu::BindGroupEntry {
-                binding: 4,
-                resource: wgpu::BindingResource::TextureView(&self.stroke_base_view),
-            },
-            wgpu::BindGroupEntry {
-                binding: 5,
-                resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
-            },
         ];
         if cfg!(target_os = "ios") {
             let layer_read_view = self
@@ -948,16 +916,43 @@ impl BrushRenderer {
                 .as_ref()
                 .ok_or_else(|| "brush layer read view not initialized".to_string())?;
             entries.push(wgpu::BindGroupEntry {
-                binding: 6,
+                binding: 3,
                 resource: wgpu::BindingResource::TextureView(layer_read_view),
             });
+            entries.push(wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
+            });
+        } else {
+            entries.push(wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::TextureView(&self.stroke_mask_view),
+            });
+            entries.push(wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(&self.stroke_base_view),
+            });
+            entries.push(wgpu::BindGroupEntry {
+                binding: 5,
+                resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
+            });
         }
-
+        device_push_scopes(self.device.as_ref());
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("BrushRenderer bind group"),
             layout: &self.bind_group_layout,
             entries: &entries,
         });
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu validation error during brush bind group: {err}"
+            ));
+        }
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu out-of-memory error during brush bind group: {err}"
+            ));
+        }
 
         device_push_scopes(self.device.as_ref());
 
@@ -1211,6 +1206,17 @@ fn create_selection_mask(
     width: u32,
     height: u32,
 ) -> (wgpu::Texture, wgpu::TextureView) {
+    let (format, usage) = if cfg!(target_os = "ios") {
+        (
+            wgpu::TextureFormat::R8Unorm,
+            wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        )
+    } else {
+        (
+            LAYER_TEXTURE_FORMAT,
+            wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
+        )
+    };
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("BrushRenderer selection mask"),
         size: wgpu::Extent3d {
@@ -1221,8 +1227,8 @@ fn create_selection_mask(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: LAYER_TEXTURE_FORMAT,
-        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
+        format,
+        usage,
         view_formats: &[],
     });
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -1353,54 +1359,102 @@ fn write_selection_mask(
         ));
     }
 
-    const BYTES_PER_PIXEL: u32 = 4;
     const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
     const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
-    let bytes_per_row_unpadded = width.saturating_mul(BYTES_PER_PIXEL);
-    let bytes_per_row_padded = align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
-    if bytes_per_row_padded == 0 {
-        return Err("selection mask bytes_per_row == 0".to_string());
-    }
+    if cfg!(target_os = "ios") {
+        let bytes_per_row_unpadded = width;
+        let bytes_per_row_padded =
+            align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
+        if bytes_per_row_padded == 0 {
+            return Err("selection mask bytes_per_row == 0".to_string());
+        }
+        let row_bytes = bytes_per_row_padded as usize;
+        let rows_per_chunk = (MAX_CHUNK_BYTES / row_bytes).max(1) as u32;
 
-    let row_texels = (bytes_per_row_padded / BYTES_PER_PIXEL) as usize;
-    let row_bytes = bytes_per_row_padded as usize;
-    let rows_per_chunk = (MAX_CHUNK_BYTES / row_bytes).max(1) as u32;
-
-    let mut y: u32 = 0;
-    while y < height {
-        let chunk_h = (height - y).min(rows_per_chunk);
-        let mut data: Vec<u32> = vec![0; row_texels * chunk_h as usize];
-        for row in 0..chunk_h {
-            let src_offset = ((y + row) * width) as usize;
-            let dst_offset = row as usize * row_texels;
-            let src = &mask[src_offset..src_offset + width as usize];
-            for (i, &value) in src.iter().enumerate() {
-                data[dst_offset + i] = value as u32;
+        let mut y: u32 = 0;
+        while y < height {
+            let chunk_h = (height - y).min(rows_per_chunk);
+            let mut data: Vec<u8> = vec![0; row_bytes * chunk_h as usize];
+            for row in 0..chunk_h {
+                let src_offset = ((y + row) * width) as usize;
+                let dst_offset = row as usize * row_bytes;
+                let src = &mask[src_offset..src_offset + width as usize];
+                for (i, &value) in src.iter().enumerate() {
+                    data[dst_offset + i] = if value == 0 { 0 } else { 255 };
+                }
             }
+
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d { x: 0, y, z: 0 },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &data,
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row_padded),
+                    rows_per_image: Some(chunk_h),
+                },
+                wgpu::Extent3d {
+                    width,
+                    height: chunk_h,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            y = y.saturating_add(chunk_h);
+        }
+    } else {
+        const BYTES_PER_PIXEL: u32 = 4;
+        let bytes_per_row_unpadded = width.saturating_mul(BYTES_PER_PIXEL);
+        let bytes_per_row_padded =
+            align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
+        if bytes_per_row_padded == 0 {
+            return Err("selection mask bytes_per_row == 0".to_string());
         }
 
-        queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d { x: 0, y, z: 0 },
-                aspect: wgpu::TextureAspect::All,
-            },
-            bytemuck::cast_slice(&data),
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(bytes_per_row_padded),
-                rows_per_image: Some(chunk_h),
-            },
-            wgpu::Extent3d {
-                width,
-                height: chunk_h,
-                depth_or_array_layers: 1,
-            },
-        );
+        let row_texels = (bytes_per_row_padded / BYTES_PER_PIXEL) as usize;
+        let row_bytes = bytes_per_row_padded as usize;
+        let rows_per_chunk = (MAX_CHUNK_BYTES / row_bytes).max(1) as u32;
 
-        y = y.saturating_add(chunk_h);
+        let mut y: u32 = 0;
+        while y < height {
+            let chunk_h = (height - y).min(rows_per_chunk);
+            let mut data: Vec<u32> = vec![0; row_texels * chunk_h as usize];
+            for row in 0..chunk_h {
+                let src_offset = ((y + row) * width) as usize;
+                let dst_offset = row as usize * row_texels;
+                let src = &mask[src_offset..src_offset + width as usize];
+                for (i, &value) in src.iter().enumerate() {
+                    data[dst_offset + i] = value as u32;
+                }
+            }
+
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d { x: 0, y, z: 0 },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                bytemuck::cast_slice(&data),
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row_padded),
+                    rows_per_image: Some(chunk_h),
+                },
+                wgpu::Extent3d {
+                    width,
+                    height: chunk_h,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            y = y.saturating_add(chunk_h);
+        }
     }
 
     Ok(())

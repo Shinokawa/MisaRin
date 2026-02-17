@@ -14,24 +14,33 @@ struct FilterConfig {
 };
 
 @group(0) @binding(0)
-var src_tex: texture_storage_2d<rgba8uint, read>;
+var src_tex: texture_storage_2d<rgba8unorm, read>;
 
 @group(0) @binding(1)
-var dst_tex: texture_storage_2d<rgba8uint, read_write>;
+var dst_tex: texture_storage_2d<rgba8unorm, read_write>;
 
 @group(0) @binding(2)
 var<uniform> cfg: FilterConfig;
 
-fn unpack_u32(v: vec4<u32>) -> u32 {
-  return (v.w << 24u) | (v.z << 16u) | (v.y << 8u) | v.x;
+fn to_u8(x: f32) -> u32 {
+  let v = floor(clamp(x, 0.0, 1.0) * 255.0 + 0.5);
+  return u32(clamp(v, 0.0, 255.0));
 }
 
-fn pack_u32(value: u32) -> vec4<u32> {
-  return vec4<u32>(
-    value & 0xFFu,
-    (value >> 8u) & 0xFFu,
-    (value >> 16u) & 0xFFu,
-    (value >> 24u) & 0xFFu
+fn unpack_u32(v: vec4<f32>) -> u32 {
+  let b = to_u8(v.x);
+  let g = to_u8(v.y);
+  let r = to_u8(v.z);
+  let a = to_u8(v.w);
+  return (a << 24u) | (r << 16u) | (g << 8u) | b;
+}
+
+fn pack_u32(value: u32) -> vec4<f32> {
+  return vec4<f32>(
+    f32(value & 0xFFu) / 255.0,
+    f32((value >> 8u) & 0xFFu) / 255.0,
+    f32((value >> 16u) & 0xFFu) / 255.0,
+    f32((value >> 24u) & 0xFFu) / 255.0
   );
 }
 
@@ -45,11 +54,6 @@ fn dst_store(coord: vec2<i32>, value: u32) {
 
 fn clamp01(x: f32) -> f32 {
   return clamp(x, 0.0, 1.0);
-}
-
-fn to_u8(x: f32) -> u32 {
-  let v = floor(clamp01(x) * 255.0 + 0.5);
-  return u32(clamp(v, 0.0, 255.0));
 }
 
 fn pack_argb(a: f32, r: f32, g: f32, b: f32) -> u32 {

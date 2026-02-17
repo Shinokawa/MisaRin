@@ -15,10 +15,14 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VsOut {
 }
 
 @group(0) @binding(0)
-var layer_tex: texture_2d_array<u32>;
+var layer_tex: texture_2d_array<f32>;
 
-fn unpack_u32(v: vec4<u32>) -> u32 {
-  return (v.w << 24u) | (v.z << 16u) | (v.y << 8u) | v.x;
+fn unpack_u32(v: vec4<f32>) -> u32 {
+  let b = to_u8(v.x);
+  let g = to_u8(v.y);
+  let r = to_u8(v.z);
+  let a = to_u8(v.w);
+  return (a << 24u) | (r << 16u) | (g << 8u) | b;
 }
 
 fn layer_load(coord: vec2<i32>, layer: i32) -> u32 {
