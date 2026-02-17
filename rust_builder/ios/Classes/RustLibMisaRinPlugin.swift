@@ -203,11 +203,6 @@ private final class RustCanvasSurfaceState {
     // Ensure FFI symbols are kept when the Rust lib is statically linked.
     rust_engine_keepalive()
 
-#if DEBUG
-    // Enable verbose Rust GPU logs in iOS debug builds.
-    engine_set_log_level(3)
-#endif
-
     // Touch CPU brush symbols so they are not stripped from the linked framework.
     _ = cpu_brush_draw_stamp(
       nil,

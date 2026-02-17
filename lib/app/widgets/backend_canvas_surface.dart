@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kDebugMode;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -26,8 +24,7 @@ final bool _kDebugBackendCanvasInput =
     bool.fromEnvironment(
       'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
       defaultValue: false,
-    ) ||
-    (kDebugMode && defaultTargetPlatform == TargetPlatform.iOS);
+    );
 
 String _surfaceIdForKey(String surfaceKey) {
   final String normalized = surfaceKey.trim();

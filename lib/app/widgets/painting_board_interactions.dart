@@ -11,8 +11,7 @@ final bool _kDebugBackendCanvasInput =
     bool.fromEnvironment(
       'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
       defaultValue: false,
-    ) ||
-    (kDebugMode && defaultTargetPlatform == TargetPlatform.iOS);
+    );
 
 final class _BackendPointBuffer {
   _BackendPointBuffer({int initialCapacityPoints = 256})
