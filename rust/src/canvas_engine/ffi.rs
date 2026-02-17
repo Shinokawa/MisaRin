@@ -1,4 +1,5 @@
 use std::ffi::c_void;
+use std::os::raw::c_char;
 
 use super::types::{EnginePoint, SprayPoint};
 
@@ -6,6 +7,8 @@ use super::types::{EnginePoint, SprayPoint};
 use super::engine::{create_engine, lookup_engine, remove_engine, EngineCommand, EngineInputBatch};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 use crate::gpu::debug::{self, LogLevel};
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+use std::ffi::CString;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 use std::collections::HashMap;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
@@ -276,6 +279,23 @@ pub extern "C" fn engine_is_valid(handle: u64) -> u8 {
     if lookup_engine(handle).is_some() { 1 } else { 0 }
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+#[no_mangle]
+pub extern "C" fn engine_log_pop() -> *mut c_char {
+    match debug::pop_log_line() {
+        Some(line) => CString::new(line).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+#[no_mangle]
+pub extern "C" fn engine_log_free(ptr: *mut c_char) {
+    if !ptr.is_null() {
+        unsafe { let _ = CString::from_raw(ptr); };
+    }
+}
+
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
 #[no_mangle]
 pub extern "C" fn engine_get_input_queue_len(_handle: u64) -> u64 {
@@ -291,6 +311,16 @@ pub extern "C" fn engine_set_log_level(_level: u32) {}
 pub extern "C" fn engine_is_valid(_handle: u64) -> u8 {
     0
 }
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[no_mangle]
+pub extern "C" fn engine_log_pop() -> *mut c_char {
+    std::ptr::null_mut()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[no_mangle]
+pub extern "C" fn engine_log_free(_ptr: *mut c_char) {}
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 #[no_mangle]

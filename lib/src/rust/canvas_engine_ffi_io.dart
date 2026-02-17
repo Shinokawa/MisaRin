@@ -418,6 +418,11 @@ typedef _EngineApplyAntialiasNative =
 typedef _EngineApplyAntialiasDart =
     int Function(int handle, int layerIndex, int level);
 
+typedef _EngineLogPopNative = ffi.Pointer<ffi.Char> Function();
+typedef _EngineLogPopDart = ffi.Pointer<ffi.Char> Function();
+typedef _EngineLogFreeNative = ffi.Void Function(ffi.Pointer<ffi.Char> ptr);
+typedef _EngineLogFreeDart = void Function(ffi.Pointer<ffi.Char> ptr);
+
 class CanvasEngineFfi {
   CanvasEngineFfi._() {
     try {
@@ -680,6 +685,18 @@ class CanvasEngineFfi {
       } catch (_) {
         _applyAntialias = null;
       }
+      try {
+        _logPop = _lib.lookupFunction<_EngineLogPopNative, _EngineLogPopDart>(
+          'engine_log_pop',
+        );
+        _logFree =
+            _lib.lookupFunction<_EngineLogFreeNative, _EngineLogFreeDart>(
+          'engine_log_free',
+        );
+      } catch (_) {
+        _logPop = null;
+        _logFree = null;
+      }
       isSupported = true;
     } catch (_) {
       isSupported = false;
@@ -724,6 +741,8 @@ class CanvasEngineFfi {
   late final _EngineSprayEndDart? _sprayEnd;
   late final _EngineApplyFilterDart? _applyFilter;
   late final _EngineApplyAntialiasDart? _applyAntialias;
+  late final _EngineLogPopDart? _logPop;
+  late final _EngineLogFreeDart? _logFree;
 
   ffi.Pointer<ffi.Uint8>? _staging;
   int _stagingCapacityBytes = 0;
@@ -753,6 +772,33 @@ class CanvasEngineFfi {
       return 0;
     }
     return _getQueueLen(handle);
+  }
+
+  String? popLogLine() {
+    final fn = _logPop;
+    final free = _logFree;
+    if (!isSupported || fn == null || free == null) {
+      return null;
+    }
+    final ffi.Pointer<ffi.Char> ptr = fn();
+    if (ptr == ffi.nullptr) {
+      return null;
+    }
+    final String line = ptr.cast<Utf8>().toDartString();
+    free(ptr);
+    return line;
+  }
+
+  List<String> drainLogs({int maxLines = 200}) {
+    final List<String> lines = <String>[];
+    for (int i = 0; i < maxLines; i++) {
+      final String? line = popLogLine();
+      if (line == null) {
+        break;
+      }
+      lines.add(line);
+    }
+    return lines;
   }
 
   bool isHandleValid(int handle) {

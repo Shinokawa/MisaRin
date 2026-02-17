@@ -896,6 +896,14 @@ fn render_streamline_frame(
         return false;
     }
     let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+        if let Err(err) =
+            brush.prepare_layer_read(layer_texture, animation.layer_index, dirty_rect)
+        {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("Brush layer read prep failed: {err}"),
+            );
+        }
         undo_manager.capture_before_for_dirty_rect(
             device.as_ref(),
             queue.as_ref(),
@@ -1005,6 +1013,12 @@ fn commit_preview_stroke(
     }
     let use_hollow_base = use_hollow_mask && !brush_settings.hollow_erase_occluded;
     let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+        if let Err(err) = brush.prepare_layer_read(layer_texture, layer_index, dirty_rect) {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("Brush layer read prep failed: {err}"),
+            );
+        }
         undo_manager.capture_before_for_dirty_rect(
             device.as_ref(),
             queue.as_ref(),
@@ -2823,6 +2837,12 @@ fn handle_engine_command(
                 softness,
                 antialias_level,
             );
+            if let Err(err) = brush_ref.prepare_layer_read(layers.texture(), layer_idx, dirty) {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Brush layer read prep failed: {err}"),
+                );
+            }
             undo.begin_stroke_if_needed(layer_idx);
             undo.capture_before_for_dirty_rect(
                 device.as_ref(),

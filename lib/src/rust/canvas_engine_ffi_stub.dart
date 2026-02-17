@@ -15,6 +15,10 @@ class CanvasEngineFfi {
 
   int getInputQueueLen(int handle) => 0;
 
+  String? popLogLine() => null;
+
+  List<String> drainLogs({int maxLines = 200}) => const <String>[];
+
   bool isHandleValid(int handle) => false;
 
   void setBrush({

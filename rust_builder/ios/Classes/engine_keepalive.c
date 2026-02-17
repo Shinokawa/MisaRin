@@ -10,6 +10,8 @@ extern void engine_push_points(void);
 extern void engine_get_input_queue_len(void);
 extern void engine_is_valid(void);
 extern void engine_set_log_level(void);
+extern void engine_log_pop(void);
+extern void engine_log_free(void);
 extern void engine_set_active_layer(void);
 extern void engine_set_layer_opacity(void);
 extern void engine_set_layer_visible(void);
@@ -47,6 +49,8 @@ void rust_engine_keepalive(void) {
     (void *)&engine_push_points,
     (void *)&engine_get_input_queue_len,
     (void *)&engine_set_log_level,
+    (void *)&engine_log_pop,
+    (void *)&engine_log_free,
     (void *)&engine_is_valid,
     (void *)&engine_set_active_layer,
     (void *)&engine_set_layer_opacity,

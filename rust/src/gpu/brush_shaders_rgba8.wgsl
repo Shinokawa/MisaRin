@@ -39,7 +39,7 @@ const SQRT2: f32 = 1.414213562;
 var<storage, read> stroke_points: array<StrokePoint>;
 
 @group(0) @binding(1)
-var layer_tex: texture_storage_2d<rgba8uint, read_write>;
+var layer_tex: texture_storage_2d<rgba8uint, write>;
 
 @group(0) @binding(2)
 var<uniform> cfg: Config;
@@ -52,6 +52,9 @@ var stroke_base: texture_storage_2d<rgba8uint, read>;
 
 @group(0) @binding(5)
 var selection_mask: texture_storage_2d<rgba8uint, read>;
+
+@group(0) @binding(6)
+var layer_read: texture_2d<u32>;
 
 fn unpack_u32(v: vec4<u32>) -> u32 {
   return (v.w << 24u) | (v.z << 16u) | (v.y << 8u) | v.x;
@@ -67,7 +70,7 @@ fn pack_u32(value: u32) -> vec4<u32> {
 }
 
 fn layer_load(coord: vec2<i32>) -> u32 {
-  return unpack_u32(textureLoad(layer_tex, coord));
+  return unpack_u32(textureLoad(layer_read, coord, 0));
 }
 
 fn layer_store(coord: vec2<i32>, value: u32) {

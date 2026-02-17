@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 
 import '../src/rust/api/selection_path.dart' as rust_selection_path;
 import '../src/rust/canvas_engine_ffi.dart' as rust_wgpu_engine;
@@ -43,6 +46,13 @@ class CanvasEngineFfi {
       return false;
     }
     return _rustWgpu.isHandleValid(handle);
+  }
+
+  List<String> drainLogs({int maxLines = 200}) {
+    if (!isSupported) {
+      return const <String>[];
+    }
+    return _rustWgpu.drainLogs(maxLines: maxLines);
   }
 
   void setBrush({
@@ -492,10 +502,28 @@ class CanvasEngineFfi {
 }
 
 class CanvasBackendFacade {
-  CanvasBackendFacade._();
+  CanvasBackendFacade._() {
+    _ensureLogPump();
+  }
 
   static final CanvasBackendFacade instance = CanvasBackendFacade._();
   static final CanvasEngineFfi _ffi = CanvasEngineFfi.instance;
+  static Timer? _logPump;
+
+  void _ensureLogPump() {
+    if (_logPump != null || kIsWeb || !kDebugMode) {
+      return;
+    }
+    _logPump = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (!isSupported) {
+        return;
+      }
+      final List<String> lines = _ffi.drainLogs();
+      for (final String line in lines) {
+        debugPrint(line);
+      }
+    });
+  }
 
   bool get isSupported => _ffi.isSupported;
 

@@ -118,6 +118,10 @@ pub struct BrushRenderer {
     selection_mask_width: u32,
     selection_mask_height: u32,
     selection_mask_enabled: bool,
+    layer_read: Option<wgpu::Texture>,
+    layer_read_view: Option<wgpu::TextureView>,
+    layer_read_width: u32,
+    layer_read_height: u32,
 
     canvas_width: u32,
     canvas_height: u32,
@@ -138,71 +142,149 @@ impl BrushRenderer {
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
         });
 
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("BrushRenderer bind group layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+        let bind_group_layout = if cfg!(target_os = "ios") {
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("BrushRenderer bind group layout (iOS)"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: LAYER_TEXTURE_FORMAT,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::WriteOnly,
+                            format: LAYER_TEXTURE_FORMAT,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: LAYER_TEXTURE_FORMAT,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::ReadWrite,
+                            format: LAYER_TEXTURE_FORMAT,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadOnly,
-                        format: LAYER_TEXTURE_FORMAT,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::ReadOnly,
+                            format: LAYER_TEXTURE_FORMAT,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadOnly,
-                        format: LAYER_TEXTURE_FORMAT,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::ReadOnly,
+                            format: LAYER_TEXTURE_FORMAT,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Uint,
+                        },
+                        count: None,
+                    },
+                ],
+            })
+        } else {
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("BrushRenderer bind group layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::ReadWrite,
+                            format: LAYER_TEXTURE_FORMAT,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::ReadWrite,
+                            format: LAYER_TEXTURE_FORMAT,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::ReadOnly,
+                            format: LAYER_TEXTURE_FORMAT,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::ReadOnly,
+                            format: LAYER_TEXTURE_FORMAT,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                ],
+            })
+        };
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("BrushRenderer pipeline layout"),
@@ -258,6 +340,10 @@ impl BrushRenderer {
             selection_mask_width: 1,
             selection_mask_height: 1,
             selection_mask_enabled: false,
+            layer_read: None,
+            layer_read_view: None,
+            layer_read_width: 0,
+            layer_read_height: 0,
             canvas_width: 0,
             canvas_height: 0,
             softness: 0.0,
@@ -269,6 +355,10 @@ impl BrushRenderer {
             self.stroke_base_valid = false;
             self.selection_mask_enabled = false;
             self.stroke_base_tiles.clear();
+            self.layer_read = None;
+            self.layer_read_view = None;
+            self.layer_read_width = 0;
+            self.layer_read_height = 0;
         }
         self.canvas_width = width;
         self.canvas_height = height;
@@ -420,6 +510,83 @@ impl BrushRenderer {
         }
         if captured_any {
             self.stroke_base_valid = true;
+        }
+        Ok(())
+    }
+
+    pub fn prepare_layer_read(
+        &mut self,
+        layer_texture: &wgpu::Texture,
+        layer_index: u32,
+        dirty: (i32, i32, i32, i32),
+    ) -> Result<(), String> {
+        if !cfg!(target_os = "ios") {
+            return Ok(());
+        }
+        if self.canvas_width == 0 || self.canvas_height == 0 {
+            return Ok(());
+        }
+        let (left_i, top_i, width_i, height_i) = dirty;
+        if width_i <= 0 || height_i <= 0 {
+            return Ok(());
+        }
+        self.ensure_layer_read()?;
+        let left = (left_i.max(0) as u32).min(self.canvas_width);
+        let top = (top_i.max(0) as u32).min(self.canvas_height);
+        let right = (left_i.saturating_add(width_i).max(0) as u32).min(self.canvas_width);
+        let bottom = (top_i.saturating_add(height_i).max(0) as u32).min(self.canvas_height);
+        if right <= left || bottom <= top {
+            return Ok(());
+        }
+
+        let layer_read = self
+            .layer_read
+            .as_ref()
+            .ok_or_else(|| "layer read texture missing".to_string())?;
+
+        device_push_scopes(self.device.as_ref());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("BrushRenderer prepare layer read"),
+            });
+        encoder.copy_texture_to_texture(
+            wgpu::ImageCopyTexture {
+                texture: layer_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: left,
+                    y: top,
+                    z: layer_index,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyTexture {
+                texture: layer_read,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: left,
+                    y: top,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: right - left,
+                height: bottom - top,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit(Some(encoder.finish()));
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu validation error during layer read copy: {err}"
+            ));
+        }
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu out-of-memory error during layer read copy: {err}"
+            ));
         }
         Ok(())
     }
@@ -749,35 +916,47 @@ impl BrushRenderer {
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&config));
 
+        let mut entries: Vec<wgpu::BindGroupEntry> = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: points_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(layer_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: self.uniform_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::TextureView(&self.stroke_mask_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(&self.stroke_base_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
+            },
+        ];
+        if cfg!(target_os = "ios") {
+            let layer_read_view = self
+                .layer_read_view
+                .as_ref()
+                .ok_or_else(|| "brush layer read view not initialized".to_string())?;
+            entries.push(wgpu::BindGroupEntry {
+                binding: 6,
+                resource: wgpu::BindingResource::TextureView(layer_read_view),
+            });
+        }
+
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("BrushRenderer bind group"),
             layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: points_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(layer_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: self.uniform_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&self.stroke_mask_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::TextureView(&self.stroke_base_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
-                },
-            ],
+            entries: &entries,
         });
 
         device_push_scopes(self.device.as_ref());
@@ -910,6 +1089,55 @@ impl BrushRenderer {
         self.stroke_base_height = self.canvas_height;
         self.stroke_base_valid = false;
         self.stroke_base_tiles.clear();
+        Ok(())
+    }
+
+    fn ensure_layer_read(&mut self) -> Result<(), String> {
+        if !cfg!(target_os = "ios") {
+            return Ok(());
+        }
+        if self.canvas_width == 0 || self.canvas_height == 0 {
+            return Ok(());
+        }
+        if self.layer_read_width == self.canvas_width
+            && self.layer_read_height == self.canvas_height
+        {
+            return Ok(());
+        }
+
+        device_push_scopes(self.device.as_ref());
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("BrushRenderer layer read"),
+            size: wgpu::Extent3d {
+                width: self.canvas_width.max(1),
+                height: self.canvas_height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: LAYER_TEXTURE_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu validation error during layer read alloc: {err}"
+            ));
+        }
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu out-of-memory error during layer read alloc: {err}"
+            ));
+        }
+
+        self.layer_read = Some(texture);
+        self.layer_read_view = Some(view);
+        self.layer_read_width = self.canvas_width;
+        self.layer_read_height = self.canvas_height;
         Ok(())
     }
 
