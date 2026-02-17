@@ -69,17 +69,7 @@ fn read_level_from_env() -> LogLevel {
 }
 
 fn default_level() -> LogLevel {
-    if cfg!(target_os = "ios") {
-        if cfg!(debug_assertions) {
-            return LogLevel::Verbose;
-        }
-        return LogLevel::Off;
-    }
-    if cfg!(debug_assertions) {
-        LogLevel::Info
-    } else {
-        LogLevel::Off
-    }
+    LogLevel::Off
 }
 
 fn parse_level(value: &str) -> LogLevel {

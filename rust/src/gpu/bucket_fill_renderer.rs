@@ -140,11 +140,7 @@ impl BucketFillRenderer {
     pub fn new(device: Arc<Device>, queue: Arc<Queue>) -> Result<Self, String> {
         device_push_scopes(device.as_ref());
 
-        let shader_source = if cfg!(target_os = "ios") {
-            include_str!("bucket_fill_shaders_rgba8.wgsl")
-        } else {
-            include_str!("bucket_fill_shaders.wgsl")
-        };
+        let shader_source = include_str!("bucket_fill_shaders_rgba8.wgsl");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("BucketFillRenderer shader"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
@@ -167,7 +163,7 @@ impl BucketFillRenderer {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Uint,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
                         view_dimension: wgpu::TextureViewDimension::D2Array,
                         multisampled: false,
                     },

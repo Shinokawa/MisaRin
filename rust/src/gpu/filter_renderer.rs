@@ -54,11 +54,7 @@ impl FilterRenderer {
     pub fn new(device: Arc<Device>, queue: Arc<Queue>) -> Result<Self, String> {
         device_push_scopes(device.as_ref());
 
-        let shader_source = if cfg!(target_os = "ios") {
-            include_str!("filter_shaders_rgba8.wgsl")
-        } else {
-            include_str!("filter_shaders.wgsl")
-        };
+        let shader_source = include_str!("filter_shaders_rgba8.wgsl");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("FilterRenderer shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),

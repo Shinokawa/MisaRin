@@ -24,7 +24,7 @@ impl LayerTextures {
             ));
         }
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("misa-rin layer array (R32Uint)"),
+            label: Some("misa-rin layer array (Rgba8Unorm)"),
             size: wgpu::Extent3d {
                 width,
                 height,
@@ -106,7 +106,7 @@ impl LayerTextures {
 
         let old_capacity = self.capacity;
         let new_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("misa-rin layer array (R32Uint)"),
+            label: Some("misa-rin layer array (Rgba8Unorm)"),
             size: wgpu::Extent3d {
                 width: self.width,
                 height: self.height,

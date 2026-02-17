@@ -28,11 +28,7 @@ pub(crate) struct LayerTransformRenderer {
 
 impl LayerTransformRenderer {
     pub(crate) fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Result<Self, String> {
-        let shader_source = if cfg!(target_os = "ios") {
-            include_str!("transform_rgba8.wgsl")
-        } else {
-            include_str!("transform.wgsl")
-        };
+        let shader_source = include_str!("transform_rgba8.wgsl");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("misa-rin layer transform shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
@@ -45,7 +41,7 @@ impl LayerTransformRenderer {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Uint,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
                         view_dimension: wgpu::TextureViewDimension::D2Array,
                         multisampled: false,
                     },
