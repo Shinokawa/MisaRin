@@ -38,6 +38,13 @@ class CanvasEngineFfi {
     return _rustWgpu.getInputQueueLen(handle);
   }
 
+  bool isHandleValid(int handle) {
+    if (!isSupported) {
+      return false;
+    }
+    return _rustWgpu.isHandleValid(handle);
+  }
+
   void setBrush({
     required int handle,
     required int colorArgb,
@@ -495,6 +502,8 @@ class CanvasBackendFacade {
   bool isHandleReady(int? handle) => isSupported && handle != null;
 
   int getInputQueueLen(int handle) => _ffi.getInputQueueLen(handle);
+
+  bool isHandleValid(int handle) => _ffi.isHandleValid(handle);
 
   void pushPointsPacked({
     required int handle,

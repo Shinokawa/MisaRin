@@ -15,6 +15,8 @@ class CanvasEngineFfi {
 
   int getInputQueueLen(int handle) => 0;
 
+  bool isHandleValid(int handle) => false;
+
   void setBrush({
     required int handle,
     required int colorArgb,

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
+
 const UNDO_TILE_SIZE: u32 = 256;
 const UNDO_STACK_LIMIT: usize = 50;
 
@@ -190,7 +192,7 @@ impl UndoManager {
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::R32Uint,
+                    format: LAYER_TEXTURE_FORMAT,
                     usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
                     view_formats: &[],
                 });
@@ -269,7 +271,7 @@ impl UndoManager {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::R32Uint,
+                format: LAYER_TEXTURE_FORMAT,
                 usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
                 view_formats: &[],
             });

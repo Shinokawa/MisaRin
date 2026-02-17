@@ -16,6 +16,20 @@ pub fn level() -> LogLevel {
     *LOG_LEVEL.get_or_init(read_level_from_env)
 }
 
+pub fn set_level(level: LogLevel) {
+    let _ = LOG_LEVEL.set(level);
+}
+
+pub fn set_level_from_u32(raw: u32) {
+    let level = match raw {
+        0 => LogLevel::Off,
+        1 => LogLevel::Warn,
+        2 => LogLevel::Info,
+        _ => LogLevel::Verbose,
+    };
+    set_level(level);
+}
+
 pub fn next_seq() -> u64 {
     SEQ.fetch_add(1, Ordering::Relaxed)
 }

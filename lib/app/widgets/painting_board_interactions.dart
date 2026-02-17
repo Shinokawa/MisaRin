@@ -7,10 +7,12 @@ const int _kBackendPointFlagMove = 2;
 const int _kBackendPointFlagUp = 4;
 const double _kBackendPressureMinFactor = 0.09;
 const double _kBackendPressureMaxFactor = 1.0;
-const bool _kDebugBackendCanvasInput = bool.fromEnvironment(
-  'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
-  defaultValue: false,
-);
+final bool _kDebugBackendCanvasInput =
+    bool.fromEnvironment(
+      'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
+      defaultValue: false,
+    ) ||
+    (kDebugMode && defaultTargetPlatform == TargetPlatform.iOS);
 
 final class _BackendPointBuffer {
   _BackendPointBuffer({int initialCapacityPoints = 256})
@@ -1005,16 +1007,32 @@ mixin _PaintingBoardInteractionMixin
         'streamline=${_streamlineStrength.toStringAsFixed(3)}',
       );
     }
-    _backend.pushPointsPacked(
+    final bool pushed = _backend.pushPointsPacked(
       bytes: _backendPoints.bytes,
       pointCount: count,
     );
     _backendPoints.clear();
+    if (_kDebugBackendCanvasInput) {
+      final int queuedAfter = _backend.getInputQueueLen(handle: handle) ?? 0;
+      debugPrint(
+        '[backend_canvas] flush done pushed=$pushed queued_after=$queuedAfter '
+        'streamline=${_streamlineStrength.toStringAsFixed(3)}',
+      );
+    }
   }
 
   void _beginBackendStroke(PointerDownEvent event) {
     if (!_isBackendDrawingPointer(event)) {
       return;
+    }
+    if (_kDebugBackendCanvasInput) {
+      debugPrint(
+        '[backend_canvas] begin backend stroke '
+        'id=${event.pointer} kind=${event.kind} down=${event.down} '
+        'buttons=${event.buttons} pos=${event.localPosition} '
+        'pressure=${event.pressure} handle=$_backendCanvasEngineHandle '
+        'inputQueue=${_backend.supportsInputQueue}',
+      );
     }
     _resetPerspectiveLock();
     _lastStrokeBoardPosition = null;
@@ -1040,6 +1058,14 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _endBackendStroke(PointerEvent event) {
+    if (_kDebugBackendCanvasInput) {
+      debugPrint(
+        '[backend_canvas] end backend stroke '
+        'id=${event.pointer} kind=${event.kind} down=${event.down} '
+        'buttons=${event.buttons} pos=${event.localPosition} '
+        'pressure=${event.pressure} handle=$_backendCanvasEngineHandle',
+      );
+    }
     final bool hadActiveStroke = _backendActivePointer != null;
     final int? handle = _backendCanvasEngineHandle;
     final bool canRecordHistory =
@@ -1269,6 +1295,23 @@ mixin _PaintingBoardInteractionMixin
       return;
     }
     final bool pointerInsideBoard = boardRect.contains(pointer);
+    if (_kDebugBackendCanvasInput &&
+        (tool == CanvasTool.pen || tool == CanvasTool.eraser)) {
+      debugPrint(
+        '[backend_canvas] down id=${event.pointer} kind=${event.kind} '
+        'down=${event.down} buttons=${event.buttons} '
+        'pos=${event.localPosition} pressure=${event.pressure}',
+      );
+      debugPrint(
+        '[backend_canvas] pen/eraser down tool=$tool '
+        'pointerInsideBoard=$pointerInsideBoard '
+        'backendSupported=${_backend.isSupported} '
+        'backendReady=${_backend.isReady} '
+        'handle=$_backendCanvasEngineHandle '
+        'inputQueue=${_backend.supportsInputQueue} '
+        'strokeStream=${_backend.supportsStrokeStream}',
+      );
+    }
     final bool toolCanStartOutsideCanvas =
         tool == CanvasTool.curvePen ||
         tool == CanvasTool.selection ||

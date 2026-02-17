@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::gpu::debug::{self, LogLevel};
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -27,9 +28,14 @@ pub(crate) struct LayerTransformRenderer {
 
 impl LayerTransformRenderer {
     pub(crate) fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Result<Self, String> {
+        let shader_source = if cfg!(target_os = "ios") {
+            include_str!("transform_rgba8.wgsl")
+        } else {
+            include_str!("transform.wgsl")
+        };
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("misa-rin layer transform shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("transform.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -50,7 +56,7 @@ impl LayerTransformRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::WriteOnly,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -119,7 +125,7 @@ impl LayerTransformRenderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
+            format: LAYER_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });

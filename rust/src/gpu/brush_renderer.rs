@@ -6,6 +6,7 @@ use std::time::Instant;
 use wgpu::{ComputePipeline, Device, Queue};
 
 use crate::gpu::debug::{self, LogLevel};
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Point2D {
@@ -127,9 +128,14 @@ impl BrushRenderer {
     pub fn new(device: Arc<Device>, queue: Arc<Queue>) -> Result<Self, String> {
         device_push_scopes(device.as_ref());
 
+        let shader_source = if cfg!(target_os = "ios") {
+            include_str!("brush_shaders_rgba8.wgsl")
+        } else {
+            include_str!("brush_shaders.wgsl")
+        };
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("BrushRenderer shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("brush_shaders.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -150,7 +156,7 @@ impl BrushRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -170,7 +176,7 @@ impl BrushRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -180,7 +186,7 @@ impl BrushRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadOnly,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -190,7 +196,7 @@ impl BrushRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadOnly,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -941,7 +947,7 @@ fn create_stroke_mask(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -964,7 +970,7 @@ fn create_stroke_base(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -987,7 +993,7 @@ fn create_selection_mask(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });

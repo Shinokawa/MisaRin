@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use wgpu::{BindGroup, BindGroupLayout, ComputePipeline, Device, Queue};
 
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
+
 const WORKGROUP_SIZE: u32 = 16;
 const QUEUE_GROUP_SIZE: u32 = WORKGROUP_SIZE * WORKGROUP_SIZE;
 const READBACK_BATCH: u32 = 16;
@@ -138,9 +140,14 @@ impl BucketFillRenderer {
     pub fn new(device: Arc<Device>, queue: Arc<Queue>) -> Result<Self, String> {
         device_push_scopes(device.as_ref());
 
+        let shader_source = if cfg!(target_os = "ios") {
+            include_str!("bucket_fill_shaders_rgba8.wgsl")
+        } else {
+            include_str!("bucket_fill_shaders.wgsl")
+        };
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("BucketFillRenderer shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("bucket_fill_shaders.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -151,7 +158,7 @@ impl BucketFillRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -171,7 +178,7 @@ impl BucketFillRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -181,7 +188,7 @@ impl BucketFillRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -1189,7 +1196,7 @@ fn create_mask_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::STORAGE_BINDING
             | wgpu::TextureUsages::COPY_SRC
             | wgpu::TextureUsages::COPY_DST,
@@ -1218,7 +1225,7 @@ fn create_sampled_layers_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });

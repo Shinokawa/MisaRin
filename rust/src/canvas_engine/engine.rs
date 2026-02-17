@@ -20,6 +20,7 @@ use crate::gpu::filter_renderer::{
     FILTER_FILL_EXPAND, FILTER_GAUSSIAN_BLUR, FILTER_HUE_SATURATION, FILTER_INVERT,
     FILTER_LEAK_REMOVAL, FILTER_LINE_NARROW, FILTER_SCAN_PAPER_DRAWING,
 };
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
 
 use super::layers::LayerTextures;
 use super::present::{
@@ -291,6 +292,10 @@ fn device_context() -> Result<&'static EngineDeviceContext, String> {
             None,
         ))
         .map_err(|e| format!("wgpu: request_device failed: {e:?}"))?;
+
+        device.on_uncaptured_error(Box::new(|err| {
+            eprintln!("[misa-rin][wgpu] {err}");
+        }));
 
         Ok(EngineDeviceContext {
             _instance: instance,
@@ -4624,7 +4629,7 @@ fn reorder_layer_textures(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });

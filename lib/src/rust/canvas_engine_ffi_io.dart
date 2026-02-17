@@ -45,6 +45,9 @@ typedef _EnginePushPointsDart =
 typedef _EngineGetInputQueueLenNative = ffi.Uint64 Function(ffi.Uint64 handle);
 typedef _EngineGetInputQueueLenDart = int Function(int handle);
 
+typedef _EngineIsValidNative = ffi.Uint8 Function(ffi.Uint64 handle);
+typedef _EngineIsValidDart = int Function(int handle);
+
 typedef _EngineSetActiveLayerNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex);
 typedef _EngineSetActiveLayerDart = void Function(int handle, int layerIndex);
@@ -428,6 +431,14 @@ class CanvasEngineFfi {
             _EngineGetInputQueueLenNative,
             _EngineGetInputQueueLenDart
           >('engine_get_input_queue_len');
+      try {
+        _isValid = _lib
+            .lookupFunction<_EngineIsValidNative, _EngineIsValidDart>(
+              'engine_is_valid',
+            );
+      } catch (_) {
+        _isValid = null;
+      }
 
       // Optional layer controls (not required for basic drawing).
       try {
@@ -684,6 +695,7 @@ class CanvasEngineFfi {
   late final ffi.DynamicLibrary _lib;
   late final _EnginePushPointsDart _pushPoints;
   late final _EngineGetInputQueueLenDart _getQueueLen;
+  late final _EngineIsValidDart? _isValid;
   late final _EngineSetActiveLayerDart? _setActiveLayer;
   late final _EngineSetLayerOpacityDart? _setLayerOpacity;
   late final _EngineSetLayerVisibleDart? _setLayerVisible;
@@ -741,6 +753,17 @@ class CanvasEngineFfi {
       return 0;
     }
     return _getQueueLen(handle);
+  }
+
+  bool isHandleValid(int handle) {
+    if (!isSupported || handle == 0) {
+      return false;
+    }
+    final fn = _isValid;
+    if (fn == null) {
+      return false;
+    }
+    return fn(handle) != 0;
   }
 
   void setActiveLayer({required int handle, required int layerIndex}) {

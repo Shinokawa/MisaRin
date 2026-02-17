@@ -982,6 +982,12 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
         'paintingBoard: backend engine info handle=$handle '
         'size=$sizeText newEngine=$isNewEngine',
       );
+      if (kDebugMode &&
+          defaultTargetPlatform == TargetPlatform.iOS &&
+          handle != null) {
+        final bool valid = CanvasBackendFacade.instance.isHandleValid(handle);
+        debugPrint('paintingBoard: backend engine handle valid=$valid');
+      }
     }
     if (engineReset) {
       _backendCanvasSyncedLayerCount = 0;

@@ -181,9 +181,14 @@ pub(crate) fn create_present_params_buffer(
 
 impl PresentRenderer {
     pub(crate) fn new(device: &wgpu::Device) -> Self {
+        let shader_source = if cfg!(target_os = "ios") {
+            include_str!("../canvas_present_rgba8.wgsl")
+        } else {
+            include_str!("../canvas_present.wgsl")
+        };
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("misa-rin present renderer shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("../canvas_present.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

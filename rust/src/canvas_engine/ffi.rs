@@ -264,9 +264,31 @@ pub extern "C" fn engine_get_input_queue_len(handle: u64) -> u64 {
         .unwrap_or(0)
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+#[no_mangle]
+pub extern "C" fn engine_set_log_level(level: u32) {
+    debug::set_level_from_u32(level);
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+#[no_mangle]
+pub extern "C" fn engine_is_valid(handle: u64) -> u8 {
+    if lookup_engine(handle).is_some() { 1 } else { 0 }
+}
+
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
 #[no_mangle]
 pub extern "C" fn engine_get_input_queue_len(_handle: u64) -> u64 {
+    0
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[no_mangle]
+pub extern "C" fn engine_set_log_level(_level: u32) {}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[no_mangle]
+pub extern "C" fn engine_is_valid(_handle: u64) -> u8 {
     0
 }
 

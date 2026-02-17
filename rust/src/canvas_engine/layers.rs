@@ -1,3 +1,5 @@
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
+
 pub(crate) struct LayerTextures {
     texture: wgpu::Texture,
     array_view: wgpu::TextureView,
@@ -31,7 +33,7 @@ impl LayerTextures {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
+            format: LAYER_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC
@@ -113,7 +115,7 @@ impl LayerTextures {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
+            format: LAYER_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC

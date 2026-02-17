@@ -6,6 +6,7 @@ use std::time::Instant;
 use wgpu::{Device, Queue};
 
 use crate::gpu::debug::{self, LogLevel};
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
 
 const BYTES_PER_PIXEL: u32 = 4;
 const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
@@ -401,7 +402,7 @@ impl LayerTextureManager {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
+            format: LAYER_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::STORAGE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC,

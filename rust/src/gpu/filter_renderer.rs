@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use wgpu::{ComputePipeline, Device, Queue};
 
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
+
 pub const FILTER_HUE_SATURATION: u32 = 0;
 pub const FILTER_BRIGHTNESS_CONTRAST: u32 = 1;
 pub const FILTER_BLACK_WHITE: u32 = 2;
@@ -52,9 +54,14 @@ impl FilterRenderer {
     pub fn new(device: Arc<Device>, queue: Arc<Queue>) -> Result<Self, String> {
         device_push_scopes(device.as_ref());
 
+        let shader_source = if cfg!(target_os = "ios") {
+            include_str!("filter_shaders_rgba8.wgsl")
+        } else {
+            include_str!("filter_shaders.wgsl")
+        };
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("FilterRenderer shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("filter_shaders.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -65,7 +72,7 @@ impl FilterRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadOnly,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -75,7 +82,7 @@ impl FilterRenderer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -584,7 +591,7 @@ fn create_scratch(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::STORAGE_BINDING
             | wgpu::TextureUsages::COPY_DST
             | wgpu::TextureUsages::COPY_SRC,

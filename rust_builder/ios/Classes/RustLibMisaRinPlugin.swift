@@ -26,6 +26,9 @@ private func engine_dispose(_ engineHandle: UInt64)
 @_silgen_name("engine_poll_frame_ready")
 private func engine_poll_frame_ready(_ engineHandle: UInt64) -> Bool
 
+@_silgen_name("engine_set_log_level")
+private func engine_set_log_level(_ level: UInt32)
+
 @_silgen_name("engine_reset_canvas_with_layers")
 private func engine_reset_canvas_with_layers(
   _ engineHandle: UInt64,
@@ -41,6 +44,9 @@ private func engine_resize_canvas(
   _ layerCount: UInt32,
   _ backgroundColorArgb: UInt32
 ) -> UInt8
+
+@_silgen_name("rust_engine_keepalive")
+private func rust_engine_keepalive()
 
 // Keep CPU drawing symbols alive when Rust is statically linked on iOS.
 @_silgen_name("cpu_brush_draw_stamp")
@@ -193,6 +199,14 @@ private final class RustCanvasSurfaceState {
       return
     }
     didRegister = true
+
+    // Ensure FFI symbols are kept when the Rust lib is statically linked.
+    rust_engine_keepalive()
+
+#if DEBUG
+    // Enable verbose Rust GPU logs in iOS debug builds.
+    engine_set_log_level(3)
+#endif
 
     // Touch CPU brush symbols so they are not stripped from the linked framework.
     _ = cpu_brush_draw_stamp(
