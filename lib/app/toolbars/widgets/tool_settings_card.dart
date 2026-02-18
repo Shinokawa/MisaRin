@@ -16,6 +16,7 @@ import '../../preferences/app_preferences.dart'
 import '../../constants/pen_constants.dart'
     show kSprayStrokeMin, kSprayStrokeMax;
 import '../../tooltips/hover_detail_tooltip.dart';
+import '../../widgets/brush_preset_stroke_preview.dart';
 import 'measured_size.dart';
 import 'selection_shape_icon.dart';
 
@@ -627,69 +628,137 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         );
     final String selectedName = selected?.name ?? '--';
     final bool enabled = presets.isNotEmpty;
-    final Widget selector = _wrapComboTooltip(
+    final BrushPreset? sanitized = selected?.sanitized();
+    final String tooltipDetail = sanitized == null
+        ? l10n.brushPresetDesc
+        : _buildBrushPresetTooltip(l10n, sanitized);
+    final TextStyle titleStyle =
+        theme.typography.bodyStrong ?? const TextStyle(fontSize: 14);
+    final double previewHeight = (titleStyle.fontSize ?? 14) + 4;
+    final double previewWidth = widget.compactLayout ? 90 : 120;
+    final Color previewColor = enabled
+        ? theme.resources.textFillColorPrimary
+        : theme.resources.textFillColorDisabled;
+
+    final Widget previewBox = Container(
+      width: previewWidth,
+      height: previewHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.resources.controlFillColorDefault,
+        border: Border.all(color: theme.resources.controlStrokeColorDefault),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: sanitized == null
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '--',
+                style: theme.typography.caption?.copyWith(color: previewColor),
+              ),
+            )
+          : BrushPresetStrokePreview(
+              preset: sanitized,
+              height: previewHeight - 4,
+              color: previewColor,
+            ),
+    );
+
+    final Widget previewWithTooltip = HoverDetailTooltip(
+      message: selectedName,
+      detail: tooltipDetail,
+      child: previewBox,
+    );
+
+    final Widget openButton = _wrapButtonTooltip(
       label: l10n.brushPreset,
       detail: l10n.brushPresetDesc,
-      child: _buildBrushPresetPickerButton(
-        theme,
-        label: selectedName,
-        enabled: enabled,
+      child: IconButton(
+        icon: Icon(
+          FluentIcons.edit,
+          size: 14,
+          color: enabled
+              ? theme.resources.textFillColorSecondary
+              : theme.resources.textFillColorDisabled,
+        ),
+        onPressed: enabled ? widget.onOpenBrushPresetPicker : null,
       ),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(l10n.brushPreset, style: theme.typography.bodyStrong),
-        const SizedBox(height: 8),
-        selector,
+        Text(l10n.brushPreset, style: titleStyle),
+        const SizedBox(width: 8),
+        previewWithTooltip,
+        const SizedBox(width: 8),
+        Flexible(
+          fit: FlexFit.loose,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: widget.compactLayout ? 140 : 220,
+            ),
+            child: Text(
+              selectedName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.typography.body,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        openButton,
       ],
     );
   }
 
-  Widget _buildBrushPresetPickerButton(
-    FluentThemeData theme, {
-    required String label,
-    required bool enabled,
-  }) {
-    final TextStyle baseStyle =
-        theme.typography.body ?? const TextStyle(fontSize: 14);
-    final Color textColor = enabled
-        ? (baseStyle.color ?? theme.resources.textFillColorPrimary)
-        : theme.resources.textFillColorDisabled;
-    return SizedBox(
-      width: widget.compactLayout ? double.infinity : 200,
-      child: Button(
-        style: const ButtonStyle(
-          padding: WidgetStatePropertyAll(EdgeInsets.zero),
-        ),
-        onPressed: enabled ? widget.onOpenBrushPresetPicker : null,
-        child: Container(
-          padding: const EdgeInsetsDirectional.only(start: 11, end: 12),
-          constraints: const BoxConstraints(minHeight: 32),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: baseStyle.copyWith(color: textColor),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                FluentIcons.chevron_down,
-                size: 10,
-                color: enabled
-                    ? theme.resources.textFillColorSecondary
-                    : theme.resources.textFillColorDisabled,
-              ),
-            ],
-          ),
-        ),
-      ),
+  String _buildBrushPresetTooltip(AppLocalizations l10n, BrushPreset preset) {
+    final BrushPreset sanitized = preset.sanitized();
+    final List<String> lines = <String>[
+      '${l10n.brushShape}: ${_shapeLabel(l10n, sanitized.shape)}',
+      '${l10n.brushSpacing}: ${sanitized.spacing.toStringAsFixed(2)}',
+      '${l10n.brushHardness}: ${_formatPercent(sanitized.hardness)}',
+      '${l10n.brushFlow}: ${_formatPercent(sanitized.flow)}',
+      '${l10n.brushScatter}: ${_formatPercent(sanitized.scatter)}',
+      '${l10n.randomRotation}: ${_boolLabel(l10n, sanitized.randomRotation)}',
+      '${l10n.brushRotationJitter}: ${_formatPercent(sanitized.rotationJitter)}',
+      '${l10n.brushAntialiasing}: ${sanitized.antialiasLevel}',
+      '${l10n.hollowStroke}: ${_boolLabel(l10n, sanitized.hollowEnabled)}',
+    ];
+    if (sanitized.hollowEnabled) {
+      lines.add(
+        '${l10n.hollowStrokeRatio}: ${_formatPercent(sanitized.hollowRatio)}',
+      );
+    }
+    lines.add(
+      '${l10n.autoSharpTaper}: ${_boolLabel(l10n, sanitized.autoSharpTaper)}',
     );
+    lines.add(
+      '${l10n.brushSnapToPixel}: ${_boolLabel(l10n, sanitized.snapToPixel)}',
+    );
+    return lines.join('\n');
+  }
+
+  String _boolLabel(AppLocalizations l10n, bool value) {
+    return value ? l10n.on : l10n.off;
+  }
+
+  String _formatPercent(double value) {
+    return '${(value * 100).round()}%';
+  }
+
+  String _shapeLabel(AppLocalizations l10n, BrushShape shape) {
+    switch (shape) {
+      case BrushShape.circle:
+        return l10n.circle;
+      case BrushShape.triangle:
+        return l10n.triangle;
+      case BrushShape.square:
+        return l10n.square;
+      case BrushShape.star:
+        return l10n.star;
+    }
   }
 
   Widget _buildSelectionShapeRow(FluentThemeData theme) {

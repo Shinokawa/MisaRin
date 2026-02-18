@@ -26,6 +26,14 @@ class BrushLibrary extends ChangeNotifier {
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'brush_presets.json';
   static const String _storageKey = 'misa_rin.brush_presets';
+  static const Set<String> defaultPresetIds = <String>{
+    'pencil',
+    'pen',
+    'pixel',
+    'triangle',
+    'square',
+    'star',
+  };
 
   static BrushLibrary? _instance;
 
@@ -49,6 +57,31 @@ class BrushLibrary extends ChangeNotifier {
       (BrushPreset preset) => preset.id == _selectedId,
       orElse: () => _presets.first,
     );
+  }
+
+  static bool isDefaultPresetId(String id) {
+    return defaultPresetIds.contains(id);
+  }
+
+  static BrushPreset? defaultPresetById(
+    String id, {
+    AppPreferences? prefs,
+    AppLocalizations? l10n,
+  }) {
+    if (!defaultPresetIds.contains(id)) {
+      return null;
+    }
+    final AppPreferences? resolvedPrefs = prefs;
+    final AppLocalizations resolvedL10n =
+        l10n ?? _resolveL10n(resolvedPrefs);
+    final BrushLibrary defaults =
+        _defaultLibrary(resolvedPrefs, resolvedL10n);
+    for (final BrushPreset preset in defaults._presets) {
+      if (preset.id == id) {
+        return preset;
+      }
+    }
+    return null;
   }
 
   static Future<BrushLibrary> load({AppPreferences? prefs}) async {
