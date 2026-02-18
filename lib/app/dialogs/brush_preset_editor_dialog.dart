@@ -211,7 +211,12 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
           context,
           label: l10n.randomRotation,
           value: _randomRotation,
-          onChanged: (value) => _setAndNotify(() => _randomRotation = value),
+          onChanged: (value) => _setAndNotify(() {
+            _randomRotation = value;
+            if (value && _rotationJitter <= 0.0001) {
+              _rotationJitter = 1.0;
+            }
+          }),
         ),
         const SizedBox(height: 12),
         _buildPercentSlider(

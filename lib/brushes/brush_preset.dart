@@ -76,8 +76,11 @@ class BrushPreset {
     final double hardnessValue = hardness.isFinite ? hardness : 0.8;
     final double flowValue = flow.isFinite ? flow : 1.0;
     final double scatterValue = scatter.isFinite ? scatter : 0.0;
-    final double rotationValue =
-        rotationJitter.isFinite ? rotationJitter : 1.0;
+    double rotationValue = rotationJitter.isFinite ? rotationJitter : 1.0;
+    rotationValue = rotationValue.clamp(0.0, 1.0);
+    if (randomRotation && rotationValue <= 0.0001) {
+      rotationValue = 1.0;
+    }
     final int aaValue = antialiasLevel.clamp(0, 9);
     final double hollowValue = hollowRatio.isFinite ? hollowRatio : 0.0;
 
@@ -86,7 +89,7 @@ class BrushPreset {
       hardness: hardnessValue.clamp(0.0, 1.0),
       flow: flowValue.clamp(0.0, 1.0),
       scatter: scatterValue.clamp(0.0, 1.0),
-      rotationJitter: rotationValue.clamp(0.0, 1.0),
+      rotationJitter: rotationValue,
       antialiasLevel: aaValue,
       hollowRatio: hollowValue.clamp(0.0, 1.0),
     );
