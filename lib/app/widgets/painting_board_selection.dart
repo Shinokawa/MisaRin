@@ -753,6 +753,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _selectionMask = mask;
     _controller.setSelectionMask(mask);
     _syncBackendSelectionMask();
+    _syncMenuAvailability();
   }
 
   @override

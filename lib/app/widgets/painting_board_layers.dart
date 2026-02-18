@@ -78,6 +78,7 @@ mixin _PaintingBoardLayerMixin
     _backendCanvasSetActiveLayerById(id);
     setState(() {});
     _syncRasterizeMenuAvailability();
+    _syncMenuAvailability();
   }
 
   void _handleLayerRenameFocusChange() {
@@ -324,6 +325,14 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     return layer.text != null && !layer.locked;
+  }
+
+  bool get canMergeActiveLayerDown {
+    final CanvasLayerInfo? layer = _currentActiveLayer();
+    if (layer == null) {
+      return false;
+    }
+    return _canMergeLayerDown(layer);
   }
 
   Future<bool> _rasterizeTextLayer(CanvasLayerInfo layer) async {

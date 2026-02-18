@@ -25,6 +25,13 @@ class PaintingBoardState extends _PaintingBoardBase
   final List<double> _perfStressLatencySamplesMs = <double>[];
   final List<double> _perfStressUiBuildSamplesMs = <double>[];
   int? _perfStressLastFrameGeneration;
+  bool? _menuSelectAllEnabled;
+  bool? _menuClearSelectionEnabled;
+  bool? _menuInvertSelectionEnabled;
+  bool? _menuCutEnabled;
+  bool? _menuCopyEnabled;
+  bool? _menuPasteEnabled;
+  bool? _menuMergeDownEnabled;
 
   @override
   void initState() {
@@ -118,6 +125,7 @@ class PaintingBoardState extends _PaintingBoardBase
     }
     _resetHistory();
     _syncRasterizeMenuAvailability();
+    _syncMenuAvailability();
     _notifyViewInfoChanged();
     BackendCanvasTimeline.mark(
       'paintingBoard: initState '
@@ -870,9 +878,53 @@ class PaintingBoardState extends _PaintingBoardBase
       return;
     }
     _syncRasterizeMenuAvailability();
+    _syncMenuAvailability();
     _notifyBoardReadyIfNeeded();
     _scheduleReferenceModelTextureRefresh();
     _syncBackendCanvasLayersToEngine();
+  }
+
+  @override
+  void _syncMenuAvailability() {
+    final bool canSelectAll = this.canSelectAll;
+    final bool canClearSelection = this.canClearSelection;
+    final bool canInvertSelection = this.canInvertSelection;
+    final bool canCut = this.canCut;
+    final bool canCopy = this.canCopy;
+    final bool canPaste = this.canPaste;
+    final bool canMergeDown = canMergeActiveLayerDown;
+    bool changed = false;
+    if (_menuSelectAllEnabled != canSelectAll) {
+      _menuSelectAllEnabled = canSelectAll;
+      changed = true;
+    }
+    if (_menuClearSelectionEnabled != canClearSelection) {
+      _menuClearSelectionEnabled = canClearSelection;
+      changed = true;
+    }
+    if (_menuInvertSelectionEnabled != canInvertSelection) {
+      _menuInvertSelectionEnabled = canInvertSelection;
+      changed = true;
+    }
+    if (_menuCutEnabled != canCut) {
+      _menuCutEnabled = canCut;
+      changed = true;
+    }
+    if (_menuCopyEnabled != canCopy) {
+      _menuCopyEnabled = canCopy;
+      changed = true;
+    }
+    if (_menuPasteEnabled != canPaste) {
+      _menuPasteEnabled = canPaste;
+      changed = true;
+    }
+    if (_menuMergeDownEnabled != canMergeDown) {
+      _menuMergeDownEnabled = canMergeDown;
+      changed = true;
+    }
+    if (changed) {
+      MenuActionDispatcher.instance.refresh();
+    }
   }
 
   @override
@@ -895,6 +947,7 @@ class PaintingBoardState extends _PaintingBoardBase
     }
     _boardReadyNotified = true;
     widget.onReadyChanged?.call(true);
+    _syncMenuAvailability();
   }
 
   WorkspaceOverlaySnapshot buildWorkspaceOverlaySnapshot() {

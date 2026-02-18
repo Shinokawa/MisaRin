@@ -6,6 +6,18 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       _useCombinedHistory ? _historyUndoStack.isNotEmpty : _undoStack.isNotEmpty;
   bool get canRedo =>
       _useCombinedHistory ? _historyRedoStack.isNotEmpty : _redoStack.isNotEmpty;
+  bool get hasSelection =>
+      selectionMaskSnapshot != null ||
+      selectionPathSnapshot != null ||
+      selectionPreviewPath != null ||
+      magicWandPreviewPath != null;
+  bool get canSelectAll =>
+      isBoardReady && _controller.width > 0 && _controller.height > 0;
+  bool get canClearSelection => isBoardReady && hasSelection;
+  bool get canInvertSelection => canSelectAll;
+  bool get canCut => isBoardReady && _activeLayerId != null;
+  bool get canCopy => canCut;
+  bool get canPaste => isBoardReady && _activeLayerId != null;
   SelectionShape get selectionShape;
   ShapeToolVariant get shapeToolVariant;
   Path? get selectionPath;
@@ -67,6 +79,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void initializeSelectionTicker(TickerProvider provider);
   void disposeSelectionTicker();
   void _updateSelectionAnimation();
+  void _syncMenuAvailability();
 
   void _handlePointerDown(PointerDownEvent event);
   void _handlePointerMove(PointerMoveEvent event);
@@ -766,6 +779,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _historyRedoStack.clear();
     _historyLocked = false;
     _historyLimit = AppPreferences.instance.historyLimit;
+    _syncHistoryMenuAvailability();
   }
 
   Future<void> _pushUndoSnapshot({

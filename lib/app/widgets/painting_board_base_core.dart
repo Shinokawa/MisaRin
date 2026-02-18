@@ -201,6 +201,8 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   final List<_HistoryActionKind> _historyRedoStack = <_HistoryActionKind>[];
   bool _historyLocked = false;
   int _historyLimit = AppPreferences.instance.historyLimit;
+  bool? _menuUndoEnabled;
+  bool? _menuRedoEnabled;
   final List<_PaletteCardEntry> _paletteCards = <_PaletteCardEntry>[];
   int _paletteCardSerial = 0;
   bool _referenceCardResizeInProgress = false;
@@ -1092,6 +1094,27 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
 
   bool get _useCombinedHistory => true;
 
+  void _syncHistoryMenuAvailability() {
+    final bool canUndo = _useCombinedHistory
+        ? _historyUndoStack.isNotEmpty
+        : _undoStack.isNotEmpty;
+    final bool canRedo = _useCombinedHistory
+        ? _historyRedoStack.isNotEmpty
+        : _redoStack.isNotEmpty;
+    bool changed = false;
+    if (_menuUndoEnabled != canUndo) {
+      _menuUndoEnabled = canUndo;
+      changed = true;
+    }
+    if (_menuRedoEnabled != canRedo) {
+      _menuRedoEnabled = canRedo;
+      changed = true;
+    }
+    if (changed) {
+      MenuActionDispatcher.instance.refresh();
+    }
+  }
+
   void _recordDartHistoryAction() {
     _recordHistoryAction(_HistoryActionKind.dart);
   }
@@ -1162,6 +1185,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _historyRedoStack.clear();
     _redoStack.clear();
     _trimHistoryActionStacks();
+    _syncHistoryMenuAvailability();
   }
 
   _HistoryActionKind? _peekHistoryUndoAction() {
@@ -1185,6 +1209,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     final _HistoryActionKind action = _historyUndoStack.removeLast();
     _historyRedoStack.add(action);
     _trimHistoryActionStacks();
+    _syncHistoryMenuAvailability();
     return action;
   }
 
@@ -1195,6 +1220,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     final _HistoryActionKind action = _historyRedoStack.removeLast();
     _historyUndoStack.add(action);
     _trimHistoryActionStacks();
+    _syncHistoryMenuAvailability();
     return action;
   }
 
@@ -1220,6 +1246,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _historyRedoStack.removeWhere(
       (_HistoryActionKind action) => action == _HistoryActionKind.backend,
     );
+    _syncHistoryMenuAvailability();
   }
 
   void _syncBackendCanvasViewFlags() {

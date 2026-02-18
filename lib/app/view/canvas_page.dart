@@ -1841,6 +1841,14 @@ class CanvasPageState extends State<CanvasPage> {
       },
       undo: _handleUndo,
       redo: _handleRedo,
+      undoEnabled: () {
+        final PaintingBoardState? board = _activeBoard;
+        return (board?.canUndo ?? false) || _canUndoDocumentFor(_document.id);
+      },
+      redoEnabled: () {
+        final PaintingBoardState? board = _activeBoard;
+        return (board?.canRedo ?? false) || _canRedoDocumentFor(_document.id);
+      },
       cut: () async {
         final board = _activeBoard;
         if (board != null) {
@@ -1859,6 +1867,9 @@ class CanvasPageState extends State<CanvasPage> {
           await board.paste();
         }
       },
+      cutEnabled: () => _activeBoard?.canCut ?? false,
+      copyEnabled: () => _activeBoard?.canCopy ?? false,
+      pasteEnabled: () => _activeBoard?.canPaste ?? false,
       newLayer: () {
         final board = _activeBoard;
         board?.addLayerAboveActiveLayer();
@@ -2004,6 +2015,8 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.mergeActiveLayerDown();
       },
+      mergeLayerDownEnabled: () =>
+          _activeBoard?.canMergeActiveLayerDown ?? false,
       rasterizeLayer: () async {
         final board = _activeBoard;
         if (board == null) {
@@ -2054,6 +2067,9 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.invertSelection();
       },
+      selectAllEnabled: () => _activeBoard?.canSelectAll ?? false,
+      clearSelectionEnabled: () => _activeBoard?.canClearSelection ?? false,
+      invertSelectionEnabled: () => _activeBoard?.canInvertSelection ?? false,
       adjustHueSaturation: () {
         final board = _activeBoard;
         if (board == null) {

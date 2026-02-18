@@ -217,6 +217,7 @@ class MenuDefinitionBuilder {
           label: l10n.menuUndo,
           action: handler.undo,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyZ, meta: true),
+          enabledResolver: handler.undoEnabled,
         ),
       if (handler.redo != null)
         MenuActionEntry(
@@ -227,6 +228,7 @@ class MenuDefinitionBuilder {
             meta: true,
             shift: true,
           ),
+          enabledResolver: handler.redoEnabled,
         ),
     ]);
 
@@ -236,18 +238,21 @@ class MenuDefinitionBuilder {
           label: l10n.menuCut,
           action: handler.cut,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyX, meta: true),
+          enabledResolver: handler.cutEnabled,
         ),
       if (handler.copy != null)
         MenuActionEntry(
           label: l10n.menuCopy,
           action: handler.copy,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyC, meta: true),
+          enabledResolver: handler.copyEnabled,
         ),
       if (handler.paste != null)
         MenuActionEntry(
           label: l10n.menuPaste,
           action: handler.paste,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyV, meta: true),
+          enabledResolver: handler.pasteEnabled,
         ),
     ]);
 
@@ -362,6 +367,7 @@ class MenuDefinitionBuilder {
         MenuActionEntry(
           label: l10n.menuMergeDown,
           action: handler.mergeLayerDown,
+          enabledResolver: handler.mergeLayerDownEnabled,
         ),
       );
     }
@@ -402,12 +408,14 @@ class MenuDefinitionBuilder {
           label: l10n.menuSelectAll,
           action: handler.selectAll,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyA, meta: true),
+          enabledResolver: handler.selectAllEnabled,
         ),
       if (handler.clearSelection != null)
         MenuActionEntry(
           label: l10n.menuDeselect,
           action: handler.clearSelection,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyD, meta: true),
+          enabledResolver: handler.clearSelectionEnabled,
         ),
       if (handler.invertSelection != null)
         MenuActionEntry(
@@ -418,6 +426,7 @@ class MenuDefinitionBuilder {
             meta: true,
             shift: true,
           ),
+          enabledResolver: handler.invertSelectionEnabled,
         ),
     ];
     if (entries.isEmpty) {

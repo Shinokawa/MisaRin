@@ -32,7 +32,9 @@ class MenuActionHandler {
     this.saveAs,
     this.export,
     this.undo,
+    this.undoEnabled,
     this.redo,
+    this.redoEnabled,
     this.zoomIn,
     this.zoomOut,
     this.rotateCanvas90Clockwise,
@@ -42,8 +44,11 @@ class MenuActionHandler {
     this.flipCanvasHorizontal,
     this.flipCanvasVertical,
     this.cut,
+    this.cutEnabled,
     this.copy,
+    this.copyEnabled,
     this.paste,
+    this.pasteEnabled,
     this.newLayer,
     this.generatePalette,
     this.generateGradientPalette,
@@ -53,6 +58,7 @@ class MenuActionHandler {
     this.resizeImage,
     this.resizeCanvas,
     this.mergeLayerDown,
+    this.mergeLayerDownEnabled,
     this.rasterizeLayer,
     this.rasterizeLayerEnabled,
     this.binarizeLayer,
@@ -66,8 +72,11 @@ class MenuActionHandler {
     this.narrowLines,
     this.expandFill,
     this.selectAll,
+    this.selectAllEnabled,
     this.clearSelection,
+    this.clearSelectionEnabled,
     this.invertSelection,
+    this.invertSelectionEnabled,
     this.showLayerAntialiasPanel,
     this.gaussianBlur,
     this.removeColorLeak,
@@ -106,7 +115,9 @@ class MenuActionHandler {
       saveAs = null,
       export = null,
       undo = null,
+      undoEnabled = null,
       redo = null,
+      redoEnabled = null,
       zoomIn = null,
       zoomOut = null,
       rotateCanvas90Clockwise = null,
@@ -116,8 +127,11 @@ class MenuActionHandler {
       flipCanvasHorizontal = null,
       flipCanvasVertical = null,
       cut = null,
+      cutEnabled = null,
       copy = null,
+      copyEnabled = null,
       paste = null,
+      pasteEnabled = null,
       newLayer = null,
       generatePalette = null,
       generateGradientPalette = null,
@@ -126,6 +140,7 @@ class MenuActionHandler {
       resizeImage = null,
       resizeCanvas = null,
       mergeLayerDown = null,
+      mergeLayerDownEnabled = null,
       rasterizeLayer = null,
       rasterizeLayerEnabled = null,
       binarizeLayer = null,
@@ -139,8 +154,11 @@ class MenuActionHandler {
       narrowLines = null,
       expandFill = null,
       selectAll = null,
+      selectAllEnabled = null,
       clearSelection = null,
+      clearSelectionEnabled = null,
       invertSelection = null,
+      invertSelectionEnabled = null,
       showLayerAntialiasPanel = null,
       gaussianBlur = null,
       removeColorLeak = null,
@@ -178,7 +196,9 @@ class MenuActionHandler {
   final MenuAsyncAction? saveAs;
   final MenuAsyncAction? export;
   final MenuAsyncAction? undo;
+  final MenuActionEnabledResolver? undoEnabled;
   final MenuAsyncAction? redo;
+  final MenuActionEnabledResolver? redoEnabled;
   final MenuAsyncAction? zoomIn;
   final MenuAsyncAction? zoomOut;
   final MenuAsyncAction? rotateCanvas90Clockwise;
@@ -188,8 +208,11 @@ class MenuActionHandler {
   final MenuAsyncAction? flipCanvasHorizontal;
   final MenuAsyncAction? flipCanvasVertical;
   final MenuAsyncAction? cut;
+  final MenuActionEnabledResolver? cutEnabled;
   final MenuAsyncAction? copy;
+  final MenuActionEnabledResolver? copyEnabled;
   final MenuAsyncAction? paste;
+  final MenuActionEnabledResolver? pasteEnabled;
   final MenuAsyncAction? newLayer;
   final MenuAsyncAction? generatePalette;
   final MenuAsyncAction? generateGradientPalette;
@@ -199,6 +222,7 @@ class MenuActionHandler {
   final MenuAsyncAction? resizeImage;
   final MenuAsyncAction? resizeCanvas;
   final MenuAsyncAction? mergeLayerDown;
+  final MenuActionEnabledResolver? mergeLayerDownEnabled;
   final MenuAsyncAction? rasterizeLayer;
   final MenuActionEnabledResolver? rasterizeLayerEnabled;
   final MenuAsyncAction? binarizeLayer;
@@ -212,8 +236,11 @@ class MenuActionHandler {
   final MenuAsyncAction? narrowLines;
   final MenuAsyncAction? expandFill;
   final MenuAsyncAction? selectAll;
+  final MenuActionEnabledResolver? selectAllEnabled;
   final MenuAsyncAction? clearSelection;
+  final MenuActionEnabledResolver? clearSelectionEnabled;
   final MenuAsyncAction? invertSelection;
+  final MenuActionEnabledResolver? invertSelectionEnabled;
   final MenuAsyncAction? showLayerAntialiasPanel;
   final MenuAsyncAction? gaussianBlur;
   final MenuAsyncAction? removeColorLeak;
