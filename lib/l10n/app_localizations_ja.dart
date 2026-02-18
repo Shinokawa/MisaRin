@@ -413,6 +413,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuSelectAll => 'すべて選択';
 
   @override
+  String get menuDeselect => '選択解除';
+
+  @override
   String get menuInvertSelection => '選択範囲を反転';
 
   @override

@@ -645,6 +645,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _finishSelectionUndo();
   }
 
+  void clearSelection() {
+    _clearSelection();
+  }
+
   void invertSelection() async {
     final int width = _controller.width;
     final int height = _controller.height;

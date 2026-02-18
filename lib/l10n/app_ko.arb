@@ -204,6 +204,7 @@
   "menuTransform": "\ubcc0\ud658",
 
   "menuSelectAll": "\uc804\uccb4 \uc120\ud0dd",
+  "menuDeselect": "\uc120\ud0dd \ud574\uc81c",
   "menuInvertSelection": "\uc120\ud0dd \ubc18\uc804",
 
   "menuPalette": "\ud314\ub808\ud2b8",

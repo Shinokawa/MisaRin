@@ -204,6 +204,7 @@
   "menuTransform": "変形",
 
   "menuSelectAll": "すべて選択",
+  "menuDeselect": "選択解除",
   "menuInvertSelection": "選択範囲を反転",
 
   "menuPalette": "パレット",

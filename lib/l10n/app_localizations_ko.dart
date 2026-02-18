@@ -414,6 +414,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuSelectAll => '전체 선택';
 
   @override
+  String get menuDeselect => '선택 해제';
+
+  @override
   String get menuInvertSelection => '선택 반전';
 
   @override

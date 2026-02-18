@@ -720,6 +720,8 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/app/menu/menu_action_dispatcher.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/menu/menu_app_actions.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/menu/menu_definitions.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/menu/menu_helpers.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/menu/touch_menu_overlay.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/models/canvas_resize_anchor.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/models/canvas_view_info.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/models/image_resize_sampling.dart

@@ -2047,6 +2047,10 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.selectEntireCanvas();
       },
+      clearSelection: () {
+        final board = _activeBoard;
+        board?.clearSelection();
+      },
       invertSelection: () {
         final board = _activeBoard;
         board?.invertSelection();

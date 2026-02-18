@@ -66,6 +66,7 @@ class MenuActionHandler {
     this.narrowLines,
     this.expandFill,
     this.selectAll,
+    this.clearSelection,
     this.invertSelection,
     this.showLayerAntialiasPanel,
     this.gaussianBlur,
@@ -138,6 +139,7 @@ class MenuActionHandler {
       narrowLines = null,
       expandFill = null,
       selectAll = null,
+      clearSelection = null,
       invertSelection = null,
       showLayerAntialiasPanel = null,
       gaussianBlur = null,
@@ -210,6 +212,7 @@ class MenuActionHandler {
   final MenuAsyncAction? narrowLines;
   final MenuAsyncAction? expandFill;
   final MenuAsyncAction? selectAll;
+  final MenuAsyncAction? clearSelection;
   final MenuAsyncAction? invertSelection;
   final MenuAsyncAction? showLayerAntialiasPanel;
   final MenuAsyncAction? gaussianBlur;

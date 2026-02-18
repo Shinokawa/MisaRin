@@ -207,6 +207,7 @@
   "menuTransform": "\u8b8a\u63db",
 
   "menuSelectAll": "\u5168\u9078",
+  "menuDeselect": "\u53d6\u6d88\u9078\u53d6",
   "menuInvertSelection": "\u53cd\u9078",
 
   "menuPalette": "\u8abf\u8272\u76e4",

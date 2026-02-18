@@ -423,6 +423,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuSelectAll => 'Select All';
 
   @override
+  String get menuDeselect => 'Deselect';
+
+  @override
   String get menuInvertSelection => 'Invert Selection';
 
   @override

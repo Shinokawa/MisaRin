@@ -204,6 +204,7 @@
   "menuTransform": "Transform",
 
   "menuSelectAll": "Select All",
+  "menuDeselect": "Deselect",
   "menuInvertSelection": "Invert Selection",
 
   "menuPalette": "Palette",

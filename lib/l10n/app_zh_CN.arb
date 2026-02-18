@@ -204,6 +204,7 @@
   "menuTransform": "变换",
 
   "menuSelectAll": "全选",
+  "menuDeselect": "取消选择",
   "menuInvertSelection": "反选",
 
   "menuPalette": "调色盘",

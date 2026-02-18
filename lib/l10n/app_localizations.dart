@@ -842,6 +842,12 @@ abstract class AppLocalizations {
   /// **'Select All'**
   String get menuSelectAll;
 
+  /// No description provided for @menuDeselect.
+  ///
+  /// In en, this message translates to:
+  /// **'Deselect'**
+  String get menuDeselect;
+
   /// No description provided for @menuInvertSelection.
   ///
   /// In en, this message translates to:

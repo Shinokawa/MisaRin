@@ -408,6 +408,12 @@ class MenuDefinitionBuilder {
           action: handler.selectAll,
           shortcut: const SingleActivator(LogicalKeyboardKey.keyA, meta: true),
         ),
+      if (handler.clearSelection != null)
+        MenuActionEntry(
+          label: l10n.menuDeselect,
+          action: handler.clearSelection,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyD, meta: true),
+        ),
       if (handler.invertSelection != null)
         MenuActionEntry(
           label: l10n.menuInvertSelection,

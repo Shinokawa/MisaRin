@@ -412,6 +412,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuSelectAll => '全选';
 
   @override
+  String get menuDeselect => '取消选择';
+
+  @override
   String get menuInvertSelection => '反选';
 
   @override
@@ -2473,6 +2476,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuSelectAll => '全选';
 
   @override
+  String get menuDeselect => '取消选择';
+
+  @override
   String get menuInvertSelection => '反选';
 
   @override
@@ -3382,6 +3388,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuSelectAll => '全選';
+
+  @override
+  String get menuDeselect => '取消選取';
 
   @override
   String get menuInvertSelection => '反選';
