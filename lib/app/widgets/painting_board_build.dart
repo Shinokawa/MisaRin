@@ -11,6 +11,7 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardReferenceModelMixin,
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
+        _PaintingBoardSelectionMixin,
         _PaintingBoardFilterMixin {
   void _selectBrushPreset(String id);
   Future<void> _openBrushPresetEditor();

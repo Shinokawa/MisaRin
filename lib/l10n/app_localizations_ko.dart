@@ -1080,6 +1080,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get selectionShape => '선택 모양';
 
   @override
+  String get selectionAdditive => '선택 추가';
+
+  @override
+  String get selectionAdditiveDesc => '켜면 Shift 없이도 선택을 여러 번 추가할 수 있습니다.';
+
+  @override
   String get fontSize => '글꼴 크기';
 
   @override

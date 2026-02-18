@@ -942,6 +942,7 @@ class PaintingBoardState extends _PaintingBoardBase
       layerAdjustCropOutside: _layerAdjustCropOutside,
       shapeFillEnabled: _shapeFillEnabled,
       selectionShape: _selectionShape,
+      selectionAdditiveEnabled: _selectionAdditiveEnabled,
       shapeToolVariant: _shapeToolVariant,
       textFontSize: _textFontSize,
       textLineHeight: _textLineHeight,
@@ -960,6 +961,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateShapeToolVariant(snapshot.shapeToolVariant);
     _updateShapeFillEnabled(snapshot.shapeFillEnabled);
     _updateSelectionShape(snapshot.selectionShape);
+    _updateSelectionAdditiveEnabled(snapshot.selectionAdditiveEnabled);
     _updateTextFontSize(snapshot.textFontSize);
     _updateTextLineHeight(snapshot.textLineHeight);
     _updateTextLetterSpacing(snapshot.textLetterSpacing);

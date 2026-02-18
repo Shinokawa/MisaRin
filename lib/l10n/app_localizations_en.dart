@@ -1099,6 +1099,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectionShape => 'Selection Shape';
 
   @override
+  String get selectionAdditive => 'Additive Selection';
+
+  @override
+  String get selectionAdditiveDesc =>
+      'When enabled, new selections are added without holding Shift.';
+
+  @override
   String get fontSize => 'Font Size';
 
   @override

@@ -242,6 +242,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onLayerAdjustCropOutsideChanged: _updateLayerAdjustCropOutside,
           selectionShape: selectionShape,
           onSelectionShapeChanged: _updateSelectionShape,
+          selectionAdditiveEnabled: _selectionAdditiveEnabled,
+          onSelectionAdditiveChanged: _updateSelectionAdditiveEnabled,
           shapeToolVariant: shapeToolVariant,
           onShapeToolVariantChanged: _updateShapeToolVariant,
           shapeFillEnabled: _shapeFillEnabled,

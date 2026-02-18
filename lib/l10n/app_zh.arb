@@ -525,6 +525,8 @@
   "brushShape": "笔刷形状",
   "randomRotation": "随机旋转",
   "selectionShape": "选区形状",
+  "selectionAdditive": "允许交集",
+  "selectionAdditiveDesc": "开启后无需按 Shift 也可多次框选并合并选区。",
   "fontSize": "字号",
   "lineHeight": "行距",
   "letterSpacing": "文字间距",

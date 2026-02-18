@@ -62,6 +62,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void _clearSelectionHover();
   void _clearSelection();
   void _updateSelectionShape(SelectionShape shape);
+  void _updateSelectionAdditiveEnabled(bool value);
   void _updateShapeToolVariant(ShapeToolVariant variant);
   void initializeSelectionTicker(TickerProvider provider);
   void disposeSelectionTicker();

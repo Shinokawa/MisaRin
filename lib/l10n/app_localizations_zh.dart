@@ -1070,6 +1070,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get selectionShape => '选区形状';
 
   @override
+  String get selectionAdditive => '允许交集';
+
+  @override
+  String get selectionAdditiveDesc => '开启后无需按 Shift 也可多次框选并合并选区。';
+
+  @override
   String get fontSize => '字号';
 
   @override
@@ -2713,6 +2719,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushSnapToPixel => '像素对齐';
 
   @override
+  String get selectionAdditive => '允许交集';
+
+  @override
+  String get selectionAdditiveDesc => '开启后无需按 Shift 也可多次框选并合并选区。';
+
+  @override
   String get hollowStrokeDesc => '将笔画中心挖空，形成空心描边效果。';
 
   @override
@@ -3604,6 +3616,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get randomRotation => '隨機旋轉';
+
+  @override
+  String get selectionAdditive => '允許交集';
+
+  @override
+  String get selectionAdditiveDesc => '開啟後無需按 Shift 也可多次框選並合併選區。';
 
   @override
   String get streamline => '流線';

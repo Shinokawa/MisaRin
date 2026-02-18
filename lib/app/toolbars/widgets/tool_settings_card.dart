@@ -62,6 +62,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onLayerAdjustCropOutsideChanged,
     required this.selectionShape,
     required this.onSelectionShapeChanged,
+    required this.selectionAdditiveEnabled,
+    required this.onSelectionAdditiveChanged,
     required this.shapeToolVariant,
     required this.onShapeToolVariantChanged,
     required this.shapeFillEnabled,
@@ -141,6 +143,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onLayerAdjustCropOutsideChanged;
   final SelectionShape selectionShape;
   final ValueChanged<SelectionShape> onSelectionShapeChanged;
+  final bool selectionAdditiveEnabled;
+  final ValueChanged<bool> onSelectionAdditiveChanged;
   final ShapeToolVariant shapeToolVariant;
   final ValueChanged<ShapeToolVariant> onShapeToolVariantChanged;
   final bool shapeFillEnabled;
@@ -404,7 +408,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         );
         break;
       case CanvasTool.selection:
-        content = _buildSelectionShapeRow(theme);
+        content = _buildSelectionControls(theme);
         break;
       case CanvasTool.selectionPen:
         content = _buildBrushSizeRow(theme);
@@ -716,6 +720,22 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         Text(context.l10n.selectionShape, style: theme.typography.bodyStrong),
         const SizedBox(height: 8),
         selector,
+      ],
+    );
+  }
+
+  Widget _buildSelectionControls(FluentThemeData theme) {
+    final l10n = context.l10n;
+    return _buildControlsGroup(
+      [
+        _buildSelectionShapeRow(theme),
+        _buildToggleSwitchRow(
+          theme,
+          label: l10n.selectionAdditive,
+          detail: l10n.selectionAdditiveDesc,
+          value: widget.selectionAdditiveEnabled,
+          onChanged: widget.onSelectionAdditiveChanged,
+        ),
       ],
     );
   }

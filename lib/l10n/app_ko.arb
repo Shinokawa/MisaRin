@@ -525,6 +525,8 @@
   "brushShape": "\ube0c\ub7ec\uc2dc \ubaa8\uc591",
   "randomRotation": "무작위 회전",
   "selectionShape": "\uc120\ud0dd \ubaa8\uc591",
+  "selectionAdditive": "\uc120\ud0dd \ucd94\uac00",
+  "selectionAdditiveDesc": "\ucf1c\uba74 Shift \uc5c6\uc774\ub3c4 \uc120\ud0dd\uc744 \uc5ec\ub7ec \ubc88 \ucd94\uac00\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
   "fontSize": "\uae00\uaf34 \ud06c\uae30",
   "lineHeight": "\uc904 \uac04\uaca9",
   "letterSpacing": "\uc790\uac04",

@@ -30,6 +30,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   double _selectionDashPhase = 0.0;
   double _selectionDashValue = 0.0;
   bool _selectionUndoArmed = false;
+  bool _selectionAdditiveEnabled = false;
   bool _isAdditiveSelection = false;
   Path? _currentDragPath;
 
@@ -224,11 +225,19 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     }
     await _prepareSelectionUndo();
     final bool additive =
-        _isShiftPressed &&
+        (_isShiftPressed || _selectionAdditiveEnabled) &&
         _selectionMask != null &&
         _selectionShape != SelectionShape.polygon;
     _beginDragSelection(position, additive: additive);
     _updateSelectionAnimation();
+  }
+
+  @override
+  void _updateSelectionAdditiveEnabled(bool value) {
+    if (_selectionAdditiveEnabled == value) {
+      return;
+    }
+    setState(() => _selectionAdditiveEnabled = value);
   }
 
   @override
@@ -497,9 +506,15 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   void _handlePolygonPointerDown(Offset position, Duration timestamp) async {
     final bool isDoubleTap = _isPolygonDoubleTap(position, timestamp);
     if (_polygonPoints.isEmpty) {
+      final bool additive =
+          (_isShiftPressed || _selectionAdditiveEnabled) &&
+          _selectionMask != null;
       await _prepareSelectionUndo();
       setState(() {
-        setSelectionState(path: null, mask: null);
+        if (!additive) {
+          setSelectionState(path: null, mask: null);
+        }
+        _isAdditiveSelection = additive;
         _polygonPoints.add(position);
         _selectionPreviewPath = _buildPolygonPath(
           points: _polygonPoints,
@@ -524,7 +539,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
         _selectionPreviewPath = null;
         _polygonPoints.clear();
         _polygonHoverPoint = null;
-        _applySelectionPathInternal(finalizedPath);
+        _applySelectionPathInternal(finalizedPath, additive: _isAdditiveSelection);
+        _isAdditiveSelection = false;
       });
       _lastPolygonTapTime = null;
       _lastPolygonTapPosition = null;
@@ -574,6 +590,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _polygonHoverPoint = null;
     _lastPolygonTapTime = null;
     _lastPolygonTapPosition = null;
+    _isAdditiveSelection = false;
   }
 
   @override

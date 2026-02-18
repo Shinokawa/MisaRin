@@ -485,5 +485,7 @@
   "brushAntialiasing": "筆刷抗鋸齒",
   "bucketAntialiasing": "填充抗鋸齒",
   "colorTransparent": "透明",
-  "swapDimensions": "交換寬高"
+  "swapDimensions": "交換寬高",
+  "selectionAdditive": "允許交集",
+  "selectionAdditiveDesc": "開啟後無需按 Shift 也可多次框選並合併選區。"
 }

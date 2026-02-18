@@ -1076,6 +1076,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get selectionShape => '選択形状';
 
   @override
+  String get selectionAdditive => '選択を追加';
+
+  @override
+  String get selectionAdditiveDesc => '有効時、Shift を押さなくても選択を追加できます。';
+
+  @override
   String get fontSize => 'フォントサイズ';
 
   @override

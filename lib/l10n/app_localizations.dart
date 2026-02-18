@@ -2090,6 +2090,18 @@ abstract class AppLocalizations {
   /// **'Selection Shape'**
   String get selectionShape;
 
+  /// No description provided for @selectionAdditive.
+  ///
+  /// In en, this message translates to:
+  /// **'Additive Selection'**
+  String get selectionAdditive;
+
+  /// No description provided for @selectionAdditiveDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, new selections are added without holding Shift.'**
+  String get selectionAdditiveDesc;
+
   /// No description provided for @fontSize.
   ///
   /// In en, this message translates to:

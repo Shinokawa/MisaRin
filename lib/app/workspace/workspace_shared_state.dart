@@ -80,6 +80,7 @@ class ToolSettingsSnapshot {
     required this.layerAdjustCropOutside,
     required this.shapeFillEnabled,
     required this.selectionShape,
+    required this.selectionAdditiveEnabled,
     required this.shapeToolVariant,
     required this.textFontSize,
     required this.textLineHeight,
@@ -118,6 +119,7 @@ class ToolSettingsSnapshot {
   final bool layerAdjustCropOutside;
   final bool shapeFillEnabled;
   final SelectionShape selectionShape;
+  final bool selectionAdditiveEnabled;
   final ShapeToolVariant shapeToolVariant;
   final double textFontSize;
   final double textLineHeight;
