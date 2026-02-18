@@ -31,6 +31,7 @@ class PaintingDrawCommand {
     this.radius,
     this.shapeIndex,
     this.randomRotation,
+    this.smoothRotation,
     this.rotationSeed,
     this.rotationJitter,
     this.snapToPixel,
@@ -58,6 +59,7 @@ class PaintingDrawCommand {
     required bool erase,
     double softness = 0.0,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
@@ -72,6 +74,7 @@ class PaintingDrawCommand {
       shapeIndex: shapeIndex,
       softness: softness,
       randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
@@ -133,6 +136,7 @@ class PaintingDrawCommand {
     required bool includeStart,
     required bool erase,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
     double rotationJitter = 1.0,
     double spacing = 0.15,
@@ -152,6 +156,7 @@ class PaintingDrawCommand {
       includeStartCap: includeStart,
       shapeIndex: shapeIndex,
       randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
@@ -172,6 +177,7 @@ class PaintingDrawCommand {
     double hollowRatio = 0.0,
     bool eraseOccludedParts = false,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
   }) {
     return PaintingDrawCommand._(
@@ -186,6 +192,7 @@ class PaintingDrawCommand {
       hollowRatio: hollowRatio,
       eraseOccludedParts: eraseOccludedParts,
       randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
     );
   }
@@ -213,6 +220,7 @@ class PaintingDrawCommand {
   final double? radius;
   final int? shapeIndex;
   final bool? randomRotation;
+  final bool? smoothRotation;
   final int? rotationSeed;
   final double? rotationJitter;
   final bool? snapToPixel;
@@ -240,6 +248,7 @@ class PaintingDrawCommand {
       'radius': radius,
       'shape': shapeIndex,
       'randomRotation': randomRotation,
+      'smoothRotation': smoothRotation,
       'rotationSeed': rotationSeed,
       'rotationJitter': rotationJitter,
       'snapToPixel': snapToPixel,
@@ -927,6 +936,7 @@ void _paintingWorkerApplyCommand({
       final double radius = (command['radius'] as num? ?? 0).toDouble();
       final int shapeIndex = command['shape'] as int? ?? 0;
       final bool randomRotation = command['randomRotation'] as bool? ?? false;
+      final bool smoothRotation = command['smoothRotation'] as bool? ?? false;
       final int rotationSeed = command['rotationSeed'] as int? ?? 0;
       final double rotationJitter =
           (command['rotationJitter'] as num? ?? 1.0).toDouble();
@@ -945,6 +955,7 @@ void _paintingWorkerApplyCommand({
         erase: erase,
         softness: softness,
         randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
         rotationSeed: rotationSeed,
         rotationJitter: rotationJitter,
         snapToPixel: snapToPixel,
@@ -1000,6 +1011,7 @@ void _paintingWorkerApplyCommand({
       final bool includeStart = command['includeStartCap'] as bool? ?? true;
       final int shapeIndex = command['shape'] as int? ?? 0;
       final bool randomRotation = command['randomRotation'] as bool? ?? false;
+      final bool smoothRotation = command['smoothRotation'] as bool? ?? false;
       final int rotationSeed = command['rotationSeed'] as int? ?? 0;
       final double rotationJitter =
           (command['rotationJitter'] as num? ?? 1.0).toDouble();
@@ -1023,6 +1035,7 @@ void _paintingWorkerApplyCommand({
         antialias: antialias,
         erase: erase,
         randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
         rotationSeed: rotationSeed,
         rotationJitter: rotationJitter,
         spacing: spacing,
@@ -1283,6 +1296,7 @@ void _paintingWorkerStampSegment({
   required int antialias,
   required bool erase,
   required bool randomRotation,
+  required bool smoothRotation,
   required int rotationSeed,
   required double rotationJitter,
   required double spacing,
@@ -1307,6 +1321,7 @@ void _paintingWorkerStampSegment({
     includeStart: includeStart,
     erase: erase,
     randomRotation: randomRotation,
+    smoothRotation: smoothRotation,
     rotationSeed: rotationSeed,
     rotationJitter: rotationJitter,
     spacing: spacing,
@@ -1332,6 +1347,7 @@ void _paintingWorkerStampSegment({
       erase: erase,
       softness: softness,
       randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,

@@ -840,6 +840,7 @@ pub extern "C" fn cpu_brush_draw_stamp(
     softness: f32,
     erase: u8,
     random_rotation: u8,
+    smooth_rotation: u8,
     rotation_seed: u32,
     rotation_jitter: f32,
     snap_to_pixel: u8,
@@ -867,8 +868,9 @@ pub extern "C" fn cpu_brush_draw_stamp(
     if !r.is_finite() || r <= 0.0 {
         r = 0.01;
     }
-    let needs_rotation =
-        random_rotation != 0 && rotation_jitter > 0.0001 && brush_shape != 0;
+    let _ = smooth_rotation;
+    let supports_rotation = brush_shape != 0;
+    let needs_rotation = random_rotation != 0 && rotation_jitter > 0.0001 && supports_rotation;
     let (rot_sin, rot_cos) = if needs_rotation {
         let jitter = if rotation_jitter.is_finite() {
             rotation_jitter.clamp(0.0, 1.0)
@@ -923,6 +925,7 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
     include_start: u8,
     erase: u8,
     random_rotation: u8,
+    smooth_rotation: u8,
     rotation_seed: u32,
     rotation_jitter: f32,
     spacing: f32,
@@ -958,6 +961,7 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
             softness,
             erase,
             random_rotation,
+            smooth_rotation,
             rotation_seed,
             rotation_jitter,
             snap_to_pixel,
@@ -982,7 +986,13 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
 
     let mut points: Vec<BrushPoint> =
         Vec::with_capacity((samples - start_index + 1).max(1) as usize);
-    let needs_rotation = random_rotation != 0 && rotation_jitter > 0.0001;
+    let supports_rotation = brush_shape != 0;
+    let needs_rotation = random_rotation != 0 && rotation_jitter > 0.0001 && supports_rotation;
+    let base_angle = if smooth_rotation != 0 && supports_rotation {
+        (end_y - start_y).atan2(end_x - start_x)
+    } else {
+        0.0
+    };
     for i in start_index..=samples {
         let t = if samples == 0 { 1.0 } else { i as f32 / samples as f32 };
         let mut radius = if start_radius.is_finite() && end_radius.is_finite() {
@@ -1021,9 +1031,12 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
         if !radius.is_finite() || radius <= 0.0 {
             radius = 0.01;
         }
-        let (rot_sin, rot_cos) = if needs_rotation {
-            let angle =
-                brush_random_rotation_radians(sample_x, sample_y, rotation_seed) * rotation_jitter;
+        let (rot_sin, rot_cos) = if needs_rotation || smooth_rotation != 0 {
+            let mut angle = base_angle;
+            if needs_rotation {
+                angle +=
+                    brush_random_rotation_radians(sample_x, sample_y, rotation_seed) * rotation_jitter;
+            }
             (angle.sin(), angle.cos())
         } else {
             (0.0, 1.0)

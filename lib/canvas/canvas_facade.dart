@@ -113,6 +113,7 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
     BrushShape brushShape = BrushShape.circle,
     bool enableNeedleTips = false,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int? rotationSeed,
     double spacing = 0.15,
     double hardness = 0.8,

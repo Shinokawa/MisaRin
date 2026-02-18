@@ -70,6 +70,7 @@ void _strokeBegin(
   BrushShape brushShape = BrushShape.circle,
   bool enableNeedleTips = false,
   bool randomRotation = false,
+  bool smoothRotation = false,
   int? rotationSeed,
   double spacing = 0.15,
   double hardness = 0.8,
@@ -120,6 +121,7 @@ void _strokeBegin(
   controller._currentStrokeHasMoved = false;
   controller._currentBrushShape = brushShape;
   controller._currentStrokeRandomRotationEnabled = randomRotation;
+  controller._currentStrokeSmoothRotationEnabled = smoothRotation;
   controller._currentStrokeRotationSeed = randomRotation
       ? (rotationSeed ?? math.Random().nextInt(1 << 31))
       : 0;
@@ -362,6 +364,7 @@ void _strokeEnd(BitmapCanvasController controller) {
             colorValue: controller._currentStrokeColor.value,
             shapeIndex: controller._currentBrushShape.index,
             randomRotation: controller._currentStrokeRandomRotationEnabled,
+            smoothRotation: controller._currentStrokeSmoothRotationEnabled,
             rotationSeed: controller._currentStrokeRotationSeed,
             rotationJitter: controller._currentStrokeRotationJitter,
             spacing: controller._currentStrokeSpacing,
@@ -386,6 +389,7 @@ void _strokeEnd(BitmapCanvasController controller) {
             colorValue: controller._currentStrokeColor.value,
             shapeIndex: controller._currentBrushShape.index,
             randomRotation: controller._currentStrokeRandomRotationEnabled,
+            smoothRotation: controller._currentStrokeSmoothRotationEnabled,
             rotationSeed: controller._currentStrokeRotationSeed,
             rotationJitter: controller._currentStrokeRotationJitter,
             snapToPixel: controller._currentStrokeSnapToPixel,
@@ -431,6 +435,7 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeHollowRatio = 0.0;
   controller._currentStrokeEraseOccludedParts = false;
   controller._currentStrokeRandomRotationEnabled = false;
+  controller._currentStrokeSmoothRotationEnabled = false;
   controller._currentStrokeRotationSeed = 0;
   controller._currentStrokeSpacing = 0.15;
   controller._currentStrokeSoftness = 0.0;
@@ -464,6 +469,7 @@ void _strokeCancel(BitmapCanvasController controller) {
   controller._currentStrokeHollowRatio = 0.0;
   controller._currentStrokeEraseOccludedParts = false;
   controller._currentStrokeRandomRotationEnabled = false;
+  controller._currentStrokeSmoothRotationEnabled = false;
   controller._currentStrokeRotationSeed = 0;
   controller._currentStrokeSpacing = 0.15;
   controller._currentStrokeSoftness = 0.0;
@@ -581,6 +587,7 @@ bool _strokeApplyStreamline(BitmapCanvasController controller) {
         colorValue: controller._currentStrokeColor.value,
         shapeIndex: controller._currentBrushShape.index,
         randomRotation: controller._currentStrokeRandomRotationEnabled,
+        smoothRotation: controller._currentStrokeSmoothRotationEnabled,
         rotationSeed: controller._currentStrokeRotationSeed,
         rotationJitter: controller._currentStrokeRotationJitter,
         snapToPixel: controller._currentStrokeSnapToPixel,
@@ -602,6 +609,7 @@ bool _strokeApplyStreamline(BitmapCanvasController controller) {
         colorValue: controller._currentStrokeColor.value,
         shapeIndex: controller._currentBrushShape.index,
         randomRotation: controller._currentStrokeRandomRotationEnabled,
+        smoothRotation: controller._currentStrokeSmoothRotationEnabled,
         rotationSeed: controller._currentStrokeRotationSeed,
         rotationJitter: controller._currentStrokeRotationJitter,
         spacing: controller._currentStrokeSpacing,
@@ -739,6 +747,7 @@ void _strokeDrawPoint(
       colorValue: controller._currentStrokeColor.value,
       shapeIndex: brushShape.index,
       randomRotation: controller._currentStrokeRandomRotationEnabled,
+      smoothRotation: controller._currentStrokeSmoothRotationEnabled,
       rotationSeed: controller._currentStrokeRotationSeed,
       rotationJitter: controller._currentStrokeRotationJitter,
       snapToPixel: controller._currentStrokeSnapToPixel,
@@ -767,6 +776,7 @@ void _strokeStampSegment(
       colorValue: controller._currentStrokeColor.value,
       shapeIndex: controller._currentBrushShape.index,
       randomRotation: controller._currentStrokeRandomRotationEnabled,
+      smoothRotation: controller._currentStrokeSmoothRotationEnabled,
       rotationSeed: controller._currentStrokeRotationSeed,
       rotationJitter: controller._currentStrokeRotationJitter,
       spacing: controller._currentStrokeSpacing,

@@ -58,6 +58,7 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late double _flow;
   late double _scatter;
   late bool _randomRotation;
+  late bool _smoothRotation;
   late double _rotationJitter;
   late int _antialiasLevel;
   late bool _hollowEnabled;
@@ -96,6 +97,7 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     _flow = sanitized.flow;
     _scatter = sanitized.scatter;
     _randomRotation = sanitized.randomRotation;
+    _smoothRotation = sanitized.smoothRotation;
     _rotationJitter = sanitized.rotationJitter;
     _antialiasLevel = sanitized.antialiasLevel;
     _hollowEnabled = sanitized.hollowEnabled;
@@ -116,6 +118,7 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       flow: _flow,
       scatter: _scatter,
       randomRotation: _randomRotation,
+      smoothRotation: _smoothRotation,
       rotationJitter: _rotationJitter,
       antialiasLevel: _antialiasLevel,
       hollowEnabled: _hollowEnabled,
@@ -217,6 +220,13 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
               _rotationJitter = 1.0;
             }
           }),
+        ),
+        const SizedBox(height: 12),
+        _buildToggleRow(
+          context,
+          label: l10n.smoothRotation,
+          value: _smoothRotation,
+          onChanged: (value) => _setAndNotify(() => _smoothRotation = value),
         ),
         const SizedBox(height: 12),
         _buildPercentSlider(

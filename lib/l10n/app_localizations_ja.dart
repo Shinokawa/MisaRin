@@ -1073,6 +1073,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get randomRotation => 'ランダム回転';
 
   @override
+  String get smoothRotation => 'スムーズ回転';
+
+  @override
   String get selectionShape => '選択形状';
 
   @override

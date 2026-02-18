@@ -130,6 +130,7 @@ class BitmapCanvasController extends ChangeNotifier
   bool _currentStrokeHasMoved = false;
   BrushShape _currentBrushShape = BrushShape.circle;
   bool _currentStrokeRandomRotationEnabled = false;
+  bool _currentStrokeSmoothRotationEnabled = false;
   int _currentStrokeRotationSeed = 0;
   final StrokePressureSimulator _strokePressureSimulator =
       StrokePressureSimulator();
@@ -577,6 +578,7 @@ class BitmapCanvasController extends ChangeNotifier
     BrushShape brushShape = BrushShape.circle,
     bool enableNeedleTips = false,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int? rotationSeed,
     double spacing = 0.15,
     double hardness = 0.8,
@@ -606,6 +608,7 @@ class BitmapCanvasController extends ChangeNotifier
     brushShape: brushShape,
     enableNeedleTips: enableNeedleTips,
     randomRotation: randomRotation,
+    smoothRotation: smoothRotation,
     rotationSeed: rotationSeed,
     spacing: spacing,
     hardness: hardness,

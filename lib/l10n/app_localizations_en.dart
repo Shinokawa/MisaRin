@@ -1096,6 +1096,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get randomRotation => 'Random rotation';
 
   @override
+  String get smoothRotation => 'Smooth rotation';
+
+  @override
   String get selectionShape => 'Selection Shape';
 
   @override

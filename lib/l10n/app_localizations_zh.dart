@@ -1067,6 +1067,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get randomRotation => '随机旋转';
 
   @override
+  String get smoothRotation => '平滑旋转';
+
+  @override
   String get selectionShape => '选区形状';
 
   @override
@@ -2719,6 +2722,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushSnapToPixel => '像素对齐';
 
   @override
+  String get smoothRotation => '平滑旋转';
+
+  @override
   String get selectionAdditive => '允许交集';
 
   @override
@@ -3616,6 +3622,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get randomRotation => '隨機旋轉';
+
+  @override
+  String get smoothRotation => '平滑旋轉';
 
   @override
   String get selectionAdditive => '允許交集';

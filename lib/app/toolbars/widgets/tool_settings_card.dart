@@ -670,18 +670,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       child: previewBox,
     );
 
-    final Widget openButton = _wrapButtonTooltip(
-      label: l10n.brushPreset,
-      detail: l10n.brushPresetDesc,
-      child: IconButton(
-        icon: Icon(
-          FluentIcons.edit,
-          size: 14,
-          color: enabled
-              ? theme.resources.textFillColorSecondary
-              : theme.resources.textFillColorDisabled,
-        ),
-        onPressed: enabled ? widget.onOpenBrushPresetPicker : null,
+    final Widget clickablePreview = MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: enabled ? widget.onOpenBrushPresetPicker : null,
+        child: previewWithTooltip,
       ),
     );
 
@@ -691,7 +684,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       children: [
         Text(l10n.brushPreset, style: titleStyle),
         const SizedBox(width: 8),
-        previewWithTooltip,
+        clickablePreview,
         const SizedBox(width: 8),
         Flexible(
           fit: FlexFit.loose,
@@ -707,8 +700,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
             ),
           ),
         ),
-        const SizedBox(width: 6),
-        openButton,
       ],
     );
   }
@@ -722,6 +713,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       '${l10n.brushFlow}: ${_formatPercent(sanitized.flow)}',
       '${l10n.brushScatter}: ${_formatPercent(sanitized.scatter)}',
       '${l10n.randomRotation}: ${_boolLabel(l10n, sanitized.randomRotation)}',
+      '${l10n.smoothRotation}: ${_boolLabel(l10n, sanitized.smoothRotation)}',
       '${l10n.brushRotationJitter}: ${_formatPercent(sanitized.rotationJitter)}',
       '${l10n.brushAntialiasing}: ${sanitized.antialiasLevel}',
       '${l10n.hollowStroke}: ${_boolLabel(l10n, sanitized.hollowEnabled)}',

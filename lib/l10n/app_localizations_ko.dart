@@ -1077,6 +1077,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get randomRotation => '무작위 회전';
 
   @override
+  String get smoothRotation => '부드러운 회전';
+
+  @override
   String get selectionShape => '선택 모양';
 
   @override

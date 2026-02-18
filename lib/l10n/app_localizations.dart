@@ -2084,6 +2084,12 @@ abstract class AppLocalizations {
   /// **'Random rotation'**
   String get randomRotation;
 
+  /// No description provided for @smoothRotation.
+  ///
+  /// In en, this message translates to:
+  /// **'Smooth rotation'**
+  String get smoothRotation;
+
   /// No description provided for @selectionShape.
   ///
   /// In en, this message translates to:

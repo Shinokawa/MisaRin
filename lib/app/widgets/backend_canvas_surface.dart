@@ -311,6 +311,7 @@ class BackendCanvasSurface extends StatefulWidget {
     required this.erase,
     required this.brushShape,
     required this.brushRandomRotationEnabled,
+    required this.brushSmoothRotationEnabled,
     required this.brushRotationSeed,
     required this.brushSpacing,
     required this.brushHardness,
@@ -370,6 +371,7 @@ class BackendCanvasSurface extends StatefulWidget {
   final bool erase;
   final BrushShape brushShape;
   final bool brushRandomRotationEnabled;
+  final bool brushSmoothRotationEnabled;
   final int brushRotationSeed;
   final double brushSpacing;
   final double brushHardness;
@@ -439,6 +441,8 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
         oldWidget.brushShape != widget.brushShape ||
         oldWidget.brushRandomRotationEnabled !=
             widget.brushRandomRotationEnabled ||
+        oldWidget.brushSmoothRotationEnabled !=
+            widget.brushSmoothRotationEnabled ||
         oldWidget.brushRotationSeed != widget.brushRotationSeed ||
         (oldWidget.brushSpacing - widget.brushSpacing).abs() > 1e-6 ||
         (oldWidget.brushHardness - widget.brushHardness).abs() > 1e-6 ||
@@ -646,6 +650,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       antialiasLevel: widget.antialiasLevel,
       brushShape: widget.brushShape.index,
       randomRotation: widget.brushRandomRotationEnabled,
+      smoothRotation: widget.brushSmoothRotationEnabled,
       rotationSeed: widget.brushRotationSeed,
       spacing: widget.brushSpacing,
       hardness: widget.brushHardness,

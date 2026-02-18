@@ -524,6 +524,7 @@
   "brushSnapToPixel": "Snap to Pixel",
   "brushShape": "Brush Shape",
   "randomRotation": "Random rotation",
+  "smoothRotation": "Smooth rotation",
   "selectionShape": "Selection Shape",
   "selectionAdditive": "Additive Selection",
   "selectionAdditiveDesc": "When enabled, new selections are added without holding Shift.",

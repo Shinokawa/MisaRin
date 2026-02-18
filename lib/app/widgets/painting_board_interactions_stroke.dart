@@ -136,6 +136,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
         antialiasLevel: _penAntialiasLevel,
         brushShape: _brushShape,
         randomRotation: _brushRandomRotationEnabled,
+        smoothRotation: _brushSmoothRotationEnabled,
         rotationSeed: _brushRandomRotationPreviewSeed,
         spacing: _brushSpacing,
         hardness: _brushHardness,

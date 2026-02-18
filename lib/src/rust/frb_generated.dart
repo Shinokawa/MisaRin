@@ -186,6 +186,7 @@ abstract class RustLibApi extends BaseApi {
     required double softness,
     required bool erase,
     required bool randomRotation,
+    required bool smoothRotation,
     required int rotationSeed,
     required double rotationJitter,
     required bool snapToPixel,
@@ -208,6 +209,7 @@ abstract class RustLibApi extends BaseApi {
     required bool includeStart,
     required bool erase,
     required bool randomRotation,
+    required bool smoothRotation,
     required int rotationSeed,
     required double rotationJitter,
     required double spacing,
@@ -887,6 +889,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required double softness,
     required bool erase,
     required bool randomRotation,
+    required bool smoothRotation,
     required int rotationSeed,
     required double rotationJitter,
     required bool snapToPixel,
@@ -908,6 +911,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(softness, serializer);
           sse_encode_bool(erase, serializer);
           sse_encode_bool(randomRotation, serializer);
+          sse_encode_bool(smoothRotation, serializer);
           sse_encode_u_32(rotationSeed, serializer);
           sse_encode_f_32(rotationJitter, serializer);
           sse_encode_bool(snapToPixel, serializer);
@@ -932,6 +936,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           softness,
           erase,
           randomRotation,
+          smoothRotation,
           rotationSeed,
           rotationJitter,
           snapToPixel,
@@ -958,6 +963,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "softness",
           "erase",
           "randomRotation",
+          "smoothRotation",
           "rotationSeed",
           "rotationJitter",
           "snapToPixel",
@@ -982,6 +988,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required bool includeStart,
     required bool erase,
     required bool randomRotation,
+    required bool smoothRotation,
     required int rotationSeed,
     required double rotationJitter,
     required double spacing,
@@ -1010,6 +1017,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_bool(includeStart, serializer);
           sse_encode_bool(erase, serializer);
           sse_encode_bool(randomRotation, serializer);
+          sse_encode_bool(smoothRotation, serializer);
           sse_encode_u_32(rotationSeed, serializer);
           sse_encode_f_32(rotationJitter, serializer);
           sse_encode_f_32(spacing, serializer);
@@ -1041,6 +1049,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           includeStart,
           erase,
           randomRotation,
+          smoothRotation,
           rotationSeed,
           rotationJitter,
           spacing,
@@ -1074,6 +1083,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "includeStart",
           "erase",
           "randomRotation",
+          "smoothRotation",
           "rotationSeed",
           "rotationJitter",
           "spacing",
@@ -2463,8 +2473,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   CpuBrushCommand dco_decode_cpu_brush_command(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 23)
-      throw Exception('unexpected arr length: expect 23 but see ${arr.length}');
+    if (arr.length != 24)
+      throw Exception('unexpected arr length: expect 24 but see ${arr.length}');
     return CpuBrushCommand(
       kind: dco_decode_u_32(arr[0]),
       ax: dco_decode_f_32(arr[1]),
@@ -2484,11 +2494,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       includeStartCap: dco_decode_bool(arr[15]),
       includeStart: dco_decode_bool(arr[16]),
       randomRotation: dco_decode_bool(arr[17]),
-      rotationSeed: dco_decode_u_32(arr[18]),
-      rotationJitter: dco_decode_f_32(arr[19]),
-      spacing: dco_decode_f_32(arr[20]),
-      scatter: dco_decode_f_32(arr[21]),
-      snapToPixel: dco_decode_bool(arr[22]),
+      smoothRotation: dco_decode_bool(arr[18]),
+      rotationSeed: dco_decode_u_32(arr[19]),
+      rotationJitter: dco_decode_f_32(arr[20]),
+      spacing: dco_decode_f_32(arr[21]),
+      scatter: dco_decode_f_32(arr[22]),
+      snapToPixel: dco_decode_bool(arr[23]),
     );
   }
 
@@ -2940,6 +2951,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_includeStartCap = sse_decode_bool(deserializer);
     var var_includeStart = sse_decode_bool(deserializer);
     var var_randomRotation = sse_decode_bool(deserializer);
+    var var_smoothRotation = sse_decode_bool(deserializer);
     var var_rotationSeed = sse_decode_u_32(deserializer);
     var var_rotationJitter = sse_decode_f_32(deserializer);
     var var_spacing = sse_decode_f_32(deserializer);
@@ -2964,6 +2976,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       includeStartCap: var_includeStartCap,
       includeStart: var_includeStart,
       randomRotation: var_randomRotation,
+      smoothRotation: var_smoothRotation,
       rotationSeed: var_rotationSeed,
       rotationJitter: var_rotationJitter,
       spacing: var_spacing,
@@ -3480,6 +3493,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.includeStartCap, serializer);
     sse_encode_bool(self.includeStart, serializer);
     sse_encode_bool(self.randomRotation, serializer);
+    sse_encode_bool(self.smoothRotation, serializer);
     sse_encode_u_32(self.rotationSeed, serializer);
     sse_encode_f_32(self.rotationJitter, serializer);
     sse_encode_f_32(self.spacing, serializer);

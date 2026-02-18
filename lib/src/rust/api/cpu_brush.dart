@@ -21,6 +21,7 @@ CpuBrushResult cpuBrushDrawStampRgba({
   required double softness,
   required bool erase,
   required bool randomRotation,
+  required bool smoothRotation,
   required int rotationSeed,
   required double rotationJitter,
   required bool snapToPixel,
@@ -38,6 +39,7 @@ CpuBrushResult cpuBrushDrawStampRgba({
   softness: softness,
   erase: erase,
   randomRotation: randomRotation,
+  smoothRotation: smoothRotation,
   rotationSeed: rotationSeed,
   rotationJitter: rotationJitter,
   snapToPixel: snapToPixel,
@@ -116,6 +118,7 @@ CpuBrushResult cpuBrushDrawStampSegmentRgba({
   required bool includeStart,
   required bool erase,
   required bool randomRotation,
+  required bool smoothRotation,
   required int rotationSeed,
   required double rotationJitter,
   required double spacing,
@@ -140,6 +143,7 @@ CpuBrushResult cpuBrushDrawStampSegmentRgba({
   includeStart: includeStart,
   erase: erase,
   randomRotation: randomRotation,
+  smoothRotation: smoothRotation,
   rotationSeed: rotationSeed,
   rotationJitter: rotationJitter,
   spacing: spacing,
@@ -217,6 +221,7 @@ class CpuBrushCommand {
   final bool includeStartCap;
   final bool includeStart;
   final bool randomRotation;
+  final bool smoothRotation;
   final int rotationSeed;
   final double rotationJitter;
   final double spacing;
@@ -242,6 +247,7 @@ class CpuBrushCommand {
     required this.includeStartCap,
     required this.includeStart,
     required this.randomRotation,
+    required this.smoothRotation,
     required this.rotationSeed,
     required this.rotationJitter,
     required this.spacing,
@@ -269,6 +275,7 @@ class CpuBrushCommand {
       includeStartCap.hashCode ^
       includeStart.hashCode ^
       randomRotation.hashCode ^
+      smoothRotation.hashCode ^
       rotationSeed.hashCode ^
       rotationJitter.hashCode ^
       spacing.hashCode ^
@@ -298,6 +305,7 @@ class CpuBrushCommand {
           includeStartCap == other.includeStartCap &&
           includeStart == other.includeStart &&
           randomRotation == other.randomRotation &&
+          smoothRotation == other.smoothRotation &&
           rotationSeed == other.rotationSeed &&
           rotationJitter == other.rotationJitter &&
           spacing == other.spacing &&

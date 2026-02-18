@@ -185,6 +185,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       flow: preset.flow,
       scatter: preset.scatter,
       randomRotation: preset.randomRotation,
+      smoothRotation: preset.smoothRotation,
       rotationJitter: preset.rotationJitter,
       antialiasLevel: preset.antialiasLevel,
       hollowEnabled: preset.hollowEnabled,

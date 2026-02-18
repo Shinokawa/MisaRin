@@ -322,6 +322,7 @@ typedef _EngineSetBrushNative =
       ffi.Uint32 antialiasLevel,
       ffi.Uint32 brushShape,
       ffi.Uint8 randomRotation,
+      ffi.Uint8 smoothRotation,
       ffi.Uint32 rotationSeed,
       ffi.Float spacing,
       ffi.Float hardness,
@@ -344,6 +345,7 @@ typedef _EngineSetBrushDart =
       int antialiasLevel,
       int brushShape,
       int randomRotation,
+      int smoothRotation,
       int rotationSeed,
       double spacing,
       double hardness,
@@ -689,10 +691,10 @@ class CanvasEngineFfi {
         _logPop = _lib.lookupFunction<_EngineLogPopNative, _EngineLogPopDart>(
           'engine_log_pop',
         );
-        _logFree =
-            _lib.lookupFunction<_EngineLogFreeNative, _EngineLogFreeDart>(
-          'engine_log_free',
-        );
+        _logFree = _lib
+            .lookupFunction<_EngineLogFreeNative, _EngineLogFreeDart>(
+              'engine_log_free',
+            );
       } catch (_) {
         _logPop = null;
         _logFree = null;
@@ -1298,6 +1300,7 @@ class CanvasEngineFfi {
     int antialiasLevel = 1,
     int brushShape = 0,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
     double spacing = 0.15,
     double hardness = 0.8,
@@ -1367,6 +1370,7 @@ class CanvasEngineFfi {
       antialiasLevel.clamp(0, 9),
       shape,
       randomRotation ? 1 : 0,
+      smoothRotation ? 1 : 0,
       seed,
       spacingValue,
       hardnessValue,

@@ -116,6 +116,7 @@ pub(crate) enum EngineCommand {
         antialias_level: u32,
         brush_shape: u32,
         random_rotation: bool,
+        smooth_rotation: bool,
         rotation_seed: u32,
         spacing: f32,
         hardness: f32,
@@ -691,19 +692,24 @@ fn build_preview_segments(
     if points.is_empty() || points.len() != radii.len() {
         return Vec::new();
     }
-    let needs_rotation = brush_settings.random_rotation
+    let supports_rotation = !matches!(brush_settings.shape, BrushShape::Circle);
+    let use_smooth = brush_settings.smooth_rotation && supports_rotation;
+    let use_random = brush_settings.random_rotation
         && brush_settings.rotation_jitter > 0.0001
-        && !matches!(brush_settings.shape, BrushShape::Circle);
+        && supports_rotation;
+    let jitter = if brush_settings.rotation_jitter.is_finite() {
+        brush_settings.rotation_jitter.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
     let mut segments: Vec<PreviewSegment> = Vec::with_capacity(points.len());
     if points.len() == 1 {
         let p0 = points[0];
         let radius = radii[0];
-        let rotation = if needs_rotation {
-            brush_random_rotation_radians(p0, brush_settings.rotation_seed)
-                * brush_settings.rotation_jitter
-        } else {
-            0.0
-        };
+        let mut rotation = 0.0;
+        if use_random {
+            rotation += brush_random_rotation_radians(p0, brush_settings.rotation_seed) * jitter;
+        }
         return vec![PreviewSegment {
             p0: [p0.x, p0.y],
             p1: [p0.x, p0.y],
@@ -718,12 +724,14 @@ fn build_preview_segments(
         let p1 = points[i + 1];
         let r0 = radii[i];
         let r1 = radii[i + 1];
-        let rotation = if needs_rotation {
-            brush_random_rotation_radians(p0, brush_settings.rotation_seed)
-                * brush_settings.rotation_jitter
+        let mut rotation = if use_smooth {
+            (p1.y - p0.y).atan2(p1.x - p0.x)
         } else {
             0.0
         };
+        if use_random {
+            rotation += brush_random_rotation_radians(p0, brush_settings.rotation_seed) * jitter;
+        }
         segments.push(PreviewSegment {
             p0: [p0.x, p0.y],
             p1: [p1.x, p1.y],
@@ -2756,6 +2764,7 @@ fn handle_engine_command(
             antialias_level,
             brush_shape,
             random_rotation,
+            smooth_rotation,
             rotation_seed,
             spacing,
             hardness,
@@ -2775,6 +2784,7 @@ fn handle_engine_command(
             brush_settings.antialias_level = antialias_level;
             brush_settings.shape = map_brush_shape(brush_shape);
             brush_settings.random_rotation = random_rotation;
+            brush_settings.smooth_rotation = smooth_rotation;
             brush_settings.rotation_seed = rotation_seed;
             brush_settings.spacing = spacing;
             brush_settings.hardness = hardness;

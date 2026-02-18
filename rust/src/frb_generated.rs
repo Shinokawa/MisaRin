@@ -451,6 +451,7 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_rgba_impl(
             let api_softness = <f32>::sse_decode(&mut deserializer);
             let api_erase = <bool>::sse_decode(&mut deserializer);
             let api_random_rotation = <bool>::sse_decode(&mut deserializer);
+            let api_smooth_rotation = <bool>::sse_decode(&mut deserializer);
             let api_rotation_seed = <u32>::sse_decode(&mut deserializer);
             let api_rotation_jitter = <f32>::sse_decode(&mut deserializer);
             let api_snap_to_pixel = <bool>::sse_decode(&mut deserializer);
@@ -471,6 +472,7 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_rgba_impl(
                         api_softness,
                         api_erase,
                         api_random_rotation,
+                        api_smooth_rotation,
                         api_rotation_seed,
                         api_rotation_jitter,
                         api_snap_to_pixel,
@@ -517,6 +519,7 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
             let api_include_start = <bool>::sse_decode(&mut deserializer);
             let api_erase = <bool>::sse_decode(&mut deserializer);
             let api_random_rotation = <bool>::sse_decode(&mut deserializer);
+            let api_smooth_rotation = <bool>::sse_decode(&mut deserializer);
             let api_rotation_seed = <u32>::sse_decode(&mut deserializer);
             let api_rotation_jitter = <f32>::sse_decode(&mut deserializer);
             let api_spacing = <f32>::sse_decode(&mut deserializer);
@@ -544,6 +547,7 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
                         api_include_start,
                         api_erase,
                         api_random_rotation,
+                        api_smooth_rotation,
                         api_rotation_seed,
                         api_rotation_jitter,
                         api_spacing,
@@ -1945,6 +1949,7 @@ impl SseDecode for crate::api::cpu_brush::CpuBrushCommand {
         let mut var_includeStartCap = <bool>::sse_decode(deserializer);
         let mut var_includeStart = <bool>::sse_decode(deserializer);
         let mut var_randomRotation = <bool>::sse_decode(deserializer);
+        let mut var_smoothRotation = <bool>::sse_decode(deserializer);
         let mut var_rotationSeed = <u32>::sse_decode(deserializer);
         let mut var_rotationJitter = <f32>::sse_decode(deserializer);
         let mut var_spacing = <f32>::sse_decode(deserializer);
@@ -1969,6 +1974,7 @@ impl SseDecode for crate::api::cpu_brush::CpuBrushCommand {
             include_start_cap: var_includeStartCap,
             include_start: var_includeStart,
             random_rotation: var_randomRotation,
+            smooth_rotation: var_smoothRotation,
             rotation_seed: var_rotationSeed,
             rotation_jitter: var_rotationJitter,
             spacing: var_spacing,
@@ -2665,6 +2671,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::cpu_brush::CpuBrushCommand {
             self.include_start_cap.into_into_dart().into_dart(),
             self.include_start.into_into_dart().into_dart(),
             self.random_rotation.into_into_dart().into_dart(),
+            self.smooth_rotation.into_into_dart().into_dart(),
             self.rotation_seed.into_into_dart().into_dart(),
             self.rotation_jitter.into_into_dart().into_dart(),
             self.spacing.into_into_dart().into_dart(),
@@ -3092,6 +3099,7 @@ impl SseEncode for crate::api::cpu_brush::CpuBrushCommand {
         <bool>::sse_encode(self.include_start_cap, serializer);
         <bool>::sse_encode(self.include_start, serializer);
         <bool>::sse_encode(self.random_rotation, serializer);
+        <bool>::sse_encode(self.smooth_rotation, serializer);
         <u32>::sse_encode(self.rotation_seed, serializer);
         <f32>::sse_encode(self.rotation_jitter, serializer);
         <f32>::sse_encode(self.spacing, serializer);

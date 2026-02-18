@@ -10,6 +10,7 @@ class BrushPreset {
     required this.flow,
     required this.scatter,
     required this.randomRotation,
+    required this.smoothRotation,
     required this.rotationJitter,
     required this.antialiasLevel,
     required this.hollowEnabled,
@@ -27,6 +28,7 @@ class BrushPreset {
   double flow;
   double scatter;
   bool randomRotation;
+  bool smoothRotation;
   double rotationJitter;
   int antialiasLevel;
   bool hollowEnabled;
@@ -43,6 +45,7 @@ class BrushPreset {
     double? flow,
     double? scatter,
     bool? randomRotation,
+    bool? smoothRotation,
     double? rotationJitter,
     int? antialiasLevel,
     bool? hollowEnabled,
@@ -60,6 +63,7 @@ class BrushPreset {
       flow: flow ?? this.flow,
       scatter: scatter ?? this.scatter,
       randomRotation: randomRotation ?? this.randomRotation,
+      smoothRotation: smoothRotation ?? this.smoothRotation,
       rotationJitter: rotationJitter ?? this.rotationJitter,
       antialiasLevel: antialiasLevel ?? this.antialiasLevel,
       hollowEnabled: hollowEnabled ?? this.hollowEnabled,
@@ -89,6 +93,7 @@ class BrushPreset {
       hardness: hardnessValue.clamp(0.0, 1.0),
       flow: flowValue.clamp(0.0, 1.0),
       scatter: scatterValue.clamp(0.0, 1.0),
+      smoothRotation: smoothRotation,
       rotationJitter: rotationValue,
       antialiasLevel: aaValue,
       hollowRatio: hollowValue.clamp(0.0, 1.0),
@@ -107,6 +112,7 @@ class BrushPreset {
       flow: (json['flow'] as num?)?.toDouble() ?? 1.0,
       scatter: (json['scatter'] as num?)?.toDouble() ?? 0.0,
       randomRotation: (json['randomRotation'] as bool?) ?? false,
+      smoothRotation: (json['smoothRotation'] as bool?) ?? false,
       rotationJitter: (json['rotationJitter'] as num?)?.toDouble() ?? 1.0,
       antialiasLevel: (json['antialiasLevel'] as num?)?.toInt() ?? 1,
       hollowEnabled: (json['hollowEnabled'] as bool?) ?? false,
@@ -127,6 +133,7 @@ class BrushPreset {
         'flow': flow,
         'scatter': scatter,
         'randomRotation': randomRotation,
+        'smoothRotation': smoothRotation,
         'rotationJitter': rotationJitter,
         'antialiasLevel': antialiasLevel,
         'hollowEnabled': hollowEnabled,

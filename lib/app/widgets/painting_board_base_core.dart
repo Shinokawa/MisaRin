@@ -45,6 +45,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   bool _brushRandomRotationEnabled =
       AppPreferences.defaultBrushRandomRotationEnabled;
+  bool _brushSmoothRotationEnabled = false;
   final math.Random _brushRotationRandom = math.Random();
   int _brushRandomRotationPreviewSeed = 0;
   BrushLibrary? _brushLibrary;

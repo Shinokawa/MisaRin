@@ -41,6 +41,7 @@ class _BrushPresetStrokePainter extends CustomPainter {
         flow = _sanitizeDouble(preset.flow, 1.0, 0.0, 1.0),
         scatter = _sanitizeDouble(preset.scatter, 0.0, 0.0, 1.0),
         randomRotation = preset.randomRotation,
+        smoothRotation = preset.smoothRotation,
         rotationJitter = _sanitizeDouble(preset.rotationJitter, 1.0, 0.0, 1.0),
         antialiasLevel = preset.antialiasLevel.clamp(0, 9),
         hollowEnabled = preset.hollowEnabled,
@@ -55,6 +56,7 @@ class _BrushPresetStrokePainter extends CustomPainter {
   final double flow;
   final double scatter;
   final bool randomRotation;
+  final bool smoothRotation;
   final double rotationJitter;
   final int antialiasLevel;
   final bool hollowEnabled;
@@ -169,13 +171,11 @@ class _BrushPresetStrokePainter extends CustomPainter {
       }
 
       double rotation = 0.0;
-      if (shape != BrushShape.circle) {
+      if (shape != BrushShape.circle && smoothRotation) {
         rotation = math.atan2(tangent.vector.dy, tangent.vector.dx);
       }
-      if (randomRotation) {
-        rotation = _noise(i + 11) * math.pi * 2;
-      } else if (rotationJitter > 0.001) {
-        rotation += rotationJitter * 0.6 * math.sin(i * 0.7);
+      if (randomRotation && shape != BrushShape.circle) {
+        rotation += _noise(i + 11) * math.pi * 2.0 * rotationJitter;
       }
 
       canvas.save();
@@ -207,6 +207,7 @@ class _BrushPresetStrokePainter extends CustomPainter {
         oldDelegate.flow != flow ||
         oldDelegate.scatter != scatter ||
         oldDelegate.randomRotation != randomRotation ||
+        oldDelegate.smoothRotation != smoothRotation ||
         oldDelegate.rotationJitter != rotationJitter ||
         oldDelegate.antialiasLevel != antialiasLevel ||
         oldDelegate.hollowEnabled != hollowEnabled ||

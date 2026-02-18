@@ -1053,6 +1053,7 @@ class PaintingBoardState extends _PaintingBoardBase
       _activeBrushPreset = sanitized;
       _brushShape = sanitized.shape;
       _brushRandomRotationEnabled = sanitized.randomRotation;
+      _brushSmoothRotationEnabled = sanitized.smoothRotation;
       if (sanitized.randomRotation &&
           (randomRotationChanged || presetChanged)) {
         _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);

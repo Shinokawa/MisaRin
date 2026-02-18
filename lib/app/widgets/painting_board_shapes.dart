@@ -502,6 +502,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       antialiasLevel: _penAntialiasLevel,
       brushShape: _brushShape,
       randomRotation: _brushRandomRotationEnabled,
+      smoothRotation: _brushSmoothRotationEnabled,
       rotationSeed: _brushRandomRotationPreviewSeed,
       spacing: _brushSpacing,
       hardness: _brushHardness,

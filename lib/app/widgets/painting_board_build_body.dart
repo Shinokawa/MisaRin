@@ -526,6 +526,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 brushShape: _brushShape,
                                                 brushRandomRotationEnabled:
                                                     _brushRandomRotationEnabled,
+                                                brushSmoothRotationEnabled:
+                                                    _brushSmoothRotationEnabled,
                                                 brushRotationSeed:
                                                     _brushRandomRotationPreviewSeed,
                                                 brushSpacing: _brushSpacing,

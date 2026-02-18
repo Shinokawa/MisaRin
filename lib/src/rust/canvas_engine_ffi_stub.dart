@@ -30,6 +30,7 @@ class CanvasEngineFfi {
     int antialiasLevel = 1,
     int brushShape = 0,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
     double spacing = 0.15,
     double hardness = 0.8,

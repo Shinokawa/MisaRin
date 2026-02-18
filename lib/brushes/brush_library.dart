@@ -20,8 +20,9 @@ class BrushLibrary extends ChangeNotifier {
   })  : _presets = presets,
         _selectedId = selectedId;
 
-  static const int _version = 3;
-  static const double _defaultPixelSpacing = 0.5;
+  static const int _version = 4;
+  static const double _defaultPixelSpacing = 0.25;
+  static const double _previousPixelSpacing = 0.5;
   static const double _legacyPixelSpacing = 1.0;
   static const String _folderName = 'MisaRin';
   static const String _fileName = 'brush_presets.json';
@@ -199,6 +200,7 @@ class BrushLibrary extends ChangeNotifier {
       flow: 1.0,
       scatter: 0.0,
       randomRotation: prefs?.brushRandomRotationEnabled ?? false,
+      smoothRotation: false,
       rotationJitter: 1.0,
       antialiasLevel: prefs?.penAntialiasLevel ?? 1,
       hollowEnabled: prefs?.hollowStrokeEnabled ?? false,
@@ -219,6 +221,7 @@ class BrushLibrary extends ChangeNotifier {
         flow: 1.0,
         scatter: 0.0,
         randomRotation: false,
+        smoothRotation: false,
         rotationJitter: 0.0,
         antialiasLevel: 1,
         hollowEnabled: false,
@@ -236,6 +239,7 @@ class BrushLibrary extends ChangeNotifier {
         flow: 1.0,
         scatter: 0.0,
         randomRotation: false,
+        smoothRotation: false,
         rotationJitter: 0.0,
         antialiasLevel: 0,
         hollowEnabled: false,
@@ -253,6 +257,7 @@ class BrushLibrary extends ChangeNotifier {
         flow: 1.0,
         scatter: 0.0,
         randomRotation: false,
+        smoothRotation: false,
         rotationJitter: 0.0,
         antialiasLevel: 1,
         hollowEnabled: false,
@@ -270,6 +275,7 @@ class BrushLibrary extends ChangeNotifier {
         flow: 1.0,
         scatter: 0.0,
         randomRotation: false,
+        smoothRotation: false,
         rotationJitter: 0.0,
         antialiasLevel: 1,
         hollowEnabled: false,
@@ -287,6 +293,7 @@ class BrushLibrary extends ChangeNotifier {
         flow: 1.0,
         scatter: 0.0,
         randomRotation: false,
+        smoothRotation: false,
         rotationJitter: 0.0,
         antialiasLevel: 1,
         hollowEnabled: false,
@@ -348,13 +355,15 @@ class BrushLibrary extends ChangeNotifier {
     if (!nameMatches) {
       return false;
     }
-    if ((preset.spacing - _legacyPixelSpacing).abs() > 0.0001) {
+    if ((preset.spacing - _legacyPixelSpacing).abs() > 0.0001 &&
+        (preset.spacing - _previousPixelSpacing).abs() > 0.0001) {
       return false;
     }
     if (preset.shape != BrushShape.square ||
         preset.antialiasLevel != 0 ||
         preset.snapToPixel != true ||
         preset.randomRotation != false ||
+        preset.smoothRotation != false ||
         preset.hollowEnabled != false ||
         preset.hollowEraseOccludedParts != false ||
         preset.autoSharpTaper != false) {

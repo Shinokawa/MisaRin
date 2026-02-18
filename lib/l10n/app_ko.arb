@@ -524,6 +524,7 @@
   "brushSnapToPixel": "픽셀 스냅",
   "brushShape": "\ube0c\ub7ec\uc2dc \ubaa8\uc591",
   "randomRotation": "무작위 회전",
+  "smoothRotation": "\ubd80\ub4dc\ub7ec\uc6b4 \ud68c\uc804",
   "selectionShape": "\uc120\ud0dd \ubaa8\uc591",
   "selectionAdditive": "\uc120\ud0dd \ucd94\uac00",
   "selectionAdditiveDesc": "\ucf1c\uba74 Shift \uc5c6\uc774\ub3c4 \uc120\ud0dd\uc744 \uc5ec\ub7ec \ubc88 \ucd94\uac00\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",

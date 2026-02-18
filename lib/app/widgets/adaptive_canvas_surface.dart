@@ -21,6 +21,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
     required this.erase,
     required this.brushShape,
     required this.brushRandomRotationEnabled,
+    required this.brushSmoothRotationEnabled,
     required this.brushRotationSeed,
     required this.brushSpacing,
     required this.brushHardness,
@@ -50,6 +51,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
   final bool erase;
   final BrushShape brushShape;
   final bool brushRandomRotationEnabled;
+  final bool brushSmoothRotationEnabled;
   final int brushRotationSeed;
   final double brushSpacing;
   final double brushHardness;
@@ -86,6 +88,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
         erase: erase,
         brushShape: brushShape,
         brushRandomRotationEnabled: brushRandomRotationEnabled,
+        brushSmoothRotationEnabled: brushSmoothRotationEnabled,
         brushRotationSeed: brushRotationSeed,
         brushSpacing: brushSpacing,
         brushHardness: brushHardness,
