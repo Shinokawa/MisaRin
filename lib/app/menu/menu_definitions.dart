@@ -101,11 +101,6 @@ class MenuDefinitionBuilder {
     final List<MenuEntry> entries = <MenuEntry>[];
 
     _addSection(entries, <MenuEntry>[
-      if (handler.about != null)
-        MenuActionEntry(label: l10n.menuAbout, action: handler.about),
-    ]);
-
-    _addSection(entries, <MenuEntry>[
       if (handler.preferences != null)
         MenuActionEntry(
           label: l10n.menuPreferences,

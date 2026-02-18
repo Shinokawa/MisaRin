@@ -5,6 +5,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../l10n/locale_controller.dart';
 import '../l10n/l10n.dart';
@@ -16,7 +17,10 @@ import '../../performance/stroke_latency_monitor.dart';
 import 'misarin_dialog.dart';
 import '../../canvas/canvas_backend.dart';
 
-Future<void> showSettingsDialog(BuildContext context) {
+Future<void> showSettingsDialog(
+  BuildContext context, {
+  bool openAboutTab = false,
+}) {
   final GlobalKey<_SettingsDialogContentState> contentKey =
       GlobalKey<_SettingsDialogContentState>();
   return showDialog<void>(
@@ -25,7 +29,11 @@ Future<void> showSettingsDialog(BuildContext context) {
       final l10n = dialogContext.l10n;
       return MisarinDialog(
         title: Text(l10n.settingsTitle),
-        content: _SettingsDialogContent(key: contentKey),
+        content: _SettingsDialogContent(
+          key: contentKey,
+          initialSection:
+              openAboutTab ? _SettingsSection.about : _SettingsSection.language,
+        ),
         contentWidth: null,
         maxWidth: 920,
         actions: [
@@ -64,10 +72,16 @@ enum _SettingsSection {
   history,
   canvasBackend,
   developer,
+  about,
 }
 
 class _SettingsDialogContent extends StatefulWidget {
-  const _SettingsDialogContent({super.key});
+  const _SettingsDialogContent({
+    super.key,
+    required this.initialSection,
+  });
+
+  final _SettingsSection initialSection;
 
   @override
   State<_SettingsDialogContent> createState() => _SettingsDialogContentState();
@@ -82,6 +96,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late bool _fpsOverlayEnabled;
   late CanvasBackend _canvasBackend;
   late _SettingsSection _selectedSection;
+  PackageInfo? _packageInfo;
 
   @override
   void initState() {
@@ -93,7 +108,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
     _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
     _canvasBackend = AppPreferences.instance.canvasBackend;
-    _selectedSection = _SettingsSection.language;
+    _selectedSection = widget.initialSection;
+    unawaited(_loadPackageInfo());
   }
 
   @override
@@ -107,6 +123,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _SettingsSection.history,
       if (!kIsWeb) _SettingsSection.canvasBackend,
       if (!kIsWeb) _SettingsSection.developer,
+      _SettingsSection.about,
     ];
 
     final Widget body = Row(
@@ -421,6 +438,38 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
             ],
           ),
         );
+      case _SettingsSection.about:
+        final PackageInfo? info = _packageInfo;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.aboutDescription, style: theme.typography.body),
+            const SizedBox(height: 12),
+            InfoLabel(
+              label: l10n.aboutAppIdLabel,
+              child: SelectableText(
+                'com.aimessoft.misarin',
+                style: theme.typography.bodyStrong,
+              ),
+            ),
+            const SizedBox(height: 12),
+            InfoLabel(
+              label: l10n.aboutAppVersionLabel,
+              child: SelectableText(
+                info?.version ?? '—',
+                style: theme.typography.bodyStrong,
+              ),
+            ),
+            const SizedBox(height: 12),
+            InfoLabel(
+              label: l10n.aboutDeveloperLabel,
+              child: SelectableText(
+                'Aimes Soft',
+                style: theme.typography.bodyStrong,
+              ),
+            ),
+          ],
+        );
     }
   }
 
@@ -441,6 +490,22 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         return l10n.canvasBackendLabel;
       case _SettingsSection.developer:
         return l10n.developerOptionsLabel;
+      case _SettingsSection.about:
+        return l10n.aboutTitle;
+    }
+  }
+
+  Future<void> _loadPackageInfo() async {
+    try {
+      final PackageInfo info = await PackageInfo.fromPlatform();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _packageInfo = info;
+      });
+    } catch (_) {
+      // Ignore lookup failures; show placeholder instead.
     }
   }
 

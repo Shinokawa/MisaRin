@@ -9,7 +9,6 @@ import 'package:path/path.dart' as p;
 import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
 import '../../canvas/canvas_settings.dart';
-import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
 import '../l10n/l10n.dart';
@@ -266,7 +265,7 @@ class AppMenuActions {
   }
 
   static Future<void> showAbout(BuildContext context) async {
-    await showAboutMisarinDialog(context);
+    await showSettingsDialog(context, openAboutTab: true);
   }
 
   static Future<void> importImage(BuildContext context) async {

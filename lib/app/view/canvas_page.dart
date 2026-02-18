@@ -1829,7 +1829,6 @@ class CanvasPageState extends State<CanvasPage> {
       importImageFromClipboard: () =>
           AppMenuActions.importImageFromClipboard(context),
       preferences: () => AppMenuActions.openSettings(context),
-      about: () => AppMenuActions.showAbout(context),
       save: () async {
         if (_document.path == null) {
           await _saveProjectAs();
