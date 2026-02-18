@@ -79,7 +79,7 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4, Vector3;
 import 'package:file_picker/file_picker.dart';
 
 import '../dialogs/misarin_dialog.dart';
-import '../dialogs/brush_preset_editor_dialog.dart';
+import '../dialogs/brush_preset_picker_dialog.dart';
 import '../l10n/l10n.dart';
 import 'package:misa_rin/canvas/canvas_facade.dart';
 import 'package:misa_rin/canvas/canvas_frame.dart';

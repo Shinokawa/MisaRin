@@ -212,8 +212,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           brushPresets: _brushLibrary?.presets ?? const <BrushPreset>[],
           activeBrushPresetId:
               _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
-          onBrushPresetChanged: _selectBrushPreset,
-          onEditBrushPreset: _openBrushPresetEditor,
+          onOpenBrushPresetPicker: _openBrushPresetPicker,
           strokeStabilizerStrength: _strokeStabilizerStrength,
           onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
           streamlineStrength: _streamlineStrength,

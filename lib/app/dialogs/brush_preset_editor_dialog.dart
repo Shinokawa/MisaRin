@@ -9,13 +9,13 @@ Future<BrushPreset?> showBrushPresetEditorDialog(
   BuildContext context, {
   required BrushPreset preset,
 }) {
-  final GlobalKey<_BrushPresetEditorState> editorKey =
-      GlobalKey<_BrushPresetEditorState>();
+  final GlobalKey<BrushPresetEditorFormState> editorKey =
+      GlobalKey<BrushPresetEditorFormState>();
   final AppLocalizations l10n = context.l10n;
   return showMisarinDialog<BrushPreset>(
     context: context,
     title: Text(l10n.brushPresetDialogTitle),
-    content: _BrushPresetEditor(key: editorKey, preset: preset),
+    content: BrushPresetEditorForm(key: editorKey, preset: preset),
     actions: [
       Button(
         onPressed: () => Navigator.of(context).pop(),
@@ -34,16 +34,23 @@ Future<BrushPreset?> showBrushPresetEditorDialog(
   );
 }
 
-class _BrushPresetEditor extends StatefulWidget {
-  const _BrushPresetEditor({super.key, required this.preset});
+class BrushPresetEditorForm extends StatefulWidget {
+  const BrushPresetEditorForm({
+    super.key,
+    required this.preset,
+    this.onChanged,
+    this.scrollable = true,
+  });
 
   final BrushPreset preset;
+  final ValueChanged<BrushPreset>? onChanged;
+  final bool scrollable;
 
   @override
-  State<_BrushPresetEditor> createState() => _BrushPresetEditorState();
+  State<BrushPresetEditorForm> createState() => BrushPresetEditorFormState();
 }
 
-class _BrushPresetEditorState extends State<_BrushPresetEditor> {
+class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late final TextEditingController _nameController;
   late BrushShape _shape;
   late double _spacing;
@@ -62,27 +69,40 @@ class _BrushPresetEditorState extends State<_BrushPresetEditor> {
   @override
   void initState() {
     super.initState();
-    final BrushPreset preset = widget.preset.sanitized();
-    _nameController = TextEditingController(text: preset.name);
-    _shape = preset.shape;
-    _spacing = preset.spacing;
-    _hardness = preset.hardness;
-    _flow = preset.flow;
-    _scatter = preset.scatter;
-    _randomRotation = preset.randomRotation;
-    _rotationJitter = preset.rotationJitter;
-    _antialiasLevel = preset.antialiasLevel;
-    _hollowEnabled = preset.hollowEnabled;
-    _hollowRatio = preset.hollowRatio;
-    _hollowEraseOccludedParts = preset.hollowEraseOccludedParts;
-    _autoSharpTaper = preset.autoSharpTaper;
-    _snapToPixel = preset.snapToPixel;
+    _nameController = TextEditingController();
+    _syncFromPreset(widget.preset);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant BrushPresetEditorForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.preset.id != widget.preset.id) {
+      _syncFromPreset(widget.preset);
+    }
+  }
+
+  void _syncFromPreset(BrushPreset preset) {
+    final BrushPreset sanitized = preset.sanitized();
+    _nameController.text = sanitized.name;
+    _shape = sanitized.shape;
+    _spacing = sanitized.spacing;
+    _hardness = sanitized.hardness;
+    _flow = sanitized.flow;
+    _scatter = sanitized.scatter;
+    _randomRotation = sanitized.randomRotation;
+    _rotationJitter = sanitized.rotationJitter;
+    _antialiasLevel = sanitized.antialiasLevel;
+    _hollowEnabled = sanitized.hollowEnabled;
+    _hollowRatio = sanitized.hollowRatio;
+    _hollowEraseOccludedParts = sanitized.hollowEraseOccludedParts;
+    _autoSharpTaper = sanitized.autoSharpTaper;
+    _snapToPixel = sanitized.snapToPixel;
   }
 
   BrushPreset buildPreset() {
@@ -106,129 +126,148 @@ class _BrushPresetEditorState extends State<_BrushPresetEditor> {
     );
   }
 
+  void _notifyChanged() {
+    final ValueChanged<BrushPreset>? onChanged = widget.onChanged;
+    if (onChanged == null || !mounted) {
+      return;
+    }
+    onChanged(buildPreset());
+  }
+
+  void _setAndNotify(VoidCallback update) {
+    setState(update);
+    _notifyChanged();
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = context.l10n;
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InfoLabel(
-            label: l10n.brushPresetNameLabel,
-            child: TextBox(controller: _nameController),
+    final Widget content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InfoLabel(
+          label: l10n.brushPresetNameLabel,
+          child: TextBox(
+            controller: _nameController,
+            onChanged: (_) => _notifyChanged(),
           ),
-          const SizedBox(height: 12),
-          InfoLabel(
-            label: l10n.brushShape,
-            child: ComboBox<BrushShape>(
-              isExpanded: true,
-              value: _shape,
-              items: BrushShape.values
-                  .map(
-                    (shape) => ComboBoxItem<BrushShape>(
-                      value: shape,
-                      child: Text(_shapeLabel(l10n, shape)),
-                    ),
-                  )
-                  .toList(growable: false),
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-                setState(() => _shape = value);
-              },
-            ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: l10n.brushShape,
+          child: ComboBox<BrushShape>(
+            isExpanded: true,
+            value: _shape,
+            items: BrushShape.values
+                .map(
+                  (shape) => ComboBoxItem<BrushShape>(
+                    value: shape,
+                    child: Text(_shapeLabel(l10n, shape)),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+              _setAndNotify(() => _shape = value);
+            },
           ),
-          const SizedBox(height: 12),
-          _buildSlider(
-            context,
-            label: l10n.brushSpacing,
-            value: _spacing,
-            min: 0.02,
-            max: 2.5,
-            divisions: 248,
-            formatter: (value) => value.toStringAsFixed(2),
-            onChanged: (value) => setState(() => _spacing = value),
-          ),
+        ),
+        const SizedBox(height: 12),
+        _buildSlider(
+          context,
+          label: l10n.brushSpacing,
+          value: _spacing,
+          min: 0.02,
+          max: 2.5,
+          divisions: 248,
+          formatter: (value) => value.toStringAsFixed(2),
+          onChanged: (value) => _setAndNotify(() => _spacing = value),
+        ),
+        const SizedBox(height: 12),
+        _buildPercentSlider(
+          context,
+          label: l10n.brushHardness,
+          value: _hardness,
+          onChanged: (value) => _setAndNotify(() => _hardness = value),
+        ),
+        const SizedBox(height: 12),
+        _buildPercentSlider(
+          context,
+          label: l10n.brushFlow,
+          value: _flow,
+          onChanged: (value) => _setAndNotify(() => _flow = value),
+        ),
+        const SizedBox(height: 12),
+        _buildPercentSlider(
+          context,
+          label: l10n.brushScatter,
+          value: _scatter,
+          onChanged: (value) => _setAndNotify(() => _scatter = value),
+        ),
+        const SizedBox(height: 12),
+        _buildToggleRow(
+          context,
+          label: l10n.randomRotation,
+          value: _randomRotation,
+          onChanged: (value) => _setAndNotify(() => _randomRotation = value),
+        ),
+        const SizedBox(height: 12),
+        _buildPercentSlider(
+          context,
+          label: l10n.brushRotationJitter,
+          value: _rotationJitter,
+          enabled: _randomRotation,
+          onChanged: (value) => _setAndNotify(() => _rotationJitter = value),
+        ),
+        const SizedBox(height: 12),
+        _buildAntialiasSlider(context),
+        const SizedBox(height: 12),
+        _buildToggleRow(
+          context,
+          label: l10n.hollowStroke,
+          value: _hollowEnabled,
+          onChanged: (value) => _setAndNotify(() => _hollowEnabled = value),
+        ),
+        if (_hollowEnabled) ...[
           const SizedBox(height: 12),
           _buildPercentSlider(
             context,
-            label: l10n.brushHardness,
-            value: _hardness,
-            onChanged: (value) => setState(() => _hardness = value),
-          ),
-          const SizedBox(height: 12),
-          _buildPercentSlider(
-            context,
-            label: l10n.brushFlow,
-            value: _flow,
-            onChanged: (value) => setState(() => _flow = value),
-          ),
-          const SizedBox(height: 12),
-          _buildPercentSlider(
-            context,
-            label: l10n.brushScatter,
-            value: _scatter,
-            onChanged: (value) => setState(() => _scatter = value),
+            label: l10n.hollowStrokeRatio,
+            value: _hollowRatio,
+            onChanged: (value) => _setAndNotify(() => _hollowRatio = value),
           ),
           const SizedBox(height: 12),
           _buildToggleRow(
             context,
-            label: l10n.randomRotation,
-            value: _randomRotation,
-            onChanged: (value) => setState(() => _randomRotation = value),
-          ),
-          const SizedBox(height: 12),
-          _buildPercentSlider(
-            context,
-            label: l10n.brushRotationJitter,
-            value: _rotationJitter,
-            enabled: _randomRotation,
-            onChanged: (value) => setState(() => _rotationJitter = value),
-          ),
-          const SizedBox(height: 12),
-          _buildAntialiasSlider(context),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.hollowStroke,
-            value: _hollowEnabled,
-            onChanged: (value) => setState(() => _hollowEnabled = value),
-          ),
-          if (_hollowEnabled) ...[
-            const SizedBox(height: 12),
-            _buildPercentSlider(
-              context,
-              label: l10n.hollowStrokeRatio,
-              value: _hollowRatio,
-              onChanged: (value) => setState(() => _hollowRatio = value),
-            ),
-            const SizedBox(height: 12),
-            _buildToggleRow(
-              context,
-              label: l10n.eraseOccludedParts,
-              value: _hollowEraseOccludedParts,
-              onChanged: (value) =>
-                  setState(() => _hollowEraseOccludedParts = value),
-            ),
-          ],
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.autoSharpTaper,
-            value: _autoSharpTaper,
-            onChanged: (value) => setState(() => _autoSharpTaper = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.brushSnapToPixel,
-            value: _snapToPixel,
-            onChanged: (value) => setState(() => _snapToPixel = value),
+            label: l10n.eraseOccludedParts,
+            value: _hollowEraseOccludedParts,
+            onChanged: (value) =>
+                _setAndNotify(() => _hollowEraseOccludedParts = value),
           ),
         ],
-      ),
+        const SizedBox(height: 12),
+        _buildToggleRow(
+          context,
+          label: l10n.autoSharpTaper,
+          value: _autoSharpTaper,
+          onChanged: (value) => _setAndNotify(() => _autoSharpTaper = value),
+        ),
+        const SizedBox(height: 12),
+        _buildToggleRow(
+          context,
+          label: l10n.brushSnapToPixel,
+          value: _snapToPixel,
+          onChanged: (value) => _setAndNotify(() => _snapToPixel = value),
+        ),
+      ],
     );
+
+    if (!widget.scrollable) {
+      return content;
+    }
+    return SingleChildScrollView(child: content);
   }
 
   Widget _buildAntialiasSlider(BuildContext context) {
@@ -243,7 +282,7 @@ class _BrushPresetEditorState extends State<_BrushPresetEditor> {
       divisions: 9,
       formatter: (value) => l10n.levelLabel(value.round()),
       onChanged: (value) =>
-          setState(() => _antialiasLevel = value.round()),
+          _setAndNotify(() => _antialiasLevel = value.round()),
     );
   }
 

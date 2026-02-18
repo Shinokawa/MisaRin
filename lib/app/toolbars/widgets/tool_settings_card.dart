@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +7,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
 import '../../../brushes/brush_preset.dart';
-import '../../../canvas/brush_shape_geometry.dart';
 import '../../../canvas/canvas_tools.dart';
 import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../../dialogs/font_family_picker_dialog.dart';
@@ -34,8 +32,7 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onSprayModeChanged,
     required this.brushPresets,
     required this.activeBrushPresetId,
-    required this.onBrushPresetChanged,
-    required this.onEditBrushPreset,
+    required this.onOpenBrushPresetPicker,
     required this.strokeStabilizerStrength,
     required this.onStrokeStabilizerChanged,
     required this.streamlineStrength,
@@ -114,8 +111,7 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<SprayMode> onSprayModeChanged;
   final List<BrushPreset> brushPresets;
   final String activeBrushPresetId;
-  final ValueChanged<String> onBrushPresetChanged;
-  final VoidCallback onEditBrushPreset;
+  final VoidCallback onOpenBrushPresetPicker;
   final double strokeStabilizerStrength;
   final ValueChanged<double> onStrokeStabilizerChanged;
   final double streamlineStrength;
@@ -625,75 +621,73 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   Widget _buildBrushPresetRow(FluentThemeData theme) {
     final l10n = context.l10n;
     final List<BrushPreset> presets = widget.brushPresets;
-    final String selectedId = presets.any(
-          (preset) => preset.id == widget.activeBrushPresetId,
-        )
-        ? widget.activeBrushPresetId
-        : (presets.isNotEmpty ? presets.first.id : '');
-    final Widget editButton = _wrapButtonTooltip(
-      label: l10n.editBrushPreset,
-      detail: l10n.editBrushPresetDesc,
-      child: IconButton(
-        icon: const Icon(FluentIcons.edit, size: 16),
-        onPressed: presets.isEmpty ? null : widget.onEditBrushPreset,
+    final BrushPreset? selected = presets.cast<BrushPreset?>().firstWhere(
+          (preset) => preset?.id == widget.activeBrushPresetId,
+          orElse: () => presets.isNotEmpty ? presets.first : null,
+        );
+    final String selectedName = selected?.name ?? '--';
+    final bool enabled = presets.isNotEmpty;
+    final Widget selector = _wrapComboTooltip(
+      label: l10n.brushPreset,
+      detail: l10n.brushPresetDesc,
+      child: _buildBrushPresetPickerButton(
+        theme,
+        label: selectedName,
+        enabled: enabled,
       ),
     );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(l10n.brushPreset, style: theme.typography.bodyStrong),
-            const Spacer(),
-            editButton,
-          ],
-        ),
+        Text(l10n.brushPreset, style: theme.typography.bodyStrong),
         const SizedBox(height: 8),
-        _wrapComboTooltip(
-          label: l10n.brushPreset,
-          detail: l10n.brushPresetDesc,
-          child: _buildBrushPresetGallery(theme, presets, selectedId),
-        ),
+        selector,
       ],
     );
   }
 
-  Widget _buildBrushPresetGallery(
-    FluentThemeData theme,
-    List<BrushPreset> presets,
-    String selectedId,
-  ) {
-    final double itemWidth = widget.compactLayout ? 120 : 150;
-    final double previewHeight = widget.compactLayout ? 20 : 24;
-    final double listHeight = widget.compactLayout ? 58 : 68;
-    if (presets.isEmpty) {
-      return SizedBox(
-        height: listHeight,
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text('--', style: theme.typography.caption),
-        ),
-      );
-    }
-
+  Widget _buildBrushPresetPickerButton(
+    FluentThemeData theme, {
+    required String label,
+    required bool enabled,
+  }) {
+    final TextStyle baseStyle =
+        theme.typography.body ?? const TextStyle(fontSize: 14);
+    final Color textColor = enabled
+        ? (baseStyle.color ?? theme.resources.textFillColorPrimary)
+        : theme.resources.textFillColorDisabled;
     return SizedBox(
-      height: listHeight,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        itemBuilder: (context, index) {
-          final BrushPreset preset = presets[index];
-          return _BrushPresetCard(
-            preset: preset,
-            selected: preset.id == selectedId,
-            width: itemWidth,
-            previewHeight: previewHeight,
-            onPressed: () => widget.onBrushPresetChanged(preset.id),
-          );
-        },
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemCount: presets.length,
+      width: widget.compactLayout ? double.infinity : 200,
+      child: Button(
+        style: const ButtonStyle(
+          padding: WidgetStatePropertyAll(EdgeInsets.zero),
+        ),
+        onPressed: enabled ? widget.onOpenBrushPresetPicker : null,
+        child: Container(
+          padding: const EdgeInsetsDirectional.only(start: 11, end: 12),
+          constraints: const BoxConstraints(minHeight: 32),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: baseStyle.copyWith(color: textColor),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                FluentIcons.chevron_down,
+                size: 10,
+                color: enabled
+                    ? theme.resources.textFillColorSecondary
+                    : theme.resources.textFillColorDisabled,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1984,267 +1978,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     return trimmed.isEmpty ? '0' : trimmed;
   }
 }
-
-class _BrushPresetCard extends StatelessWidget {
-  const _BrushPresetCard({
-    required this.preset,
-    required this.selected,
-    required this.width,
-    required this.previewHeight,
-    required this.onPressed,
-  });
-
-  final BrushPreset preset;
-  final bool selected;
-  final double width;
-  final double previewHeight;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    return HoverButton(
-      onPressed: onPressed,
-      builder: (context, states) {
-        final bool hovering = states.isHovered;
-        final Color borderColor = selected
-            ? theme.accentColor
-            : theme.resources.controlStrokeColorDefault;
-        final Color fillColor = hovering || selected
-            ? theme.resources.subtleFillColorSecondary
-            : theme.resources.subtleFillColorTertiary;
-        final Color previewColor = selected
-            ? theme.accentColor
-            : theme.resources.textFillColorPrimary;
-        return Container(
-          width: width,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: fillColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: borderColor,
-              width: selected ? 1.2 : 1.0,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _BrushPresetStrokePreview(
-                preset: preset,
-                height: previewHeight,
-                color: previewColor,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                preset.name,
-                style: theme.typography.caption,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _BrushPresetStrokePreview extends StatelessWidget {
-  const _BrushPresetStrokePreview({
-    required this.preset,
-    required this.height,
-    required this.color,
-  });
-
-  final BrushPreset preset;
-  final double height;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: CustomPaint(
-        painter: _BrushPresetStrokePainter(preset: preset, color: color),
-      ),
-    );
-  }
-}
-
-class _BrushPresetStrokePainter extends CustomPainter {
-  _BrushPresetStrokePainter({
-    required BrushPreset preset,
-    required this.color,
-  })  : shape = preset.shape,
-        spacing = _sanitizeDouble(preset.spacing, 0.15, 0.02, 2.5),
-        hardness = _sanitizeDouble(preset.hardness, 0.8, 0.0, 1.0),
-        flow = _sanitizeDouble(preset.flow, 1.0, 0.0, 1.0),
-        scatter = _sanitizeDouble(preset.scatter, 0.0, 0.0, 1.0),
-        randomRotation = preset.randomRotation,
-        rotationJitter = _sanitizeDouble(preset.rotationJitter, 1.0, 0.0, 1.0),
-        antialiasLevel = preset.antialiasLevel.clamp(0, 9),
-        hollowEnabled = preset.hollowEnabled,
-        hollowRatio = _sanitizeDouble(preset.hollowRatio, 0.0, 0.0, 1.0),
-        autoSharpTaper = preset.autoSharpTaper,
-        snapToPixel = preset.snapToPixel;
-
-  final Color color;
-  final BrushShape shape;
-  final double spacing;
-  final double hardness;
-  final double flow;
-  final double scatter;
-  final bool randomRotation;
-  final double rotationJitter;
-  final int antialiasLevel;
-  final bool hollowEnabled;
-  final double hollowRatio;
-  final bool autoSharpTaper;
-  final bool snapToPixel;
-
-  static double _sanitizeDouble(
-    double value,
-    double fallback,
-    double min,
-    double max,
-  ) {
-    if (!value.isFinite) {
-      return fallback;
-    }
-    return value.clamp(min, max);
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) {
-      return;
-    }
-    final double padding = 4;
-    final double width = size.width - padding * 2;
-    final double height = size.height - padding * 2;
-    if (width <= 0 || height <= 0) {
-      return;
-    }
-
-    final Offset start = Offset(padding, padding + height * 0.65);
-    final Offset control1 = Offset(padding + width * 0.3, padding + height * 0.1);
-    final Offset control2 = Offset(padding + width * 0.65, padding + height * 0.9);
-    final Offset end = Offset(padding + width, padding + height * 0.35);
-
-    final ui.Path path = ui.Path()
-      ..moveTo(start.dx, start.dy)
-      ..cubicTo(
-        control1.dx,
-        control1.dy,
-        control2.dx,
-        control2.dy,
-        end.dx,
-        end.dy,
-      );
-    final ui.PathMetrics metrics = path.computeMetrics();
-    final Iterator<ui.PathMetric> iterator = metrics.iterator;
-    if (!iterator.moveNext()) {
-      return;
-    }
-    final ui.PathMetric metric = iterator.current;
-
-    final double baseRadius = math.max(2.0, height * 0.18);
-    final double step = math.max(1.0, baseRadius * (0.7 + spacing * 1.6));
-    final double totalLength = metric.length;
-    final int maxStamps = math.max(6, (totalLength / step).ceil());
-
-    final double opacity = (0.25 + 0.75 * flow * (0.35 + 0.65 * hardness))
-        .clamp(0.15, 1.0);
-    final Color strokeColor = color.withOpacity(
-      (color.opacity * opacity).clamp(0.0, 1.0),
-    );
-    final Paint paint = Paint()
-      ..color = strokeColor
-      ..style = hollowEnabled ? PaintingStyle.stroke : PaintingStyle.fill
-      ..strokeWidth = hollowEnabled
-          ? math.max(1.0, baseRadius * (1.0 - hollowRatio).clamp(0.15, 0.8))
-          : 1.0
-      ..isAntiAlias = antialiasLevel > 0;
-
-    for (int i = 0; i <= maxStamps; i++) {
-      final double distance = math.min(totalLength, i * step);
-      final ui.Tangent? tangent = metric.getTangentForOffset(distance);
-      if (tangent == null) {
-        continue;
-      }
-      Offset position = tangent.position;
-      if (snapToPixel) {
-        position = Offset(
-          position.dx.roundToDouble(),
-          position.dy.roundToDouble(),
-        );
-      }
-      if (scatter > 0.0) {
-        final double jitter = baseRadius * 0.9 * scatter;
-        final double angle = _noise(i + 3) * math.pi * 2;
-        final double radiusJitter = _noise(i + 7);
-        position = position.translate(
-          math.cos(angle) * jitter * radiusJitter,
-          math.sin(angle) * jitter * radiusJitter,
-        );
-      }
-
-      double radius = baseRadius;
-      if (autoSharpTaper) {
-        final double t = distance / totalLength;
-        radius *= (0.45 + 0.55 * math.sin(math.pi * t));
-      }
-
-      double rotation = 0.0;
-      if (shape != BrushShape.circle) {
-        rotation = math.atan2(tangent.vector.dy, tangent.vector.dx);
-      }
-      if (randomRotation) {
-        rotation = _noise(i + 11) * math.pi * 2;
-      } else if (rotationJitter > 0.001) {
-        rotation += rotationJitter * 0.6 * math.sin(i * 0.7);
-      }
-
-      canvas.save();
-      canvas.translate(position.dx, position.dy);
-      if (rotation != 0.0) {
-        canvas.rotate(rotation);
-      }
-      final ui.Path stamp = BrushShapeGeometry.pathFor(
-        shape,
-        Offset.zero,
-        radius,
-      );
-      canvas.drawPath(stamp, paint);
-      canvas.restore();
-    }
-  }
-
-  double _noise(int seed) {
-    final double value = math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-    return value - value.floor();
-  }
-
-  @override
-  bool shouldRepaint(covariant _BrushPresetStrokePainter oldDelegate) {
-    return oldDelegate.color != color ||
-        oldDelegate.shape != shape ||
-        oldDelegate.spacing != spacing ||
-        oldDelegate.hardness != hardness ||
-        oldDelegate.flow != flow ||
-        oldDelegate.scatter != scatter ||
-        oldDelegate.randomRotation != randomRotation ||
-        oldDelegate.rotationJitter != rotationJitter ||
-        oldDelegate.antialiasLevel != antialiasLevel ||
-        oldDelegate.hollowEnabled != hollowEnabled ||
-        oldDelegate.hollowRatio != hollowRatio ||
-        oldDelegate.autoSharpTaper != autoSharpTaper ||
-        oldDelegate.snapToPixel != snapToPixel;
-  }
-}
-
 class _BucketOptionTile extends StatelessWidget {
   const _BucketOptionTile({
     required this.title,

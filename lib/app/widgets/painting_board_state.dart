@@ -1025,20 +1025,22 @@ class PaintingBoardState extends _PaintingBoardBase
     library.selectPreset(id);
   }
 
-  Future<void> _openBrushPresetEditor() async {
-    final BrushPreset? preset =
-        _activeBrushPreset ?? _brushLibrary?.selectedPreset;
-    if (preset == null) {
+  Future<void> _openBrushPresetPicker() async {
+    final BrushLibrary? library = _brushLibrary;
+    if (library == null) {
       return;
     }
-    final BrushPreset? updated = await showBrushPresetEditorDialog(
+    final String selectedId =
+        _activeBrushPreset?.id ?? library.selectedId;
+    final String? nextId = await showBrushPresetPickerDialog(
       context,
-      preset: preset,
+      library: library,
+      selectedId: selectedId,
     );
-    if (!mounted || updated == null) {
+    if (!mounted || nextId == null) {
       return;
     }
-    _brushLibrary?.updatePreset(updated);
+    _selectBrushPreset(nextId);
   }
 
   void _applyBrushPreset(BrushPreset preset, {bool notify = true}) {
