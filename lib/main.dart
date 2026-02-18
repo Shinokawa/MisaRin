@@ -29,7 +29,6 @@ Future<void> main() async {
 
   await AppPreferences.load();
   await _configureSystemUi();
-
   try {
     await ensureRustInitialized();
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
@@ -82,10 +81,7 @@ Future<void> _configureSystemUi() async {
   if (kIsWeb || !Platform.isIOS) {
     return;
   }
-  await SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.manual,
-    overlays: <SystemUiOverlay>[SystemUiOverlay.bottom],
-  );
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 }
 
 Future<void> _preloadCoreServices() async {

@@ -157,6 +157,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
             final List<Widget> children = <Widget>[
               for (int i = 0; i < visibleMenus.length; i++) ...[
                 _MenuButton(
+                  key: ValueKey(visibleMenus[i].label),
                   definition: visibleMenus[i],
                   navigatorKey: widget.navigatorKey,
                   onMenuWillOpen: _handleMenuWillOpen,
@@ -237,6 +238,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
 
 class _MenuButton extends StatefulWidget {
   const _MenuButton({
+    super.key,
     required this.definition,
     this.navigatorKey,
     this.onMenuWillOpen,
@@ -257,15 +259,21 @@ class _MenuButton extends StatefulWidget {
 class _MenuButtonState extends State<_MenuButton> {
   late final FlyoutController _flyoutController = FlyoutController();
   bool _hovered = false;
-  final LayerLink _layerLink = LayerLink();
-  OverlayEntry? _touchMenuEntry;
-  bool _touchMenuOpen = false;
-  Size _buttonSize = Size.zero;
-  Offset _buttonGlobal = Offset.zero;
+  bool _sheetOpen = false;
+
+  bool get _isTouchPlatform {
+    if (kIsWeb) {
+      return false;
+    }
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.fuchsia;
+  }
+
+  bool get _useBottomSheet => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   void dispose() {
-    _closeTouchMenu();
     _flyoutController.dispose();
     super.dispose();
   }
@@ -310,53 +318,116 @@ class _MenuButtonState extends State<_MenuButton> {
     );
   }
 
-  void _openMenuTouch() {
-    if (widget.definition.entries.isEmpty) {
+  Future<void> _openMenuSheet() async {
+    if (_sheetOpen || widget.definition.entries.isEmpty) {
       return;
     }
-    if (_touchMenuOpen) {
-      _closeTouchMenu();
+    final NavigatorState? navigator =
+        widget.navigatorKey?.currentState ?? Navigator.maybeOf(context);
+    if (navigator == null) {
       return;
     }
-    if (_flyoutController.isOpen) {
-      return;
-    }
-    final RenderObject? renderObject = context.findRenderObject();
-    if (renderObject is! RenderBox || !renderObject.hasSize) {
-      return;
-    }
-    _buttonSize = renderObject.size;
-    _buttonGlobal = renderObject.localToGlobal(Offset.zero);
+    _sheetOpen = true;
     widget.onMenuWillOpen?.call(_flyoutController);
-    _touchMenuEntry = OverlayEntry(
-      builder: (overlayContext) {
-        return _TouchMenuOverlay(
-          anchor: _buttonGlobal,
-          anchorSize: _buttonSize,
-          entries: widget.definition.entries,
-          onDismiss: _closeTouchMenu,
-          onAction: (entry) {
-            _closeTouchMenu();
-            final VoidCallback? action = _wrapAction(entry.action);
-            if (entry.isEnabled && action != null) {
-              action();
-            }
-          },
+    final FluentThemeData theme = FluentTheme.of(context);
+    await material.showModalBottomSheet<void>(
+      context: navigator.context,
+      useRootNavigator: true,
+      backgroundColor: theme.micaBackgroundColor,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: material.Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: material.ListView(
+              shrinkWrap: true,
+              children: _buildSheetItems(
+                theme,
+                widget.definition.entries,
+                sheetContext,
+              ),
+            ),
+          ),
         );
       },
     );
-    Overlay.of(context, rootOverlay: true)?.insert(_touchMenuEntry!);
-    _touchMenuOpen = true;
+    _sheetOpen = false;
+    widget.onMenuClosed?.call(_flyoutController);
   }
 
-  void _closeTouchMenu() {
-    if (!_touchMenuOpen) {
-      return;
+  List<Widget> _buildSheetItems(
+    FluentThemeData theme,
+    List<MenuEntry> entries,
+    BuildContext sheetContext,
+  ) {
+    final List<Widget> items = <Widget>[];
+    for (final MenuEntry entry in entries) {
+      if (entry is MenuSeparatorEntry) {
+        if (items.isEmpty || items.last is material.Divider) {
+          continue;
+        }
+        items.add(
+          material.Divider(
+            height: 1,
+            color: theme.resources.controlStrokeColorDefault,
+          ),
+        );
+        continue;
+      }
+      if (entry is MenuProvidedEntry) {
+        continue;
+      }
+      if (entry is MenuActionEntry) {
+        final VoidCallback? action = _wrapAction(entry.action);
+        final bool enabled = entry.isEnabled && action != null;
+        items.add(
+          material.ListTile(
+            dense: true,
+            enabled: enabled,
+            leading: entry.checked
+                ? const Icon(FluentIcons.check_mark, size: 16)
+                : null,
+            title: Text(
+              entry.label,
+              style: (theme.typography.body ?? const TextStyle()).copyWith(
+                color: enabled
+                    ? theme.resources.textFillColorPrimary
+                    : theme.resources.textFillColorDisabled,
+              ),
+            ),
+            onTap: enabled
+                ? () {
+                    Navigator.of(sheetContext).pop();
+                    action!.call();
+                  }
+                : null,
+          ),
+        );
+        continue;
+      }
+      if (entry is MenuSubmenuEntry) {
+        if (entry.entries.isEmpty) {
+          continue;
+        }
+        items.add(
+          material.ExpansionTile(
+            title: Text(
+              entry.label,
+              style: theme.typography.body,
+            ),
+            children: _buildSheetItems(theme, entry.entries, sheetContext),
+          ),
+        );
+      }
     }
-    _touchMenuEntry?.remove();
-    _touchMenuEntry = null;
-    _touchMenuOpen = false;
-    widget.onMenuClosed?.call(_flyoutController);
+    while (items.isNotEmpty && items.last is material.Divider) {
+      items.removeLast();
+    }
+    return items;
   }
 
   void _handlePointerEnter(PointerEnterEvent event) {
@@ -376,68 +447,65 @@ class _MenuButtonState extends State<_MenuButton> {
         ? theme.resources.textFillColorPrimary
         : theme.typography.body?.color ?? Colors.white;
 
-    final bool useTouchOpen = !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.iOS ||
-            defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.fuchsia);
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: FlyoutTarget(
-        controller: _flyoutController,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: _handlePointerEnter,
-          onExit: (_) => setState(() => _hovered = false),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: useTouchOpen
-                ? null
-                : () {
-                    if (kDebugMode) {
-                      debugPrint(
-                        '[menu_bar] tap label=${widget.definition.label}',
-                      );
-                    }
-                    _openMenu(toggleIfOpen: true);
-                  },
-            onTapDown: (details) {
-              if (kDebugMode) {
-                debugPrint(
-                  '[menu_bar] tap_down label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
-                );
+    return FlyoutTarget(
+      controller: _flyoutController,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: _handlePointerEnter,
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _isTouchPlatform
+              ? null
+              : () {
+                  if (kDebugMode) {
+                    debugPrint(
+                      '[menu_bar] tap label=${widget.definition.label}',
+                    );
+                  }
+                  _openMenu(toggleIfOpen: true);
+                },
+          onTapDown: (details) {
+            if (kDebugMode) {
+              debugPrint(
+                '[menu_bar] tap_down label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
+              );
+            }
+          },
+          onTapUp: (details) {
+            if (kDebugMode) {
+              debugPrint(
+                '[menu_bar] tap_up label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
+              );
+            }
+            if (_isTouchPlatform) {
+              if (_useBottomSheet) {
+                _openMenuSheet();
+              } else {
+                _openMenu(toggleIfOpen: true);
               }
-            },
-            onTapUp: (details) {
-              if (kDebugMode) {
-                debugPrint(
-                  '[menu_bar] tap_up label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
-                );
-              }
-              if (useTouchOpen) {
-                _openMenuTouch();
-              }
-            },
-            onTapCancel: () {
-              if (kDebugMode) {
-                debugPrint(
-                  '[menu_bar] tap_cancel label=${widget.definition.label}',
-                );
-              }
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: _hovered
-                    ? theme.resources.subtleFillColorSecondary
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                widget.definition.label,
-                style: textStyle.copyWith(color: textColor),
-              ),
+            }
+          },
+          onTapCancel: () {
+            if (kDebugMode) {
+              debugPrint(
+                '[menu_bar] tap_cancel label=${widget.definition.label}',
+              );
+            }
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? theme.resources.subtleFillColorSecondary
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              widget.definition.label,
+              style: textStyle.copyWith(color: textColor),
             ),
           ),
         ),
@@ -507,263 +575,11 @@ class _MenuButtonState extends State<_MenuButton> {
       return MenuFlyoutSubItem(
         text: Text(entry.label),
         items: (context) => _buildMenuItems(context, children),
+        showBehavior:
+            _isTouchPlatform ? SubItemShowAction.press : SubItemShowAction.hover,
       );
     }
     return null;
-  }
-}
-
-class _TouchMenuOverlay extends StatefulWidget {
-  const _TouchMenuOverlay({
-    required this.anchor,
-    required this.anchorSize,
-    required this.entries,
-    required this.onDismiss,
-    required this.onAction,
-  });
-
-  final Offset anchor;
-  final Size anchorSize;
-  final List<MenuEntry> entries;
-  final VoidCallback onDismiss;
-  final ValueChanged<MenuActionEntry> onAction;
-
-  @override
-  State<_TouchMenuOverlay> createState() => _TouchMenuOverlayState();
-}
-
-class _TouchMenuLevel {
-  const _TouchMenuLevel({required this.entries});
-
-  final List<MenuEntry> entries;
-}
-
-class _TouchMenuOverlayState extends State<_TouchMenuOverlay> {
-  late List<_TouchMenuLevel> _levels;
-  bool _canDismiss = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _levels = <_TouchMenuLevel>[_TouchMenuLevel(entries: widget.entries)];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _canDismiss = true);
-    });
-  }
-
-  void _openSubmenu(int depth, MenuSubmenuEntry submenu) {
-    setState(() {
-      if (_levels.length > depth + 1) {
-        _levels = _levels.sublist(0, depth + 1);
-      }
-      _levels = List<_TouchMenuLevel>.from(_levels)
-        ..add(_TouchMenuLevel(entries: submenu.entries));
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final Size screenSize = MediaQuery.of(context).size;
-    final FluentThemeData theme = FluentTheme.of(context);
-    const double menuWidth = 240;
-    const double menuGap = 6;
-    final double baseY = widget.anchor.dy + widget.anchorSize.height;
-    final bool openRight = widget.anchor.dx + menuWidth <= screenSize.width;
-    final double baseX = openRight
-        ? widget.anchor.dx
-        : (widget.anchor.dx + widget.anchorSize.width - menuWidth);
-    final int direction = openRight ? 1 : -1;
-
-    final List<Widget> panels = <Widget>[];
-    for (int i = 0; i < _levels.length; i++) {
-      final double x = baseX + direction * i * (menuWidth + menuGap);
-      final double maxHeight = (screenSize.height - baseY - 8).clamp(200, 600);
-      panels.add(
-        Positioned(
-          left: x,
-          top: baseY,
-          child: _TouchMenuPanel(
-            theme: theme,
-            width: menuWidth,
-            maxHeight: maxHeight,
-            entries: _levels[i].entries,
-            onAction: widget.onAction,
-            onSubmenu: (submenu) => _openSubmenu(i, submenu),
-          ),
-        ),
-      );
-    }
-
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: _canDismiss ? widget.onDismiss : null,
-            child: const SizedBox.expand(),
-          ),
-        ),
-        ...panels,
-      ],
-    );
-  }
-}
-
-class _TouchMenuPanel extends StatelessWidget {
-  const _TouchMenuPanel({
-    required this.theme,
-    required this.width,
-    required this.maxHeight,
-    required this.entries,
-    required this.onAction,
-    required this.onSubmenu,
-  });
-
-  final FluentThemeData theme;
-  final double width;
-  final double maxHeight;
-  final List<MenuEntry> entries;
-  final ValueChanged<MenuActionEntry> onAction;
-  final ValueChanged<MenuSubmenuEntry> onSubmenu;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<Widget> items = <Widget>[];
-    for (final MenuEntry entry in entries) {
-      if (entry is MenuSeparatorEntry) {
-        if (items.isEmpty || items.last is material.Divider) {
-          continue;
-        }
-        items.add(
-          material.Divider(
-            height: 1,
-            color: theme.resources.controlStrokeColorDefault,
-          ),
-        );
-        continue;
-      }
-      if (entry is MenuProvidedEntry) {
-        continue;
-      }
-      if (entry is MenuActionEntry) {
-        items.add(_TouchMenuActionItem(theme: theme, entry: entry, onTap: () => onAction(entry)));
-        continue;
-      }
-      if (entry is MenuSubmenuEntry) {
-        if (entry.entries.isEmpty) {
-          continue;
-        }
-        items.add(_TouchMenuSubmenuItem(theme: theme, entry: entry, onTap: () => onSubmenu(entry)));
-      }
-    }
-    while (items.isNotEmpty && items.last is material.Divider) {
-      items.removeLast();
-    }
-
-    return material.Material(
-      color: theme.micaBackgroundColor,
-      elevation: 4,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: width,
-          maxWidth: width,
-          maxHeight: maxHeight,
-        ),
-        child: ListView(
-          padding: EdgeInsets.zero,
-          shrinkWrap: true,
-          children: items,
-        ),
-      ),
-    );
-  }
-}
-
-class _TouchMenuActionItem extends StatelessWidget {
-  const _TouchMenuActionItem({
-    required this.theme,
-    required this.entry,
-    required this.onTap,
-  });
-
-  final FluentThemeData theme;
-  final MenuActionEntry entry;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool enabled = entry.isEnabled && entry.action != null;
-    final Color textColor =
-        enabled ? theme.resources.textFillColorPrimary : theme.resources.textFillColorDisabled;
-    final String? shortcutLabel = _formatShortcut(entry.shortcut);
-    return material.InkWell(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              child: entry.checked
-                  ? const Icon(FluentIcons.check_mark, size: 12)
-                  : const SizedBox.shrink(),
-            ),
-            Expanded(
-              child: Text(
-                entry.label,
-                style: (theme.typography.body ?? const TextStyle())
-                    .copyWith(color: textColor),
-              ),
-            ),
-            if (shortcutLabel != null)
-              Text(
-                shortcutLabel,
-                style: (theme.typography.caption ?? const TextStyle())
-                    .copyWith(color: theme.resources.textFillColorSecondary),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TouchMenuSubmenuItem extends StatelessWidget {
-  const _TouchMenuSubmenuItem({
-    required this.theme,
-    required this.entry,
-    required this.onTap,
-  });
-
-  final FluentThemeData theme;
-  final MenuSubmenuEntry entry;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return material.InkWell(
-      onTap: onTap,
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                entry.label,
-                style: theme.typography.body,
-              ),
-            ),
-            const Icon(FluentIcons.chevron_right, size: 12),
-          ],
-        ),
-      ),
-    );
   }
 }
 
