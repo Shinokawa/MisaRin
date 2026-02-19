@@ -59,7 +59,8 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
               : widget.height * 3.0;
           final Size size = Size(width, widget.height);
           _ensurePreview(context, size);
-          if (_image != null && RustCpuBrushFfi.instance.isSupported) {
+          final bool rustSupported = RustCpuBrushFfi.instance.isSupported;
+          if (_image != null && rustSupported) {
             return RawImage(
               image: _image,
               width: size.width,
@@ -70,12 +71,15 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
                   : FilterQuality.high,
             );
           }
-          return CustomPaint(
-            painter: _BrushPresetStrokeFallbackPainter(
-              preset: widget.preset,
-              color: widget.color,
-            ),
-          );
+          if (kIsWeb) {
+            return CustomPaint(
+              painter: _BrushPresetStrokeFallbackPainter(
+                preset: widget.preset,
+                color: widget.color,
+              ),
+            );
+          }
+          return const SizedBox();
         },
       ),
     );

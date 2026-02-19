@@ -44,6 +44,16 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
         "CARGOKIT_ROOT_PROJECT_DIR=${CMAKE_SOURCE_DIR}"
     )
 
+    set(CARGOKIT_MANIFEST_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}/Cargo.toml")
+    set(CARGOKIT_LOCK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}/Cargo.lock")
+    file(GLOB_RECURSE CARGOKIT_RUST_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}/src/*.rs"
+    )
+    set(CARGOKIT_DEPENDS ${CARGOKIT_MANIFEST_PATH} ${CARGOKIT_RUST_SOURCES})
+    if (EXISTS "${CARGOKIT_LOCK_PATH}")
+        list(APPEND CARGOKIT_DEPENDS "${CARGOKIT_LOCK_PATH}")
+    endif()
+
     if (WIN32)
         set(SCRIPT_EXTENSION ".cmd")
         set(IMPORT_LIB_EXTENSION ".lib")
@@ -60,6 +70,7 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
                 OUTPUT
                 "${CMAKE_CURRENT_BINARY_DIR}/${CONFIG}/${CARGOKIT_LIB_FULL_NAME}"
                 "${CMAKE_CURRENT_BINARY_DIR}/_phony_"
+                DEPENDS ${CARGOKIT_DEPENDS}
                 COMMAND ${CMAKE_COMMAND} -E env ${CARGOKIT_ENV}
                 "${cargokit_cmake_root}/run_build_tool${SCRIPT_EXTENSION}" build-cmake
                 VERBATIM
@@ -70,6 +81,7 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
             OUTPUT
             ${OUTPUT_LIB}
             "${CMAKE_CURRENT_BINARY_DIR}/_phony_"
+            DEPENDS ${CARGOKIT_DEPENDS}
             COMMAND ${CMAKE_COMMAND} -E env ${CARGOKIT_ENV}
             "${cargokit_cmake_root}/run_build_tool${SCRIPT_EXTENSION}" build-cmake
             VERBATIM
