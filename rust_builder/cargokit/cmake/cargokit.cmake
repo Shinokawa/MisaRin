@@ -49,7 +49,18 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
     endif()
     if(WIN32)
         # REALPATH does not properly resolve symlinks on windows :-/
-        execute_process(COMMAND powershell -ExecutionPolicy Bypass -File "${CMAKE_CURRENT_LIST_DIR}/resolve_symlinks.ps1" "${CARGOKIT_MANIFEST_DIR}" OUTPUT_VARIABLE CARGOKIT_MANIFEST_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+        set(CARGOKIT_RESOLVE_SYMLINKS "${cargokit_cmake_root}/cmake/resolve_symlinks.ps1")
+        if (EXISTS "${CARGOKIT_RESOLVE_SYMLINKS}")
+            execute_process(
+                COMMAND powershell -ExecutionPolicy Bypass -File "${CARGOKIT_RESOLVE_SYMLINKS}" "${CARGOKIT_MANIFEST_DIR}"
+                OUTPUT_VARIABLE CARGOKIT_MANIFEST_DIR_WIN
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE CARGOKIT_RESOLVE_RESULT
+            )
+            if (CARGOKIT_RESOLVE_RESULT EQUAL 0 AND CARGOKIT_MANIFEST_DIR_WIN)
+                set(CARGOKIT_MANIFEST_DIR "${CARGOKIT_MANIFEST_DIR_WIN}")
+            endif()
+        endif()
     endif()
 
     set(CARGOKIT_ENV
