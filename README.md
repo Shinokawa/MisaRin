@@ -14,7 +14,7 @@
 
 ## 简体中文
 
-Misa Rin 是一款聚焦桌面端的现代化数字绘画与像素创作软件。界面基于 Fluent UI，在 **12MB** 的极致体积下，实现了秒级启动与媲美原生应用的流畅体验。
+Misa Rin 是一款基于 Rust 开发的桌面数字绘画与像素创作软件。界面基于 Fluent UI，渲染后端为 WGPU，实现了秒级启动与媲美原生应用的流畅体验。
 
 无论是速写、像素草图、UI 设计还是工业级赛璐璐平涂，都可以在一个统一的、无限边界的画布里完成。
 
@@ -24,8 +24,7 @@ Misa Rin 是一款聚焦桌面端的现代化数字绘画与像素创作软件�
 
 ## 核心亮点
 
-- **极致轻量**：仅约 **12MB** 的包体大小，零依赖，秒启动，拒绝臃肿。
-- **混合渲染引擎**：采用 **矢量流光栅化 (Deferred Rasterization)** 技术，绘画时享受矢量般的 120Hz 丝滑预览，松手即刻生成位图。
+- **包体说明**：包含 Rust 编译产物，包体体积较大，具体大小因平台与构建方式而异。
 - **鼠标党福音**：内置 **速度-压力映射模型** 与 **自动尖锐出峰** 算法，配合带压感的贝塞尔曲线工具，无需数位板也能画出带有完美笔锋的线稿。
 - **跨平台同构**：基于 Flutter 与 CanvasKit，在 Windows、macOS、Linux 与 Web 上提供完全一致的性能与交互体验。
 
@@ -105,7 +104,6 @@ Misa Rin 致力于探索 Flutter 在高性能图形领域的极限。
 
 - 欢迎通过 Issue/PR 分享你的创意、提出 Bug。
 - 如果你是日本动画流程的爱好者或开发者，欢迎通过 Discussion 探讨 Retas 工作流的改进。
-- Release 说明由发布工作流自动汇总提交信息。
 - *Keywords for developers: Flutter, CanvasKit, Pixel Art, Cel Shading, Retas, PaintMan, Color Trace (色トレス), Binary Pen (二值化ペン).*
 
 本项目使用 **MIT License** 开源，随意下载、修改、分享与魔改。
@@ -117,7 +115,7 @@ Misa Rin 致力于探索 Flutter 在高性能图形领域的极限。
 
 ## 繁體中文
 
-Misa Rin 是一款聚焦桌面端的現代化數位繪畫與像素創作軟體。介面基於 Fluent UI，在 **12MB** 的極致體積下，實現秒級啟動與媲美原生應用的流暢體驗。
+Misa Rin 是一款基於 Rust 開發的桌面數位繪畫與像素創作軟體。介面基於 Fluent UI，渲染後端為 WGPU，實現秒級啟動與媲美原生應用的流暢體驗。
 
 無論是速寫、像素草圖、UI 設計還是工業級賽璐璐平塗，都可以在一個統一的、無限邊界的畫布裡完成。
 
@@ -127,8 +125,7 @@ Misa Rin 是一款聚焦桌面端的現代化數位繪畫與像素創作軟體�
 
 ## 核心亮點
 
-- **極致輕量**：僅約 **12MB** 的安裝包大小，零依賴，秒啟動，拒絕臃腫。
-- **混合渲染引擎**：採用 **向量流光柵化 (Deferred Rasterization)** 技術，繪畫時享受向量般的 120Hz 絲滑預覽，鬆手即刻生成位圖。
+- **包體說明**：包含 Rust 編譯產物，包體體積較大，實際大小會因平台與建置方式而異。
 - **滑鼠族福音**：內建 **速度-壓力映射模型** 與 **自動尖銳出峰** 演算法，配合帶壓感的貝茲曲線工具，無需繪圖板也能畫出帶有完美筆鋒的線稿。
 - **跨平台同構**：基於 Flutter 與 CanvasKit，在 Windows、macOS、Linux 與 Web 上提供完全一致的性能與互動體驗。
 
@@ -208,7 +205,6 @@ Misa Rin 致力於探索 Flutter 在高效能圖形領域的極限。
 
 - 歡迎透過 Issue/PR 分享你的創意、提出 Bug。
 - 如果你是日本動畫流程的愛好者或開發者，歡迎透過 Discussion 探討 Retas 工作流的改進。
-- Release 說明由發佈工作流自動彙整提交資訊。
 - *Keywords for developers: Flutter, CanvasKit, Pixel Art, Cel Shading, Retas, PaintMan, Color Trace (色トレス), Binary Pen (二值化ペン).*
 
 本專案使用 **MIT License** 開源，隨意下載、修改、分享與魔改。
@@ -220,7 +216,7 @@ Misa Rin 致力於探索 Flutter 在高效能圖形領域的極限。
 
 ## English
 
-Misa Rin is a modern digital painting and pixel creation app focused on desktop. With a Fluent UI-inspired interface and an ultra-small **12MB** footprint, it starts instantly and feels as smooth as a native app.
+Misa Rin is a Rust-built desktop digital painting and pixel creation app. With a Fluent UI-inspired interface and a WGPU backend, it starts instantly and feels as smooth as a native app.
 
 Whether you're doing quick sketches, pixel drafts, UI design, or industrial-grade cel-style flat coloring, everything happens on a unified, infinite canvas.
 
@@ -230,8 +226,7 @@ Whether you're doing quick sketches, pixel drafts, UI design, or industrial-grad
 
 ## Core Highlights
 
-- **Ultra-lightweight**: ~**12MB** package, instant startup, no bloat.
-- **Hybrid rendering engine**: **Deferred Rasterization** enables vector-like 120Hz previews while drawing, then rasterizes on release.
+- **Package size note**: Includes Rust binaries; size varies by platform/build.
 - **Mouse-first**: Speed-to-pressure mapping + an automatic sharp-tip algorithm; paired with a pressure-enabled Bezier tool, you can draw tapered lineart even without a tablet.
 - **Cross-platform parity**: Flutter + CanvasKit deliver consistent performance and interaction on Windows, macOS, Linux, and Web.
 
@@ -311,7 +306,6 @@ Misa Rin explores the limits of Flutter in high-performance graphics.
 
 - Share ideas and report bugs via Issues/PRs.
 - If you're interested in the Japanese animation pipeline, join Discussions to improve the Retas workflow.
-- Release notes are automatically generated from commits by the publishing workflow.
 - *Keywords for developers: Flutter, CanvasKit, Pixel Art, Cel Shading, Retas, PaintMan, Color Trace (色トレス), Binary Pen (二值化ペン).*
 
 Released under the **MIT License** — feel free to download, modify, and share.
@@ -323,7 +317,7 @@ Released under the **MIT License** — feel free to download, modify, and share.
 
 ## 한국어
 
-Misa Rin은 데스크톱에 초점을 둔 현대적인 디지털 드로잉·픽셀 아트 제작 소프트웨어입니다. Fluent UI 기반의 UI와 **12MB** 수준의 초경량 크기로, 빠른 실행과 네이티브급 부드러움을 제공합니다.
+Misa Rin은 Rust 기반 데스크톱 디지털 드로잉·픽셀 아트 제작 소프트웨어입니다. Fluent UI 기반 UI와 WGPU 백엔드를 통해, 빠른 실행과 네이티브급 부드러움을 제공합니다.
 
 스케치, 픽셀 스케치, UI 디자인, 산업용 셀룰로이드 평면 채색까지—모든 작업을 하나의 무한 캔버스에서 완성할 수 있습니다.
 
@@ -333,8 +327,7 @@ Misa Rin은 데스크톱에 초점을 둔 현대적인 디지털 드로잉·픽�
 
 ## 핵심 하이라이트
 
-- **초경량**: 약 **12MB**, 즉시 실행, 불필요한 비대함 없이 가볍게.
-- **하이브리드 렌더링 엔진**: **Deferred Rasterization**으로 드로잉 중에는 120Hz 벡터급 미리보기를 제공하고, 손을 떼는 순간 비트맵으로 생성합니다.
+- **패키지 크기 안내**: Rust 바이너리를 포함하며, 플랫폼/빌드 방식에 따라 크기가 달라집니다.
 - **마우스 친화**: 속도-압력 매핑 + 자동 샤프 팁 알고리즘, 그리고 압력을 지원하는 베지어 도구로 태블릿 없이도 자연스러운 필압 선을 그릴 수 있습니다.
 - **크로스플랫폼 동일 경험**: Flutter + CanvasKit 기반으로 Windows/macOS/Linux/Web에서 일관된 성능과 UX를 제공합니다.
 
@@ -426,7 +419,7 @@ Misa Rin은 고성능 그래픽 영역에서 Flutter의 한계를 탐구합니�
 
 ## 日本語
 
-Misa Rin はデスクトップ向けにフォーカスしたモダンなデジタルペイント／ピクセル制作ソフトです。Fluent UI ベースの UI と **12MB** 級の超軽量設計で、秒起動とネイティブ級の滑らかさを実現します。
+Misa Rin は Rust で開発されたデスクトップ向けのデジタルペイント／ピクセル制作ソフトです。Fluent UI ベースの UI と WGPU バックエンドにより、秒起動とネイティブ級の滑らかさを実現します。
 
 ラフスケッチ、ピクセル下絵、UI デザイン、工業レベルのセル風ベタ塗りまで、すべてを 1 つの無限キャンバスで完結できます。
 
@@ -436,8 +429,7 @@ Misa Rin はデスクトップ向けにフォーカスしたモダンなデジ�
 
 ## コアハイライト
 
-- **超軽量**：約 **12MB**、即起動、無駄を削ぎ落とした設計。
-- **ハイブリッド描画エンジン**：**Deferred Rasterization** により描画中は 120Hz のベクター級プレビュー、離した瞬間にビットマップ生成。
+- **パッケージサイズについて**：Rust バイナリを含み、プラットフォームやビルド方式でサイズが変わります。
 - **マウスでも描ける**：速度→筆圧マッピングと自動鋭角化アルゴリズム。筆圧対応ベジエツールと組み合わせ、タブレットなしでも綺麗な入り抜き線を描けます。
 - **クロスプラットフォーム同等体験**：Flutter + CanvasKit により Windows/macOS/Linux/Web で一貫した性能と操作感。
 
