@@ -25,8 +25,8 @@ use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
 use super::layers::LayerTextures;
 use super::present::{
     attach_present_texture, create_present_params_buffer, create_present_transform_buffer,
-    signal_frame_ready, write_present_config, write_present_transform, PresentRenderer,
-    PresentTarget,
+    copy_render_to_shared, signal_frame_ready, write_present_config, write_present_transform,
+    PresentRenderer, PresentTarget,
 };
 use super::preview::{PreviewConfig, PreviewRenderer, PreviewSegment};
 #[cfg(target_os = "windows")]
@@ -1242,11 +1242,11 @@ fn render_thread_main(
                     // initial frame (e.g. white background layer).
                     if outcome.needs_render {
                         if let Some(target) = &present {
-                            present_renderer.render(
+                            present_renderer.render_present(
                                 device.as_ref(),
                                 queue.as_ref(),
                                 &present_bind_group,
-                                &target.view,
+                                target,
                                 Arc::clone(&frame_ready),
                                 Arc::clone(&frame_in_flight),
                             );
@@ -2009,7 +2009,7 @@ fn render_thread_main(
                                     device.as_ref(),
                                     queue.as_ref(),
                                     &present_bind_group,
-                                    &target.view,
+                                    target.render_view(),
                                 );
                                 let layer_idx = state.layer_index as usize;
                                 let layer_visible_value =
@@ -2048,7 +2048,7 @@ fn render_thread_main(
                                             preview.render(
                                                 device.as_ref(),
                                                 queue.as_ref(),
-                                                &target.view,
+                                                target.render_view(),
                                                 config,
                                                 &segments,
                                                 state.use_accumulate,
@@ -2056,17 +2056,26 @@ fn render_thread_main(
                                         }
                                     }
                                 }
+                                if target.shared_texture().is_some() {
+                                    let mut encoder = device.create_command_encoder(
+                                        &wgpu::CommandEncoderDescriptor {
+                                            label: Some("misa-rin present copy encoder"),
+                                        },
+                                    );
+                                    copy_render_to_shared(&mut encoder, target);
+                                    queue.submit(Some(encoder.finish()));
+                                }
                                 signal_frame_ready(
                                     queue.as_ref(),
                                     Arc::clone(&frame_ready),
                                     Arc::clone(&frame_in_flight),
                                 );
                             } else {
-                                present_renderer.render(
+                                present_renderer.render_present(
                                     device.as_ref(),
                                     queue.as_ref(),
                                     &present_bind_group,
-                                    &target.view,
+                                    target,
                                     Arc::clone(&frame_ready),
                                     Arc::clone(&frame_in_flight),
                                 );
