@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show Localizations;
 
 import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
@@ -177,7 +178,8 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       return;
     }
     final AppLocalizations l10n = context.l10n;
-    final String baseName = l10n.layerCopyName(preset.name);
+    final String displayName = _displayNameFor(preset);
+    final String baseName = l10n.layerCopyName(displayName);
     final String name = _uniqueName(baseName);
     final String id = _uniqueId('${preset.id}_copy');
     final BrushPreset copy = BrushPreset(
@@ -219,7 +221,8 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
   }
 
   String _uniqueName(String base) {
-    final Set<String> names = _presets.map((preset) => preset.name).toSet();
+    final Set<String> names =
+        _presets.map((preset) => _displayNameFor(preset)).toSet();
     if (!names.contains(base)) {
       return base;
     }
@@ -228,6 +231,13 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       counter += 1;
     }
     return '$base $counter';
+  }
+
+  String _displayNameFor(BrushPreset preset) {
+    return widget.library.displayNameFor(
+      preset,
+      Localizations.localeOf(context),
+    );
   }
 
   void _scrollToId(String id) {
@@ -341,9 +351,13 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
     if (preset == null) {
       return;
     }
+    final String displayName = _displayNameFor(preset);
+    final String fileBase = displayName.trim().isEmpty
+        ? preset.id
+        : displayName.trim();
     final String? outputPath = await FilePicker.platform.saveFile(
       dialogTitle: context.l10n.exportBrushTitle,
-      fileName: '${preset.name}.${BrushLibrary.brushFileExtension}',
+      fileName: '$fileBase.${BrushLibrary.brushFileExtension}',
       type: FileType.custom,
       allowedExtensions: [BrushLibrary.brushFileExtension],
     );
@@ -396,6 +410,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
                 itemBuilder: (context, index) {
                   final BrushPreset preset = _presets[index];
                   final bool isSelected = preset.id == _selectedId;
+                  final String displayName = _displayNameFor(preset);
                   final Color foreground = isSelected
                       ? selectedForeground
                       : theme.typography.body?.color ??
@@ -436,7 +451,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              preset.name,
+                              displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.typography.body?.copyWith(
@@ -564,7 +579,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  selected?.name ?? '--',
+                  selected == null ? '--' : _displayNameFor(selected),
                   style: theme.typography.subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

@@ -24,12 +24,14 @@ class BrushLibrary extends ChangeNotifier {
     required Map<String, BrushPreset> basePresets,
     required Map<String, _BrushSource> sources,
     required Map<String, BrushPreset> overrides,
+    required Map<String, BrushLocalizationTable> localizations,
     required String selectedId,
   })  : _shapeLibrary = shapeLibrary,
         _presets = presets,
         _basePresets = basePresets,
         _sources = sources,
         _overrides = overrides,
+        _localizations = localizations,
         _selectedId = selectedId;
 
   static const int _version = 1;
@@ -59,6 +61,7 @@ class BrushLibrary extends ChangeNotifier {
   final Map<String, BrushPreset> _basePresets;
   final Map<String, _BrushSource> _sources;
   final Map<String, BrushPreset> _overrides;
+  final Map<String, BrushLocalizationTable> _localizations;
   String _selectedId;
 
   static BrushLibrary get instance {
@@ -74,6 +77,26 @@ class BrushLibrary extends ChangeNotifier {
   List<BrushPreset> get presets => List<BrushPreset>.unmodifiable(_presets);
 
   String get selectedId => _selectedId;
+
+  String displayNameFor(BrushPreset preset, ui.Locale locale) {
+    final BrushLocalizationTable? table = _localizations[preset.id];
+    if (table != null) {
+      final String? resolved =
+          table.resolve(preset.name, _localeTag(locale));
+      if (resolved != null && resolved.isNotEmpty) {
+        return resolved;
+      }
+    }
+    return preset.name;
+  }
+
+  bool isNameLocalized(BrushPreset preset, ui.Locale locale) {
+    final BrushLocalizationTable? table = _localizations[preset.id];
+    if (table == null) {
+      return false;
+    }
+    return table.resolve(preset.name, _localeTag(locale)) != null;
+  }
 
   BrushPreset get selectedPreset {
     return _presets.firstWhere(
@@ -94,6 +117,8 @@ class BrushLibrary extends ChangeNotifier {
     final BrushShapeLibrary shapeLibrary = await BrushShapeLibrary.load();
     final Map<String, BrushPreset> basePresets = <String, BrushPreset>{};
     final Map<String, _BrushSource> sources = <String, _BrushSource>{};
+    final Map<String, BrushLocalizationTable> localizations =
+        <String, BrushLocalizationTable>{};
     final List<BrushPreset> orderedPresets = <BrushPreset>[];
 
     // Load built-in brush packages from assets.
@@ -105,7 +130,12 @@ class BrushLibrary extends ChangeNotifier {
         continue;
       }
       BrushPreset preset = package.preset.sanitized();
-      preset = _localizeBuiltInPreset(preset, l10n);
+      final BrushLocalizationTable? table = package.localizations;
+      if (table == null || !table.hasKey(preset.name)) {
+        preset = _localizeBuiltInPreset(preset, l10n);
+      } else {
+        localizations[preset.id] = table;
+      }
       preset.shapeId ??= preset.resolvedShapeId;
       basePresets[preset.id] = preset;
       sources[preset.id] = _BrushSource.asset(assetPath);
@@ -133,7 +163,13 @@ class BrushLibrary extends ChangeNotifier {
         }
         final BrushPreset preset = package.preset.sanitized();
         await _ensureShapeForPackage(shapeLibrary, preset, package);
-        userPresets.add(_UserBrushEntry(preset: preset, path: entity.path));
+        userPresets.add(
+          _UserBrushEntry(
+            preset: preset,
+            path: entity.path,
+            localizations: package.localizations,
+          ),
+        );
       }
     }
 
@@ -155,6 +191,9 @@ class BrushLibrary extends ChangeNotifier {
       );
       basePresets[preset.id] = preset;
       sources[preset.id] = _BrushSource.file(entry.path);
+      if (entry.localizations != null) {
+        localizations[preset.id] = entry.localizations!;
+      }
       orderedPresets.add(preset);
     }
 
@@ -170,6 +209,7 @@ class BrushLibrary extends ChangeNotifier {
         overrides,
         basePresets,
         sources,
+        localizations,
       );
     } else {
       final Map<String, dynamic>? legacy = await _readLegacyPayload();
@@ -187,6 +227,7 @@ class BrushLibrary extends ChangeNotifier {
           overrides,
           basePresets,
           sources,
+          localizations,
         );
       }
     }
@@ -223,6 +264,7 @@ class BrushLibrary extends ChangeNotifier {
       basePresets: basePresets,
       sources: sources,
       overrides: overrides,
+      localizations: localizations,
       selectedId: resolvedSelectedId,
     );
     _instance = library;
@@ -317,6 +359,7 @@ class BrushLibrary extends ChangeNotifier {
       _selectedId = _presets.first.id;
     }
     _sources.remove(id);
+    _localizations.remove(id);
     if (!kIsWeb) {
       final File file = File(source.path);
       if (await file.exists()) {
@@ -341,8 +384,15 @@ class BrushLibrary extends ChangeNotifier {
       name: _uniqueName(preset.name, _presets.map((p) => p.name).toSet()),
     );
     await _ensureShapeForPackage(_shapeLibrary, preset, package);
+    if (package.localizations != null) {
+      _localizations[preset.id] = package.localizations!;
+    }
     final String? filePath =
-        await _writeUserBrushPackage(preset, _shapeLibrary, package: package);
+        await _writeUserBrushPackage(
+          preset,
+          _shapeLibrary,
+          package: package,
+        );
     if (filePath == null) {
       return null;
     }
@@ -389,11 +439,13 @@ class BrushLibrary extends ChangeNotifier {
           : '${shape.id}.${shape.type == BrushShapeFileType.svg ? 'svg' : 'png'}';
       shapeType = shape.type;
     }
+    final BrushLocalizationTable? localizations = _localizations[id];
     final Uint8List bytes = BrushPackageCodec.encode(
       preset: preset,
       shapeBytes: shapeBytes,
       shapeFileName: shapeFileName,
       shapeType: shapeType,
+      localizations: localizations,
     );
     if (bytes.isEmpty) {
       return false;
@@ -632,6 +684,7 @@ class BrushLibrary extends ChangeNotifier {
     BrushPreset preset,
     BrushShapeLibrary shapeLibrary, {
     BrushPackageData? package,
+    BrushLocalizationTable? localizations,
   }) async {
     if (kIsWeb) {
       return null;
@@ -660,11 +713,14 @@ class BrushLibrary extends ChangeNotifier {
           : '${shape.id}.${shape.type == BrushShapeFileType.svg ? 'svg' : 'png'}';
       shapeType = shape.type;
     }
+    final BrushLocalizationTable? resolvedLocalizations =
+        localizations ?? package?.localizations;
     final Uint8List bytes = BrushPackageCodec.encode(
       preset: preset,
       shapeBytes: shapeBytes,
       shapeFileName: shapeFileName,
       shapeType: shapeType,
+      localizations: resolvedLocalizations,
     );
     await file.writeAsBytes(bytes, flush: true);
     return file.path;
@@ -730,6 +786,14 @@ class BrushLibrary extends ChangeNotifier {
     return sanitized.isEmpty ? 'brush' : sanitized;
   }
 
+  static String _localeTag(ui.Locale locale) {
+    final String tag = locale.toString();
+    if (tag.isEmpty) {
+      return locale.languageCode.toLowerCase();
+    }
+    return tag.replaceAll('-', '_').toLowerCase();
+  }
+
   static BrushPreset _mergeOverrideWithBase(
     BrushPreset override,
     BrushPreset base, {
@@ -752,6 +816,7 @@ class BrushLibrary extends ChangeNotifier {
     Map<String, BrushPreset> overrides,
     Map<String, BrushPreset> basePresets,
     Map<String, _BrushSource> sources,
+    Map<String, BrushLocalizationTable> localizations,
   ) {
     bool patched = false;
     overrides.forEach((String id, BrushPreset preset) {
@@ -766,9 +831,7 @@ class BrushLibrary extends ChangeNotifier {
       final String? version = preset.version;
       final bool patchAuthor = author == null || author.trim().isEmpty;
       final bool patchVersion = version == null || version.trim().isEmpty;
-      if (!patchAuthor && !patchVersion) {
-        return;
-      }
+      bool patchName = false;
       BrushPreset updated = preset;
       if (patchAuthor) {
         updated = updated.copyWith(
@@ -780,8 +843,22 @@ class BrushLibrary extends ChangeNotifier {
           version: base.version ?? _defaultBuiltInVersion,
         );
       }
-      overrides[id] = updated;
-      patched = true;
+      final BrushLocalizationTable? table = localizations[id];
+      if (table != null) {
+        final String baseKey = base.name;
+        final String overrideName = preset.name;
+        final Map<String, String>? values = table.entries[baseKey];
+        if (values != null &&
+            overrideName != baseKey &&
+            values.values.any((value) => value == overrideName)) {
+          updated = updated.copyWith(name: baseKey);
+          patchName = true;
+        }
+      }
+      if (patchAuthor || patchVersion || patchName) {
+        overrides[id] = updated;
+        patched = true;
+      }
     });
     return patched;
   }
@@ -819,10 +896,12 @@ class _UserBrushEntry {
   const _UserBrushEntry({
     required this.preset,
     required this.path,
+    this.localizations,
   });
 
   final BrushPreset preset;
   final String path;
+  final BrushLocalizationTable? localizations;
 }
 
 class _DefaultPresetNames {

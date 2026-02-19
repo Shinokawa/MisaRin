@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/widgets.dart' show Localizations;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -628,7 +629,12 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           (preset) => preset?.id == widget.activeBrushPresetId,
           orElse: () => presets.isNotEmpty ? presets.first : null,
         );
-    final String selectedName = selected?.name ?? '--';
+    final String selectedName = selected == null
+        ? '--'
+        : BrushLibrary.instance.displayNameFor(
+            selected,
+            Localizations.localeOf(context),
+          );
     final bool enabled = presets.isNotEmpty;
     final BrushPreset? sanitized = selected?.sanitized();
     final String tooltipDetail = sanitized == null

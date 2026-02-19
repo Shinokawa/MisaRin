@@ -1,4 +1,7 @@
+import 'dart:ui' as ui;
+
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/widgets.dart' show Localizations;
 
 import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
@@ -56,6 +59,9 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late final TextEditingController _nameController;
   late final TextEditingController _authorController;
   late final TextEditingController _versionController;
+  late String _originalName;
+  bool _nameEdited = false;
+  bool _nameIsLocalized = false;
   late BrushShape _shape;
   late String _shapeId;
   late double _spacing;
@@ -78,7 +84,7 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     _nameController = TextEditingController();
     _authorController = TextEditingController();
     _versionController = TextEditingController();
-    _syncFromPreset(widget.preset);
+    _syncFromPreset(widget.preset, Localizations.localeOf(context));
   }
 
   @override
@@ -93,13 +99,18 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   void didUpdateWidget(covariant BrushPresetEditorForm oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.preset.id != widget.preset.id) {
-      _syncFromPreset(widget.preset);
+      _syncFromPreset(widget.preset, Localizations.localeOf(context));
     }
   }
 
-  void _syncFromPreset(BrushPreset preset) {
+  void _syncFromPreset(BrushPreset preset, ui.Locale locale) {
     final BrushPreset sanitized = preset.sanitized();
-    _nameController.text = sanitized.name;
+    final BrushLibrary library = BrushLibrary.instance;
+    final String displayName = library.displayNameFor(sanitized, locale);
+    _originalName = sanitized.name;
+    _nameEdited = false;
+    _nameIsLocalized = library.isNameLocalized(sanitized, locale);
+    _nameController.text = displayName;
     _shape = sanitized.shape;
     _shapeId = sanitized.resolvedShapeId;
     _authorController.text = sanitized.author ?? '';
@@ -121,9 +132,7 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
 
   BrushPreset buildPreset() {
     return widget.preset.copyWith(
-      name: _nameController.text.trim().isEmpty
-          ? widget.preset.name
-          : _nameController.text.trim(),
+      name: _resolveName(),
       shape: _shapeFromId(_shapeId) ?? _shape,
       shapeId: _shapeId,
       author: _authorController.text.trim().isEmpty
@@ -146,6 +155,17 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       autoSharpTaper: _autoSharpTaper,
       snapToPixel: _snapToPixel,
     );
+  }
+
+  String _resolveName() {
+    final String trimmed = _nameController.text.trim();
+    if (_nameEdited) {
+      return trimmed.isEmpty ? _originalName : trimmed;
+    }
+    if (_nameIsLocalized) {
+      return _originalName;
+    }
+    return trimmed.isEmpty ? _originalName : trimmed;
   }
 
   void _notifyChanged() {
@@ -193,7 +213,10 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
           label: l10n.brushPresetNameLabel,
           child: TextBox(
             controller: _nameController,
-            onChanged: (_) => _notifyChanged(),
+            onChanged: (_) {
+              _nameEdited = true;
+              _notifyChanged();
+            },
           ),
         ),
         const SizedBox(height: 12),
