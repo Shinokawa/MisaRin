@@ -24,7 +24,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[no_mangle]
 pub extern "C" fn engine_create(width: u32, height: u32) -> u64 {
     match create_engine(width, height) {
-        Ok(handle) => handle,
+        Ok(handle) => {
+            debug::log(
+                LogLevel::Info,
+                format_args!("engine_create ok handle={handle} size={width}x{height}"),
+            );
+            handle
+        }
         Err(err) => {
             debug::log(LogLevel::Warn, format_args!("engine_create failed: {err}"));
             0
@@ -168,8 +174,13 @@ pub extern "C" fn engine_create_present_dxgi_surface(
 #[no_mangle]
 pub extern "C" fn engine_dispose(handle: u64) {
     let Some(entry) = remove_engine(handle) else {
+        debug::log(
+            LogLevel::Warn,
+            format_args!("engine_dispose missing handle={handle}"),
+        );
         return;
     };
+    debug::log(LogLevel::Info, format_args!("engine_dispose handle={handle}"));
     let _ = entry.cmd_tx.send(EngineCommand::Stop);
 }
 

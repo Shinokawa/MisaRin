@@ -411,6 +411,12 @@ class CanvasRasterBackend {
       return;
     }
     _disposed = true;
+    if (kDebugMode) {
+      debugPrint(
+        '[raster_backend] dispose backend=$backend size=${_width}x${_height} '
+        'compositeInitialized=$_compositeInitialized instanceCount=$_backendInstanceCount',
+      );
+    }
 
     _invalidateRustWgpuLayerCache();
     _compositePixels = null;

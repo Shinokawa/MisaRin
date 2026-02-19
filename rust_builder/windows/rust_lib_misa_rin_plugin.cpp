@@ -507,6 +507,7 @@ struct RustLibMisaRinPlugin::Impl {
       const flutter::EncodableMap& args,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
     const std::string surface_id = GetSurfaceId(args);
+    PresentLog("disposeTexture request surface=" + surface_id);
     std::shared_ptr<SurfaceState> surface;
     {
       std::lock_guard<std::mutex> lock(surfaces_mutex_);
@@ -519,11 +520,16 @@ struct RustLibMisaRinPlugin::Impl {
 
     if (surface) {
       std::lock_guard<std::mutex> lock(surface->mutex);
+      PresentLog("disposeTexture surface=" + surface_id +
+                 " handle=" + std::to_string(surface->engine_handle) +
+                 " texture=" + std::to_string(surface->texture_id));
       UnregisterTextureLocked(surface);
       if (surface->engine_handle != 0) {
         engine_dispose(surface->engine_handle);
         surface->engine_handle = 0;
       }
+    } else {
+      PresentLog("disposeTexture missing surface=" + surface_id);
     }
     result->Success();
   }
@@ -592,6 +598,8 @@ struct RustLibMisaRinPlugin::Impl {
       return;
     }
     const int64_t texture_id = surface->texture_id;
+    PresentLog("unregister texture surface=" + surface->surface_id +
+               " texture=" + std::to_string(texture_id));
     surface->texture_id = -1;
     surface->waiting_first_frame = false;
     surface->first_frame_start_ms = 0;

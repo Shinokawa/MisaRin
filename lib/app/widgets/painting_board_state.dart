@@ -810,6 +810,16 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool layersChanged =
         !identical(widget.initialLayers, oldWidget.initialLayers);
     if (sizeChanged || backgroundChanged || logicChanged || layersChanged) {
+      debugPrint(
+        'paintingBoard: recreate controller surfaceKey=${widget.surfaceKey} '
+        'sizeChanged=$sizeChanged backgroundChanged=$backgroundChanged '
+        'logicChanged=$logicChanged layersChanged=$layersChanged '
+        'old=${oldWidget.settings.width.round()}x${oldWidget.settings.height.round()} '
+        'new=${widget.settings.width.round()}x${widget.settings.height.round()} '
+        'oldLayers=${oldWidget.initialLayers?.length ?? 0} '
+        'newLayers=${widget.initialLayers?.length ?? 0} '
+        'backendSupported=${_backend.isSupported}',
+      );
       if (sizeChanged) {
         debugPrint(
           'paintingBoard: size changed '
