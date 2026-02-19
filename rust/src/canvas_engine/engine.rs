@@ -1399,6 +1399,20 @@ fn render_thread_main(
                     );
                     let preview_active = preview_state.is_some() || preview_allowed;
                     let has_down = raw_points.iter().any(|p| (p.flags & FLAG_DOWN) != 0);
+                    let has_up = raw_points.iter().any(|p| (p.flags & FLAG_UP) != 0);
+                    if debug::level() >= LogLevel::Info && (has_down || has_up) {
+                        debug::log(
+                            LogLevel::Info,
+                            format_args!(
+                                "input batch points={} down={} up={} active_layer={} preview_allowed={}",
+                                raw_points.len(),
+                                has_down,
+                                has_up,
+                                active_layer_index,
+                                preview_allowed
+                            ),
+                        );
+                    }
                     if has_down {
                         if let Some(mut animation) = streamline_animation.take() {
                             if let Some(state) = preview_state.take() {

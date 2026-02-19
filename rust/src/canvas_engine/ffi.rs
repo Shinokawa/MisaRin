@@ -12,7 +12,7 @@ use std::ffi::CString;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 use std::collections::HashMap;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 use std::sync::{Mutex, OnceLock};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
@@ -187,6 +187,12 @@ struct FrameReadyPollStats {
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 static FRAME_READY_STATS: OnceLock<Mutex<HashMap<u64, FrameReadyPollStats>>> = OnceLock::new();
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+static LAST_INPUT_LOG_MS: AtomicU64 = AtomicU64::new(0);
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+static LAST_BRUSH_LOG_MS: AtomicU64 = AtomicU64::new(0);
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+static LAST_FILL_LOG_MS: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 fn frame_ready_stats() -> &'static Mutex<HashMap<u64, FrameReadyPollStats>> {
@@ -256,6 +262,22 @@ pub extern "C" fn engine_push_points(handle: u64, points: *const EnginePoint, le
         .input_queue_len
         .fetch_add(len as u64, Ordering::Relaxed)
         + len as u64;
+
+    if debug::level() >= LogLevel::Info {
+        let now = now_ms();
+        let last = LAST_INPUT_LOG_MS.load(Ordering::Relaxed);
+        if now.saturating_sub(last) >= 500 {
+            LAST_INPUT_LOG_MS.store(now, Ordering::Relaxed);
+            let first_flags = slice.first().map(|p| p.flags).unwrap_or(0);
+            let last_flags = slice.last().map(|p| p.flags).unwrap_or(0);
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "engine_push_points handle={handle} len={len} first_flags={first_flags} last_flags={last_flags} queue_len={queue_len}"
+                ),
+            );
+        }
+    }
 
     if debug::level() >= LogLevel::Verbose {
         const FLAG_DOWN: u32 = 1;
@@ -515,6 +537,22 @@ pub extern "C" fn engine_set_brush(
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
+    if debug::level() >= LogLevel::Info {
+        let now = now_ms();
+        let last = LAST_BRUSH_LOG_MS.load(Ordering::Relaxed);
+        if now.saturating_sub(last) >= 500 {
+            LAST_BRUSH_LOG_MS.store(now, Ordering::Relaxed);
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "engine_set_brush handle={handle} color=0x{color_argb:08X} radius={base_radius:.2} erase={} shape={} aa={antialias_level} pressure={}",
+                    erase != 0,
+                    brush_shape,
+                    use_pressure != 0
+                ),
+            );
+        }
+    }
     let _ = entry.cmd_tx.send(EngineCommand::SetBrush {
         color_argb,
         base_radius,
@@ -761,6 +799,19 @@ pub extern "C" fn engine_fill_layer(handle: u64, layer_index: u32, color_argb: u
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
+    if debug::level() >= LogLevel::Info {
+        let now = now_ms();
+        let last = LAST_FILL_LOG_MS.load(Ordering::Relaxed);
+        if now.saturating_sub(last) >= 500 {
+            LAST_FILL_LOG_MS.store(now, Ordering::Relaxed);
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "engine_fill_layer handle={handle} layer={layer_index} color=0x{color_argb:08X}"
+                ),
+            );
+        }
+    }
     let _ = entry.cmd_tx.send(EngineCommand::FillLayer {
         layer_index,
         color_argb,
@@ -1409,6 +1460,12 @@ pub extern "C" fn engine_reset_canvas_with_layers(
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
+    debug::log(
+        LogLevel::Info,
+        format_args!(
+            "engine_reset_canvas_with_layers handle={handle} layers={layer_count} bg=0x{background_color_argb:08X}"
+        ),
+    );
     let _ = entry.cmd_tx.send(EngineCommand::ResetCanvasWithLayers {
         layer_count,
         background_color_argb,
