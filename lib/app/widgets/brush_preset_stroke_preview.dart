@@ -14,6 +14,7 @@ import '../../brushes/brush_shape_raster.dart';
 import '../../canvas/brush_random_rotation.dart';
 import '../../canvas/brush_shape_geometry.dart';
 import '../../canvas/canvas_tools.dart';
+import '../debug/brush_preset_timeline.dart';
 import '../../src/rust/rust_cpu_brush_ffi.dart';
 
 const double _kPreviewPadding = 4.0;
@@ -120,6 +121,11 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       return;
     }
     _signature = nextSignature;
+    if (BrushPresetTimeline.enabled) {
+      BrushPresetTimeline.mark(
+        'preview_schedule id=${preset.id} ${pixelWidth}x${pixelHeight} scale=$scale',
+      );
+    }
     final int token = ++_renderToken;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _renderPreview(token, preset, pixelWidth, pixelHeight, scale);
@@ -136,6 +142,9 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
     if (!mounted || token != _renderToken) {
       return;
     }
+    final Stopwatch? stopwatch = BrushPresetTimeline.enabled
+        ? (Stopwatch()..start())
+        : null;
     final ui.Image? image = await _buildPreviewImage(
       preset: preset,
       color: widget.color,
@@ -143,6 +152,12 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       pixelHeight: pixelHeight,
       scale: scale,
     );
+    if (stopwatch != null) {
+      BrushPresetTimeline.mark(
+        'preview_done id=${preset.id} ${pixelWidth}x${pixelHeight} '
+        't=${stopwatch.elapsedMilliseconds}ms image=${image != null}',
+      );
+    }
     if (!mounted || token != _renderToken) {
       image?.dispose();
       return;
@@ -183,7 +198,16 @@ Future<ui.Image?> _buildPreviewImage({
     fillColor: const Color(0x00000000),
   );
   try {
+    final Stopwatch? shapeTimer = BrushPresetTimeline.enabled
+        ? (Stopwatch()..start())
+        : null;
     final BrushShapeRaster? customShape = await _resolveCustomShape(preset);
+    if (shapeTimer != null && shapeTimer.elapsedMilliseconds > 0) {
+      BrushPresetTimeline.mark(
+        'preview_shape id=${preset.resolvedShapeId} '
+        't=${shapeTimer.elapsedMilliseconds}ms',
+      );
+    }
     final double padding = _kPreviewPadding * scale;
     final double width = pixelWidth - padding * 2.0;
     final double height = pixelHeight - padding * 2.0;

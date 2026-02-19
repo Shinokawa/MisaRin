@@ -710,6 +710,7 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/app/constants/color_line_presets.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/constants/pen_constants.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/debug/backend_canvas_timeline.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/debug/brush_preset_timeline.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/dialogs/brush_preset_editor_dialog.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/dialogs/brush_preset_picker_dialog.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/dialogs/canvas_settings_dialog.dart

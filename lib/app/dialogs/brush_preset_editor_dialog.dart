@@ -7,6 +7,7 @@ import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
 import '../../brushes/brush_shape_library.dart';
 import '../../canvas/canvas_tools.dart' show BrushShape;
+import '../debug/brush_preset_timeline.dart';
 import '../dialogs/misarin_dialog.dart';
 import '../l10n/l10n.dart';
 
@@ -104,6 +105,9 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   }
 
   void _syncFromPreset(BrushPreset preset, ui.Locale locale) {
+    final Stopwatch? stopwatch = BrushPresetTimeline.enabled
+        ? (Stopwatch()..start())
+        : null;
     final BrushPreset sanitized = preset.sanitized();
     final BrushLibrary library = BrushLibrary.instance;
     final String displayName = library.displayNameFor(sanitized, locale);
@@ -128,6 +132,11 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     _hollowEraseOccludedParts = sanitized.hollowEraseOccludedParts;
     _autoSharpTaper = sanitized.autoSharpTaper;
     _snapToPixel = sanitized.snapToPixel;
+    if (stopwatch != null) {
+      BrushPresetTimeline.mark(
+        'editor_sync id=${sanitized.id} t=${stopwatch.elapsedMilliseconds}ms',
+      );
+    }
   }
 
   BrushPreset buildPreset() {
@@ -183,6 +192,9 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
 
   @override
   Widget build(BuildContext context) {
+    final Stopwatch? buildTimer = BrushPresetTimeline.enabled
+        ? (Stopwatch()..start())
+        : null;
     final AppLocalizations l10n = context.l10n;
     final BrushShapeLibrary shapeLibrary = BrushLibrary.instance.shapeLibrary;
     final List<ComboBoxItem<String>> shapeItems = <ComboBoxItem<String>>[];
@@ -357,10 +369,16 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       ],
     );
 
-    if (!widget.scrollable) {
-      return content;
+    final Widget built = widget.scrollable
+        ? SingleChildScrollView(child: content)
+        : content;
+    if (buildTimer != null) {
+      final int elapsedMs = buildTimer.elapsedMilliseconds;
+      if (elapsedMs > 8) {
+        BrushPresetTimeline.mark('editor_build t=${elapsedMs}ms');
+      }
     }
-    return SingleChildScrollView(child: content);
+    return built;
   }
 
   Widget _buildAntialiasSlider(BuildContext context) {

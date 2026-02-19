@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart' show Localizations;
 
 import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
+import '../debug/brush_preset_timeline.dart';
 import '../l10n/l10n.dart';
 import '../widgets/brush_preset_stroke_preview.dart';
 import 'misarin_dialog.dart';
@@ -47,6 +48,10 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
   late String _selectedId;
   BrushPreset? _draftPreset;
   int _editorResetToken = 0;
+  DateTime? _lastTapAt;
+  String? _lastTapId;
+
+  static const Duration _doubleTapThreshold = Duration(milliseconds: 260);
 
   @override
   void initState() {
@@ -123,10 +128,28 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
     if (_selectedId == id) {
       return;
     }
+    BrushPresetTimeline.start('select_preset id=$id');
     setState(() {
       _selectedId = id;
       _syncDraftWithSelection(id);
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      BrushPresetTimeline.mark('frame_painted id=$id');
+    });
+  }
+
+  void _handlePresetTap(String id) {
+    BrushPresetTimeline.mark('tap_pressed id=$id');
+    final DateTime now = DateTime.now();
+    final bool isDoubleTap = _lastTapId == id &&
+        _lastTapAt != null &&
+        now.difference(_lastTapAt!) <= _doubleTapThreshold;
+    _lastTapId = id;
+    _lastTapAt = now;
+    _selectPreset(id);
+    if (isDoubleTap) {
+      _confirm();
+    }
   }
 
   void _handleDraftChanged(BrushPreset preset) {
@@ -371,6 +394,9 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final Stopwatch? buildTimer = BrushPresetTimeline.enabled
+        ? (Stopwatch()..start())
+        : null;
     final FluentThemeData theme = FluentTheme.of(context);
     final AppLocalizations l10n = context.l10n;
     final BrushPreset? selected = _selectedPreset;
@@ -415,10 +441,13 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
                       ? selectedForeground
                       : theme.typography.body?.color ??
                           theme.resources.textFillColorPrimary;
-                  return GestureDetector(
-                    onDoubleTap: () {
-                      _selectPreset(preset.id);
-                      _confirm();
+                  return Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: (_) {
+                      BrushPresetTimeline.mark('tap_down id=${preset.id}');
+                    },
+                    onPointerUp: (_) {
+                      BrushPresetTimeline.mark('tap_up id=${preset.id}');
                     },
                     child: Button(
                       style: ButtonStyle(
@@ -437,7 +466,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
                           },
                         ),
                       ),
-                      onPressed: () => _selectPreset(preset.id),
+                      onPressed: () => _handlePresetTap(preset.id),
                       child: Row(
                         children: [
                           SizedBox(
@@ -597,7 +626,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       ),
     );
 
-    return ContentDialog(
+    final Widget dialog = ContentDialog(
       title: Text(l10n.brushPreset),
       constraints: const BoxConstraints(maxWidth: 860),
       content: content,
@@ -621,6 +650,13 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
         ),
       ],
     );
+    if (buildTimer != null) {
+      final int elapsedMs = buildTimer.elapsedMilliseconds;
+      if (elapsedMs > 8) {
+        BrushPresetTimeline.mark('dialog_build t=${elapsedMs}ms');
+      }
+    }
+    return dialog;
   }
 
 }
