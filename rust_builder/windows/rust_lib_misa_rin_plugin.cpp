@@ -386,9 +386,9 @@ struct RustLibMisaRinPlugin::Impl {
           FlutterDesktopTextureRegistrarRegisterExternalTexture(
               texture_registrar_, &texture_info);
       if (texture_id < 0) {
-        auto handle = static_cast<HANDLE>(shared_handle);
-        if (handle) {
-          CloseHandle(handle);
+        auto shared_handle_win = static_cast<HANDLE>(shared_handle);
+        if (shared_handle_win) {
+          CloseHandle(shared_handle_win);
         }
         binding->shared_handle = nullptr;
         result->Error("register_texture_failed",
