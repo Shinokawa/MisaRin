@@ -1064,6 +1064,33 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushShape => '笔刷形状';
 
   @override
+  String get brushAuthorLabel => '作者';
+
+  @override
+  String get brushVersionLabel => '版本';
+
+  @override
+  String get importBrush => '导入笔刷';
+
+  @override
+  String get exportBrush => '导出笔刷';
+
+  @override
+  String get exportBrushTitle => '导出笔刷';
+
+  @override
+  String get unsavedBrushChangesPrompt => '笔刷参数已修改，是否保存？';
+
+  @override
+  String get discardChanges => '放弃修改';
+
+  @override
+  String get brushShapeFolderLabel => '笔刷形状文件夹';
+
+  @override
+  String get openBrushShapesFolder => '打开笔刷形状文件夹';
+
+  @override
   String get randomRotation => '随机旋转';
 
   @override
@@ -2722,6 +2749,33 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushSnapToPixel => '像素对齐';
 
   @override
+  String get brushAuthorLabel => '作者';
+
+  @override
+  String get brushVersionLabel => '版本';
+
+  @override
+  String get importBrush => '导入笔刷';
+
+  @override
+  String get exportBrush => '导出笔刷';
+
+  @override
+  String get exportBrushTitle => '导出笔刷';
+
+  @override
+  String get unsavedBrushChangesPrompt => '笔刷参数已修改，是否保存？';
+
+  @override
+  String get discardChanges => '放弃修改';
+
+  @override
+  String get brushShapeFolderLabel => '笔刷形状文件夹';
+
+  @override
+  String get openBrushShapesFolder => '打开笔刷形状文件夹';
+
+  @override
   String get smoothRotation => '平滑旋转';
 
   @override
@@ -3619,6 +3673,33 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get brushSnapToPixel => '像素對齊';
+
+  @override
+  String get brushAuthorLabel => '作者';
+
+  @override
+  String get brushVersionLabel => '版本';
+
+  @override
+  String get importBrush => '匯入筆刷';
+
+  @override
+  String get exportBrush => '匯出筆刷';
+
+  @override
+  String get exportBrushTitle => '匯出筆刷';
+
+  @override
+  String get unsavedBrushChangesPrompt => '筆刷參數已修改，是否儲存？';
+
+  @override
+  String get discardChanges => '放棄修改';
+
+  @override
+  String get brushShapeFolderLabel => '筆刷形狀資料夾';
+
+  @override
+  String get openBrushShapesFolder => '打開筆刷形狀資料夾';
 
   @override
   String get randomRotation => '隨機旋轉';

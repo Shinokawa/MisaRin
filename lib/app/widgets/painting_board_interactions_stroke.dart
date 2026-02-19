@@ -244,7 +244,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (anchor == null || snapped == null) {
       return;
     }
-    final bool useBackendCanvas = _backend.isSupported;
+    final bool useBackendCanvas =
+        _backend.isSupported && _brushShapeSupportsBackend;
     if (!useBackendCanvas) {
       await _startStroke(anchor, timestamp, rawEvent);
       _appendPoint(snapped, timestamp, rawEvent);

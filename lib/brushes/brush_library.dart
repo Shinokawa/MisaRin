@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:misa_rin/utils/io_shim.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -11,34 +13,50 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../app/preferences/app_preferences.dart';
 import '../canvas/canvas_tools.dart';
 import '../l10n/app_localizations.dart';
+import 'brush_package.dart';
 import 'brush_preset.dart';
+import 'brush_shape_library.dart';
 
 class BrushLibrary extends ChangeNotifier {
   BrushLibrary._({
+    required BrushShapeLibrary shapeLibrary,
     required List<BrushPreset> presets,
+    required Map<String, BrushPreset> basePresets,
+    required Map<String, _BrushSource> sources,
+    required Map<String, BrushPreset> overrides,
     required String selectedId,
-  })  : _presets = presets,
+  })  : _shapeLibrary = shapeLibrary,
+        _presets = presets,
+        _basePresets = basePresets,
+        _sources = sources,
+        _overrides = overrides,
         _selectedId = selectedId;
 
-  static const int _version = 4;
-  static const double _defaultPixelSpacing = 0.25;
-  static const double _previousPixelSpacing = 0.5;
-  static const double _legacyPixelSpacing = 1.0;
+  static const int _version = 1;
+  static const String brushFileExtension = 'mrb';
   static const String _folderName = 'MisaRin';
-  static const String _fileName = 'brush_presets.json';
-  static const String _storageKey = 'misa_rin.brush_presets';
-  static const Set<String> defaultPresetIds = <String>{
-    'pencil',
-    'pen',
-    'pixel',
-    'triangle',
-    'square',
-    'star',
-  };
+  static const String _brushFolderName = 'brushes';
+  static const String _libraryFileName = 'brush_library.json';
+  static const String _legacyFileName = 'brush_presets.json';
+  static const String _storageKey = 'misa_rin.brush_library';
+  static const String _legacyStorageKey = 'misa_rin.brush_presets';
+
+  static const List<String> _defaultBrushAssets = <String>[
+    'assets/brushes/pencil.mrb',
+    'assets/brushes/pen.mrb',
+    'assets/brushes/pixel.mrb',
+    'assets/brushes/triangle.mrb',
+    'assets/brushes/square.mrb',
+    'assets/brushes/star.mrb',
+  ];
 
   static BrushLibrary? _instance;
 
+  final BrushShapeLibrary _shapeLibrary;
   final List<BrushPreset> _presets;
+  final Map<String, BrushPreset> _basePresets;
+  final Map<String, _BrushSource> _sources;
+  final Map<String, BrushPreset> _overrides;
   String _selectedId;
 
   static BrushLibrary get instance {
@@ -48,6 +66,8 @@ class BrushLibrary extends ChangeNotifier {
     }
     return current;
   }
+
+  BrushShapeLibrary get shapeLibrary => _shapeLibrary;
 
   List<BrushPreset> get presets => List<BrushPreset>.unmodifiable(_presets);
 
@@ -60,52 +80,128 @@ class BrushLibrary extends ChangeNotifier {
     );
   }
 
-  static bool isDefaultPresetId(String id) {
-    return defaultPresetIds.contains(id);
-  }
+  bool isBuiltInPreset(String id) => _sources[id]?.isBuiltIn ?? false;
 
-  static BrushPreset? defaultPresetById(
-    String id, {
-    AppPreferences? prefs,
-    AppLocalizations? l10n,
-  }) {
-    if (!defaultPresetIds.contains(id)) {
-      return null;
-    }
-    final AppPreferences? resolvedPrefs = prefs;
-    final AppLocalizations resolvedL10n =
-        l10n ?? _resolveL10n(resolvedPrefs);
-    final BrushLibrary defaults =
-        _defaultLibrary(resolvedPrefs, resolvedL10n);
-    for (final BrushPreset preset in defaults._presets) {
-      if (preset.id == id) {
-        return preset;
-      }
-    }
-    return null;
-  }
+  BrushPreset? basePresetById(String id) => _basePresets[id];
 
   static Future<BrushLibrary> load({AppPreferences? prefs}) async {
     if (_instance != null) {
       return _instance!;
     }
     final AppLocalizations l10n = _resolveL10n(prefs);
-    final Map<String, dynamic>? payload = await _readPayload();
-    BrushLibrary library;
-    if (payload != null) {
-      library = _fromPayload(payload);
-      final int payloadVersion = (payload['version'] as num?)?.toInt() ?? 0;
-      if (payloadVersion < _version) {
-        final bool migrated = _migrateDefaultPresets(library, l10n);
-        if (migrated) {
-          unawaited(library.save());
-        }
+    final BrushShapeLibrary shapeLibrary = await BrushShapeLibrary.load();
+    final Map<String, BrushPreset> basePresets = <String, BrushPreset>{};
+    final Map<String, _BrushSource> sources = <String, _BrushSource>{};
+    final List<BrushPreset> orderedPresets = <BrushPreset>[];
+
+    // Load built-in brush packages from assets.
+    for (final String assetPath in _defaultBrushAssets) {
+      final ByteData data = await rootBundle.load(assetPath);
+      final BrushPackageData? package =
+          BrushPackageCodec.decode(data.buffer.asUint8List());
+      if (package == null) {
+        continue;
       }
-    } else {
-      library = _defaultLibrary(prefs, l10n);
-      await library.save();
+      BrushPreset preset = package.preset.sanitized();
+      preset = _localizeBuiltInPreset(preset, l10n);
+      preset.shapeId ??= preset.resolvedShapeId;
+      basePresets[preset.id] = preset;
+      sources[preset.id] = _BrushSource.asset(assetPath);
+      orderedPresets.add(preset);
+      await _ensureShapeForPackage(shapeLibrary, preset, package);
     }
+
+    // Load user brush packages.
+    final List<_UserBrushEntry> userPresets = <_UserBrushEntry>[];
+    if (!kIsWeb) {
+      final Directory directory = await _brushDirectory();
+      await directory.create(recursive: true);
+      final List<FileSystemEntity> files = await directory.list().toList();
+      for (final FileSystemEntity entity in files) {
+        if (entity is! File) {
+          continue;
+        }
+        if (!entity.path.toLowerCase().endsWith('.$brushFileExtension')) {
+          continue;
+        }
+        final Uint8List bytes = await entity.readAsBytes();
+        final BrushPackageData? package = BrushPackageCodec.decode(bytes);
+        if (package == null) {
+          continue;
+        }
+        final BrushPreset preset = package.preset.sanitized();
+        await _ensureShapeForPackage(shapeLibrary, preset, package);
+        userPresets.add(_UserBrushEntry(preset: preset, path: entity.path));
+      }
+    }
+
+    userPresets.sort(
+      (a, b) => a.preset.name.compareTo(b.preset.name),
+    );
+    for (final _UserBrushEntry entry in userPresets) {
+      BrushPreset preset = entry.preset;
+      if (basePresets.containsKey(preset.id)) {
+        preset = preset.copyWith(
+          id: _uniqueId(preset.id, basePresets.keys.toSet()),
+        );
+      }
+      preset = preset.copyWith(
+        name: _uniqueName(
+          preset.name,
+          basePresets.values.map((p) => p.name).toSet(),
+        ),
+      );
+      basePresets[preset.id] = preset;
+      sources[preset.id] = _BrushSource.file(entry.path);
+      orderedPresets.add(preset);
+    }
+
+    Map<String, BrushPreset> overrides = <String, BrushPreset>{};
+    String? selectedId;
+
+    final Map<String, dynamic>? payload = await _readPayload();
+    if (payload != null) {
+      selectedId = payload['selectedId'] as String?;
+      overrides = _parseOverrides(payload['overrides']);
+    } else {
+      final Map<String, dynamic>? legacy = await _readLegacyPayload();
+      if (legacy != null) {
+        selectedId = legacy['selectedId'] as String?;
+        final List<BrushPreset> legacyPresets = _legacyPresetsFromPayload(legacy);
+        overrides = await _migrateLegacyPresets(
+          legacyPresets,
+          basePresets,
+          sources,
+          orderedPresets,
+          shapeLibrary,
+        );
+      }
+    }
+
+    final List<BrushPreset> effectivePresets = <BrushPreset>[];
+    for (final BrushPreset base in orderedPresets) {
+      final BrushPreset? override = overrides[base.id];
+      effectivePresets.add((override ?? base).sanitized());
+    }
+
+    String resolvedSelectedId = selectedId ?? effectivePresets.first.id;
+    if (effectivePresets.indexWhere((preset) => preset.id == resolvedSelectedId) < 0) {
+      resolvedSelectedId = effectivePresets.first.id;
+    }
+
+    final BrushLibrary library = BrushLibrary._(
+      shapeLibrary: shapeLibrary,
+      presets: effectivePresets,
+      basePresets: basePresets,
+      sources: sources,
+      overrides: overrides,
+      selectedId: resolvedSelectedId,
+    );
     _instance = library;
+
+    if (payload == null) {
+      unawaited(library.save());
+    }
     return library;
   }
 
@@ -131,252 +227,182 @@ class BrushLibrary extends ChangeNotifier {
     if (index < 0) {
       return;
     }
-    _presets[index] = preset.sanitized();
+    final BrushPreset sanitized = preset.sanitized();
+    _presets[index] = sanitized;
+    _overrides[preset.id] = sanitized;
     notifyListeners();
     unawaited(save());
   }
 
-  void addPreset(BrushPreset preset) {
-    _presets.add(preset.sanitized());
+  Future<void> resetPreset(String id) async {
+    final BrushPreset? base = _basePresets[id];
+    if (base == null) {
+      return;
+    }
+    final int index = _presets.indexWhere((preset) => preset.id == id);
+    if (index < 0) {
+      return;
+    }
+    _presets[index] = base.sanitized();
+    _overrides.remove(id);
     notifyListeners();
-    unawaited(save());
+    await save();
   }
 
-  void removePreset(String id) {
+  Future<void> addPreset(BrushPreset preset) async {
+    BrushPreset sanitized = preset.sanitized();
+    final Set<String> ids = _basePresets.keys.toSet();
+    sanitized = sanitized.copyWith(
+      id: _uniqueId(sanitized.id, ids),
+      name: _uniqueName(sanitized.name, _presets.map((p) => p.name).toSet()),
+    );
+    final String? filePath =
+        await _writeUserBrushPackage(sanitized, _shapeLibrary);
+    if (filePath == null) {
+      return;
+    }
+    _basePresets[sanitized.id] = sanitized;
+    _sources[sanitized.id] = _BrushSource.file(filePath);
+    _presets.add(sanitized);
+    notifyListeners();
+    await save();
+  }
+
+  Future<void> removePreset(String id) async {
     if (_presets.length <= 1) {
       return;
     }
-    final int index =
-        _presets.indexWhere((BrushPreset preset) => preset.id == id);
+    final _BrushSource? source = _sources[id];
+    if (source == null || source.isBuiltIn) {
+      return;
+    }
+    final int index = _presets.indexWhere((BrushPreset preset) => preset.id == id);
     if (index < 0) {
       return;
     }
     _presets.removeAt(index);
+    _basePresets.remove(id);
+    _overrides.remove(id);
     if (_selectedId == id) {
       _selectedId = _presets.first.id;
     }
+    _sources.remove(id);
+    if (!kIsWeb) {
+      final File file = File(source.path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
     notifyListeners();
-    unawaited(save());
+    await save();
   }
 
-  static BrushLibrary _fromPayload(Map<String, dynamic> payload) {
-    final List<dynamic> entries =
-        payload['presets'] as List<dynamic>? ?? <dynamic>[];
-    final List<BrushPreset> presets = entries
-        .whereType<Map<String, dynamic>>()
-        .map(BrushPreset.fromJson)
-        .toList();
-    if (presets.isEmpty) {
-      return _defaultLibrary(
-        null,
-        lookupAppLocalizations(const ui.Locale('en')),
-      );
+  Future<BrushPreset?> importBrushBytes(Uint8List bytes) async {
+    if (kIsWeb) {
+      return null;
     }
-    String selectedId = payload['selectedId'] as String? ?? presets.first.id;
-    if (presets.indexWhere((BrushPreset preset) => preset.id == selectedId) <
-        0) {
-      selectedId = presets.first.id;
+    final BrushPackageData? package = BrushPackageCodec.decode(bytes);
+    if (package == null) {
+      return null;
     }
-    return BrushLibrary._(presets: presets, selectedId: selectedId);
-  }
-
-  Map<String, dynamic> _toPayload() => <String, dynamic>{
-        'version': _version,
-        'selectedId': _selectedId,
-        'presets': _presets.map((BrushPreset preset) => preset.toJson()).toList(),
-      };
-
-  static BrushLibrary _defaultLibrary(
-    AppPreferences? prefs,
-    AppLocalizations l10n,
-  ) {
-    final _DefaultPresetNames names = _DefaultPresetNames.fromL10n(l10n);
-    final BrushPreset pencil = BrushPreset(
-      id: 'pencil',
-      name: names.pencil,
-      shape: prefs?.brushShape ?? BrushShape.circle,
-      spacing: 0.12,
-      hardness: 0.65,
-      flow: 1.0,
-      scatter: 0.0,
-      randomRotation: prefs?.brushRandomRotationEnabled ?? false,
-      smoothRotation: false,
-      rotationJitter: 1.0,
-      antialiasLevel: prefs?.penAntialiasLevel ?? 1,
-      hollowEnabled: prefs?.hollowStrokeEnabled ?? false,
-      hollowRatio: prefs?.hollowStrokeRatio ?? 0.0,
-      hollowEraseOccludedParts: prefs?.hollowStrokeEraseOccludedParts ?? false,
-      autoSharpTaper: prefs?.autoSharpPeakEnabled ?? false,
-      snapToPixel: false,
-    ).sanitized();
-
-    final List<BrushPreset> presets = <BrushPreset>[
-      pencil,
-      BrushPreset(
-        id: 'pen',
-        name: names.pen,
-        shape: BrushShape.circle,
-        spacing: 0.08,
-        hardness: 0.9,
-        flow: 1.0,
-        scatter: 0.0,
-        randomRotation: false,
-        smoothRotation: false,
-        rotationJitter: 0.0,
-        antialiasLevel: 1,
-        hollowEnabled: false,
-        hollowRatio: 0.0,
-        hollowEraseOccludedParts: false,
-        autoSharpTaper: true,
-        snapToPixel: false,
-      ),
-      BrushPreset(
-        id: 'pixel',
-        name: names.pixel,
-        shape: BrushShape.square,
-        spacing: _defaultPixelSpacing,
-        hardness: 1.0,
-        flow: 1.0,
-        scatter: 0.0,
-        randomRotation: false,
-        smoothRotation: false,
-        rotationJitter: 0.0,
-        antialiasLevel: 0,
-        hollowEnabled: false,
-        hollowRatio: 0.0,
-        hollowEraseOccludedParts: false,
-        autoSharpTaper: false,
-        snapToPixel: true,
-      ),
-      BrushPreset(
-        id: 'triangle',
-        name: names.triangle,
-        shape: BrushShape.triangle,
-        spacing: 0.15,
-        hardness: 0.85,
-        flow: 1.0,
-        scatter: 0.0,
-        randomRotation: false,
-        smoothRotation: false,
-        rotationJitter: 0.0,
-        antialiasLevel: 1,
-        hollowEnabled: false,
-        hollowRatio: 0.0,
-        hollowEraseOccludedParts: false,
-        autoSharpTaper: false,
-        snapToPixel: false,
-      ),
-      BrushPreset(
-        id: 'square',
-        name: names.square,
-        shape: BrushShape.square,
-        spacing: 0.15,
-        hardness: 0.85,
-        flow: 1.0,
-        scatter: 0.0,
-        randomRotation: false,
-        smoothRotation: false,
-        rotationJitter: 0.0,
-        antialiasLevel: 1,
-        hollowEnabled: false,
-        hollowRatio: 0.0,
-        hollowEraseOccludedParts: false,
-        autoSharpTaper: false,
-        snapToPixel: false,
-      ),
-      BrushPreset(
-        id: 'star',
-        name: names.star,
-        shape: BrushShape.star,
-        spacing: 0.18,
-        hardness: 0.8,
-        flow: 1.0,
-        scatter: 0.0,
-        randomRotation: false,
-        smoothRotation: false,
-        rotationJitter: 0.0,
-        antialiasLevel: 1,
-        hollowEnabled: false,
-        hollowRatio: 0.0,
-        hollowEraseOccludedParts: false,
-        autoSharpTaper: false,
-        snapToPixel: false,
-      ),
-    ];
-
-    return BrushLibrary._(presets: presets, selectedId: pencil.id);
-  }
-
-  static AppLocalizations _resolveL10n(AppPreferences? prefs) {
-    final ui.Locale locale =
-        prefs?.localeOverride ?? ui.PlatformDispatcher.instance.locale;
-    try {
-      return lookupAppLocalizations(locale);
-    } catch (_) {
-      return lookupAppLocalizations(const ui.Locale('en'));
+    BrushPreset preset = package.preset.sanitized();
+    preset = preset.copyWith(
+      id: _uniqueId(preset.id, _basePresets.keys.toSet()),
+      name: _uniqueName(preset.name, _presets.map((p) => p.name).toSet()),
+    );
+    await _ensureShapeForPackage(_shapeLibrary, preset, package);
+    final String? filePath =
+        await _writeUserBrushPackage(preset, _shapeLibrary, package: package);
+    if (filePath == null) {
+      return null;
     }
+    _basePresets[preset.id] = preset;
+    _sources[preset.id] = _BrushSource.file(filePath);
+    _presets.add(preset);
+    notifyListeners();
+    await save();
+    return preset;
   }
 
-  static bool _migrateDefaultPresets(
-    BrushLibrary library,
-    AppLocalizations l10n,
-  ) {
-    final _DefaultPresetNames target = _DefaultPresetNames.fromL10n(l10n);
-    const _DefaultPresetNames legacy = _DefaultPresetNames.legacyEnglish();
-    bool updated = false;
-    for (final BrushPreset preset in library._presets) {
-      final String? desired = target.nameForId(preset.id);
-      final String? expectedLegacy = legacy.nameForId(preset.id);
-      if (desired == null || expectedLegacy == null) {
+  Future<BrushPreset?> importBrushFile(String path) async {
+    if (kIsWeb) {
+      return null;
+    }
+    final File file = File(path);
+    if (!await file.exists()) {
+      return null;
+    }
+    final Uint8List bytes = await file.readAsBytes();
+    return importBrushBytes(bytes);
+  }
+
+  Future<bool> exportBrush(String id, String outputPath) async {
+    BrushPreset? preset;
+    for (final BrushPreset entry in _presets) {
+      if (entry.id == id) {
+        preset = entry;
+        break;
+      }
+    }
+    if (preset == null) {
+      return false;
+    }
+    final BrushShapeDefinition? shape =
+        _shapeLibrary.resolve(preset.resolvedShapeId);
+    Uint8List? shapeBytes;
+    String? shapeFileName;
+    BrushShapeFileType? shapeType;
+    if (shape != null) {
+      shapeBytes = await _shapeLibrary.loadShapeBytes(shape.id);
+      shapeFileName = shape.filePath != null
+          ? p.basename(shape.filePath!)
+          : '${shape.id}.${shape.type == BrushShapeFileType.svg ? 'svg' : 'png'}';
+      shapeType = shape.type;
+    }
+    final Uint8List bytes = BrushPackageCodec.encode(
+      preset: preset,
+      shapeBytes: shapeBytes,
+      shapeFileName: shapeFileName,
+      shapeType: shapeType,
+    );
+    if (bytes.isEmpty) {
+      return false;
+    }
+    final File outFile = File(outputPath);
+    await outFile.create(recursive: true);
+    await outFile.writeAsBytes(bytes, flush: true);
+    return true;
+  }
+
+  Map<String, dynamic> _toPayload() {
+    final Map<String, dynamic> overrides = <String, dynamic>{};
+    for (final BrushPreset preset in _presets) {
+      final BrushPreset? base = _basePresets[preset.id];
+      if (base == null) {
         continue;
       }
-      if (preset.name == expectedLegacy && preset.name != desired) {
-        preset.name = desired;
-        updated = true;
-      }
-      if (_shouldMigratePixelSpacing(preset, target, legacy)) {
-        preset.spacing = _defaultPixelSpacing;
-        updated = true;
+      if (!preset.isSameAs(base)) {
+        overrides[preset.id] = preset.toJson();
       }
     }
-    return updated;
+    return <String, dynamic>{
+      'version': _version,
+      'selectedId': _selectedId,
+      'overrides': overrides,
+    };
   }
 
-  static bool _shouldMigratePixelSpacing(
-    BrushPreset preset,
-    _DefaultPresetNames target,
-    _DefaultPresetNames legacy,
-  ) {
-    if (preset.id != 'pixel') {
-      return false;
+  static Map<String, BrushPreset> _parseOverrides(Object? payload) {
+    final Map<String, BrushPreset> overrides = <String, BrushPreset>{};
+    if (payload is! Map<String, dynamic>) {
+      return overrides;
     }
-    final bool nameMatches =
-        preset.name == target.pixel || preset.name == legacy.pixel;
-    if (!nameMatches) {
-      return false;
-    }
-    if ((preset.spacing - _legacyPixelSpacing).abs() > 0.0001 &&
-        (preset.spacing - _previousPixelSpacing).abs() > 0.0001) {
-      return false;
-    }
-    if (preset.shape != BrushShape.square ||
-        preset.antialiasLevel != 0 ||
-        preset.snapToPixel != true ||
-        preset.randomRotation != false ||
-        preset.smoothRotation != false ||
-        preset.hollowEnabled != false ||
-        preset.hollowEraseOccludedParts != false ||
-        preset.autoSharpTaper != false) {
-      return false;
-    }
-    if ((preset.hardness - 1.0).abs() > 0.0001 ||
-        (preset.flow - 1.0).abs() > 0.0001 ||
-        preset.scatter.abs() > 0.0001 ||
-        preset.rotationJitter.abs() > 0.0001 ||
-        preset.hollowRatio.abs() > 0.0001) {
-      return false;
-    }
-    return true;
+    payload.forEach((String key, Object? value) {
+      if (value is Map<String, dynamic>) {
+        overrides[key] = BrushPreset.fromJson(value);
+      }
+    });
+    return overrides;
   }
 
   static Future<Map<String, dynamic>?> _readPayload() async {
@@ -423,8 +449,273 @@ class BrushLibrary extends ChangeNotifier {
     if (!await directory.exists()) {
       await directory.create(recursive: true);
     }
-    return File(p.join(directory.path, _fileName));
+    return File(p.join(directory.path, _libraryFileName));
   }
+
+  static Future<Map<String, dynamic>?> _readLegacyPayload() async {
+    if (kIsWeb) {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? encoded = prefs.getString(_legacyStorageKey);
+      if (encoded == null || encoded.isEmpty) {
+        return null;
+      }
+      try {
+        final Object? decoded = jsonDecode(encoded);
+        return decoded is Map<String, dynamic> ? decoded : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    final File file = await _legacyLibraryFile();
+    if (!await file.exists()) {
+      return null;
+    }
+    try {
+      final String content = await file.readAsString();
+      final Object? decoded = jsonDecode(content);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<File> _legacyLibraryFile() async {
+    final base = await getApplicationDocumentsDirectory();
+    final Directory directory = Directory(p.join(base.path, _folderName));
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    return File(p.join(directory.path, _legacyFileName));
+  }
+
+  static List<BrushPreset> _legacyPresetsFromPayload(
+    Map<String, dynamic> payload,
+  ) {
+    final List<dynamic> entries =
+        payload['presets'] as List<dynamic>? ?? <dynamic>[];
+    return entries
+        .whereType<Map<String, dynamic>>()
+        .map(BrushPreset.fromJson)
+        .toList();
+  }
+
+  static Future<Map<String, BrushPreset>> _migrateLegacyPresets(
+    List<BrushPreset> legacyPresets,
+    Map<String, BrushPreset> basePresets,
+    Map<String, _BrushSource> sources,
+    List<BrushPreset> orderedPresets,
+    BrushShapeLibrary shapeLibrary,
+  ) async {
+    final Map<String, BrushPreset> overrides = <String, BrushPreset>{};
+    for (final BrushPreset preset in legacyPresets) {
+      if (basePresets.containsKey(preset.id)) {
+        overrides[preset.id] = preset.sanitized();
+        continue;
+      }
+      final String newId = _uniqueId(preset.id, basePresets.keys.toSet());
+      final String newName = _uniqueName(
+        preset.name,
+        basePresets.values.map((p) => p.name).toSet(),
+      );
+      final BrushPreset sanitized =
+          preset.sanitized().copyWith(id: newId, name: newName);
+      final String? filePath =
+          await _writeUserBrushPackage(sanitized, shapeLibrary);
+      if (filePath == null) {
+        continue;
+      }
+      basePresets[sanitized.id] = sanitized;
+      sources[sanitized.id] = _BrushSource.file(filePath);
+      orderedPresets.add(sanitized);
+    }
+    return overrides;
+  }
+
+  static Future<Directory> _brushDirectory() async {
+    final base = await getApplicationDocumentsDirectory();
+    return Directory(p.join(base.path, _folderName, _brushFolderName));
+  }
+
+  static Future<void> _ensureShapeForPackage(
+    BrushShapeLibrary shapeLibrary,
+    BrushPreset preset,
+    BrushPackageData package,
+  ) async {
+    final String shapeId = preset.resolvedShapeId;
+    final Uint8List? packageBytes = package.shapeBytes;
+    final BrushShapeFileType? packageType = package.shapeType;
+    final BrushShapeDefinition? existing = shapeLibrary.resolve(shapeId);
+    if (existing != null) {
+      if (packageBytes == null || packageType == null) {
+        return;
+      }
+      final Uint8List existingBytes =
+          await shapeLibrary.loadShapeBytes(existing.id);
+      if (existingBytes.isNotEmpty &&
+          _bytesEqual(existingBytes, packageBytes)) {
+        return;
+      }
+      final BrushShapeDefinition? imported = await shapeLibrary.importShapeBytes(
+        id: shapeId,
+        bytes: packageBytes,
+        type: packageType,
+      );
+      if (imported != null && imported.id != shapeId) {
+        preset.shapeId = imported.id;
+      }
+      return;
+    }
+    if (packageBytes != null && packageType != null) {
+      final BrushShapeDefinition? imported = await shapeLibrary.importShapeBytes(
+        id: shapeId,
+        bytes: packageBytes,
+        type: packageType,
+      );
+      if (imported != null && imported.id != shapeId) {
+        preset.shapeId = imported.id;
+      }
+    }
+  }
+
+  static Future<String?> _writeUserBrushPackage(
+    BrushPreset preset,
+    BrushShapeLibrary shapeLibrary, {
+    BrushPackageData? package,
+  }) async {
+    if (kIsWeb) {
+      return null;
+    }
+    final Directory directory = await _brushDirectory();
+    await directory.create(recursive: true);
+    final String baseName = _sanitizeFileId(preset.id);
+    String fileName = '$baseName.$brushFileExtension';
+    File file = File(p.join(directory.path, fileName));
+    int suffix = 2;
+    while (await file.exists()) {
+      fileName = '${baseName}_$suffix.$brushFileExtension';
+      file = File(p.join(directory.path, fileName));
+      suffix += 1;
+    }
+
+    final BrushShapeDefinition? shape =
+        shapeLibrary.resolve(preset.resolvedShapeId);
+    Uint8List? shapeBytes = package?.shapeBytes;
+    String? shapeFileName = package?.shapeFileName;
+    BrushShapeFileType? shapeType = package?.shapeType;
+    if (shapeBytes == null && shape != null) {
+      shapeBytes = await shapeLibrary.loadShapeBytes(shape.id);
+      shapeFileName = shape.filePath != null
+          ? p.basename(shape.filePath!)
+          : '${shape.id}.${shape.type == BrushShapeFileType.svg ? 'svg' : 'png'}';
+      shapeType = shape.type;
+    }
+    final Uint8List bytes = BrushPackageCodec.encode(
+      preset: preset,
+      shapeBytes: shapeBytes,
+      shapeFileName: shapeFileName,
+      shapeType: shapeType,
+    );
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  }
+
+  static AppLocalizations _resolveL10n(AppPreferences? prefs) {
+    final ui.Locale locale =
+        prefs?.localeOverride ?? ui.PlatformDispatcher.instance.locale;
+    try {
+      return lookupAppLocalizations(locale);
+    } catch (_) {
+      return lookupAppLocalizations(const ui.Locale('en'));
+    }
+  }
+
+  static BrushPreset _localizeBuiltInPreset(
+    BrushPreset preset,
+    AppLocalizations l10n,
+  ) {
+    final _DefaultPresetNames names = _DefaultPresetNames.fromL10n(l10n);
+    final String? localized = names.nameForId(preset.id);
+    if (localized == null) {
+      return preset;
+    }
+    return preset.copyWith(name: localized);
+  }
+
+  static String _uniqueId(String base, Set<String> ids) {
+    if (!ids.contains(base)) {
+      return base;
+    }
+    int counter = 2;
+    while (ids.contains('${base}_$counter')) {
+      counter += 1;
+    }
+    return '${base}_$counter';
+  }
+
+  static String _uniqueName(String base, Set<String> names) {
+    if (!names.contains(base)) {
+      return base;
+    }
+    int counter = 2;
+    while (names.contains('$base $counter')) {
+      counter += 1;
+    }
+    return '$base $counter';
+  }
+
+  static String _sanitizeFileId(String id) {
+    final StringBuffer buffer = StringBuffer();
+    for (final int rune in id.runes) {
+      final int code = rune;
+      final bool ok =
+          (code >= 48 && code <= 57) ||
+          (code >= 65 && code <= 90) ||
+          (code >= 97 && code <= 122) ||
+          code == 45 ||
+          code == 95;
+      buffer.write(ok ? String.fromCharCode(code) : '_');
+    }
+    final String sanitized = buffer.toString();
+    return sanitized.isEmpty ? 'brush' : sanitized;
+  }
+
+  static bool _bytesEqual(Uint8List a, Uint8List b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+class _BrushSource {
+  const _BrushSource._({
+    required this.path,
+    required this.isBuiltIn,
+  });
+
+  final String path;
+  final bool isBuiltIn;
+
+  factory _BrushSource.asset(String path) =>
+      _BrushSource._(path: path, isBuiltIn: true);
+
+  factory _BrushSource.file(String path) =>
+      _BrushSource._(path: path, isBuiltIn: false);
+}
+
+class _UserBrushEntry {
+  const _UserBrushEntry({
+    required this.preset,
+    required this.path,
+  });
+
+  final BrushPreset preset;
+  final String path;
 }
 
 class _DefaultPresetNames {
@@ -454,14 +745,6 @@ class _DefaultPresetNames {
       star: l10n.star,
     );
   }
-
-  const _DefaultPresetNames.legacyEnglish()
-      : pencil = 'Pencil',
-        pen = 'Pen',
-        pixel = 'Pixel',
-        triangle = 'Triangle',
-        square = 'Square',
-        star = 'Star';
 
   String? nameForId(String id) {
     switch (id) {

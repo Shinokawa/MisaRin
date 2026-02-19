@@ -1093,6 +1093,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushShape => 'Brush Shape';
 
   @override
+  String get brushAuthorLabel => 'Author';
+
+  @override
+  String get brushVersionLabel => 'Version';
+
+  @override
+  String get importBrush => 'Import Brush';
+
+  @override
+  String get exportBrush => 'Export Brush';
+
+  @override
+  String get exportBrushTitle => 'Export Brush';
+
+  @override
+  String get unsavedBrushChangesPrompt =>
+      'Brush settings have been modified. Save changes?';
+
+  @override
+  String get discardChanges => 'Discard Changes';
+
+  @override
+  String get brushShapeFolderLabel => 'Brush Shape Folder';
+
+  @override
+  String get openBrushShapesFolder => 'Open Brush Shape Folder';
+
+  @override
   String get randomRotation => 'Random rotation';
 
   @override

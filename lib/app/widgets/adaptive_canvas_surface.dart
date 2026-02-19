@@ -15,6 +15,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
     required this.canvasSize,
     required this.frame,
     required this.enableDrawing,
+    this.allowBackendCanvas = true,
     this.layerCount = 1,
     required this.brushColorArgb,
     required this.brushRadius,
@@ -45,6 +46,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
   final ui.Size canvasSize;
   final CanvasFrame? frame;
   final bool enableDrawing;
+  final bool allowBackendCanvas;
   final int layerCount;
   final int brushColorArgb;
   final double brushRadius;
@@ -76,7 +78,8 @@ class AdaptiveCanvasSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool useBackendCanvas = CanvasBackendFacade.instance.isSupported;
+    final bool useBackendCanvas =
+        allowBackendCanvas && CanvasBackendFacade.instance.isSupported;
     if (useBackendCanvas) {
       return BackendCanvasSurface(
         surfaceKey: surfaceKey,

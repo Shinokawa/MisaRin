@@ -1070,6 +1070,33 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushShape => 'ブラシ形状';
 
   @override
+  String get brushAuthorLabel => '作者';
+
+  @override
+  String get brushVersionLabel => 'バージョン';
+
+  @override
+  String get importBrush => 'ブラシをインポート';
+
+  @override
+  String get exportBrush => 'ブラシをエクスポート';
+
+  @override
+  String get exportBrushTitle => 'ブラシを書き出し';
+
+  @override
+  String get unsavedBrushChangesPrompt => 'ブラシ設定が変更されています。保存しますか？';
+
+  @override
+  String get discardChanges => '変更を破棄';
+
+  @override
+  String get brushShapeFolderLabel => 'ブラシ形状フォルダー';
+
+  @override
+  String get openBrushShapesFolder => 'ブラシ形状フォルダーを開く';
+
+  @override
   String get randomRotation => 'ランダム回転';
 
   @override

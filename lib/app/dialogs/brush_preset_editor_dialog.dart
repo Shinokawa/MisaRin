@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
+import '../../brushes/brush_shape_library.dart';
 import '../../canvas/canvas_tools.dart' show BrushShape;
 import '../dialogs/misarin_dialog.dart';
 import '../l10n/l10n.dart';
@@ -52,7 +54,10 @@ class BrushPresetEditorForm extends StatefulWidget {
 
 class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late final TextEditingController _nameController;
+  late final TextEditingController _authorController;
+  late final TextEditingController _versionController;
   late BrushShape _shape;
+  late String _shapeId;
   late double _spacing;
   late double _hardness;
   late double _flow;
@@ -71,12 +76,16 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   void initState() {
     super.initState();
     _nameController = TextEditingController();
+    _authorController = TextEditingController();
+    _versionController = TextEditingController();
     _syncFromPreset(widget.preset);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _authorController.dispose();
+    _versionController.dispose();
     super.dispose();
   }
 
@@ -92,6 +101,9 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     final BrushPreset sanitized = preset.sanitized();
     _nameController.text = sanitized.name;
     _shape = sanitized.shape;
+    _shapeId = sanitized.resolvedShapeId;
+    _authorController.text = sanitized.author ?? '';
+    _versionController.text = sanitized.version ?? '';
     _spacing = sanitized.spacing;
     _hardness = sanitized.hardness;
     _flow = sanitized.flow;
@@ -112,7 +124,14 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       name: _nameController.text.trim().isEmpty
           ? widget.preset.name
           : _nameController.text.trim(),
-      shape: _shape,
+      shape: _shapeFromId(_shapeId) ?? _shape,
+      shapeId: _shapeId,
+      author: _authorController.text.trim().isEmpty
+          ? null
+          : _authorController.text.trim(),
+      version: _versionController.text.trim().isEmpty
+          ? null
+          : _versionController.text.trim(),
       spacing: _spacing,
       hardness: _hardness,
       flow: _flow,
@@ -145,6 +164,28 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = context.l10n;
+    final BrushShapeLibrary shapeLibrary = BrushLibrary.instance.shapeLibrary;
+    final List<ComboBoxItem<String>> shapeItems = <ComboBoxItem<String>>[];
+    final bool hasShapeId =
+        shapeLibrary.shapes.any((shape) => shape.id == _shapeId);
+    if (_shapeId.isNotEmpty && !hasShapeId) {
+      shapeItems.add(
+        ComboBoxItem<String>(
+          value: _shapeId,
+          child: Text(_shapeId),
+        ),
+      );
+    }
+    shapeItems.addAll(
+      shapeLibrary.shapes
+          .map(
+            (shape) => ComboBoxItem<String>(
+              value: shape.id,
+              child: Text(shapeLibrary.labelFor(l10n, shape.id)),
+            ),
+          )
+          .toList(growable: false),
+    );
     final Widget content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -157,23 +198,37 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
         ),
         const SizedBox(height: 12),
         InfoLabel(
+          label: l10n.brushAuthorLabel,
+          child: TextBox(
+            controller: _authorController,
+            onChanged: (_) => _notifyChanged(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: l10n.brushVersionLabel,
+          child: TextBox(
+            controller: _versionController,
+            onChanged: (_) => _notifyChanged(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
           label: l10n.brushShape,
-          child: ComboBox<BrushShape>(
+          child: ComboBox<String>(
             isExpanded: true,
-            value: _shape,
-            items: BrushShape.values
-                .map(
-                  (shape) => ComboBoxItem<BrushShape>(
-                    value: shape,
-                    child: Text(_shapeLabel(l10n, shape)),
-                  ),
-                )
-                .toList(growable: false),
+            value: shapeItems.any((item) => item.value == _shapeId)
+                ? _shapeId
+                : null,
+            items: shapeItems,
             onChanged: (value) {
               if (value == null) {
                 return;
               }
-              _setAndNotify(() => _shape = value);
+              _setAndNotify(() {
+                _shapeId = value;
+                _shape = _shapeFromId(value) ?? _shape;
+              });
             },
           ),
         ),
@@ -370,16 +425,17 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     );
   }
 
-  String _shapeLabel(AppLocalizations l10n, BrushShape shape) {
-    switch (shape) {
-      case BrushShape.circle:
-        return l10n.circle;
-      case BrushShape.triangle:
-        return l10n.triangle;
-      case BrushShape.square:
-        return l10n.square;
-      case BrushShape.star:
-        return l10n.star;
+  BrushShape? _shapeFromId(String id) {
+    switch (id) {
+      case 'circle':
+        return BrushShape.circle;
+      case 'triangle':
+        return BrushShape.triangle;
+      case 'square':
+        return BrushShape.square;
+      case 'star':
+        return BrushShape.star;
     }
+    return null;
   }
 }

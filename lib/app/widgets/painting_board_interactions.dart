@@ -582,7 +582,8 @@ mixin _PaintingBoardInteractionMixin
     return true;
   }
 
-  bool get _useCpuStrokeQueue => !_backend.isSupported;
+  bool get _useCpuStrokeQueue =>
+      !_backend.isSupported || !_brushShapeSupportsBackend;
 
   void _enqueueCpuStrokeEvent({
     required _CpuStrokeEventType type,
@@ -1342,7 +1343,8 @@ mixin _PaintingBoardInteractionMixin
       case CanvasTool.pen:
       case CanvasTool.eraser:
         _focusNode.requestFocus();
-        final bool useBackendCanvas = _backend.isSupported;
+        final bool useBackendCanvas =
+            _backend.isSupported && _brushShapeSupportsBackend;
         if (!useBackendCanvas) {
           if (!_canStartBitmapStroke(pointerInsideBoard: pointerInsideBoard)) {
             return;

@@ -688,6 +688,16 @@
 /Library/Afolder/FlutterProject/misa-rin/assets/bedrock_models/armor_steve.json
 /Library/Afolder/FlutterProject/misa-rin/assets/bedrock_models/cube.json
 /Library/Afolder/FlutterProject/misa-rin/assets/bedrock_models/dfsteve_armor.animation.json
+/Library/Afolder/FlutterProject/misa-rin/assets/brush_shapes/circle.svg
+/Library/Afolder/FlutterProject/misa-rin/assets/brush_shapes/square.svg
+/Library/Afolder/FlutterProject/misa-rin/assets/brush_shapes/star.svg
+/Library/Afolder/FlutterProject/misa-rin/assets/brush_shapes/triangle.svg
+/Library/Afolder/FlutterProject/misa-rin/assets/brushes/pen.mrb
+/Library/Afolder/FlutterProject/misa-rin/assets/brushes/pencil.mrb
+/Library/Afolder/FlutterProject/misa-rin/assets/brushes/pixel.mrb
+/Library/Afolder/FlutterProject/misa-rin/assets/brushes/square.mrb
+/Library/Afolder/FlutterProject/misa-rin/assets/brushes/star.mrb
+/Library/Afolder/FlutterProject/misa-rin/assets/brushes/triangle.mrb
 /Library/Afolder/FlutterProject/misa-rin/icons/line.svg
 /Library/Afolder/FlutterProject/misa-rin/icons/line2.svg
 /Library/Afolder/FlutterProject/misa-rin/icons/spray.svg
@@ -886,7 +896,10 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/stroke_sample.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/velocity_smoother.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_library.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_package.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_preset.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_shape_library.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_shape_raster.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/canvas/blend_mode_math.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/canvas/blend_mode_utils.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/canvas/brush_random_rotation.dart

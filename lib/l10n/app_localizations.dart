@@ -2078,6 +2078,60 @@ abstract class AppLocalizations {
   /// **'Brush Shape'**
   String get brushShape;
 
+  /// No description provided for @brushAuthorLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Author'**
+  String get brushAuthorLabel;
+
+  /// No description provided for @brushVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get brushVersionLabel;
+
+  /// No description provided for @importBrush.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Brush'**
+  String get importBrush;
+
+  /// No description provided for @exportBrush.
+  ///
+  /// In en, this message translates to:
+  /// **'Export Brush'**
+  String get exportBrush;
+
+  /// No description provided for @exportBrushTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export Brush'**
+  String get exportBrushTitle;
+
+  /// No description provided for @unsavedBrushChangesPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Brush settings have been modified. Save changes?'**
+  String get unsavedBrushChangesPrompt;
+
+  /// No description provided for @discardChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard Changes'**
+  String get discardChanges;
+
+  /// No description provided for @brushShapeFolderLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Brush Shape Folder'**
+  String get brushShapeFolderLabel;
+
+  /// No description provided for @openBrushShapesFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Brush Shape Folder'**
+  String get openBrushShapesFolder;
+
   /// No description provided for @randomRotation.
   ///
   /// In en, this message translates to:

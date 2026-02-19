@@ -73,6 +73,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
     _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
     _brushShape = prefs.brushShape;
+    _brushShapeId = _shapeIdForBrush(_brushShape);
     _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
     _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
     _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
@@ -92,7 +93,7 @@ class PaintingBoardState extends _PaintingBoardBase
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
     final bool useBackendCanvas = _backend.isSupported;
-    final bool enableRasterOutput = !useBackendCanvas;
+    final bool enableRasterOutput = true;
     final CanvasBackend rasterBackend =
         CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
     if (kDebugMode) {
@@ -1105,6 +1106,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final void Function() update = () {
       _activeBrushPreset = sanitized;
       _brushShape = sanitized.shape;
+      _brushShapeId = sanitized.resolvedShapeId;
       _brushRandomRotationEnabled = sanitized.randomRotation;
       _brushSmoothRotationEnabled = sanitized.smoothRotation;
       if (sanitized.randomRotation &&
@@ -1128,11 +1130,47 @@ class PaintingBoardState extends _PaintingBoardBase
     } else {
       update();
     }
+    _syncCustomBrushShape(sanitized);
     if (autoSharpChanged) {
       _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
       _applyStylusSettingsToController();
     }
   }
+
+  void _syncCustomBrushShape(BrushPreset preset) {
+    final BrushLibrary library = _brushLibrary ?? BrushLibrary.instance;
+    final BrushShapeLibrary shapes = library.shapeLibrary;
+    final String shapeId = preset.resolvedShapeId;
+    final bool builtIn = shapes.isBuiltInId(shapeId);
+    if (builtIn) {
+      _brushShapeRaster = null;
+      if (_controller is BitmapCanvasController) {
+        (_controller as BitmapCanvasController).setCustomBrushShape(
+          shapeId: shapeId,
+          raster: null,
+        );
+      }
+      return;
+    }
+    shapes.loadRaster(shapeId).then((BrushShapeRaster? raster) {
+      if (!mounted) {
+        return;
+      }
+      if (_brushShapeId != shapeId) {
+        return;
+      }
+      setState(() {
+        _brushShapeRaster = raster;
+      });
+      if (_controller is BitmapCanvasController) {
+        (_controller as BitmapCanvasController).setCustomBrushShape(
+          shapeId: shapeId,
+          raster: raster,
+        );
+      }
+    });
+  }
+
 }
 
 class _CanvasHistoryEntry {

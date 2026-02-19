@@ -13,6 +13,7 @@ import '../app/debug/backend_canvas_timeline.dart';
 import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
 import '../backend/rgba_utils.dart';
+import '../brushes/brush_shape_raster.dart';
 import '../canvas/canvas_backend.dart';
 import '../canvas/canvas_facade.dart';
 import '../canvas/canvas_frame.dart';
@@ -105,6 +106,7 @@ class BitmapCanvasController extends ChangeNotifier
   final bool _isMultithreaded;
   bool _rasterOutputEnabled;
   bool _synchronousRasterOverride = false;
+  bool _forceSynchronousRaster = false;
 
   final List<Offset> _currentStrokePoints = <Offset>[];
   final List<double> _currentStrokeRadii = <double>[];
@@ -132,6 +134,8 @@ class BitmapCanvasController extends ChangeNotifier
   bool _currentStrokeRandomRotationEnabled = false;
   bool _currentStrokeSmoothRotationEnabled = false;
   int _currentStrokeRotationSeed = 0;
+  String? _customBrushShapeId;
+  BrushShapeRaster? _customBrushShapeRaster;
   final StrokePressureSimulator _strokePressureSimulator =
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
@@ -333,7 +337,32 @@ class BitmapCanvasController extends ChangeNotifier
       _controllerDispatchDirectPaintCommand(this, command);
 
   bool get _useWorkerForRaster =>
-      _isMultithreaded && !_synchronousRasterOverride;
+      _isMultithreaded && !_synchronousRasterOverride && !_forceSynchronousRaster;
+
+  void setCustomBrushShape({
+    required String? shapeId,
+    required BrushShapeRaster? raster,
+  }) {
+    _customBrushShapeId = shapeId;
+    _customBrushShapeRaster = raster;
+    _forceSynchronousRaster = _isCustomShapeId(shapeId) && raster != null;
+  }
+
+  BrushShapeRaster? get customBrushShapeRaster => _customBrushShapeRaster;
+
+  static bool _isCustomShapeId(String? id) {
+    if (id == null || id.isEmpty) {
+      return false;
+    }
+    switch (id) {
+      case 'circle':
+      case 'triangle':
+      case 'square':
+      case 'star':
+        return false;
+    }
+    return true;
+  }
 
   Rect? _dirtyRectForCommand(PaintingDrawCommand command) =>
       _controllerDirtyRectForCommand(this, command);

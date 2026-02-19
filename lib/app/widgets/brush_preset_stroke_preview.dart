@@ -7,7 +7,11 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../bitmap_canvas/bitmap_canvas.dart';
+import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
+import '../../brushes/brush_shape_library.dart';
+import '../../brushes/brush_shape_raster.dart';
+import '../../canvas/brush_random_rotation.dart';
 import '../../canvas/brush_shape_geometry.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../src/rust/rust_cpu_brush_ffi.dart';
@@ -179,6 +183,7 @@ Future<ui.Image?> _buildPreviewImage({
     fillColor: const Color(0x00000000),
   );
   try {
+    final BrushShapeRaster? customShape = await _resolveCustomShape(preset);
     final double padding = _kPreviewPadding * scale;
     final double width = pixelWidth - padding * 2.0;
     final double height = pixelHeight - padding * 2.0;
@@ -263,6 +268,7 @@ Future<ui.Image?> _buildPreviewImage({
       rotationSeed: rotationSeed,
       erase: false,
       radiusScale: 1.0,
+      customShape: customShape,
     );
 
     final bool hollow =
@@ -279,6 +285,7 @@ Future<ui.Image?> _buildPreviewImage({
         rotationSeed: rotationSeed,
         erase: true,
         radiusScale: preset.hollowRatio.clamp(0.0, 1.0),
+        customShape: customShape,
       );
     }
 
@@ -290,6 +297,15 @@ Future<ui.Image?> _buildPreviewImage({
   } finally {
     surface.dispose();
   }
+}
+
+Future<BrushShapeRaster?> _resolveCustomShape(BrushPreset preset) async {
+  final BrushShapeLibrary shapes = BrushLibrary.instance.shapeLibrary;
+  final String shapeId = preset.resolvedShapeId;
+  if (shapes.isBuiltInId(shapeId)) {
+    return null;
+  }
+  return shapes.loadRaster(shapeId);
 }
 
 double _effectiveSpacing(double spacing) {
@@ -316,6 +332,7 @@ void _drawStrokeSegments({
   required int rotationSeed,
   required bool erase,
   required double radiusScale,
+  BrushShapeRaster? customShape,
 }) {
   if (samples.isEmpty) {
     return;
@@ -347,6 +364,7 @@ void _drawStrokeSegments({
     scatter: scatter,
     softness: softness,
     snapToPixel: snapToPixel,
+    customShape: customShape,
   );
 
   for (int i = 0; i < samples.length - 1; i++) {
@@ -371,6 +389,7 @@ void _drawStrokeSegments({
       scatter: scatter,
       softness: softness,
       snapToPixel: snapToPixel,
+      customShape: customShape,
     );
   }
 }
@@ -394,7 +413,30 @@ void _drawStampSegment({
   required double scatter,
   required double softness,
   required bool snapToPixel,
+  BrushShapeRaster? customShape,
 }) {
+  if (customShape != null) {
+    _drawCustomStampSegment(
+      surface: surface,
+      shape: customShape,
+      start: start,
+      end: end,
+      startRadius: startRadius,
+      endRadius: endRadius,
+      color: color,
+      includeStart: includeStart,
+      erase: erase,
+      randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
+      rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      spacing: spacing,
+      scatter: scatter,
+      softness: softness,
+      snapToPixel: snapToPixel,
+    );
+    return;
+  }
   final bool ok = RustCpuBrushFfi.instance.drawStampSegment(
     pixelsPtr: surface.pointerAddress,
     pixelsLen: surface.pixels.length,
@@ -425,6 +467,126 @@ void _drawStampSegment({
   if (ok) {
     surface.markDirty();
   }
+}
+
+void _drawCustomStampSegment({
+  required BitmapSurface surface,
+  required BrushShapeRaster shape,
+  required Offset start,
+  required Offset end,
+  required double startRadius,
+  required double endRadius,
+  required Color color,
+  required bool includeStart,
+  required bool erase,
+  required bool randomRotation,
+  required bool smoothRotation,
+  required int rotationSeed,
+  required double rotationJitter,
+  required double spacing,
+  required double scatter,
+  required double softness,
+  required bool snapToPixel,
+}) {
+  final double distance = (end - start).distance;
+  if (!distance.isFinite || distance <= 0.0001) {
+    final double rotation = _customStampRotation(
+      center: end,
+      start: start,
+      end: end,
+      randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
+      rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+    );
+    surface.drawCustomBrushStamp(
+      shape: shape,
+      center: end,
+      radius: endRadius,
+      color: color,
+      erase: erase,
+      softness: softness,
+      rotation: rotation,
+      snapToPixel: snapToPixel,
+    );
+    return;
+  }
+  final double maxRadius = math.max(
+    math.max(startRadius.abs(), endRadius.abs()),
+    0.01,
+  );
+  final double step = _strokeStampSpacing(maxRadius, spacing);
+  final int samples = math.max(1, (distance / step).ceil());
+  final int startIndex = includeStart ? 0 : 1;
+  for (int i = startIndex; i <= samples; i++) {
+    final double t = samples == 0 ? 1.0 : (i / samples);
+    final double radius = ui.lerpDouble(startRadius, endRadius, t) ?? endRadius;
+    final double sampleX = ui.lerpDouble(start.dx, end.dx, t) ?? end.dx;
+    final double sampleY = ui.lerpDouble(start.dy, end.dy, t) ?? end.dy;
+    final Offset baseCenter = Offset(sampleX, sampleY);
+    final double scatterRadius = maxRadius * scatter.clamp(0.0, 1.0) * 2.0;
+    final Offset jitter = scatterRadius > 0
+        ? brushScatterOffset(
+            center: baseCenter,
+            seed: rotationSeed,
+            radius: scatterRadius,
+            salt: i,
+          )
+        : Offset.zero;
+    final Offset center = baseCenter + jitter;
+    final double rotation = _customStampRotation(
+      center: center,
+      start: start,
+      end: end,
+      randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
+      rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+    );
+    surface.drawCustomBrushStamp(
+      shape: shape,
+      center: center,
+      radius: radius,
+      color: color,
+      erase: erase,
+      softness: softness,
+      rotation: rotation,
+      snapToPixel: snapToPixel,
+    );
+  }
+}
+
+double _customStampRotation({
+  required Offset center,
+  required Offset start,
+  required Offset end,
+  required bool randomRotation,
+  required bool smoothRotation,
+  required int rotationSeed,
+  required double rotationJitter,
+}) {
+  double rotation = 0.0;
+  if (smoothRotation) {
+    final Offset delta = end - start;
+    if (delta.distanceSquared > 0.0001) {
+      rotation = math.atan2(delta.dy, delta.dx);
+    }
+  }
+  if (randomRotation) {
+    rotation += brushRandomRotationRadians(center: center, seed: rotationSeed) *
+        rotationJitter;
+  }
+  return rotation;
+}
+
+double _strokeStampSpacing(double radius, double spacing) {
+  double r = radius.isFinite ? radius.abs() : 0.0;
+  double s = spacing.isFinite ? spacing : 0.15;
+  if (kIsWeb) {
+    s *= 2.0;
+  }
+  s = s.clamp(0.02, 2.5);
+  return math.max(r * 2.0 * s, 0.1);
 }
 
 Uint8List _argbToRgba(Uint32List pixels) {

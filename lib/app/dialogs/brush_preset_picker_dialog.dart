@@ -1,12 +1,15 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
 import '../l10n/l10n.dart';
-import '../preferences/app_preferences.dart';
 import '../widgets/brush_preset_stroke_preview.dart';
+import 'misarin_dialog.dart';
 import 'brush_preset_editor_dialog.dart';
 
 Future<String?> showBrushPresetPickerDialog(
@@ -52,6 +55,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
     _selectedId = _resolveSelectedId(widget.selectedId, _presets);
     _syncDraftWithSelection();
     widget.library.addListener(_handleLibraryChanged);
+    _refreshShapes();
   }
 
   @override
@@ -69,6 +73,15 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       _presets = widget.library.presets;
       _selectedId = _resolveSelectedId(_selectedId, _presets);
       _syncDraftWithSelection();
+    });
+  }
+
+  void _refreshShapes() {
+    widget.library.shapeLibrary.refresh().then((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {});
     });
   }
 
@@ -137,37 +150,28 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
     });
   }
 
-  void _deleteSelected() {
+  Future<void> _deleteSelected() async {
     final BrushPreset? preset = _selectedPreset;
     if (preset == null) {
       return;
     }
-    widget.library.removePreset(preset.id);
+    await widget.library.removePreset(preset.id);
   }
 
-  void _resetSelectedToDefault() {
+  Future<void> _resetSelectedToDefault() async {
     final BrushPreset? preset = _selectedPreset;
     if (preset == null) {
       return;
     }
-    final BrushPreset? defaults = BrushLibrary.defaultPresetById(
-      preset.id,
-      prefs: AppPreferences.instance,
-      l10n: context.l10n,
-    );
-    if (defaults == null) {
-      return;
-    }
-    final BrushPreset restored = defaults.copyWith(name: preset.name);
-    widget.library.updatePreset(restored);
+    await widget.library.resetPreset(preset.id);
     setState(() {
-      _selectedId = restored.id;
-      _draftPreset = restored.sanitized();
+      _selectedId = preset.id;
+      _draftPreset = widget.library.selectedPreset.sanitized();
       _editorResetToken += 1;
     });
   }
 
-  void _duplicateSelected() {
+  Future<void> _duplicateSelected() async {
     final BrushPreset? preset = _selectedPreset;
     if (preset == null) {
       return;
@@ -193,8 +197,11 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       hollowEraseOccludedParts: preset.hollowEraseOccludedParts,
       autoSharpTaper: preset.autoSharpTaper,
       snapToPixel: preset.snapToPixel,
+      author: preset.author,
+      version: preset.version,
+      shapeId: preset.shapeId,
     );
-    widget.library.addPreset(copy);
+    await widget.library.addPreset(copy);
     setState(() => _selectedId = id);
     _scrollToId(id);
   }
@@ -242,12 +249,108 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
     );
   }
 
-  void _confirm() {
+  Future<void> _confirm() async {
     if (_selectedId.isEmpty) {
       Navigator.of(context).pop();
       return;
     }
+    final bool ok = await _promptSaveIfNeeded();
+    if (!ok) {
+      return;
+    }
     Navigator.of(context).pop(_selectedId);
+  }
+
+  bool _hasUnsavedChanges() {
+    final BrushPreset? selected = _selectedPreset;
+    final BrushPreset? draft = _draftPreset;
+    if (selected == null || draft == null) {
+      return false;
+    }
+    return !draft.isSameAs(selected);
+  }
+
+  Future<bool> _promptSaveIfNeeded() async {
+    if (!_hasUnsavedChanges()) {
+      return true;
+    }
+    final AppLocalizations l10n = context.l10n;
+    final bool? shouldSave = await showMisarinDialog<bool>(
+      context: context,
+      title: Text(l10n.brushPreset),
+      content: Text(l10n.unsavedBrushChangesPrompt),
+      actions: [
+        Button(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.discardChanges),
+        ),
+        Button(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.save),
+        ),
+      ],
+    );
+    if (shouldSave == null) {
+      return false;
+    }
+    if (shouldSave) {
+      _saveDraft();
+    }
+    return true;
+  }
+
+  Future<void> _importBrush() async {
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: [BrushLibrary.brushFileExtension],
+      withData: kIsWeb,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+    BrushPreset? imported;
+    if (kIsWeb) {
+      final Uint8List? bytes = result.files.single.bytes;
+      if (bytes == null) {
+        return;
+      }
+      imported = await widget.library.importBrushBytes(bytes);
+    } else {
+      final String? path = result.files.single.path;
+      if (path == null) {
+        return;
+      }
+      imported = await widget.library.importBrushFile(path);
+    }
+    if (imported == null) {
+      return;
+    }
+    setState(() {
+      _selectedId = imported!.id;
+      _syncDraftWithSelection(imported.id);
+    });
+    _scrollToId(imported.id);
+  }
+
+  Future<void> _exportBrush() async {
+    final BrushPreset? preset = _selectedPreset;
+    if (preset == null) {
+      return;
+    }
+    final String? outputPath = await FilePicker.platform.saveFile(
+      dialogTitle: context.l10n.exportBrushTitle,
+      fileName: '${preset.name}.${BrushLibrary.brushFileExtension}',
+      type: FileType.custom,
+      allowedExtensions: [BrushLibrary.brushFileExtension],
+    );
+    if (outputPath == null) {
+      return;
+    }
+    await widget.library.exportBrush(preset.id, outputPath);
   }
 
   static const double _listItemExtent = 56;
@@ -261,10 +364,10 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
         (_draftPreset != null && _draftPreset?.id == selected?.id)
             ? _draftPreset
             : selected;
-    final bool isDefaultPreset =
-        selected != null && BrushLibrary.isDefaultPresetId(selected.id);
+    final bool isBuiltInPreset =
+        selected != null && widget.library.isBuiltInPreset(selected.id);
     final bool canDelete =
-        selected != null && !isDefaultPreset && _presets.length > 1;
+        selected != null && !isBuiltInPreset && _presets.length > 1;
     final Color selectedBackground =
         theme.accentColor.defaultBrushFor(theme.brightness);
     final Color selectedForeground =
@@ -378,20 +481,31 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
 
     final Widget actionsRow = Row(
       children: [
-        if (isDefaultPreset)
-          Button(
-            onPressed: selected == null ? null : _resetSelectedToDefault,
-            child: Text(l10n.reset),
-          )
-        else
+        Button(
+          onPressed: selected == null ? null : _resetSelectedToDefault,
+          child: Text(l10n.reset),
+        ),
+        if (!isBuiltInPreset) ...[
+          const SizedBox(width: 8),
           Button(
             onPressed: canDelete ? _deleteSelected : null,
             child: Text(l10n.delete),
           ),
+        ],
         const SizedBox(width: 8),
         Button(
           onPressed: selected == null ? null : _duplicateSelected,
           child: Text(l10n.duplicate),
+        ),
+        const SizedBox(width: 8),
+        Button(
+          onPressed: _importBrush,
+          child: Text(l10n.importBrush),
+        ),
+        const SizedBox(width: 8),
+        Button(
+          onPressed: selected == null ? null : _exportBrush,
+          child: Text(l10n.exportBrush),
         ),
         const SizedBox(width: 8),
         FilledButton(
@@ -474,10 +588,22 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       content: content,
       actions: [
         Button(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            final bool ok = await _promptSaveIfNeeded();
+            if (!ok) {
+              return;
+            }
+            if (!mounted) {
+              return;
+            }
+            Navigator.of(context).pop();
+          },
           child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: _confirm, child: Text(l10n.confirm)),
+        FilledButton(
+          onPressed: _confirm,
+          child: Text(l10n.confirm),
+        ),
       ],
     );
   }

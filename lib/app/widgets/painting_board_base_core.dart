@@ -43,6 +43,8 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   double _stylusCurve = AppPreferences.defaultStylusCurve;
   bool _autoSharpPeakEnabled = AppPreferences.defaultAutoSharpPeakEnabled;
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
+  String _brushShapeId = 'circle';
+  BrushShapeRaster? _brushShapeRaster;
   bool _brushRandomRotationEnabled =
       AppPreferences.defaultBrushRandomRotationEnabled;
   bool _brushSmoothRotationEnabled = false;
@@ -176,6 +178,26 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   CanvasViewInfo? _pendingViewInfo;
   Color _primaryColor = AppPreferences.defaultPrimaryColor;
   late HSVColor _primaryHsv;
+
+  bool get _brushShapeSupportsBackend {
+    final BrushLibrary? library = _brushLibrary;
+    final BrushShapeLibrary shapes =
+        library?.shapeLibrary ?? BrushLibrary.instance.shapeLibrary;
+    return shapes.isBuiltInId(_brushShapeId);
+  }
+
+  String _shapeIdForBrush(BrushShape shape) {
+    switch (shape) {
+      case BrushShape.circle:
+        return 'circle';
+      case BrushShape.triangle:
+        return 'triangle';
+      case BrushShape.square:
+        return 'square';
+      case BrushShape.star:
+        return 'star';
+    }
+  }
 
   /// 颜色更新后由颜色面板调用的钩子，子类/混入可以覆写以响应颜色变化。
   @protected

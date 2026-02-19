@@ -6,7 +6,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
+import '../../../brushes/brush_library.dart';
 import '../../../brushes/brush_preset.dart';
+import '../../../brushes/brush_shape_library.dart';
 import '../../../canvas/canvas_tools.dart';
 import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../../dialogs/font_family_picker_dialog.dart';
@@ -707,7 +709,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   String _buildBrushPresetTooltip(AppLocalizations l10n, BrushPreset preset) {
     final BrushPreset sanitized = preset.sanitized();
     final List<String> lines = <String>[
-      '${l10n.brushShape}: ${_shapeLabel(l10n, sanitized.shape)}',
+      '${l10n.brushShape}: ${_shapeLabel(l10n, sanitized)}',
       '${l10n.brushSpacing}: ${sanitized.spacing.toStringAsFixed(2)}',
       '${l10n.brushHardness}: ${_formatPercent(sanitized.hardness)}',
       '${l10n.brushFlow}: ${_formatPercent(sanitized.flow)}',
@@ -740,17 +742,9 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     return '${(value * 100).round()}%';
   }
 
-  String _shapeLabel(AppLocalizations l10n, BrushShape shape) {
-    switch (shape) {
-      case BrushShape.circle:
-        return l10n.circle;
-      case BrushShape.triangle:
-        return l10n.triangle;
-      case BrushShape.square:
-        return l10n.square;
-      case BrushShape.star:
-        return l10n.star;
-    }
+  String _shapeLabel(AppLocalizations l10n, BrushPreset preset) {
+    final BrushShapeLibrary shapes = BrushLibrary.instance.shapeLibrary;
+    return shapes.labelFor(l10n, preset.resolvedShapeId);
   }
 
   Widget _buildSelectionShapeRow(FluentThemeData theme) {

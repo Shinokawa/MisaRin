@@ -3,8 +3,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+import '../brushes/brush_shape_raster.dart';
 import '../canvas/canvas_tools.dart';
 import '../src/rust/rust_cpu_brush_ffi.dart';
+import 'bitmap_blend_utils.dart' as blend_utils;
 import 'memory/native_memory_manager.dart';
 import 'soft_brush_profile.dart';
 
@@ -347,6 +349,136 @@ class BitmapSurface {
       _isClean = false;
     }
     return;
+  }
+
+  void drawCustomBrushStamp({
+    required BrushShapeRaster shape,
+    required Offset center,
+    required double radius,
+    required Color color,
+    required double rotation,
+    Uint8List? mask,
+    bool erase = false,
+    double softness = 0.0,
+    bool snapToPixel = false,
+  }) {
+    Offset resolvedCenter = center;
+    double resolvedRadius = radius;
+    if (snapToPixel) {
+      resolvedCenter = Offset(
+        resolvedCenter.dx.floorToDouble() + 0.5,
+        resolvedCenter.dy.floorToDouble() + 0.5,
+      );
+      if (resolvedRadius.isFinite) {
+        resolvedRadius = (resolvedRadius * 2.0).roundToDouble() / 2.0;
+      }
+    }
+    if (!resolvedRadius.isFinite || resolvedRadius <= 0.0) {
+      return;
+    }
+
+    final double radiusValue = resolvedRadius.abs();
+    final int left = (resolvedCenter.dx - radiusValue).floor();
+    final int right = (resolvedCenter.dx + radiusValue).ceil();
+    final int top = (resolvedCenter.dy - radiusValue).floor();
+    final int bottom = (resolvedCenter.dy + radiusValue).ceil();
+    if (right < 0 ||
+        bottom < 0 ||
+        left >= width ||
+        top >= height) {
+      return;
+    }
+
+    final int startX = left.clamp(0, width - 1);
+    final int endX = right.clamp(0, width - 1);
+    final int startY = top.clamp(0, height - 1);
+    final int endY = bottom.clamp(0, height - 1);
+
+    final double softnessValue = softness.clamp(0.0, 1.0);
+    final double cosR = math.cos(rotation);
+    final double sinR = math.sin(rotation);
+    final double invRadius = radiusValue <= 0.0 ? 0.0 : 1.0 / radiusValue;
+    final int colorArgb = color.toARGB32();
+    final int baseAlpha = (colorArgb >> 24) & 0xff;
+
+    for (int y = startY; y <= endY; y++) {
+      final int rowOffset = y * width;
+      for (int x = startX; x <= endX; x++) {
+        final int pixelIndex = rowOffset + x;
+        if (mask != null && mask[pixelIndex] == 0) {
+          continue;
+        }
+        final double dx = (x + 0.5) - resolvedCenter.dx;
+        final double dy = (y + 0.5) - resolvedCenter.dy;
+        final double rx = dx * cosR + dy * sinR;
+        final double ry = -dx * sinR + dy * cosR;
+        final double u = rx * invRadius * 0.5 + 0.5;
+        final double v = ry * invRadius * 0.5 + 0.5;
+        if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) {
+          continue;
+        }
+        final double alphaBase = _sampleMask(shape.alpha, shape.width, shape.height, u, v);
+        if (alphaBase <= 0.0001) {
+          continue;
+        }
+        double alpha = alphaBase;
+        if (softnessValue > 0.0001) {
+          final double alphaSoft =
+              _sampleMask(shape.softAlpha, shape.width, shape.height, u, v);
+          alpha = alphaBase * (1.0 - softnessValue) +
+              alphaSoft * softnessValue;
+        }
+        alpha = alpha.clamp(0.0, 1.0);
+        if (alpha <= 0.0001) {
+          continue;
+        }
+        if (erase) {
+          final int dst = pixels[pixelIndex];
+          final int dstA = (dst >> 24) & 0xff;
+          final int outA =
+              (dstA * (1.0 - alpha)).round().clamp(0, 255);
+          pixels[pixelIndex] = (outA << 24) | (dst & 0x00ffffff);
+        } else {
+          final int srcA = (baseAlpha * alpha).round().clamp(0, 255);
+          if (srcA <= 0) {
+            continue;
+          }
+          final int src =
+              (srcA << 24) | (colorArgb & 0x00ffffff);
+          pixels[pixelIndex] = blend_utils.blendArgb(pixels[pixelIndex], src);
+        }
+      }
+    }
+    _isClean = false;
+  }
+
+  static double _sampleMask(
+    Uint8List mask,
+    int width,
+    int height,
+    double u,
+    double v,
+  ) {
+    final double x = u * (width - 1);
+    final double y = v * (height - 1);
+    final int x0 = x.floor().clamp(0, width - 1);
+    final int y0 = y.floor().clamp(0, height - 1);
+    final int x1 = (x0 + 1).clamp(0, width - 1);
+    final int y1 = (y0 + 1).clamp(0, height - 1);
+    final double tx = x - x0;
+    final double ty = y - y0;
+
+    final int idx00 = y0 * width + x0;
+    final int idx10 = y0 * width + x1;
+    final int idx01 = y1 * width + x0;
+    final int idx11 = y1 * width + x1;
+    final double a00 = mask[idx00] / 255.0;
+    final double a10 = mask[idx10] / 255.0;
+    final double a01 = mask[idx01] / 255.0;
+    final double a11 = mask[idx11] / 255.0;
+    final double a0 = a00 + (a10 - a00) * tx;
+    final double a1 = a01 + (a11 - a01) * tx;
+    return a0 + (a1 - a0) * ty;
   }
 
   static bool _ensureRustCpuBrushSupported() {

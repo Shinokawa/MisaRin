@@ -16,6 +16,8 @@ import '../widgets/app_notification.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import 'misarin_dialog.dart';
 import '../../canvas/canvas_backend.dart';
+import '../../brushes/brush_library.dart';
+import '../utils/file_manager.dart';
 
 Future<void> showSettingsDialog(
   BuildContext context, {
@@ -97,6 +99,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late CanvasBackend _canvasBackend;
   late _SettingsSection _selectedSection;
   PackageInfo? _packageInfo;
+  String? _brushShapeFolderPath;
 
   @override
   void initState() {
@@ -110,6 +113,16 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _canvasBackend = AppPreferences.instance.canvasBackend;
     _selectedSection = widget.initialSection;
     unawaited(_loadPackageInfo());
+    unawaited(_loadBrushShapeFolderPath());
+  }
+
+  Future<void> _loadBrushShapeFolderPath() async {
+    final String? path =
+        await BrushLibrary.instance.shapeLibrary.resolveShapeDirectoryPath();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _brushShapeFolderPath = path);
   }
 
   @override
@@ -341,6 +354,27 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                 l10n.brushSizeSliderRangeDesc,
                 style: theme.typography.caption,
               ),
+              if (!kIsWeb) ...[
+                const SizedBox(height: 16),
+                Text(
+                  l10n.brushShapeFolderLabel,
+                  style: theme.typography.bodyStrong,
+                ),
+                const SizedBox(height: 8),
+                Button(
+                  onPressed: _brushShapeFolderPath == null
+                      ? null
+                      : () => revealInFileManager(_brushShapeFolderPath!),
+                  child: Text(l10n.openBrushShapesFolder),
+                ),
+                if (_brushShapeFolderPath != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _brushShapeFolderPath!,
+                    style: theme.typography.caption,
+                  ),
+                ],
+              ],
             ],
           ),
         );

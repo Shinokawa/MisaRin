@@ -973,8 +973,11 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
   final bool hollow = controller._currentStrokeHollowEnabled;
   final double hollowRatio = controller._currentStrokeHollowRatio;
   final bool eraseOccludedParts = controller._currentStrokeEraseOccludedParts;
+  final BrushShapeRaster? customShape = controller.customBrushShapeRaster;
+  final bool useCustomShape = customShape != null;
 
-  if (_controllerApplyPaintingCommandsBatchWeb(controller, commands)) {
+  if (!useCustomShape &&
+      _controllerApplyPaintingCommandsBatchWeb(controller, commands)) {
     if (!keepStrokeState) {
       controller._currentStrokePoints.clear();
       controller._currentStrokeRadii.clear();
@@ -983,6 +986,17 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
   }
 
   for (final PaintingDrawCommand command in commands) {
+    if (useCustomShape) {
+      final Rect? bounds = controller._dirtyRectForCommand(command);
+      if (bounds == null || bounds.isEmpty) {
+        continue;
+      }
+      controller._applyPaintingCommandsSynchronously(
+        bounds,
+        <PaintingDrawCommand>[command],
+      );
+      continue;
+    }
     final _RustWgpuStrokeDrawData? stroke = _controllerRustWgpuStrokeFromCommand(
       command,
       hollow: hollow,
@@ -1325,6 +1339,7 @@ void _controllerApplyPaintingCommandsSynchronously(
   }
   final BitmapSurface surface = controller._activeSurface;
   final Uint8List? mask = controller._selectionMask;
+  final BrushShapeRaster? customShape = controller.customBrushShapeRaster;
   bool anyChange = false;
   for (final PaintingDrawCommand command in commands) {
     final Color color = Color(command.color);
@@ -1341,21 +1356,44 @@ void _controllerApplyPaintingCommandsSynchronously(
           0,
           BrushShape.values.length - 1,
         );
-        surface.drawBrushStamp(
-          center: center,
-          radius: radius,
-          color: color,
-          shape: BrushShape.values[clampedShape],
-          mask: mask,
-          antialiasLevel: command.antialiasLevel,
-          erase: erase,
-          softness: command.softness ?? 0.0,
-          randomRotation: command.randomRotation ?? false,
-          smoothRotation: command.smoothRotation ?? false,
-          rotationSeed: command.rotationSeed ?? 0,
-          rotationJitter: command.rotationJitter ?? 1.0,
-          snapToPixel: command.snapToPixel ?? false,
-        );
+        if (customShape != null) {
+          final bool randomRotation = command.randomRotation ?? false;
+          final double rotationJitter = command.rotationJitter ?? 1.0;
+          final double rotation = randomRotation
+              ? brushRandomRotationRadians(
+                    center: center,
+                    seed: command.rotationSeed ?? 0,
+                  ) *
+                  rotationJitter
+              : 0.0;
+          surface.drawCustomBrushStamp(
+            shape: customShape,
+            center: center,
+            radius: radius,
+            color: color,
+            erase: erase,
+            softness: command.softness ?? 0.0,
+            rotation: rotation,
+            snapToPixel: command.snapToPixel ?? false,
+            mask: mask,
+          );
+        } else {
+          surface.drawBrushStamp(
+            center: center,
+            radius: radius,
+            color: color,
+            shape: BrushShape.values[clampedShape],
+            mask: mask,
+            antialiasLevel: command.antialiasLevel,
+            erase: erase,
+            softness: command.softness ?? 0.0,
+            randomRotation: command.randomRotation ?? false,
+            smoothRotation: command.smoothRotation ?? false,
+            rotationSeed: command.rotationSeed ?? 0,
+            rotationJitter: command.rotationJitter ?? 1.0,
+            snapToPixel: command.snapToPixel ?? false,
+          );
+        }
         anyChange = true;
         break;
       case PaintingDrawCommandType.line:
@@ -1438,6 +1476,7 @@ void _controllerApplyPaintingCommandsSynchronously(
           scatter: command.scatter ?? 0.0,
           softness: command.softness ?? 0.0,
           snapToPixel: command.snapToPixel ?? false,
+          customShape: customShape,
         );
         anyChange = true;
         break;
@@ -1490,54 +1529,79 @@ void _controllerApplyStampSegmentFallback({
   double scatter = 0.0,
   double softness = 0.0,
   bool snapToPixel = false,
+  BrushShapeRaster? customShape,
 }) {
-  if (RustCpuBrushFfi.instance.drawStampSegment(
-    pixelsPtr: surface.pointerAddress,
-    pixelsLen: surface.pixels.length,
-    width: surface.width,
-    height: surface.height,
-    startX: start.dx,
-    startY: start.dy,
-    endX: end.dx,
-    endY: end.dy,
-    startRadius: startRadius,
-    endRadius: endRadius,
-    colorArgb: color.value,
-    brushShape: shape.index,
-    antialiasLevel: antialias,
-    includeStart: includeStart,
-    erase: erase,
-    randomRotation: randomRotation,
-    smoothRotation: smoothRotation,
-    rotationSeed: rotationSeed,
-    rotationJitter: rotationJitter,
-    spacing: spacing,
-    scatter: scatter,
-    softness: softness,
-    snapToPixel: snapToPixel,
-    accumulate: true,
-    selectionMask: mask,
-  )) {
+  if (customShape == null &&
+      RustCpuBrushFfi.instance.drawStampSegment(
+        pixelsPtr: surface.pointerAddress,
+        pixelsLen: surface.pixels.length,
+        width: surface.width,
+        height: surface.height,
+        startX: start.dx,
+        startY: start.dy,
+        endX: end.dx,
+        endY: end.dy,
+        startRadius: startRadius,
+        endRadius: endRadius,
+        colorArgb: color.value,
+        brushShape: shape.index,
+        antialiasLevel: antialias,
+        includeStart: includeStart,
+        erase: erase,
+        randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
+        rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+        spacing: spacing,
+        scatter: scatter,
+        softness: softness,
+        snapToPixel: snapToPixel,
+        accumulate: true,
+        selectionMask: mask,
+      )) {
     surface.markDirty();
     return;
   }
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
-    surface.drawBrushStamp(
-      center: end,
-      radius: endRadius,
-      color: color,
-      shape: shape,
-      mask: mask,
-      antialiasLevel: antialias,
-      erase: erase,
-      softness: softness,
-      randomRotation: randomRotation,
-      smoothRotation: smoothRotation,
-      rotationSeed: rotationSeed,
-      rotationJitter: rotationJitter,
-      snapToPixel: snapToPixel,
-    );
+    if (customShape != null) {
+      final double rotation = _customStampRotation(
+        center: end,
+        start: start,
+        end: end,
+        randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
+        rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+      );
+      surface.drawCustomBrushStamp(
+        shape: customShape,
+        center: end,
+        radius: endRadius,
+        color: color,
+        erase: erase,
+        softness: softness,
+        rotation: rotation,
+        snapToPixel: snapToPixel,
+        mask: mask,
+      );
+    } else {
+      surface.drawBrushStamp(
+        center: end,
+        radius: endRadius,
+        color: color,
+        shape: shape,
+        mask: mask,
+        antialiasLevel: antialias,
+        erase: erase,
+        softness: softness,
+        randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
+        rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+        snapToPixel: snapToPixel,
+      );
+    }
     return;
   }
   final double maxRadius = math.max(
@@ -1562,20 +1626,67 @@ void _controllerApplyStampSegmentFallback({
             salt: i,
           )
         : Offset.zero;
-    surface.drawBrushStamp(
-      center: baseCenter + jitter,
-      radius: radius,
-      color: color,
-      shape: shape,
-      mask: mask,
-      antialiasLevel: antialias,
-      erase: erase,
-      softness: softness,
-      randomRotation: randomRotation,
-      smoothRotation: smoothRotation,
-      rotationSeed: rotationSeed,
-      rotationJitter: rotationJitter,
-      snapToPixel: snapToPixel,
-    );
+    final Offset center = baseCenter + jitter;
+    if (customShape != null) {
+      final double rotation = _customStampRotation(
+        center: center,
+        start: start,
+        end: end,
+        randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
+        rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+      );
+      surface.drawCustomBrushStamp(
+        shape: customShape,
+        center: center,
+        radius: radius,
+        color: color,
+        erase: erase,
+        softness: softness,
+        rotation: rotation,
+        snapToPixel: snapToPixel,
+        mask: mask,
+      );
+    } else {
+      surface.drawBrushStamp(
+        center: center,
+        radius: radius,
+        color: color,
+        shape: shape,
+        mask: mask,
+        antialiasLevel: antialias,
+        erase: erase,
+        softness: softness,
+        randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
+        rotationSeed: rotationSeed,
+        rotationJitter: rotationJitter,
+        snapToPixel: snapToPixel,
+      );
+    }
   }
+}
+
+double _customStampRotation({
+  required Offset center,
+  required Offset start,
+  required Offset end,
+  required bool randomRotation,
+  required bool smoothRotation,
+  required int rotationSeed,
+  required double rotationJitter,
+}) {
+  double rotation = 0.0;
+  if (smoothRotation) {
+    final Offset delta = end - start;
+    if (delta.distanceSquared > 0.0001) {
+      rotation = math.atan2(delta.dy, delta.dx);
+    }
+  }
+  if (randomRotation) {
+    rotation += brushRandomRotationRadians(center: center, seed: rotationSeed) *
+        rotationJitter;
+  }
+  return rotation;
 }

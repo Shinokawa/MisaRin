@@ -92,8 +92,11 @@ import '../debug/backend_canvas_timeline.dart';
 import '../../minecraft/bedrock_model.dart';
 import '../../minecraft/bedrock_animation.dart';
 import '../../bitmap_canvas/bitmap_canvas.dart';
+import '../../bitmap_canvas/controller.dart';
 import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
+import '../../brushes/brush_shape_library.dart';
+import '../../brushes/brush_shape_raster.dart';
 import '../../bitmap_canvas/stroke_dynamics.dart'
     show StrokeDynamics, StrokePressureProfile, StrokeSampleMetrics;
 import '../../bitmap_canvas/stroke_sample.dart';

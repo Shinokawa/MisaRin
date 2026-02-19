@@ -513,6 +513,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     !_isLayerFreeTransformActive &&
                                                     !_controller
                                                         .isActiveLayerTransforming,
+                                                allowBackendCanvas:
+                                                    _brushShapeSupportsBackend,
                                                 layerCount: _controller
                                                     .layers
                                                     .length,
