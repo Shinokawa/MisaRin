@@ -199,14 +199,14 @@ int64_t NowMs() {
 
 bool IsPresentLogEnabled() {
   static const bool enabled = []() {
-    const char* raw = std::getenv("MISA_RIN_WIN_PRESENT_LOG");
-    if (!raw || raw[0] == '\0') {
+    char* raw = nullptr;
+    size_t len = 0;
+    if (_dupenv_s(&raw, &len, "MISA_RIN_WIN_PRESENT_LOG") != 0 || !raw) {
       return false;
     }
-    if (raw[0] == '0') {
-      return false;
-    }
-    return true;
+    const bool enabled = raw[0] != '\0' && raw[0] != '0';
+    std::free(raw);
+    return enabled;
   }();
   return enabled;
 }
