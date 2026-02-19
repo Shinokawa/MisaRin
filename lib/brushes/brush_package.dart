@@ -65,11 +65,177 @@ class BrushPackageCodec {
   static const String configFileName = 'brush.json';
   static const String localizationFileKey = 'langFile';
   static const String defaultLocalizationFileName = 'brush_lang.txt';
+  static const String _textMagic = 'MRB-TEXT 1';
 
   static BrushPackageData? decode(Uint8List bytes) {
     if (bytes.isEmpty) {
       return null;
     }
+    final BrushPackageData? textPackage = _decodeText(bytes);
+    if (textPackage != null) {
+      return textPackage;
+    }
+    return _decodeZip(bytes);
+  }
+
+  static Uint8List encode({
+    required BrushPreset preset,
+    Uint8List? shapeBytes,
+    String? shapeFileName,
+    BrushShapeFileType? shapeType,
+    BrushLocalizationTable? localizations,
+    String? localizationFileName,
+    bool asText = true,
+  }) {
+    if (asText) {
+      return _encodeText(
+        preset: preset,
+        shapeBytes: shapeBytes,
+        shapeFileName: shapeFileName,
+        shapeType: shapeType,
+        localizations: localizations,
+        localizationFileName: localizationFileName,
+      );
+    }
+    return _encodeZip(
+      preset: preset,
+      shapeBytes: shapeBytes,
+      shapeFileName: shapeFileName,
+      shapeType: shapeType,
+      localizations: localizations,
+      localizationFileName: localizationFileName,
+    );
+  }
+
+  static BrushPackageData? _decodeText(Uint8List bytes) {
+    if (!_startsWithTextMagic(bytes)) {
+      return null;
+    }
+    final _TextCursor cursor = _TextCursor(bytes, _skipUtf8Bom(bytes));
+    final String? magicLine = cursor.readLine();
+    if (magicLine == null || magicLine.trim() != _textMagic) {
+      return null;
+    }
+    Uint8List? configBytes;
+    Uint8List? localizationBytes;
+    String? localizationFileName;
+    Uint8List? shapeBytes;
+    String? shapeFileName;
+    BrushShapeFileType? shapeType;
+
+    while (!cursor.isDone) {
+      final String? headerLine = cursor.readLine();
+      if (headerLine == null) {
+        break;
+      }
+      final String header = headerLine.trim();
+      if (header.isEmpty) {
+        continue;
+      }
+      if (!header.startsWith('[') || !header.endsWith(']')) {
+        return null;
+      }
+      final String fileName =
+          header.substring(1, header.length - 1).trim();
+      if (fileName.isEmpty) {
+        return null;
+      }
+      final String? lengthLine = cursor.readLine();
+      if (lengthLine == null) {
+        return null;
+      }
+      final int? length = _parseSectionLength(lengthLine);
+      if (length == null || length < 0) {
+        return null;
+      }
+      final Uint8List? sectionBytes = cursor.readBytes(length);
+      if (sectionBytes == null) {
+        return null;
+      }
+      cursor.consumeLineBreak();
+
+      final String lowerName = fileName.toLowerCase();
+      if (lowerName.endsWith('.json')) {
+        configBytes ??= sectionBytes;
+        continue;
+      }
+      if (lowerName.endsWith('.txt')) {
+        localizationBytes = sectionBytes;
+        localizationFileName = fileName;
+        continue;
+      }
+      if (lowerName.endsWith('.svg')) {
+        shapeBytes = sectionBytes;
+        shapeFileName = fileName;
+        shapeType = BrushShapeFileType.svg;
+        continue;
+      }
+      if (lowerName.endsWith('.png.base64')) {
+        final String decoded = utf8.decode(sectionBytes, allowMalformed: true);
+        final String normalized =
+            decoded.replaceAll(RegExp(r'\s+'), '');
+        try {
+          shapeBytes = Uint8List.fromList(base64.decode(normalized));
+        } catch (_) {
+          return null;
+        }
+        shapeFileName =
+            fileName.substring(0, fileName.length - '.base64'.length);
+        shapeType = BrushShapeFileType.png;
+        continue;
+      }
+      if (lowerName.endsWith('.png')) {
+        final String decoded = utf8.decode(sectionBytes, allowMalformed: true);
+        final String normalized =
+            decoded.replaceAll(RegExp(r'\s+'), '');
+        try {
+          shapeBytes = Uint8List.fromList(base64.decode(normalized));
+        } catch (_) {
+          return null;
+        }
+        shapeFileName = fileName;
+        shapeType = BrushShapeFileType.png;
+        continue;
+      }
+    }
+
+    if (configBytes == null) {
+      return null;
+    }
+    final Map<String, dynamic>? config = _decodeConfig(configBytes);
+    if (config == null) {
+      return null;
+    }
+    final BrushPreset preset = BrushPreset.fromJson(config);
+    final String? configShapeFileName = config['shapeFile'] as String?;
+    final String? shapeTypeRaw = config['shapeType'] as String?;
+    BrushShapeFileType? resolvedShapeType = shapeType;
+    if (resolvedShapeType == null) {
+      if (shapeTypeRaw != null) {
+        resolvedShapeType = _shapeTypeFromString(shapeTypeRaw);
+      } else if (configShapeFileName != null) {
+        resolvedShapeType = _shapeTypeFromPath(configShapeFileName);
+      }
+    }
+    final String? resolvedShapeFileName =
+        shapeFileName ?? configShapeFileName;
+    final String? resolvedLocalizationFileName =
+        localizationFileName ?? (config[localizationFileKey] as String?);
+    BrushLocalizationTable? localizationTable;
+    if (localizationBytes != null) {
+      localizationTable = _parseLocalizationTable(localizationBytes);
+    }
+    return BrushPackageData(
+      preset: preset,
+      shapeFileName: resolvedShapeFileName,
+      shapeType: resolvedShapeType,
+      shapeBytes: shapeBytes,
+      localizationFileName: resolvedLocalizationFileName,
+      localizations: localizationTable,
+    );
+  }
+
+  static BrushPackageData? _decodeZip(Uint8List bytes) {
     final Archive archive;
     try {
       archive = ZipDecoder().decodeBytes(bytes, verify: true);
@@ -158,7 +324,73 @@ class BrushPackageCodec {
     );
   }
 
-  static Uint8List encode({
+  static Uint8List _encodeText({
+    required BrushPreset preset,
+    Uint8List? shapeBytes,
+    String? shapeFileName,
+    BrushShapeFileType? shapeType,
+    BrushLocalizationTable? localizations,
+    String? localizationFileName,
+  }) {
+    final Map<String, dynamic> config = preset.toJson();
+    config['formatVersion'] = 1;
+    String? resolvedShapeFileName = shapeFileName;
+    BrushShapeFileType? resolvedShapeType = shapeType;
+    if (resolvedShapeType == null && resolvedShapeFileName != null) {
+      resolvedShapeType = _shapeTypeFromPath(resolvedShapeFileName);
+    }
+    if (resolvedShapeFileName != null) {
+      config['shapeFile'] = resolvedShapeFileName;
+    }
+    if (resolvedShapeType != null) {
+      config['shapeType'] = _shapeTypeToString(resolvedShapeType);
+    }
+    final BrushLocalizationTable? table = localizations;
+    String? resolvedLocalizationFile = localizationFileName;
+    if (table != null && table.entries.isNotEmpty) {
+      resolvedLocalizationFile ??= defaultLocalizationFileName;
+      config[localizationFileKey] = resolvedLocalizationFile;
+    }
+    final String jsonText =
+        const JsonEncoder.withIndent('  ').convert(config);
+    final Uint8List configBytes = Uint8List.fromList(utf8.encode(jsonText));
+    final List<_TextSection> sections = <_TextSection>[
+      _TextSection(configFileName, configBytes),
+    ];
+    if (table != null &&
+        table.entries.isNotEmpty &&
+        resolvedLocalizationFile != null) {
+      final String text = _encodeLocalizationTable(table);
+      final Uint8List textBytes = Uint8List.fromList(utf8.encode(text));
+      sections.add(_TextSection(resolvedLocalizationFile, textBytes));
+    }
+    if (shapeBytes != null) {
+      String? fileName = resolvedShapeFileName;
+      BrushShapeFileType? type = resolvedShapeType;
+      if (type == null && fileName != null) {
+        type = _shapeTypeFromPath(fileName);
+      }
+      if (type == null && fileName == null) {
+        type = BrushShapeFileType.svg;
+        fileName = 'shape.svg';
+      } else if (fileName == null && type != null) {
+        fileName = type == BrushShapeFileType.svg ? 'shape.svg' : 'shape.png';
+      }
+      if (fileName != null) {
+        if (type == BrushShapeFileType.png) {
+          final String encoded = base64.encode(shapeBytes);
+          final Uint8List payload =
+              Uint8List.fromList(utf8.encode(encoded));
+          sections.add(_TextSection(fileName, payload));
+        } else {
+          sections.add(_TextSection(fileName, shapeBytes));
+        }
+      }
+    }
+    return _buildTextPackage(sections);
+  }
+
+  static Uint8List _encodeZip({
     required BrushPreset preset,
     Uint8List? shapeBytes,
     String? shapeFileName,
@@ -201,6 +433,74 @@ class BrushPackageCodec {
     }
     final List<int>? out = ZipEncoder().encode(archive);
     return Uint8List.fromList(out ?? const <int>[]);
+  }
+
+  static bool _startsWithTextMagic(Uint8List bytes) {
+    final int offset = _skipUtf8Bom(bytes);
+    final List<int> magicBytes = utf8.encode(_textMagic);
+    if (bytes.length - offset < magicBytes.length) {
+      return false;
+    }
+    for (int i = 0; i < magicBytes.length; i++) {
+      if (bytes[offset + i] != magicBytes[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static int _skipUtf8Bom(Uint8List bytes) {
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xef &&
+        bytes[1] == 0xbb &&
+        bytes[2] == 0xbf) {
+      return 3;
+    }
+    return 0;
+  }
+
+  static int? _parseSectionLength(String line) {
+    final String trimmed = line.trim();
+    String? raw;
+    if (trimmed.startsWith('length:')) {
+      raw = trimmed.substring('length:'.length);
+    } else if (trimmed.startsWith('length=')) {
+      raw = trimmed.substring('length='.length);
+    } else if (trimmed.startsWith('len:')) {
+      raw = trimmed.substring('len:'.length);
+    } else {
+      return null;
+    }
+    return int.tryParse(raw.trim());
+  }
+
+  static Map<String, dynamic>? _decodeConfig(Uint8List bytes) {
+    final String jsonText;
+    try {
+      jsonText = utf8.decode(bytes);
+    } catch (_) {
+      return null;
+    }
+    try {
+      return jsonDecode(jsonText) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Uint8List _buildTextPackage(List<_TextSection> sections) {
+    final BytesBuilder builder = BytesBuilder();
+    builder.add(utf8.encode(_textMagic));
+    builder.addByte(0x0a);
+    for (final _TextSection section in sections) {
+      builder.add(utf8.encode('[${section.fileName}]'));
+      builder.addByte(0x0a);
+      builder.add(utf8.encode('length:${section.bytes.length}'));
+      builder.addByte(0x0a);
+      builder.add(section.bytes);
+      builder.addByte(0x0a);
+    }
+    return builder.toBytes();
   }
 
   static String? _findLocalizationFile(Archive archive) {
@@ -292,6 +592,67 @@ class BrushPackageCodec {
         return 'svg';
       case BrushShapeFileType.png:
         return 'png';
+    }
+  }
+}
+
+class _TextSection {
+  _TextSection(this.fileName, this.bytes);
+
+  final String fileName;
+  final Uint8List bytes;
+}
+
+class _TextCursor {
+  _TextCursor(this.bytes, this.offset);
+
+  final Uint8List bytes;
+  int offset;
+
+  bool get isDone => offset >= bytes.length;
+
+  String? readLine() {
+    if (isDone) {
+      return null;
+    }
+    int end = offset;
+    while (end < bytes.length && bytes[end] != 0x0a) {
+      end += 1;
+    }
+    int lineEnd = end;
+    if (lineEnd > offset && bytes[lineEnd - 1] == 0x0d) {
+      lineEnd -= 1;
+    }
+    final String line = utf8.decode(
+      bytes.sublist(offset, lineEnd),
+      allowMalformed: true,
+    );
+    offset = end < bytes.length ? end + 1 : end;
+    return line;
+  }
+
+  Uint8List? readBytes(int length) {
+    if (length < 0 || offset + length > bytes.length) {
+      return null;
+    }
+    final Uint8List out = Uint8List.sublistView(bytes, offset, offset + length);
+    offset += length;
+    return out;
+  }
+
+  void consumeLineBreak() {
+    if (isDone) {
+      return;
+    }
+    if (bytes[offset] == 0x0d) {
+      offset += 1;
+      if (!isDone && bytes[offset] == 0x0a) {
+        offset += 1;
+      }
+      return;
+    }
+    if (bytes[offset] == 0x0a) {
+      offset += 1;
     }
   }
 }
