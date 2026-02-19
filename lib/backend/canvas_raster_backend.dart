@@ -197,6 +197,9 @@ class CanvasRasterBackend {
     List<RasterIntRect>? regions,
     String? translatingLayerId,
   }) async {
+    if (_disposed) {
+      return;
+    }
     _ensureBuffers();
     if (!requiresFullSurface && (regions == null || regions.isEmpty)) {
       return;
@@ -341,7 +344,19 @@ class CanvasRasterBackend {
         }
       }
 
-      final Uint32List composite = _compositePixels!;
+      if (_disposed) {
+        return;
+      }
+      Uint32List? composite = _compositePixels;
+      if (composite == null) {
+        if (kDebugMode) {
+          debugPrint('[rust-wgpu-composite] composite buffer cleared; skipping');
+        }
+        _invalidateRustWgpuLayerCache();
+        _rustWgpuCompositeEpoch++;
+        _knownRustWgpuCompositeEpoch = _rustWgpuCompositeEpoch;
+        return;
+      }
       if (result.length != composite.length) {
         _invalidateRustWgpuLayerCache();
         _rustWgpuCompositeEpoch++;
