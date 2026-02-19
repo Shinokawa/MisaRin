@@ -35,10 +35,11 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
 
     # Resolve the manifest directory to avoid symlink + ".." normalization issues
     # when plugins are built from .plugin_symlinks.
+    get_filename_component(CARGOKIT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
     if (IS_ABSOLUTE "${manifest_dir}")
         set(CARGOKIT_MANIFEST_DIR_RAW "${manifest_dir}")
     else()
-        set(CARGOKIT_MANIFEST_DIR_RAW "${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}")
+        set(CARGOKIT_MANIFEST_DIR_RAW "${CARGOKIT_SOURCE_DIR_REAL}/${manifest_dir}")
     endif()
     get_filename_component(CARGOKIT_MANIFEST_DIR_REAL "${CARGOKIT_MANIFEST_DIR_RAW}" REALPATH)
     if (CARGOKIT_MANIFEST_DIR_REAL)
