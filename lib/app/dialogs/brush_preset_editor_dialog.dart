@@ -78,6 +78,8 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late bool _hollowEraseOccludedParts;
   late bool _autoSharpTaper;
   late bool _snapToPixel;
+  ui.Locale? _lastLocale;
+  bool _didSync = false;
 
   @override
   void initState() {
@@ -85,7 +87,17 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     _nameController = TextEditingController();
     _authorController = TextEditingController();
     _versionController = TextEditingController();
-    _syncFromPreset(widget.preset, Localizations.localeOf(context));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ui.Locale locale = Localizations.localeOf(context);
+    if (!_didSync || _lastLocale != locale) {
+      _didSync = true;
+      _lastLocale = locale;
+      _syncFromPreset(widget.preset, locale);
+    }
   }
 
   @override
