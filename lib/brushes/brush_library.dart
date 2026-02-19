@@ -40,6 +40,8 @@ class BrushLibrary extends ChangeNotifier {
   static const String _legacyFileName = 'brush_presets.json';
   static const String _storageKey = 'misa_rin.brush_library';
   static const String _legacyStorageKey = 'misa_rin.brush_presets';
+  static const String _defaultBuiltInAuthor = 'Misa Rin';
+  static const String _defaultBuiltInVersion = '1.0.0';
 
   static const List<String> _defaultBrushAssets = <String>[
     'assets/brushes/pencil.mrb',
@@ -158,11 +160,17 @@ class BrushLibrary extends ChangeNotifier {
 
     Map<String, BrushPreset> overrides = <String, BrushPreset>{};
     String? selectedId;
+    bool patchedOverrides = false;
 
     final Map<String, dynamic>? payload = await _readPayload();
     if (payload != null) {
       selectedId = payload['selectedId'] as String?;
-      overrides = _parseOverrides(payload['overrides']);
+      overrides = _parseOverrides(payload['overrides'], basePresets);
+      patchedOverrides = _repairOverridesForBuiltIns(
+        overrides,
+        basePresets,
+        sources,
+      );
     } else {
       final Map<String, dynamic>? legacy = await _readLegacyPayload();
       if (legacy != null) {
@@ -175,13 +183,33 @@ class BrushLibrary extends ChangeNotifier {
           orderedPresets,
           shapeLibrary,
         );
+        patchedOverrides = _repairOverridesForBuiltIns(
+          overrides,
+          basePresets,
+          sources,
+        );
       }
     }
 
     final List<BrushPreset> effectivePresets = <BrushPreset>[];
     for (final BrushPreset base in orderedPresets) {
       final BrushPreset? override = overrides[base.id];
-      effectivePresets.add((override ?? base).sanitized());
+      BrushPreset effective = (override ?? base).sanitized();
+      if (sources[base.id]?.isBuiltIn ?? false) {
+        final String? author = effective.author;
+        final String? version = effective.version;
+        if (author == null || author.trim().isEmpty) {
+          effective = effective.copyWith(
+            author: base.author ?? _defaultBuiltInAuthor,
+          );
+        }
+        if (version == null || version.trim().isEmpty) {
+          effective = effective.copyWith(
+            version: base.version ?? _defaultBuiltInVersion,
+          );
+        }
+      }
+      effectivePresets.add(effective);
     }
 
     String resolvedSelectedId = selectedId ?? effectivePresets.first.id;
@@ -200,6 +228,8 @@ class BrushLibrary extends ChangeNotifier {
     _instance = library;
 
     if (payload == null) {
+      unawaited(library.save());
+    } else if (patchedOverrides) {
       unawaited(library.save());
     }
     return library;
@@ -392,14 +422,27 @@ class BrushLibrary extends ChangeNotifier {
     };
   }
 
-  static Map<String, BrushPreset> _parseOverrides(Object? payload) {
+  static Map<String, BrushPreset> _parseOverrides(
+    Object? payload,
+    Map<String, BrushPreset> basePresets,
+  ) {
     final Map<String, BrushPreset> overrides = <String, BrushPreset>{};
     if (payload is! Map<String, dynamic>) {
       return overrides;
     }
     payload.forEach((String key, Object? value) {
       if (value is Map<String, dynamic>) {
-        overrides[key] = BrushPreset.fromJson(value);
+        BrushPreset preset = BrushPreset.fromJson(value);
+        final BrushPreset? base = basePresets[key];
+        if (base != null) {
+          preset = _mergeOverrideWithBase(
+            preset,
+            base,
+            hasAuthor: value.containsKey('author'),
+            hasVersion: value.containsKey('version'),
+          );
+        }
+        overrides[key] = preset;
       }
     });
     return overrides;
@@ -509,7 +552,15 @@ class BrushLibrary extends ChangeNotifier {
     final Map<String, BrushPreset> overrides = <String, BrushPreset>{};
     for (final BrushPreset preset in legacyPresets) {
       if (basePresets.containsKey(preset.id)) {
-        overrides[preset.id] = preset.sanitized();
+        final BrushPreset base = basePresets[preset.id]!;
+        BrushPreset merged = preset.sanitized();
+        merged = _mergeOverrideWithBase(
+          merged,
+          base,
+          hasAuthor: false,
+          hasVersion: false,
+        );
+        overrides[preset.id] = merged;
         continue;
       }
       final String newId = _uniqueId(preset.id, basePresets.keys.toSet());
@@ -677,6 +728,62 @@ class BrushLibrary extends ChangeNotifier {
     }
     final String sanitized = buffer.toString();
     return sanitized.isEmpty ? 'brush' : sanitized;
+  }
+
+  static BrushPreset _mergeOverrideWithBase(
+    BrushPreset override,
+    BrushPreset base, {
+    required bool hasAuthor,
+    required bool hasVersion,
+  }) {
+    BrushPreset merged = override;
+    final String? author = merged.author;
+    if (!hasAuthor || author == null || author.trim().isEmpty) {
+      merged = merged.copyWith(author: base.author);
+    }
+    final String? version = merged.version;
+    if (!hasVersion || version == null || version.trim().isEmpty) {
+      merged = merged.copyWith(version: base.version);
+    }
+    return merged;
+  }
+
+  static bool _repairOverridesForBuiltIns(
+    Map<String, BrushPreset> overrides,
+    Map<String, BrushPreset> basePresets,
+    Map<String, _BrushSource> sources,
+  ) {
+    bool patched = false;
+    overrides.forEach((String id, BrushPreset preset) {
+      if (!(sources[id]?.isBuiltIn ?? false)) {
+        return;
+      }
+      final BrushPreset? base = basePresets[id];
+      if (base == null) {
+        return;
+      }
+      final String? author = preset.author;
+      final String? version = preset.version;
+      final bool patchAuthor = author == null || author.trim().isEmpty;
+      final bool patchVersion = version == null || version.trim().isEmpty;
+      if (!patchAuthor && !patchVersion) {
+        return;
+      }
+      BrushPreset updated = preset;
+      if (patchAuthor) {
+        updated = updated.copyWith(
+          author: base.author ?? _defaultBuiltInAuthor,
+        );
+      }
+      if (patchVersion) {
+        updated = updated.copyWith(
+          version: base.version ?? _defaultBuiltInVersion,
+        );
+      }
+      overrides[id] = updated;
+      patched = true;
+    });
+    return patched;
   }
 
   static bool _bytesEqual(Uint8List a, Uint8List b) {
