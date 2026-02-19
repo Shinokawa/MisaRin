@@ -406,6 +406,8 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
   Size? _engineSize;
   Object? _error;
   late final String _surfaceId;
+  int _requestSerial = 0;
+  int _activeRequest = 0;
 
   final _PackedPointBuffer _points = _PackedPointBuffer();
   int? _activeDrawingPointer;
@@ -417,6 +419,11 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
   void initState() {
     super.initState();
     _surfaceId = _surfaceIdForKey(widget.surfaceKey);
+    debugPrint(
+      'backendSurface: initState surface=$_surfaceId key=${widget.surfaceKey} '
+      'size=${widget.canvasSize.width.round()}x${widget.canvasSize.height.round()} '
+      'layers=${widget.layerCount}',
+    );
     BackendCanvasTimeline.mark(
       'backendSurface: initState id=$_surfaceId '
       'size=${widget.canvasSize.width}x${widget.canvasSize.height} '
@@ -430,7 +437,18 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
   void didUpdateWidget(covariant BackendCanvasSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.canvasSize != widget.canvasSize) {
+      debugPrint(
+        'backendSurface: size changed surface=$_surfaceId '
+        'old=${oldWidget.canvasSize.width.round()}x${oldWidget.canvasSize.height.round()} '
+        'new=${widget.canvasSize.width.round()}x${widget.canvasSize.height.round()}',
+      );
       unawaited(_loadTextureInfo());
+    }
+    if (oldWidget.layerCount != widget.layerCount) {
+      debugPrint(
+        'backendSurface: layerCount changed surface=$_surfaceId '
+        'old=${oldWidget.layerCount} new=${widget.layerCount}',
+      );
     }
     final bool brushChanged =
         oldWidget.brushColorArgb != widget.brushColorArgb ||
@@ -505,11 +523,18 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
 
   Future<void> _loadTextureInfo() async {
     try {
+      final int requestId = ++_requestSerial;
+      _activeRequest = requestId;
       final int width = widget.canvasSize.width.round().clamp(1, 16384);
       final int height = widget.canvasSize.height.round().clamp(1, 16384);
+      final int? prevTextureId = _textureId;
+      final int? prevHandle = _engineHandle;
+      final Size? prevEngineSize = _engineSize;
       debugPrint(
-        'backendSurface: request size=${width}x$height '
-        'layers=${widget.layerCount} id=$_surfaceId',
+        'backendSurface: request req=$requestId size=${width}x$height '
+        'layers=${widget.layerCount} id=$_surfaceId '
+        'prevTexture=$prevTextureId prevHandle=$prevHandle '
+        'prevEngine=${prevEngineSize?.width.round()}x${prevEngineSize?.height.round()}',
       );
       final _BackendSurfaceInfo info =
           await _BackendSurfaceWarmupCache.instance.takeOrRequest(
@@ -526,7 +551,17 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       final bool backgroundNeedsUpdate =
           info.backgroundColorArgb != widget.backgroundColorArgb;
       if (!mounted) {
+        debugPrint(
+          'backendSurface: request abandoned req=$requestId surface=$_surfaceId '
+          'mounted=false',
+        );
         return;
+      }
+      if (_activeRequest != requestId) {
+        debugPrint(
+          'backendSurface: stale response req=$requestId surface=$_surfaceId '
+          'active=$_activeRequest',
+        );
       }
       setState(() {
         _textureId = textureId;
@@ -538,6 +573,18 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
             ? StateError('textureId/engineHandle == null: $info')
             : null;
       });
+      final bool textureChanged = prevTextureId != textureId;
+      final bool handleChanged = prevHandle != engineHandle;
+      final Size? nextSize = _engineSize;
+      debugPrint(
+        'backendSurface: response req=$requestId surface=$_surfaceId '
+        'textureId=$textureId handle=$engineHandle '
+        'engine=${engineWidth}x${engineHeight} '
+        'newEngine=${info.isNewEngine} warmup=${info.fromWarmup} '
+        'changedTexture=$textureChanged changedHandle=$handleChanged '
+        'prevEngine=${prevEngineSize?.width.round()}x${prevEngineSize?.height.round()} '
+        'nextEngine=${nextSize?.width.round()}x${nextSize?.height.round()}',
+      );
       debugPrint(
         'backendSurface: ready textureId=$textureId handle=$engineHandle '
         'engine=${engineWidth}x${engineHeight} '
@@ -563,6 +610,9 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       if (!mounted) {
         return;
       }
+      debugPrint(
+        'backendSurface: request failed surface=$_surfaceId error=$error',
+      );
       setState(() {
         _textureId = null;
         _engineHandle = null;
@@ -591,6 +641,11 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
 
   @override
   void dispose() {
+    debugPrint(
+      'backendSurface: dispose surface=$_surfaceId '
+      'textureId=$_textureId handle=$_engineHandle '
+      'engine=${_engineSize?.width.round()}x${_engineSize?.height.round()}',
+    );
     _BackendSurfaceWarmupCache.instance.drop(_surfaceId);
     unawaited(_disposeSurface());
     if (_lastNotifiedEngineHandle != null || _lastNotifiedEngineSize != null) {
@@ -601,9 +656,14 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
 
   Future<void> _disposeSurface() async {
     try {
+      debugPrint(
+        'backendSurface: disposeTexture surface=$_surfaceId '
+        'textureId=$_textureId handle=$_engineHandle',
+      );
       await _backendCanvasChannel.invokeMethod<void>('disposeTexture', <String, Object?>{
         'surfaceId': _surfaceId,
       });
+      debugPrint('backendSurface: disposeTexture done surface=$_surfaceId');
     } catch (_) {}
   }
 

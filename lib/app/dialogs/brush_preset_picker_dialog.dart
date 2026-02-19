@@ -14,6 +14,11 @@ import '../widgets/brush_preset_stroke_preview.dart';
 import 'misarin_dialog.dart';
 import 'brush_preset_editor_dialog.dart';
 
+const bool _kBrushPresetEditLog = bool.fromEnvironment(
+  'MISA_RIN_BRUSH_PREVIEW_LOG',
+  defaultValue: false,
+);
+
 Future<String?> showBrushPresetPickerDialog(
   BuildContext context, {
   required BrushLibrary library,
@@ -158,6 +163,12 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
     }
     if (preset.id != _selectedId) {
       return;
+    }
+    if (_kBrushPresetEditLog) {
+      debugPrint(
+        '[brush-picker] draft id=${preset.id} '
+        'aa=${preset.antialiasLevel} snap=${preset.snapToPixel}',
+      );
     }
     setState(() => _draftPreset = preset.sanitized());
   }

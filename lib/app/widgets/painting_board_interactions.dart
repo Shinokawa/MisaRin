@@ -287,6 +287,7 @@ mixin _PaintingBoardInteractionMixin
   final _BackendPressureSimulator _backendPressureSimulator =
       _BackendPressureSimulator();
   bool _backendFlushScheduled = false;
+  bool _backendRasterOutputSuppressed = false;
   int? _backendActivePointer;
   bool _backendActiveStrokeUsesPressure = true;
   bool _backendSimulatePressure = false;
@@ -304,6 +305,28 @@ mixin _PaintingBoardInteractionMixin
   final List<_CpuStrokeEvent> _cpuStrokeQueue = <_CpuStrokeEvent>[];
   bool _cpuStrokeFlushScheduled = false;
   bool _cpuStrokeProcessing = false;
+
+  void _suppressRasterOutputForBackendStroke() {
+    if (_backendRasterOutputSuppressed) {
+      return;
+    }
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+      return;
+    }
+    if (!_backend.isSupported || !_controller.rasterOutputEnabled) {
+      return;
+    }
+    _controller.setRasterOutputEnabled(false);
+    _backendRasterOutputSuppressed = true;
+  }
+
+  void _restoreRasterOutputAfterBackendStroke() {
+    if (!_backendRasterOutputSuppressed) {
+      return;
+    }
+    _backendRasterOutputSuppressed = false;
+    _controller.setRasterOutputEnabled(true);
+  }
 
   void clear() async {
     if (_isTextEditingActive) {

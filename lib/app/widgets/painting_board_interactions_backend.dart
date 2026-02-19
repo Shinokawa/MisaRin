@@ -458,6 +458,22 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       return;
     }
     _backendFlushScheduled = true;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      scheduleMicrotask(() {
+        _backendFlushScheduled = false;
+        if (!mounted) {
+          _backendPoints.clear();
+          return;
+        }
+        final int? handle = _backendCanvasEngineHandle;
+        if (!_backend.supportsInputQueue || handle == null) {
+          _backendPoints.clear();
+          return;
+        }
+        _flushBackendPoints(handle);
+      });
+      return;
+    }
     SchedulerBinding.instance.scheduleFrameCallback((_) {
       _backendFlushScheduled = false;
       if (!mounted) {
@@ -503,6 +519,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     if (!_isBackendDrawingPointer(event)) {
       return;
     }
+    _suppressRasterOutputForBackendStroke();
     if (_kDebugBackendCanvasInput) {
       debugPrint(
         '[backend_canvas] begin backend stroke '
@@ -679,6 +696,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _lastStrokeBoardPosition = null;
     _strokeStabilizer.reset();
     _resetPerspectiveLock();
+    _restoreRasterOutputAfterBackendStroke();
   }
 
   bool _drawBackendStraightLine({

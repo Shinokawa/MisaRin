@@ -6,10 +6,18 @@
 #include <flutter_plugin_registrar.h>
 #include <flutter_texture_registrar.h>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#include <dwmapi.h>
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -46,6 +54,9 @@ constexpr int kFallbackLayerCount = 1;
 constexpr uint32_t kFallbackBackground = 0xFFFFFFFF;
 constexpr int kMaxDimension = 16384;
 constexpr int kMaxLayerCount = 1024;
+constexpr int64_t kFallbackIntervalUs = 8000;
+constexpr int64_t kMinIntervalUs = 4000;
+constexpr int64_t kMaxIntervalUs = 33333;
 
 std::optional<int64_t> GetIntValue(const flutter::EncodableValue& value) {
   if (const auto* int32_value = std::get_if<int32_t>(&value)) {
@@ -105,7 +116,8 @@ std::string GetSurfaceId(const flutter::EncodableMap& args) {
 }
 
 struct GpuSurfaceBinding {
-  explicit GpuSurfaceBinding(void* handle, size_t width, size_t height) {
+  explicit GpuSurfaceBinding(void* handle, size_t width, size_t height)
+      : shared_handle(handle) {
     descriptor.struct_size = sizeof(FlutterDesktopGpuSurfaceDescriptor);
     descriptor.handle = handle;
     descriptor.width = width;
@@ -131,12 +143,81 @@ struct GpuSurfaceBinding {
     return binding->GetDescriptor();
   }
 
+  void* shared_handle = nullptr;
   FlutterDesktopGpuSurfaceDescriptor descriptor{};
 };
 
 void ReleaseBinding(void* user_data) {
   auto* keepalive = static_cast<std::shared_ptr<GpuSurfaceBinding>*>(user_data);
+  if (keepalive && *keepalive) {
+    auto handle =
+        static_cast<HANDLE>((*keepalive)->shared_handle);
+    if (handle) {
+      CloseHandle(handle);
+      (*keepalive)->shared_handle = nullptr;
+    }
+  }
   delete keepalive;
+}
+
+int64_t ClampIntervalUs(int64_t value) {
+  return std::clamp(value, kMinIntervalUs, kMaxIntervalUs);
+}
+
+int64_t QueryRefreshIntervalUs() {
+  DWM_TIMING_INFO timing_info{};
+  timing_info.cbSize = sizeof(timing_info);
+  if (SUCCEEDED(DwmGetCompositionTimingInfo(nullptr, &timing_info))) {
+    const uint32_t num = timing_info.rateRefresh.uiNumerator;
+    const uint32_t den = timing_info.rateRefresh.uiDenominator;
+    if (num > 0 && den > 0) {
+      const double hz = static_cast<double>(num) / static_cast<double>(den);
+      if (hz > 1.0) {
+        return ClampIntervalUs(
+            static_cast<int64_t>(1'000'000.0 / hz));
+      }
+    }
+  }
+
+  DEVMODE dev_mode{};
+  dev_mode.dmSize = sizeof(dev_mode);
+  if (EnumDisplaySettings(nullptr, ENUM_CURRENT_SETTINGS, &dev_mode)) {
+    if (dev_mode.dmDisplayFrequency > 1) {
+      return ClampIntervalUs(
+          static_cast<int64_t>(1'000'000 / dev_mode.dmDisplayFrequency));
+    }
+  }
+
+  return kFallbackIntervalUs;
+}
+
+int64_t NowMs() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+bool IsPresentLogEnabled() {
+  static const bool enabled = []() {
+    char* raw = nullptr;
+    size_t len = 0;
+    if (_dupenv_s(&raw, &len, "MISA_RIN_WIN_PRESENT_LOG") != 0 || !raw) {
+      return false;
+    }
+    const bool is_enabled = raw[0] != '\0' && raw[0] != '0';
+    std::free(raw);
+    return is_enabled;
+  }();
+  return enabled;
+}
+
+void PresentLog(const std::string& message) {
+  if (!IsPresentLogEnabled()) {
+    return;
+  }
+  const std::string msg = std::string("[misa-rin][present] ") + message;
+  OutputDebugStringA((msg + "\n").c_str());
+  std::cerr << msg << std::endl;
 }
 
 }  // namespace
@@ -175,13 +256,39 @@ struct RustLibMisaRinPlugin::Impl {
     int64_t texture_id = -1;
     std::shared_ptr<GpuSurfaceBinding> binding;
     std::mutex mutex;
+    bool waiting_first_frame = false;
+    int64_t first_frame_start_ms = 0;
+    int64_t last_first_frame_log_ms = 0;
+    uint32_t first_frame_poll_count = 0;
 
     int64_t RefreshFrame() {
       std::lock_guard<std::mutex> lock(mutex);
       if (engine_handle == 0 || texture_id < 0) {
         return -1;
       }
-      if (!engine_poll_frame_ready(engine_handle)) {
+      const bool ready = engine_poll_frame_ready(engine_handle);
+      if (waiting_first_frame) {
+        first_frame_poll_count += 1;
+        const int64_t now_ms = NowMs();
+        if (ready) {
+          PresentLog(
+              "first frame ready surface=" + surface_id +
+              " handle=" + std::to_string(engine_handle) +
+              " texture=" + std::to_string(texture_id) +
+              " polls=" + std::to_string(first_frame_poll_count) +
+              " elapsed_ms=" + std::to_string(now_ms - first_frame_start_ms));
+          waiting_first_frame = false;
+        } else if (now_ms - last_first_frame_log_ms >= 500) {
+          last_first_frame_log_ms = now_ms;
+          PresentLog(
+              "waiting first frame surface=" + surface_id +
+              " handle=" + std::to_string(engine_handle) +
+              " texture=" + std::to_string(texture_id) +
+              " polls=" + std::to_string(first_frame_poll_count) +
+              " elapsed_ms=" + std::to_string(now_ms - first_frame_start_ms));
+        }
+      }
+      if (!ready) {
         return -1;
       }
       return texture_id;
@@ -232,6 +339,9 @@ struct RustLibMisaRinPlugin::Impl {
     const int layer_count = GetClampedInt(
         args, "layerCount", kFallbackLayerCount, 1, kMaxLayerCount);
     const uint32_t background_color = GetBackgroundColor(args);
+    PresentLog("getTextureInfo surface=" + surface_id + " size=" +
+               std::to_string(width) + "x" + std::to_string(height) +
+               " layers=" + std::to_string(layer_count));
 
     std::shared_ptr<SurfaceState> surface;
     {
@@ -253,6 +363,9 @@ struct RustLibMisaRinPlugin::Impl {
       if (surface->engine_handle != 0 && surface->texture_id >= 0 &&
           surface->width == width && surface->height == height &&
           surface->layer_count == layer_count) {
+        PresentLog("reuse texture surface=" + surface_id +
+                   " texture=" + std::to_string(surface->texture_id) +
+                   " handle=" + std::to_string(surface->engine_handle));
         flutter::EncodableMap response;
         response[flutter::EncodableValue("textureId")] =
             flutter::EncodableValue(surface->texture_id);
@@ -282,6 +395,8 @@ struct RustLibMisaRinPlugin::Impl {
       handle = engine_create(static_cast<uint32_t>(width),
                              static_cast<uint32_t>(height));
       engine_created = true;
+      PresentLog("engine_create handle=" + std::to_string(handle) +
+                 " surface=" + surface_id);
     } else if (needs_resize) {
       if (engine_resize_canvas(handle, static_cast<uint32_t>(width),
                                static_cast<uint32_t>(height),
@@ -291,6 +406,8 @@ struct RustLibMisaRinPlugin::Impl {
         handle = engine_create(static_cast<uint32_t>(width),
                                static_cast<uint32_t>(height));
         engine_created = true;
+        PresentLog("engine_resize failed -> recreate handle=" +
+                   std::to_string(handle) + " surface=" + surface_id);
       }
     }
 
@@ -309,6 +426,9 @@ struct RustLibMisaRinPlugin::Impl {
 
     if (needs_resize || surface->texture_id < 0) {
       UnregisterTextureLocked(surface);
+      PresentLog("create_present_dxgi_surface surface=" + surface_id +
+                 " handle=" + std::to_string(handle) + " size=" +
+                 std::to_string(width) + "x" + std::to_string(height));
       void* shared_handle = engine_create_present_dxgi_surface(
           handle, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
       if (!shared_handle) {
@@ -317,6 +437,8 @@ struct RustLibMisaRinPlugin::Impl {
                       flutter::EncodableValue());
         return;
       }
+      PresentLog("create_present_dxgi_surface ok surface=" + surface_id +
+                 " handle=" + std::to_string(handle));
 
       auto binding =
           std::make_shared<GpuSurfaceBinding>(shared_handle,
@@ -336,6 +458,11 @@ struct RustLibMisaRinPlugin::Impl {
           FlutterDesktopTextureRegistrarRegisterExternalTexture(
               texture_registrar_, &texture_info);
       if (texture_id < 0) {
+        auto shared_handle_win = static_cast<HANDLE>(shared_handle);
+        if (shared_handle_win) {
+          CloseHandle(shared_handle_win);
+        }
+        binding->shared_handle = nullptr;
         result->Error("register_texture_failed",
                       "RegisterExternalTexture returned < 0",
                       flutter::EncodableValue());
@@ -344,12 +471,22 @@ struct RustLibMisaRinPlugin::Impl {
 
       surface->binding = std::move(binding);
       surface->texture_id = texture_id;
+      surface->waiting_first_frame = true;
+      surface->first_frame_start_ms = NowMs();
+      surface->last_first_frame_log_ms = surface->first_frame_start_ms;
+      surface->first_frame_poll_count = 0;
+      PresentLog("texture registered surface=" + surface_id +
+                 " texture=" + std::to_string(texture_id) +
+                 " handle=" + std::to_string(handle));
     }
 
     if (engine_created || needs_resize || layer_count_changed) {
       engine_reset_canvas_with_layers(handle,
                                       static_cast<uint32_t>(layer_count),
                                       background_color);
+      PresentLog("reset_canvas surface=" + surface_id +
+                 " handle=" + std::to_string(handle) +
+                 " layers=" + std::to_string(layer_count));
     }
 
     flutter::EncodableMap response;
@@ -370,6 +507,7 @@ struct RustLibMisaRinPlugin::Impl {
       const flutter::EncodableMap& args,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
     const std::string surface_id = GetSurfaceId(args);
+    PresentLog("disposeTexture request surface=" + surface_id);
     std::shared_ptr<SurfaceState> surface;
     {
       std::lock_guard<std::mutex> lock(surfaces_mutex_);
@@ -382,11 +520,16 @@ struct RustLibMisaRinPlugin::Impl {
 
     if (surface) {
       std::lock_guard<std::mutex> lock(surface->mutex);
+      PresentLog("disposeTexture surface=" + surface_id +
+                 " handle=" + std::to_string(surface->engine_handle) +
+                 " texture=" + std::to_string(surface->texture_id));
       UnregisterTextureLocked(surface);
       if (surface->engine_handle != 0) {
         engine_dispose(surface->engine_handle);
         surface->engine_handle = 0;
       }
+    } else {
+      PresentLog("disposeTexture missing surface=" + surface_id);
     }
     result->Success();
   }
@@ -415,6 +558,10 @@ struct RustLibMisaRinPlugin::Impl {
   }
 
   void FrameLoop() {
+    int64_t interval_us = QueryRefreshIntervalUs();
+    auto next_refresh_check = std::chrono::steady_clock::now();
+    auto next_tick = std::chrono::steady_clock::now() +
+                     std::chrono::microseconds(interval_us);
     while (running_.load()) {
       std::vector<std::shared_ptr<SurfaceState>> entries;
       {
@@ -433,7 +580,16 @@ struct RustLibMisaRinPlugin::Impl {
               texture_registrar_, texture_id);
         }
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      auto now = std::chrono::steady_clock::now();
+      if (now >= next_refresh_check) {
+        interval_us = QueryRefreshIntervalUs();
+        next_refresh_check = now + std::chrono::seconds(1);
+      }
+      if (next_tick <= now) {
+        next_tick = now + std::chrono::microseconds(interval_us);
+      }
+      std::this_thread::sleep_until(next_tick);
+      next_tick += std::chrono::microseconds(interval_us);
     }
   }
 
@@ -442,7 +598,13 @@ struct RustLibMisaRinPlugin::Impl {
       return;
     }
     const int64_t texture_id = surface->texture_id;
+    PresentLog("unregister texture surface=" + surface->surface_id +
+               " texture=" + std::to_string(texture_id));
     surface->texture_id = -1;
+    surface->waiting_first_frame = false;
+    surface->first_frame_start_ms = 0;
+    surface->last_first_frame_log_ms = 0;
+    surface->first_frame_poll_count = 0;
 
     auto binding = surface->binding;
     surface->binding.reset();

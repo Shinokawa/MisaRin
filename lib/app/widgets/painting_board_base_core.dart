@@ -987,6 +987,8 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     Size? engineSize,
     bool isNewEngine,
   ) {
+    final int? prevHandle = _backendCanvasEngineHandle;
+    final Size? prevSize = _backendCanvasEngineSize;
     final bool handleChanged = _backendCanvasEngineHandle != handle;
     final bool sizeChanged = _backendCanvasEngineSize != engineSize;
     final bool engineReset = handleChanged || sizeChanged || isNewEngine;
@@ -1003,9 +1005,13 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       final String sizeText = engineSize == null
           ? 'null'
           : '${engineSize.width.round()}x${engineSize.height.round()}';
+      final String prevSizeText = prevSize == null
+          ? 'null'
+          : '${prevSize.width.round()}x${prevSize.height.round()}';
       debugPrint(
-        'paintingBoard: backend engine info handle=$handle '
-        'size=$sizeText newEngine=$isNewEngine',
+        'paintingBoard: backend engine info surfaceKey=${widget.surfaceKey} '
+        'handle=$handle prevHandle=$prevHandle '
+        'size=$sizeText prevSize=$prevSizeText newEngine=$isNewEngine',
       );
       if (kDebugMode &&
           defaultTargetPlatform == TargetPlatform.iOS &&
@@ -1298,8 +1304,22 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (_backendPixelsSyncedHandle == handle) {
       return;
     }
+    debugPrint(
+      'paintingBoard: sync backend pixels start surfaceKey=${widget.surfaceKey} '
+      'handle=$handle prevSynced=$_backendPixelsSyncedHandle '
+      'layers=${_controller.layers.length}',
+    );
     if (_syncAllLayerPixelsToBackend()) {
       _backendPixelsSyncedHandle = handle;
+      debugPrint(
+        'paintingBoard: sync backend pixels ok surfaceKey=${widget.surfaceKey} '
+        'handle=$handle',
+      );
+    } else {
+      debugPrint(
+        'paintingBoard: sync backend pixels failed surfaceKey=${widget.surfaceKey} '
+        'handle=$handle',
+      );
     }
   }
 

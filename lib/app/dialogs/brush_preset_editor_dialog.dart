@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show Localizations;
 
 import '../../brushes/brush_library.dart';
@@ -10,6 +11,11 @@ import '../../canvas/canvas_tools.dart' show BrushShape;
 import '../debug/brush_preset_timeline.dart';
 import '../dialogs/misarin_dialog.dart';
 import '../l10n/l10n.dart';
+
+const bool _kBrushPresetEditLog = bool.fromEnvironment(
+  'MISA_RIN_BRUSH_PREVIEW_LOG',
+  defaultValue: false,
+);
 
 Future<BrushPreset?> showBrushPresetEditorDialog(
   BuildContext context, {
@@ -194,7 +200,15 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     if (onChanged == null || !mounted) {
       return;
     }
-    onChanged(buildPreset());
+    final BrushPreset updated = buildPreset();
+    if (_kBrushPresetEditLog) {
+      debugPrint(
+        '[brush-editor] changed id=${updated.id} '
+        'aa=${updated.antialiasLevel} snap=${updated.snapToPixel} '
+        'hardness=${updated.hardness} flow=${updated.flow}',
+      );
+    }
+    onChanged(updated);
   }
 
   void _setAndNotify(VoidCallback update) {

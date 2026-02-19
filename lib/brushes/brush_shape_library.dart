@@ -189,7 +189,25 @@ class BrushShapeLibrary {
     File file = File(p.join(directory.path, fileName));
     if (await file.exists()) {
       final Uint8List existing = await file.readAsBytes();
-      if (!_bytesEqual(existing, bytes)) {
+      if (!_shapeBytesEqual(existing, bytes, type)) {
+        final String prefix = '${sanitized}_';
+        await for (final FileSystemEntity entry in directory.list()) {
+          if (entry is! File) {
+            continue;
+          }
+          final String entryName = p.basename(entry.path);
+          if (!entryName.startsWith(prefix)) {
+            continue;
+          }
+          if (p.extension(entryName).toLowerCase() != '.${extension}') {
+            continue;
+          }
+          final Uint8List entryBytes = await entry.readAsBytes();
+          if (_shapeBytesEqual(entryBytes, bytes, type)) {
+            await refresh();
+            return resolve(p.basenameWithoutExtension(entry.path));
+          }
+        }
         int suffix = 2;
         while (await file.exists()) {
           fileName = '${sanitized}_$suffix.$extension';
@@ -431,6 +449,45 @@ class BrushShapeLibrary {
       }
     }
     return out;
+  }
+
+  static bool _shapeBytesEqual(
+    Uint8List a,
+    Uint8List b,
+    BrushShapeFileType type,
+  ) {
+    if (type == BrushShapeFileType.svg) {
+      final Uint8List normalizedA = _normalizeLineEndings(a);
+      final Uint8List normalizedB = _normalizeLineEndings(b);
+      return _bytesEqual(normalizedA, normalizedB);
+    }
+    return _bytesEqual(a, b);
+  }
+
+  static Uint8List _normalizeLineEndings(Uint8List bytes) {
+    bool changed = false;
+    final Uint8List out = Uint8List(bytes.length);
+    int outIndex = 0;
+    int i = 0;
+    while (i < bytes.length) {
+      final int byte = bytes[i++];
+      if (byte == 0x0d) {
+        changed = true;
+        if (i < bytes.length && bytes[i] == 0x0a) {
+          i += 1;
+        }
+        out[outIndex++] = 0x0a;
+        continue;
+      }
+      out[outIndex++] = byte;
+    }
+    if (!changed) {
+      return bytes;
+    }
+    if (outIndex == out.length) {
+      return out;
+    }
+    return Uint8List.sublistView(out, 0, outIndex);
   }
 
   static bool _bytesEqual(Uint8List a, Uint8List b) {

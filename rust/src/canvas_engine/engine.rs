@@ -25,8 +25,8 @@ use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
 use super::layers::LayerTextures;
 use super::present::{
     attach_present_texture, create_present_params_buffer, create_present_transform_buffer,
-    signal_frame_ready, write_present_config, write_present_transform, PresentRenderer,
-    PresentTarget,
+    copy_render_to_shared, signal_frame_ready, write_present_config, write_present_transform,
+    PresentRenderer, PresentTarget,
 };
 use super::preview::{PreviewConfig, PreviewRenderer, PreviewSegment};
 #[cfg(target_os = "windows")]
@@ -47,6 +47,45 @@ const RESAMPLE_BACKLOG_SMALL: u64 = 24;
 const RESAMPLE_BACKLOG_MEDIUM: u64 = 64;
 const RESAMPLE_BACKLOG_LARGE: u64 = 128;
 const RESAMPLE_BACKLOG_XL: u64 = 256;
+
+#[cfg(target_os = "windows")]
+const PRESENT_WAIT_LOG_EVERY: u64 = 120;
+#[cfg(target_os = "windows")]
+static PRESENT_WAIT_ACCUM_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+static PRESENT_WAIT_MAX_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+static PRESENT_WAIT_COUNT: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(target_os = "windows")]
+fn record_present_wait(waited_us: u64) {
+    PRESENT_WAIT_ACCUM_US.fetch_add(waited_us, Ordering::Relaxed);
+    let mut prev = PRESENT_WAIT_MAX_US.load(Ordering::Relaxed);
+    while waited_us > prev {
+        match PRESENT_WAIT_MAX_US.compare_exchange(
+            prev,
+            waited_us,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break,
+            Err(next) => prev = next,
+        }
+    }
+    let count = PRESENT_WAIT_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    if count % PRESENT_WAIT_LOG_EVERY == 0 {
+        let sum = PRESENT_WAIT_ACCUM_US.swap(0, Ordering::Relaxed);
+        let max = PRESENT_WAIT_MAX_US.swap(0, Ordering::Relaxed);
+        let avg_ms = (sum as f64) / (PRESENT_WAIT_LOG_EVERY as f64) / 1000.0;
+        let max_ms = (max as f64) / 1000.0;
+        debug::log(
+            LogLevel::Info,
+            format_args!(
+                "[perf] present wait avg={avg_ms:.2}ms max={max_ms:.2}ms"
+            ),
+        );
+    }
+}
 
 pub(crate) enum EngineCommand {
     AttachPresentTexture {
@@ -233,6 +272,7 @@ pub(crate) struct EngineInputBatch {
 pub(crate) struct EngineEntry {
     pub(crate) mtl_device_ptr: usize,
     pub(crate) frame_ready: Arc<AtomicBool>,
+    pub(crate) frame_in_flight: Arc<AtomicBool>,
     pub(crate) cmd_tx: mpsc::Sender<EngineCommand>,
     pub(crate) input_tx: mpsc::Sender<EngineInputBatch>,
     pub(crate) input_queue_len: Arc<AtomicU64>,
@@ -1070,6 +1110,7 @@ fn spawn_render_thread(
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
+    frame_in_flight: Arc<AtomicBool>,
     input_queue_len: Arc<AtomicU64>,
     canvas_width: u32,
     canvas_height: u32,
@@ -1084,6 +1125,7 @@ fn spawn_render_thread(
                 cmd_rx,
                 input_rx,
                 frame_ready,
+                frame_in_flight,
                 input_queue_len,
                 canvas_width,
                 canvas_height,
@@ -1098,6 +1140,7 @@ fn render_thread_main(
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
+    frame_in_flight: Arc<AtomicBool>,
     input_queue_len: Arc<AtomicU64>,
     canvas_width: u32,
     canvas_height: u32,
@@ -1183,6 +1226,8 @@ fn render_thread_main(
     let mut preview_state: Option<PreviewStrokeState> = None;
     let mut selection_mask_active = false;
     let mut spray_active_layer: Option<u32> = None;
+    let mut pending_present = false;
+    let mut pending_present_since: Option<Instant> = None;
 
     loop {
         match &present {
@@ -1236,12 +1281,13 @@ fn render_thread_main(
                     // initial frame (e.g. white background layer).
                     if outcome.needs_render {
                         if let Some(target) = &present {
-                            present_renderer.render(
+                            present_renderer.render_present(
                                 device.as_ref(),
                                 queue.as_ref(),
                                 &present_bind_group,
-                                &target.view,
+                                target,
                                 Arc::clone(&frame_ready),
+                                Arc::clone(&frame_in_flight),
                             );
                         }
                     }
@@ -1392,6 +1438,20 @@ fn render_thread_main(
                     );
                     let preview_active = preview_state.is_some() || preview_allowed;
                     let has_down = raw_points.iter().any(|p| (p.flags & FLAG_DOWN) != 0);
+                    let has_up = raw_points.iter().any(|p| (p.flags & FLAG_UP) != 0);
+                    if debug::level() >= LogLevel::Info && (has_down || has_up) {
+                        debug::log(
+                            LogLevel::Info,
+                            format_args!(
+                                "input batch points={} down={} up={} active_layer={} preview_allowed={}",
+                                raw_points.len(),
+                                has_down,
+                                has_up,
+                                active_layer_index,
+                                preview_allowed
+                            ),
+                        );
+                    }
                     if has_down {
                         if let Some(mut animation) = streamline_animation.take() {
                             if let Some(state) = preview_state.take() {
@@ -1934,77 +1994,138 @@ fn render_thread_main(
                 }
 
                 if needs_render {
+                    if !pending_present {
+                        pending_present_since = Some(Instant::now());
+                    }
+                    pending_present = true;
+                }
+
+                if pending_present {
                     if let Some(target) = &present {
-                        if debug::level() >= LogLevel::Info {
-                            debug::log(
-                                LogLevel::Info,
-                                format_args!(
-                                    "present render call seq={} active_layer={} streamline_active={}",
-                                    debug::next_seq(),
-                                    active_layer_index,
-                                    streamline_animation.is_some()
-                                ),
-                            );
-                        }
-                        if let Some(state) = preview_state.as_ref() {
-                            present_renderer.render_base(
-                                device.as_ref(),
-                                queue.as_ref(),
-                                &present_bind_group,
-                                &target.view,
-                            );
-                            let layer_idx = state.layer_index as usize;
-                            let layer_visible_value =
-                                layer_visible.get(layer_idx).copied().unwrap_or(true);
-                            let layer_opacity_value =
-                                layer_opacity.get(layer_idx).copied().unwrap_or(1.0);
-                            if layer_visible_value && layer_opacity_value > 0.0001 {
-                                let preview_points: &[(
-                                    Point2D,
-                                    f32,
-                                )] = if let Some(animation) = streamline_animation.as_ref() {
-                                    if animation.scratch.is_empty() {
-                                        state.points.as_slice()
-                                    } else {
-                                        animation.scratch.as_slice()
-                                    }
-                                } else {
-                                    state.points.as_slice()
-                                };
-                                if !preview_points.is_empty() {
-                                    let segments =
-                                        build_preview_segments(preview_points, &state.brush_settings);
-                                    if !segments.is_empty() {
-                                        let preview = preview_renderer
-                                            .get_or_insert_with(|| PreviewRenderer::new(device.as_ref()));
-                                        let config = build_preview_config(
-                                            &state.brush_settings,
-                                            canvas_width,
-                                            canvas_height,
-                                            view_flags,
-                                            layer_opacity_value,
-                                        );
-                                        preview.render(
-                                            device.as_ref(),
-                                            queue.as_ref(),
-                                            &target.view,
-                                            config,
-                                            &segments,
-                                            state.use_accumulate,
-                                        );
-                                    }
+                        let mut block_present = if cfg!(target_os = "windows") {
+                            frame_in_flight.load(Ordering::Acquire)
+                                || frame_ready.load(Ordering::Acquire)
+                        } else {
+                            false
+                        };
+                        let mut forced_present = false;
+                        if block_present && cfg!(target_os = "windows") {
+                            if let Some(since) = pending_present_since {
+                                if since.elapsed() >= Duration::from_millis(100) {
+                                    block_present = false;
+                                    forced_present = true;
                                 }
                             }
-                            signal_frame_ready(queue.as_ref(), Arc::clone(&frame_ready));
-                        } else {
-                            present_renderer.render(
-                                device.as_ref(),
-                                queue.as_ref(),
-                                &present_bind_group,
-                                &target.view,
-                                Arc::clone(&frame_ready),
-                            );
                         }
+                        if block_present {
+                            // Avoid overwriting a frame that is still in-flight or unconsumed.
+                        } else {
+                            #[cfg(target_os = "windows")]
+                            if let Some(since) = pending_present_since {
+                                record_present_wait(since.elapsed().as_micros() as u64);
+                            }
+                            pending_present = false;
+                            pending_present_since = None;
+                            if forced_present {
+                                debug::log(
+                                    LogLevel::Warn,
+                                    format_args!(
+                                        "present render forced after stalled ready frame seq={} active_layer={}",
+                                        debug::next_seq(),
+                                        active_layer_index,
+                                    ),
+                                );
+                            }
+                            if debug::level() >= LogLevel::Info {
+                                debug::log(
+                                    LogLevel::Info,
+                                    format_args!(
+                                        "present render call seq={} active_layer={} streamline_active={}",
+                                        debug::next_seq(),
+                                        active_layer_index,
+                                        streamline_animation.is_some()
+                                    ),
+                                );
+                            }
+                            if let Some(state) = preview_state.as_ref() {
+                                present_renderer.render_base(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    &present_bind_group,
+                                    target.render_view(),
+                                );
+                                let layer_idx = state.layer_index as usize;
+                                let layer_visible_value =
+                                    layer_visible.get(layer_idx).copied().unwrap_or(true);
+                                let layer_opacity_value =
+                                    layer_opacity.get(layer_idx).copied().unwrap_or(1.0);
+                                if layer_visible_value && layer_opacity_value > 0.0001 {
+                                    let preview_points: &[(
+                                        Point2D,
+                                        f32,
+                                    )] = if let Some(animation) = streamline_animation.as_ref() {
+                                        if animation.scratch.is_empty() {
+                                            state.points.as_slice()
+                                        } else {
+                                            animation.scratch.as_slice()
+                                        }
+                                    } else {
+                                        state.points.as_slice()
+                                    };
+                                    if !preview_points.is_empty() {
+                                        let segments = build_preview_segments(
+                                            preview_points,
+                                            &state.brush_settings,
+                                        );
+                                        if !segments.is_empty() {
+                                            let preview = preview_renderer.get_or_insert_with(
+                                                || PreviewRenderer::new(device.as_ref()),
+                                            );
+                                            let config = build_preview_config(
+                                                &state.brush_settings,
+                                                canvas_width,
+                                                canvas_height,
+                                                view_flags,
+                                                layer_opacity_value,
+                                            );
+                                            preview.render(
+                                                device.as_ref(),
+                                                queue.as_ref(),
+                                                target.render_view(),
+                                                config,
+                                                &segments,
+                                                state.use_accumulate,
+                                            );
+                                        }
+                                    }
+                                }
+                                if target.shared_texture().is_some() {
+                                    let mut encoder = device.create_command_encoder(
+                                        &wgpu::CommandEncoderDescriptor {
+                                            label: Some("misa-rin present copy encoder"),
+                                        },
+                                    );
+                                    copy_render_to_shared(&mut encoder, target);
+                                    queue.submit(Some(encoder.finish()));
+                                }
+                                signal_frame_ready(
+                                    queue.as_ref(),
+                                    Arc::clone(&frame_ready),
+                                    Arc::clone(&frame_in_flight),
+                                );
+                            } else {
+                                present_renderer.render_present(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    &present_bind_group,
+                                    target,
+                                    Arc::clone(&frame_ready),
+                                    Arc::clone(&frame_in_flight),
+                                );
+                            }
+                        }
+                    } else {
+                        pending_present = false;
                     }
                 }
             }
@@ -2214,22 +2335,38 @@ fn handle_engine_command(
                     new_canvas_size: None,
                 };
             }
-            if let Some(existing) = present.as_ref() {
+            if let Some(existing) = present.as_mut() {
                 if existing.width == width && existing.height == height {
-                    let _ = reply.send(existing.dxgi_handle());
-                    return EngineCommandOutcome {
-                        stop: false,
-                        needs_render: false,
-                        new_canvas_size: None,
-                    };
+                    if let Some(handle) = existing.take_dxgi_handle() {
+                        debug::log(
+                            LogLevel::Info,
+                            format_args!(
+                                "AttachPresentDxgi reuse size={width}x{height} shared=0x{handle:x}"
+                            ),
+                        );
+                        let _ = reply.send(Some(handle));
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                            new_canvas_size: None,
+                        };
+                    }
                 }
             }
 
             match create_dxgi_shared_present_target(device.as_ref(), width, height) {
-                Ok(target) => {
-                    let handle = target.dxgi_handle();
+                Ok(mut target) => {
+                    let handle = target.take_dxgi_handle();
                     *present = Some(target);
                     if handle.is_some() {
+                        if let Some(shared) = handle {
+                            debug::log(
+                                LogLevel::Info,
+                                format_args!(
+                                    "AttachPresentDxgi ok size={width}x{height} shared=0x{shared:x}"
+                                ),
+                            );
+                        }
                         // Initialize layers so the first composite is deterministic.
                         // Layer 0 is the background fill layer (default white), others start transparent.
                         layer_uniform.resize(*layer_count, None);
@@ -5380,6 +5517,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     let (input_tx, input_rx) = mpsc::channel();
     let input_queue_len = Arc::new(AtomicU64::new(0));
     let frame_ready = Arc::new(AtomicBool::new(false));
+    let frame_in_flight = Arc::new(AtomicBool::new(false));
     spawn_render_thread(
         Arc::clone(&ctx.device),
         Arc::clone(&ctx.queue),
@@ -5387,6 +5525,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
         cmd_rx,
         input_rx,
         Arc::clone(&frame_ready),
+        Arc::clone(&frame_in_flight),
         Arc::clone(&input_queue_len),
         width,
         height,
@@ -5401,6 +5540,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
         EngineEntry {
             mtl_device_ptr,
             frame_ready,
+            frame_in_flight,
             cmd_tx,
             input_tx,
             input_queue_len,
@@ -5419,6 +5559,7 @@ pub(crate) fn lookup_engine(handle: u64) -> Option<EngineEntry> {
     Some(EngineEntry {
         mtl_device_ptr: entry.mtl_device_ptr,
         frame_ready: Arc::clone(&entry.frame_ready),
+        frame_in_flight: Arc::clone(&entry.frame_in_flight),
         cmd_tx: entry.cmd_tx.clone(),
         input_tx: entry.input_tx.clone(),
         input_queue_len: Arc::clone(&entry.input_queue_len),

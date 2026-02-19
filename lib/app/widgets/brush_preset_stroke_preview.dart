@@ -18,6 +18,10 @@ import '../debug/brush_preset_timeline.dart';
 import '../../src/rust/rust_cpu_brush_ffi.dart';
 
 const double _kPreviewPadding = 4.0;
+const bool _kPreviewLog = bool.fromEnvironment(
+  'MISA_RIN_BRUSH_PREVIEW_LOG',
+  defaultValue: false,
+);
 
 class BrushPresetStrokePreview extends StatefulWidget {
   const BrushPresetStrokePreview({
@@ -59,7 +63,8 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
               : widget.height * 3.0;
           final Size size = Size(width, widget.height);
           _ensurePreview(context, size);
-          if (_image != null && RustCpuBrushFfi.instance.isSupported) {
+          final bool rustSupported = RustCpuBrushFfi.instance.isSupported;
+          if (_image != null && rustSupported) {
             return RawImage(
               image: _image,
               width: size.width,
@@ -70,12 +75,15 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
                   : FilterQuality.high,
             );
           }
-          return CustomPaint(
-            painter: _BrushPresetStrokeFallbackPainter(
-              preset: widget.preset,
-              color: widget.color,
-            ),
-          );
+          if (kIsWeb) {
+            return CustomPaint(
+              painter: _BrushPresetStrokeFallbackPainter(
+                preset: widget.preset,
+                color: widget.color,
+              ),
+            );
+          }
+          return const SizedBox();
         },
       ),
     );
@@ -120,6 +128,15 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
     if (nextSignature == _signature) {
       return;
     }
+    if (_kPreviewLog) {
+      debugPrint(
+        '[brush-preview] schedule id=${preset.id} '
+        'size=${pixelWidth}x${pixelHeight} scale=$scale '
+        'aa=${preset.antialiasLevel} snap=${preset.snapToPixel} '
+        'hardness=${preset.hardness} flow=${preset.flow} '
+        'shape=${preset.shape} rustSupported=${RustCpuBrushFfi.instance.isSupported}',
+      );
+    }
     _signature = nextSignature;
     if (BrushPresetTimeline.enabled) {
       BrushPresetTimeline.mark(
@@ -156,6 +173,12 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       BrushPresetTimeline.mark(
         'preview_done id=${preset.id} ${pixelWidth}x${pixelHeight} '
         't=${stopwatch.elapsedMilliseconds}ms image=${image != null}',
+      );
+    }
+    if (_kPreviewLog) {
+      debugPrint(
+        '[brush-preview] done id=${preset.id} image=${image != null} '
+        'aa=${preset.antialiasLevel} snap=${preset.snapToPixel}',
       );
     }
     if (!mounted || token != _renderToken) {
@@ -310,6 +333,15 @@ Future<ui.Image?> _buildPreviewImage({
         erase: true,
         radiusScale: preset.hollowRatio.clamp(0.0, 1.0),
         customShape: customShape,
+      );
+    }
+
+    if (_kPreviewLog) {
+      final _AlphaStats stats = _computeAlphaStats(surface.pixels);
+      debugPrint(
+        '[brush-preview] alpha id=${preset.id} aa=$antialias '
+        'nonZero=${stats.nonZero} partial=${stats.partial} '
+        'min=${stats.min} max=${stats.max}',
       );
     }
 
@@ -611,6 +643,53 @@ double _strokeStampSpacing(double radius, double spacing) {
   }
   s = s.clamp(0.02, 2.5);
   return math.max(r * 2.0 * s, 0.1);
+}
+
+class _AlphaStats {
+  const _AlphaStats({
+    required this.nonZero,
+    required this.partial,
+    required this.min,
+    required this.max,
+  });
+
+  final int nonZero;
+  final int partial;
+  final int min;
+  final int max;
+}
+
+_AlphaStats _computeAlphaStats(Uint32List pixels) {
+  int nonZero = 0;
+  int partial = 0;
+  int minAlpha = 255;
+  int maxAlpha = 0;
+  for (final int argb in pixels) {
+    final int alpha = (argb >> 24) & 0xff;
+    if (alpha == 0) {
+      continue;
+    }
+    nonZero += 1;
+    if (alpha < minAlpha) {
+      minAlpha = alpha;
+    }
+    if (alpha > maxAlpha) {
+      maxAlpha = alpha;
+    }
+    if (alpha < 255) {
+      partial += 1;
+    }
+  }
+  if (nonZero == 0) {
+    minAlpha = 0;
+    maxAlpha = 0;
+  }
+  return _AlphaStats(
+    nonZero: nonZero,
+    partial: partial,
+    min: minAlpha,
+    max: maxAlpha,
+  );
 }
 
 Uint8List _argbToRgba(Uint32List pixels) {

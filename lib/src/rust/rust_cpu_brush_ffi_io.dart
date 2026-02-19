@@ -6,6 +6,11 @@ import 'package:ffi/ffi.dart';
 import 'api/cpu_brush.dart' as rust;
 import 'rust_dylib.dart';
 
+const bool _kRustCpuBrushLog = bool.fromEnvironment(
+  'MISA_RIN_RUST_CPU_BRUSH_LOG',
+  defaultValue: false,
+);
+
 typedef _RustCpuBrushDrawStampNative =
     ffi.Uint8 Function(
       ffi.Pointer<ffi.Uint32> pixels,
@@ -283,6 +288,14 @@ class RustCpuBrushFfi {
         _drawStampSegment = null;
       }
       isSupported = true;
+      if (_kRustCpuBrushLog) {
+        print(
+          'RustCpuBrushFfi ready: '
+          'drawStampSegment=${_drawStampSegment != null} '
+          'drawSpray=${_drawSpray != null} '
+          'applyStreamline=${_applyStreamline != null}',
+        );
+      }
     } catch (error, stackTrace) {
       isSupported = false;
       if (!_loggedInitFailure) {
